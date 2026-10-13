@@ -102,12 +102,12 @@ async function failingChain(
 test("a chain's session counter grows with the calls it serves", { tag: ["@engine", "@infra", "@tier1"] }, async ({ request, env }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   const chain = seedChain(readCorpusState(), "script");
-  const url = `${env.url("engine")}/actuator/prometheus`;
+  const url = env.engineMetricsUrl();
 
   const exposition = await meters(request, url);
   expect(
     exposition,
-    "the engine publishes no chain meters, or /actuator/prometheus did not answer: " +
+    `the engine publishes no chain meters, or ${url} did not answer: ` +
       "cip.metrics.enabled reads MONITORING_ENABLED, and infrastructure/docker/engine-dev.env is where " +
       "Compose sets it",
   ).toContain("qip_engine_sessions_counter_total");
@@ -157,7 +157,7 @@ test("a chain's session counter grows with the calls it serves", { tag: ["@engin
 
 test("a chain that ends in a failure increments the failure counter", { tag: ["@engine", "@catalog", "@infra", "@tier1"] }, async ({ request, env, catalog, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
-  const url = `${env.url("engine")}/actuator/prometheus`;
+  const url = env.engineMetricsUrl();
 
   // The accumulator is bound out here and filled inside the `try`, because a chain that throws
   // partway through building is one the `finally` still has to release.

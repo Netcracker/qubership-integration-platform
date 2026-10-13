@@ -40,6 +40,13 @@ export interface Env {
    */
   chainUrl(contextPath: string): string;
   /**
+   * Base URL of the engine this environment's chains run on: the `engine` role's own port for
+   * `classic`, the micro domain's Service through the proxy's `/e2e/svc/` location for `micro`.
+   */
+  engineUrl(): string;
+  /** Where that engine serves its Prometheus meters: `/actuator/prometheus` classic, `/metrics` micro. */
+  engineMetricsUrl(): string;
+  /**
    * A page of the UI, as a link a person opens.
    *
    * The proxy on 8080, never port 4200: the UI reaches the services through nginx, so a page opened

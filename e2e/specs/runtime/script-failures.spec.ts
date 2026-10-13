@@ -146,14 +146,14 @@ test("a script naming a class the engine cannot resolve parks the deployment and
     // deploy and cannot be.
     const retryMark = `Deployment marked for retry ${await deploymentIdOf(catalog, chain.id)}`;
     await expect
-      .poll(async () => occurrences(await env.logs("engine", since), retryMark), {
+      .poll(async () => occurrences(await env.engineLogs(since), retryMark), {
         timeout: RETRY_DELAY * 2 + DEPLOY_TIMEOUT,
         intervals: [2_000],
         message: "the parked deployment was compiled once and never retried",
       })
       .toBeGreaterThanOrEqual(COMPILE_ATTEMPTS);
 
-    const log = await env.logs("engine", since);
+    const log = await env.engineLogs(since);
     // The exception type is what makes the retry a contract rather than an accident of scheduling,
     // and the class is what it failed on. The class name is this fixture's own, so the window is
     // scope enough for both.

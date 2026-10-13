@@ -136,7 +136,7 @@ for (const value of [true, false]) {
 async function loggedLevels(env: Env, since: string, token: string): Promise<string[]> {
   // Both engines' patterns close the MDC block with `] %m`.
   const message = `] ${LOG_MESSAGE_PREFIX} ${token}`;
-  return (await env.logs("engine", since))
+  return (await env.engineLogs(since))
     .split("\n")
     .filter((line) => line.trimEnd().endsWith(message))
     .map((line) => /^\[[^\]]+\] \[(\w+)\s*\]/.exec(line)?.[1] ?? line);
@@ -404,7 +404,7 @@ test("mcp-trigger: a deployed chain is an MCP tool that runs the chain, and unde
     await catalog.deploy(chain.id, (await catalog.createSnapshot(chain.id)).id);
     await waitForDeployed(catalog, [chain]);
 
-    const mcp = new McpSession(request, `${env.url("engine")}/mcp`);
+    const mcp = new McpSession(request, `${env.engineUrl()}/mcp`);
     await mcp.open();
     let tool: Tool | undefined;
     await expect.poll(async () => (tool = (await mcp.tools()).find((each) => each.name === toolName)) !== undefined, { timeout: DEPLOY_TIMEOUT, message: `tools/list never offered ${toolName}` }).toBe(true);
