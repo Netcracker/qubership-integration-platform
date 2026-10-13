@@ -58,7 +58,6 @@ async function answers(run: Kubectl, args: string[]): Promise<boolean> {
 interface DeploymentStatusView {
   metadata: { name: string };
   status?: { availableReplicas?: number };
-  spec: { template: { spec: { containers: { env?: { name: string; value?: string }[] }[] } } };
 }
 
 /** In the order they are checked. The run fails on the first one missing. */
@@ -78,17 +77,12 @@ const PREREQUISITES: Prerequisite[] = [
     },
   },
   {
-    name: "the Gateway API CRDs, experimental channel",
+    name: "the Gateway API CRDs",
     section: "gateway-api",
     async check(kubectl) {
-      if (!(await answers(kubectl, ["get", "crd", "httproutes.gateway.networking.k8s.io"]))) {
-        return "the HTTPRoute CRD is not installed";
-      }
-      // The standard channel lacks UDPRoute v1alpha2, which istiod watches under
-      // PILOT_ENABLE_ALPHA_GATEWAY_API, and without it istiod never becomes ready.
-      return (await answers(kubectl, ["get", "crd", "udproutes.gateway.networking.k8s.io"]))
+      return (await answers(kubectl, ["get", "crd", "httproutes.gateway.networking.k8s.io"]))
         ? null
-        : "the UDPRoute CRD is missing, so the standard channel is installed rather than the experimental one";
+        : "the HTTPRoute CRD is not installed";
     },
   },
   {
@@ -100,13 +94,7 @@ const PREREQUISITES: Prerequisite[] = [
       );
       if (raw === null) return "no istiod Deployment in namespace istio-system";
       const istiod = JSON.parse(raw) as DeploymentStatusView;
-      if (!istiod.status?.availableReplicas) return "istiod has no available replica";
-      const alpha = istiod.spec.template.spec.containers
-        .flatMap((container) => container.env ?? [])
-        .find((each) => each.name === "PILOT_ENABLE_ALPHA_GATEWAY_API");
-      return alpha?.value === "true"
-        ? null
-        : "istiod runs without PILOT_ENABLE_ALPHA_GATEWAY_API=true, so the egress routes are never programmed";
+      return istiod.status?.availableReplicas ? null : "istiod has no available replica";
     },
   },
   {

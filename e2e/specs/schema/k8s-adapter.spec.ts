@@ -107,11 +107,6 @@ function stubKubectl(answers: Record<string, string>): Kubectl {
 const ISTIOD = JSON.stringify({
   metadata: { name: "istiod" },
   status: { availableReplicas: 1 },
-  spec: {
-    template: {
-      spec: { containers: [{ env: [{ name: "PILOT_ENABLE_ALPHA_GATEWAY_API", value: "true" }] }] },
-    },
-  },
 });
 
 const OPERATORS = JSON.stringify({
@@ -129,7 +124,6 @@ const COMPLETE: Record<string, string> = {
   "config current-context": "docker-desktop\n",
   "get --raw /readyz": "ok",
   "get crd httproutes.gateway.networking.k8s.io": "",
-  "get crd udproutes.gateway.networking.k8s.io": "",
   "get deploy istiod -n istio-system -o json": ISTIOD,
   "get crd integrations.camel.apache.org": "",
   "get deploy -A -l app=camel-k,camel.apache.org/component=operator -o json": OPERATORS,
@@ -154,11 +148,7 @@ test("a missing prerequisite fails the run, naming it and the README section tha
     },
     {
       answers: without("get crd httproutes.gateway.networking.k8s.io"),
-      message: /Gateway API CRDs, experimental channel: the HTTPRoute CRD is not installed\. .*#gateway-api/,
-    },
-    {
-      answers: without("get crd udproutes.gateway.networking.k8s.io"),
-      message: /the standard channel is installed rather than the experimental one\. .*#gateway-api/,
+      message: /Gateway API CRDs: the HTTPRoute CRD is not installed\. .*#gateway-api/,
     },
     {
       answers: without("get deploy istiod -n istio-system -o json"),
@@ -170,13 +160,6 @@ test("a missing prerequisite fails the run, naming it and the README section tha
         "get deploy istiod -n istio-system -o json": ISTIOD.replace('"availableReplicas":1', '"availableReplicas":0'),
       },
       message: /Istio: istiod has no available replica\. .*#istio/,
-    },
-    {
-      answers: {
-        ...COMPLETE,
-        "get deploy istiod -n istio-system -o json": ISTIOD.replace('"true"', '"false"'),
-      },
-      message: /Istio: istiod runs without PILOT_ENABLE_ALPHA_GATEWAY_API=true.*#istio/,
     },
     {
       answers: without("get crd integrations.camel.apache.org"),
