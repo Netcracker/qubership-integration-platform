@@ -24,8 +24,9 @@ import {
   suiteImages,
 } from "../../env/provision/k8s.js";
 import { repoRoot } from "../../env/host.js";
+import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
 import { CLASSIC_ONLY_RUNTIME_FILES, targetSetup } from "../../env/target-setup.js";
-import type { ServiceRole } from "../../env/index.js";
+import type { Overlay, ServiceRole } from "../../env/index.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
 
 const ON_K8S = {
@@ -257,10 +258,10 @@ test("the Helm arguments switch the brokers with E2E_BROKERS and keep everything
   expect(on.filter((each) => /^(kafka|rabbitmq|pubsub|sftp)\./.test(each))).toEqual([
     "kafka.enabled=true",
     "kafka.nodePort=30992",
-    "rabbitmq.enabled=true",
-    "rabbitmq.nodePort=30672",
     "pubsub.enabled=true",
     "pubsub.nodePort=30085",
+    "rabbitmq.enabled=true",
+    "rabbitmq.nodePort=30672",
     "sftp.enabled=true",
     "sftp.nodePort=30022",
     "kafka.tls.serverCert=/repo/infrastructure/kafka-ssl/server/kafka.crt",
@@ -285,8 +286,8 @@ test("the Helm arguments switch the brokers with E2E_BROKERS and keep everything
   const off = argumentsWith("0", "kind-qip");
   expect(off.filter((each) => each.endsWith(".enabled=false"))).toEqual([
     "kafka.enabled=false",
-    "rabbitmq.enabled=false",
     "pubsub.enabled=false",
+    "rabbitmq.enabled=false",
     "sftp.enabled=false",
   ]);
   expect(off.map((each) => each.replace(/\.enabled=false$/, ".enabled=true"))).toEqual(on);
@@ -370,19 +371,24 @@ function recordingKubectl(pods: string[] = []): { calls: string[]; run: Kubectl 
   };
 }
 
-test("ensureOverlay waits for the broker's rollout, then for its host port", { tag: ["@infra", "@tier1"] }, async () => {
-  const { calls, run } = recordingKubectl();
+/** A host probe that records, per call, how many `kubectl` calls ran before it, and reports ready. */
+function recordingProbe(calls: string[]): { probed: string[]; overlayReady: (overlay: Overlay) => () => Promise<null> } {
   const probed: string[] = [];
-  const env = new K8sEnv({
-    engineKind: "classic",
-    kubectl: run,
+  return {
+    probed,
     overlayReady: (overlay) => async () => {
       probed.push(`${overlay} after ${calls.length} kubectl calls`);
       return null;
     },
-  });
+  };
+}
+
+test("ensureOverlay waits for the broker's rollout, then for its host port", { tag: ["@infra", "@tier1"] }, async () => {
+  const { calls, run } = recordingKubectl();
+  const { probed, overlayReady } = recordingProbe(calls);
+  const env = new K8sEnv({ engineKind: "classic", kubectl: run, overlayReady });
   await env.ensureOverlay("pubsub");
-  expect(calls).toEqual(["rollout status deploy/pubsub -n qip-e2e --timeout=180s"]);
+  expect(calls).toEqual([`rollout status deploy/pubsub -n qip-e2e --timeout=${OVERLAY_READY_TIMEOUT / 1000}s`]);
   expect(probed).toEqual(["pubsub after 1 kubectl calls"]);
 });
 
@@ -393,15 +399,8 @@ test("restartOverlay kills PID 1 and waits for a higher restartCount, a Ready co
     brokerPods("kafka", 2, true),
     brokerPods("kafka", 3, true),
   ]);
-  const probed: string[] = [];
-  const env = new K8sEnv({
-    engineKind: "classic",
-    kubectl: run,
-    overlayReady: (overlay) => async () => {
-      probed.push(`${overlay} after ${calls.length} kubectl calls`);
-      return null;
-    },
-  });
+  const { probed, overlayReady } = recordingProbe(calls);
+  const env = new K8sEnv({ engineKind: "classic", kubectl: run, overlayReady });
   await env.restartOverlay("kafka");
   expect(calls).toEqual([
     "get pods -n qip-e2e -l app=kafka -o json",

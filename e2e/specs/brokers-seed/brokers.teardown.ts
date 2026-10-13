@@ -12,16 +12,15 @@
  * `global` case. The cost is that `--project=global` alone runs this file without `brokers-seed`
  * ever running in the same process: `npx playwright test --list --project=global` resolves to
  * `suite-teardown` with no `brokers-seed` and no `brokers` beside it. Left ungated, this test would
- * then read whatever `.e2e-brokers-corpus.json` a *previous* run left on disk — including one kept deliberately with
- * `E2E_KEEP=1` — and tear it down: undeploy and delete its chains, and delete its Kafka topics,
- * consumer groups, RabbitMQ topology, pub/sub topology and `/upload/<run>` tree. That is exactly
- * the residue the "Broker residue" entry of `e2e/README.md` says only this test may clear, and
- * only for the run that created it. The guard below is the same fact stated in code: a corpus
- * this run's own `brokers-seed` did not write is not this run's to clear.
+ * then read whatever `BROKERS_CORPUS_STATE_FILE` a *previous* run left on disk, including one kept
+ * deliberately with `E2E_KEEP=1`, and tear it down: undeploy and delete its chains, and delete its
+ * Kafka topics, consumer groups, RabbitMQ topology, pub/sub topology and `/upload/<run>` tree. That
+ * is exactly the residue the "Broker residue" entry of `e2e/README.md` says only this test may
+ * clear, and only for the run that created it. The guard below is the same fact stated in code: a
+ * corpus this run's own `brokers-seed` did not write is not this run's to clear.
  */
 import fs from "node:fs";
-import { overlayNames } from "../../env/compose.js";
-import type { Overlay } from "../../env/index.js";
+import { OVERLAY_NAMES } from "../../env/containers.js";
 import { keepEntities, test } from "../../support/fixtures.js";
 import { BROKERS_CORPUS_STATE_FILE, readBrokersCorpusState, teardownBrokers } from "../../support/brokers.js";
 
@@ -41,5 +40,5 @@ test("the broker fixture corpus is removed", { tag: ["@engine", "@tier1"] }, asy
   await teardownBrokers(catalog, corpus);
   // A kept corpus still needs its brokers, and a failed teardown above leaves them up to inspect.
   if (keepEntities()) return;
-  for (const overlay of overlayNames()) await env.removeOverlay(overlay as Overlay);
+  for (const overlay of OVERLAY_NAMES) await env.removeOverlay(overlay);
 });

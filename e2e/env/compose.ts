@@ -13,8 +13,8 @@ import type {
 } from "./index.js";
 import { apiPath, CHAIN_ROUTE_PREFIX } from "./api-routes.js";
 import { CONTAINER, PROXY_CONTAINER } from "./compose-containers.js";
-import { proxyUrl, serviceUrl } from "./containers.js";
-import { hostReady, OVERLAY_READY_TIMEOUT } from "./overlays.js";
+import { OVERLAY_NAMES, proxyUrl, serviceUrl } from "./containers.js";
+import { awaitOverlayReady, hostReady } from "./overlays.js";
 import { composeProcessEnvelope, readPeaks } from "./resources.js";
 import { pollUntil, repoRoot } from "./host.js";
 import { forgetOverride, recordOverride } from "./overrides.js";
@@ -96,11 +96,6 @@ const OVERLAYS: Record<Overlay, OverlayDefinition> = {
   },
 };
 
-/** The overlay names the adapter knows, sorted for a stable error message. */
-export function overlayNames(): string[] {
-  return Object.keys(OVERLAYS).sort();
-}
-
 /**
  * The overlay `name` names, or a failure listing every overlay the adapter knows.
  *
@@ -112,7 +107,7 @@ export function overlayNames(): string[] {
 export function overlayDefinition(name: string): OverlayDefinition {
   const definition = OVERLAYS[name as Overlay];
   if (!definition) {
-    throw new Error(`no overlay named ${JSON.stringify(name)}. Known overlays: ${overlayNames().join(", ")}`);
+    throw new Error(`no overlay named ${JSON.stringify(name)}. Known overlays: ${OVERLAY_NAMES.join(", ")}`);
   }
   return definition;
 }
@@ -280,12 +275,7 @@ export class ComposeEnv implements Env {
       ["compose", ...files, "up", "-d", ...definition.services],
       { maxBuffer: 16 * 1024 * 1024 },
     );
-    await pollUntil(
-      OVERLAY_READY_TIMEOUT,
-      2_000,
-      definition.ready,
-      (last) => `overlay ${definition.name} did not start serving within ${OVERLAY_READY_TIMEOUT}ms (${last})`,
-    );
+    await awaitOverlayReady(overlay, definition.ready, "start serving");
   }
 
   async restartOverlay(overlay: Overlay): Promise<void> {
@@ -304,12 +294,7 @@ export class ComposeEnv implements Env {
       ["compose", ...files, "restart", definition.primary],
       { maxBuffer: 16 * 1024 * 1024 },
     );
-    await pollUntil(
-      OVERLAY_READY_TIMEOUT,
-      2_000,
-      definition.ready,
-      (last) => `overlay ${definition.name} did not resume serving within ${OVERLAY_READY_TIMEOUT}ms of a restart (${last})`,
-    );
+    await awaitOverlayReady(overlay, definition.ready, "resume serving after a restart");
     const after = await this.containerStartedAt(files, definition.primary);
     if (before && after && before === after) {
       throw new Error(
