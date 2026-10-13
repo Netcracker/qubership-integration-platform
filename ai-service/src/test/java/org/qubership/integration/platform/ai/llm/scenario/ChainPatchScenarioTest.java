@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -122,7 +123,8 @@ class ChainPatchScenarioTest {
             new CanonicalGraphDigest(objectMapper),
             new KnownFailureMapper(),
             new PinnedFailureStore(),
-            mock(ChainQuestionScenario.class));
+            mock(ChainQuestionScenario.class),
+            objectMapper);
   }
 
   @Test
@@ -339,6 +341,107 @@ class ChainPatchScenarioTest {
   }
 
   @Test
+  void revisesTheBoundProposalWithFeedbackWithoutWriting() {
+    compiles(propertyPatch("element-script", "script", "return 201"));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
+    compiles(propertyPatch("element-script", "script", "return 202"));
+    ChatRequest feedback = answer(card.artifactHash());
+    feedback.getDecision().setAction(ChatEvent.REQUEST_CHANGES_ACTION);
+    feedback.getDecision().setComment("Change the proposed return value to 202");
+
+    ChatEvent.Decision revised = decision(run(feedback));
+
+    verify(writer, never()).write(any(), any());
+    ArgumentCaptor<ChainEditRequest> captured = ArgumentCaptor.forClass(ChainEditRequest.class);
+    verify(editCompiler, times(2)).compile(captured.capture(), any());
+    ChainEditRequest revision = captured.getAllValues().get(1);
+    assertTrue(revision.userRequest().contains(card.question()), revision.userRequest());
+    assertTrue(revision.userRequest().contains(feedback.getDecision().getComment()));
+    assertTrue(revised.question().contains("return 202"));
+    assertNotEquals(card.artifactHash(), revised.artifactHash());
+  }
+
+  @Test
+  void applyWithFeedbackOffersARevisionInsteadOfWritingTheOldProposal() {
+    compiles(propertyPatch("element-script", "script", "return 201"));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
+    compiles(propertyPatch("element-script", "script", "return 202"));
+    ChatRequest feedback = answer(card.artifactHash());
+    feedback.getDecision().setComment("Change the proposed return value to 202");
+
+    ChatEvent.Decision revised = decision(run(feedback));
+
+    verify(writer, never()).write(any(), any());
+    assertTrue(revised.question().contains("return 202"));
+  }
+
+  @Test
+  void staleFeedbackCannotReplaceTheCurrentProposal() {
+    compiles(propertyPatch("element-script", "script", "return 201"));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
+    ChatRequest feedback = answer("old-patch");
+    feedback.getDecision().setAction(ChatEvent.REQUEST_CHANGES_ACTION);
+    feedback.getDecision().setComment("Change the proposed return value to 202");
+
+    List<ChatEvent> events = run(feedback);
+
+    verify(editCompiler, times(1)).compile(any(), any());
+    verify(writer, never()).write(any(), any());
+    assertTrue(text(events).contains("no longer"));
+    assertEquals(card.artifactHash(), patchStore.findProposal(CONVERSATION_ID).orElseThrow().patchHash());
+  }
+
+  @Test
+  void emptyFeedbackKeepsTheProposalAndAsksWhatToChange() {
+    compiles(propertyPatch("element-script", "script", "return 201"));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
+    ChatRequest feedback = answer(card.artifactHash());
+    feedback.getDecision().setAction(ChatEvent.REQUEST_CHANGES_ACTION);
+    feedback.getDecision().setComment("  ");
+
+    List<ChatEvent> events = run(feedback);
+
+    verify(editCompiler, times(1)).compile(any(), any());
+    verify(writer, never()).write(any(), any());
+    assertTrue(text(events).contains("what to change"));
+    assertEquals(card.artifactHash(), patchStore.findProposal(CONVERSATION_ID).orElseThrow().patchHash());
+  }
+
+  @Test
+  void feedbackReceivesTheFullPatchEvenWhenTheCardTruncatesAScript() {
+    String script = "// preserve this line\n".repeat(40) + "return 201";
+    compiles(propertyPatch("element-script", "script", script));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
+    assertFalse(card.question().contains("return 201"));
+    ChatRequest feedback = answer(card.artifactHash());
+    feedback.getDecision().setAction(ChatEvent.REQUEST_CHANGES_ACTION);
+    feedback.getDecision().setComment("Change the proposed return value to 202");
+
+    run(feedback);
+
+    ArgumentCaptor<ChainEditRequest> captured = ArgumentCaptor.forClass(ChainEditRequest.class);
+    verify(editCompiler, times(2)).compile(captured.capture(), any());
+    assertTrue(captured.getAllValues().get(1).userRequest().contains("return 201"));
+    verify(writer, never()).write(any(), any());
+  }
+
+  @Test
+  void failedRevisionKeepsTheProposalAvailable() {
+    compiles(propertyPatch("element-script", "script", "return 201"));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
+    org.mockito.Mockito.doReturn(new ChainEditOutcome.CompilationFailure("Cannot compile revision"))
+        .when(editCompiler).compile(any(), any());
+    ChatRequest feedback = answer(card.artifactHash());
+    feedback.getDecision().setAction(ChatEvent.REQUEST_CHANGES_ACTION);
+    feedback.getDecision().setComment("Change the proposed return value to 202");
+
+    assertTrue(text(run(feedback)).contains("Cannot compile revision"));
+
+    assertEquals(card.artifactHash(), patchStore.findProposal(CONVERSATION_ID).orElseThrow().patchHash());
+    verify(writer, never()).write(any(), any());
+  }
+
+  @Test
   void refusesToWriteOverAChainThatChangedWhileTheCardWasOpen() {
     compiles(propertyPatch("element-script", "script", "return 201"));
     ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
@@ -538,8 +641,7 @@ class ChainPatchScenarioTest {
   }
 
   private void compiles(PropertyPatch propertyPatch) {
-    when(editCompiler.compile(any(), any()))
-        .thenAnswer(
+    doAnswer(
             invocation -> {
               ChainEditRequest editRequest = invocation.getArgument(0);
               @SuppressWarnings("unchecked")
@@ -571,7 +673,7 @@ class ChainPatchScenarioTest {
                   List.of(),
                   List.of("cip-script-generator"),
                   null);
-            });
+            }).when(editCompiler).compile(any(), any());
   }
 
   private static PropertyPatch propertyPatch(String nodeId, String key, String value) {

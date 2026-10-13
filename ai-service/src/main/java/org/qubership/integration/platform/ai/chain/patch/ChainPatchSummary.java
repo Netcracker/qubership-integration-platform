@@ -9,6 +9,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.presentation.MarkdownText;
 import org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
@@ -112,7 +113,7 @@ public final class ChainPatchSummary {
           .append(". **Updates** ")
           .append(elementLabel(node, propertyPatch.targetNodeId()))
           .append(" — ")
-          .append(propertyPatch.property().key())
+          .append(MarkdownText.code(propertyPatch.property().key()))
           .append("\n\nnow:\n")
           .append(block(currentValue(node, propertyPatch.property().key())))
           .append("\n\nafter:\n")
@@ -157,7 +158,7 @@ public final class ChainPatchSummary {
         }
       }
     }
-    return "connection " + edgeId;
+    return "connection " + MarkdownText.code(edgeId);
   }
 
   /**
@@ -205,10 +206,11 @@ public final class ChainPatchSummary {
 
   private static String elementLabel(ChainPlanNode node, String nodeId) {
     if (node == null) {
-      return "Element " + nodeId;
+      return "Element " + MarkdownText.code(nodeId);
     }
-    String label = node.label() == null || node.label().isBlank() ? node.nodeId() : node.label();
-    return node.type() == null ? label : label + " (" + node.type() + ")";
+    String label = node.label() == null || node.label().isBlank()
+        ? MarkdownText.code(node.nodeId()) : MarkdownText.bold(node.label());
+    return node.type() == null ? label : label + " (" + MarkdownText.code(node.type()) + ")";
   }
 
   private static String currentValue(ChainPlanNode node, String key) {

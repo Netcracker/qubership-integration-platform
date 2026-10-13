@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -81,6 +83,7 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final KnownFailureMapper knownFailureMapper;
   private final PinnedFailureStore pinnedFailureStore;
   private final ChainQuestionScenario questionScenario;
+  private final ObjectMapper objectMapper;
 
   @Inject
   public ChainPatchScenario(
@@ -96,7 +99,8 @@ public class ChainPatchScenario implements ScenarioHandler {
       CanonicalGraphDigest canonicalGraphDigest,
       KnownFailureMapper knownFailureMapper,
       PinnedFailureStore pinnedFailureStore,
-      @ForScenario(ScenarioType.ASK_CHAIN) ChainQuestionScenario questionScenario) {
+      @ForScenario(ScenarioType.ASK_CHAIN) ChainQuestionScenario questionScenario,
+      ObjectMapper objectMapper) {
     this.chainContextExtractor = Objects.requireNonNull(chainContextExtractor);
     this.factsService = Objects.requireNonNull(factsService);
     this.importer = Objects.requireNonNull(importer);
@@ -110,14 +114,18 @@ public class ChainPatchScenario implements ScenarioHandler {
     this.knownFailureMapper = Objects.requireNonNull(knownFailureMapper);
     this.pinnedFailureStore = Objects.requireNonNull(pinnedFailureStore);
     this.questionScenario = Objects.requireNonNull(questionScenario);
+    this.objectMapper = Objects.requireNonNull(objectMapper);
   }
 
   @Override
   public Multi<ChatEvent> handle(
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
     ChatDecisionCommand decision = request == null ? null : request.getDecision();
-    if (decision != null && ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(decision.getAction())) {
-      return streamCompile(progress -> applyAnsweredPatch(conversationId, decision));
+    if (decision != null
+        && (ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(decision.getAction())
+            || (ChatEvent.CHAIN_PATCH_ARTIFACT.equals(decision.getArtifactType())
+                && ChatEvent.REQUEST_CHANGES_ACTION.equals(decision.getAction())))) {
+      return streamCompile(progress -> answerPatch(request, conversationId, progress));
     }
     if (decision != null && ChatEvent.isImportAction(decision.getAction())) {
       return streamCompile(progress -> resumeAfterImport(request, conversationId, progress));
@@ -374,7 +382,9 @@ public class ChainPatchScenario implements ScenarioHandler {
     return Multi.createFrom().item(ChatEvent.chainPatchDecision(patchHash, summary));
   }
 
-  private Multi<ChatEvent> applyAnsweredPatch(String conversationId, ChatDecisionCommand decision) {
+  private Multi<ChatEvent> answerPatch(
+      ChatRequest request, String conversationId, BiConsumer<String, String> skillProgress) {
+    ChatDecisionCommand decision = request.getDecision();
     Optional<ProposedChainPatch> proposal = patchStore.findProposal(conversationId);
     if (proposal.isEmpty() || !proposal.get().patchHash().equals(decision.getArtifactHash())) {
       return message("That change is no longer the one on offer. Ask for the change again.");
@@ -383,17 +393,43 @@ public class ChainPatchScenario implements ScenarioHandler {
     ProposedChainPatch proposed = proposal.get();
     // The chain is read again rather than trusted: between the card and the answer someone may have
     // edited the very element this patch rewrites, and a merge would drop their work silently.
-    String currentDigest;
+    ImportedChainPlan current;
     try {
-      currentDigest = importer.importChain(factsService.load(proposed.chainId())).baseGraphDigest();
+      current = importer.importChain(factsService.load(proposed.chainId()));
     } catch (RuntimeException e) {
       return knownOrRethrow(e, conversationId, proposed.chainId());
     }
-    if (!currentDigest.equals(proposed.baseGraphDigest())) {
+    if (!current.baseGraphDigest().equals(proposed.baseGraphDigest())) {
       patchStore.clearProposal(conversationId);
       return message(
           "The chain changed since I proposed this, so I did not write anything."
               + " Ask for the change again against the chain as it stands now.");
+    }
+
+    String comment = decision.getComment() == null ? "" : decision.getComment().strip();
+    if (ChatEvent.REQUEST_CHANGES_ACTION.equals(decision.getAction()) || !comment.isEmpty()) {
+      if (comment.isEmpty()) {
+        return message("Describe what to change in the proposal. Nothing has been applied.");
+      }
+      try {
+        String revisionRequest =
+            "Revise this unapplied proposal using READER FEEDBACK. Preserve its other changes"
+                + " unless the feedback replaces them. Produce the complete revised change against"
+                + " the current catalog chain, including changes already proposed. Show a new"
+                + " proposal for review; do not apply it.\n\nCURRENT PROPOSAL\n"
+                + proposed.summary()
+                + "\n\nFULL PROPOSED PATCH\n"
+                + objectMapper.writeValueAsString(proposed.patch())
+                + "\n\nREADER FEEDBACK\n"
+                + comment;
+        ChainEditOutcome outcome = compileEdit(
+            conversationId, proposed.chainId(), current, revisionRequest, request, skillProgress);
+        return fromCompiler(request, conversationId, proposed.chainId(), current, outcome);
+      } catch (JsonProcessingException e) {
+        throw new IllegalStateException("Cannot serialize the proposed chain patch for revision", e);
+      } catch (RuntimeException e) {
+        return knownOrRethrow(e, conversationId, proposed.chainId());
+      }
     }
 
     patchStore.clearProposal(conversationId);

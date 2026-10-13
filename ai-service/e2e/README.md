@@ -6,6 +6,9 @@ Isolated design-planner evaluations live under `planner-eval/`.
 Run the [deployment and logging smoke test](deployment-logging-smoke.md) once per live browser campaign
 on a retained HTTP chain. It checks the automatic logging question, chat reload, logging settings, and engine deployment.
 
+For chat presentation changes, run the [value formatting smoke test](chat-value-formatting-smoke.md).
+It checks creation results, patch review, and import cards for multiple specifications.
+
 ## Offline
 
 ```bash

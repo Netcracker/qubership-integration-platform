@@ -374,6 +374,8 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   const clickedRef = useRef(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const disabled = busy || stale || answeredAction !== undefined;
+  const hasPatchFeedback =
+    decision.actions.includes("apply-chain-patch") && text.trim() !== "";
 
   const handleClick = (action: string) => {
     if (disabled || clickedRef.current) return;
@@ -398,7 +400,12 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
       onAnswer(action, text.trim(), specSystemTypesMap(specRows, specTypes));
       return;
     }
-    onAnswer(action, text.trim());
+    onAnswer(
+      action === "apply-chain-patch" && hasPatchFeedback
+        ? "request-changes"
+        : action,
+      text.trim(),
+    );
   };
 
   const handleSubmitClarification = () => {
@@ -582,7 +589,10 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
             <div className="ai-decision-card__specs">
               {specRows.map((spec) => (
                 <div className="ai-decision-card__spec-row" key={spec.s3Key}>
-                  <Typography.Text className="ai-decision-card__spec-name">
+                  <Typography.Text
+                    strong
+                    className="ai-decision-card__spec-name"
+                  >
                     {spec.displayName}
                   </Typography.Text>
                   <Radio.Group
@@ -664,7 +674,9 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                     }
                     onClick={() => handleClick(action)}
                   >
-                    {usePerSpecImport && action === "import-specification"
+                    {action === "apply-chain-patch" && hasPatchFeedback
+                      ? "Review changes"
+                      : usePerSpecImport && action === "import-specification"
                       ? "Import"
                       : actionLabel(action, decision)}
                   </Button>

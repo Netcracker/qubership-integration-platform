@@ -26,8 +26,8 @@ class ChainMaterializedSummaryTest {
 
     assertEquals(
         """
-        Chain "HealthProxy" is ready.
-        Id: chain-abc
+        Chain **HealthProxy** is ready.
+        ID: `chain-abc`
         [Open graph](/chains/chain-abc/graph)""".trim(),
         summary);
   }
@@ -40,7 +40,21 @@ class ChainMaterializedSummaryTest {
 
     String summary = ChainMaterializedSummary.format(facts);
 
-    assertTrue(summary.contains("Chain \"chain-xyz\" is ready."));
+    assertTrue(summary.contains("Chain `chain-xyz` is ready."));
     assertTrue(summary.contains("[Open graph](/chains/chain-xyz/graph)"));
+  }
+
+  @Test
+  void formatsLiteralNameWithoutChangingCatalogFacts() {
+    String name = "Orders_[prod] <test> `api`";
+    ChainCatalogFacts facts = new ChainCatalogFacts(
+        "chain-abc", name, "", 0, 0, "", List.of(), List.of(), "built_in_catalog");
+
+    String summary = ChainMaterializedSummary.format(facts);
+
+    assertTrue(summary.contains("**Orders\\_\\[prod\\] \\<test\\> \\`api\\`**"), summary);
+    assertTrue(summary.contains("ID: `chain-abc`"), summary);
+    assertEquals(name, facts.chainName());
+    assertEquals("chain-abc", facts.chainId());
   }
 }
