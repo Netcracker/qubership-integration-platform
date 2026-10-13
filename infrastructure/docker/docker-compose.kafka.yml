@@ -1,23 +1,58 @@
 version: '3.8'
 services:
   # A single KRaft node: the broker is its own controller, so the overlay needs no ZooKeeper.
+  # Listener names avoid "SSL" and "SASL_": cp-kafka's configure script would then demand JKS files.
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     ports:
       - "9092:9092"
+    volumes:
+      - ./kafka-ssl/server:/etc/kafka/tls:ro
+    # The image's own steps, plus two: the PEM keystore (one file, key then certificate) and a storage format that
+    # adds the SCRAM users, after which the format in `ensure` finds the storage formatted. `exec` keeps Java PID 1.
+    command:
+      - bash
+      - -c
+      - >-
+        cat /etc/kafka/tls/kafka.key /etc/kafka/tls/kafka.crt > /etc/kafka/secrets/kafka-keystore.pem &&
+        /etc/confluent/docker/configure &&
+        kafka-storage format --ignore-formatted -t "$$CLUSTER_ID" -c /etc/kafka/kafka.properties
+        --add-scram "SCRAM-SHA-256=[name=e2e,password=e2e-secret]"
+        --add-scram "SCRAM-SHA-512=[name=e2e,password=e2e-secret]" &&
+        /etc/confluent/docker/ensure &&
+        exec /etc/confluent/docker/launch
     environment:
       CLUSTER_ID: "cWlwLWxvY2FsLWthZmthMQ"
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9092,AUTH://0.0.0.0:29094,TLS://0.0.0.0:29095,AUTHTLS://0.0.0.0:29096
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092,AUTH://kafka:29094,TLS://kafka:29095,AUTHTLS://kafka:29096
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,AUTH:SASL_PLAINTEXT,TLS:SSL,AUTHTLS:SASL_SSL
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       # As in production: a topic exists only once someone creates it, never because a client asked for it.
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # User e2e, password e2e-secret, for every mechanism.
+      KAFKA_LISTENER_NAME_AUTH_SASL_ENABLED_MECHANISMS: PLAIN,SCRAM-SHA-256,SCRAM-SHA-512
+      KAFKA_LISTENER_NAME_AUTH_PLAIN_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.plain.PlainLoginModule required user_e2e="e2e-secret";
+      KAFKA_LISTENER_NAME_AUTH_SCRAM___SHA___256_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required;
+      KAFKA_LISTENER_NAME_AUTH_SCRAM___SHA___512_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required;
+      KAFKA_LISTENER_NAME_AUTHTLS_SASL_ENABLED_MECHANISMS: PLAIN,SCRAM-SHA-256,SCRAM-SHA-512
+      KAFKA_LISTENER_NAME_AUTHTLS_PLAIN_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.plain.PlainLoginModule required user_e2e="e2e-secret";
+      KAFKA_LISTENER_NAME_AUTHTLS_SCRAM___SHA___256_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required;
+      KAFKA_LISTENER_NAME_AUTHTLS_SCRAM___SHA___512_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.scram.ScramLoginModule required;
+      KAFKA_LISTENER_NAME_TLS_SSL_KEYSTORE_TYPE: PEM
+      KAFKA_LISTENER_NAME_TLS_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka-keystore.pem
+      KAFKA_LISTENER_NAME_AUTHTLS_SSL_KEYSTORE_TYPE: PEM
+      KAFKA_LISTENER_NAME_AUTHTLS_SSL_KEYSTORE_LOCATION: /etc/kafka/secrets/kafka-keystore.pem
 
   akhq:
     image: tchiotludo/akhq:0.26.0
