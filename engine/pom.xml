@@ -23,7 +23,7 @@
   </parent>
   <properties>
     <revision>1.5.1</revision>
-    <changelist>-public-routes-SNAPSHOT</changelist>
+    <changelist>-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>

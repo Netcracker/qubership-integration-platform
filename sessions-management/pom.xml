@@ -23,7 +23,7 @@
 
   <properties>
     <revision>1.5.1</revision>
-    <changelist>-public-routes-SNAPSHOT</changelist>
+    <changelist>-SNAPSHOT</changelist>
 
     <!-- BOMs -->
     <!-- 3rd party dependencies -->

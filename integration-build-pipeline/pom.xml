@@ -30,7 +30,7 @@
 
   <properties>
     <revision>1.5.1</revision>
-    <changelist>-public-routes-SNAPSHOT</changelist>
+    <changelist>-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
