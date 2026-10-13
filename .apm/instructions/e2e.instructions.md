@@ -47,10 +47,12 @@ under `specs/`. The two suites meet on `vscode-extension/src/web/test/golden/`: 
 checks it still writes those files, and `specs/api/extension-output.spec.ts` imports them into the
 catalog.
 
-### No CI job
+### CI
 
-No workflow runs the suite. `npm run check-types` and `npx playwright test --project=schema` need no
-stack, so run both before pushing a change to `e2e/` or to a tree the `schema` project reads:
+`.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
+manual dispatch. No pull request check runs it. `npm run check-types` and
+`npx playwright test --project=schema` need no stack, so run both before pushing a change to `e2e/`
+or to a tree the `schema` project reads:
 `schemas/src/main/resources/conf-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,
 and the import-file migration classes under `integration-build-pipeline/`. The rest of the suite
 provisions a Compose stack or a cluster namespace and expects to own it for the length of the run.
@@ -81,10 +83,14 @@ debugging on the same stack.
   every declared project. Without that return, `--project=schema` could not run on a machine with no
   Docker.
 
-On `k8s` the suite provisions the namespace, never the cluster. `env/provision/k8s.ts` checks the
-kube-context, the Gateway API CRDs, Istio, the camel-k operator, and metrics-server in that order,
-and fails on the first one missing, naming the section of `e2e/k8s/README.md` that installs it. It
-then builds the images, each tagged with a hash over its own sources, and runs
+On `k8s` the suite provisions the namespace, never the cluster; `e2e/k8s/bootstrap-cluster.sh`
+prepares the cluster. The cluster versions are pinned in the script and in `e2e/k8s/README.md`.
+`infrastructure/qip-dev/README.md` also pins Gateway API and Istio, and
+`.github/workflows/e2e-k8s.yaml` pins kind and istioctl. Bump them in all four places together.
+`env/provision/k8s.ts` checks the kube-context, the Gateway API CRDs, Istio, the camel-k operator,
+and metrics-server in that order, and fails on the first one missing, naming the section of
+`e2e/k8s/README.md` that installs it. It then builds the images, each tagged with a hash over its
+own sources, and runs
 `helm upgrade --install qip infrastructure/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`. A chart
 change the suite needs goes in the chart as an optional value with a default that renders what it
 rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
@@ -103,7 +109,8 @@ e2e/
   env/                   index.ts (the Env interface), target.ts (reads CIP_TARGET),
                          target-setup.ts (each target's Env, provisioner, and projects),
                          compose.ts and k8s.ts (the two Envs), provision.ts (the globalSetup)
-  k8s/                   the chart values for qip-e2e, and the page that installs a cluster
+  k8s/                   the chart values for qip-e2e, the cluster bootstrap script, and the page
+                         that installs a cluster
   registry/              what the suite claims to cover, read off the tracked schemas
   specs/schema/          no stack needed: registries, fixtures, checksums
   specs/api/             parallel-safe
