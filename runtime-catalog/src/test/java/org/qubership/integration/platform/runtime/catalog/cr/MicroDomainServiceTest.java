@@ -42,6 +42,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrati
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 
 import java.util.ArrayList;
@@ -254,12 +255,74 @@ class MicroDomainServiceTest {
         verify(kubeOperator).createOrUpdateResource(any(V1ConfigMap.class));
     }
 
-    @DisplayName("Writes the Integration before the ConfigMaps and keeps the build order of the rest")
-    @Test
-    void deployWritesTheIntegrationFirst() {
-        String manifest = String.join("---\n",
-                "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: source-1\n",
+    private String deployManifest() {
+        return String.join("---\n",
                 integrationYaml(INTEGRATION_RESOURCE_NAME),
+                "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: source-1\n",
+                httpRouteYaml("route"),
+                "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: source-2\n");
+    }
+
+    private List<String> writtenNames(int count) {
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator, times(count)).createOrUpdateResource(captor.capture());
+        return captor.getAllValues().stream()
+                .map(resource -> ((KubernetesObject) resource).getMetadata().getName())
+                .toList();
+    }
+
+    @DisplayName("Writes the ConfigMaps before a new Integration and keeps the build order of the rest")
+    @Test
+    void deployWritesTheConfigMapsBeforeANewIntegration() {
+        MicroDomainService service = newService(false);
+        // See deployStampsObservedResourceVersion for why this call is needed.
+        service.init();
+        service.deploy(new BuiltResources(deployManifest(), Map.of()));
+
+        assertEquals(List.of("source-1", "source-2", INTEGRATION_RESOURCE_NAME, "route"), writtenNames(4),
+                "each ConfigMap written after the Integration rolls its Deployment once more");
+        verify(kubeOperator).getCamelKIntegration(INTEGRATION_RESOURCE_NAME);
+    }
+
+    @DisplayName("Writes a live Integration before the ConfigMaps and keeps the build order of the rest")
+    @Test
+    void deployWritesALiveIntegrationFirst() {
+        when(kubeOperator.getCamelKIntegration(INTEGRATION_RESOURCE_NAME))
+                .thenReturn(Optional.of(new KubeCustomObject()));
+
+        MicroDomainService service = newService(false);
+        // See deployStampsObservedResourceVersion for why this call is needed.
+        service.init();
+        service.deploy(new BuiltResources(deployManifest(), Map.of()));
+
+        assertEquals(List.of(INTEGRATION_RESOURCE_NAME, "source-1", "route", "source-2"), writtenNames(4),
+                "a ConfigMap written first makes the operator bump the Integration's resourceVersion");
+    }
+
+    @DisplayName("Leaves a new Integration unwritten when a ConfigMap write fails")
+    @Test
+    void deployStopsBeforeANewIntegrationWhenAConfigMapFails() {
+        RuntimeException cause = new RuntimeException("boom");
+        doThrow(cause).when(kubeOperator).createOrUpdateResource(any(V1ConfigMap.class));
+
+        MicroDomainService service = newService(false);
+        // See deployStampsObservedResourceVersion for why this call is needed.
+        service.init();
+        BuiltResources built = new BuiltResources(deployManifest(), Map.of());
+        MicroDomainDeployError error =
+                assertThrows(MicroDomainDeployError.class, () -> service.deploy(built));
+
+        assertSame(cause, error.getCause());
+        verify(kubeOperator, never()).createOrUpdateResource(any(CamelKIntegration.class));
+        verify(kubeOperator, never()).createOrUpdateResource(any(KubeCustomObject.class));
+    }
+
+    @DisplayName("Writes the ConfigMaps first when the manifest carries no Integration")
+    @Test
+    void deployWritesTheConfigMapsFirstWithoutAnIntegration() {
+        String manifest = String.join("---\n",
+                httpRouteYaml("route"),
+                "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: source-1\n",
                 "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: source-2\n");
 
         MicroDomainService service = newService(false);
@@ -267,13 +330,26 @@ class MicroDomainServiceTest {
         service.init();
         service.deploy(new BuiltResources(manifest, Map.of()));
 
-        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator, times(3)).createOrUpdateResource(captor.capture());
-        List<String> written = captor.getAllValues().stream()
-                .map(resource -> ((KubernetesObject) resource).getMetadata().getName())
-                .toList();
-        assertEquals(List.of(INTEGRATION_RESOURCE_NAME, "source-1", "source-2"), written,
-                "a ConfigMap written first makes the operator bump the Integration's resourceVersion");
+        assertEquals(List.of("source-1", "source-2", "route"), writtenNames(3));
+        verify(kubeOperator, never()).getCamelKIntegration(anyString());
+    }
+
+    @DisplayName("Wraps a failed Integration lookup and writes nothing")
+    @Test
+    void deployWrapsAFailedIntegrationLookup() {
+        KubeApiException cause = new KubeApiException("Failed to get object: " + INTEGRATION_RESOURCE_NAME);
+        when(kubeOperator.getCamelKIntegration(INTEGRATION_RESOURCE_NAME))
+                .thenThrow(cause);
+
+        MicroDomainService service = newService(false);
+        // See deployStampsObservedResourceVersion for why this call is needed.
+        service.init();
+        BuiltResources built = new BuiltResources(deployManifest(), Map.of());
+        MicroDomainDeployError error =
+                assertThrows(MicroDomainDeployError.class, () -> service.deploy(built));
+
+        assertSame(cause, error.getCause());
+        verify(kubeOperator, never()).createOrUpdateResource(any());
     }
 
     @DisplayName("Wraps a failed apply in a MicroDomainDeployError that keeps the cause")
