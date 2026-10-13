@@ -2128,7 +2128,8 @@ class RequirementDiscoveryCapabilityTest {
             withBypass,
             null,
             List.of(),
-            Map.of("userText", choice));
+            Map.of("userText", choice, "admittedInputGate", PipelineGates.IDS_PATH_CHOICE,
+                "admittedInputRevision", 2L));
     List<CapabilitySignal> signals =
         capability.execute(answer).collect().asList().await().indefinitely();
     StageOutcome outcome =
@@ -2147,6 +2148,64 @@ class RequirementDiscoveryCapabilityTest {
         !requested,
         outcome.candidates().stream()
             .anyMatch(candidate -> candidate.kind() == CompilationArtifacts.Kind.IDS_BYPASS));
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"yes,partial", "no,partial", "yes,repair", "no,repair"})
+  void admittedIdsChoiceIsSavedBeforeOtherRequirementsAreResolved(String answer, String scenario) {
+    var store = new RequirementDraftStore();
+    var initial = new RequirementDraft(false, "Known requirements", DraftDecision.NEEDS_INPUT,
+        List.of("Which endpoint should receive the request?"), "gather", "1", "hash", null, false,
+        petstoreServiceCallDraft().facts(), false, null, null, petstoreServiceCallDraft().flow(), List.of(), null);
+    store.put("ids-partial-chat", initial);
+    var calls = new AtomicInteger();
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      calls.incrementAndGet();
+      assertEquals(answer.equals("yes"), store.get(chat).orElseThrow().idsRequested());
+      return Multi.createFrom().empty();
+    });
+    var attrs = new java.util.HashMap<String, Object>();
+    attrs.put("userText", answer);
+    attrs.put("admittedInputGate", PipelineGates.IDS_PATH_CHOICE);
+    attrs.put("admittedInputRevision", 7L);
+    if ("repair".equals(scenario)) {
+      attrs.put(org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+          "Missing endpoint");
+      attrs.put(org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR,
+          "MISSING_BRIEF_FACTS");
+    }
+    var context = new StageExecutionContext("ids-partial-run", "ids-partial-chat", "requirement-discovery",
+        "exec", "attempt", discoveryProfile(List.of(new ArtifactTypeRef("requirement-draft", 2)),
+        List.of(new ArtifactTypeRef("ids-bypass", 1))), null, List.of(), attrs);
+    var signals = capability.execute(context).collect().asList().await().indefinitely();
+    var stored = store.get("ids-partial-chat").orElseThrow();
+    assertEquals(answer.equals("yes"), stored.idsRequested());
+    assertEquals(initial.facts(), stored.facts());
+    assertEquals(initial.openQuestions(), stored.openQuestions());
+    assertFalse(stored.readyForPlan());
+    assertEquals("repair".equals(scenario) ? 1 : 0, calls.get());
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+  }
+
+  @Test
+  void stayOnAReadyDraftOffersIdsBeforePlanningContinuation() {
+    var store = new RequirementDraftStore();
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      store.put(chat, petstoreServiceCallDraft());
+      store.markCaptured(chat);
+      store.finishTurn(chat, RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    var signals = capability.execute(new StageExecutionContext("ids-stay-run", "ids-stay-chat",
+        "requirement-discovery", "exec", "attempt", discoveryProfile(
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), List.of(new ArtifactTypeRef("ids-bypass", 1))),
+        null, List.of(), Map.of("userText", "Create the integration.")))
+        .collect().asList().await().indefinitely();
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(PipelineGates.IDS_PATH_CHOICE, PipelineGates.gateOf(outcome.message()).orElseThrow());
   }
 
   @Test

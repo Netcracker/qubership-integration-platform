@@ -23,6 +23,98 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementRevisionAdmissionTest {
 
+  @ParameterizedTest
+  @ValueSource(strings = {"/flow/interactions/0/operation", "/flow/interactions/missing/operation",
+      "/flow/interactions/entry/interactionId", "/flow/settings/idsRequested"})
+  void flowPathNormalizationDoesNotAuthorizeUnknownOrIdentityFields(String path) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Create tasks. Proceed without IDS.");
+      var base = httpDraft(List.of(fact("goal", "Create tasks.")));
+      assertTrue(h.capture(base).accepted());
+      var source = h.begin("Change the route to /updated.");
+      var update = new DraftUpdate(List.of(), List.of(new InteractionInput("entry", Direction.INBOUND,
+          "Caller", "POST /updated", "Task endpoint", null, null)), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null,
+          List.of(new AmendmentInput(path, source.turnId(), "Change the route to /updated.")));
+      var result = h.update(update);
+      assertFalse(result.accepted());
+      assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("INVALID_AUTHOR_AMENDMENT")));
+      assertEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
+    }
+  }
+
+  @Test
+  void routeAnswerAcceptsSourceLinkedFlowPathsAndRetainsOtherRequirements() throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Receive GET on an internal route. I will supply its path next. Proceed without IDS.");
+      var base = httpDraft(List.of(fact("goal", "Return Hello world.")));
+      var partial = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+          "Caller", "GET on an internal route", "Return Hello world.", null, null)), List.of()),
+          base.facts(), List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM,
+              HttpMethod.GET, null, null, null, null)),
+          List.of(new QuestionInput("route-path", List.of("entry"), "What is the route path?")), base.settings());
+      assertTrue(h.capture(partial).accepted());
+      var source = h.begin("The internal GET route path is /verify/hello. Keep earlier requirements unchanged.");
+      var update = new DraftUpdate(List.of(), List.of(new InteractionInput("entry", Direction.INBOUND,
+          "Caller", "GET /verify/hello", "Return Hello world. Route: /verify/hello.", null, null)),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
+              "/verify/hello", null, null, null)), List.of(), List.of(), List.of(), List.of("route-path"), null,
+          List.of(new AmendmentInput("/flow/interactions/entry/operation", source.turnId(),
+                  "The internal GET route path is /verify/hello."),
+              new AmendmentInput("/flow/interactions/entry/description", source.turnId(),
+                  "The internal GET route path is /verify/hello.")));
+      var result = h.update(update);
+      assertTrue(result.accepted(), result.toString());
+      var admitted = h.store.get(h.chat).orElseThrow().authoredDraft();
+      assertEquals(partial.facts(), admitted.facts());
+      assertEquals("/verify/hello", admitted.capabilities().getFirst().path());
+      assertTrue(admitted.openQuestions().isEmpty());
+      assertTrue(h.store.validateCurrent(h.chat).isEmpty());
+      assertFalse(h.update(update).accepted());
+      assertEquals(admitted, h.store.get(h.chat).orElseThrow().authoredDraft());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void idsAnswerKeepsItsSourceAndResolvesOnlyTheBoundQuestion(boolean requested) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Create tasks.");
+      var base = httpDraft(List.of(fact("goal", "Create tasks.")));
+      String idsQuestion = org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.IDS_PATH_CHOICE;
+      var other = new QuestionInput("endpoint", List.of("entry"), "Which endpoint should receive the request?");
+      var partial = new DraftInput(base.flow(), base.facts(), base.capabilities(),
+          List.of(new QuestionInput(idsQuestion, List.of(), "Show IDS?"), other), new DraftSettings(null, null));
+      assertTrue(h.capture(partial).accepted());
+      var source = h.begin(requested ? "yes" : "no");
+      h.store.recordIdsChoice(h.chat, requested);
+      var decided = h.store.get(h.chat).orElseThrow();
+      assertEquals(requested, decided.idsRequested());
+      assertEquals(requested, decided.authoredDraft().settings().idsRequested());
+      assertEquals(List.of(other), decided.authoredDraft().openQuestions());
+      assertEquals(base.facts(), decided.authoredDraft().facts());
+      assertFalse(decided.readyForPlan());
+      assertTrue(h.store.latestRevision(h.chat).orElseThrow().inputs().size() > 0);
+      assertNotNull(h.archive.read(h.chat).activeTurns().stream()
+          .filter(turn -> turn.id().equals(source.turnId())).findFirst().orElseThrow().consumedDraftReference());
+      h.restartStore();
+      assertEquals(decided, h.store.get(h.chat).orElseThrow());
+      h.store.beginTurn(h.chat, "Automatic correction.");
+      var erased = h.capture(new DraftInput(base.flow(), base.facts(), base.capabilities(), List.of(other),
+          new DraftSettings(null, null)));
+      assertFalse(erased.accepted());
+      assertEquals(requested, h.store.get(h.chat).orElseThrow().idsRequested());
+      var reopened = h.capture(new DraftInput(base.flow(), base.facts(), base.capabilities(),
+          partial.openQuestions(), decided.authoredDraft().settings()));
+      assertFalse(reopened.accepted());
+      assertEquals(decided, h.store.get(h.chat).orElseThrow());
+    }
+  }
+
   @Test
   void nativeRepairEvidenceMustIdentifyTheSameStableRecord() throws Exception {
     var h = new Harness();

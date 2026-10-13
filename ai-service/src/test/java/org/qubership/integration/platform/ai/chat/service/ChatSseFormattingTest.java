@@ -11,6 +11,19 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 
 class ChatSseFormattingTest {
+  @Test
+  void catalogChangeKeepsBothRequiredFieldsIncludingNull() throws Exception {
+    for (List<String> ids : java.util.Arrays.<List<String>>asList(null, List.of(), List.of("a"))) {
+      String sse = ChatExecutionService.toSse(new ChatEvent.CatalogChanged(ids, true), new ObjectMapper());
+      assertTrue(sse.startsWith("event: catalog-changed\ndata: "));
+      JsonNode data = new ObjectMapper().readTree(sse.substring("event: catalog-changed\ndata: ".length()));
+      assertTrue(data.has("chainIds"));
+      assertEquals(true, data.get("chainsListChanged").asBoolean());
+      assertEquals(ids == null, data.get("chainIds").isNull());
+    }
+    assertTrue(ChatExecutionService.toSse(ChatEvent.meta("a"), new ObjectMapper())
+        .contains("\"supportsCatalogChangeEvents\":true"));
+  }
 
   private final ObjectMapper objectMapper = new ObjectMapper();
 

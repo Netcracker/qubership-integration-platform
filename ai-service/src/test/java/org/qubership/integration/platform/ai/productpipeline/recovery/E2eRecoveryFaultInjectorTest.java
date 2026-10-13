@@ -10,6 +10,25 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Recovery
 class E2eRecoveryFaultInjectorTest {
 
   @Test
+  void corruptsOnlyTheScopedHttpUrlOnceAndPreservesOtherProperties() {
+    var graph = new org.qubership.integration.platform.ai.plan.model.ChainPlanGraph(
+        "1.0", new org.qubership.integration.platform.ai.plan.model.ChainSection("UrlTest.1", "HTTP"),
+        java.util.List.of(new org.qubership.integration.platform.ai.plan.model.ChainPlanNode(
+            "http", "http-trigger", "HTTP", null, null, java.util.List.of(
+                new org.qubership.integration.platform.ai.plan.model.PlanProperty("contextPath", "/approved"),
+                new org.qubership.integration.platform.ai.plan.model.PlanProperty("httpMethodRestrict", "GET")))),
+        java.util.List.of());
+    var injector = new E2eRecoveryFaultInjector("UrlTest", "http-url-validation=CONTRACT_SHAPE:1");
+    var corrupted = injector.corruptHttpUrl("run", graph);
+    assertEquals("\"/approved\"", corrupted.nodes().getFirst().properties().getFirst().value());
+    assertEquals(graph.nodes().getFirst().properties().get(1), corrupted.nodes().getFirst().properties().get(1));
+    assertEquals(graph, injector.corruptHttpUrl("run", graph));
+    assertEquals(graph, new E2eRecoveryFaultInjector("Other", "http-url-validation=CONTRACT_SHAPE:1")
+        .corruptHttpUrl("run", graph));
+    assertEquals(graph, new E2eRecoveryFaultInjector("", "").corruptHttpUrl("run", graph));
+  }
+
+  @Test
   void injectsEachConfiguredStageWithinItsOwnLimit() {
     E2eRecoveryFaultInjector injector =
         new E2eRecoveryFaultInjector(

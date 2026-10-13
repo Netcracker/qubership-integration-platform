@@ -4,6 +4,7 @@ import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import org.jboss.logmanager.MDC;
+import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 
 /**
@@ -88,9 +89,12 @@ public final class ToolSession {
   }
 
   public static void executeInBoundContext(Context context, Runnable action) {
+    callInBoundContext(context, () -> { action.run(); return null; });
+  }
+
+  public static <T> T callInBoundContext(Context context, Supplier<T> action) {
     if (context == null || !context.contains(CONTEXT_KEY)) {
-      action.run();
-      return;
+      return action.get();
     }
     String conversationId = context.get(CONTEXT_KEY);
     String previousConversationId = THREAD_CONVERSATION_ID.get();
@@ -99,7 +103,7 @@ public final class ToolSession {
     Object previousMdc = MDC.get(ChatMdc.CONVERSATION_ID);
     installOnSubscription(conversationId, context);
     try {
-      action.run();
+      return action.get();
     } finally {
       restoreThreadState(previousConversationId, previousSubscribeContext, previousThreadContext, previousMdc);
     }

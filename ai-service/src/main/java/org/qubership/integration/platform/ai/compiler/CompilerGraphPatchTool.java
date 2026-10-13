@@ -169,8 +169,11 @@ public class CompilerGraphPatchTool {
       node.properties must be an array of {key,value} objects. Prefer properties:[] when only changing labels.
       Never send a bare Groovy string or string array as properties.
       Only cip-script-generator may set property key "script" (bodies). Other skills must omit it.
-      Property patches use scalarValue for strings, numbers, booleans, or serialized JSON
-      objects and arrays. The server converts scalarValue using the property schema.
+      Property patches use scalarValue as a JSON string or null. Its contents are the actual property value.
+      Examples: {"scalarValue":"/path"}, {"scalarValue":"GET"}, {"scalarValue":"200"}, {"scalarValue":"false"}.
+      Do not serialize a string twice. The path and method values must contain no surrounding quote characters.
+      Never send scalarValue:200 or scalarValue:false.
+      Serialize JSON objects and arrays inside the string. The server converts it using the property schema.
       Use mapEntries for flat string objects as name=value strings, including type=m2m
       and header overrides. Use arrayValue for string lists such as
       headerModificationToRemove. When the tool schema requires value beside those fields, send

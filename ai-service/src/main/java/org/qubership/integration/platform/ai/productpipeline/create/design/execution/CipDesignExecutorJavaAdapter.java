@@ -16,8 +16,8 @@ import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCall
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
-import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -40,25 +40,26 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlan
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ApiOperationBindings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionTrace;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ExecutorValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationResult;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
+import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ApprovedHttpEndpointValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.PlanGraphValidationInput;
-import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 
 /**
@@ -76,17 +77,28 @@ public class CipDesignExecutorJavaAdapter {
   private final ExecutorCatalogBindingAdapter bindingAdapter;
   private final ProductPipelineArtifactStore artifactStore;
   private final CompilerPlanValidator planValidator;
+  private final E2eRecoveryFaultInjector faultInjector;
 
   @Inject
   public CipDesignExecutorJavaAdapter(
       ApprovedCompilerExecutionRunner runner,
       ExecutorCatalogBindingAdapter bindingAdapter,
       ProductPipelineArtifactStore artifactStore,
-      CompilerPlanValidator planValidator) {
+      CompilerPlanValidator planValidator,
+      E2eRecoveryFaultInjector faultInjector) {
     this.runner = Objects.requireNonNull(runner, "runner");
     this.bindingAdapter = Objects.requireNonNull(bindingAdapter, "bindingAdapter");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.planValidator = Objects.requireNonNull(planValidator, "planValidator");
+    this.faultInjector = Objects.requireNonNull(faultInjector, "faultInjector");
+  }
+
+  public CipDesignExecutorJavaAdapter(
+      ApprovedCompilerExecutionRunner runner,
+      ExecutorCatalogBindingAdapter bindingAdapter,
+      ProductPipelineArtifactStore artifactStore,
+      CompilerPlanValidator planValidator) {
+    this(runner, bindingAdapter, artifactStore, planValidator, new E2eRecoveryFaultInjector("", ""));
   }
 
   /**
@@ -524,7 +536,7 @@ public class CipDesignExecutorJavaAdapter {
       List<ResolvedServiceCallBinding> bindings,
       CompilerDagExecutionResult engineResult,
       BiConsumer<String, String> progress) {
-    ChainPlanGraph graph = engineResult.graph();
+    ChainPlanGraph graph = faultInjector.corruptHttpUrl(inputs.runId(), engineResult.graph());
     GraphAssemblyResult assembly = engineResult.assemblyResult();
     CompilerValidationBundle compilerBundle = engineResult.validationBundle();
     if (graph == null) {
@@ -546,9 +558,18 @@ public class CipDesignExecutorJavaAdapter {
             inputs.implementationPlanRef(),
             inputs.runManifestRef());
 
+    RequirementBrief approvedBrief = approvedBrief(inputs);
     ValidationResult freshPlanValidation =
         planValidator.validate(
-            new PlanGraphValidationInput(graph, briefMappingIntents(inputs)));
+            new PlanGraphValidationInput(graph, approvedBrief.mappingIntents()));
+    var endpointIssues = ApprovedHttpEndpointValidator.validate(
+        graph, approvedBrief, loadPayload(inputs.runId(), inputs.revisionRef(), ChainSemanticRevision.class).orElseThrow());
+    if (!endpointIssues.isEmpty()) {
+      var issues = new ArrayList<>(freshPlanValidation.issues());
+      issues.addAll(endpointIssues);
+      freshPlanValidation = new ValidationResult(false, List.copyOf(issues),
+          "Generated HTTP endpoint differs from approved requirements.");
+    }
     PlanValidationResult planValidation =
         mergeCompilerBundleFindings(
             CompilerPlanningRunner.buildValidationResult(freshPlanValidation, List.of()),
@@ -846,11 +867,11 @@ public class CipDesignExecutorJavaAdapter {
         .map(revision -> artifactStore.payload(revision, type));
   }
 
-  private List<MappingIntent> briefMappingIntents(ExecutionInputs inputs) {
+  private RequirementBrief approvedBrief(ExecutionInputs inputs) {
     Revision semantic = artifactStore.get(inputs.runId(), inputs.revisionRef()).orElseThrow();
     Revision brief = SupersededBriefLineageGuard.originatingBriefRevision(artifactStore, inputs.runId(), semantic)
         .orElseThrow(() -> new IllegalStateException("Approved semantic revision has no requirement brief lineage"));
-    return artifactStore.payload(brief, RequirementBrief.class).mappingIntents();
+    return artifactStore.payload(brief, RequirementBrief.class);
   }
 
   private static ArtifactProvenance provenance(ExecutionInputs inputs) {

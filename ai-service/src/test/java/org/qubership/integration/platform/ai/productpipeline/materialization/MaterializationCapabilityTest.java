@@ -116,6 +116,26 @@ class MaterializationCapabilityTest {
     verify(materializer, never()).resume(any(), any());
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"\"/approved\"", "/other", "/APPROVED", "/approved/"})
+  void rejectsUrlMismatchBeforeAnyCatalogWrite(String generatedPath) {
+    var prepared = appendHappyPathV2Inputs(generatedPath);
+    append(Kind.REQUIREMENT_BRIEF, "1",
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+            "Unapproved later brief", List.of(), List.of(), List.of(), List.of(), "", null, "", List.of(), List.of()),
+        List.of());
+    org.mockito.Mockito.lenient().doThrow(new AssertionError("Catalog write started before URL validation"))
+        .when(materializer).resume(any(), any());
+    var result = completed(capability.execute(v2Context(prepared, prepared.requestRef(), prepared.bundleRef())));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcome().outcomeClass());
+    var finding = result.outcome().recoveryCause().findings().getFirst();
+    assertEquals("HTTP_ENDPOINT_MISMATCH", finding.code());
+    assertEquals("trigger-1", finding.originRecordId());
+    assertEquals("/properties/contextPath", finding.fieldPointer());
+    assertTrue(finding.message().contains("/approved"));
+    verify(materializer, never()).resume(any(), any());
+  }
+
   @Test
   void returnsContractFailureWhenApprovalDigestDoesNotMatchGraphDigest() {
     PreparedInputs prepared = appendHappyPathInputs();
@@ -1004,12 +1024,30 @@ class MaterializationCapabilityTest {
   }
 
   private PreparedV2Inputs appendHappyPathV2Inputs() {
+    return appendHappyPathV2Inputs("/approved");
+  }
+
+  private PreparedV2Inputs appendHappyPathV2Inputs(String generatedPath) {
+    var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+        "HTTP endpoint", List.of(), List.of(), List.of(), List.of(), "HTTP endpoint", null, "", List.of(),
+        List.of(new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint(
+            "approved-entry", "source-http", "http-trigger", "", "GET", "/approved", "GET /approved")),
+        List.of(), List.of(), List.of());
+    Reference briefRef = append(Kind.REQUIREMENT_BRIEF, "1", brief, List.of());
+    var semantic = new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision(
+        "chain-semantic-revision/v1", "semantic", "demo-chain", "1",
+        List.of(new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint(
+            "approved-entry", "trigger-1", "script-1", 0, null, null)),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+    Reference semanticRef = append(Kind.CHAIN_SEMANTIC_REVISION, semantic.schemaVersion(), semantic, List.of(briefRef));
     ChainPlanGraph graph =
         new ChainPlanGraph(
             "1.0",
             new ChainSection("demo-chain", "Demo"),
             List.of(
-                new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null,
+                    List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("contextPath", generatedPath),
+                        new org.qubership.integration.platform.ai.plan.model.PlanProperty("httpMethodRestrict", "GET"))),
                 new ChainPlanNode("script-1", "script", "Script", "trigger-1", null, List.of())),
             List.of());
     String graphDigest =
@@ -1039,12 +1077,12 @@ class MaterializationCapabilityTest {
             List.of(),
             List.of());
 
-    Reference implementationPlanRef = append(Kind.IMPLEMENTATION_PLAN, "2", implementationPlan, List.of());
+    Reference implementationPlanRef = append(Kind.IMPLEMENTATION_PLAN, "2", implementationPlan, List.of(semanticRef));
     Reference reportRef =
         append(Kind.DESIGN_PLAN_REPORT, "1", Map.of("markdown", "# plan"), List.of());
     Reference planRef =
         append(Kind.DESIGN_EXECUTION_PLAN, "1", Map.of("flowId", "flow-1"), List.of());
-    Reference graphRef = append(Kind.CHAIN_PLAN_GRAPH, "1", graph, List.of());
+    Reference graphRef = append(Kind.CHAIN_PLAN_GRAPH, "1", graph, List.of(semanticRef));
     Reference assemblyRef = append(Kind.GRAPH_ASSEMBLY_RESULT, "1", assembly, List.of(graphRef));
     Reference orderedPatchesRef =
         append(Kind.ORDERED_GRAPH_PATCHES, "1", new OrderedGraphPatches("1", List.of()), List.of());

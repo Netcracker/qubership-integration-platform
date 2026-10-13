@@ -239,28 +239,30 @@ public class ChatExecutionService {
     // Approve / create-chain commands skip the router, but planning and materialization still
     // invoke tools. Bind the turn sink on both paths so event: step (kind=tool / kind=skill)
     // reaches the client the same way requirement-analysis already does.
-    Multi<ChatEvent> routedWork;
-    try {
-      request.setOpenChainTurnContext(
-          openChainTurnContextFactory.build(request, conversationId));
-      routedWork =
-          runsAsCommand(request)
-              ? decisionService.apply(conversationId, request.getDecision())
-              : router
-                  .route(request, conversationId)
-                  // A routed turn can end at a gate without knowing it did, so the turn closes by
-                  // reporting whatever the run waits for now.
-                  .onCompletion()
-                  .switchTo(() -> openGate(conversationId));
-    } catch (RuntimeException error) {
-      routedWork = Multi.createFrom().failure(error);
-    }
+    Multi<ChatEvent> routedWork = Multi.createFrom().deferred(() -> {
+      org.qubership.integration.platform.ai.chat.ToolSession.bind(finalConversationId);
+      try {
+        return ToolInvocationSink.callInBoundContext(ToolInvocationSink.attachedContext(), () -> {
+          request.setOpenChainTurnContext(openChainTurnContextFactory.build(request, finalConversationId));
+          Multi<ChatEvent> work = runsAsCommand(request)
+              ? decisionService.apply(finalConversationId, request.getDecision())
+              : router.route(request, finalConversationId).onCompletion()
+                  .switchTo(() -> openGate(finalConversationId));
+          return ToolInvocationSink.propagateBinding(ToolInvocationSink.attachedContext(), work);
+        });
+      } catch (RuntimeException error) {
+        return Multi.createFrom().<ChatEvent>failure(error);
+      } finally {
+        org.qubership.integration.platform.ai.chat.ToolSession.clear();
+      }
+    });
     Multi<ChatEvent> routed =
         bindBackoffSinkForTurn(
             routedWork,
             routedCancellation,
             appConfig.llm().rateLimit().maxTurnBackoffs(),
-            conversationId);
+            conversationId)
+            .runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
 
     return Multi.createBy()
         .concatenating()
@@ -379,14 +381,28 @@ public class ChatExecutionService {
         .emitter(
             emitter -> {
               LlmRateLimitBackoffSink.bind(emitter::emit, null, maxTurnBackoffs);
-              ToolInvocationSink.bind(emitter::emit, null, conversationId);
+              var context = ToolInvocationSink.bind(emitter::emit, null, conversationId);
               emitter.onTermination(
                   () -> {
                     LlmRateLimitBackoffSink.unbind();
                     ToolInvocationSink.unbind(conversationId);
                   });
               Cancellable subscription =
-                  routed.subscribe().with(emitter::emit, emitter::fail, emitter::complete);
+                  routed.subscribe().with(
+                      event -> {
+                        if (event instanceof ChatEvent.Error) {
+                          ToolInvocationSink.flushCatalogChanges(context);
+                        }
+                        emitter.emit(event);
+                      },
+                      failure -> {
+                        ToolInvocationSink.flushCatalogChanges(context);
+                        emitter.fail(failure);
+                      },
+                      () -> {
+                        ToolInvocationSink.flushCatalogChanges(context);
+                        emitter.complete();
+                      });
               routedCancellation.set(subscription::cancel);
             });
   }
@@ -466,7 +482,8 @@ public class ChatExecutionService {
     return switch (event) {
       case ChatEvent.Meta m ->
           "event: meta\ndata: "
-              + json(objectMapper, Map.of("conversationId", m.conversationId()))
+              + json(objectMapper, Map.of("conversationId", m.conversationId(),
+                  "supportsCatalogChangeEvents", m.supportsCatalogChangeEvents()))
               + "\n\n";
       case ChatEvent.Token t -> TOKEN_EVENT_PREFIX + dataEscape(t.text()) + "\n\n";
       case ChatEvent.Error e -> "event: error\ndata: " + dataEscape(e.message()) + "\n\n";
@@ -474,6 +491,8 @@ public class ChatExecutionService {
           "event: step\ndata: " + json(objectMapper, stepPayload(s)) + "\n\n";
       case ChatEvent.Decision d ->
           "event: decision\ndata: " + json(objectMapper, decisionPayload(d)) + "\n\n";
+      case ChatEvent.CatalogChanged changed ->
+          "event: catalog-changed\ndata: " + json(objectMapper, changed) + "\n\n";
     };
   }
 

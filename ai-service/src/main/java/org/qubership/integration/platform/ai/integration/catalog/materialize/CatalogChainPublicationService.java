@@ -86,6 +86,8 @@ public class CatalogChainPublicationService {
       List<String> readBack = findExactChainIds(attemptLabel);
       if (readBack.size() == 1) {
         String chainId = readBack.get(0);
+        org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink.catalogChanges()
+            .ifPresent(changes -> changes.chainChanged(chainId));
         LOG.infof(
             "Catalog chain recovered after ambiguous create: pipelineId=%s attemptLabel=%s"
                 + " chainId=%s",

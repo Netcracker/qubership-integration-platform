@@ -33,6 +33,8 @@ import org.qubership.integration.platform.ai.chain.folder.ChainTable;
 import org.qubership.integration.platform.ai.chain.folder.ChainTable.Row;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.TranscriptWindow;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
@@ -169,8 +171,11 @@ public class ChainListScenario implements ScenarioHandler {
   @Override
   public Multi<ChatEvent> handle(
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
+    var context = ToolInvocationSink.attachedContext();
+    var sessionContext = ToolSession.attachedContext();
     return Multi.createFrom()
-        .item(() -> dispatch(request, conversationId))
+        .item(() -> ToolSession.callInBoundContext(sessionContext, () ->
+            ToolInvocationSink.callInBoundContext(context, () -> dispatch(request, conversationId))))
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
   }
 

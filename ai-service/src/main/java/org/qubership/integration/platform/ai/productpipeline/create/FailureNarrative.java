@@ -248,11 +248,11 @@ public final class FailureNarrative {
   public enum RecoveryStatus {
     READY, AGENT_UNAVAILABLE, PROJECTION_FAILURE, INVALID_REPLY, DIAGNOSIS_LIMIT,
     TIMED_OUT, INTERRUPTED, TRANSIENT_PROVIDER_FAILURE, PERMANENT_PROVIDER_FAILURE,
-    PROVIDER_FAILURE, RESOURCE_REFUSAL;
+    PROVIDER_FAILURE, INTERNAL_FAILURE, RESOURCE_REFUSAL;
 
     public boolean permitsProducerFallback() {
       return this == READY || this == AGENT_UNAVAILABLE || this == PROJECTION_FAILURE
-          || this == INVALID_REPLY || this == DIAGNOSIS_LIMIT;
+          || this == INVALID_REPLY || this == DIAGNOSIS_LIMIT || this == INTERNAL_FAILURE;
     }
   }
 
@@ -526,6 +526,9 @@ public final class FailureNarrative {
       }
       if (current instanceof dev.langchain4j.service.output.OutputParsingException) {
         return new TurnResult<>(null, RecoveryStatus.INVALID_REPLY, current.getMessage());
+      }
+      if (current instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException) {
+        return new TurnResult<>(null, RecoveryStatus.INTERNAL_FAILURE, current.getMessage());
       }
       if (current instanceof dev.langchain4j.exception.NonRetriableException
           || current instanceof dev.langchain4j.exception.HttpException http

@@ -19,6 +19,48 @@ class SkillActivitySupportTest {
   }
 
   @Test
+  void workerWithoutItsOwnTurnDoesNotEmitToOrUnbindAnotherTurn() {
+    List<ChatEvent> a = new ArrayList<>();
+    ToolInvocationSink.bind(a::add, null, "active-a");
+    try {
+      SkillActivitySupport.bindWorker("cip-design-executor", "missing-b");
+      SkillActivitySupport.unbindWorker();
+      assertTrue(a.isEmpty());
+      assertTrue(SkillActivitySupport.captureTurnEmit("active-a").isPresent());
+    } finally {
+      ToolInvocationSink.unbind("active-a");
+    }
+  }
+
+  @Test
+  void explicitConversationNeverUsesAnotherActiveTurn() {
+    ToolInvocationSink.bind(event -> {}, null, "active-a");
+    try {
+      assertTrue(SkillActivitySupport.captureTurnEmit("missing-b").isEmpty());
+    } finally {
+      ToolInvocationSink.unbind("active-a");
+    }
+  }
+
+  @Test
+  void explicitConversationFindsItsOwnConcurrentTurn() throws Exception {
+    List<ChatEvent> a = new ArrayList<>();
+    List<ChatEvent> b = new ArrayList<>();
+    ToolInvocationSink.bind(a::add, null, "active-a");
+    Thread other = new Thread(() -> ToolInvocationSink.bind(b::add, null, "active-b"));
+    other.start();
+    other.join();
+    try {
+      SkillActivitySupport.captureTurnEmit("active-b").orElseThrow().accept(ChatEvent.token("b"));
+      assertTrue(a.isEmpty());
+      assertEquals(List.of(ChatEvent.token("b")), b);
+    } finally {
+      ToolInvocationSink.unbind("active-b");
+      ToolInvocationSink.unbind("active-a");
+    }
+  }
+
+  @Test
   void bindParentsEmitsSkillRunningOnTheBoundTurnSink() {
     List<ChatEvent> out = new ArrayList<>();
     ToolInvocationSink.bind(out::add);

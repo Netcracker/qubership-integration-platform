@@ -19,6 +19,34 @@ import org.junit.jupiter.api.Test;
 
 class StringifiedToolArgumentsNormalizerTest {
 
+  @Test
+  void invalidPatchFeedbackUsesTheConversationBehindTheSkillMemoryId() {
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+    var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+        new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(), feedback);
+    var boundary = new StringifiedToolArgumentsNormalizer(objectMapper, null, null, null, gateway);
+    var specification = ToolSpecification.builder().name("captureGraphPatch").parameters(JsonObjectSchema.builder()
+        .addProperty("patch", JsonObjectSchema.builder().addStringProperty("patchId").required("patchId").build())
+        .build()).build();
+    var method = new ToolMethodCreateInfo("captureGraphPatch", "invoker", specification,
+        "mapper", ToolMethodCreateInfo.ExecutionModel.BLOCKING, ReturnBehavior.TO_LLM, null, null);
+    var executor = org.mockito.Mockito.mock(io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor.class);
+    org.mockito.Mockito.when(executor.getMethodCreateInfo()).thenReturn(method);
+    var invocation = org.mockito.Mockito.mock(dev.langchain4j.invocation.InvocationContext.class);
+    org.mockito.Mockito.when(invocation.chatMemoryId()).thenReturn(
+        org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.forSkill("patch-shape-test", "generator"));
+    org.jboss.logmanager.MDC.put(org.qubership.integration.platform.ai.compiler.CompilerSkillMdc.CAPABILITY_ID, "generator");
+    try {
+      boundary.wrap(ToolExecutionRequest.builder().id("call-1").name("captureGraphPatch")
+          .arguments("{\"patch\":{}}").build(), invocation,
+          (call, context) -> { throw new AssertionError("Invalid capture reached argument binding"); }, executor);
+      org.junit.jupiter.api.Assertions.assertTrue(feedback.lastPatchFailure("patch-shape-test", "generator")
+          .orElseThrow().summary().contains("MISSING_FIELD /patch/patchId"));
+    } finally {
+      org.jboss.logmanager.MDC.remove(org.qubership.integration.platform.ai.compiler.CompilerSkillMdc.CAPABILITY_ID);
+    }
+  }
+
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final StringifiedToolArgumentsNormalizer normalizer =
       new StringifiedToolArgumentsNormalizer(objectMapper);

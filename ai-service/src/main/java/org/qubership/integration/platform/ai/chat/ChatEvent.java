@@ -204,7 +204,19 @@ public sealed interface ChatEvent {
   String IMPORT_MARKER = "Import the API Hub specification";
 
   /** Stream metadata emitted once at the start of an SSE turn. */
-  record Meta(String conversationId) implements ChatEvent {}
+  record Meta(String conversationId, boolean supportsCatalogChangeEvents) implements ChatEvent {
+    public Meta(String conversationId) {
+      this(conversationId, true);
+    }
+  }
+
+  /** Saved catalog mutations that subscribers must read back after the operation completes. */
+  @JsonInclude(JsonInclude.Include.ALWAYS)
+  record CatalogChanged(List<String> chainIds, boolean chainsListChanged) implements ChatEvent {
+    public CatalogChanged {
+      chainIds = chainIds == null ? null : List.copyOf(chainIds);
+    }
+  }
 
   /** Streamed assistant content shown to the user. */
   record Token(String text, LastAssistantTurn.Kind turnKind) implements ChatEvent {

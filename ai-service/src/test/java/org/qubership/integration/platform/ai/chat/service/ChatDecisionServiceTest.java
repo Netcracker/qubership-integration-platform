@@ -1668,8 +1668,9 @@ class ChatDecisionServiceTest {
     verify(facade, never()).continueWithInput(any(ContinueCreateChainCommand.class));
   }
 
-  @Test
-  void idsPathNoContinuesTheOpenGateWithoutRoutingThroughTheModel() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"yes", "no"})
+  void idsPathChoiceContinuesTheOpenGateWithoutRoutingThroughTheModel(String action) {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-ids"))
         .thenReturn(
@@ -1684,7 +1685,7 @@ class ChatDecisionServiceTest {
                     "")));
     when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
         .thenReturn(Multi.createFrom().item(new CreateChainEvent.Message("Design derived.")));
-    ChatDecisionCommand command = command("no", null, null, null);
+    ChatDecisionCommand command = command(action, null, null, null);
     command.setRevision(4L);
 
     List<ChatEvent> events =
@@ -1698,11 +1699,27 @@ class ChatDecisionServiceTest {
     ArgumentCaptor<ContinueCreateChainCommand> input =
         ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
     verify(facade).continueWithInput(input.capture());
-    assertEquals("no", input.getValue().clarificationText());
+    assertEquals(action, input.getValue().clarificationText());
     assertTrue(
         events.stream()
             .anyMatch(event -> event instanceof ChatEvent.Token token && token.text().equals("Design derived.")),
         () -> "expected the direct gate result, got: " + events);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"stale", "continue-to-planning"})
+  void idsGateRejectsAStaleAnswerOrPlanningShortcut(String scenario) {
+    var facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("ids-stale")).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        "ids-stale", "run", CreateChainExecutionStatus.INPUT_REQUIRED, 4L,
+        new CreateChainPendingAction.Clarify("Show IDS?", List.of(), PipelineGates.IDS_PATH_CHOICE), "")));
+    var command = command("stale".equals(scenario) ? "yes" : scenario, null, null, null);
+    command.setRevision("stale".equals(scenario) ? 3L : 4L);
+    var events = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("ids-stale", command).collect().asList().await().indefinitely();
+    verify(facade, never()).continueWithInput(any());
+    assertTrue(events.stream().anyMatch(event -> event instanceof ChatEvent.Decision decision
+        && decision.actions().equals(List.of("yes", "no")) && decision.revision() == 4L));
   }
 
   @Test

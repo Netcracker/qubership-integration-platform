@@ -7,6 +7,8 @@ import java.util.ArrayDeque;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 
@@ -38,7 +40,8 @@ public final class ToolInvocationSink {
 
   private ToolInvocationSink() {}
 
-  private record Binding(Consumer<ChatEvent> emit, String parentSkillId) {}
+  private record Binding(Consumer<ChatEvent> emit, String parentSkillId,
+      CatalogChangeTracker changes, String conversationId) {}
 
   public static void bind(Consumer<ChatEvent> emit) {
     bind(emit, null);
@@ -48,10 +51,22 @@ public final class ToolInvocationSink {
     bind(emit, parentSkillId, ToolSession.resolveConversationId());
   }
 
-  public static void bind(Consumer<ChatEvent> emit, String parentSkillId, String conversationId) {
-    Binding binding = new Binding(emit, parentSkillId);
+  public static Context bind(Consumer<ChatEvent> emit, String parentSkillId, String conversationId) {
+    conversationId = conversationId == null || conversationId.isBlank() ? null : conversationId.trim();
+    Binding previous = conversationId == null ? null : BY_CONVERSATION.get(conversationId);
+    if (previous == null || previous.emit() != emit) previous = resolveBinding().orElse(null);
+    CatalogChangeTracker changes = previous != null && previous.emit() == emit
+        ? previous.changes() : new CatalogChangeTracker();
+    Binding binding = new Binding(emit, parentSkillId, changes, conversationId);
     Context context = Context.of(CONTEXT_KEY, binding);
     Binding current = THREAD_BINDING.get();
+    if (current != null && current.conversationId() != null
+        && !isActiveBinding(current, current.conversationId())) {
+      BIND_DEPTH.remove();
+      NESTED_PREVIOUS.remove();
+      REGISTERED_CONVERSATION_ID.remove();
+      current = null;
+    }
     int depth = bindDepth() + 1;
     BIND_DEPTH.set(depth);
     if (depth > 1 && current != null) {
@@ -60,12 +75,13 @@ public final class ToolInvocationSink {
     installBinding(binding, context);
     if (conversationId != null && !conversationId.isBlank()) {
       String id = conversationId.trim();
-      Binding previous = BY_CONVERSATION.put(id, binding);
+      Binding previousConversation = BY_CONVERSATION.put(id, binding);
       // Nested worker binds may refresh parentSkillId; only the first binder may unbind the map.
-      if (previous == null) {
+      if (previousConversation == null) {
         REGISTERED_CONVERSATION_ID.set(id);
       }
     }
+    return context;
   }
 
   public static void unbind() {
@@ -117,7 +133,7 @@ public final class ToolInvocationSink {
     resolveBinding()
         .ifPresent(
             binding -> {
-              Binding updated = new Binding(binding.emit(), parentSkillWireId);
+              Binding updated = new Binding(binding.emit(), parentSkillWireId, binding.changes(), binding.conversationId());
               installBinding(updated, Context.of(CONTEXT_KEY, updated));
               String conversationId = ToolSession.resolveConversationId();
               if (conversationId == null || conversationId.isBlank()) {
@@ -136,6 +152,13 @@ public final class ToolInvocationSink {
   /** Emit consumer from the active binding, if any — used to re-bind on worker threads. */
   public static Optional<Consumer<ChatEvent>> currentEmit() {
     return resolveBinding().map(Binding::emit);
+  }
+
+  public static Optional<Consumer<ChatEvent>> currentEmit(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) return currentEmit();
+    Binding requested = BY_CONVERSATION.get(conversationId.trim());
+    if (requested != null) return Optional.of(requested.emit());
+    return resolveBinding().filter(binding -> binding.conversationId() == null).map(Binding::emit);
   }
 
   /**
@@ -159,24 +182,49 @@ public final class ToolInvocationSink {
   }
 
   public static Context attachedContext() {
-    Context context = THREAD_CONTEXT.get();
-    return context != null ? context : Context.empty();
+    return resolveBinding().map(binding -> Context.of(CONTEXT_KEY, binding)).orElseGet(Context::empty);
   }
 
   public static void executeInBoundContext(Context context, Runnable action) {
+    callInBoundContext(context, () -> { action.run(); return null; });
+  }
+
+  public static <T> T callInBoundContext(Context context, Supplier<T> action) {
     Binding binding = context.getOrElse(CONTEXT_KEY, () -> null);
     if (binding == null) {
-      action.run();
-      return;
+      return action.get();
     }
     Binding previousBinding = THREAD_BINDING.get();
     Context previousSubscribeContext = SUBSCRIBE_PATH_CONTEXT.get();
     Context previousThreadContext = THREAD_CONTEXT.get();
     installBinding(binding, context);
     try {
-      action.run();
+      return action.get();
     } finally {
       restoreThreadState(previousBinding, previousSubscribeContext, previousThreadContext);
+    }
+  }
+
+  public static Optional<CatalogChangeTracker> catalogChanges() {
+    return resolveBinding().map(Binding::changes);
+  }
+
+  public static void flushCatalogChanges() {
+    resolveBinding().ifPresent(ToolInvocationSink::flushCatalogChanges);
+  }
+
+  public static void flushCatalogChanges(Context context) {
+    bindingFromContext(context).ifPresent(ToolInvocationSink::flushCatalogChanges);
+  }
+
+  private static void flushCatalogChanges(Binding binding) {
+    ChatEvent.CatalogChanged changed = binding.changes().drain();
+    if (changed != null) {
+      try {
+        binding.emit().accept(changed);
+      } catch (RuntimeException e) {
+        Logger.getLogger(ToolInvocationSink.class).debug("Catalog change delivery is unavailable", e);
+      }
     }
   }
 
@@ -216,18 +264,26 @@ public final class ToolInvocationSink {
 
   private static Optional<Binding> resolveBinding() {
     Binding threadBinding = THREAD_BINDING.get();
-    if (threadBinding != null) {
+    String conversationId = ToolSession.resolveConversationId();
+    if (isActiveBinding(threadBinding, conversationId)) {
       return Optional.of(threadBinding);
     }
     Optional<Binding> fromContext = bindingFromContext(activeSubscribeContext());
-    if (fromContext.isPresent()) {
+    if (fromContext.isPresent() && isActiveBinding(fromContext.get(), conversationId)) {
       return fromContext;
     }
-    String conversationId = ToolSession.resolveConversationId();
     if (conversationId == null || conversationId.isBlank()) {
       return Optional.empty();
     }
     return Optional.ofNullable(BY_CONVERSATION.get(conversationId));
+  }
+
+  private static boolean isActiveBinding(Binding binding, String conversationId) {
+    if (binding == null) return false;
+    if (binding.conversationId() == null) return conversationId == null;
+    if (conversationId != null && !conversationId.equals(binding.conversationId())) return false;
+    Binding registered = BY_CONVERSATION.get(binding.conversationId());
+    return registered != null && registered.changes() == binding.changes();
   }
 
   private static int bindDepth() {

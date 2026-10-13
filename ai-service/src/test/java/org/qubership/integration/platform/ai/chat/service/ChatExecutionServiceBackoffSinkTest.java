@@ -17,6 +17,40 @@ import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetExhaustedException;
 
 class ChatExecutionServiceBackoffSinkTest {
+  @Test
+  void explicitTurnContextDoesNotDependOnAmbientConversationFromAnotherTurn() {
+    List<ChatEvent> events = new ArrayList<>();
+    org.qubership.integration.platform.ai.chat.ToolSession.bind("previous-turn");
+    Multi<ChatEvent> routed = Multi.createFrom().emitter(emitter -> {
+      org.qubership.integration.platform.ai.chat.ToolSession.bind("current-turn");
+      ToolInvocationSink.catalogChanges().orElseThrow().chainChanged("a");
+      org.qubership.integration.platform.ai.chat.ToolSession.clear();
+      emitter.complete();
+    });
+    try {
+      ChatExecutionService.bindBackoffSinkForTurn(routed, new AtomicReference<>(), 2, "current-turn")
+          .subscribe().with(events::add);
+      assertEquals(List.of(new ChatEvent.CatalogChanged(List.of("a"), true)), events);
+    } finally {
+      org.qubership.integration.platform.ai.chat.ToolSession.clear();
+    }
+  }
+
+  @Test
+  void partialWritesAreDeliveredBeforeTheErrorAndDrainedOnlyOnce() {
+    List<ChatEvent> events = new ArrayList<>();
+    Multi<ChatEvent> routed = Multi.createFrom().emitter(emitter -> {
+      ToolInvocationSink.catalogChanges().orElseThrow().chainChanged("a");
+      emitter.emit(ChatEvent.error("write failed after a saved change"));
+      emitter.complete();
+    });
+    ChatExecutionService.bindBackoffSinkForTurn(routed, new AtomicReference<>())
+        .subscribe().with(events::add);
+    assertEquals(2, events.size());
+    assertEquals(new ChatEvent.CatalogChanged(List.of("a"), true), events.getFirst());
+    assertInstanceOf(ChatEvent.Error.class, events.getLast());
+    assertTrue(ToolInvocationSink.catalogChanges().isEmpty());
+  }
 
   @AfterEach
   void tearDown() {
