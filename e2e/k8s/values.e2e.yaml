@@ -1,7 +1,7 @@
 # Values for the e2e suite's install of infrastructure/qip-dev into namespace
 # qip-e2e. The provisioner adds the image tags, the micro-engine image, the host
-# ports, and the cluster-specific resolver and dev-server host on the command
-# line.
+# ports, the cluster-specific resolver and dev-server host, the broker switches,
+# and the Kafka TLS files and CA on the command line.
 
 global:
   qip:
@@ -33,6 +33,11 @@ qip-engine:
       value: always
     - name: MONITORING_ENABLED
       value: "true"
+    # The pubsub check builds its own admin client from `serviceAccountKey` with no emulator
+    # endpoint, so against the local emulator it always reaches real googleapis and fails
+    # UNAUTHENTICATED. Off until the check itself learns about the emulator.
+    - name: CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED
+      value: "false"
 
 qip-runtime-catalog:
   # The http-out fixture calls the catalog by its Compose name.

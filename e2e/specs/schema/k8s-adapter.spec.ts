@@ -233,13 +233,64 @@ test("the Helm arguments carry the tags, the catalog's micro-image annotation, t
   });
   expect(k3d).toContain("global.qip.ui.resolver=10.43.0.10");
   expect(k3d.filter((each) => each.includes("loadBalancerPort"))).toEqual([]);
-  expect(k3d.filter((each) => /nodePort=|ui\.port=/.test(each))).toEqual([
+  expect(k3d.filter((each) => /^qip-.*nodePort=|ui\.port=/.test(each))).toEqual([
     "qip-runtime-catalog.nodePort=30091",
     "qip-engine.nodePort=30092",
     "qip-sessions-management.nodePort=30093",
     "qip-testing-service.nodePort=30095",
     "global.qip.ui.port=30080",
   ]);
+});
+
+test("the Helm arguments switch the brokers with E2E_BROKERS and keep everything else, the trusted CA included", { tag: ["@infra", "@tier1"] }, () => {
+  const tags = {
+    "runtime-catalog": "e2e-aaaaaaaaaaaa",
+    engine: "e2e-bbbbbbbbbbbb",
+    "sessions-management": "e2e-cccccccccccc",
+    "testing-service": "e2e-dddddddddddd",
+    "micro-engine": "e2e-eeeeeeeeeeee",
+  };
+  const argumentsWith = (brokers: string | undefined, context: string) =>
+    withEnv({ E2E_BROKERS: brokers }, () =>
+      helmArguments({ root: "/repo", choice: clusterChoice(context), devServerHost: "host", tags }),
+    );
+  const on = argumentsWith(undefined, "kind-qip");
+  expect(on.filter((each) => /^(kafka|rabbitmq|pubsub|sftp)\./.test(each))).toEqual([
+    "kafka.enabled=true",
+    "kafka.nodePort=30992",
+    "rabbitmq.enabled=true",
+    "rabbitmq.nodePort=30672",
+    "pubsub.enabled=true",
+    "pubsub.nodePort=30085",
+    "sftp.enabled=true",
+    "sftp.nodePort=30022",
+    "kafka.tls.serverCert=/repo/infrastructure/kafka-ssl/server/kafka.crt",
+    "kafka.tls.serverKey=/repo/infrastructure/kafka-ssl/server/kafka.key",
+  ]);
+  // Helm reads `\.` as a dot inside the key, so the Secret holds `ca.crt`.
+  expect(on).toContain("qip-engine.trustedCerts.ca\\.crt=/repo/infrastructure/kafka-ssl/client/ca.crt");
+  expect(on).toContain(
+    "qip-runtime-catalog.microDomainResources={secret:qip-engine-certs@/app/cert/defaultsslcertificate}",
+  );
+  expect(on).toContain("qip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}");
+  // Each value file follows its flag: --set-file reads the path, --set would install the path itself.
+  for (const file of on.filter((each) => each.includes("/repo/infrastructure/kafka-ssl/"))) {
+    expect(on[on.indexOf(file) - 1], file).toBe("--set-file");
+  }
+
+  const desktop = argumentsWith(undefined, "docker-desktop");
+  expect(desktop).toContain("rabbitmq.loadBalancerPort=30672");
+  expect(desktop.filter((each) => /^(kafka|rabbitmq|pubsub|sftp)\.nodePort/.test(each))).toEqual([]);
+
+  // Off, only the switches differ: the engine and the catalog keep their pod templates.
+  const off = argumentsWith("0", "kind-qip");
+  expect(off.filter((each) => each.endsWith(".enabled=false"))).toEqual([
+    "kafka.enabled=false",
+    "rabbitmq.enabled=false",
+    "pubsub.enabled=false",
+    "sftp.enabled=false",
+  ]);
+  expect(off.map((each) => each.replace(/\.enabled=false$/, ".enabled=true"))).toEqual(on);
 });
 
 test("the micro engine is built with the local-stack Quarkus profiles, and the tag changes with them", { tag: ["@infra", "@tier1"] }, () => {
