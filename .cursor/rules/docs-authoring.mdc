@@ -1,6 +1,6 @@
 ---
 description: Guidance for updating product documentation when a feature lands.
-globs: "help/docs/**/*.md"
+globs: help/docs/**/*.md
 ---
 
 When writing or updating product documentation under `help/docs/` for a

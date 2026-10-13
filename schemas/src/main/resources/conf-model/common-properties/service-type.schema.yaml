@@ -1,0 +1,13 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/service-type
+$schema: http://json-schema.org/draft-07/schema
+type: string
+title: Service Type
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+enum:
+  - INTERNAL
+  - EXTERNAL
+  - IMPLEMENTED

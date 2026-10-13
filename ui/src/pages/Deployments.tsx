@@ -272,6 +272,7 @@ export const Deployments: React.FC = () => {
               type: "primary",
               iconName: "plus",
               onClick: onCreateClick,
+              "data-testid": "deployments-create",
             }}
           />
         }

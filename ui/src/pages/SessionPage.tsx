@@ -308,13 +308,13 @@ export const SessionPage: React.FC = () => {
       <>
         <Tooltip title="Expand all session elements" placement="bottom">
           <Button
-            icon={<OverridableIcon name="expandAll" />}
+            icon={<OverridableIcon name="columnHeight" />}
             onClick={expandAllRows}
           />
         </Tooltip>
         <Tooltip title="Collapse all session elements" placement="bottom">
           <Button
-            icon={<OverridableIcon name="collapseAll" />}
+            icon={<OverridableIcon name="verticalAlignMiddle" />}
             onClick={collapseAllRows}
           />
         </Tooltip>

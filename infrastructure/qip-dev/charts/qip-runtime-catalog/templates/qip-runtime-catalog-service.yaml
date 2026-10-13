@@ -1,16 +1,19 @@
+{{- include "qip-dev.roleService" (dict "app" (printf "%s-runtime-catalog-%s" .Release.Name .Values.global.blueGreenVersion) "nodePort" .Values.nodePort "loadBalancerPort" .Values.loadBalancerPort "debugPort" true) }}
+{{- range .Values.serviceAliases }}
+---
+# Another name for port 8080, for a caller that addresses the catalog by a name other than its
+# Service's, such as the Compose container name an e2e fixture calls.
 apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
-  name: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
+    app: {{ $.Release.Name }}-runtime-catalog-{{ $.Values.global.blueGreenVersion }}
+  name: {{ . }}
 spec:
   ports:
     - name: "8080"
       port: 8080
       targetPort: 8080
-    - name: "5005"
-      port: 5005
-      targetPort: 5005
   selector:
-    app: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
+    app: {{ $.Release.Name }}-runtime-catalog-{{ $.Values.global.blueGreenVersion }}
+{{- end }}

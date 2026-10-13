@@ -9,6 +9,7 @@ deployments:
     route: "test-subchain"
 scenarios:
   - id: "calls-subchain"
+    scope: Short
     endpointUri: "cip-chain:573699af-6329-47f9-a409-f469528b6eaa"
     body: "Original"
     headers:
@@ -26,6 +27,7 @@ scenarios:
       finallyReached: true
 
   - id: "handles-child-failure-and-skips-continuation-in-try"
+    scope: Short
     endpointUri: "cip-chain:573699af-6329-47f9-a409-f469528b6eaa"
     body: "Original"
     headers:

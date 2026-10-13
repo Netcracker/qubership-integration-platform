@@ -17,5 +17,5 @@
 package org.qubership.integration.platform.sessions.properties;
 
 public class PropertiesConstants {
-    public static final String PROPERTIES_ROOT = "qip";
+    public static final String PROPERTIES_ROOT = "cip";
 }

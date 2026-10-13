@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 
 @QuarkusComponentTest
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
-@TestConfigProperty(key = "qip.camel.component.quartz.thread-pool-count", value = "10")
+@TestConfigProperty(key = "cip.camel.component.quartz.thread-pool-count", value = "10")
 class CamelQuartzComponentCustomizerProducerTest {
 
     @Inject

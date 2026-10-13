@@ -11,6 +11,10 @@ spec:
       app: {{ .Release.Name }}-ui-{{ .Values.global.blueGreenVersion }}
   template:
     metadata:
+      {{- with .Values.global.qip.ui.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         app: {{ .Release.Name }}-ui-{{ .Values.global.blueGreenVersion }}
     spec:

@@ -1,12 +1,18 @@
 package org.qubership.integration.platform.engine.routes.fixture;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.netcracker.cloud.context.propagation.core.ContextManager;
+import com.netcracker.cloud.context.propagation.core.ContextProvider;
+import com.netcracker.cloud.context.propagation.core.contexts.SerializableDataContext;
+import com.netcracker.cloud.framework.contexts.xrequestid.XRequestIdContextProvider;
+import com.netcracker.cloud.framework.contexts.xversion.XVersionProvider;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.GetResponse;
-import com.rabbitmq.client.LongString;
 import com.rabbitmq.client.MetricsCollector;
+import jakarta.enterprise.inject.Instance;
+import jakarta.enterprise.inject.literal.NamedLiteral;
+import jakarta.enterprise.inject.spi.CDI;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -15,32 +21,39 @@ import org.apache.camel.model.ModelCamelContext;
 import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.model.ToDynamicDefinition;
 import org.apache.camel.spi.Registry;
+import org.apache.commons.collections4.map.CaseInsensitiveMap;
+import org.apache.http.HttpHeaders;
 import org.qubership.integration.platform.engine.camel.components.rabbitmq.SpringRabbitMQCustomComponent;
-import org.qubership.integration.platform.engine.camel.processors.RabbitMqSenderProcessor;
+import org.qubership.integration.platform.engine.camel.components.rabbitmq.SpringRabbitMQCustomEndpoint;
+import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureDefinition;
+import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureInteraction;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureRequestExpectation;
+import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioInvocation;
 import org.qubership.integration.platform.engine.routes.support.SnapshotRouteNodes;
 import org.qubership.integration.platform.engine.routes.support.SnapshotValueAssertions;
-import org.qubership.integration.platform.engine.testutils.ObjectMappers;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT;
 import static org.qubership.integration.platform.engine.routes.support.SnapshotCollections.immutableMap;
 
 class RabbitMqContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
@@ -52,8 +65,6 @@ class RabbitMqContainerSnapshotFixtureProvider implements SnapshotFixtureProvide
     private static final String PASSWORD = "snapshot";
     private static final int AMQP_PORT = 5672;
     private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(90);
-    private static final Duration RECORD_TIMEOUT = Duration.ofSeconds(10);
-    private static final Duration RECORD_POLL_INTERVAL = Duration.ofMillis(50);
 
     @Override
     public String getId() {
@@ -68,32 +79,30 @@ class RabbitMqContainerSnapshotFixtureProvider implements SnapshotFixtureProvide
     private static final class RabbitMqContainerSnapshotFixture implements SnapshotFixture {
         private final String deploymentId;
         private final List<SnapshotFixtureBinding> bindings;
-        private final Map<String, RabbitMqFixtureRuntime> runtimesByFixtureId = new LinkedHashMap<>();
+        private final Map<String, RabbitMqFixtureRuntime> runtimes = new LinkedHashMap<>();
+        private final Map<String, String> queuesByVhost = new LinkedHashMap<>();
+        private final Map<String, Map<String, Object>> initializedContexts = new ConcurrentHashMap<>();
+        private final Map<String, Map<String, Object>> restoredContexts = new ConcurrentHashMap<>();
+        private List<ContextProvider<?>> originalContextProviders;
+        private Map<String, Object> originalContext;
+        private CamelExchangeContextPropagation contextPropagation;
         private GenericContainer<?> container;
-        private Connection connection;
+        private RabbitMqSnapshotBroker broker;
+        private RabbitMqSnapshotMaas maas;
 
-        private RabbitMqContainerSnapshotFixture(
-                String deploymentId,
-                List<SnapshotFixtureBinding> bindings
-        ) {
+        private RabbitMqContainerSnapshotFixture(String deploymentId, List<SnapshotFixtureBinding> bindings) {
             this.deploymentId = deploymentId;
             this.bindings = List.copyOf(bindings);
             for (SnapshotFixtureBinding binding : this.bindings) {
-                SnapshotFixtureRequestExpectation expectation =
-                        SnapshotFixtureValidation.requireMessageExpectation(binding, "RabbitMQ container");
-                if (expectation.getMethod() != null
-                        || expectation.getPath() != null
-                        || expectation.getQuery() != null
-                        || expectation.getKey() != null) {
-                    throw new IllegalArgumentException(
-                            "RabbitMQ container fixture '" + binding.definition().getId()
-                                    + "' does not support HTTP method, path, query, or key expectations."
-                    );
+                for (SnapshotFixtureInteraction interaction : binding.interactionsByInvocationId().values()) {
+                    SnapshotFixtureRequestExpectation expectation = interaction.getExpectedRequest();
+                    if (expectation == null || expectation.getDestination() == null || expectation.getMethod() != null
+                            || expectation.getPath() != null || expectation.getQuery() != null) {
+                        throw new IllegalArgumentException("RabbitMQ fixtures require a destination and message expectations.");
+                    }
+                    RabbitMqSnapshotRecords.responseProperties(interaction.getResponse());
                 }
-                runtimesByFixtureId.put(
-                        binding.definition().getId(),
-                        new RabbitMqFixtureRuntime(binding)
-                );
+                runtimes.put(binding.definition().getId(), new RabbitMqFixtureRuntime(binding));
             }
         }
 
@@ -112,385 +121,317 @@ class RabbitMqContainerSnapshotFixtureProvider implements SnapshotFixtureProvide
                     .withStartupTimeout(STARTUP_TIMEOUT);
             container.start();
 
-            ConnectionFactory connectionFactory = new ConnectionFactory();
-            connectionFactory.setHost(container.getHost());
-            connectionFactory.setPort(container.getMappedPort(AMQP_PORT));
-            connectionFactory.setUsername(USERNAME);
-            connectionFactory.setPassword(PASSWORD);
-            connection = connectionFactory.newConnection();
+            broker = new RabbitMqSnapshotBroker(container);
+        }
+
+        @Override
+        public void beforeRouteLoad(CamelContext camelContext) throws Exception {
+            if (RabbitMqSnapshotMaas.usesMaas(bindings)) {
+                maas = new RabbitMqSnapshotMaas(bindings);
+                broker.ensureAccount(RabbitMqSnapshotMaas.USERNAME, RabbitMqSnapshotMaas.PASSWORD, RabbitMqSnapshotMaas.VHOST);
+                maas.beforeRouteLoad(container.getHost(), container.getMappedPort(AMQP_PORT));
+            }
         }
 
         @Override
         public void configure(CamelContext camelContext) throws Exception {
-            registerRuntimeBeans(camelContext);
-            camelContext.addComponent(
-                    RABBITMQ_COMPONENT_NAME,
-                    new SpringRabbitMQCustomComponent()
-            );
+            configure(camelContext, ((ModelCamelContext) camelContext).getRouteDefinitions());
+        }
 
-            ModelCamelContext modelCamelContext = (ModelCamelContext) camelContext;
+        @Override
+        public void configure(CamelContext camelContext, List<RouteDefinition> routes) throws Exception {
+            originalContext = ContextManager.createContextSnapshot();
+            originalContextProviders = List.copyOf(ContextManager.getContextProviders());
+            if (originalContextProviders.stream()
+                    .noneMatch(provider -> XRequestIdContextProvider.X_REQUEST_ID_CONTEXT_NAME.equals(provider.contextName()))) {
+                // Maven disables context-provider discovery for the component suite.
+                ContextManager.register(List.of(new XRequestIdContextProvider()));
+            }
+            if (originalContextProviders.stream().noneMatch(provider -> XVersionProvider.CONTEXT_NAME.equals(provider.contextName()))) {
+                ContextManager.register(List.of(new XVersionProvider()));
+            }
+            ContextManager.register(List.of(new RabbitMqSnapshotContextProvider()));
+            contextPropagation = registerRuntimeBeans(camelContext);
+            if (camelContext.getComponent(RABBITMQ_COMPONENT_NAME, false) == null) {
+                camelContext.addComponent(RABBITMQ_COMPONENT_NAME, new SpringRabbitMQCustomComponent());
+            }
             Map<RouteDefinition, List<SnapshotFixtureBinding>> bindingsByRoute = new LinkedHashMap<>();
             for (SnapshotFixtureBinding binding : bindings) {
-                RabbitMqProducerNode producerNode = findProducerNode(
-                        modelCamelContext.getRouteDefinitions(),
-                        binding.definition()
-                );
+                RabbitMqProducerNode producerNode = findProducerNode(routes, binding.definition());
                 RabbitMqEndpointUri endpointUri = RabbitMqEndpointUri.parse(
-                        producerNode.definition().getUri(),
-                        binding.definition().getId()
-                );
-                producerNode.definition().setUri(endpointUri.withContainerConnection(
-                        container.getHost(),
-                        container.getMappedPort(AMQP_PORT)
-                ));
-                requireMetricsCollector(
-                        camelContext,
-                        endpointUri,
-                        binding.definition().getNodeId()
-                );
-
-                String queue = declareQueue(endpointUri);
-                runtimesByFixtureId.get(binding.definition().getId()).configure(
-                        endpointUri.exchange(),
-                        queue
-                );
-                bindingsByRoute.computeIfAbsent(producerNode.route(), ignored -> new ArrayList<>())
-                        .add(binding);
+                        producerNode.definition().getUri(), binding.definition().getId());
+                String rewrittenUri;
+                if (maas == null) {
+                    rewrittenUri = endpointUri.withContainerConnection(container.getHost(), container.getMappedPort(AMQP_PORT));
+                } else {
+                    maas.verifyResolvedEndpoint(endpointUri.parameters());
+                    rewrittenUri = producerNode.definition().getUri();
+                }
+                producerNode.definition().setUri(rewrittenUri);
+                requireMetricsCollector(camelContext, endpointUri, binding.definition().getNodeId());
+                RabbitMqFixtureRuntime runtime = runtimes.get(binding.definition().getId());
+                runtime.vhost = endpointUri.parameters().getOrDefault("vhost", "/");
+                broker.ensureAccount(endpointUri.parameters().getOrDefault("username", USERNAME),
+                        endpointUri.parameters().getOrDefault("password", PASSWORD), runtime.vhost);
+                bindQueue(endpointUri, binding, runtime.vhost);
+                runtime.routingKey = endpointUri.routingKey();
+                SpringRabbitMQCustomEndpoint endpoint = camelContext.getEndpoint(rewrittenUri, SpringRabbitMQCustomEndpoint.class);
+                runtime.connectionFactory = (CachingConnectionFactory) endpoint.getConnectionFactory();
+                broker.observe(runtime.connectionFactory);
+                bindingsByRoute.computeIfAbsent(producerNode.route(), ignored -> new ArrayList<>()).add(binding);
             }
-
+            Processor restoreProcessor = camelContext.getRegistry().lookupByNameAndType("contextRestoreProcessor", Processor.class);
+            Processor observedRestore = exchange -> {
+                restoreProcessor.process(exchange);
+                restoredContexts.put(exchange.getExchangeId(), snapshotContextHeaders());
+            };
+            SnapshotFixtureRouteScope.bind(camelContext, List.copyOf(bindingsByRoute.keySet()), "rabbitmq:" + deploymentId,
+                    Map.of("contextRestoreProcessor", observedRestore));
             for (Map.Entry<RouteDefinition, List<SnapshotFixtureBinding>> entry : bindingsByRoute.entrySet()) {
                 AdviceWith.adviceWith(camelContext, entry.getKey(), false, advice -> {
+                    advice.weaveAddFirst().process(exchange -> initializedContexts.put(exchange.getExchangeId(),
+                            initializeRequestContext(contextPropagation, exchange)));
                     for (SnapshotFixtureBinding binding : entry.getValue()) {
-                        advice.weaveById(binding.definition().getNodeId())
-                                .before()
-                                .process(exchange -> capturePreparedRequest(binding, exchange));
+                        advice.weaveById(binding.definition().getNodeId()).before().process(exchange ->
+                                runtimes.get(binding.definition().getId()).preparedRequests.add(
+                                        new PreparedRequest(immutableMap(exchange.getProperties()),
+                                                immutableMap(exchange.getMessage().getHeaders()), exchange)));
                     }
                 });
             }
         }
 
         @Override
+        public void beforeInvocation(SnapshotScenarioInvocation invocation) throws Exception {
+            for (RabbitMqFixtureRuntime runtime : runtimes.values()) {
+                runtime.preparedBaseline = runtime.preparedRequests.size();
+                SnapshotFixtureInteraction interaction = runtime.binding.interaction(invocation.getId());
+                if (RabbitMqSnapshotRecords.expectedSendCount(interaction, invocation.getRepeat()) > 0) {
+                    broker.beforeInvocation(RabbitMqSnapshotRecords.responseProperties(interaction.getResponse()),
+                            List.of(runtime.connectionFactory));
+                }
+            }
+        }
+
+        @Override
+        public void verifyInvocation(SnapshotScenarioInvocation invocation) throws Exception {
+            Map<String, List<RabbitMqSnapshotRecords.ExpectedRecord>> expectedByVhost = new LinkedHashMap<>();
+            for (RabbitMqFixtureRuntime runtime : runtimes.values()) {
+                expectedByVhost.computeIfAbsent(runtime.vhost, ignored -> new ArrayList<>())
+                        .addAll(runtime.verifyInvocation(invocation, initializedContexts, restoredContexts));
+                SnapshotFixtureInteraction interaction = runtime.binding.interaction(invocation.getId());
+                if (interaction != null) {
+                    Map<String, Object> properties = RabbitMqSnapshotRecords.responseProperties(interaction.getResponse());
+                    broker.verifyInvocation(properties);
+                }
+            }
+            for (Map.Entry<String, String> queue : queuesByVhost.entrySet()) {
+                List<RabbitMqSnapshotRecords.ExpectedRecord> expected = expectedByVhost.get(queue.getKey());
+                if (!broker.isRunning()) {
+                    assertEquals(0, expected.size(), "A stopped RabbitMQ broker cannot publish records.");
+                    continue;
+                }
+                try (Connection inspector = openConnection(queue.getKey())) {
+                    List<GetResponse> records = RabbitMqSnapshotRecords.read(inspector, queue.getValue(), expected.size());
+                    RabbitMqSnapshotRecords.assertRecords(expected, records,
+                            "RabbitMQ invocation '" + invocation.getId() + "' in vhost '" + queue.getKey() + "'");
+                }
+            }
+        }
+
+        @Override
         public void verify() {
-            runtimesByFixtureId.values().forEach(runtime -> runtime.verify(connection));
+            if (maas != null) {
+                maas.verifyLookups();
+            }
+            for (Map.Entry<String, String> queue : queuesByVhost.entrySet()) {
+                try (Connection inspector = openConnection(queue.getKey())) {
+                    RabbitMqSnapshotRecords.assertRecords(List.of(), RabbitMqSnapshotRecords.read(inspector, queue.getValue(), 0),
+                            "RabbitMQ vhost '" + queue.getKey() + "' after its final invocation");
+                } catch (IOException | TimeoutException exception) {
+                    throw new IllegalStateException("Cannot verify RabbitMQ records.", exception);
+                }
+            }
         }
 
         @Override
         public void close() throws Exception {
-            Exception cleanupFailure = null;
-            if (connection != null) {
-                try {
-                    connection.close();
-                } catch (Exception exception) {
-                    cleanupFailure = exception;
-                } finally {
-                    connection = null;
-                }
-            }
-            if (container != null) {
-                try {
+            try {
+                if (container != null) {
                     container.stop();
-                } catch (Exception exception) {
-                    if (cleanupFailure == null) {
-                        cleanupFailure = exception;
-                    } else {
-                        cleanupFailure.addSuppressed(exception);
-                    }
-                } finally {
-                    container = null;
+                }
+            } finally {
+                if (originalContextProviders != null) {
+                    ContextManager.clearAll();
+                    ContextManager.reinitialize();
+                    ContextManager.register(originalContextProviders);
+                    ContextManager.activateContextSnapshot(originalContext);
                 }
             }
-            if (cleanupFailure != null) {
-                throw cleanupFailure;
-            }
         }
 
-        private String declareQueue(RabbitMqEndpointUri endpointUri) throws IOException, TimeoutException {
-            try (Channel channel = connection.createChannel()) {
-                channel.exchangeDeclare(
-                        endpointUri.exchange(),
-                        endpointUri.exchangeType(),
-                        false
-                );
-                String queue = channel.queueDeclare().getQueue();
-                channel.queueBind(
-                        queue,
-                        endpointUri.exchange(),
-                        endpointUri.routingKey()
-                );
-                return queue;
-            }
+        private Connection openConnection(String vhost) throws IOException, TimeoutException {
+            ConnectionFactory factory = new ConnectionFactory();
+            factory.setHost(container.getHost());
+            factory.setPort(container.getMappedPort(AMQP_PORT));
+            factory.setUsername(USERNAME);
+            factory.setPassword(PASSWORD);
+            factory.setVirtualHost(vhost);
+            factory.setAutomaticRecoveryEnabled(false);
+            return factory.newConnection();
         }
 
-        private void capturePreparedRequest(
-                SnapshotFixtureBinding binding,
-                Exchange exchange
-        ) {
-            runtimesByFixtureId.get(binding.definition().getId()).addPreparedRequest(
-                    new PreparedRequest(immutableMap(exchange.getProperties()))
-            );
+        private void bindQueue(RabbitMqEndpointUri endpointUri, SnapshotFixtureBinding binding, String vhost)
+                throws IOException, TimeoutException {
+            try (Connection inspector = openConnection(vhost); Channel channel = inspector.createChannel()) {
+                channel.exchangeDeclare(endpointUri.exchange(), endpointUri.exchangeType(), true);
+                String queue = queuesByVhost.get(vhost);
+                if (queue == null) {
+                    queue = channel.queueDeclare("snapshot-" + UUID.randomUUID(), true, false, false, Map.of()).getQueue();
+                    queuesByVhost.put(vhost, queue);
+                }
+                channel.queueBind(queue, endpointUri.exchange(), endpointUri.routingKey());
+                for (SnapshotFixtureInteraction interaction : binding.interactionsByInvocationId().values()) {
+                    Object configured = RabbitMqSnapshotRecords.responseProperties(interaction.getResponse()).get("bindings");
+                    if (configured == null) {
+                        continue;
+                    }
+                    if (!(configured instanceof List<?> additionalBindings)) {
+                        throw new IllegalArgumentException("RabbitMQ bindings must be a list.");
+                    }
+                    for (Object value : additionalBindings) {
+                        if (!(value instanceof Map<?, ?> fields) || !(fields.get("exchange") instanceof String exchange)
+                                || exchange.isBlank() || !(fields.get("routingKey") instanceof String routingKey)) {
+                            throw new IllegalArgumentException("RabbitMQ bindings require an exchange and a routingKey.");
+                        }
+                        channel.exchangeDeclare(exchange, "direct", true);
+                        channel.queueBind(queue, exchange, routingKey);
+                    }
+                }
+            }
         }
     }
 
     private static final class RabbitMqFixtureRuntime {
         private final SnapshotFixtureBinding binding;
-        private final ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
         private final List<PreparedRequest> preparedRequests = new CopyOnWriteArrayList<>();
-        private String exchange;
-        private String queue;
+        private String routingKey;
+        private String vhost;
+        private CachingConnectionFactory connectionFactory;
+        private int preparedBaseline;
 
         private RabbitMqFixtureRuntime(SnapshotFixtureBinding binding) {
             this.binding = binding;
         }
 
-        private void configure(String exchange, String queue) {
-            this.exchange = exchange;
-            this.queue = queue;
-        }
-
-        private void addPreparedRequest(PreparedRequest preparedRequest) {
-            preparedRequests.add(preparedRequest);
-        }
-
-        private void verify(Connection connection) {
-            SnapshotFixtureRequestExpectation expectation = binding.interaction().getExpectedRequest();
-            String fixtureId = binding.definition().getId();
-            List<RabbitMqRecord> records = readRecords(
-                    connection,
-                    queue,
-                    expectation.getCount()
-            );
-            assertEquals(
-                    expectation.getCount(),
-                    records.size(),
-                    () -> "RabbitMQ container fixture '" + fixtureId
-                            + "' received an unexpected number of records."
-            );
-            assertEquals(
-                    records.size(),
-                    preparedRequests.size(),
-                    () -> "RabbitMQ container fixture '" + fixtureId
-                            + "' prepared a record that did not reach RabbitMQ."
-            );
-
-            for (int index = 0; index < records.size(); index++) {
-                verifyRecord(
-                        fixtureId,
-                        index + 1,
-                        expectation,
-                        records.get(index),
-                        preparedRequests.get(index)
-                );
+        private List<RabbitMqSnapshotRecords.ExpectedRecord> verifyInvocation(SnapshotScenarioInvocation invocation,
+                Map<String, Map<String, Object>> initializedContexts, Map<String, Map<String, Object>> restoredContexts) {
+            SnapshotFixtureInteraction interaction = binding.interaction(invocation.getId());
+            List<PreparedRequest> prepared = preparedRequests.subList(preparedBaseline, preparedRequests.size());
+            RabbitMqSnapshotRecords.assertPreparedCount(interaction, invocation.getRepeat(), prepared.size(),
+                    "RabbitMQ fixture '" + binding.definition().getId() + "' invocation '" + invocation.getId() + "'");
+            if (interaction == null) {
+                return List.of();
             }
-        }
-
-        private void verifyRecord(
-                String fixtureId,
-                int recordNumber,
-                SnapshotFixtureRequestExpectation expectation,
-                RabbitMqRecord record,
-                PreparedRequest preparedRequest
-        ) {
-            assertEquals(
-                    expectation.getDestination(),
-                    record.exchange(),
-                    () -> recordFailure(fixtureId, recordNumber, "destination")
-            );
-            assertEquals(
-                    exchange,
-                    record.exchange(),
-                    () -> recordFailure(fixtureId, recordNumber, "exchange")
-            );
-            if (expectation.hasBody()) {
-                assertEquals(
-                        expectedBody(expectation.getBody()),
-                        record.body(),
-                        () -> recordFailure(fixtureId, recordNumber, "body")
-                );
-            }
-            SnapshotValueAssertions.assertMapValues(
-                    expectation.getHeaders(),
-                    record.headers(),
-                    "RabbitMQ container fixture '" + fixtureId + "' record " + recordNumber
-                            + " has an unexpected header"
-            );
-            SnapshotValueAssertions.assertMapValues(
-                    expectation.getProperties(),
-                    preparedRequest.properties(),
-                    "RabbitMQ container fixture '" + fixtureId + "' record " + recordNumber
-                            + " has an unexpected property"
-            );
-        }
-
-        private Object expectedBody(Object body) {
-            if (body == null) {
-                return "";
-            }
-            if (body instanceof String) {
-                return body;
-            }
-            try {
-                return objectMapper.writeValueAsString(body);
-            } catch (IOException exception) {
-                throw new IllegalArgumentException(
-                        "Cannot serialize the expected RabbitMQ record body.",
-                        exception
-                );
-            }
-        }
-    }
-
-    private static List<RabbitMqRecord> readRecords(
-            Connection connection,
-            String queue,
-            int expectedCount
-    ) {
-        List<RabbitMqRecord> records = new ArrayList<>();
-        long deadline = System.nanoTime() + RECORD_TIMEOUT.toNanos();
-        try (Channel channel = connection.createChannel()) {
-            while (records.size() < expectedCount && System.nanoTime() < deadline) {
-                GetResponse response = channel.basicGet(queue, true);
-                if (response == null) {
-                    pauseBeforeNextPoll();
+            Object incomingRequestId = new CaseInsensitiveMap<>(invocation.getHeaders()).get("X-Request-Id");
+            for (PreparedRequest request : prepared) {
+                String exchangeId = request.exchange().getExchangeId();
+                Map<String, Object> initializedContext = initializedContexts.get(exchangeId);
+                assertNotNull(initializedContext, "RabbitMQ did not initialize request context for " + invocation.getId());
+                Object initializedRequestId = new CaseInsensitiveMap<>(initializedContext).get("X-Request-Id");
+                if (incomingRequestId == null) {
+                    assertTrue(initializedRequestId instanceof String id && !id.isBlank(),
+                            "RabbitMQ did not generate a request ID for " + invocation.getId());
+                    assertTrue(initializedContexts.entrySet().stream()
+                                    .filter(entry -> !entry.getKey().equals(exchangeId))
+                                    .noneMatch(entry -> initializedRequestId.equals(
+                                            new CaseInsensitiveMap<>(entry.getValue()).get("X-Request-Id"))),
+                            "RabbitMQ reused another exchange's request ID for " + invocation.getId());
                 } else {
-                    records.add(toRecord(response));
+                    assertEquals(incomingRequestId, initializedRequestId,
+                            "RabbitMQ did not initialize the incoming request ID for " + invocation.getId());
                 }
+                Map<String, Object> restoredContext = restoredContexts.get(exchangeId);
+                assertNotNull(restoredContext, "RabbitMQ did not execute the context restore processor for " + invocation.getId());
+                assertEquals(initializedContext, restoredContext,
+                        "RabbitMQ did not restore the incoming request context for " + invocation.getId());
+                RabbitMqSnapshotRecords.assertPreparedHeaders(interaction, request.headers());
+                SnapshotValueAssertions.assertMapValues(interaction.getExpectedRequest().getProperties(), request.properties(),
+                        "RabbitMQ prepared an unexpected exchange property");
             }
+            return RabbitMqSnapshotRecords.expectedRecords(interaction, routingKey, prepared.stream()
+                    .map(request -> initializedContexts.get(request.exchange().getExchangeId())).toList());
+        }
+    }
 
-            GetResponse response;
-            while ((response = channel.basicGet(queue, true)) != null) {
-                records.add(toRecord(response));
+    private static CamelExchangeContextPropagation registerRuntimeBeans(CamelContext camelContext) {
+        Registry registry = camelContext.getRegistry();
+        CDI<Object> container = CDI.current();
+        for (String name : List.of("contextPropagationProcessor", "contextRestoreProcessor", "rabbitMqSenderProcessor",
+                "messagingXHeadersPropagationProcessor", "messagingXHeadersPropagationRestoreProcessor")) {
+            Instance<Processor> processors = container.select(Processor.class, NamedLiteral.of(name));
+            if (!processors.isResolvable()) {
+                throw new IllegalStateException("RabbitMQ container fixture cannot resolve CDI processor '" + name + "'.");
             }
-            return List.copyOf(records);
-        } catch (IOException | TimeoutException exception) {
-            throw new IllegalStateException(
-                    "Cannot read records from RabbitMQ queue '" + queue + "'.",
-                    exception
-            );
+            registry.bind(name, Processor.class, processors.get());
         }
-    }
-
-    private static void pauseBeforeNextPoll() {
-        try {
-            Thread.sleep(RECORD_POLL_INTERVAL.toMillis());
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(
-                    "Interrupted while waiting for RabbitMQ records.",
-                    exception
-            );
+        Instance<CamelExchangeContextPropagation> propagation = container.select(CamelExchangeContextPropagation.class);
+        if (!propagation.isResolvable()) {
+            throw new IllegalStateException("RabbitMQ container fixture cannot resolve CDI context propagation.");
         }
+        return propagation.get();
     }
 
-    private static RabbitMqRecord toRecord(GetResponse response) {
-        return new RabbitMqRecord(
-                response.getEnvelope().getExchange(),
-                new String(response.getBody(), StandardCharsets.UTF_8),
-                immutableRabbitHeaders(response)
-        );
-    }
-
-    private static Map<String, Object> immutableRabbitHeaders(GetResponse response) {
-        Map<String, Object> sourceHeaders = response.getProps().getHeaders();
-        if (sourceHeaders == null || sourceHeaders.isEmpty()) {
-            return Map.of();
+    private static Map<String, Object> initializeRequestContext(CamelExchangeContextPropagation propagation, Exchange exchange) {
+        Map<String, Object> headers = exchange.getMessage().getHeaders();
+        propagation.initRequestContext(headers);
+        Object authorization = exchange.getMessage().getHeader(HttpHeaders.AUTHORIZATION);
+        propagation.removeContextHeaders(headers);
+        if (authorization != null) {
+            exchange.getMessage().setHeader(HttpHeaders.AUTHORIZATION, authorization);
         }
-        Map<String, Object> headers = new TreeMap<>();
-        sourceHeaders.forEach((name, value) -> headers.put(name, normalizeRabbitValue(value)));
-        return Collections.unmodifiableMap(headers);
+        exchange.setProperty(REQUEST_CONTEXT_PROPAGATION_SNAPSHOT, propagation.createContextSnapshot());
+        return snapshotContextHeaders();
     }
 
-    private static Object normalizeRabbitValue(Object value) {
-        if (value instanceof LongString longString) {
-            return longString.toString();
-        }
-        if (value instanceof byte[] bytes) {
-            return new String(bytes, StandardCharsets.UTF_8);
-        }
-        return value;
+    private static Map<String, Object> snapshotContextHeaders() {
+        Map<String, Object> headers = new CaseInsensitiveMap<>();
+        ContextManager.getAll().stream().filter(SerializableDataContext.class::isInstance)
+                .map(SerializableDataContext.class::cast)
+                .forEach(context -> headers.putAll(context.getSerializableContextData()));
+        return immutableMap(headers);
     }
 
-    private static void registerRuntimeBeans(CamelContext camelContext) {
-        Registry registry = camelContext.getRegistry();
-        Processor noOpProcessor = exchange -> {
-        };
-
-        bindProcessor(registry, "contextPropagationProcessor", noOpProcessor);
-        bindProcessor(registry, "contextRestoreProcessor", noOpProcessor);
-        bindProcessor(registry, "rabbitMqSenderProcessor", new RabbitMqSenderProcessor());
-        bindProcessor(registry, "messagingXHeadersPropagationProcessor", noOpProcessor);
-        bindProcessor(registry, "messagingXHeadersPropagationRestoreProcessor", noOpProcessor);
-    }
-
-    private static void bindProcessor(Registry registry, String name, Processor processor) {
-        registry.bind(name, Processor.class, processor);
-    }
-
-    private static void requireMetricsCollector(
-            CamelContext camelContext,
-            RabbitMqEndpointUri endpointUri,
-            String nodeId
-    ) {
-        Registry registry = camelContext.getRegistry();
+    private static void requireMetricsCollector(CamelContext camelContext, RabbitMqEndpointUri endpointUri, String nodeId) {
         String reference = endpointUri.parameters().get(METRICS_COLLECTOR_PARAMETER);
         if (reference == null || !reference.startsWith("#")) {
-            throw new IllegalArgumentException(
-                    "RabbitMQ container fixture node '" + nodeId
-                            + "' does not define a metrics collector reference."
-            );
+            throw new IllegalArgumentException("RabbitMQ container fixture node '" + nodeId
+                    + "' does not define a metrics collector reference.");
         }
-
         String beanName = reference.substring(1);
-        if (registry.lookupByNameAndType(beanName, MetricsCollector.class) == null) {
+        if (camelContext.getRegistry().lookupByNameAndType(beanName, MetricsCollector.class) == null) {
             throw new IllegalStateException("Micro-engine snapshot is missing RabbitMQ metrics collector '" + beanName + "'.");
         }
     }
 
-    private static RabbitMqProducerNode findProducerNode(
-            List<RouteDefinition> routes,
-            SnapshotFixtureDefinition definition
-    ) {
+    private static RabbitMqProducerNode findProducerNode(List<RouteDefinition> routes, SnapshotFixtureDefinition definition) {
         List<RabbitMqProducerNode> matchingNodes = new ArrayList<>();
         for (SnapshotRouteNodes.NodeMatch match : SnapshotRouteNodes.findById(routes, definition.getNodeId())) {
             if (!(match.definition() instanceof ToDynamicDefinition toDynamicDefinition)) {
-                throw new IllegalArgumentException(
-                        "RabbitMQ container fixture '" + definition.getId() + "' node '"
-                                + definition.getNodeId() + "' is not a dynamic endpoint."
-                );
+                throw new IllegalArgumentException("RabbitMQ container fixture '" + definition.getId() + "' node '"
+                        + definition.getNodeId() + "' is not a dynamic endpoint.");
             }
             matchingNodes.add(new RabbitMqProducerNode(match.route(), toDynamicDefinition));
         }
-        return SnapshotRouteNodes.requireSingle(
-                matchingNodes,
+        return SnapshotRouteNodes.requireSingle(matchingNodes,
                 "RabbitMQ container fixture '" + definition.getId() + "' expected one dynamic endpoint node '"
-                        + definition.getNodeId() + "' in deployment '" + definition.getDeploymentId() + "'"
-        );
+                        + definition.getNodeId() + "' in deployment '" + definition.getDeploymentId() + "'");
     }
 
-    private static String recordFailure(
-            String fixtureId,
-            int recordNumber,
-            String valueType
-    ) {
-        return "RabbitMQ container fixture '" + fixtureId + "' record " + recordNumber
-                + " has an unexpected " + valueType + ".";
+    private record RabbitMqProducerNode(RouteDefinition route, ToDynamicDefinition definition) {
     }
 
-    private record RabbitMqProducerNode(
-            RouteDefinition route,
-            ToDynamicDefinition definition
-    ) {
-    }
-
-    private record PreparedRequest(
-            Map<String, Object> properties
-    ) {
-    }
-
-    private record RabbitMqRecord(
-            String exchange,
-            String body,
-            Map<String, Object> headers
-    ) {
+    private record PreparedRequest(Map<String, Object> properties, Map<String, Object> headers, Exchange exchange) {
     }
 
     private record RabbitMqEndpointUri(
@@ -547,9 +488,10 @@ class RabbitMqContainerSnapshotFixtureProvider implements SnapshotFixtureProvide
             containerParameters.remove("sslProtocol");
             containerParameters.remove("trustManager");
             containerParameters.put("addresses", host + ':' + port);
-            containerParameters.put("username", USERNAME);
-            containerParameters.put("password", PASSWORD);
-            containerParameters.put("vhost", "/");
+            containerParameters.putIfAbsent("username", USERNAME);
+            containerParameters.putIfAbsent("password", PASSWORD);
+            containerParameters.putIfAbsent("vhost", "/");
+            containerParameters.put("connectionTimeout", "2000");
 
             String query = containerParameters.entrySet().stream()
                     .map(entry -> entry.getKey() + '=' + entry.getValue())

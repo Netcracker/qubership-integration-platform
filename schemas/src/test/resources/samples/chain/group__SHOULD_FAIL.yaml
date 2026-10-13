@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "c3b2d1e5-2a3f-44bc-8d9e-6f5a4b3c2d1e"
 name: "Grouped Chain With Forbidden Character"
 metaInfo:

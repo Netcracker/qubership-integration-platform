@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static io.quarkiverse.loggingjson.providers.KeyValueStructuredArgument.kv;
 
 @ApplicationScoped
-@IfBuildProperty(name = "qip.logging.format", stringValue = "json", enableIfMissing = true)
+@IfBuildProperty(name = "cip.logging.format", stringValue = "json", enableIfMissing = true)
 public class JsonSessionStepLogger extends AbstractTruncatedFieldLogger implements SessionStepLogger {
 
     private static final Logger LOG = LoggerFactory.getLogger(JsonSessionStepLogger.class);

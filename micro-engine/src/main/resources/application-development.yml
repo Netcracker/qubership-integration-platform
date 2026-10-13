@@ -1,4 +1,4 @@
-qip:
+cip:
   pubsub:
     emulator:
       enabled: true
@@ -33,10 +33,10 @@ mp:
   messaging:
     outgoing:
       sessions:
-        enabled: ${qip.opensearch.kafka-client.enabled}
+        enabled: ${cip.opensearch.kafka-client.enabled}
         bootstrap:
-          servers: ${qip.opensearch.kafka-client.bootstrap-servers}
+          servers: ${cip.opensearch.kafka-client.bootstrap-servers}
         connector: smallrye-kafka
-        topic: ${qip.opensearch.kafka-client.topic}
+        topic: ${cip.opensearch.kafka-client.topic}
         value:
           serializer: io.quarkus.kafka.client.serialization.ObjectMapperSerializer

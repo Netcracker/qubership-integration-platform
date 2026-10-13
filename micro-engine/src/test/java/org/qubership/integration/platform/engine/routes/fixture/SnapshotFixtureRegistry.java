@@ -38,6 +38,7 @@ public class SnapshotFixtureRegistry {
         return new SnapshotFixtureRegistry(List.of(
                 new CamelEndpointSnapshotFixtureProvider(),
                 new HttpServiceCallSnapshotFixtureProvider(),
+                new HttpSenderSnapshotFixtureProvider(),
                 new GraphqlHttpSnapshotFixtureProvider(),
                 new CircuitBreakerSnapshotFixtureProvider(),
                 new CheckpointSnapshotFixtureProvider(),

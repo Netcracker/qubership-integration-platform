@@ -13,3 +13,20 @@ spec:
 {{- if .Values.global.qip.ui.port }}
       nodePort: {{ .Values.global.qip.ui.port }}
 {{- end }}
+{{- with .Values.global.qip.ui.loadBalancerPort }}
+---
+# Port 8080 again, on a LoadBalancer Service: Docker Desktop's kind-based cluster
+# publishes a LoadBalancer port on the host and a NodePort not at all.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-ui-{{ $.Values.global.blueGreenVersion }}-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app: {{ $.Release.Name }}-ui-{{ $.Values.global.blueGreenVersion }}
+  ports:
+    - protocol: TCP
+      port: {{ . }}
+      targetPort: 8080
+{{- end }}

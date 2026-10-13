@@ -21,16 +21,16 @@ import java.util.Map;
 import static org.reflections.Reflections.log;
 
 @ApplicationScoped
-@LookupIfProperty(name = "qip.opensearch.kafka-client.maas.enabled", stringValue = "true")
-@LookupIfProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
+@LookupIfProperty(name = "cip.opensearch.kafka-client.maas.enabled", stringValue = "true")
+@LookupIfProperty(name = "cip.opensearch.kafka-client.enabled", stringValue = "true")
 public class MaasOpensearchKafkaProducer implements OpenSearchKafkaProducer {
-    @ConfigProperty(name = "qip.opensearch.kafka-client.maas.classifier.name")
+    @ConfigProperty(name = "cip.opensearch.kafka-client.maas.classifier.name")
     String name;
 
-    @ConfigProperty(name = "qip.opensearch.kafka-client.maas.classifier.namespace")
+    @ConfigProperty(name = "cip.opensearch.kafka-client.maas.classifier.namespace")
     String namespace;
 
-    @ConfigProperty(name = "qip.opensearch.kafka-client.maas.classifier.is-tenant")
+    @ConfigProperty(name = "cip.opensearch.kafka-client.maas.classifier.is-tenant")
     Boolean isTenant;
 
     @Inject

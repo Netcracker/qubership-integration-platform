@@ -26,7 +26,7 @@ public class IntegrationsConfigurationResourceNamingStrategy extends K8sResource
         @Qualifier("integrationResourceNamingStrategy")
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-        @Value("${qip.cr.naming.chains-configuration.suffix:-src-cfg}")
+        @Value("${cip.cr.naming.chains-configuration.suffix:-src-cfg}")
         String suffix
     ) {
         super(nameVerifier);

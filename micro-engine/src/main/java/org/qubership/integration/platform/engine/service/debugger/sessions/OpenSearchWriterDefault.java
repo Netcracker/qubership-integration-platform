@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @ApplicationScoped
 @DefaultBean
-@IfBuildProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "false")
+@IfBuildProperty(name = "cip.opensearch.kafka-client.enabled", stringValue = "false")
 public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnable {
 
     private final int queueMaxSizeBytes;
@@ -78,11 +78,11 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
 
     @Inject
     public OpenSearchWriterDefault(
-            @ConfigProperty(name = "qip.sessions.queue.capacity") int sessionBufferCapacity,
-            @ConfigProperty(name = "qip.sessions.queue.max-size-mb") int queueMaxSizeMb,
-            @ConfigProperty(name = "qip.sessions.bulk-request.max-size-kb") int bulkRequestMaxSizeKb,
-            @ConfigProperty(name = "qip.sessions.bulk-request.payload-size-threshold-kb") int bulkRequestPayloadSizeThresholdKb,
-            @ConfigProperty(name = "qip.sessions.bulk-request.elements-count-threshold") int bulkRequestElementsCountThreshold,
+            @ConfigProperty(name = "cip.sessions.queue.capacity") int sessionBufferCapacity,
+            @ConfigProperty(name = "cip.sessions.queue.max-size-mb") int queueMaxSizeMb,
+            @ConfigProperty(name = "cip.sessions.bulk-request.max-size-kb") int bulkRequestMaxSizeKb,
+            @ConfigProperty(name = "cip.sessions.bulk-request.payload-size-threshold-kb") int bulkRequestPayloadSizeThresholdKb,
+            @ConfigProperty(name = "cip.sessions.bulk-request.elements-count-threshold") int bulkRequestElementsCountThreshold,
             OpenSearchProperties openSearchProperties,
             OpenSearchClientSupplier openSearchClientSupplier,
             @Identifier("jsonMapper") ObjectMapper mapper

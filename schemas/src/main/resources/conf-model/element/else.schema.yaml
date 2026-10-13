@@ -1,0 +1,21 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/else
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/container-element-properties"
+title: Else
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: else
+  properties:
+    type: object
+    additionalProperties: false
+required:
+  - type

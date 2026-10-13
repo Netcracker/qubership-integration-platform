@@ -8,7 +8,7 @@ public class LogFormatInterceptor implements ConfigSourceInterceptor {
     @Override
     public ConfigValue getValue(ConfigSourceInterceptorContext context, String name) {
         if ("quarkus.log.json.console.enabled".equals(name)) {
-            ConfigValue formatConfig = context.proceed("qip.logging.format");
+            ConfigValue formatConfig = context.proceed("cip.logging.format");
 
             boolean shouldEnableJson = (formatConfig == null || "json".equalsIgnoreCase(formatConfig.getValue()));
 

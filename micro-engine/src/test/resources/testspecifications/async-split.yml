@@ -14,6 +14,7 @@ fixtures:
     deployment: "async-split-isolation"
 scenarios:
   - id: "returns-before-branches-and-executes-all-branches"
+    scope: Short
     endpointUri: "cip-chain:bb9d39c1-7457-4c89-9856-27aa84313212"
     body: "Original"
     headers:
@@ -47,6 +48,7 @@ scenarios:
         expectedExchanges: []
 
   - id: "keeps-string-properties-independent-across-async-branches"
+    scope: Short
     endpointUri: "cip-chain:493a2c37-61ce-4939-b2b6-cd62d33cf404"
     body: "Original"
     expectedBody: "Original"
@@ -67,6 +69,7 @@ scenarios:
               test: "Secondary asynch branch"
 
   - id: "completes-successful-branch-when-another-async-branch-fails"
+    scope: Short
     endpointUri: "cip-chain:493a2c37-61ce-4939-b2b6-cd62d33cf404"
     body: "Original"
     properties:

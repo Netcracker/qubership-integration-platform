@@ -19,22 +19,22 @@ import java.util.Map;
 public class ResourceBuildOptionsProvider {
     private static final String DEFAULT_SECRET_ENABLED_ENV = "DEFAULT_SECRET_ENABLED";
 
-    @Value("${qip.cr.build.replicas:1}")
+    @Value("${cip.cr.build.replicas:1}")
     private int replicas;
 
-    @Value("${qip.cr.build.monitoring.enabled:false}")
+    @Value("${cip.cr.build.monitoring.enabled:false}")
     private boolean monitoringEnabled;
 
-    @Value("${qip.cr.build.service-account:default}")
+    @Value("${cip.cr.build.service-account:default}")
     private String serviceAccount;
 
-    @Value("${qip.cr.build.namespace:default}")
+    @Value("${cip.cr.build.namespace:default}")
     private String namespace;
 
-    @Value("#{${qip.cr.build.environment:{T(java.util.Collections).emptyMap()}}}")
+    @Value("#{${cip.cr.build.environment:{T(java.util.Collections).emptyMap()}}}")
     private Map<String, String> environment;
 
-    @Value("${qip.variables.default-secret.enabled:false}")
+    @Value("${cip.variables.default-secret.enabled:false}")
     private boolean defaultSecretEnabled;
 
     private final Environment propertyResolver;
@@ -55,27 +55,27 @@ public class ResourceBuildOptionsProvider {
                 .namespace(namespace)
                 .replicas(replicas)
                 .container(Binder.get(propertyResolver)
-                    .bind("qip.cr.build.container", ContainerOptions.class)
+                    .bind("cip.cr.build.container", ContainerOptions.class)
                     .orElseGet(ContainerOptions::new))
                 .jvm(Binder.get(propertyResolver)
-                    .bind("qip.cr.build.jvm", JvmOptions.class)
+                    .bind("cip.cr.build.jvm", JvmOptions.class)
                     .orElseGet(JvmOptions::new))
                 .monitoring(Binder.get(propertyResolver)
-                    .bind("qip.cr.build.monitoring", MonitoringOptions.class)
+                    .bind("cip.cr.build.monitoring", MonitoringOptions.class)
                     .orElseGet(MonitoringOptions::new))
                 .integrations(IntegrationsConfigurationOptions.builder()
                         .camelKSourcesUtilized(false)
                         .build())
                 .environment(getEnvironment())
                 .mount(Binder.get(propertyResolver)
-                    .bind("qip.cr.build.mount", MountOptions.class)
+                    .bind("cip.cr.build.mount", MountOptions.class)
                     .orElseGet(MountOptions::new))
                 .service(Binder.get(propertyResolver)
-                    .bind("qip.cr.build.service", ServiceOptions.class)
+                    .bind("cip.cr.build.service", ServiceOptions.class)
                     .orElseGet(ServiceOptions::new))
                 .serviceAccount(serviceAccount)
                 .health(Binder.get(propertyResolver)
-                    .bind("qip.cr.build.health", HealthOptions.class)
+                    .bind("cip.cr.build.health", HealthOptions.class)
                     .orElseGet(HealthOptions::new))
                 .build();
 

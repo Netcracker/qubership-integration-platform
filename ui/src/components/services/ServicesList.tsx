@@ -30,6 +30,8 @@ import { getErrorMessage } from "../../misc/error-utils";
 import { useAsyncRequest } from "./useAsyncRequest";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
+import { useTableRowExpandCollapse } from "../table/useTableRowExpandCollapse.ts";
+import { buildServiceSubtreeIds } from "./serviceSubtreeIds.ts";
 import { capitalize } from "../../misc/format-utils.ts";
 import { GenericServiceListPage } from "./GenericServiceListPage.tsx";
 import { ServiceDiscoveryButton } from "./ui/ServiceDiscoveryButton.tsx";
@@ -53,7 +55,6 @@ export type ServicesListProps = {
 };
 
 export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
-  const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [services, setServices] = useState<IntegrationSystem[]>([]);
   const [specGroupsByService, setSpecGroupsByService] = useState<
     Record<string, SpecificationGroup[]>
@@ -148,6 +149,84 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
     }
   };
 
+  const getServiceSubtreeIds = useCallback(
+    (record: ServiceEntity): React.Key[] =>
+      buildServiceSubtreeIds(record, specGroupsByService, specsByGroup),
+    [specGroupsByService, specsByGroup],
+  );
+
+  const ensureServiceSubtreeLoaded = useCallback(
+    async (record: ServiceEntity): Promise<React.Key[]> => {
+      if (!isIntegrationSystem(record) && !isSpecificationGroup(record)) {
+        return [];
+      }
+      if (isSpecificationGroup(record)) {
+        if (!specsByGroup[record.id] && record.specifications) {
+          const specifications = record.specifications;
+          setSpecsByGroup((prev) => ({
+            ...prev,
+            [record.id]: specifications,
+          }));
+          return [record.id, ...specifications.map((s) => s.id)];
+        }
+        return buildServiceSubtreeIds(
+          record,
+          specGroupsByService,
+          specsByGroup,
+        );
+      }
+      const serviceId = record.id;
+      let groups = specGroupsByService[serviceId];
+      if (!groups) {
+        setLoadingRows((rows) => [...rows, serviceId]);
+        try {
+          const fetched = await api.getApiSpecifications(serviceId);
+          groups = fetched;
+          setSpecGroupsByService((prev) => ({
+            ...prev,
+            [serviceId]: fetched,
+          }));
+        } catch (e: unknown) {
+          notificationService.requestFailed(
+            getErrorMessage(e, "Error loading specifications groups"),
+            e,
+          );
+          return [];
+        } finally {
+          setLoadingRows((rows) => rows.filter((id) => id !== serviceId));
+        }
+      }
+      const pendingSpecs: Record<string, Specification[]> = {};
+      groups.forEach((group) => {
+        if (!specsByGroup[group.id] && group.specifications) {
+          pendingSpecs[group.id] = group.specifications;
+        }
+      });
+      if (Object.keys(pendingSpecs).length > 0) {
+        setSpecsByGroup((prev) => ({
+          ...prev,
+          ...pendingSpecs,
+        }));
+      }
+      return buildServiceSubtreeIds(
+        record,
+        { ...specGroupsByService, [serviceId]: groups },
+        { ...specsByGroup, ...pendingSpecs },
+      );
+    },
+    [specGroupsByService, specsByGroup, notificationService],
+  );
+
+  const {
+    expandedRowKeys,
+    setExpandedRowKeys,
+    expandSubtree,
+    collapseSubtree,
+  } = useTableRowExpandCollapse<ServiceEntity>({
+    getSubtreeIds: getServiceSubtreeIds,
+    ensureLoaded: ensureServiceSubtreeLoaded,
+  });
+
   const expandable = {
     expandedRowKeys,
     onExpand: (expanded: boolean, record: ServiceEntity) => {
@@ -177,59 +256,6 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
     if (isIntegrationSystem(record)) {
       void navigate(`/services/systems/${record.id}/specificationGroups`);
     }
-  };
-
-  const handleExpandAll = async () => {
-    const roots = services;
-
-    const groupsMap: Record<string, SpecificationGroup[]> = {
-      ...specGroupsByService,
-    };
-    await Promise.all(
-      roots.map(async (service) => {
-        if (!groupsMap[service.id]) {
-          try {
-            const groups = await api.getApiSpecifications(service.id);
-            groupsMap[service.id] = groups;
-            setSpecGroupsByService((prev) => ({
-              ...prev,
-              [service.id]: groups,
-            }));
-          } catch (e: unknown) {
-            notificationService.requestFailed(
-              getErrorMessage(e, "Error loading specifications groups"),
-              e,
-            );
-          }
-        }
-      }),
-    );
-
-    const specsMap: Record<string, Specification[]> = { ...specsByGroup };
-    const allGroups = Object.values(groupsMap).flat();
-
-    allGroups.forEach((group) => {
-      if (!specsMap[group.id] && group.specifications) {
-        specsMap[group.id] = group.specifications;
-        setSpecsByGroup((prev) => ({
-          ...prev,
-          [group.id]: group.specifications,
-        }));
-      }
-    });
-
-    const rootIds = roots.map((r) => r.id);
-    const groupIds = allGroups.map((g) => g.id);
-    const specIds = allGroups.flatMap((g) =>
-      g.specifications ? g.specifications.map((s) => s.id) : [],
-    );
-
-    const allIds = [...rootIds, ...groupIds, ...specIds];
-    setExpandedRowKeys(allIds);
-  };
-
-  const handleCollapseAll = () => {
-    setExpandedRowKeys([]);
   };
 
   const handleDeleteWithConfirm = (record: ServiceEntity) => {
@@ -264,10 +290,12 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
     getServiceActions({
       onEdit: handleEdit,
       onDelete: handleDeleteWithConfirm,
-      onExpandAll: () => {
-        void handleExpandAll();
+      onExpandAll: (rec) => {
+        void expandSubtree(rec);
       },
-      onCollapseAll: handleCollapseAll,
+      onCollapseAll: (rec) => {
+        collapseSubtree(rec);
+      },
       isRootEntity,
       isExpandAvailable: () => true,
       onExportSelected: (selected) => {
@@ -460,19 +488,28 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       extraActions={[
         ...(tab === "internal"
           ? [
-              <Require key="service-discovery" permissions={{ service: ["execute"] }}>
-                <ServiceDiscoveryButton
-                  onSystemsDiscovered={(systemIds: string[]) => {
-                    if (systemIds.length > 0) {
-                      void loadServices();
-                    }
-                  }}
-                />
+              <Require
+                key="service-discovery"
+                permissions={{ service: ["execute"] }}
+              >
+                <span data-testid="services-discovery">
+                  <ServiceDiscoveryButton
+                    onSystemsDiscovered={(systemIds: string[]) => {
+                      if (systemIds.length > 0) {
+                        void loadServices();
+                      }
+                    }}
+                  />
+                </span>
               </Require>,
             ]
           : []),
-        filterButton,
-        servicesTable.FilterButton(),
+        <span key="filter" data-testid="services-filter">
+          {filterButton}
+        </span>,
+        <span key="column-settings" data-testid="services-column-settings">
+          {servicesTable.FilterButton()}
+        </span>,
       ]}
       serviceType={getSystemType(tab)}
       onCreate={(name, description) => handleCreate(name, description)}

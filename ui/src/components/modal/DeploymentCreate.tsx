@@ -3,7 +3,11 @@ import React, { useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { useSnapshots } from "../../hooks/useSnapshots.tsx";
 import { DomainType } from "../../api/apiTypes.ts";
-import { Domain, SelectDomains } from "../SelectDomains.tsx";
+import {
+  Domain,
+  DomainsFormItem,
+  isDomainSelectionInvalid,
+} from "../SelectDomains.tsx";
 
 export type CreateDeploymentOptions = {
   domains: Domain[];
@@ -19,10 +23,13 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
   chainId,
   onSubmit,
 }) => {
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<{ domains: Domain[]; snapshot: string }>();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const { closeContainingModal } = useModalContext();
   const { isLoading: snapshotsLoading, snapshots } = useSnapshots(chainId);
+  const domains = Form.useWatch("domains", form);
+  const isDeployDisabled =
+    snapshotsLoading || isDomainSelectionInvalid(domains);
 
   const snapshotOptions: SelectProps["options"] =
     snapshots
@@ -75,7 +82,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
           form="deploymentCreateForm"
           htmlType={"submit"}
           loading={confirmLoading}
-          disabled={snapshotsLoading}
+          disabled={isDeployDisabled}
         >
           Deploy
         </Button>,
@@ -93,15 +100,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
         style={{ maxWidth: 600 }}
         disabled={snapshotsLoading}
       >
-        <Form.Item
-          label="Domains"
-          name="domains"
-          rules={[
-            { required: true, message: "Please specify at least one domain" },
-          ]}
-        >
-          <SelectDomains />
-        </Form.Item>
+        <DomainsFormItem />
         <Form.Item
           label="Snapshot"
           name="snapshot"

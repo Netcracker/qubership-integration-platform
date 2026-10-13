@@ -37,7 +37,7 @@ public class SnapshotFixtureRequestExpectation {
         this.path = optionalNonBlank(path, "path");
         this.query = optionalNonBlank(query, "query");
         this.destination = optionalNonBlank(destination, "destination");
-        this.key = optionalNonBlank(key, "key");
+        this.key = key;
         this.bodyDefined = body != null;
         this.body = SnapshotExpectedValues.toJavaValue(body);
         this.headers = immutableMapOrEmpty(headers);

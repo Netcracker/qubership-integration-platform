@@ -1,0 +1,11 @@
+# atmoz/sftp chroots the "e2e" user at /home/e2e. The SFTP protocol forbids writing into a
+# chroot root itself, so /home/e2e/upload is the one writable subtree: every sftp-trigger-2,
+# sftp-download and sftp-upload fixture's connectUrl, and every host-side ssh2-sftp-client call
+# the brokers spec makes, addresses a path under /upload.
+services:
+  sftp-server:
+    image: atmoz/sftp:alpine
+    container_name: sftp-server
+    ports:
+      - "2222:22"
+    command: e2e:e2epass:1001:1001:upload

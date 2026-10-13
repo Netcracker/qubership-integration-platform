@@ -208,7 +208,7 @@ describe("LiveExchanges", () => {
     render(<LiveExchanges />);
     await screen.findByText("sess-1");
 
-    fireEvent.click(screen.getByTestId("Terminate exchange"));
+    fireEvent.click(screen.getByTestId("live-exchanges-terminate"));
 
     await waitFor(() => {
       expect(mockTerminateExchange).toHaveBeenCalledWith(
@@ -226,7 +226,7 @@ describe("LiveExchanges", () => {
     render(<LiveExchanges />);
     await screen.findByText("sess-1");
 
-    fireEvent.click(screen.getByTestId("Terminate exchange"));
+    fireEvent.click(screen.getByTestId("live-exchanges-terminate"));
 
     await waitFor(() => {
       expect(screen.queryByText("sess-1")).not.toBeInTheDocument();
@@ -241,7 +241,7 @@ describe("LiveExchanges", () => {
     render(<LiveExchanges />);
     await screen.findByText("sess-1");
 
-    fireEvent.click(screen.getByTestId("Terminate exchange"));
+    fireEvent.click(screen.getByTestId("live-exchanges-terminate"));
 
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalledWith(

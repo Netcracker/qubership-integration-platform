@@ -274,10 +274,10 @@ standard QIP installation.
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `MICRO_DOMAIN_CONTAINER_IMAGE` | `ghcr.io/netcracker/qubership-integration-micro-engine:latest` | Engine image when `options.container.image` is blank. |
-| `QIP_EGRESS_GATEWAY_URL` | `egress-gateway:8080` | Egress gateway address used in the routes. |
-| `QIP_ISTIO_HOST_RESOURCES_ENABLED` | `true` | Generates the egress `ServiceEntry` and `DestinationRule`. |
-| `QIP_REGISTER_INGRESS_CHAIN_ROUTES` | `true` | Generates the public and private gateway routes. |
-| `QIP_REGISTER_EGRESS_CHAIN_ROUTES` | `true` | Generates the egress routes. |
+| `CIP_EGRESS_GATEWAY_URL` | `egress-gateway:8080` | Egress gateway address used in the routes. |
+| `CIP_ISTIO_HOST_RESOURCES_ENABLED` | `true` | Generates the egress `ServiceEntry` and `DestinationRule`. |
+| `CIP_REGISTER_INGRESS_CHAIN_ROUTES` | `true` | Generates the public and private gateway routes. |
+| `CIP_REGISTER_EGRESS_CHAIN_ROUTES` | `true` | Generates the egress routes. |
 
 Placeholder resolution is strict. A property the plugin needs and does not define fails the build with
 `Could not resolve placeholder '...'` instead of leaking `${...}` into a generated resource.

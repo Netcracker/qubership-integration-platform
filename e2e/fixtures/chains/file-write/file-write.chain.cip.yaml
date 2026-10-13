@@ -1,0 +1,33 @@
+---
+id: "e2e00023-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-file-write"
+description: "Writes the request body to a file in the engine's chain_tmp directory, named after the\
+  \ run and the e2e-file header, so the file-read fixture can read the same file back."
+content:
+  labels: []
+  elements:
+  - id: "e2e00023-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-file-write"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00023-0000-4000-8000-000000000003"
+    name: "File Write"
+    type: "file-write"
+    properties:
+      fileName: "e2e-{{RUN}}-${header.e2e-file}"
+      allowNullBody: true
+  dependencies:
+  - from: "e2e00023-0000-4000-8000-000000000002"
+    to: "e2e00023-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

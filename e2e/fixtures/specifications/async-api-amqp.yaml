@@ -1,0 +1,18 @@
+asyncapi: 2.6.0
+info:
+  title: E2E AsyncAPI AMQP Trigger
+  version: 1.0.0
+servers:
+  production:
+    url: rabbitmq:5672
+    protocol: amqp
+channels:
+  e2e-{{RUN}}-async-api-amqp:
+    subscribe:
+      operationId: e2eAsyncApiAmqpSubscribe
+      message:
+        payload:
+          type: object
+          properties:
+            ping:
+              type: string

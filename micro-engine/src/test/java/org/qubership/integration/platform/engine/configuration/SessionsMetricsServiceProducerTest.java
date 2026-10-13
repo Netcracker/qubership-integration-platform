@@ -18,8 +18,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @QuarkusComponentTest
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
-@TestConfigProperty(key = "qip.metrics.enabled", value = "true")
-@TestConfigProperty(key = "qip.opensearch.index.elements.name", value = "qip-elements-local")
+@TestConfigProperty(key = "cip.metrics.enabled", value = "true")
+@TestConfigProperty(key = "cip.opensearch.index.elements.name", value = "qip-elements-local")
 class SessionsMetricsServiceProducerTest {
 
     @Inject

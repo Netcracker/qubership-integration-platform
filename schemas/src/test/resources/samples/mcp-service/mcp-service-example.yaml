@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service"
 id: "770d5315-98ed-4314-bb03-4211d236657a"
 name: "New MCP Service"
 content:

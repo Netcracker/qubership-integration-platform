@@ -1,0 +1,121 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/scs-sender
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: SCS Sender
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: scs-sender
+  properties:
+    type: object
+    properties:
+      useCorrelationId:
+        type: boolean
+        title: Use correlation ID as session ID
+        default: false
+      connectTimeout:
+        allOf:
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
+        title: Connection timeout (ms)
+        description: >
+          Specifies connection timeout in millis
+          (default value will be used if nothing is given).
+        default: 120000
+      operation:
+        type: string
+        oneOf:
+          - const: SET
+            title: Create session
+          - const: GET
+            title: Get session
+          - const: DELETE
+            title: Delete session
+        title: Operation
+        default: GET
+    allOf:
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/context-propagation"
+      - if:
+          properties:
+            useCorrelationId:
+              const: false
+        then:
+          properties:
+            sessionId:
+              type: string
+              title: Session ID
+              description: Session identifier
+          required:
+            - sessionId
+      - if:
+          properties:
+            operation:
+              const: SET
+        then:
+          properties:
+            key:
+              type: string
+              title: Key
+            value:
+              type: string
+              title: Value
+            ttl:
+              type: integer
+              title: Time to live
+              description: Session life time (in seconds).
+              minimum: 1
+              default: 21600
+          required:
+            - key
+            - ttl
+      - if:
+          properties:
+            operation:
+              const: GET
+        then:
+          properties:
+            keys:
+              type: string
+              title: Keys
+            target:
+              type: string
+              oneOf:
+                - const: BODY
+                  title: Body
+                - const: HEADER
+                  title: Header
+                - const: PROPERTY
+                  title: Property
+              title: Target
+              default: BODY
+            unwrap:
+              type: boolean
+              title: Unwrap
+              description: Unwrap value
+              default: false
+          if:
+            properties:
+              target:
+                enum:
+                  - HEADER
+                  - PROPERTY
+          then:
+            properties:
+              targetName:
+                type: string
+                title: Target field name
+            required:
+              - targetName
+          required:
+            - target
+    required:
+      - useCorrelationId
+      - operation
+required:
+  - type

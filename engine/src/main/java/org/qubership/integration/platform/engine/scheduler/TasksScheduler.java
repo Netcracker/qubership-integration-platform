@@ -52,7 +52,7 @@ public class TasksScheduler {
     private final ExternalLibraryService externalLibraryService;
     private final CamelDebuggerPropertiesService debuggerPropertiesService;
 
-    @Value("${qip.sessions.checkpoints.cleanup.interval}")
+    @Value("${cip.sessions.checkpoints.cleanup.interval}")
     private String checkpointsInterval;
 
     private final ContextStorageService contextStorageService;
@@ -100,20 +100,20 @@ public class TasksScheduler {
         variableService.refreshSecuredVariables();
     }
 
-    @Scheduled(fixedDelayString = "${qip.deployments.retry-delay}", initialDelayString = "${qip.deployments.retry-delay}")
+    @Scheduled(fixedDelayString = "${cip.deployments.retry-delay}", initialDelayString = "${cip.deployments.retry-delay}")
     public void retryProcessingDeploys() {
         if (deploymentReadinessService.isInitialized()) {
             runtimeService.retryProcessingDeploys();
         }
     }
 
-    @Scheduled(cron = "${qip.sessions.checkpoints.cleanup.cron}")
+    @Scheduled(cron = "${cip.sessions.checkpoints.cleanup.cron}")
     public void cleanupCheckpointSessions() {
         checkpointSessionService.deleteOldRecordsByInterval(checkpointsInterval);
         log.info("Scheduled checkpoints cleanup completed");
     }
 
-    @Scheduled(cron = "${qip.context-service.cleanup.cron}")
+    @Scheduled(cron = "${cip.context-service.cleanup.cron}")
     public void cleanupContextStorage() {
         contextStorageService.deleteOldRecords();
         log.info("Scheduled context record cleanup completed");

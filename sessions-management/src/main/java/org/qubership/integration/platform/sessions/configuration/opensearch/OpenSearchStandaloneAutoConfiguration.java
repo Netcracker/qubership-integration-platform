@@ -37,10 +37,10 @@ import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearc
 
 @AutoConfiguration
 @EnableConfigurationProperties(OpenSearchProperties.class)
-@ConditionalOnProperty(name = "qip.standalone", havingValue = "true")
+@ConditionalOnProperty(name = "cip.standalone", havingValue = "true")
 public class OpenSearchStandaloneAutoConfiguration {
 
-    @Value("${qip.opensearch.index.prefix}")
+    @Value("${cip.opensearch.index.prefix}")
     private String prefix;
 
     @Primary

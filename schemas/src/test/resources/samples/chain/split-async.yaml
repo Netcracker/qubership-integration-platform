@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "10f5b056-e94a-41d9-8544-f7e45da6eb7e"
 name: "Split Async"
 content:

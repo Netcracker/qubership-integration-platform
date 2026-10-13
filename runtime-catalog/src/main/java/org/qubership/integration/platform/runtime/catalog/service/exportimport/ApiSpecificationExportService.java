@@ -99,7 +99,7 @@ public class ApiSpecificationExportService {
 
     @Autowired
     public ApiSpecificationExportService(
-            @Value("${qip.chains.external-routes.base-path}") String externalRoutesBasePath,
+            @Value("${cip.chains.external-routes.base-path}") String externalRoutesBasePath,
             ElementRepository elementRepository,
             OperationRepository operationRepository,
             SystemModelService systemModelService

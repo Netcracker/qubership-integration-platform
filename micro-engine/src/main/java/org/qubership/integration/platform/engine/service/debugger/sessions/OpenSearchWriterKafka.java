@@ -26,7 +26,7 @@ import org.qubership.integration.platform.engine.model.opensearch.SessionElement
 
 @Slf4j
 @ApplicationScoped
-@IfBuildProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
+@IfBuildProperty(name = "cip.opensearch.kafka-client.enabled", stringValue = "true")
 public class OpenSearchWriterKafka extends OpenSearchWriter {
 
     private final OpenSearchKafkaProducer openSearchKafkaProducer;

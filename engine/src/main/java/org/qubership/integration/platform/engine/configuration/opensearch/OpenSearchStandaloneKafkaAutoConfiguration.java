@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @AutoConfiguration
-@ConditionalOnProperty(prefix = "qip", name = {"opensearch.kafka-client.enabled", "standalone"}, havingValue = "true")
+@ConditionalOnProperty(prefix = "cip", name = {"opensearch.kafka-client.enabled", "standalone"}, havingValue = "true")
 public class OpenSearchStandaloneKafkaAutoConfiguration {
 
     private final String kafkaClientBootstrapServers;
@@ -27,8 +27,8 @@ public class OpenSearchStandaloneKafkaAutoConfiguration {
 
     @Autowired
     public OpenSearchStandaloneKafkaAutoConfiguration(
-            @Value("${qip.opensearch.kafka-client.bootstrap-servers:}") String kafkaClientBootstrapServers,
-            @Value("${qip.opensearch.kafka-client.topic:}") String kafkaClientTopic
+            @Value("${cip.opensearch.kafka-client.bootstrap-servers:}") String kafkaClientBootstrapServers,
+            @Value("${cip.opensearch.kafka-client.topic:}") String kafkaClientTopic
     ) {
         this.kafkaClientBootstrapServers = kafkaClientBootstrapServers;
         this.kafkaClientTopic = kafkaClientTopic;

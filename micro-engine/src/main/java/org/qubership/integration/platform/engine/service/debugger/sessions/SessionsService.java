@@ -42,6 +42,7 @@ import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePr
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.ExchangeUtil;
+import org.qubership.integration.platform.engine.util.IdentifierUtils;
 import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.time.Duration;
@@ -63,7 +64,7 @@ public class SessionsService {
     private final Optional<SessionStepLogger> sessionStepLogger;
     private final Random random = new Random();
 
-    @ConfigProperty(name = "qip.sessions.sampler.probabilistic")
+    @ConfigProperty(name = "cip.sessions.sampler.probabilistic")
     double samplerProbabilistic;
 
     public SessionsService(
@@ -222,7 +223,7 @@ public class SessionsService {
 
         updateSessionInfoForElements(exchange, sessionElement);
 
-        if (stepName.equals(elementInfo.getId())) {
+        if (IdentifierUtils.isValidUUID(stepName)) {
             MetadataUtil.lookupBeanForElement(exchange, stepName, WireTapInfo.class).ifPresentOrElse(
                     wireTapInfo -> {
                         for (String id : wireTapInfo.getParentIds()) {

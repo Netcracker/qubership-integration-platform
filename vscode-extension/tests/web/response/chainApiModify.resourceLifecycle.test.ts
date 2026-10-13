@@ -78,7 +78,7 @@ beforeEach(async () => {
   directory = await fs.mkdtemp(
     path.join(os.tmpdir(), "qip-resource-lifecycle-"),
   );
-  fileUri = Uri.file(path.join(directory, `${chainId}.chain.qip.yaml`));
+  fileUri = Uri.file(path.join(directory, `${chainId}.chain.cip.yaml`));
   setFileApi(
     new VSCodeFileApi({
       extensionUri: Uri.file(path.resolve(__dirname, "../../..")),
@@ -139,7 +139,7 @@ async function seedResource(
     properties,
   } as ElementSchema;
   const chain = {
-    $schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml",
+    $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain",
     id: chainId,
     name: "Resource chain",
     content: { elements: [element], dependencies: [] },

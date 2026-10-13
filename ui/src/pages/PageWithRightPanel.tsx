@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 import styles from "../components/elements_library/ElementsLibrarySidebar.module.css";
-import { Flex, Layout, Menu, Tabs } from "antd";
+import { Empty, Flex, Layout, Menu, Tabs, Tooltip } from "antd";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { Element, LibraryElement } from "../api/apiTypes.ts";
 import { useModalsContext } from "../Modals.tsx";
@@ -251,18 +251,36 @@ export const PageWithRightPanel = ({
           items={[
             {
               key: "listElements",
-              label: <OverridableIcon name="unorderedList" />,
+              label: (
+                <Tooltip title="List of Elements" placement="bottom">
+                  <span>
+                    <OverridableIcon name="unorderedList" />
+                  </span>
+                </Tooltip>
+              ),
             },
             {
               key: "elementProperties",
-              label: <OverridableIcon name="menuUnfold" />,
+              label: (
+                <Tooltip title="Exchange Properties" placement="bottom">
+                  <span>
+                    <OverridableIcon name="menuUnfold" />
+                  </span>
+                </Tooltip>
+              ),
             },
             ...(isVsCode
               ? []
               : [
                   {
                     key: "textView",
-                    label: <OverridableIcon name="file" />,
+                    label: (
+                      <Tooltip title="Text View" placement="bottom">
+                        <span>
+                          <OverridableIcon name="file" />
+                        </span>
+                      </Tooltip>
+                    ),
                   },
                 ]),
           ]}
@@ -294,21 +312,32 @@ export const PageWithRightPanel = ({
                     onChange={setSearchString}
                     allowClear
                     onClear={() => setSearchString("")}
+                    placeholder="Search"
                     style={{ width: "100%" }}
                   />
                 </div>
                 <span style={{ flexShrink: 0 }}>{filterButton}</span>
               </Flex>
             </div>
-            <Menu
-              className={styles.libraryElements}
-              mode="vertical"
-              items={elementMenuItems}
-              selectable={false}
-              selectedKeys={[]}
-              onClick={({ key }) => handleElementSingleClick(String(key))}
-              style={{ borderRight: "none", width: "100%" }}
-            />
+            {elementMenuItems.length ? (
+              <Menu
+                className={styles.libraryElements}
+                mode="vertical"
+                items={elementMenuItems}
+                selectable={false}
+                selectedKeys={[]}
+                onClick={({ key }) => handleElementSingleClick(String(key))}
+                style={{ borderRight: "none", width: "100%" }}
+              />
+            ) : (
+              <Flex
+                justify="center"
+                align="center"
+                style={{ flex: 1, minHeight: 0, padding: "24px" }}
+              >
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              </Flex>
+            )}
           </Flex>
         )}
         {activeTab === "elementProperties" && chainId && (

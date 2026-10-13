@@ -72,7 +72,7 @@ The micro-engine is the cloud-native (Quarkus) execution engine that runs deploy
 | Consul | HTTP (Vert.x consul client) | Poll deployment/library/runtime-config/state KV under `config/{namespace}`; fetch chains, common variables; publish engine state |
 | Runtime Catalog | REST | Fetch chain deployment descriptors; download compiled external-library JARs |
 | PostgreSQL 14 | JDBC (Hibernate ORM Panache + Flyway) | Checkpoints/session/idempotency/context storage (`engine` schema, `engine_checkpoints_db`); Quartz scheduler (`engine_qrtz_db`) |
-| OpenSearch 2.18 | HTTP (`opensearch-java`), optional Kafka | Record session element traces to index `qip-elements-{namespace}` |
+| OpenSearch 2.19 | HTTP (`opensearch-java`), optional Kafka | Record session element traces to index `qip-elements-{namespace}` |
 | Kafka / RabbitMQ / Google Pub/Sub | Camel (`camel-quarkus-kafka`/`-amqp`/`-spring-rabbitmq`/`-google-pubsub`), MaaS client | Messaging endpoints inside integration chains; optional MaaS-managed brokers and blue-green consumers |
 | Control Plane / Kubernetes | REST, K8s client | Route registration (egress/ingress) and reading secured-variable secrets |
 
@@ -97,8 +97,8 @@ sending. Read that first; this section covers what differs here.
 
 | Property | Environment variable | Default | Meaning |
 | --- | --- | --- | --- |
-| `qip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false` | makes the bean lookup resolve, through `@LookupIfProperty` |
-| `qip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | base address of the testing service; a base path in it is kept, so an ingress-style address works |
+| `cip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false` | makes the bean lookup resolve, through `@LookupIfProperty` |
+| `cip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | base address of the testing service; a base path in it is kept, so an ingress-style address works |
 
 **Enable it only where the testing service is deployed, and only while someone is testing.** With mocking on and the
 service absent, every outbound HTTP call from every chain fails to connect; with the service present, a call with no
@@ -120,7 +120,7 @@ neighboring `MetricTagsHelper`, resolved the same way two lines above, carries `
 A `@QuarkusComponentTest` cannot cover the switch. Component tests run neither the build step that generates the
 `@LookupIfProperty` suppression nor bean removal, so such a test passes whatever the property says. What is covered is
 the annotations themselves: `EndpointMockTestingServiceTest` reflects over the class and asserts that both are present
-and that `@LookupIfProperty` names `qip.testing.enabled`. Verify the on/off switch itself by hand.
+and that `@LookupIfProperty` names `cip.testing.enabled`. Verify the on/off switch itself by hand.
 
 #### `EndpointInfo.path` is not a request path
 
@@ -144,3 +144,8 @@ path-parameter matching then degrades to a no-op in the Go matcher, which is exp
 Do not extend `EndpointInfo` to carry more. The builder has no data of its own, so a new field means a matching change
 in runtime-catalog, and Camel binds those properties by setter name: a catalog writing a property an older engine cannot
 bind fails at route-build time.
+
+### No legacy `qip.*` property names
+
+Properties use the `cip.` prefix, and micro-engine has no alias for the old `qip.` names: a `qip.x` key, in Consul or
+anywhere else, is ignored. The Spring services keep reading `qip.*` through their own alias; this service does not.

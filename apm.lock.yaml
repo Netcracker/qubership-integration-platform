@@ -1,12 +1,11 @@
 lockfile_version: '1'
-generated_at: '2026-09-24T17:25:04.272237+00:00'
-apm_version: 0.28.0
+apm_version: 0.33.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
   materialization_repo_url: Netcracker/qubership-ai-agent-telemetry
   name: ai-agent-telemetry
   host: github.com
-  resolved_commit: bfda5c597b32a5eff2ba8639e5ee46c213bc823c
+  resolved_commit: c6503f44ccb4e080121f42212f587624f4ca1c9d
   version: 1.1.0
   virtual_path: agent-packages/ai-agent-telemetry
   is_virtual: true
@@ -16,7 +15,7 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: apm-authoring
   host: github.com
-  resolved_commit: 43ea92b972804eb9c16871d68d29cccbf9865225
+  resolved_commit: 21f5d9335be0d98d747990f04208fa00022e31a0
   version: 1.1.0
   virtual_path: agent-packages/apm-authoring
   is_virtual: true
@@ -32,14 +31,14 @@ dependencies:
     .agents/skills/apm-authoring/SKILL.md: sha256:b4dd9fa65061fcda3bef603ca980c28b0469db41627a3164395d23240b950380
     .claude/rules/apm-authoring.md: sha256:5c4185d3d69333a810c01f5e26a8ea46b033e7082a21f1551433d6c97d8a24a2
     .claude/skills/apm-authoring/SKILL.md: sha256:b4dd9fa65061fcda3bef603ca980c28b0469db41627a3164395d23240b950380
-    .cursor/rules/apm-authoring.mdc: sha256:fbc8f94d4f0b94c04a0ed042ee06f1f48244fdac316f0ce15e2d38b0affbb9aa
+    .cursor/rules/apm-authoring.mdc: sha256:f5935b93802f6b703f4340b3b491a06428daa1856f2036f0cac97dc2f8b65c7d
   content_hash: sha256:c4931d5235c1b2632d537cf9b0f843ee3fb9dc7d84d8de113160b72ffbce4ed8
   is_dev: true
 - repo_url: netcracker/qubership-ai-packages
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: codex-review
   host: github.com
-  resolved_commit: 43ea92b972804eb9c16871d68d29cccbf9865225
+  resolved_commit: 21f5d9335be0d98d747990f04208fa00022e31a0
   version: 1.0.0
   virtual_path: agent-packages/codex-review
   is_virtual: true
@@ -57,7 +56,7 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-developer-style
   host: github.com
-  resolved_commit: 43ea92b972804eb9c16871d68d29cccbf9865225
+  resolved_commit: 21f5d9335be0d98d747990f04208fa00022e31a0
   version: 2.1.0
   virtual_path: agent-packages/english-developer-style
   is_virtual: true
@@ -67,9 +66,8 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-us-developer-style
   host: github.com
-  resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
-  resolved_ref: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
-  version: 2.0.0
+  resolved_commit: 21f5d9335be0d98d747990f04208fa00022e31a0
+  version: 2.1.0
   virtual_path: agent-packages/english-us-developer-style
   is_virtual: true
   depth: 2
@@ -83,282 +81,12 @@ dependencies:
   - .claude/skills/english-developer-style/SKILL.md
   - .cursor/rules/english-developer-style.mdc
   deployed_file_hashes:
-    .agents/skills/english-developer-style/SKILL.md: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
-    .claude/rules/english-developer-style.md: sha256:7b837ce6ca63996064b7eb7378a54b484f9905a7102d18ee009ee2e1fb9edf7a
-    .claude/skills/english-developer-style/SKILL.md: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
-    .cursor/rules/english-developer-style.mdc: sha256:77065463f554e95f32be987d5a51849ded6e621515ea1b8e9dd61530c3046928
-  content_hash: sha256:30311d4be0a1b4111895a3ac1f67183ba0a1a64a99f3ed09724ae4731682c8b9
+    .agents/skills/english-developer-style/SKILL.md: sha256:9fa75b769c101eb4f90927c80414e96c41ba6db1b10937dc612ebffaba8043fc
+    .claude/rules/english-developer-style.md: sha256:2da9f6889756beb319a6395f3f363826d144b9b48c97d742cfd1a89ce0017d58
+    .claude/skills/english-developer-style/SKILL.md: sha256:9fa75b769c101eb4f90927c80414e96c41ba6db1b10937dc612ebffaba8043fc
+    .cursor/rules/english-developer-style.mdc: sha256:e6e830aa5469bcadacd7019c0421f84af09889e16db8a1225f2ad6f34a748fa9
+  content_hash: sha256:f97efa2a8e0d5c1bd68ddf9f12a3dcf96d2b9b952d5e4aa968f0bc7c71767034
 deployments:
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ci-fix
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ci-fix/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
-- kind: project-relative
-  target: agents
-  value: .agents/skills/docs-authoring
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/docs-authoring/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
-- kind: project-relative
-  target: agents
-  value: .agents/skills/fix-issue
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/fix-issue/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:9aa3800c1b1c5b368289c3d705b5bf4e117596ec5cfca07e96334a92d42d8ff9
-- kind: project-relative
-  target: agents
-  value: .agents/skills/fix-issue/delivery.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
-- kind: project-relative
-  target: agents
-  value: .agents/skills/fix-issue/stack.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
-- kind: project-relative
-  target: agents
-  value: .agents/skills/fix-issue/verification.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:e2fc4a1f2ae2f96283f9872cfecdcf7ab75ac2f843c9767dd1f945bc768747ca
-- kind: project-relative
-  target: agents
-  value: .agents/skills/release-process
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/release-process/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:250795d30ce9e4f2046a2c69759042d10a6f82ccd6c0919759ac15e1b6ff67a9
-- kind: project-relative
-  target: agents
-  value: .agents/skills/runtime-catalog-api-testing
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/runtime-catalog-api-testing/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
-- kind: project-relative
-  target: agents
-  value: .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
-- kind: project-relative
-  target: agents
-  value: .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:8ae36ab6e18a03cc2b041e7fd6e81a73e93d7bfc0d0cc1f75bdd64c81be188d0
-- kind: project-relative
-  target: agents
-  value: .agents/skills/runtime-catalog-api-testing/scripts/example.py
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:2cf55572310f806f5cc3b6e0a44028d16bb4763a9460f47f9d3c7c5ee9575c25
-- kind: project-relative
-  target: agents
-  value: .agents/skills/runtime-catalog-api-testing/scripts/example_deploy_vars.py
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:57eeb0e50140765689feedd14f8d1ad0f60fdaac596f59c9549fa1651b8383d6
-- kind: project-relative
-  target: agents
-  value: .agents/skills/runtime-catalog-api-testing/scripts/rc_e2e.py
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:9d3d264ffe343aff6c196c70ecf1897b3dc3c039e0ddedb57d2636d14f0ac291
-- kind: project-relative
-  target: agents
-  value: .agents/skills/sonar-triage
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/sonar-triage/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:35f144fe5a8bc0f5407e922cb8b37c8a3f16d196bba7ba504f9f10cd4da18a31
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ui-api-and-utilities
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ui-api-and-utilities/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:83df8708d1821771414996df4ca1f45b138baa7a49415954ffeffb7d40c8b160
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ui-component-patterns
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ui-component-patterns/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:0f6140b7f00b3f887a1f9d5831a2c9a32cf31d0620e516d41383d43a5a373f9b
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ui-core-development
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ui-core-development/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:fbfebdb41b42454b4a91459f7208558dd143d29b6c8cbaf1e5cda128096de7d0
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ui-theme-and-vscode-webview
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/ui-theme-and-vscode-webview/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:5bb5058c17ed309913cba9d984f076d4448a72f7ebf9ed2419d94699600745a9
-- kind: project-relative
-  target: agents
-  value: .agents/skills/update-docs
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: agents
-  value: .agents/skills/update-docs/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
 - kind: project-relative
   target: claude
   value: .claude/agents/maven-verifier.md
@@ -367,7 +95,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:f44b15744dbb0e77f326391bc0ecad91eed094146bad5993ebdf50944e4df71e
+  content_hash: sha256:ea5b1c1acafdcd1bcb7084e24fb103ca4f711564606ab0c91dafd1d66169debb
 - kind: project-relative
   target: claude
   value: .claude/agents/npm-verifier.md
@@ -406,13 +134,22 @@ deployments:
   content_hash: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
 - kind: project-relative
   target: claude
+  value: .claude/rules/e2e.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:dca5f89afb6e94217636cb8d1e2a79162e2b9631160f433a0a55b6fdf0091871
+- kind: project-relative
+  target: claude
   value: .claude/rules/engine.md
   runtime: null
   scope: project
   owners:
   - .
   active_owner: .
-  content_hash: sha256:7b52e1eabc5b3aaa9cf240fb2b444a9321c079488b9f5dc54275c86f98aea9a2
+  content_hash: sha256:cbfa9096d6c97043ebbef90b567bb92f081cf11779eb826a2ca74bdd35de1cbc
 - kind: project-relative
   target: claude
   value: .claude/rules/english-developer-style.md
@@ -421,16 +158,7 @@ deployments:
   owners:
   - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
-  content_hash: sha256:7b837ce6ca63996064b7eb7378a54b484f9905a7102d18ee009ee2e1fb9edf7a
-- kind: project-relative
-  target: claude
-  value: .claude/rules/go-module.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:4823920c4373e02f4d370fbd6b483e094df46480b80b59653f321636fe14d92a
+  content_hash: sha256:2da9f6889756beb319a6395f3f363826d144b9b48c97d742cfd1a89ce0017d58
 - kind: project-relative
   target: claude
   value: .claude/rules/infrastructure.md
@@ -439,7 +167,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:81d9f74c4b1c01981706b0c54005199521b365c601d65490d931f72357e59be3
+  content_hash: sha256:9667e41646ab42c3c02817a2d428fa076dadfd56655f3370b8de4ea01f279c77
 - kind: project-relative
   target: claude
   value: .claude/rules/micro-engine.md
@@ -448,7 +176,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:6fa74db4709eb8beac8271ded9b9de349c12b9a0d210635080a1eb3ff7c5ac57
+  content_hash: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
 - kind: project-relative
   target: claude
   value: .claude/rules/monorepo.md
@@ -457,7 +185,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:d37af9657bd03542aeda35a3ddf5c31310c044a52e243a7fb83f737ebc127f06
+  content_hash: sha256:06858c0672b172b6b28c27ef0701978f4d4871aee72f70dee68de03901417dcc
 - kind: project-relative
   target: claude
   value: .claude/rules/qip-working-agreements.md
@@ -475,7 +203,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:bca290d54b0de0fd894c65425a9e2c5d7e4b3ea4deaf721ffdf6f6588d888980
+  content_hash: sha256:c519e7168077f6ac4ad2dad4b4ec8df18ff7d6a7949de9a199439ad014ee27a9
 - kind: project-relative
   target: claude
   value: .claude/rules/schemas.md
@@ -484,7 +212,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:2625b9b398e7239c8faeb3d1725ae27f58b2d835c79bcd91bdc801bba2ac1e37
+  content_hash: sha256:70fc96efc39c4a3deb2c018e8a57584f64071e18b3c53c150717b8fbaf4a20ec
 - kind: project-relative
   target: claude
   value: .claude/rules/sessions-management.md
@@ -493,7 +221,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:a6bb162d05e5ae7a1d62521b1af5f17470aa501d758e5313cfd3d021110e68ec
+  content_hash: sha256:19fdfdc27c5301233ae25983b21976246d2298f523e191ac0559bb9cb8e59f8f
 - kind: project-relative
   target: claude
   value: .claude/rules/sonar-triage.md
@@ -503,6 +231,15 @@ deployments:
   - .
   active_owner: .
   content_hash: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
+- kind: project-relative
+  target: claude
+  value: .claude/rules/testing-service.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:caa2aed08c3ca28b6390574364b9893b6bfc3b0c7f1a3e25f40f2cb67407e235
 - kind: project-relative
   target: claude
   value: .claude/rules/ui-api-and-utilities.md
@@ -547,7 +284,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:a00d5eecb511d4d2aaa675ca535621e9d604779cf9068bd2204e66b8f48a4517
+  content_hash: sha256:58e0b419fb68e93c601d6eadfcace5b99a09a6787ea33344fd7611b34c39224e
 - kind: project-relative
   target: claude
   value: .claude/skills/apm-authoring
@@ -619,7 +356,34 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
+  content_hash: sha256:1ad8f4e2efe177403af5cf5978c327cd57b39bee266620dec3395af182f15f6f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/e2e-spec-authoring
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/e2e-spec-authoring/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:75737b23be8cb529af0bbbe79fd09aaf7248e475407656ea9af89d8392900e1a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/e2e-spec-authoring/browser.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:a82782402b95389d96c28ecef1b9943dec82dd52d1dd54c9f30f3fcd690878ae
 - kind: project-relative
   target: claude
   value: .claude/skills/english-developer-style
@@ -637,7 +401,7 @@ deployments:
   owners:
   - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
-  content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
+  content_hash: sha256:9fa75b769c101eb4f90927c80414e96c41ba6db1b10937dc612ebffaba8043fc
 - kind: project-relative
   target: claude
   value: .claude/skills/fix-issue
@@ -655,7 +419,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:9aa3800c1b1c5b368289c3d705b5bf4e117596ec5cfca07e96334a92d42d8ff9
+  content_hash: sha256:651c6aae818de7cb4aa76fcb3a1c95b437574831e40a5a26884899ea8bbd4828
 - kind: project-relative
   target: claude
   value: .claude/skills/fix-issue/delivery.md
@@ -664,7 +428,25 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
+  content_hash: sha256:576647a2576a884334e23a43519fd4b7bdd549d0b3b0b7afe0d50c8c9af73dfe
+- kind: project-relative
+  target: claude
+  value: .claude/skills/fix-issue/k8s.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:0927196dc22a9c0110f2c720f8785c3a5de3022b0c22541087a8e13e2db7fb70
+- kind: project-relative
+  target: claude
+  value: .claude/skills/fix-issue/scripts/wait-checks.sh
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
 - kind: project-relative
   target: claude
   value: .claude/skills/fix-issue/stack.md
@@ -673,7 +455,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
+  content_hash: sha256:ffed4beae51b194591aefa9f7b3a31873017ea8691aedfc23dbc1e7554c30015
 - kind: project-relative
   target: claude
   value: .claude/skills/fix-issue/verification.md
@@ -682,7 +464,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:e2fc4a1f2ae2f96283f9872cfecdcf7ab75ac2f843c9767dd1f945bc768747ca
+  content_hash: sha256:21b12b301571919115951d0b9969cc7bd27bbcb38bc640ab046125f8dda5cc1c
 - kind: project-relative
   target: claude
   value: .claude/skills/release-process
@@ -700,25 +482,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:250795d30ce9e4f2046a2c69759042d10a6f82ccd6c0919759ac15e1b6ff67a9
-- kind: project-relative
-  target: claude
-  value: .claude/skills/runtime-catalog-api-testing
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/runtime-catalog-api-testing/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
+  content_hash: sha256:73f75b303b02d738a56efa0c48a307b26d95c208b14cc160c9d63acefd4cd425
 - kind: project-relative
   target: claude
   value: .claude/skills/sonar-triage
@@ -790,7 +554,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:fbfebdb41b42454b4a91459f7208558dd143d29b6c8cbaf1e5cda128096de7d0
+  content_hash: sha256:57d193e56de73224b5bc01fa96b55897f74766d7a0d2a4d3f4e7903cef45cd73
 - kind: project-relative
   target: claude
   value: .claude/skills/ui-theme-and-vscode-webview
@@ -880,7 +644,7 @@ deployments:
   owners:
   - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
-  content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
+  content_hash: sha256:9fa75b769c101eb4f90927c80414e96c41ba6db1b10937dc612ebffaba8043fc
 - kind: project-relative
   target: codex
   value: .codex/agents/maven-verifier.toml
@@ -889,7 +653,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:dc67075b7c28d42a6968c8e12e3da9c42d15c32acd5f035d53a009a660990765
+  content_hash: sha256:a5df639ad24cab3313543a784b0a8d4b3aa96673116b2b71cfc62178a4306518
 - kind: project-relative
   target: codex
   value: .codex/agents/npm-verifier.toml
@@ -907,7 +671,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:f44b15744dbb0e77f326391bc0ecad91eed094146bad5993ebdf50944e4df71e
+  content_hash: sha256:ea5b1c1acafdcd1bcb7084e24fb103ca4f711564606ab0c91dafd1d66169debb
 - kind: project-relative
   target: cursor
   value: .cursor/agents/npm-verifier.md
@@ -925,7 +689,7 @@ deployments:
   owners:
   - netcracker/qubership-ai-packages/agent-packages/apm-authoring
   active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
-  content_hash: sha256:fbc8f94d4f0b94c04a0ed042ee06f1f48244fdac316f0ce15e2d38b0affbb9aa
+  content_hash: sha256:f5935b93802f6b703f4340b3b491a06428daa1856f2036f0cac97dc2f8b65c7d
 - kind: project-relative
   target: cursor
   value: .cursor/rules/ci-fix.mdc
@@ -934,7 +698,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:8cbb34acb5dd3cc1e79c42655bf24efdc57993c5ec52ddc6c61b4163b00a1efa
+  content_hash: sha256:35cf16a1ad4a3ff02b5531f2ae3d6c4347de83155ab29cbde7800d81fe13664f
 - kind: project-relative
   target: cursor
   value: .cursor/rules/docs-authoring.mdc
@@ -943,7 +707,16 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:35b9632cef5d6994bd10797b1790a93ac43bce7b4c1fac43d1728d43bc01f532
+  content_hash: sha256:04274aa51cc097ea37ababc82b6fe050cbfb15dc4fff8bc37b81e50f2568f52c
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/e2e.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:85a0d2fc41f7321b25c247e1070f76ab1b2915b6a2bc8359bef1208df44fb004
 - kind: project-relative
   target: cursor
   value: .cursor/rules/engine.mdc
@@ -952,7 +725,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:2a4018b4458f936803de4bddaa2a7d67a29c984e8a338050fa6422447ea47043
+  content_hash: sha256:54766be92b6ee3275dddda3e65ac1fb0647d58de9b02dc8f3baa471b1ecbd251
 - kind: project-relative
   target: cursor
   value: .cursor/rules/english-developer-style.mdc
@@ -961,16 +734,7 @@ deployments:
   owners:
   - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
-  content_hash: sha256:77065463f554e95f32be987d5a51849ded6e621515ea1b8e9dd61530c3046928
-- kind: project-relative
-  target: cursor
-  value: .cursor/rules/go-module.mdc
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:abc0d69a9c7ee8114a8ab72504cd51bf84a876e74d5f13c52b841fcd98bd4c54
+  content_hash: sha256:e6e830aa5469bcadacd7019c0421f84af09889e16db8a1225f2ad6f34a748fa9
 - kind: project-relative
   target: cursor
   value: .cursor/rules/infrastructure.mdc
@@ -979,7 +743,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:048b1f13ab56166052611254b12d2cf5401780e0ddbc4552823179feec70698a
+  content_hash: sha256:adc7a4c41f95e0afa58ee18362c61efd9e8c7d3d62de1e15500f5b11df550ced
 - kind: project-relative
   target: cursor
   value: .cursor/rules/micro-engine.mdc
@@ -988,7 +752,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c2a4431e0e8f50232876969e97082f7641fd57204706f4913bed3ef0cded8fb4
+  content_hash: sha256:e5cb84edf324e260668f4fa95e299cfdff96b9998402f491973286c6a6fddf38
 - kind: project-relative
   target: cursor
   value: .cursor/rules/monorepo.mdc
@@ -997,7 +761,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:4d3dd83a90b522a4d80ec83daac41a553465f01c68505f8e8a4ea55faae8cee9
+  content_hash: sha256:0bd47cea59136c3cd0b51d56ddbf92c9e72d70c9653f4bc599b30e3b18845411
 - kind: project-relative
   target: cursor
   value: .cursor/rules/qip-working-agreements.mdc
@@ -1006,7 +770,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:7f3fc4a1813e0929c4ff6142c019f33ccaa07c5470465e4484af6f3227e3539f
+  content_hash: sha256:f4f9c8835673f5ed8a17fc3c591dc8ae5aea3982220ff0e82262d9ac1aa41c11
 - kind: project-relative
   target: cursor
   value: .cursor/rules/runtime-catalog.mdc
@@ -1015,7 +779,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:d74872fbb06b8ea4436fa8144393a848f82735b38cd47ef2b3001fcf868453cd
+  content_hash: sha256:30e131100ab5f5083bcfc714309ef0131a1ceff0e0cf6dc8e2bbda8018209059
 - kind: project-relative
   target: cursor
   value: .cursor/rules/schemas.mdc
@@ -1024,7 +788,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:90dc8dc83afc5b2a660891f75a928ef50aed74079c9c6db1131d74593ebefe3c
+  content_hash: sha256:e0c80c275441415a4774f5ebbc9ede1e22a191776682097eb8a34f51a0a686aa
 - kind: project-relative
   target: cursor
   value: .cursor/rules/sessions-management.mdc
@@ -1033,7 +797,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:18d6fa651e0e11c936f5e2fd1bcef06240c2e57e69c75ac1fef9ad4c68fba466
+  content_hash: sha256:b220ea14779526d9b8e6086786fca35fb0b72678cd34a4e3d2daacfa921009cf
 - kind: project-relative
   target: cursor
   value: .cursor/rules/sonar-triage.mdc
@@ -1042,7 +806,16 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:63252e4db42c848cf96d30d5e0a1b822b217131f0daa03f9977c114e996b9015
+  content_hash: sha256:9418a601f82ff328ff99463908f96385acb0bc0ff47b6725309e77b61918034f
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/testing-service.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:eab55d3a45904d98ef98e855a8e70e5423c5639586981466b7806823b5eb10f7
 - kind: project-relative
   target: cursor
   value: .cursor/rules/ui-api-and-utilities.mdc
@@ -1051,7 +824,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:2db0434f5f2c5d22240435520b454f7da4d900795a698563570bddddaec0db34
+  content_hash: sha256:e1b232abf03edbf1951c220f12f596196290d597c22b9f621a773ccdeccc229d
 - kind: project-relative
   target: cursor
   value: .cursor/rules/ui-component-patterns.mdc
@@ -1060,7 +833,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:76114bbb23037926ccea5110a104dcc9cb0d67f4c1002b107f9a78980ac1ff19
+  content_hash: sha256:76a996d7be248cf8d24fd46010eee39d9dc92bf8bd094eabf5e364412824c867
 - kind: project-relative
   target: cursor
   value: .cursor/rules/ui-core-development.mdc
@@ -1069,7 +842,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:690fb5e6db26f8dd13d4132e7db1d1eaba2dc4151866e88c49e97d2ccba55db1
+  content_hash: sha256:93c3440760f98198a68415de3658347c254dd4be05ed3cd7e096cd3eb3347e2a
 - kind: project-relative
   target: cursor
   value: .cursor/rules/ui-theme-and-vscode-webview.mdc
@@ -1078,7 +851,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:6d22cae143816f98685ba75afb5198d9abf57c9e584aa7b78391553a49ffabd9
+  content_hash: sha256:f6506e72aa9b23b96b2c2f14a1d91088bae05128551d59a9b776b2c97302bae5
 - kind: project-relative
   target: cursor
   value: .cursor/rules/vscode-extension.mdc
@@ -1087,15 +860,335 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:4ca3f84a3ae31e1cb1609ecb3fafe39ad3fb05e2c9e23fd55e3bde8596eb683e
+  content_hash: sha256:1e9aa13c81de55312aa806a3a79b24c148dfded3e01c9cc28216f11805bdc760
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ci-fix
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ci-fix/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/docs-authoring
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/docs-authoring/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:1ad8f4e2efe177403af5cf5978c327cd57b39bee266620dec3395af182f15f6f
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/e2e-spec-authoring
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/e2e-spec-authoring/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:75737b23be8cb529af0bbbe79fd09aaf7248e475407656ea9af89d8392900e1a
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/e2e-spec-authoring/browser.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:a82782402b95389d96c28ecef1b9943dec82dd52d1dd54c9f30f3fcd690878ae
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/fix-issue
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/fix-issue/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:651c6aae818de7cb4aa76fcb3a1c95b437574831e40a5a26884899ea8bbd4828
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/fix-issue/delivery.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:576647a2576a884334e23a43519fd4b7bdd549d0b3b0b7afe0d50c8c9af73dfe
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/fix-issue/k8s.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:0927196dc22a9c0110f2c720f8785c3a5de3022b0c22541087a8e13e2db7fb70
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/fix-issue/scripts/wait-checks.sh
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/fix-issue/stack.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:ffed4beae51b194591aefa9f7b3a31873017ea8691aedfc23dbc1e7554c30015
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/fix-issue/verification.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:21b12b301571919115951d0b9969cc7bd27bbcb38bc640ab046125f8dda5cc1c
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/release-process
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/release-process/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:73f75b303b02d738a56efa0c48a307b26d95c208b14cc160c9d63acefd4cd425
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/runtime-catalog-api-testing
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/runtime-catalog-api-testing/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:c189d6988f94ed57294e569266b5d3fd500c22e7dd4867268380f302c54d120a
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:8ae36ab6e18a03cc2b041e7fd6e81a73e93d7bfc0d0cc1f75bdd64c81be188d0
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/runtime-catalog-api-testing/scripts/example.py
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2cf55572310f806f5cc3b6e0a44028d16bb4763a9460f47f9d3c7c5ee9575c25
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/runtime-catalog-api-testing/scripts/example_deploy_vars.py
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:57eeb0e50140765689feedd14f8d1ad0f60fdaac596f59c9549fa1651b8383d6
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/runtime-catalog-api-testing/scripts/rc_e2e.py
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:9d3d264ffe343aff6c196c70ecf1897b3dc3c039e0ddedb57d2636d14f0ac291
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/sonar-triage
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/sonar-triage/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:35f144fe5a8bc0f5407e922cb8b37c8a3f16d196bba7ba504f9f10cd4da18a31
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ui-api-and-utilities
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ui-api-and-utilities/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:83df8708d1821771414996df4ca1f45b138baa7a49415954ffeffb7d40c8b160
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ui-component-patterns
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ui-component-patterns/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:0f6140b7f00b3f887a1f9d5831a2c9a32cf31d0620e516d41383d43a5a373f9b
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ui-core-development
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ui-core-development/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:57d193e56de73224b5bc01fa96b55897f74766d7a0d2a4d3f4e7903cef45cd73
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ui-theme-and-vscode-webview
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/ui-theme-and-vscode-webview/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:5bb5058c17ed309913cba9d984f076d4448a72f7ebf9ed2419d94699600745a9
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/update-docs
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: legacy
+  value: .agents/skills/update-docs/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
 local_deployed_files:
 - .agents/skills/ci-fix
 - .agents/skills/ci-fix/SKILL.md
 - .agents/skills/docs-authoring
 - .agents/skills/docs-authoring/SKILL.md
+- .agents/skills/e2e-spec-authoring
+- .agents/skills/e2e-spec-authoring/SKILL.md
+- .agents/skills/e2e-spec-authoring/browser.md
 - .agents/skills/fix-issue
 - .agents/skills/fix-issue/SKILL.md
 - .agents/skills/fix-issue/delivery.md
+- .agents/skills/fix-issue/k8s.md
+- .agents/skills/fix-issue/scripts/wait-checks.sh
 - .agents/skills/fix-issue/stack.md
 - .agents/skills/fix-issue/verification.md
 - .agents/skills/release-process
@@ -1123,8 +1216,8 @@ local_deployed_files:
 - .claude/agents/npm-verifier.md
 - .claude/rules/ci-fix.md
 - .claude/rules/docs-authoring.md
+- .claude/rules/e2e.md
 - .claude/rules/engine.md
-- .claude/rules/go-module.md
 - .claude/rules/infrastructure.md
 - .claude/rules/micro-engine.md
 - .claude/rules/monorepo.md
@@ -1133,6 +1226,7 @@ local_deployed_files:
 - .claude/rules/schemas.md
 - .claude/rules/sessions-management.md
 - .claude/rules/sonar-triage.md
+- .claude/rules/testing-service.md
 - .claude/rules/ui-api-and-utilities.md
 - .claude/rules/ui-component-patterns.md
 - .claude/rules/ui-core-development.md
@@ -1142,15 +1236,18 @@ local_deployed_files:
 - .claude/skills/ci-fix/SKILL.md
 - .claude/skills/docs-authoring
 - .claude/skills/docs-authoring/SKILL.md
+- .claude/skills/e2e-spec-authoring
+- .claude/skills/e2e-spec-authoring/SKILL.md
+- .claude/skills/e2e-spec-authoring/browser.md
 - .claude/skills/fix-issue
 - .claude/skills/fix-issue/SKILL.md
 - .claude/skills/fix-issue/delivery.md
+- .claude/skills/fix-issue/k8s.md
+- .claude/skills/fix-issue/scripts/wait-checks.sh
 - .claude/skills/fix-issue/stack.md
 - .claude/skills/fix-issue/verification.md
 - .claude/skills/release-process
 - .claude/skills/release-process/SKILL.md
-- .claude/skills/runtime-catalog-api-testing
-- .claude/skills/runtime-catalog-api-testing/SKILL.md
 - .claude/skills/sonar-triage
 - .claude/skills/sonar-triage/SKILL.md
 - .claude/skills/ui-api-and-utilities
@@ -1169,8 +1266,8 @@ local_deployed_files:
 - .cursor/agents/npm-verifier.md
 - .cursor/rules/ci-fix.mdc
 - .cursor/rules/docs-authoring.mdc
+- .cursor/rules/e2e.mdc
 - .cursor/rules/engine.mdc
-- .cursor/rules/go-module.mdc
 - .cursor/rules/infrastructure.mdc
 - .cursor/rules/micro-engine.mdc
 - .cursor/rules/monorepo.mdc
@@ -1179,6 +1276,7 @@ local_deployed_files:
 - .cursor/rules/schemas.mdc
 - .cursor/rules/sessions-management.mdc
 - .cursor/rules/sonar-triage.mdc
+- .cursor/rules/testing-service.mdc
 - .cursor/rules/ui-api-and-utilities.mdc
 - .cursor/rules/ui-component-patterns.mdc
 - .cursor/rules/ui-core-development.mdc
@@ -1186,13 +1284,17 @@ local_deployed_files:
 - .cursor/rules/vscode-extension.mdc
 local_deployed_file_hashes:
   .agents/skills/ci-fix/SKILL.md: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
-  .agents/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
-  .agents/skills/fix-issue/SKILL.md: sha256:9aa3800c1b1c5b368289c3d705b5bf4e117596ec5cfca07e96334a92d42d8ff9
-  .agents/skills/fix-issue/delivery.md: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
-  .agents/skills/fix-issue/stack.md: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
-  .agents/skills/fix-issue/verification.md: sha256:e2fc4a1f2ae2f96283f9872cfecdcf7ab75ac2f843c9767dd1f945bc768747ca
-  .agents/skills/release-process/SKILL.md: sha256:250795d30ce9e4f2046a2c69759042d10a6f82ccd6c0919759ac15e1b6ff67a9
-  .agents/skills/runtime-catalog-api-testing/SKILL.md: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
+  .agents/skills/docs-authoring/SKILL.md: sha256:1ad8f4e2efe177403af5cf5978c327cd57b39bee266620dec3395af182f15f6f
+  .agents/skills/e2e-spec-authoring/SKILL.md: sha256:75737b23be8cb529af0bbbe79fd09aaf7248e475407656ea9af89d8392900e1a
+  .agents/skills/e2e-spec-authoring/browser.md: sha256:a82782402b95389d96c28ecef1b9943dec82dd52d1dd54c9f30f3fcd690878ae
+  .agents/skills/fix-issue/SKILL.md: sha256:651c6aae818de7cb4aa76fcb3a1c95b437574831e40a5a26884899ea8bbd4828
+  .agents/skills/fix-issue/delivery.md: sha256:576647a2576a884334e23a43519fd4b7bdd549d0b3b0b7afe0d50c8c9af73dfe
+  .agents/skills/fix-issue/k8s.md: sha256:0927196dc22a9c0110f2c720f8785c3a5de3022b0c22541087a8e13e2db7fb70
+  .agents/skills/fix-issue/scripts/wait-checks.sh: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
+  .agents/skills/fix-issue/stack.md: sha256:ffed4beae51b194591aefa9f7b3a31873017ea8691aedfc23dbc1e7554c30015
+  .agents/skills/fix-issue/verification.md: sha256:21b12b301571919115951d0b9969cc7bd27bbcb38bc640ab046125f8dda5cc1c
+  .agents/skills/release-process/SKILL.md: sha256:73f75b303b02d738a56efa0c48a307b26d95c208b14cc160c9d63acefd4cd425
+  .agents/skills/runtime-catalog-api-testing/SKILL.md: sha256:c189d6988f94ed57294e569266b5d3fd500c22e7dd4867268380f302c54d120a
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc: sha256:8ae36ab6e18a03cc2b041e7fd6e81a73e93d7bfc0d0cc1f75bdd64c81be188d0
   .agents/skills/runtime-catalog-api-testing/scripts/example.py: sha256:2cf55572310f806f5cc3b6e0a44028d16bb4763a9460f47f9d3c7c5ee9575c25
@@ -1201,60 +1303,65 @@ local_deployed_file_hashes:
   .agents/skills/sonar-triage/SKILL.md: sha256:35f144fe5a8bc0f5407e922cb8b37c8a3f16d196bba7ba504f9f10cd4da18a31
   .agents/skills/ui-api-and-utilities/SKILL.md: sha256:83df8708d1821771414996df4ca1f45b138baa7a49415954ffeffb7d40c8b160
   .agents/skills/ui-component-patterns/SKILL.md: sha256:0f6140b7f00b3f887a1f9d5831a2c9a32cf31d0620e516d41383d43a5a373f9b
-  .agents/skills/ui-core-development/SKILL.md: sha256:fbfebdb41b42454b4a91459f7208558dd143d29b6c8cbaf1e5cda128096de7d0
+  .agents/skills/ui-core-development/SKILL.md: sha256:57d193e56de73224b5bc01fa96b55897f74766d7a0d2a4d3f4e7903cef45cd73
   .agents/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:5bb5058c17ed309913cba9d984f076d4448a72f7ebf9ed2419d94699600745a9
   .agents/skills/update-docs/SKILL.md: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
-  .claude/agents/maven-verifier.md: sha256:f44b15744dbb0e77f326391bc0ecad91eed094146bad5993ebdf50944e4df71e
+  .claude/agents/maven-verifier.md: sha256:ea5b1c1acafdcd1bcb7084e24fb103ca4f711564606ab0c91dafd1d66169debb
   .claude/agents/npm-verifier.md: sha256:7e38e0a49cf43125b37569c0cf7cb8751588c0e14323320dd4cdf90ddf0a41ce
   .claude/rules/ci-fix.md: sha256:4de31150e369c45093fbfe099209e95118d30f19e3a8c23fd91d0b1cd332f559
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
-  .claude/rules/engine.md: sha256:7b52e1eabc5b3aaa9cf240fb2b444a9321c079488b9f5dc54275c86f98aea9a2
-  .claude/rules/go-module.md: sha256:4823920c4373e02f4d370fbd6b483e094df46480b80b59653f321636fe14d92a
-  .claude/rules/infrastructure.md: sha256:81d9f74c4b1c01981706b0c54005199521b365c601d65490d931f72357e59be3
-  .claude/rules/micro-engine.md: sha256:6fa74db4709eb8beac8271ded9b9de349c12b9a0d210635080a1eb3ff7c5ac57
-  .claude/rules/monorepo.md: sha256:d37af9657bd03542aeda35a3ddf5c31310c044a52e243a7fb83f737ebc127f06
+  .claude/rules/e2e.md: sha256:dca5f89afb6e94217636cb8d1e2a79162e2b9631160f433a0a55b6fdf0091871
+  .claude/rules/engine.md: sha256:cbfa9096d6c97043ebbef90b567bb92f081cf11779eb826a2ca74bdd35de1cbc
+  .claude/rules/infrastructure.md: sha256:9667e41646ab42c3c02817a2d428fa076dadfd56655f3370b8de4ea01f279c77
+  .claude/rules/micro-engine.md: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
+  .claude/rules/monorepo.md: sha256:06858c0672b172b6b28c27ef0701978f4d4871aee72f70dee68de03901417dcc
   .claude/rules/qip-working-agreements.md: sha256:72257161852f5f17451a59e3f6c816f49cdbdf8da37b39b3b82840e2fd30b799
-  .claude/rules/runtime-catalog.md: sha256:bca290d54b0de0fd894c65425a9e2c5d7e4b3ea4deaf721ffdf6f6588d888980
-  .claude/rules/schemas.md: sha256:2625b9b398e7239c8faeb3d1725ae27f58b2d835c79bcd91bdc801bba2ac1e37
-  .claude/rules/sessions-management.md: sha256:a6bb162d05e5ae7a1d62521b1af5f17470aa501d758e5313cfd3d021110e68ec
+  .claude/rules/runtime-catalog.md: sha256:c519e7168077f6ac4ad2dad4b4ec8df18ff7d6a7949de9a199439ad014ee27a9
+  .claude/rules/schemas.md: sha256:70fc96efc39c4a3deb2c018e8a57584f64071e18b3c53c150717b8fbaf4a20ec
+  .claude/rules/sessions-management.md: sha256:19fdfdc27c5301233ae25983b21976246d2298f523e191ac0559bb9cb8e59f8f
   .claude/rules/sonar-triage.md: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
+  .claude/rules/testing-service.md: sha256:caa2aed08c3ca28b6390574364b9893b6bfc3b0c7f1a3e25f40f2cb67407e235
   .claude/rules/ui-api-and-utilities.md: sha256:71aa40132c92c5861e02877fac639503defe750689e9b5019420180c9dda9a94
   .claude/rules/ui-component-patterns.md: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
   .claude/rules/ui-core-development.md: sha256:c42c9e14a47aa880f644e2bcdb76e08c284cb4e2b336143fb364393d3640d9c3
   .claude/rules/ui-theme-and-vscode-webview.md: sha256:b9c3fb0eb8853ff8fc98a27ac8ccbdb9f6755fd235addba7d44a5855b5b43a17
-  .claude/rules/vscode-extension.md: sha256:a00d5eecb511d4d2aaa675ca535621e9d604779cf9068bd2204e66b8f48a4517
+  .claude/rules/vscode-extension.md: sha256:58e0b419fb68e93c601d6eadfcace5b99a09a6787ea33344fd7611b34c39224e
   .claude/skills/ci-fix/SKILL.md: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
-  .claude/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
-  .claude/skills/fix-issue/SKILL.md: sha256:9aa3800c1b1c5b368289c3d705b5bf4e117596ec5cfca07e96334a92d42d8ff9
-  .claude/skills/fix-issue/delivery.md: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
-  .claude/skills/fix-issue/stack.md: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
-  .claude/skills/fix-issue/verification.md: sha256:e2fc4a1f2ae2f96283f9872cfecdcf7ab75ac2f843c9767dd1f945bc768747ca
-  .claude/skills/release-process/SKILL.md: sha256:250795d30ce9e4f2046a2c69759042d10a6f82ccd6c0919759ac15e1b6ff67a9
-  .claude/skills/runtime-catalog-api-testing/SKILL.md: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
+  .claude/skills/docs-authoring/SKILL.md: sha256:1ad8f4e2efe177403af5cf5978c327cd57b39bee266620dec3395af182f15f6f
+  .claude/skills/e2e-spec-authoring/SKILL.md: sha256:75737b23be8cb529af0bbbe79fd09aaf7248e475407656ea9af89d8392900e1a
+  .claude/skills/e2e-spec-authoring/browser.md: sha256:a82782402b95389d96c28ecef1b9943dec82dd52d1dd54c9f30f3fcd690878ae
+  .claude/skills/fix-issue/SKILL.md: sha256:651c6aae818de7cb4aa76fcb3a1c95b437574831e40a5a26884899ea8bbd4828
+  .claude/skills/fix-issue/delivery.md: sha256:576647a2576a884334e23a43519fd4b7bdd549d0b3b0b7afe0d50c8c9af73dfe
+  .claude/skills/fix-issue/k8s.md: sha256:0927196dc22a9c0110f2c720f8785c3a5de3022b0c22541087a8e13e2db7fb70
+  .claude/skills/fix-issue/scripts/wait-checks.sh: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
+  .claude/skills/fix-issue/stack.md: sha256:ffed4beae51b194591aefa9f7b3a31873017ea8691aedfc23dbc1e7554c30015
+  .claude/skills/fix-issue/verification.md: sha256:21b12b301571919115951d0b9969cc7bd27bbcb38bc640ab046125f8dda5cc1c
+  .claude/skills/release-process/SKILL.md: sha256:73f75b303b02d738a56efa0c48a307b26d95c208b14cc160c9d63acefd4cd425
   .claude/skills/sonar-triage/SKILL.md: sha256:35f144fe5a8bc0f5407e922cb8b37c8a3f16d196bba7ba504f9f10cd4da18a31
   .claude/skills/ui-api-and-utilities/SKILL.md: sha256:83df8708d1821771414996df4ca1f45b138baa7a49415954ffeffb7d40c8b160
   .claude/skills/ui-component-patterns/SKILL.md: sha256:0f6140b7f00b3f887a1f9d5831a2c9a32cf31d0620e516d41383d43a5a373f9b
-  .claude/skills/ui-core-development/SKILL.md: sha256:fbfebdb41b42454b4a91459f7208558dd143d29b6c8cbaf1e5cda128096de7d0
+  .claude/skills/ui-core-development/SKILL.md: sha256:57d193e56de73224b5bc01fa96b55897f74766d7a0d2a4d3f4e7903cef45cd73
   .claude/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:5bb5058c17ed309913cba9d984f076d4448a72f7ebf9ed2419d94699600745a9
   .claude/skills/update-docs/SKILL.md: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
-  .codex/agents/maven-verifier.toml: sha256:dc67075b7c28d42a6968c8e12e3da9c42d15c32acd5f035d53a009a660990765
+  .codex/agents/maven-verifier.toml: sha256:a5df639ad24cab3313543a784b0a8d4b3aa96673116b2b71cfc62178a4306518
   .codex/agents/npm-verifier.toml: sha256:41262bc89c3d7886f181844cdebb7afef872159ce4edb005bbb911406f54c583
-  .cursor/agents/maven-verifier.md: sha256:f44b15744dbb0e77f326391bc0ecad91eed094146bad5993ebdf50944e4df71e
+  .cursor/agents/maven-verifier.md: sha256:ea5b1c1acafdcd1bcb7084e24fb103ca4f711564606ab0c91dafd1d66169debb
   .cursor/agents/npm-verifier.md: sha256:7e38e0a49cf43125b37569c0cf7cb8751588c0e14323320dd4cdf90ddf0a41ce
-  .cursor/rules/ci-fix.mdc: sha256:8cbb34acb5dd3cc1e79c42655bf24efdc57993c5ec52ddc6c61b4163b00a1efa
-  .cursor/rules/docs-authoring.mdc: sha256:35b9632cef5d6994bd10797b1790a93ac43bce7b4c1fac43d1728d43bc01f532
-  .cursor/rules/engine.mdc: sha256:2a4018b4458f936803de4bddaa2a7d67a29c984e8a338050fa6422447ea47043
-  .cursor/rules/go-module.mdc: sha256:abc0d69a9c7ee8114a8ab72504cd51bf84a876e74d5f13c52b841fcd98bd4c54
-  .cursor/rules/infrastructure.mdc: sha256:048b1f13ab56166052611254b12d2cf5401780e0ddbc4552823179feec70698a
-  .cursor/rules/micro-engine.mdc: sha256:c2a4431e0e8f50232876969e97082f7641fd57204706f4913bed3ef0cded8fb4
-  .cursor/rules/monorepo.mdc: sha256:4d3dd83a90b522a4d80ec83daac41a553465f01c68505f8e8a4ea55faae8cee9
-  .cursor/rules/qip-working-agreements.mdc: sha256:7f3fc4a1813e0929c4ff6142c019f33ccaa07c5470465e4484af6f3227e3539f
-  .cursor/rules/runtime-catalog.mdc: sha256:d74872fbb06b8ea4436fa8144393a848f82735b38cd47ef2b3001fcf868453cd
-  .cursor/rules/schemas.mdc: sha256:90dc8dc83afc5b2a660891f75a928ef50aed74079c9c6db1131d74593ebefe3c
-  .cursor/rules/sessions-management.mdc: sha256:18d6fa651e0e11c936f5e2fd1bcef06240c2e57e69c75ac1fef9ad4c68fba466
-  .cursor/rules/sonar-triage.mdc: sha256:63252e4db42c848cf96d30d5e0a1b822b217131f0daa03f9977c114e996b9015
-  .cursor/rules/ui-api-and-utilities.mdc: sha256:2db0434f5f2c5d22240435520b454f7da4d900795a698563570bddddaec0db34
-  .cursor/rules/ui-component-patterns.mdc: sha256:76114bbb23037926ccea5110a104dcc9cb0d67f4c1002b107f9a78980ac1ff19
-  .cursor/rules/ui-core-development.mdc: sha256:690fb5e6db26f8dd13d4132e7db1d1eaba2dc4151866e88c49e97d2ccba55db1
-  .cursor/rules/ui-theme-and-vscode-webview.mdc: sha256:6d22cae143816f98685ba75afb5198d9abf57c9e584aa7b78391553a49ffabd9
-  .cursor/rules/vscode-extension.mdc: sha256:4ca3f84a3ae31e1cb1609ecb3fafe39ad3fb05e2c9e23fd55e3bde8596eb683e
+  .cursor/rules/ci-fix.mdc: sha256:35cf16a1ad4a3ff02b5531f2ae3d6c4347de83155ab29cbde7800d81fe13664f
+  .cursor/rules/docs-authoring.mdc: sha256:04274aa51cc097ea37ababc82b6fe050cbfb15dc4fff8bc37b81e50f2568f52c
+  .cursor/rules/e2e.mdc: sha256:85a0d2fc41f7321b25c247e1070f76ab1b2915b6a2bc8359bef1208df44fb004
+  .cursor/rules/engine.mdc: sha256:54766be92b6ee3275dddda3e65ac1fb0647d58de9b02dc8f3baa471b1ecbd251
+  .cursor/rules/infrastructure.mdc: sha256:adc7a4c41f95e0afa58ee18362c61efd9e8c7d3d62de1e15500f5b11df550ced
+  .cursor/rules/micro-engine.mdc: sha256:e5cb84edf324e260668f4fa95e299cfdff96b9998402f491973286c6a6fddf38
+  .cursor/rules/monorepo.mdc: sha256:0bd47cea59136c3cd0b51d56ddbf92c9e72d70c9653f4bc599b30e3b18845411
+  .cursor/rules/qip-working-agreements.mdc: sha256:f4f9c8835673f5ed8a17fc3c591dc8ae5aea3982220ff0e82262d9ac1aa41c11
+  .cursor/rules/runtime-catalog.mdc: sha256:30e131100ab5f5083bcfc714309ef0131a1ceff0e0cf6dc8e2bbda8018209059
+  .cursor/rules/schemas.mdc: sha256:e0c80c275441415a4774f5ebbc9ede1e22a191776682097eb8a34f51a0a686aa
+  .cursor/rules/sessions-management.mdc: sha256:b220ea14779526d9b8e6086786fca35fb0b72678cd34a4e3d2daacfa921009cf
+  .cursor/rules/sonar-triage.mdc: sha256:9418a601f82ff328ff99463908f96385acb0bc0ff47b6725309e77b61918034f
+  .cursor/rules/testing-service.mdc: sha256:eab55d3a45904d98ef98e855a8e70e5423c5639586981466b7806823b5eb10f7
+  .cursor/rules/ui-api-and-utilities.mdc: sha256:e1b232abf03edbf1951c220f12f596196290d597c22b9f621a773ccdeccc229d
+  .cursor/rules/ui-component-patterns.mdc: sha256:76a996d7be248cf8d24fd46010eee39d9dc92bf8bd094eabf5e364412824c867
+  .cursor/rules/ui-core-development.mdc: sha256:93c3440760f98198a68415de3658347c254dd4be05ed3cd7e096cd3eb3347e2a
+  .cursor/rules/ui-theme-and-vscode-webview.mdc: sha256:f6506e72aa9b23b96b2c2f14a1d91088bae05128551d59a9b776b2c97302bae5
+  .cursor/rules/vscode-extension.mdc: sha256:1e9aa13c81de55312aa806a3a79b24c148dfded3e01c9cc28216f11805bdc760

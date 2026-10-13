@@ -22,10 +22,10 @@ import java.util.List;
 public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String TEMPLATE_NAME = "service-monitor";
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")

@@ -38,13 +38,13 @@ import java.util.stream.Stream;
 @Slf4j
 @ApplicationScoped
 public class TruststoreConfiguration {
-    @ConfigProperty(name = "qip.local-truststore.store.path")
+    @ConfigProperty(name = "cip.local-truststore.store.path")
     String storeFilePath;
 
-    @ConfigProperty(name = "qip.local-truststore.store.password")
+    @ConfigProperty(name = "cip.local-truststore.store.password")
     Optional<String> storePassword;
 
-    @ConfigProperty(name = "qip.local-truststore.certs.location")
+    @ConfigProperty(name = "cip.local-truststore.certs.location")
     String certsLocation;
 
     private static final String JAVA_HOME_PROPERTY = "java.home";

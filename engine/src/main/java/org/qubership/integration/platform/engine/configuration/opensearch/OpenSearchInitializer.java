@@ -62,16 +62,16 @@ import static org.qubership.integration.platform.engine.opensearch.ism.rest.Requ
 public class OpenSearchInitializer {
     public static final long TEMPLATE_VERSION = 6L;
 
-    @Value("${qip.opensearch.index.elements.shards:3}")
+    @Value("${cip.opensearch.index.elements.shards:3}")
     private int indexShardsAmount;
 
-    @Value("${qip.opensearch.rollover.min_index_age:1d}")
+    @Value("${cip.opensearch.rollover.min_index_age:1d}")
     private TimeValue minIndexAge;
 
-    @Value("${qip.opensearch.rollover.min_index_size:}")
+    @Value("${cip.opensearch.rollover.min_index_size:}")
     private String minIndexSize;
 
-    @Value("${qip.opensearch.rollover.min_rollover_age_to_delete:14d}")
+    @Value("${cip.opensearch.rollover.min_rollover_age_to_delete:14d}")
     private TimeValue minRolloverAgeToDelete;
 
     private final Environment environment;

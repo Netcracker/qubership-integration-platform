@@ -463,6 +463,8 @@ export const Sessions: React.FC<SessionsProps> = ({
     setSelectedRowKeys(newSelectedRowKeys);
   };
 
+  const hasSelection = selectedRowKeys.length > 0;
+
   const deleteSelectedSessions = useCallback(async () => {
     try {
       const ids = toStringIds(selectedRowKeys);
@@ -479,16 +481,16 @@ export const Sessions: React.FC<SessionsProps> = ({
   }, [selectedRowKeys, sessions.length, chainId, notificationService]);
 
   const onDeleteBtnClick = useCallback(() => {
-    if (selectedRowKeys.length === 0) return;
+    if (!hasSelection) return;
     confirmAndRun({
       title: "Delete Sessions",
       content: `Are you sure you want to delete ${selectedRowKeys.length} session(s)?`,
       onOk: deleteSelectedSessions,
     });
-  }, [selectedRowKeys, deleteSelectedSessions]);
+  }, [hasSelection, selectedRowKeys, deleteSelectedSessions]);
 
   const onExportBtnClick = useCallback(async () => {
-    if (selectedRowKeys.length === 0) return;
+    if (!hasSelection) return;
     try {
       const ids = toStringIds(selectedRowKeys);
       const file = await api.exportSessions(ids);
@@ -496,7 +498,7 @@ export const Sessions: React.FC<SessionsProps> = ({
     } catch (error) {
       notificationService.requestFailed("Failed to export sessions", error);
     }
-  }, [selectedRowKeys, notificationService]);
+  }, [hasSelection, selectedRowKeys, notificationService]);
 
   const onImportBtnClick = useCallback(() => {
     showModal({
@@ -538,6 +540,7 @@ export const Sessions: React.FC<SessionsProps> = ({
           buttonProps={{
             iconName: "cloudDownload",
             onClick: () => void onExportBtnClick(),
+            disabled: !hasSelection,
           }}
         />
         {chainId ? null : (
@@ -556,11 +559,18 @@ export const Sessions: React.FC<SessionsProps> = ({
           buttonProps={{
             iconName: "delete",
             onClick: onDeleteBtnClick,
+            disabled: !hasSelection,
           }}
         />
       </>
     ),
-    [chainId, onDeleteBtnClick, onExportBtnClick, onImportBtnClick],
+    [
+      chainId,
+      hasSelection,
+      onDeleteBtnClick,
+      onExportBtnClick,
+      onImportBtnClick,
+    ],
   );
 
   const sessionsToolbar = useMemo(

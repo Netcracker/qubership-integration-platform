@@ -8,8 +8,8 @@
     <includeBaseDirectory>false</includeBaseDirectory>
     <fileSets>
         <fileSet>
-            <directory>${project.basedir}/src/main/resources/qip-model</directory>
-            <outputDirectory>qip-model</outputDirectory>
+            <directory>${project.basedir}/src/main/resources/conf-model</directory>
+            <outputDirectory>conf-model</outputDirectory>
             <useDefaultExcludes>true</useDefaultExcludes>
             <excludes>
                 <exclude>**/.gitkeep</exclude>

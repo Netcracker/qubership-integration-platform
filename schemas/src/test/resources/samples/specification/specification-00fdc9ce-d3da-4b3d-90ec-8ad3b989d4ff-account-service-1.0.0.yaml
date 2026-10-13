@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/specification.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
 id: "00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff-account-service-1.0.0"
 name: "1.0.0"
 content:

@@ -267,7 +267,7 @@ class EndpointMockTestingServiceTest {
         LookupIfProperty lookup = EndpointMockTestingService.class.getAnnotation(LookupIfProperty.class);
 
         assertNotNull(lookup, "@LookupIfProperty is what gates the lookup on the property");
-        assertEquals("qip.testing.enabled", lookup.name());
+        assertEquals("cip.testing.enabled", lookup.name());
         assertEquals("true", lookup.stringValue());
     }
 
@@ -371,10 +371,10 @@ class EndpointMockTestingServiceTest {
         while (resources.hasMoreElements()) {
             try (InputStream stream = resources.nextElement().openStream()) {
                 Map<String, Object> root = new Yaml().load(stream);
-                if (root != null && root.get("qip") instanceof Map) {
+                if (root != null && root.get("cip") instanceof Map) {
                     Map<String, Object> testing =
-                            (Map<String, Object>) ((Map<String, Object>) root.get("qip")).get("testing");
-                    assertNotNull(testing, "application.yml does not declare qip.testing");
+                            (Map<String, Object>) ((Map<String, Object>) root.get("cip")).get("testing");
+                    assertNotNull(testing, "application.yml does not declare cip.testing");
                     return testing;
                 }
             }

@@ -3,6 +3,8 @@ import * as vscode from "vscode";
 import * as yaml from "yaml";
 import { YamlFileUtils } from "../api-services/YamlFileUtils";
 import { fileApi } from "../response/file/fileApiProvider";
+import { DEFAULT_APP_NAME } from "../constants/appName";
+import { CONF_MODEL_BASE_URL, QIP_SCHEMA_URLS } from "./qipSchemas";
 
 export interface ProjectConfig {
   version: string;
@@ -56,13 +58,12 @@ export interface ProjectConfigFile {
 }
 
 const DEFAULT_SCHEMA_URLS = {
-  contextService: "http://qubership.org/schemas/product/qip/context-service",
-  mcpService: "http://qubership.org/schemas/product/qip/mcp-service",
-  service: "http://qubership.org/schemas/product/qip/service",
-  chain: "http://qubership.org/schemas/product/qip/chain",
-  specification: "http://qubership.org/schemas/product/qip/specification",
-  specificationGroup:
-    "http://qubership.org/schemas/product/qip/specification-group",
+  contextService: `${CONF_MODEL_BASE_URL}context-service`,
+  mcpService: `${CONF_MODEL_BASE_URL}mcp-service`,
+  service: QIP_SCHEMA_URLS.SERVICE,
+  chain: QIP_SCHEMA_URLS.CHAIN,
+  specification: QIP_SCHEMA_URLS.SPECIFICATION,
+  specificationGroup: QIP_SCHEMA_URLS.SPECIFICATION_GROUP,
 };
 
 export const CONFIG_FILENAME = ".config.qip.yaml";
@@ -70,7 +71,7 @@ export const CONFIG_FILENAME = ".config.qip.yaml";
 export class ProjectConfigService {
   private static instance: ProjectConfigService;
   private context?: ExtensionContext;
-  private currentAppName: string = "qip";
+  private currentAppName: string = DEFAULT_APP_NAME;
   private currentConfig: ProjectConfig | null = null;
   private workspaceConfigs: Map<string, ProjectConfig> = new Map();
   private externalConfigs: Map<string, ProjectConfig> = new Map();
@@ -154,7 +155,7 @@ export class ProjectConfigService {
     this.currentConfig = null;
     this.workspaceConfigs.clear();
     this.externalConfigs.clear();
-    this.currentAppName = "qip";
+    this.currentAppName = DEFAULT_APP_NAME;
     this.cacheTtl = 60000;
     this.wasWorkspaceConfigLoaded = false;
   }
@@ -164,14 +165,17 @@ export class ProjectConfigService {
       console.warn(
         "[ProjectConfigService] Extension context not set, using hardcoded defaults",
       );
-      this.workspaceConfigs.set("qip", this.buildDefaultConfig("qip"));
+      this.workspaceConfigs.set(
+        DEFAULT_APP_NAME,
+        this.buildDefaultConfig(DEFAULT_APP_NAME),
+      );
       return;
     }
 
     const configUri = Uri.joinPath(
       this.context.extensionUri,
       "configs",
-      "default.config.qip.yaml",
+      "default.config.cip.yaml",
     );
     const configFile = await this.loadConfigFileFromUri(configUri);
 
@@ -183,7 +187,10 @@ export class ProjectConfigService {
       console.warn(
         "[ProjectConfigService] Failed to load embedded config, using hardcoded defaults",
       );
-      this.workspaceConfigs.set("qip", this.buildDefaultConfig("qip"));
+      this.workspaceConfigs.set(
+        DEFAULT_APP_NAME,
+        this.buildDefaultConfig(DEFAULT_APP_NAME),
+      );
     }
   }
 
@@ -306,8 +313,8 @@ export class ProjectConfigService {
       return true;
     }
 
-    const isDefaultContext = this.currentAppName === "qip";
-    const isNonDefaultConfig = appName !== "qip";
+    const isDefaultContext = this.currentAppName === DEFAULT_APP_NAME;
+    const isNonDefaultConfig = appName !== DEFAULT_APP_NAME;
 
     return isDefaultContext && isFirstExternalConfig && isNonDefaultConfig;
   }
@@ -318,9 +325,9 @@ export class ProjectConfigService {
     }
 
     const hasExternalConfig = this.externalConfigs.size > 0;
-    const isAutoCallWithDefault = requestedAppName === "qip";
+    const isAutoCallWithDefault = requestedAppName === DEFAULT_APP_NAME;
     const alreadySwitchedToExternal =
-      this.currentAppName !== "qip" &&
+      this.currentAppName !== DEFAULT_APP_NAME &&
       this.externalConfigs.has(this.currentAppName);
 
     return (
@@ -371,7 +378,7 @@ export class ProjectConfigService {
     this.workspaceConfigs.delete(appName);
 
     if (this.currentAppName === appName) {
-      this.currentAppName = "qip";
+      this.currentAppName = DEFAULT_APP_NAME;
       this.currentConfig = null;
     }
 

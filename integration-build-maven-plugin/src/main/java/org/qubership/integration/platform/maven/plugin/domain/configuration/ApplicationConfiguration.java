@@ -14,7 +14,7 @@ import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
  * through a {@code @ConditionalOnProperty} on the mesh type. This module takes that decision from the
  * {@code controlPlaneType} mojo parameter instead, in the {@code OptionControlled*} subclasses, so the
  * base classes are excluded from the scan. Without the exclusion, a stray
- * {@code qip.control-plane.mesh-type} and {@code qip.istio.enabled} on the Maven JVM would register a
+ * {@code cip.control-plane.mesh-type} and {@code cip.istio.enabled} on the Maven JVM would register a
  * base class next to its subclass and the build would fail on a duplicate resource.
  *
  * <p>The filter matches class names, and the subclasses live in another package under other names, so

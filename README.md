@@ -22,6 +22,7 @@ This repository is a **monorepo** that consolidates the previously separate `qub
 | `checkstyle/`          | Shared Checkstyle rules (`qip-checkstyle` artifact)                                           | XML, Maven                                                                  |
 | `help/`                | Documentation consumed by UI and VS Code extension                                            | Markdown                                                                    |
 | `parent/`              | Shared Maven parent POM for Spring Boot modules                                               | Maven                                                                       |
+| `e2e/`                 | End-to-end suite driving the whole local stack, which it provisions itself                    | TypeScript, Playwright                                                      |
 
 ## Getting started
 
@@ -70,7 +71,7 @@ If your integration chains use Kafka, RabbitMQ, Redis, or Google Pub/Sub, start 
 docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.kafka.yml up -d --build
 ```
 
-Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `docker-compose.redis.yml`, `docker-compose.pubsub.yml`.
+Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `docker-compose.redis.yml`, `docker-compose.pubsub.yml`, `docker-compose.sftp.yml`.
 
 ### Step 5 — Start the UI dev server
 
@@ -83,7 +84,16 @@ npm -w @netcracker/qip-ui run dev
 
 ### VS Code extension
 
-The extension provides offline visual editors for `.chain.qip.yaml` and `.service.qip.yaml` files. It does not require the backend stack.
+The extension provides offline visual editors for `.chain.cip.yaml` and `.service.cip.yaml` files. It does not require the backend stack.
+
+`*.qip.yaml` files from earlier versions do not open in the extension. Rename them to `*.cip.yaml`.
+
+If a workspace `.config.qip.yaml` has a `configs.qip` block, delete the block so the embedded `cip` defaults apply.
+To keep custom settings, move them to `configs.cip`, then change each `extensions` value to end in `.cip.yaml` and
+each `schemaUrls` value to the matching URI in `vscode-extension/configs/default.config.cip.yaml`.
+A block the extension saved holds the old extensions and schema URLs as literal values, and a `configs.cip` block in
+the workspace file replaces the embedded default as a whole. Moved unchanged, the block makes the extension create
+`*.qip.yaml` files that declare the old `$schema`, and its editors do not open them.
 
 ```bash
 npm install                                           # if not done already
@@ -119,6 +129,17 @@ go test -tags integration ./...                   # PostgreSQL through testconta
 ```
 
 The `go` directive is pinned to 1.22 — see [testing-service/AGENTS.md](testing-service/AGENTS.md) for why, and for the rest of the module's conventions.
+
+`e2e/` holds the Playwright end-to-end suite, and it stands outside the npm workspaces too, so it needs its own install:
+
+```bash
+cd e2e
+npm install
+npm test                                          # the whole suite, about 12 minutes
+npm test -- --project=schema                      # registries and fixtures only, no stack needed
+```
+
+The suite provisions the Compose stack itself: it starts whatever is down, and it rebuilds a service whose sources have outrun the image its container runs. It also builds and serves the UI bundle, so it needs no dev server. See [e2e/README.md](e2e/README.md) for the prerequisites, the flags, and how to read a failure.
 
 ## License
 

@@ -37,7 +37,7 @@ public class V104ChainImportFileMigration implements ChainImportFileMigration {
     @Autowired
     public V104ChainImportFileMigration(
             YAMLMapper yamlMapper,
-            @Value("${qip.access-control.resource-type.chain}") String resourceType
+            @Value("${cip.access-control.resource-type.chain}") String resourceType
     ) {
         this.yamlMapper = yamlMapper;
         this.resourceType = resourceType;

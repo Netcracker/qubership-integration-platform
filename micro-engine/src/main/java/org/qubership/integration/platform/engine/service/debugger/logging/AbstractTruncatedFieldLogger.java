@@ -5,7 +5,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 public abstract class AbstractTruncatedFieldLogger {
 
-    @ConfigProperty(name = "qip.logging.fields-max-size", defaultValue = "-1")
+    @ConfigProperty(name = "cip.logging.fields-max-size", defaultValue = "-1")
     protected int fieldValueMaxSize = -1;
 
     protected String truncateValue(String value) {

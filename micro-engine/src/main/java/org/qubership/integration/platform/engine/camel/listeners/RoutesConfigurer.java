@@ -81,7 +81,7 @@ public class RoutesConfigurer extends AbstractPhaseListener {
 
     private Optional<String> getConfigurationLocation() {
         return ConfigProvider.getConfig()
-                .getOptionalValue("qip.chains.configuration.location", String.class)
+                .getOptionalValue("cip.chains.configuration.location", String.class)
                 .filter(StringUtils::isNotBlank);
     }
 

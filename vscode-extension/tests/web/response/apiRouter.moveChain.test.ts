@@ -37,7 +37,7 @@ jest.mock("../../../src/web/response/file", () => ({
 }));
 
 describe("apiRouter moveChain handler", () => {
-  const documentUri = Uri.file("/workspace/chains/chain-1.chain.qip.yaml");
+  const documentUri = Uri.file("/workspace/chains/chain-1.chain.cip.yaml");
 
   beforeEach(() => {
     mockChangeFolder.mockReset();
