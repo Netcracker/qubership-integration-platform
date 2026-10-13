@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.chain.presentation;
 
+import org.qubership.integration.platform.ai.presentation.MarkdownText;
+
 /** Short user-facing summary after a chain is materialized into the catalog. */
 public final class ChainMaterializedSummary {
 
@@ -15,15 +17,15 @@ public final class ChainMaterializedSummary {
     }
     String name =
         facts.chainName() == null || facts.chainName().isBlank()
-            ? facts.chainId()
-            : facts.chainName().trim();
+            ? MarkdownText.code(facts.chainId())
+            : MarkdownText.bold(facts.chainName().trim());
     String openPath = "/chains/" + facts.chainId() + "/graph";
     return """
-        Chain "%s" is ready.
-        Id: %s
+        Chain %s is ready.
+        ID: %s
         [Open graph](%s)
         """
-        .formatted(name, facts.chainId(), openPath)
+        .formatted(name, MarkdownText.code(facts.chainId()), openPath)
         .trim();
   }
 }

@@ -118,6 +118,32 @@ class ChatExecutionServiceTest {
   }
 
   @Test
+  void patchChangeRequestRunsAsEditScenarioWithItsComment() {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(Multi.createFrom().item(ChatEvent.token("revised")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+    when(decisions.apply(anyString(), any())).thenReturn(Multi.createFrom().empty());
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-patch-feedback");
+    ChatDecisionCommand decision = new ChatDecisionCommand();
+    decision.setAction(ChatEvent.REQUEST_CHANGES_ACTION);
+    decision.setArtifactType(ChatEvent.CHAIN_PATCH_ARTIFACT);
+    decision.setArtifactHash("patch-1");
+    decision.setComment("Remove the extra header line");
+    request.setDecision(decision);
+
+    service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    verify(router).route(request, "conv-patch-feedback");
+    assertEquals(ScenarioType.COMPARE_AND_PATCH, request.getScenarioHint());
+    assertTrue(request.getEffectiveUserText().contains(decision.getComment()));
+    verify(decisions, never()).apply(anyString(), any());
+  }
+
+  @Test
   void pendingDomainWaitFollowUpHintsDeployChain() {
     PendingRedeployStore store = new PendingRedeployStore();
     store.put("conv-wait", PendingRedeploy.domainWait("chain-1", "snap-1", false));

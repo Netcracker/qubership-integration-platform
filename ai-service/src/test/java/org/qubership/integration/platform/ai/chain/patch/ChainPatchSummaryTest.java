@@ -47,7 +47,7 @@ class ChainPatchSummaryTest {
         String text = ChainPatchSummary.describe(
                 graph(), patch(List.of(removeNode("audit")), List.of(), List.of()));
 
-        assertTrue(text.contains("**Removes** Legacy audit log (script)"), text);
+        assertTrue(text.contains("**Removes** **Legacy audit log** (`script`)"), text);
         assertTrue(
                 text.contains("Removing cannot be undone. To keep a way back, save a snapshot first."),
                 text);
@@ -59,7 +59,7 @@ class ChainPatchSummaryTest {
         String text = ChainPatchSummary.describe(
                 graph(), patch(List.of(), List.of(removeEdge("enrich->audit")), List.of()));
 
-        assertTrue(text.contains("**Disconnects** Enrich payload (script) from Legacy audit log (script)"), text);
+        assertTrue(text.contains("**Disconnects** **Enrich payload** (`script`) from **Legacy audit log** (`script`)"), text);
         assertFalse(text.contains("cannot be undone"), text);
     }
 
@@ -73,9 +73,9 @@ class ChainPatchSummaryTest {
                         List.of(),
                         List.of(changeProperty("enrich", "script", "return null;"))));
 
-        assertTrue(text.indexOf("**Removes** Legacy audit log") < text.indexOf("**Adds** Map fields"), text);
+        assertTrue(text.indexOf("**Removes** **Legacy audit log**") < text.indexOf("**Adds** **Map fields**"), text);
         assertTrue(
-                text.indexOf("**Removes** Legacy audit log") < text.indexOf("Enrich payload (script) — script"),
+                text.indexOf("**Removes** **Legacy audit log**") < text.indexOf("**Enrich payload** (`script`) — `script`"),
                 text);
     }
 
@@ -88,9 +88,9 @@ class ChainPatchSummaryTest {
                         List.of(),
                         List.of(changeProperty("enrich", "script", "return null;"))));
 
-        assertTrue(text.contains("1. **Removes** Legacy audit log (script)\n\n"), text);
-        assertTrue(text.contains("2. **Adds** Map fields (mapper)\n\n"), text);
-        assertTrue(text.contains("3. **Updates** Enrich payload (script) — script"), text);
+        assertTrue(text.contains("1. **Removes** **Legacy audit log** (`script`)\n\n"), text);
+        assertTrue(text.contains("2. **Adds** **Map fields** (`mapper`)\n\n"), text);
+        assertTrue(text.contains("3. **Updates** **Enrich payload** (`script`) — `script`"), text);
     }
 
     @Test
@@ -124,13 +124,31 @@ class ChainPatchSummaryTest {
         assertTrue(text.contains("now:\n(not set)"), text);
     }
 
+    @Test
+    void formatsLiteralLabelsWithoutChangingScriptsOrPatchValues() {
+        String label = "Enrich_[prod] <body>";
+        String script = "exchange.message.body = '[done]'; return exchange;";
+        ChainPlanGraph before = new ChainPlanGraph(
+                "1.0", new ChainSection("demo-chain", null),
+                List.of(new ChainPlanNode("enrich", "script", label, null, null,
+                        List.of(new PlanProperty("script", "return exchange;")))), List.of());
+        GraphPatch proposed = patch(List.of(), List.of(), List.of(changeProperty("enrich", "script", script)));
+
+        String text = ChainPatchSummary.describe(before, proposed);
+
+        assertTrue(text.contains("**Enrich\\_\\[prod\\] \\<body\\>** (`script`) — `script`"), text);
+        assertTrue(text.contains("after:\n```\n" + script + "\n```"), text);
+        assertEquals(label, before.nodes().getFirst().label());
+        assertEquals(script, proposed.propertyPatches().getFirst().property().value());
+    }
+
     /** A patch may name an element the chain no longer has; the card still has to render. */
     @Test
     void fallsBackToTheIdWhenTheElementIsUnknown() {
         String text = ChainPatchSummary.describe(
                 graph(), patch(List.of(removeNode("ghost")), List.of(), List.of()));
 
-        assertTrue(text.contains("**Removes** Element ghost"), text);
+        assertTrue(text.contains("**Removes** Element `ghost`"), text);
     }
 
     @Test
@@ -142,7 +160,7 @@ class ChainPatchSummaryTest {
                         List.of(),
                         List.of()));
 
-        assertTrue(text.indexOf("1. **Removes** Legacy audit log") < text.indexOf("2. **Adds** Map fields"), text);
+        assertTrue(text.indexOf("1. **Removes** **Legacy audit log**") < text.indexOf("2. **Adds** **Map fields**"), text);
         assertTrue(
                 text.contains("Removing cannot be undone. To keep a way back, save a snapshot first."),
                 text);
@@ -163,7 +181,7 @@ class ChainPatchSummaryTest {
 
         String text = ChainPatchSummary.describe(before, patch);
 
-        assertTrue(text.indexOf("**Removes** Call orders") < text.indexOf("**Adds**"), text);
+        assertTrue(text.indexOf("**Removes** **Call orders**") < text.indexOf("**Adds**"), text);
         assertTrue(
                 text.contains("Removing cannot be undone. To keep a way back, save a snapshot first."),
                 text);
@@ -220,7 +238,7 @@ class ChainPatchSummaryTest {
                         List.of(),
                         List.of()));
 
-        assertTrue(text.contains("**Moves** Enrich payload (script) into Try (try)"), text);
+        assertTrue(text.contains("**Moves** **Enrich payload** (`script`) into **Try** (`try`)"), text);
     }
 
     /** The move is what makes a wrap describe the thing it actually does, so it must not be silent. */
@@ -230,7 +248,7 @@ class ChainPatchSummaryTest {
                 graph(), patch(List.of(moveNode("enrich", "script", "Enrich payload", "audit")), List.of(), List.of()));
 
         assertFalse(text.contains("The change is empty"), text);
-        assertTrue(text.contains("**Moves** Enrich payload (script) into Legacy audit log (script)"), text);
+        assertTrue(text.contains("**Moves** **Enrich payload** (`script`) into **Legacy audit log** (`script`)"), text);
     }
 
     /** An UPDATE that leaves the parent unchanged is an ordinary edit, not a move. */

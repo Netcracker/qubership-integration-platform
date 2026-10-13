@@ -215,7 +215,7 @@ describe("AiDecisionCard", () => {
             { s3Key: "uploads/orders-api.yaml", displayName: "Orders API" },
             {
               s3Key: "uploads/partner-events.yaml",
-              displayName: "partner-events.yaml",
+              displayName: "partner_[events].yaml <probe>",
             },
           ],
         })}
@@ -223,8 +223,10 @@ describe("AiDecisionCard", () => {
       />,
     );
 
-    expect(screen.getByText("Orders API")).toBeInTheDocument();
-    expect(screen.getByText("partner-events.yaml")).toBeInTheDocument();
+    expect(screen.getByText("Orders API").closest("strong")).not.toBeNull();
+    expect(
+      screen.getByText("partner_[events].yaml <probe>").closest("strong"),
+    ).not.toBeNull();
     const externalOptions = screen.getAllByRole("radio", { name: "External" });
     fireEvent.click(externalOptions[1]);
     fireEvent.change(screen.getByPlaceholderText("Add a comment (optional)"), {
@@ -1299,6 +1301,29 @@ describe("AiDecisionCard", () => {
     expect(items[0].querySelector("strong")).toHaveTextContent("Adds");
     expect(items[1].querySelector("strong")).toHaveTextContent("Adds");
     expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+  });
+
+  it("should request a new review when the patch approval contains feedback", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          artifactType: "CHAIN_PATCH",
+          actions: ["apply-chain-patch", "request-changes"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Add a comment (optional)"), {
+      target: { value: "  Remove the extra header line  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+
+    expect(onAnswer).toHaveBeenCalledWith(
+      "request-changes",
+      "Remove the extra header line",
+    );
   });
 
   it("should freeze the clarify card and hide the text area once submitted", () => {

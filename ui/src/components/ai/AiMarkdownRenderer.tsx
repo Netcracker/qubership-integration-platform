@@ -12,20 +12,25 @@ import { CollapsibleChainPlanJsonBlock } from "./CollapsibleChainPlanJsonBlock.t
 import { AiMermaidDiagram } from "./AiMermaidDiagram.tsx";
 
 const markdownComponents: Components = {
-  code(props) {
-    const { children, className, ...rest } = props;
-    const match = /language-(\w+)/.exec(className || "");
-    const code = extractMarkdownText(children).replace(/\n$/, "");
-
-    if (!match) {
-      return (
-        <code className="ai-inline-code" {...rest}>
-          {children}
-        </code>
-      );
+  code({ children }) {
+    return <code className="ai-inline-code">{children}</code>;
+  },
+  pre({ children }) {
+    const element = React.Children.toArray(children)[0];
+    if (
+      !React.isValidElement<{ className?: string; children?: React.ReactNode }>(
+        element,
+      )
+    ) {
+      return <pre>{children}</pre>;
     }
-
-    const language = match[1] || "text";
+    const raw = extractMarkdownText(element.props.children);
+    const code = raw.endsWith("\n") ? raw.slice(0, -1) : raw;
+    const language =
+      element.props.className
+        ?.split(" ")
+        .find((value) => value.startsWith("language-"))
+        ?.slice("language-".length) || "text";
     if (isCollapsibleChainPlanJsonBlock(language, code)) {
       return (
         <CollapsibleChainPlanJsonBlock
@@ -51,6 +56,10 @@ const markdownComponents: Components = {
         </div>
         {language === "mermaid" ? (
           <AiMermaidDiagram code={code} />
+        ) : language === "text" ? (
+          <pre>
+            <code>{code}</code>
+          </pre>
         ) : (
           <SyntaxHighlighter language={language} PreTag="div">
             {code}

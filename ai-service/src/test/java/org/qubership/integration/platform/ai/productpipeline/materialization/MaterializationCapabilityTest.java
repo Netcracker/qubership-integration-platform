@@ -255,7 +255,7 @@ class MaterializationCapabilityTest {
             .anyMatch(
                 s ->
                     s instanceof CapabilitySignal.Message m
-                        && m.text().contains("Chain \"demo-chain\" is ready.")
+                        && m.text().contains("Chain **demo\\-chain** is ready.")
                         && m.text().contains("[Open graph](/chains/catalog-chain-1/graph)")));
     assertTrue(
         signals.stream()

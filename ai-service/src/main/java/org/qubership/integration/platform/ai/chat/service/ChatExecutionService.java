@@ -101,7 +101,12 @@ public class ChatExecutionService {
     if (UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(decision.getArtifactType())) {
       return false;
     }
-    return runsAsScenarioAction(decision.getAction());
+    return isPatchChangeRequest(decision) || runsAsScenarioAction(decision.getAction());
+  }
+
+  private static boolean isPatchChangeRequest(ChatDecisionCommand decision) {
+    return ChatEvent.CHAIN_PATCH_ARTIFACT.equals(decision.getArtifactType())
+        && ChatEvent.REQUEST_CHANGES_ACTION.equals(decision.getAction());
   }
 
   private static boolean runsAsScenarioAction(String action) {
@@ -130,7 +135,8 @@ public class ChatExecutionService {
       request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
       return;
     }
-    if (ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(action)) {
+    if (ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(action)
+        || isPatchChangeRequest(request.getDecision())) {
       request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
       return;
     }
