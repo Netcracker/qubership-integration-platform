@@ -158,9 +158,10 @@ public class ChatExecutionService {
     }
   }
 
-  private Multi<ChatEvent> openGate(String conversationId) {
+  private Multi<ChatEvent> openGate(String conversationId, ChatEvent.Decision streamedDecision) {
     return decisionService
         .openDecision(conversationId)
+        .filter(decision -> !decision.equals(streamedDecision))
         .map(decision -> Multi.createFrom().item((ChatEvent) decision))
         .orElseGet(() -> Multi.createFrom().empty());
   }
@@ -203,6 +204,9 @@ public class ChatExecutionService {
               .orElse(null);
       request.setResolvedEffectiveUserText(
           ChatDecisionService.transcriptMarker(request.getDecision(), domain));
+      if (ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION.equals(request.getDecision().getAction())) {
+        pendingRedeployStore.clearDecision(conversationId, request.getDecision());
+      }
       applyScenarioHint(request);
     } else {
       if (pendingRedeployStore
@@ -231,6 +235,7 @@ public class ChatExecutionService {
 
     String assistantTurnId = UUID.randomUUID().toString();
     StringBuilder responseBuffer = new StringBuilder();
+    AtomicReference<ChatEvent.Decision> lastStreamedDecision = new AtomicReference<>();
     AtomicReference<LastAssistantTurn.Kind> lastTurnKind =
         new AtomicReference<>(LastAssistantTurn.Kind.OTHER);
     String finalConversationId = conversationId;
@@ -247,7 +252,7 @@ public class ChatExecutionService {
           Multi<ChatEvent> work = runsAsCommand(request)
               ? decisionService.apply(finalConversationId, request.getDecision())
               : router.route(request, finalConversationId).onCompletion()
-                  .switchTo(() -> openGate(finalConversationId));
+                  .switchTo(() -> openGate(finalConversationId, lastStreamedDecision.get()));
           return ToolInvocationSink.propagateBinding(ToolInvocationSink.attachedContext(), work);
         });
       } catch (RuntimeException error) {
@@ -276,6 +281,7 @@ public class ChatExecutionService {
               lastTurnKind.set(token.turnKind());
             }
           } else if (event instanceof ChatEvent.Decision decision) {
+            lastStreamedDecision.set(decision);
             conversationService.archive().saveAssistant(conversationId, sourceInput.generation(),
                 assistantTurnId, decision.question(), objectMapper.valueToTree(decision), "DECISION", sourceInput.turnId());
             lastTurnKind.compareAndSet(
@@ -503,6 +509,9 @@ public class ChatExecutionService {
     payload.put("question", decision.question());
     payload.put("revision", decision.revision());
     payload.put("actions", decision.actions());
+    if (!decision.actionLabels().isEmpty()) {
+      payload.put("actionLabels", decision.actionLabels());
+    }
     if (decision.artifactType() != null) {
       payload.put("artifactType", decision.artifactType());
     }

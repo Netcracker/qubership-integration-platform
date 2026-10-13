@@ -43,6 +43,8 @@ export interface ChatDecision {
   missingEvidence?: string[];
   /** Actions the gate accepts, in display order, e.g. ["approve", "request-changes"]. */
   actions: string[];
+  /** Localized display labels; action IDs remain the command contract. */
+  actionLabels?: Record<string, string>;
   /** Uploaded specifications for the import card. Absent on older servers. */
   specs?: ChatDecisionSpec[];
   /** Chains the export card offers for download in the browser. */

@@ -271,6 +271,7 @@ class DeployChainScenarioTest {
     assertTrue(token.text().contains(SNAPSHOT_ID));
     assertTrue(token.text().contains("default"));
     assertTrue(token.text().contains("DEPLOYED"));
+    assertTrue(pendingRedeployStore.openDecision(CONVERSATION_ID).isEmpty());
     assertFalse(token.text().contains("WARNING"));
   }
 
@@ -464,7 +465,7 @@ class DeployChainScenarioTest {
     ChatEvent.Decision decision = onlyDecision(events);
     assertEquals(ChatEvent.SESSION_LOGGING_ARTIFACT, decision.artifactType());
     assertEquals(ChatEvent.SESSION_LOGGING_ACTIONS, decision.actions());
-    assertTrue(decision.question().contains("Current: OFF"), decision.question());
+    assertTrue(decision.question().contains("Current: **OFF**"), decision.question());
   }
 
   @Test
@@ -1297,6 +1298,40 @@ class DeployChainScenarioTest {
     verify(catalogRestClient)
         .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
     assertTrue(token.text().contains("DEPLOYED"));
+    assertTrue(pendingRedeployStore.openDecision(CONVERSATION_ID).isEmpty());
+  }
+
+  @Test
+  void statusReadTimeoutKeepsTheRefreshCardAvailable() {
+    stubOpenChain();
+    ChatEvent.Decision processing =
+        (ChatEvent.Decision) ChatEvent.deploymentProcessingDecision("dep-1", "Check status?");
+    pendingRedeployStore.rememberDecision(CONVERSATION_ID, processing);
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenThrow(new TimeoutException("CatalogRestClient#listDeployments timed out"));
+    ChatRequest request = refreshRequest(processing.artifactHash());
+    request.getDecision().setArtifactType(processing.artifactType());
+
+    assertEquals(KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE, replyTextFrom(request));
+    assertEquals(processing, pendingRedeployStore.openDecision(CONVERSATION_ID).orElseThrow());
+  }
+
+  @Test
+  void refreshingACompletedDeploymentConsumesItsStatusCard() {
+    stubOpenChain();
+    ChatEvent.Decision processing =
+        (ChatEvent.Decision) ChatEvent.deploymentProcessingDecision("dep-1", "Check status?");
+    pendingRedeployStore.rememberDecision(CONVERSATION_ID, processing);
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+    ChatRequest request = refreshRequest(processing.artifactHash());
+    request.getDecision().setArtifactType(processing.artifactType());
+
+    String text = replyTextFrom(request);
+
+    assertTrue(text.contains("DEPLOYED"), text);
+    assertTrue(pendingRedeployStore.openDecision(CONVERSATION_ID).isEmpty());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
   }
 
   @Test
@@ -1309,13 +1344,14 @@ class DeployChainScenarioTest {
                 CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
     when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of());
 
-    onlyDecision(eventsFrom("deploy this chain"));
+    ChatEvent.Decision original = onlyDecision(eventsFrom("deploy this chain"));
     String text =
         replyTextFrom(sessionLoggingRequest("other-op", ChatEvent.SESSION_LOGGING_INFO_ACTION));
 
     verify(catalogRestClient, never()).updateLoggingProperties(any(), any());
     verify(catalogRestClient, never()).createDeployment(any(), any());
     assertTrue(text.contains("no longer on offer"), text);
+    assertEquals(original, pendingRedeployStore.openDecision(CONVERSATION_ID).orElseThrow());
   }
 
   @Test
@@ -1337,6 +1373,7 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient, never()).createDeployment(any(), any());
     assertEquals(KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE, text);
+    assertEquals(card, pendingRedeployStore.openDecision(CONVERSATION_ID).orElseThrow());
   }
 
   @Test
@@ -1356,7 +1393,7 @@ class DeployChainScenarioTest {
     verify(catalogRestClient, never()).createDeployment(any(), any());
     verify(catalogRestClient, never()).updateLoggingProperties(any(), any());
     assertEquals(ChatEvent.SESSION_LOGGING_ACTIONS, decision.actions());
-    assertTrue(decision.question().contains("Current: unknown"), decision.question());
+    assertTrue(decision.question().contains("Current: **unknown**"), decision.question());
   }
 
   @Test
@@ -2452,7 +2489,13 @@ class DeployChainScenarioTest {
             .subscribe()
             .withSubscriber(AssertSubscriber.create(10));
     sub.awaitCompletion();
-    return sub.getItems();
+    List<ChatEvent> events = sub.getItems();
+    events.stream().filter(ChatEvent.Decision.class::isInstance)
+        .map(ChatEvent.Decision.class::cast).reduce((first, last) -> last)
+        .ifPresent(card -> assertEquals(card,
+            pendingRedeployStore.openDecision(CONVERSATION_ID).orElseThrow(),
+            "Every deployment card must remain available to transcript reconciliation"));
+    return events;
   }
 
   private static ChatEvent.Decision onlyDecision(List<ChatEvent> events) {

@@ -1044,6 +1044,39 @@ describe("AiDecisionCard", () => {
     expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
+  it("should preserve the command and localized label after answering a deployment card", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      question:
+        "Chain **Orders** is deployed on domain **default**. Reuse snapshot **V1**?",
+      actions: ["redeploy-chain", "cancel-redeploy"],
+      actionLabels: {
+        "redeploy-chain": "Erneut bereitstellen",
+        "cancel-redeploy": "Beibehalten",
+      },
+    });
+    const view = render(
+      <AiDecisionCard decision={decision} onAnswer={onAnswer} />,
+    );
+    for (const value of ["Orders", "default", "V1"]) {
+      expect(screen.getByText(value).tagName).toBe("STRONG");
+    }
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erneut bereitstellen" }),
+    );
+    expect(onAnswer).toHaveBeenCalledWith("redeploy-chain", "");
+    view.rerender(
+      <AiDecisionCard
+        decision={{ ...decision, answeredAction: "redeploy-chain" }}
+        onAnswer={onAnswer}
+      />,
+    );
+    expect(screen.getByText("Erneut bereitstellen")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Erneut bereitstellen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("should send session logging buttons as typed decisions", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();

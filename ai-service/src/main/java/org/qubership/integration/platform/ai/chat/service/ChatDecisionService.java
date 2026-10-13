@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
@@ -63,6 +64,8 @@ public class ChatDecisionService {
 
   @Inject ChainPatchStore patchStore;
 
+  @Inject PendingRedeployStore pendingRedeployStore;
+
   @Inject
   public ChatDecisionService(
       CreateChainApplicationFacade facade,
@@ -82,6 +85,12 @@ public class ChatDecisionService {
    */
   public Optional<ChatEvent.Decision> openDecision(String conversationId) {
     Objects.requireNonNull(conversationId, "conversationId");
+    if (pendingRedeployStore != null) {
+      Optional<ChatEvent.Decision> deployment = pendingRedeployStore.openDecision(conversationId);
+      if (deployment.isPresent()) {
+        return deployment;
+      }
+    }
     Optional<ChatEvent.Decision> waiting =
         facade
             .snapshot(conversationId)

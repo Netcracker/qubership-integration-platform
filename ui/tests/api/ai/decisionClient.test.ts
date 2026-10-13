@@ -1,9 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 import { setAiServiceUrl } from "../../../src/ai/appConfig.ts";
 import { fetchOpenDecision } from "../../../src/api/ai/decisionClient.ts";
 
 function mockFetchOnce(response: Partial<Response>) {
-  const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(response as Response);
+  const fetchMock = jest
+    .fn<typeof fetch>()
+    .mockResolvedValue(response as Response);
   global.fetch = fetchMock;
   return fetchMock;
 }
@@ -43,6 +52,32 @@ describe("fetchOpenDecision", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "https://ai.example.com/api/v1/chat/conv-1/decision",
     );
+  });
+
+  it("should restore localized labels only for offered actions", async () => {
+    mockFetchOnce({
+      status: 200,
+      ok: true,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            id: "deployment-1",
+            kind: "approve",
+            question: "Erneut bereitstellen?",
+            actions: ["redeploy-chain", "cancel-redeploy"],
+            actionLabels: {
+              "redeploy-chain": "Erneut bereitstellen",
+              "cancel-redeploy": null,
+              "undeploy-chain": "Remove",
+            },
+          }),
+        ),
+    });
+    const result = await fetchOpenDecision("conv-deployment");
+    expect(result?.actions).toEqual(["redeploy-chain", "cancel-redeploy"]);
+    expect(result?.actionLabels).toEqual({
+      "redeploy-chain": "Erneut bereitstellen",
+    });
   });
 
   it("should tolerate JSON null on absent optional fields", async () => {
