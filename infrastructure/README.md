@@ -12,6 +12,27 @@ It also provides next capabilities and features:
 
 This directory contains Docker compose files designed to run Qubership Integration Platform locally in development mode.
 
+## Kafka listeners
+
+`docker-compose.kafka.yml` runs one KRaft node with a listener per security protocol. Clients inside the Compose network
+connect to `kafka`; a client on the host connects to `localhost:9092`.
+
+| Listener | Port | Protocol | Clients |
+| --- | --- | --- | --- |
+| `INTERNAL` | 29092 | `PLAINTEXT` | chains, inter-broker traffic, AKHQ |
+| `CONTROLLER` | 29093 | `PLAINTEXT` | the KRaft controller |
+| `EXTERNAL` | 9092 | `PLAINTEXT` | clients on the host, at `localhost:9092` |
+| `AUTH` | 29094 | `SASL_PLAINTEXT` | user `e2e`, password `e2e-secret` |
+| `TLS` | 29095 | `SSL` | clients that trust `kafka-ssl/client/ca.crt` |
+| `AUTHTLS` | 29096 | `SASL_SSL` | both of the above |
+
+`AUTH` and `AUTHTLS` accept the `PLAIN`, `SCRAM-SHA-256`, and `SCRAM-SHA-512` mechanisms. The SCRAM credentials are
+written when the container formats its storage, so they survive a restart and disappear with the container.
+
+The server certificate covers the names `kafka` and `localhost`. `kafka-ssl/generate.sh` writes it, its key, and the CA
+certificate; the files are test material and are committed. The engine mounts `kafka-ssl/client` as its certificate
+directory, so it trusts the CA without further setup.
+
 ## Service file format round trip
 
 `e2e/specs/env/service-type-roundtrip.spec.ts` exercises the service file format against the running stack. It creates

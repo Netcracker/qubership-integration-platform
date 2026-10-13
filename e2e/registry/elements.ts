@@ -106,9 +106,10 @@ const R_RABBITMQ_ACK_NONE =
   "case covers the redelivery contract that leaves";
 
 const R_KAFKA_PLAINTEXT_ONLY =
-  "the overlay's Kafka listener is PLAINTEXT (infrastructure/docker-compose.kafka.yml), so no SASL " +
-  "mechanism and no securityProtocol or sslProtocol beyond PLAINTEXT is reachable locally; Kafka over " +
-  "SSL was deferred on 2026-09-07";
+  "the Kafka overlay serves SASL_PLAINTEXT, SSL, and SASL_SSL listeners besides PLAINTEXT (user e2e " +
+  "with PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512; infrastructure/docker-compose.kafka.yml), but every " +
+  "broker fixture connects over PLAINTEXT, so no SASL mechanism, securityProtocol, or sslProtocol " +
+  "beyond PLAINTEXT has a case";
 const R_KAFKA_OFFSET_RESET_NONE =
   "measured: with a fresh consumer group and no backlog, autoOffsetReset=none reads a message the " +
   "same way earliest and latest do — the exception it alone can raise needs a record already on the " +
