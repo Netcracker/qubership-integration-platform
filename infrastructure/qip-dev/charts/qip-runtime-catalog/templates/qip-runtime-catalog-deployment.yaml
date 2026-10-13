@@ -121,6 +121,14 @@ spec:
               value: {{ .Release.Name }}-engine
             - name: MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY
               value: 1048Mi
+            {{- with .Values.microDomainResources }}
+            - name: MICRO_DOMAIN_RESOURCES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.microDomainEmptyDirs }}
+            - name: MICRO_DOMAIN_EMPTY_DIRS
+              value: {{ join "," . | quote }}
+            {{- end }}
             - name: DEPLOYMENT_VERSION
               valueFrom:
                 configMapKeyRef:
