@@ -12,6 +12,7 @@
     "test:compose": "CIP_TARGET=compose playwright test",
     "test:k8s": "CIP_TARGET=k8s playwright test",
     "release-check": "node support/release-check.mjs",
+    "run-summary": "node support/run-summary.mjs",
     "report": "playwright show-report",
     "check-types": "tsc --noEmit",
     "reconcile": "node --experimental-strip-types registry/reconcile.mjs",
