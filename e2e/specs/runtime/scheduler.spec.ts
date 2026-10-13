@@ -1,5 +1,5 @@
 /**
- * `quartz-scheduler`, against `fixtures/brokers/scheduler-basic`.
+ * `quartz-scheduler`, against `fixtures/chains/scheduler-basic`.
  *
  * A cron trigger with no inbound message of any kind, so a case correlates the two-hop way:
  * search by chain id, then read the one session back with its
@@ -18,7 +18,7 @@
  * than invented as a registry entry that check would immediately reject.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
+import { readCorpusState, seedChain } from "../../support/corpus.js";
 import {
   SESSION_TIMEOUT,
   elementNames,
@@ -70,8 +70,7 @@ test(
   async ({ sessions }) => {
     covers("quartz-scheduler");
 
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "scheduler-basic");
+    const chain = seedChain(readCorpusState(), "scheduler-basic");
 
     const session = await nextFiring(sessions, chain.id, 2);
     expect(session.chainId).toBe(chain.id);

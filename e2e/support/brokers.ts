@@ -42,7 +42,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** Where the brokers seed leaves what it imported, mirroring `support/corpus.ts`'s `CORPUS_STATE_FILE`. */
 export const BROKERS_CORPUS_STATE_FILE = path.join(HERE, "..", stateFileName(".e2e-brokers-corpus.json"));
 
-/** The same session logging the shared corpus deploys with: `sftp-trigger-2` and `quartz-scheduler` have no other observable. */
+/** The same session logging the shared corpus deploys with: `sftp-trigger-2` has no other observable. */
 export const BROKERS_LOGGING: LoggingProperties = {
   sessionsLoggingLevel: "DEBUG",
   logLoggingLevel: "INFO",
@@ -731,8 +731,7 @@ export async function seedBrokers(
   await deployCorpus(catalog, chains);
   await waitForDeployed(catalog, chains);
 
-  const routed = chains.filter((each) => each.contextPath !== "");
-  if (routed.length) await waitForRoutes(env, routed);
+  await waitForRoutes(env, chains);
 
   // A kafka-trigger-2 chain with no HTTP trigger carries no route for the wait above to gate on, and
   // `DEPLOYED` is not consuming: see `waitForKafkaConsumers`.
