@@ -317,7 +317,13 @@ Three steps happen in an order that is not negotiable:
 - **Gate on the route, not on the status.** `DEPLOYED` means the catalog accepted and dispatched
   the deployment. A chain whose listener never connects reports `DEPLOYED` indefinitely, and a
   healthy one serves seconds after the status flips, so the seed follows the status poll with a
-  poll of the routes themselves.
+  poll of the routes themselves. A chain with no HTTP trigger, such as `scheduler-basic`, has no
+  route to poll, and `waitForRoutes` skips it: on the classic engine the status poll alone gates
+  it, and on the micro engine the other routes of the same Integration do.
+
+`scheduler-basic` fires every 3 s on both engines for the whole run. A case that reads sessions it
+did not scope by chain or by a window it opened leaves out the `*-scheduler-basic` ones, as
+`specs/global/sessions-destructive.spec.ts` does in its search filter.
 
 A runtime case deploys a chain of its own, in the worker folder, only when the corpus cannot hold
 it: the chain needs IDs a seed cannot carry (a service, a specification, an operation), it would
@@ -337,8 +343,13 @@ gate sends warm-up calls until one records, and fails once more of them are lost
 stall the whole shared corpus whenever a broker is down. `support/brokers.ts` is its assembler, and
 it also creates the run-token topics, queues, exchanges, dead-letter bindings, and pub/sub topology
 each fixture needs before deploying, since nothing on either side of a broker chain declares its
-own. What it imported is written to `.e2e-brokers-corpus.json` and read back with
-`readBrokersCorpusState`.
+own. What it imported is written to `.e2e-brokers-corpus.json` (`.e2e-k8s-brokers-corpus.json` on
+`k8s`) and read back with `readBrokersCorpusState`.
+
+A Kafka consumer group turns `Stable` before its consumer looks up the offset, so a trigger left at
+`autoOffsetReset: latest` can skip a message published right after the group settles (CI run
+38443020207). A spec whose Kafka trigger reads a topic the spec itself creates sets `earliest`; the
+seeded Kafka triggers keep `latest`, because that value is the axis they cover.
 
 `fixtures/specifications/` holds the API documents a spec imports as a service specification
 (OpenAPI, GraphQL, AsyncAPI), read with `readSpecificationFixture`. The seed never touches them: a

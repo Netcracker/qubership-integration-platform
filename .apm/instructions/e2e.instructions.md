@@ -59,6 +59,10 @@ or to a tree the `schema` project reads:
 and the import-file migration classes under `integration-build-pipeline/`. The rest of the suite
 provisions a Compose stack or a cluster namespace and expects to own it for the length of the run.
 
+The job's step summary comes from `support/run-summary.mjs`, which also prints the `failure` step
+output. A failed scheduled run mails that summary through the org email action to `vars.EMAIL_TO`,
+with the failure, or else the first failed step, in the subject.
+
 ### Provisioning
 
 `npx playwright test` brings the stack to this checkout before any project starts. It starts what is
@@ -97,11 +101,13 @@ own sources, and runs
 change the suite needs goes in the chart as an optional value with a default that renders what it
 rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
 
-**Broker overlays are not brought up by provisioning.** `Env.ensureOverlay(overlay)` brings one up,
-composed with the base file under the same project name, when the `brokers-seed` project needs it,
-and leaves a healthy overlay alone. `Env.restartOverlay(overlay)` restarts the overlay's own broker
-container without recreating it, and only `broker-restart.spec.ts` calls it. A spec reaches both
-through the `env` fixture, never by calling `docker`.
+**On Compose, provisioning does not start the broker overlays.** `Env.ensureOverlay(overlay)` brings
+one up, composed with the base file under the same project name, when the `brokers-seed` project
+needs it, and leaves a healthy overlay alone. On `k8s` the release installs the brokers as `qip-dev`
+subcharts unless `E2E_BROKERS=0`, `ensureOverlay` waits for their rollout and host port, and
+`removeOverlay` does nothing. `Env.restartOverlay(overlay)` restarts the overlay's own broker
+container without recreating it, and only `broker-restart.spec.ts` calls it. A spec reaches all
+three through the `env` fixture, never by calling `docker` or `kubectl`.
 
 ### Layout
 
@@ -110,7 +116,9 @@ e2e/
   playwright.config.ts   the projects both targets run, and the project list for the run
   env/                   index.ts (the Env interface), target.ts (reads CIP_TARGET),
                          target-setup.ts (each target's Env, provisioner, and projects),
-                         compose.ts and k8s.ts (the two Envs), provision.ts (the globalSetup)
+                         compose.ts and k8s.ts (the two Envs), provision.ts (the globalSetup),
+                         containers.ts (host ports per target, the broker ones included),
+                         overlays.ts (the broker readiness probes both Envs share)
   k8s/                   the chart values for qip-e2e, the cluster bootstrap script, and the page
                          that installs a cluster
   registry/              what the suite claims to cover, read off the tracked schemas

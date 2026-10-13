@@ -166,7 +166,13 @@ is missing or runs another version.
 4. Runs `helm upgrade --install qip infrastructure/helm/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`
    with the tags, the micro image, the host ports, and the cluster's values. Helm leaves a Deployment whose tag did
    not change alone. The catalog reads the micro image once, at startup, so its pod carries the
-   micro tag as an annotation and restarts when that tag changes.
+   micro tag as an annotation and restarts when that tag changes. The same command installs the
+   brokers: `<broker>.enabled` for each of the four, their host ports, the Kafka TLS files from
+   `infrastructure/kafka-ssl/server/` through `--set-file`, the CA from
+   `infrastructure/kafka-ssl/client/ca.crt` as `qip-engine.trustedCerts`, and the
+   `qip-runtime-catalog.microDomainResources` and `microDomainEmptyDirs` values that mount it into
+   a micro domain. Only the `enabled` switches follow `E2E_BROKERS`, so changing it between runs
+   restarts no engine, catalog, or micro domain.
 5. Waits for each rollout, then for `/actuator/health` of each JVM service, `/health` of the testing
    service, and a catalog route through the proxy.
 

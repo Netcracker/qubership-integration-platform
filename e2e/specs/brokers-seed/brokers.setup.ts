@@ -27,7 +27,8 @@ import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
  * wait that follow them.
  *
  * Sized on the same numbers `seedBrokers` actually calls with, not guessed: up to `overlayNames()`
- * overlays (four today), `OVERLAY_READY_TIMEOUT` each (`env/overlays.ts`), plus `DEPLOY_TIMEOUT`
+ * overlays (four today), `OVERLAY_READY_TIMEOUT` each (`env/overlays.ts`) for the readiness poll,
+ * which leaves out the command before it (on k8s, a rollout wait of up to 180 s), plus `DEPLOY_TIMEOUT`
  * (`support/corpus.ts`) and `KAFKA_CONSUMER_ATTACH_TIMEOUT` (`support/brokers.ts`) for the two waits
  * after the last overlay is up. Left at the suite's 120 s default, this test's own budget is smaller
  * than what `Env.ensureOverlay` alone can legitimately take, so a broker that is genuinely slow to
