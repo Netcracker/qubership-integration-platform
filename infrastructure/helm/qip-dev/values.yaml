@@ -5,6 +5,34 @@ postgres:
 gateways:
   enabled: true
 
+# Brokers for chains that use them, off by default; README.md, "Brokers",
+# lists their names and ports.
+#   nodePort          a fixed node port on <name>-host, the Service for clients
+#                     on the host.
+#   loadBalancerPort  makes <name>-host a LoadBalancer Service on this port
+#                     instead.
+kafka:
+  enabled: false
+  nodePort:
+  loadBalancerPort:
+  # PEM server certificate and unencrypted key; with the key set, the TLS and
+  # AUTHTLS listeners are added. Pass them with --set-file.
+  tls:
+    serverCert:
+    serverKey:
+rabbitmq:
+  enabled: false
+  nodePort:
+  loadBalancerPort:
+pubsub:
+  enabled: false
+  nodePort:
+  loadBalancerPort:
+sftp:
+  enabled: false
+  nodePort:
+  loadBalancerPort:
+
 # The platform services take the same settings:
 #   image.tag  the image tag.
 #   nodePort   a fixed node port for port 8080. Setting it makes the Service a
