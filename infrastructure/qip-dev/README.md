@@ -3,30 +3,26 @@
 ## Istio
 
 `global.qip.controlPlane.meshType: Istio` (the default in `values.yaml`) makes the platform generate
-Gateway API and Istio resources. Install Istio and the Gateway API CRDs, and label the target
-namespace for sidecar injection, before you install the chart:
+Gateway API and Istio resources. Install Istio 1.31 or later and the Gateway API CRDs, and label
+the target namespace for sidecar injection, before you install the chart. From this directory:
 
 ```sh
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.2/experimental-install.yaml
-istioctl install --set profile=demo \
-  --set values.pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=true
+kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml
+istioctl install -f istio.yaml
 kubectl create namespace qip
 kubectl label namespace qip istio-injection=enabled
 ```
 
-Install the Gateway API CRDs from the **experimental** channel. With
-`PILOT_ENABLE_ALPHA_GATEWAY_API=true`, istiod watches `UDPRoute` v1alpha2, which the standard channel
-does not serve, and istiod then never becomes ready. If the standard channel is already installed,
-delete its `safe-upgrades.gateway.networking.k8s.io` ValidatingAdmissionPolicy and its binding
-first, because the policy refuses the experimental CRDs; `e2e/k8s/README.md` gives the commands.
+`istio.yaml` installs Istio's `minimal` profile with resource requests small enough for a
+single-node local cluster. A cluster installed earlier from the experimental Gateway API channel
+with `PILOT_ENABLE_ALPHA_GATEWAY_API=true` keeps working and needs no reinstall.
 
 Sidecars are injected when a pod is created, so a namespace labeled after `helm install` leaves the
 running pods without one. Run `kubectl rollout restart deployment -n qip` to recreate them if you get
 the order wrong.
 
-Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` only honors when
-`PILOT_ENABLE_ALPHA_GATEWAY_API` is set. Without it the egress `HTTPRoute` is accepted but never
-programmed, and outgoing calls fail with no route.
+Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` 1.31.1 programs with no
+feature flag set.
 
 `CIP_ISTIO_HOST_RESOURCES_ENABLED` (default `true`) controls whether `runtime-catalog` and
 `engine` generate the `ServiceEntry` and `DestinationRule` those routes depend on. Turn it off
