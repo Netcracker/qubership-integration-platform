@@ -122,6 +122,12 @@ public final class RequirementCaptureProjection {
 
   public static List<PendingWork> pending(
       DraftInput input, List<CatalogBindingHint> bindings, Map<String, String> targets) {
+    return pending(input, bindings, targets, false);
+  }
+
+  public static List<PendingWork> pending(
+      DraftInput input, List<CatalogBindingHint> bindings, Map<String, String> targets,
+      boolean uploadedSpecifications) {
     List<PendingWork> pending = new ArrayList<>();
     Map<String, CapabilityInput> capabilities = new HashMap<>();
     for (CapabilityInput capability : input.capabilities()) {
@@ -230,8 +236,11 @@ public final class RequirementCaptureProjection {
                   && capability.httpMode() == RequirementCaptureInput.HttpMode.CATALOG);
       if (needsCatalog && !bound.contains(id)
           && !blank(interaction.participant()) && !blank(interaction.operation())) {
-        pending.add(new PendingWork("OPERATION_LOOKUP_REQUIRED", id, null,
-            "Resolve the catalog operation for " + interaction.participant() + "."));
+        pending.add(uploadedSpecifications
+            ? new PendingWork("UPLOADED_SPEC_IMPORT_REQUIRED", id, null,
+                "Import the uploaded API specifications before binding the operation for " + interaction.participant() + ".")
+            : new PendingWork("OPERATION_LOOKUP_REQUIRED", id, null,
+                "Resolve the catalog operation for " + interaction.participant() + "."));
       }
     }
     if (!hasInbound && !input.flow().interactions().isEmpty()) {
@@ -253,6 +262,11 @@ public final class RequirementCaptureProjection {
           question.text()));
     }
     return List.copyOf(pending);
+  }
+
+  public static boolean onlyUploadedSpecImportsRemain(List<PendingWork> pending) {
+    return !pending.isEmpty() && pending.stream()
+        .allMatch(work -> "UPLOADED_SPEC_IMPORT_REQUIRED".equals(work.code()));
   }
 
   private static boolean hasExplicitRoles(List<org.qubership.integration.platform.ai.plan.model.PlanProperty> properties) {

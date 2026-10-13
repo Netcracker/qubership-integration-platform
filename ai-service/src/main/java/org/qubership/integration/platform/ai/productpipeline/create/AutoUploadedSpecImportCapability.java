@@ -463,7 +463,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       }
       CatalogBindingMatcher.MatchResult match =
           matchImportedSpecs(
-              operationQuery, factBindingEvidence(call), conversationId, imported);
+              serviceName, operationQuery, factBindingEvidence(call), conversationId, imported);
       LOG.infof(
           "auto-uploaded-spec-import: probing fact factId=%s service=%s query=%s match=%s",
           call.sourceFactId(),
@@ -535,6 +535,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       }
       CatalogBindingMatcher.MatchResult match =
           matchImportedSpecs(
+              serviceName,
               operationQuery,
               flowBindingEvidence(interaction, facts),
               conversationId,
@@ -567,6 +568,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
   }
 
   private CatalogBindingMatcher.MatchResult matchImportedSpecs(
+      String serviceName,
       String operationQuery,
       String operationEvidence,
       String conversationId,
@@ -595,6 +597,14 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     }
     if (matches.isEmpty()) {
       return new CatalogBindingMatcher.MatchResult.None();
+    }
+    if (serviceName != null) {
+      List<CatalogMatch> named = matches.stream()
+          .filter(match -> serviceName.equalsIgnoreCase(match.systemName())).toList();
+      if (!named.isEmpty()) {
+        return named.size() == 1 ? new CatalogBindingMatcher.MatchResult.Exact(named.getFirst())
+            : new CatalogBindingMatcher.MatchResult.Ambiguous(named);
+      }
     }
     if (matches.size() == 1) {
       return new CatalogBindingMatcher.MatchResult.Exact(matches.getFirst());

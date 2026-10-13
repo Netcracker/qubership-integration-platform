@@ -328,6 +328,10 @@ public class CatalogBindingMatcher {
     if (matcher.find()) {
       method = matcher.group(1).toUpperCase(Locale.ROOT);
       path = matcher.group(2);
+      // The outer operation annotation is prose; parentheses inside the API path remain literal.
+      if (matcher.start(1) > 0 && operationQuery.charAt(matcher.start(1) - 1) == '(' && path.endsWith(")")) {
+        path = path.substring(0, path.length() - 1);
+      }
     }
     return new ParsedQuery(method, path, operationQuery.trim());
   }

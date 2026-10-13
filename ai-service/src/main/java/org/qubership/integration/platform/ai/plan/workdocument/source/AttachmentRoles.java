@@ -12,6 +12,10 @@ public final class AttachmentRoles {
     return extension.equals("json") || extension.equals("yaml") || extension.equals("yml");
   }
 
+  public static boolean hasSpecifications(java.util.Collection<String> keys) {
+    return keys != null && keys.stream().anyMatch(AttachmentRoles::importsAsSpecification);
+  }
+
   public static boolean isMappingName(String name) {
     String extension = extension(name);
     return extension.equals("md") || extension.equals("txt");

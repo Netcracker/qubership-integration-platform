@@ -197,10 +197,13 @@ catalog resolution, and defaults.
   accepted. `resolveApiOperation` checks the catalog first. Do not invent catalog identifiers.
   Native direct elements skip operation lookup. Follow the existing API Hub import approval
   path when an operation is absent from the catalog.
+  For uploaded specifications, `nextAction=RUN_IMPORT` defers operation binding until import.
+  Finish with `CONTINUE` when authorized to proceed. Do not search APIHub for these operations.
 - Call `finishRequirementDiscoveryTurn` exactly once as the final tool call. Use `STAY` for
   explanation or continued discussion, including a turn that edited the draft. Use `CONTINUE`
   only when the author asks to proceed and the saved draft has no missing fields. A partial
-  draft refuses `CONTINUE`. Use `updateRequirementDraft` to fill the missing fields and preserve
+  draft with `nextAction=RUN_IMPORT` may continue to import; other partial drafts refuse `CONTINUE`.
+  Use `updateRequirementDraft` to fill the missing fields and preserve
   all saved facts.
   Do not tell the user the draft is ready.
 - Do not run the compiler spine, write files, or mutate catalog entities during discovery.

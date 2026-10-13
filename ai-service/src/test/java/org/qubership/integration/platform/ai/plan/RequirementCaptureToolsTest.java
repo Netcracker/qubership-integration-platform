@@ -872,6 +872,93 @@ class RequirementCaptureToolsTest {
   }
 
   @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void uploadedSpecificationsAdvanceUnboundCallsToImport(int count) throws Exception {
+    Harness h = harness();
+    h.tools().conversations = new ConversationService();
+    h.tools().conversations.registerAllowedAttachmentKeys(h.conversationId(),
+        count == 1 ? List.of("sessions/test/tasks.json")
+            : List.of("sessions/test/tasks.json", "sessions/test/audit.yaml"));
+    var base = readyHttpDraft();
+    var interactions = new java.util.ArrayList<>(base.flow().interactions());
+    var transitions = new java.util.ArrayList<>(base.flow().transitions());
+    if (count == 2) {
+      interactions.add(new InteractionInput("audit", Direction.OUTBOUND, "Audit API", "readAudit", null, null, null));
+      transitions.add(new TransitionInput("submit", "audit"));
+    }
+    var input = new DraftInput(new FlowInput(interactions, transitions), base.facts(),
+        List.of(base.capabilities().getFirst()), List.of(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var captured = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      assertEquals(NextAction.RUN_IMPORT, captured.nextAction());
+      assertEquals(count, captured.pendingWork().size());
+      assertTrue(captured.pendingWork().stream().allMatch(work -> "UPLOADED_SPEC_IMPORT_REQUIRED".equals(work.code())));
+      var finished = h.mapper().readValue(
+          h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE), RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(NextAction.RUN_IMPORT, finished.nextAction());
+      assertEquals(RequirementDiscoveryDirective.CONTINUE, h.store().turnDirective(h.conversationId()));
+      assertEquals(input, h.store().get(h.conversationId()).orElseThrow().authoredDraft());
+      assertTrue(h.store().get(h.conversationId()).orElseThrow().catalogBindings().isEmpty());
+    }
+  }
+
+  @Test
+  void uploadedSpecificationDoesNotBypassAnUnansweredBusinessQuestion() throws Exception {
+    Harness h = harness();
+    h.tools().conversations = new ConversationService();
+    h.tools().conversations.registerAllowedAttachmentKeys(h.conversationId(), List.of("sessions/test/tasks.json"));
+    var base = readyHttpDraft();
+    var input = new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst()),
+        List.of(new RequirementCaptureInput.QuestionInput("choice", List.of("submit"), "Which task type should be used?")), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      h.tools().captureRequirementDraft(input);
+      var finished = h.mapper().readValue(
+          h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE), RequirementCaptureResult.class);
+      assertFalse(finished.accepted(), finished.toString());
+      assertEquals(NextAction.ASK_USER, finished.nextAction());
+      assertEquals(RequirementDiscoveryDirective.STAY, h.store().turnDirective(h.conversationId()));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"requirements.md", "requirements.txt", "reference.pdf"})
+  void nonSpecificationAttachmentsDoNotAuthorizeImport(String filename) throws Exception {
+    Harness h = harness();
+    h.tools().conversations = new ConversationService();
+    h.tools().conversations.registerAllowedAttachmentKeys(h.conversationId(), List.of("sessions/test/" + filename));
+    var base = readyHttpDraft();
+    var input = new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst()), List.of(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var captured = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertEquals(NextAction.LOOKUP, captured.nextAction());
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      assertFalse(finished.accepted());
+      assertEquals(RequirementDiscoveryDirective.STAY, h.store().turnDirective(h.conversationId()));
+    }
+  }
+
+  @Test
+  void uploadedSpecificationDoesNotBypassAnIncompleteNativeEndpoint() throws Exception {
+    Harness h = harness();
+    h.tools().conversations = new ConversationService();
+    h.tools().conversations.registerAllowedAttachmentKeys(h.conversationId(), List.of("sessions/test/tasks.json"));
+    var base = readyHttpDraft();
+    var input = new DraftInput(base.flow(), base.facts(), List.of(new CapabilityInput(
+        "entry", "http-trigger", HttpMode.CUSTOM, null, "/tasks", null, null, null)), List.of(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      h.tools().captureRequirementDraft(input);
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      assertFalse(finished.accepted());
+      assertEquals(NextAction.COMPLETE_DRAFT, finished.nextAction());
+      assertTrue(finished.pendingWork().stream().anyMatch(work -> "CAPABILITY_FIELD_REQUIRED".equals(work.code())));
+    }
+  }
+
+  @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"property,false", "property,true", "owner,false", "owner,true"})
   void rejectedFocusedUpdateProtectsNewRoleDuringPropertyRepair(String defect, boolean restoreStore) throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();

@@ -93,6 +93,7 @@ public class RequirementCaptureTools {
       Also map every result field on its adjacent delivery transition with sourcePath null and an
       expression explicitly reading the saved original field. Do not copy it from the call response.
       Named catalog outbound operations have no native capability entry; resolve them after capture.
+      When nextAction is RUN_IMPORT, finish with CONTINUE to import uploaded specs before binding.
       Capture explicit HTTP trigger accessControlType and roles in ANCHOR elementIntent requestedProperties.
       RBAC needs the author's explicit role choice. Save a partial draft and ask for missing roles;
       role names from examples do not authorize access to this chain.
@@ -234,7 +235,8 @@ public class RequirementCaptureTools {
   @Tool("""
       Finish the requirement-discovery turn once, after captures and lookups. Use STAY for discussion
       and CONTINUE only when the author asked to proceed and the saved draft has no missing fields.
-      CONTINUE is refused while the draft is partial. Do not tell the user the draft is ready until
+      A partial draft with nextAction RUN_IMPORT may CONTINUE to the upload import stage. Other
+      partial drafts refuse CONTINUE. Do not tell the user the draft is ready until
       CONTINUE is accepted. This does not mutate or approve the accepted draft.
       """)
   public String finishRequirementDiscoveryTurn(
@@ -275,7 +277,7 @@ public class RequirementCaptureTools {
     });
   }
 
-  private static Optional<String> continueRefusal(RequirementDraft draft) {
+  private Optional<String> continueRefusal(RequirementDraft draft) {
     if (draft == null) {
       return Optional.of(
           "CONTINUE refused. No requirement draft is saved. Call captureRequirementDraft with the"
@@ -286,8 +288,9 @@ public class RequirementCaptureTools {
         : RequirementCaptureProjection.pending(
             draft.authoredDraft(),
             draft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(draft));
-    if (draft.readyForPlan() && pending.isEmpty()) {
+            RequirementCaptureProjection.resolvedTargets(draft), hasUploadedSpecifications());
+    if (draft.readyForPlan() && pending.isEmpty()
+        || RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending)) {
       return Optional.empty();
     }
     String gaps = pending.stream()
@@ -453,7 +456,15 @@ public class RequirementCaptureTools {
     Reference reference = store.latestRevision(ToolSession.resolveConversationId())
         .map(revision -> revision.reference()).orElse(null);
     return RequirementCaptureResult.view(
-        draft, reference, accepted, changed, issues, store.turnDirective(ToolSession.resolveConversationId()));
+        draft, reference, accepted, changed, issues, store.turnDirective(ToolSession.resolveConversationId()),
+        hasUploadedSpecifications());
+  }
+
+  private boolean hasUploadedSpecifications() {
+    String conversationId = ToolSession.resolveConversationId();
+    return conversations != null && conversationId != null
+        && org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles.hasSpecifications(
+            conversations.getAllowedAttachmentKeys(conversationId));
   }
 
   private List<Issue> withPreservedFacts(List<Issue> issues, RequirementDraft accepted, List<FactInput> facts) {
