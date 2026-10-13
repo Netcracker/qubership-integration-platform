@@ -20,6 +20,7 @@ import {
   selectedProjects,
   type ProvisionReport,
 } from "../../env/provision.js";
+import { mavenArguments } from "../../env/provision/common.js";
 import {
   provisionedSources,
   supportConfig,
@@ -274,4 +275,20 @@ test("every source a service is rebuilt for is in the checkout", { tag: ["@infra
       `${each.mavenModule}/Dockerfile`,
     );
   }
+});
+
+test("the Maven install skips tests, signing, javadoc, and source jars", { tag: ["@infra", "@tier1"] }, () => {
+  // The e2e images copy only the runnable jar, so the javadoc and source jars cost build time and nothing else.
+  expect(mavenArguments(["engine", "micro-engine"], ["-Dquarkus.profile=development,no-m2m"])).toEqual([
+    "-pl",
+    "engine,micro-engine",
+    "-am",
+    "clean",
+    "install",
+    "-DskipTests",
+    "-Dgpg.skip=true",
+    "-Dmaven.javadoc.skip=true",
+    "-Dmaven.source.skip=true",
+    "-Dquarkus.profile=development,no-m2m",
+  ]);
 });
