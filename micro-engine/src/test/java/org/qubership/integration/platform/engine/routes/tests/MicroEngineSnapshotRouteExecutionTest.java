@@ -107,7 +107,6 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
                     TenantConfiguration.class
             )
             .ignoreNestedClasses()
-            .configProperty("application.prefix", "qip")
             .configProperty("application.name", "snapshot-tests")
             .configProperty("application.namespace", "snapshot-tests")
             .configProperty("application.cloud_service_name", "snapshot-tests")
