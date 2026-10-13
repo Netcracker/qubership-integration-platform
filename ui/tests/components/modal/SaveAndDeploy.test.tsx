@@ -27,6 +27,24 @@ jest.mock("../../../src/hooks/useDomains.tsx", () => ({
 }));
 
 import { SaveAndDeploy } from "../../../src/components/modal/SaveAndDeploy.tsx";
+import type { Domain } from "../../../src/components/SelectDomains.tsx";
+
+const DEFAULT_DOMAINS: Domain[] = [
+  { name: "default", type: DomainType.CLASSIC },
+];
+
+function renderWithDefault(
+  mockOnSubmit: (domains: Domain[]) => void | Promise<void>,
+  chainId: string | undefined = "chain-1",
+) {
+  render(
+    <SaveAndDeploy
+      chainId={chainId}
+      initialDomains={DEFAULT_DOMAINS}
+      onSubmit={mockOnSubmit}
+    />,
+  );
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -48,9 +66,15 @@ describe("SaveAndDeploy", () => {
     expect(mockCloseContainingModal).toHaveBeenCalled();
   });
 
+  it("Deploy is disabled without initialDomains", () => {
+    render(<SaveAndDeploy chainId="chain-1" />);
+
+    expect(screen.getByText("Deploy").closest("button")).toBeDisabled();
+  });
+
   it("Deploy calls onSubmit with selected domains and closes", async () => {
     const mockOnSubmit = jest.fn(() => {});
-    render(<SaveAndDeploy chainId="chain-1" onSubmit={mockOnSubmit} />);
+    renderWithDefault(mockOnSubmit);
 
     fireEvent.click(screen.getByText("Deploy"));
 
@@ -70,7 +94,7 @@ describe("SaveAndDeploy", () => {
           resolveSubmit = resolve;
         }),
     );
-    render(<SaveAndDeploy chainId="chain-1" onSubmit={mockOnSubmit} />);
+    renderWithDefault(mockOnSubmit);
 
     fireEvent.click(screen.getByText("Deploy"));
 
@@ -100,7 +124,7 @@ describe("SaveAndDeploy", () => {
     const mockOnSubmit = jest.fn(() => {
       throw new Error("Deploy failed");
     });
-    render(<SaveAndDeploy chainId="chain-1" onSubmit={mockOnSubmit} />);
+    renderWithDefault(mockOnSubmit);
 
     fireEvent.click(screen.getByText("Deploy"));
 

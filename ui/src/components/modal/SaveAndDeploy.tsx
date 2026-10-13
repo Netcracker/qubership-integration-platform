@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import { Button, Form, Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
+import { useInitialDomains } from "../../hooks/useInitialDomains.ts";
+import { handleModalSubmit } from "../../misc/modal-submit.ts";
 import {
   Domain,
   DomainsFormItem,
   isDomainSelectionInvalid,
 } from "../SelectDomains.tsx";
-import { DomainType } from "../../api/apiTypes.ts";
 
 export type SaveAndDeployProps = {
   chainId?: string;
+  initialDomains?: Domain[];
   onSubmit?: (domains: Domain[]) => void | Promise<void>;
 };
 
@@ -19,6 +21,7 @@ type SaveAndDeployFormData = {
 
 export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
   chainId,
+  initialDomains,
   onSubmit,
 }) => {
   const [form] = Form.useForm<SaveAndDeployFormData>();
@@ -27,27 +30,17 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
   const domains = Form.useWatch("domains", form);
   const isDeployDisabled = isDomainSelectionInvalid(domains);
 
+  useInitialDomains(form, initialDomains);
+
   const handleSubmit = (data: SaveAndDeployFormData) => {
     if (!chainId) {
       return;
     }
-    setConfirmLoading(true);
-    try {
-      const result = onSubmit?.(data.domains);
-      if (result instanceof Promise) {
-        void result.finally(() => {
-          setConfirmLoading(false);
-          closeContainingModal();
-        });
-      } else {
-        setConfirmLoading(false);
-        closeContainingModal();
-      }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      setConfirmLoading(false);
-      closeContainingModal();
-    }
+    handleModalSubmit(
+      () => onSubmit?.(data.domains),
+      setConfirmLoading,
+      closeContainingModal,
+    );
   };
 
   return (
@@ -76,7 +69,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
         form={form}
         layout="horizontal"
         initialValues={{
-          domains: [{ name: "default", type: DomainType.CLASSIC }],
+          domains: initialDomains ?? [],
         }}
         labelCol={{ span: 4 }}
         style={{ maxWidth: 600 }}
