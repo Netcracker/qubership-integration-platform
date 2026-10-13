@@ -106,6 +106,59 @@ through unchanged. Leave the locations off for anything but the suite.
 and the `/e2e/` proxy locations. The suite sets the image tags, the micro-engine image, the NodePorts, and the
 LoadBalancer ports on the command line; `e2e/k8s/README.md` describes the install it makes.
 
+## Brokers
+
+The chart can install the brokers of the Compose overlay files, for chains that use them. Each is off
+by default and runs as one pod with no sidecar and no persistent volume, so its data lasts as long as the pod.
+
+```sh
+helm install ... --set kafka.enabled=true,rabbitmq.enabled=true,pubsub.enabled=true,sftp.enabled=true
+```
+
+Each broker gets a ClusterIP Service under its Compose service name, so a chain addresses it the same
+way on both targets, and a Service for clients on the host, `<name>-host`. That one is a NodePort
+Service, with the port from `<name>.nodePort` if you set one. Set `<name>.loadBalancerPort` instead
+on Docker Desktop, where it becomes a LoadBalancer Service on that port.
+
+| Broker | Value key | In the cluster | Host Service | Credentials |
+| --- | --- | --- | --- | --- |
+| Kafka (`confluentinc/cp-kafka:7.5.0`) | `kafka` | `kafka:29092`, see the listeners below | `kafka-host`, to port 9092 | SASL user `e2e`, password `e2e-secret` |
+| RabbitMQ (`rabbitmq:4.3.6-management-alpine`) | `rabbitmq` | `rabbitmq:5672`, management on 15672 | `rabbitmq-host`, to port 5672 | `guest` / `guest` |
+| Pub/Sub emulator (`google/cloud-sdk:587.0.0-emulators`) | `pubsub` | `pubsub:8085`, project `test-project` | `pubsub-host`, to port 8085 | none |
+| SFTP (`atmoz/sftp:alpine`) | `sftp` | `sftp-server:22` | `sftp-host`, to port 22 | `e2e` / `e2epass`, writable directory `/upload` |
+
+Kafka has the listener layout of `docker-compose.kafka.yml`:
+
+| Listener | Port | Protocol | Advertised as |
+| --- | --- | --- | --- |
+| `INTERNAL` | 29092 | PLAINTEXT | `kafka:29092` |
+| `EXTERNAL` | 9092 | PLAINTEXT | `localhost:<loadBalancerPort, nodePort, or 9092>` |
+| `AUTH` | 29094 | SASL_PLAINTEXT | `kafka:29094` |
+| `TLS` | 29095 | SSL | `kafka:29095` |
+| `AUTHTLS` | 29096 | SASL_SSL | `kafka:29096` |
+
+`AUTH` and `AUTHTLS` accept PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512. `TLS` and `AUTHTLS` exist only
+when you pass the server certificate and its unencrypted key; the CA that signed them is
+`../kafka-ssl/client/ca.crt`. From this directory:
+
+```sh
+helm install ... --set kafka.enabled=true \
+  --set-file kafka.tls.serverCert=../kafka-ssl/server/kafka.crt,kafka.tls.serverKey=../kafka-ssl/server/kafka.key
+```
+
+Both engines run the `development` profile, which points the Pub/Sub components at the emulator on
+`pubsub:8085`. Add `CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED=false` to `qip-engine.extraEnv`, as
+`docker-compose.yml` does: the predeploy check ignores the emulator and calls Google's API.
+
+Without a host port, forward one from your machine. Kafka advertises `localhost:9092` on `EXTERNAL` then:
+
+```sh
+kubectl port-forward -n qip deploy/kafka 9092
+kubectl port-forward -n qip deploy/rabbitmq 5672 15672
+kubectl port-forward -n qip deploy/pubsub 8085
+kubectl port-forward -n qip deploy/sftp 2222:22
+```
+
 ## UI
 
 The UI available on [http://localhost:30080/](http://localhost:30080/) via NodePort service.
