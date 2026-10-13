@@ -10,8 +10,8 @@
  * The overlay is a single `atmoz/sftp` server (`infrastructure/docker/docker-compose.sftp.yml`), chrooted
  * so the one writable subtree is `/upload`. Every fixture's `connectUrl` addresses the
  * container-internal listener (`sftp-server:22`); this spec's own `ssh2-sftp-client` calls address
- * the host-mapped one (`SFTP_HOST_CONFIG`, `localhost:2222`) -- the same "two addresses for one
- * broker" split Kafka and RabbitMQ carry.
+ * the host-mapped one (`SFTP_HOST_CONFIG`, port `BROKER_PORT.sftp` in `env/containers.ts`) -- the
+ * same "two addresses for one broker" split Kafka and RabbitMQ carry.
  *
  * `idempotent`/`idempotentKey` are plain properties, not `if`-branched ones, so
  * `registry/discriminators.ts` extracts no axis for them and neither carries a registry row -- a

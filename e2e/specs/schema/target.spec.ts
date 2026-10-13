@@ -9,8 +9,15 @@
  */
 import { test, expect } from "@playwright/test";
 import { suiteProjects } from "../../playwright.config.js";
-import { proxyUrl, serviceUrl } from "../../env/containers.js";
-import { stateFileName, target } from "../../env/target.js";
+import {
+  kafkaHostBrokers,
+  proxyUrl,
+  pubsubHostUrl,
+  rabbitmqHostUrl,
+  serviceUrl,
+  sftpHostAddress,
+} from "../../env/containers.js";
+import { brokersEnabled, stateFileName, target } from "../../env/target.js";
 import { targetSetup, type SuiteProject } from "../../env/target-setup.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
 import { BROKER_PROJECTS } from "./projects.js";
@@ -134,6 +141,61 @@ test("the default ports follow the target", { tag: ["@infra", "@tier1"] }, () =>
     testing: "http://localhost:30095",
     proxy: "http://localhost:30080",
   });
+});
+
+function brokerAddresses(vars: Record<string, string | undefined>) {
+  const unset = Object.fromEntries(URL_OVERRIDES.map((name) => [name, undefined]));
+  return withEnv({ ...unset, ...vars }, () => ({
+    kafka: kafkaHostBrokers(),
+    rabbitmq: rabbitmqHostUrl(),
+    pubsub: pubsubHostUrl(),
+    sftp: sftpHostAddress(),
+  }));
+}
+
+test("the broker host addresses follow the target", { tag: ["@infra", "@tier1"] }, () => {
+  expect(brokerAddresses({ CIP_TARGET: "compose" })).toEqual({
+    kafka: "localhost:9092",
+    rabbitmq: "amqp://guest:guest@localhost:5672",
+    pubsub: "http://localhost:8085",
+    sftp: { host: "localhost", port: 2222 },
+  });
+  // The node ports `e2e/k8s/bootstrap-cluster.sh` maps on the kind cluster.
+  expect(brokerAddresses({ CIP_TARGET: "k8s" })).toEqual({
+    kafka: "localhost:30992",
+    rabbitmq: "amqp://guest:guest@localhost:30672",
+    pubsub: "http://localhost:30085",
+    sftp: { host: "localhost", port: 30022 },
+  });
+});
+
+test("a CIP_* broker variable wins over the table on either target", { tag: ["@infra", "@tier1"] }, () => {
+  const overrides = {
+    CIP_KAFKA_URL: "broker.example:19092",
+    CIP_RABBITMQ_URL: "amqp://user:pass@broker.example:15672",
+    CIP_PUBSUB_URL: "http://broker.example:18085",
+    CIP_SFTP_HOST: "broker.example",
+    CIP_SFTP_PORT: "12222",
+  };
+  for (const on of ["compose", "k8s"]) {
+    expect(brokerAddresses({ ...overrides, CIP_TARGET: on })).toEqual({
+      kafka: "broker.example:19092",
+      rabbitmq: "amqp://user:pass@broker.example:15672",
+      pubsub: "http://broker.example:18085",
+      sftp: { host: "broker.example", port: 12222 },
+    });
+  }
+  // Each SFTP variable overrides its own half.
+  expect(brokerAddresses({ CIP_TARGET: "k8s", CIP_SFTP_HOST: "broker.example" }).sftp).toEqual({
+    host: "broker.example",
+    port: 30022,
+  });
+});
+
+test("E2E_BROKERS turns the brokers off only when it is 0", { tag: ["@infra", "@tier1"] }, () => {
+  expect(withEnv({ E2E_BROKERS: undefined }, brokersEnabled)).toBe(true);
+  expect(withEnv({ E2E_BROKERS: "1" }, brokersEnabled)).toBe(true);
+  expect(withEnv({ E2E_BROKERS: "0" }, brokersEnabled)).toBe(false);
 });
 
 test("the Kubernetes state files carry a prefix of their own", { tag: ["@infra", "@tier1"] }, () => {
