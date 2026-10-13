@@ -46,6 +46,7 @@ public class CatalogFirstApiHubDiscoveryTool {
   private final ObjectMapper objectMapper;
   private final RequirementDraftStore draftStore;
   private final OperationSchemaLoader schemaLoader;
+  @Inject org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
   public CatalogFirstApiHubDiscoveryTool(
@@ -82,6 +83,8 @@ public class CatalogFirstApiHubDiscoveryTool {
       to choose; never search API Hub for an ambiguous local catalog match. If status is
       INCOMPLETE, ask the reader for the fields listed in missingFields; do not guess them. On a
       catalog miss, the result is the API Hub search response and may contain multiple candidates.
+      With uploaded specs, a catalog miss returns UPLOADED_SPEC_IMPORT_REQUIRED and RUN_IMPORT.
+      Finish discovery with CONTINUE so the pipeline can import and bind those specs.
       """)
   public String resolveApiOperation(
       @P("Stable interactionId from the stored RequirementFlow") String interactionId,
@@ -149,6 +152,17 @@ public class CatalogFirstApiHubDiscoveryTool {
           conversationId,
           InteractionAssessment.tooBroad(
               resolvedInteractionId, intent, List.of("systemHint")));
+    }
+    if (conversations != null
+        && org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles.hasSpecifications(
+            conversations.getAllowedAttachmentKeys(conversationId))) {
+      ObjectNode pending = objectMapper.createObjectNode();
+      pending.put("interactionId", resolvedInteractionId);
+      pending.put("status", "UPLOADED_SPEC_IMPORT_REQUIRED");
+      pending.put("nextAction", "RUN_IMPORT");
+      pending.put("message", "Import the uploaded API specifications before resolving this catalog miss."
+          + " Finish discovery with CONTINUE when the remaining business requirements are complete.");
+      return pending.toString();
     }
     conversationResolutions.remember(
         conversationId, InteractionAssessment.catalogMiss(resolvedInteractionId, intent));

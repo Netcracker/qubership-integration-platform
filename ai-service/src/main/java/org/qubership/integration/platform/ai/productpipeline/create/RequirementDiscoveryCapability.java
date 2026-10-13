@@ -515,6 +515,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
     boolean pendingUploadedSpecHandoff =
         hasAllowedUploadedSpecs(conversationId) && !draft.facts().isEmpty();
+    if (pendingUploadedSpecHandoff && draft.authoredDraft() != null) {
+      pendingUploadedSpecHandoff = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection
+          .onlyUploadedSpecImportsRemain(org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.pending(
+              draft.authoredDraft(), draft.catalogBindings(),
+              org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.resolvedTargets(draft), true));
+    }
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
       // Blank on purpose: the gather agent already streamed the clarifying question. Emitting an
       // internal draft-state sentence glued it to that text and leaked READY_FOR_PLAN into chat.
@@ -678,7 +684,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
       return false;
     }
     List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
-    return keys != null && !keys.isEmpty();
+    return org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles.hasSpecifications(keys);
   }
 
   private Multi<ChatEvent> runGather(

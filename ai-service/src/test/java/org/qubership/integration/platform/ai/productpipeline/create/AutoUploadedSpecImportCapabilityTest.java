@@ -1390,6 +1390,50 @@ class AutoUploadedSpecImportCapabilityTest {
         .orElseThrow();
   }
 
+  @Test
+  void identicalOperationsBindToTheNamedImportedService() {
+    var gateway = mock(CatalogMutationGateway.class);
+    var conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys("conv-1", List.of("uploads/alpha.json", "uploads/beta.json"));
+    var artifacts = mock(ProductPipelineArtifactStore.class);
+    var handler = new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    var matcher = mock(CatalogBindingMatcher.class);
+    var capability = new AutoUploadedSpecImportCapability(gateway, conversations, artifacts, handler, matcher, admittingStore());
+    var draft = draft().withFlow(new RequirementFlow(List.of(
+        new Interaction("entry", Direction.INBOUND, "Caller", "GET /start", ""),
+        new Interaction("alpha", Direction.OUTBOUND, "Alpha API", "getProbe", "GET /probe"),
+        new Interaction("beta", Direction.OUTBOUND, "Beta API", "getProbe", "GET /probe")),
+        List.of(new Transition("entry", "alpha"), new Transition("alpha", "beta"))))
+        .withFacts(List.of(RequirementFactFixtures.httpTriggerFact("entry", "GET", "/start")));
+    var draftRef = requirementDraftRef();
+    stubRequirementDraft(artifacts, draftRef, draft);
+    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
+        .thenAnswer(invocation -> {
+          UploadedSpecAttachment attachment = invocation.getArgument(1);
+          String id = attachment.filename().startsWith("alpha") ? "alpha" : "beta";
+          return Uni.createFrom().item(new UploadedSpecImportOutcome(attachment.s3Key(),
+              id, "group-" + id, "spec-" + id, false));
+        });
+    when(matcher.matchImported(eq("service-call"), any(), any(), any(), eq("getProbe"), eq("conv-1")))
+        .thenAnswer(invocation -> {
+          String id = invocation.getArgument(1);
+          return new CatalogBindingMatcher.MatchResult.Exact(new CatalogMatch(id, "group-" + id,
+              "spec-" + id, "operation-" + id, id.equals("alpha") ? "Alpha API" : "Beta API",
+              "http", "GET", "/probe", "getProbe", "catalog-read:" + id));
+        });
+    var approvalRef = approvalRef();
+    stubApprovedRecord(artifacts, approvalRef, handler.attachmentHash("conv-1"));
+    var completed = run(capability, draft, List.of(draftRef, approvalRef));
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass(), completed.outcome().message());
+    var updated = (RequirementDraft) completed.outcome().candidates().stream()
+        .filter(candidate -> candidate.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
+        .findFirst().orElseThrow().payload();
+    assertEquals("alpha", updated.catalogBinding("alpha").orElseThrow().systemId());
+    assertEquals("beta", updated.catalogBinding("beta").orElseThrow().systemId());
+    assertEquals("operation-alpha", updated.catalogBinding("alpha").orElseThrow().integrationOperationId());
+    assertEquals("operation-beta", updated.catalogBinding("beta").orElseThrow().integrationOperationId());
+  }
+
   private static void stubApprovedRecord(
       ProductPipelineArtifactStore artifactStore,
       CompilationArtifacts.Reference approvalRef,

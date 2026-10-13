@@ -63,7 +63,7 @@ public class GatherRequirementsPromptBuilder {
   public String wrap(String conversationId, String userMessage, String responseLocale) {
     Optional<RequirementDraft> draft =
         draftStore != null ? draftStore.get(conversationId) : Optional.empty();
-    String mandatory = currentDraftBlock(draft) + incompleteDraftBlock(draft)
+    String mandatory = currentDraftBlock(draft) + incompleteDraftBlock(draft, hasUploadedSpecifications(conversationId))
         + lastCaptureRejectionBlock(conversationId, draft)
         + sourceDialogueBlock(conversationId, userMessage)
         + "\nPinned response locale: " + normalizedLocale(responseLocale) + "\n";
@@ -112,9 +112,11 @@ public class GatherRequirementsPromptBuilder {
           user-visible prose. After that tool returns, write exactly one final answer; do not repeat
           or revise it. Use STAY for questions, advice, comparisons, or continued discussion. Use
           CONTINUE only when the user asked to proceed and the saved draft has no missing fields.
-          If capture reports readiness PARTIAL or nextAction COMPLETE_DRAFT, call
-          updateRequirementDraft to complete the saved draft. Do not tell the user the draft is ready, and do not use
-          CONTINUE.
+          When nextAction is RUN_IMPORT, the business requirements are complete and uploaded
+          operations await import. Use CONTINUE to hand them to the import stage; do not look up
+          missing uploaded operations or ask the user to bind them.
+          For other PARTIAL drafts, or nextAction COMPLETE_DRAFT, call updateRequirementDraft
+          to complete the saved requirements. Do not claim readiness or use CONTINUE.
           Preserve explicit elementIntent on facts: ANCHOR uses the interaction ID; LOCAL_NODE
           uses a separate stable elementRef; BEFORE_HOOK and AFTER_HOOK belong only to their
           Service Call. Chain names use CHAIN placement with elementType=chain. Copy requestedName
@@ -242,11 +244,7 @@ public class GatherRequirementsPromptBuilder {
    * catalog miss or search API Hub for those operations. Import runs after this stage.
    */
   private String uploadedSpecGuidance(String conversationId) {
-    if (conversationService == null || conversationId == null || conversationId.isBlank()) {
-      return "";
-    }
-    List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
-    if (keys == null || keys.isEmpty()) {
+    if (!hasUploadedSpecifications(conversationId)) {
       return "";
     }
     return " This conversation has uploaded API specifications that are already approved for"
@@ -254,7 +252,15 @@ public class GatherRequirementsPromptBuilder {
         + " and do not ask the reader to import or bind them. Capture the business flow from the"
         + " attached document, including participants and operations, without ENDPOINT or"
         + " SERVICE_CALL facts. Let the server decide readiness when the requirements are complete."
-        + " Catalog lookup may miss until import runs.";
+        + " Catalog lookup may miss until import runs. When capture returns nextAction RUN_IMPORT,"
+        + " call finishRequirementDiscoveryTurn with CONTINUE even if readiness is PARTIAL."
+        + " The import stage owns approval and binds each interaction to its imported service.";
+  }
+
+  private boolean hasUploadedSpecifications(String conversationId) {
+    return conversationService != null && conversationId != null && !conversationId.isBlank()
+        && org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles.hasSpecifications(
+            conversationService.getAllowedAttachmentKeys(conversationId));
   }
 
   private String addonBlock() {
@@ -286,7 +292,7 @@ public class GatherRequirementsPromptBuilder {
     return body.toString();
   }
 
-  private static String incompleteDraftBlock(Optional<RequirementDraft> draft) {
+  private static String incompleteDraftBlock(Optional<RequirementDraft> draft, boolean uploadedSpecifications) {
     if (draft.isEmpty()) {
       return "";
     }
@@ -296,7 +302,17 @@ public class GatherRequirementsPromptBuilder {
         : RequirementCaptureProjection.pending(
             current.authoredDraft(),
             current.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(current));
+            RequirementCaptureProjection.resolvedTargets(current), uploadedSpecifications);
+    if (RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending)) {
+      return """
+
+          <pending-uploaded-spec-import>
+          The business requirements are complete. nextAction=RUN_IMPORT: operations await upload import.
+          Read the saved draft and finish with CONTINUE when the author asks to proceed.
+          Do not search APIHub or ask the author to provide catalog bindings before import.
+          </pending-uploaded-spec-import>
+          """;
+    }
     if (pending.isEmpty() && current.readyForPlan()) {
       return "";
     }

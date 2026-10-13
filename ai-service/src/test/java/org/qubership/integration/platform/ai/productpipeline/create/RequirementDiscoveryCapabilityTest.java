@@ -49,6 +49,11 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftU
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
@@ -1395,6 +1400,37 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(
         CompilationArtifacts.Kind.REQUIREMENT_DRAFT,
         completed.get().outcome().candidates().get(0).kind());
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = RequirementDiscoveryDirective.class, names = {"STAY", "CONTINUE"})
+  void nativeUploadedDraftHandsOffOnlyOnContinue(RequirementDiscoveryDirective directive) {
+    var store = new RequirementDraftStore();
+    var conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys("uploaded-native", List.of("uploads/alpha.json", "uploads/beta.json"));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "GET /start", null, null, null),
+        new InteractionInput("alpha", Direction.OUTBOUND, "Alpha API", "getProbe", null, null, null),
+        new InteractionInput("beta", Direction.OUTBOUND, "Beta API", "getProbe", null, null, null)),
+        List.of(new TransitionInput("entry", "alpha"), new TransitionInput("alpha", "beta"))),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Read both probes.")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/start", null, null, null)),
+        List.of(), new DraftSettings(false, null));
+    var draft = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+    var capability = new RequirementDiscoveryCapability(null, store, null, (chat, text) -> {
+      store.put(chat, draft);
+      store.markCaptured(chat);
+      store.finishTurn(chat, directive);
+      return Multi.createFrom().empty();
+    }, conversations);
+    var outcome = capability.execute(new StageExecutionContext("uploaded-native-run", "uploaded-native",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(), Map.of("userText", "Create both calls.")))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(directive == RequirementDiscoveryDirective.CONTINUE ? StageOutcomeClass.CANDIDATE : StageOutcomeClass.NEEDS_INPUT,
+        outcome.outcomeClass(), outcome.toString());
+    assertEquals(draft.authoredDraft(), store.get("uploaded-native").orElseThrow().authoredDraft());
+    assertTrue(store.get("uploaded-native").orElseThrow().catalogBindings().isEmpty());
   }
 
   @Test

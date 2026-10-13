@@ -61,6 +61,13 @@ public record RequirementCaptureResult(
       boolean changed,
       List<RequirementCaptureEditor.Issue> editorIssues,
       RequirementDiscoveryDirective directive) {
+    return view(acceptedDraft, revision, accepted, changed, editorIssues, directive, false);
+  }
+
+  public static RequirementCaptureResult view(
+      RequirementDraft acceptedDraft, Reference revision, boolean accepted, boolean changed,
+      List<RequirementCaptureEditor.Issue> editorIssues, RequirementDiscoveryDirective directive,
+      boolean uploadedSpecifications) {
     DraftInput draft = acceptedDraft == null ? null : acceptedDraft.authoredDraft();
     List<CaptureIssue> issues = editorIssues.stream()
         .map(issue -> new CaptureIssue(
@@ -77,7 +84,7 @@ public record RequirementCaptureResult(
     }
     List<RequirementCaptureProjection.PendingWork> pending =
         RequirementCaptureProjection.pending(draft, acceptedDraft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(acceptedDraft));
+            RequirementCaptureProjection.resolvedTargets(acceptedDraft), uploadedSpecifications);
     Readiness readiness = acceptedDraft.readyForPlan() ? Readiness.READY : Readiness.PARTIAL;
     NextAction action = nextAction(issues, pending, readiness, draft, directive);
     return new RequirementCaptureResult(
@@ -122,6 +129,9 @@ public record RequirementCaptureResult(
 
   private static NextAction pendingAction(
       List<RequirementCaptureProjection.PendingWork> pending) {
+    if (RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending)) {
+      return NextAction.RUN_IMPORT;
+    }
     if (pending.stream().anyMatch(work -> work.code().endsWith("LOOKUP_REQUIRED"))) {
       return NextAction.LOOKUP;
     }

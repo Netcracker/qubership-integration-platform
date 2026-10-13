@@ -38,6 +38,30 @@ import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 class CatalogFirstApiHubDiscoveryToolTest {
 
+  @Test
+  void uploadedSpecificationCatalogMissDoesNotSearchApiHub() throws Exception {
+    var lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.None());
+    var apiHub = mock(ApiHubMcpTools.class);
+    when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any())).thenReturn("{}");
+    var store = new RequirementDraftStore();
+    storeCatalogBackedFlow(store, "uploaded-chat",
+        catalogInteraction("call-stock", "Uploaded API", "getInventory", "Read stock"));
+    var resolver = tool(lookup, apiHub, store);
+    var conversations = new org.qubership.integration.platform.ai.chat.conversation.ConversationService();
+    conversations.registerAllowedAttachmentKeys("uploaded-chat",
+        List.of("sessions/test/inventory.json", "sessions/test/audit.yaml"));
+    resolver.conversations = conversations;
+    try (var ignored = ToolSession.open("uploaded-chat")) {
+      var response = new ObjectMapper().readTree(resolver.resolveApiOperation("call-stock", "GET", "/probe", "", "http", ""));
+      assertEquals("UPLOADED_SPEC_IMPORT_REQUIRED", response.path("status").asText());
+      assertEquals("RUN_IMPORT", response.path("nextAction").asText());
+      assertEquals("call-stock", response.path("interactionId").asText());
+    }
+    verify(lookup).resolve(any());
+    verifyNoInteractions(apiHub);
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void resolvedOperationExposesActualBodyFieldsBeforeDraftApproval(boolean wrapped) throws Exception {
@@ -114,8 +138,9 @@ class CatalogFirstApiHubDiscoveryToolTest {
     verifyNoInteractions(apiHub);
   }
 
-  @Test
-  void exactCatalogMatchDoesNotQueryApiHub() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void exactCatalogMatchDoesNotQueryApiHub(boolean uploaded) {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     when(lookup.resolve(any()))
@@ -144,9 +169,12 @@ class CatalogFirstApiHubDiscoveryToolTest {
 
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-exact")) {
-      result =
-          tool(lookup, apiHub, store)
-              .resolveApiOperation(
+      var resolver = tool(lookup, apiHub, store);
+      if (uploaded) {
+        resolver.conversations = new org.qubership.integration.platform.ai.chat.conversation.ConversationService();
+        resolver.conversations.registerAllowedAttachmentKeys("conv-exact", List.of("uploads/probe.json"));
+      }
+      result = resolver.resolveApiOperation(
                   "call-stock", "GET", "/store/inventory", null, null, "2024.4");
     }
 

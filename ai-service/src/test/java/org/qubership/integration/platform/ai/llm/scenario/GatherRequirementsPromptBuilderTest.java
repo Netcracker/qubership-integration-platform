@@ -115,6 +115,26 @@ class GatherRequirementsPromptBuilderTest {
   }
 
   @Test
+  void savedUploadedOperationDoesNotProduceThePartialDraftContinuationBan() {
+    var conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys("upload-chat", List.of("uploads/probe.json"));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "GET /probe", null, null, null),
+        new InteractionInput("call", Direction.OUTBOUND, "Probe API", "getProbe", null, null, null)),
+        List.of(new TransitionInput("entry", "call"))),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Read the probe.")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/probe", null, null, null)),
+        List.of(), new DraftSettings(false, null));
+    draftStore.put("upload-chat", RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash"));
+    builder = new GatherRequirementsPromptBuilder(skillDocumentService, addonRepository, draftStore, conversations);
+    String prompt = builder.wrap("upload-chat", "Continue.", "en");
+    assertTrue(prompt.contains("<pending-uploaded-spec-import>"), prompt);
+    assertTrue(prompt.contains("nextAction=RUN_IMPORT"), prompt);
+    assertFalse(prompt.contains("<incomplete-requirement-draft>"), prompt);
+    assertFalse(prompt.contains("fill the missing fields before CONTINUE"), prompt);
+  }
+
+  @Test
   void wrapTellsTheAgentNotToSearchApiHubWhenUploadedSpecsAreApproved() {
     ConversationService conversations = new ConversationService();
     conversations.registerAllowedAttachmentKeys(

@@ -25,6 +25,26 @@ class CatalogBindingMatcherTest {
   @Mock CatalogSystemReadTool catalogReadTool;
   @InjectMocks CatalogBindingMatcher matcher;
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+      "getProbe (GET /probe),/probe,true",
+      "getProbe (GET /other),/probe,false",
+      "GET /probe),/probe,false",
+      "GET /probe(foo),/probe(foo),true",
+      "getProbe (GET /probe(foo)),/probe(foo),true"})
+  void distinguishesOperationAnnotationsFromLiteralPathCharacters(String query, String path, boolean matches) {
+    when(catalogReadTool.getCatalogSystem("sys")).thenReturn(Optional.of(
+        new CatalogRestClient.SystemDto("sys", "Probe API", "EXTERNAL", "http")));
+    when(catalogReadTool.listCatalogOperations("spec", "sys", null)).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("op", "getProbe", "GET", path, null)));
+    var result = matcher.matchImported("service-call", "sys", "group", "spec", query, null);
+    if (matches) {
+      assertEquals("op", assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result).match().integrationOperationId());
+    } else {
+      assertInstanceOf(CatalogBindingMatcher.MatchResult.None.class, result);
+    }
+  }
+
   @Test
   void matchesServiceNameDespiteDashPunctuationMismatch() {
     CatalogRestClient.SystemDto system =
