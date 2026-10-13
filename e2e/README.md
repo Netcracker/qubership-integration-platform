@@ -69,7 +69,9 @@ downloads a browser you do not want.
 
 The default Compose run also starts the four broker overlays and binds their host ports: `9092`
 (Kafka), `5672` and `15672` (RabbitMQ), `8085` (the pub/sub emulator), and `2222` (SFTP), and
-removes them when the run ends. `E2E_BROKERS=0` skips all of them.
+removes them when the run ends. The default Kubernetes run installs the same four brokers with the
+release, on host ports `30992`, `30672`, `30085`, and `30022`. `E2E_BROKERS=0` skips all of them on
+either target.
 
 ## What a run changes on the stack
 
@@ -111,28 +113,31 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `seed`, `seed-teardown` | the corpus, deployed to the classic engine | the same |
 | `ui-server`, `ui-server-teardown` | build and serve the UI bundle on 4200, then stop it | the same |
 | `runtime` | `specs/runtime/` against the classic engine | the same |
-| `seed-micro`, `seed-micro-teardown` | not declared | a second copy of the corpus, deployed to a micro domain named `e2e-<run>-micro` |
+| `suite-teardown` | the teardowns of `seed-micro` and `brokers-seed`, after `global` | the same |
+| `seed-micro` | not declared | a second copy of the corpus, deployed to a micro domain named `e2e-<run>-micro` |
 | `runtime-micro` | not declared | `specs/runtime/` against the micro engine, minus the classic-only files |
-| `brokers-seed`, `brokers-seed-teardown`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | not declared: the brokers have no chart |
+| `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | the same |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, and the proxy's `/e2e/` locations |
 
-That is fifteen projects on either target, or eleven on Compose with `E2E_BROKERS=0`. The run header
-records the target and lists every project and spec file the target leaves out, with the reason.
+That is fifteen projects on Compose and eighteen on Kubernetes, three fewer on either with
+`E2E_BROKERS=0`. The run header records the target and lists every project and spec file the target
+leaves out, with the reason.
 
 **The Kubernetes target.** You install the cluster and what runs cluster-wide once, as
 [the Kubernetes target page](k8s/README.md) describes, and the suite owns namespace `qip-e2e`. It
 builds the images from the checkout, installs `infrastructure/qip-dev` with
 `e2e/k8s/values.e2e.yaml`, and waits until every service answers. Each service answers on a fixed
 host port: 30080 for the proxy, 30091 for runtime-catalog, 30092 for the classic engine, 30093 for
-sessions-management, and 30095 for the testing service.
+sessions-management, and 30095 for the testing service. The brokers answer on 30992 (Kafka), 30672
+(RabbitMQ), 30085 (pub/sub), and 30022 (SFTP).
 
 Run one target at a time: both stacks together do not fit in 15.6 GiB. Stop the Compose stack and
 its broker overlays before a Kubernetes run, and run `helm uninstall qip -n qip-e2e --wait` before a
 Compose run. Each target keeps its own state files. The Kubernetes ones start with `.e2e-k8s-`
-(`.e2e-k8s-corpus.json`, `.e2e-k8s-runs.json`, `.e2e-k8s-overrides.json`,
-`.e2e-k8s-micro-corpus.json`, `.e2e-k8s-resources.json`, `.e2e-k8s-samples.jsonl`), so a sweep or a
-settings revert never reaches the other target. `.e2e-ui-server.json` is shared, because the UI
-bundle is the same on both.
+(`.e2e-k8s-corpus.json`, `.e2e-k8s-brokers-corpus.json`, `.e2e-k8s-runs.json`,
+`.e2e-k8s-overrides.json`, `.e2e-k8s-micro-corpus.json`, `.e2e-k8s-resources.json`,
+`.e2e-k8s-samples.jsonl`), so a sweep or a settings revert never reaches the other target.
+`.e2e-ui-server.json` is shared, because the UI bundle is the same on both.
 
 The chart's Consul keeps no volume. When its pod restarts, a corpus kept with `E2E_KEEP=1` loses its
 logging properties and records no sessions, so seed it again:
@@ -201,12 +206,15 @@ the console output only, and the command does not run `npm run reconcile`.
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
 manual dispatch from the Actions tab. The dispatch input `workers` sets `E2E_WORKERS`; left empty,
-the run uses the nightly value. Start with the job's step summary: it shows the run status, the
-test counts, the errors raised outside any test, and the projects left out on this target. Every
-run uploads the `e2e-report` artifact: `playwright-report/`, `test-results/`, the `.e2e-k8s-` state
-files, and `.e2e-ui-server.log`. A failed or cancelled run also uploads `e2e-cluster`: the
-workloads and events of every namespace, a description of each pod in `qip-e2e`, and the logs of
-those pods' containers, istiod, and the camel-k operator.
+the run uses the nightly value. Start with the job's step summary, which `support/run-summary.mjs`
+writes: it shows the run status, the test counts, up to 50 failed tests with their project,
+`file:line`, title, and first error line, the errors raised outside any test, and the projects left
+out on this target. A failed nightly run mails the same summary and the run link to the addresses
+in the repository variable `EMAIL_TO`; until a repository admin creates it, the email step fails on
+a run that has already failed. Every run uploads the `e2e-report` artifact: `playwright-report/`,
+`test-results/`, the `.e2e-k8s-` state files, and `.e2e-ui-server.log`. A failed or cancelled run
+also uploads `e2e-cluster`: the workloads and events of every namespace, a description of each pod
+in `qip-e2e`, and the logs of those pods' containers, istiod, and the camel-k operator.
 
 No pull request check runs the suite. `npm run check-types` and `--project=schema` need no stack;
 run them before pushing, as `AGENTS.md` describes.
@@ -258,6 +266,8 @@ E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
 - `npx playwright show-trace test-results/<case directory>/trace.zip` opens one trace without the
   report. `test-results/` holds a directory per failed case, and also `report.json`, `stack.json`,
   and the `cases.md` that `npm run reconcile` writes.
+- `npm run run-summary [-- <dir>]` writes the CI step summary to `summary.md` in `<dir>`, by
+  default `test-results/`, so you can read it for a local run or a downloaded `e2e-report`.
 - `--debug` runs a case under the Playwright Inspector, one step at a time; `--headed` shows the
   browser of a `ui` case; `--ui` opens Playwright's UI mode. Combine each with `--no-deps` and a kept
   corpus, as above, so the seed does not run again.
@@ -268,7 +278,7 @@ E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
 
 `CIP_PROXY_URL` and the four service URLs point the suite at a stack that is not on localhost. The
 defaults below are the Compose ports; on `k8s` they are the fixed host ports from
-[Targets](#targets).
+[Targets](#targets), the broker ports included.
 
 | Variable                  | Default                              | What it does                                                                        |
 | ------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------- |
@@ -278,7 +288,7 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_SWEEP`               | unset                                | `never` stops a run from collecting a previous run's residue at its start.           |
 | `E2E_RUN`                 | minted per run                       | The token entities are named after. Pass one to pin it; the shape is validated.      |
 | `E2E_ELEMENT_SCHEMA_DIR`  | the tracked schemas                  | Points the coverage checks at another element-schema tree, which is how they are proved to still go red. |
-| `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers`, `brokers-seed`, `brokers-seed-teardown` and `brokers-restart` from the run, for a faster local pass that skips the broker overlays. |
+| `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
 | `CIP_COMPOSE_FILE`        | `infrastructure/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
@@ -287,11 +297,11 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `CIP_ENGINE_URL`          | `http://localhost:8092`              | The engine, direct, and where a seeded chain is called.                              |
 | `CIP_SESSIONS_URL`        | `http://localhost:8093`              | sessions-management, direct.                                                         |
 | `CIP_TESTING_SERVICE_URL` | `http://localhost:8095`              | The testing service, direct.                                                         |
-| `CIP_KAFKA_URL`           | `localhost:9092`                     | Where a broker spec's own `kafkajs` client connects from the host. The chain fixtures address the container-internal `kafka:29092` instead. |
-| `CIP_RABBITMQ_URL`        | `amqp://guest:guest@localhost:5672`  | Where a broker spec's own `amqplib` client connects from the host.                   |
-| `CIP_PUBSUB_URL`          | `http://localhost:8085`              | The pub/sub emulator, from the host.                                                 |
-| `CIP_SFTP_HOST`           | `localhost`                          | The SFTP overlay, from the host.                                                     |
-| `CIP_SFTP_PORT`           | `2222`                               | The SFTP overlay's port, from the host.                                              |
+| `CIP_KAFKA_URL`           | `localhost:9092`, `localhost:30992` on `k8s` | Where a broker spec's own `kafkajs` client connects from the host. The chain fixtures address the in-network `kafka:29092` instead. |
+| `CIP_RABBITMQ_URL`        | `amqp://guest:guest@localhost:5672`, port `30672` on `k8s` | Where a broker spec's own `amqplib` client connects from the host. |
+| `CIP_PUBSUB_URL`          | `http://localhost:8085`, port `30085` on `k8s` | The pub/sub emulator, from the host.                                   |
+| `CIP_SFTP_HOST`           | `localhost`                          | The SFTP server, from the host.                                                      |
+| `CIP_SFTP_PORT`           | `2222`, `30022` on `k8s`             | The SFTP server's port, from the host.                                               |
 
 Six more exist for the suite's own tests rather than for a person: `E2E_RUN_MANIFEST`,
 `E2E_OVERRIDES_FILE`, `E2E_RESOURCES_FILE`, `E2E_SAMPLES_FILE`, `E2E_SAMPLE_INTERVAL_MS` and
@@ -306,8 +316,8 @@ Kubernetes run:
 
 ```text
 - Target: k8s
-- Not run on this target: brokers (the brokers have no chart on the k8s target), …,
-  runtime-micro: specs/runtime/metrics.spec.ts (classic-only: it deploys its own chains, …), …
+- Not run on this target: runtime-micro: specs/runtime/metrics.spec.ts (classic-only: it deploys
+  its own chains, …), …
 - Run token: `fk9dz2`
 - Commit: `3f1c2a9b7d10` on `main`
 - Started: 2026-09-24T09:12:40.118Z
@@ -384,7 +394,9 @@ re-running.
   Docker more, or run fewer workers with `E2E_WORKERS=4`.
 - **A container cannot start because a port is taken.** The Compose stack binds 8080, 8091, 8092,
   8093, 8095, 5432, 8500, and 9200, the broker overlays bind the ports under
-  [Prerequisites](#prerequisites), and `ui-server` binds 4200. Stop whatever holds the port.
+  [Prerequisites](#prerequisites), and `ui-server` binds 4200. Stop whatever holds the port. On
+  kind, a broker port that does not answer was not mapped into `kind-qip` when it was created;
+  recreate the cluster as [the Kubernetes target page](k8s/README.md) describes.
 - **`[provision] mvn install` fails.** Fix the build first: run
   `mvn -pl <module> -am install -Dgpg.skip=true` at the repository root with JDK 21 and read its
   error. The run tests nothing until the jar builds.
@@ -447,16 +459,22 @@ creates the run's topics, queues, exchanges, dead-letter bindings, and pub/sub s
 deletes the run's topology and its `/upload/<run>` SFTP tree, then stops and removes the overlay
 containers. A kept corpus (`E2E_KEEP=1`) keeps them, and so does a teardown that left residue.
 
+On `k8s` the brokers are subcharts of `infrastructure/qip-dev`, and provisioning installs them with
+the release unless `E2E_BROKERS=0`. `brokers-seed` then only waits for each broker's rollout and
+host port, and teardown leaves the brokers running, because they belong to the release. The broker
+pods keep their data in an `emptyDir`, so a new pod starts empty. `brokers-restart` restarts the
+Kafka and RabbitMQ containers in place by killing their PID 1, which keeps the pod and its data.
+
 The engine runs with `CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED=false` in
-`infrastructure/docker-compose.yml`, because the pub/sub pre-deploy check always reaches the real
-Google endpoint rather than the emulator. So `specs/brokers/missing-target.spec.ts` covers a missing
-Kafka topic and a missing RabbitMQ queue and exchange, and a missing pub/sub topic is an uncovered
-gap.
+`infrastructure/docker-compose.yml` and in `e2e/k8s/values.e2e.yaml`, because the pub/sub pre-deploy
+check always reaches the real Google endpoint rather than the emulator. So
+`specs/brokers/missing-target.spec.ts` covers a missing Kafka topic and a missing RabbitMQ queue and
+exchange, and a missing pub/sub topic is an uncovered gap.
 
 `brokers-restart` holds `broker-restart.spec.ts` alone and runs one worker after `brokers`, because
 restarting a broker container disturbs every broker spec in flight.
 
-`E2E_BROKERS=0` drops the four broker projects for a faster local run. A release run keeps them.
+`E2E_BROKERS=0` drops the three broker projects for a faster local run. A release run keeps them.
 `npm run reconcile` refuses a run narrowed that way rather than reporting every broker registry row
 as having lost its test.
 
@@ -485,10 +503,10 @@ Some residue is not swept:
   tab shows, so delete those with `DELETE /api/v1/test-cases`, which takes the IDs in its body.
 - **Files in the engine container's `/tmp/chain_tmp`**, which the `file-write` and `xslt` fixtures
   write. A recreated engine container starts without them.
-- **Broker residue.** The sweep does not read `.e2e-brokers-corpus.json`. A run's topics, queues,
-  exchanges, subscriptions, and `/upload/<run>` SFTP tree come down only in the teardown of the run
-  that created them, so a `brokers-seed` run that dies before its teardown leaves them to be cleared
-  by hand.
+- **Broker residue.** The sweep does not read `.e2e-brokers-corpus.json` or
+  `.e2e-k8s-brokers-corpus.json`. A run's topics, queues, exchanges, subscriptions, and
+  `/upload/<run>` SFTP tree come down only in the teardown of the run that created them, so a
+  `brokers-seed` run that dies before its teardown leaves them to be cleared by hand.
 - **A `vite preview` on 4200.** The next run's `ui-server` setup stops it, finding it in
   `.e2e-ui-server.json`.
 
@@ -534,7 +552,8 @@ specs/
   tooling/      the testing service works as a tool, before runtime leans on it
   runtime/      calls the seeded chains and asserts what they did
   env/          specs that restart a service, one worker, after api, runtime, and ui
-  brokers-seed/ brings up the broker overlays and deploys fixtures/brokers/, then removes it
+  brokers-seed/ waits for the brokers, starting the Compose overlays, deploys fixtures/brokers/,
+                then removes it
   brokers/      kafka, rabbitmq, pub/sub and sftp, called and asserted
   global/       reads over the whole platform or over state it shares, one worker, after env
   ui-server/    builds and serves the UI bundle on 4200, then stops it

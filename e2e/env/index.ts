@@ -118,6 +118,10 @@ export interface Env {
    * for the platform's own services and it replaces the container — a broker restart is meant to
    * disturb the connection, not the broker's identity or the topics and queues already declared on
    * it.
+   *
+   * On Kubernetes it kills the broker's PID 1, and the kubelet restarts the container in place; it
+   * then polls until the container's `restartCount` grows and the container is Ready. That works
+   * for Kafka and RabbitMQ only: the pub/sub emulator's PID 1 ignores SIGTERM.
    */
   restartOverlay(overlay: Overlay): Promise<void>;
   /**
