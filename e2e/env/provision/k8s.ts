@@ -12,8 +12,9 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { ServiceRole } from "../index.js";
-import { hostPort, proxyPort, proxyUrl, ROLES } from "../containers.js";
+import type { Overlay, ServiceRole } from "../index.js";
+import { BROKER_PORT, hostPort, proxyPort, proxyUrl, ROLES } from "../containers.js";
+import { brokersEnabled } from "../target.js";
 import {
   deploymentOf,
   healthUrl,
@@ -359,6 +360,22 @@ export function helmArguments(options: {
     for (const role of ROLES) args.push("--set", `qip-${role}.loadBalancerPort=${hostPort(role, "k8s")}`);
     args.push("--set", `global.qip.ui.loadBalancerPort=${proxyPort("k8s")}`);
   }
+  // Only `enabled` follows E2E_BROKERS, so a run without the brokers leaves the engine and the catalog alone.
+  const hostPortKey = choice.hostPorts === "LoadBalancer Services" ? "loadBalancerPort" : "nodePort";
+  for (const overlay of Object.keys(BROKER_PORT) as Overlay[]) {
+    args.push("--set", `${overlay}.enabled=${brokersEnabled()}`);
+    args.push("--set", `${overlay}.${hostPortKey}=${BROKER_PORT[overlay].k8s}`);
+  }
+  const certs = path.join(root, "infrastructure/kafka-ssl");
+  args.push(
+    "--set-file", `kafka.tls.serverCert=${path.join(certs, "server/kafka.crt")}`,
+    "--set-file", `kafka.tls.serverKey=${path.join(certs, "server/kafka.key")}`,
+    // Both engines trust the Kafka CA; a micro domain mounts the classic engine's Secret.
+    "--set-file", `qip-engine.trustedCerts.ca\\.crt=${path.join(certs, "client/ca.crt")}`,
+    "--set", `qip-runtime-catalog.microDomainResources={secret:${RELEASE}-engine-certs@/app/cert/defaultsslcertificate}`,
+    // A micro domain's root file system is read-only, and it writes its truststore here.
+    "--set", "qip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}",
+  );
   return args;
 }
 
