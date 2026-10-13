@@ -6,7 +6,7 @@ import {
   ProviderCapabilities,
   StreamingChunk,
 } from "./types.ts";
-import { parseCipSseBlock } from "./sseParsing.ts";
+import { parseCipSseBlock, splitSseFrames } from "./sseParsing.ts";
 import axios, { AxiosError } from "axios";
 import { getHeadersForContext } from "../../api/rest/requestHeadersInterceptor.ts";
 
@@ -92,6 +92,11 @@ export class HttpAiModelProvider implements AiModelProvider {
 
     const controller = new AbortController();
     const signal = request.abortSignal ?? controller.signal;
+    let receivedDone = false;
+    const receive = (chunk: StreamingChunk) => {
+      if (chunk.type === "done") receivedDone = true;
+      onChunk(chunk);
+    };
 
     try {
       const hint = resolveScenarioHint(request);
@@ -136,18 +141,26 @@ export class HttpAiModelProvider implements AiModelProvider {
 
         buffer += decoder.decode(value, { stream: true });
 
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() ?? "";
+        const { complete: parts, rest } = splitSseFrames(buffer);
+        buffer = rest;
 
         for (const part of parts) {
           if (part.trim()) {
-            this.parseSseBlock(part, onChunk);
+            this.parseSseBlock(part, receive);
           }
         }
       }
 
       if (buffer.trim()) {
-        this.parseSseBlock(buffer, onChunk);
+        this.parseSseBlock(buffer, receive);
+      }
+      if (!receivedDone && !signal.aborted) {
+        onChunk({
+          type: "error",
+          transportError: true,
+          errorMessage:
+            "The connection ended before the server confirmed completion.",
+        });
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -163,7 +176,7 @@ export class HttpAiModelProvider implements AiModelProvider {
         error instanceof Error
           ? error.message
           : "Failed to receive streaming response";
-      onChunk({ type: "error", errorMessage: message });
+      onChunk({ type: "error", errorMessage: message, transportError: true });
     } finally {
       if (!request.abortSignal) {
         controller.abort();
@@ -177,11 +190,13 @@ export class HttpAiModelProvider implements AiModelProvider {
   ): Promise<ChatResponse> {
     const messages: ChatMessage[] = [...request.messages];
     let conversationId: string | undefined;
+    let settled = false;
 
     return new Promise<ChatResponse>((resolve, reject) => {
       this.streamChat(request, (chunk) => {
         onChunk(chunk);
         if (chunk.type === "done") {
+          settled = true;
           conversationId = chunk.conversationId;
           resolve({
             messages,
@@ -190,6 +205,7 @@ export class HttpAiModelProvider implements AiModelProvider {
             usage: chunk.usage,
           });
         } else if (chunk.type === "error") {
+          settled = true;
           reject(new Error(chunk.errorMessage ?? "Stream error"));
         } else if (chunk.type === "delta" && chunk.contentDelta) {
           const last = messages[messages.length - 1];
@@ -202,7 +218,16 @@ export class HttpAiModelProvider implements AiModelProvider {
             messages.push({ role: "assistant", content: chunk.contentDelta });
           }
         }
-      }).catch(reject);
+      })
+        .then(() => {
+          if (!settled)
+            reject(
+              request.abortSignal?.aborted
+                ? new DOMException("The request was aborted.", "AbortError")
+                : new Error("The stream ended without a completion event."),
+            );
+        })
+        .catch(reject);
     });
   }
 

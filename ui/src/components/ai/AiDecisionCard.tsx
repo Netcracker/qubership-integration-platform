@@ -90,6 +90,9 @@ const RESTART_ACTIONS = new Set([
  * stage reads, so it travels as an ordinary message.
  */
 const COMMAND_ACTIONS = new Set([
+  "yes",
+  "no",
+  "continue-to-planning",
   "approve",
   "approve-and-create",
   "create-chain",

@@ -1,10 +1,32 @@
 import type {
   ActivityStepPayload,
   CatalogSystemType,
+  CatalogChangePayload,
   ChatDecision,
   ChatDecisionSpec,
   StreamingChunk,
 } from "./types.ts";
+
+export function parseCatalogChange(
+  value: unknown,
+): CatalogChangePayload | null {
+  if (typeof value !== "object" || value === null) return null;
+  const data = value as Record<string, unknown>;
+  if (typeof data.chainsListChanged !== "boolean") return null;
+  if (
+    data.chainIds !== null &&
+    (!Array.isArray(data.chainIds) ||
+      !data.chainIds.every(
+        (id) => typeof id === "string" && id.trim().length > 0,
+      ))
+  )
+    return null;
+  return {
+    chainIds:
+      data.chainIds === null ? null : [...new Set(data.chainIds as string[])],
+    chainsListChanged: data.chainsListChanged,
+  };
+}
 
 function parseCatalogSystemType(value: unknown): CatalogSystemType | undefined {
   return value === "EXTERNAL" || value === "INTERNAL" ? value : undefined;
@@ -214,12 +236,15 @@ export function splitSseFrames(buffer: string): {
   complete: string[];
   rest: string;
 } {
-  const normalized = buffer.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+  const trailingCarriageReturn = buffer.endsWith("\r");
+  const normalized = (trailingCarriageReturn ? buffer.slice(0, -1) : buffer)
+    .replaceAll("\r\n", "\n")
+    .replaceAll("\r", "\n");
   const parts = normalized.split("\n\n");
   const rest = parts.pop() ?? "";
   return {
     complete: parts.filter((part) => part.trim().length > 0),
-    rest,
+    rest: rest + (trailingCarriageReturn ? "\r" : ""),
   };
 }
 
@@ -262,9 +287,23 @@ export function parseCipSseBlock(block: string): StreamingChunk[] {
   switch (eventType) {
     case "meta": {
       try {
-        const parsed = JSON.parse(payload) as { conversationId?: unknown };
+        const parsed = JSON.parse(payload) as {
+          conversationId?: unknown;
+          supportsCatalogChangeEvents?: unknown;
+        };
         if (typeof parsed.conversationId === "string") {
-          return [{ type: "meta", conversationId: parsed.conversationId }];
+          return [
+            {
+              type: "meta",
+              conversationId: parsed.conversationId,
+              ...(typeof parsed.supportsCatalogChangeEvents === "boolean"
+                ? {
+                    supportsCatalogChangeEvents:
+                      parsed.supportsCatalogChangeEvents,
+                  }
+                : {}),
+            },
+          ];
         }
       } catch {
         return [];
@@ -274,6 +313,17 @@ export function parseCipSseBlock(block: string): StreamingChunk[] {
 
     case "token":
       return [{ type: "delta", contentDelta: payload }];
+
+    case "catalog-changed": {
+      try {
+        const catalogChange = parseCatalogChange(JSON.parse(payload));
+        if (catalogChange) return [{ type: "catalog-changed", catalogChange }];
+      } catch {
+        /* Report invalid payloads without guessing their scope. */
+      }
+      console.warn("[AI] Ignoring invalid catalog change event");
+      return [];
+    }
 
     case "step": {
       const step = parseStepPayload(payload);

@@ -52,9 +52,7 @@ import {
   mergeWithPinnedPositions,
   sortParentsBeforeChildren,
 } from "../../misc/chain-graph-utils.ts";
-import {
-  arrangeSwimlaneChildren,
-} from "../../misc/chain-graph-swimlane-utils.ts";
+import { arrangeSwimlaneChildren } from "../../misc/chain-graph-swimlane-utils.ts";
 import {
   ChainGraphNode,
   ChainGraphNodeData,
@@ -370,6 +368,18 @@ const resolveSiblingOverlapsAfterResize = (
 
 export const useChainGraph = () => {
   const chainContext = useContext(ChainContext);
+  const finishDragRef = useRef<(() => void) | undefined>();
+  useEffect(() => () => finishDragRef.current?.(), []);
+  const guardLocalWrite =
+    <Args extends unknown[]>(operation: (...args: Args) => Promise<void>) =>
+    async (...args: Args) => {
+      const finish = chainContext?.beginLocalOperation?.();
+      try {
+        await operation(...args);
+      } finally {
+        finish?.();
+      }
+    };
   const { screenToFlowPosition, getIntersectingNodes } = useReactFlow();
   const { libraryElements, isLibraryLoading } = useLibraryContext();
 
@@ -628,7 +638,7 @@ export const useChainGraph = () => {
     reapplyNodesVisibility,
     reapplyEdgesVisibility,
     setNestedUnitCounts,
-    chainContext?.chain?.defaultSwimlaneId
+    chainContext?.chain?.defaultSwimlaneId,
   ]);
 
   useEffect(() => {
@@ -967,13 +977,15 @@ export const useChainGraph = () => {
           Array.from(draftNodeById.values()),
         );
 
-        const hasCreatedSubtree = newNode.type === "swimlane" || createdNodes.some(
-          (node) => node.id !== newNode.id,
-        );
+        const hasCreatedSubtree =
+          newNode.type === "swimlane" ||
+          createdNodes.some((node) => node.id !== newNode.id);
 
         const changedContainerId = targetParentId ?? newNode.parentId;
 
-        const defaultSwimlaneId = response.createdDefaultSwimlaneId ?? chainContext.chain.defaultSwimlaneId;
+        const defaultSwimlaneId =
+          response.createdDefaultSwimlaneId ??
+          chainContext.chain.defaultSwimlaneId;
 
         if (changedContainerId) {
           const relayoutRootIds = getRelayoutRootIdsForContentChanges(
@@ -981,9 +993,16 @@ export const useChainGraph = () => {
             draftNodes,
           );
 
-          await layoutAndCommit(draftNodes, currentEdges, defaultSwimlaneId, relayoutRootIds);
+          await layoutAndCommit(
+            draftNodes,
+            currentEdges,
+            defaultSwimlaneId,
+            relayoutRootIds,
+          );
         } else if (hasCreatedSubtree) {
-          await layoutAndCommit(draftNodes, currentEdges, defaultSwimlaneId, [newNode.id]);
+          await layoutAndCommit(draftNodes, currentEdges, defaultSwimlaneId, [
+            newNode.id,
+          ]);
         } else {
           layoutRequestIdRef.current += 1;
 
@@ -1204,7 +1223,12 @@ export const useChainGraph = () => {
             draftNodes,
           );
 
-          await layoutAndCommit(draftNodes, draftEdges, defaultSwimlaneId, relayoutRootIds);
+          await layoutAndCommit(
+            draftNodes,
+            draftEdges,
+            defaultSwimlaneId,
+            relayoutRootIds,
+          );
         } else {
           layoutRequestIdRef.current += 1;
 
@@ -1283,8 +1307,11 @@ export const useChainGraph = () => {
     return false;
   };
 
-  const onNodeDragStop = useCallback<OnNodeDrag<ChainGraphNode>>(
-    async (_event, draggedNode) => {
+  const onNodeDragStop = useCallback(
+    async (
+      _event: Parameters<OnNodeDrag<ChainGraphNode>>[0],
+      draggedNode: ChainGraphNode,
+    ) => {
       if (!chainContext?.chain) return;
       if (isLibraryLoading) return;
 
@@ -1470,15 +1497,28 @@ export const useChainGraph = () => {
     edges,
     setEdges,
     decorativeEdges,
-    onConnect,
+    onConnect: guardLocalWrite(onConnect),
     onDragOver,
-    onDrop,
-    onDelete,
+    onDrop: guardLocalWrite(onDrop),
+    onDelete: guardLocalWrite(onDelete),
     onEdgesChange,
     onNodesChange,
-    onNodeDragStart: handleDragInteraction,
+    onNodeDragStart: (...args: Parameters<typeof handleDragInteraction>) => {
+      finishDragRef.current?.();
+      finishDragRef.current = chainContext?.beginLocalOperation?.();
+      handleDragInteraction(...args);
+    },
     onNodeDrag: handleDragInteraction,
-    onNodeDragStop,
+    onNodeDragStop: guardLocalWrite(
+      async (...args: Parameters<typeof onNodeDragStop>) => {
+        try {
+          await onNodeDragStop(...args);
+        } finally {
+          finishDragRef.current?.();
+          finishDragRef.current = undefined;
+        }
+      },
+    ),
     direction,
     toggleDirection,
     updateNodeData,
