@@ -134,7 +134,8 @@ for (const value of [true, false]) {
 
 /** The levels of the engine log lines that carry the record's message, in order. */
 async function loggedLevels(env: Env, since: string, token: string): Promise<string[]> {
-  const message = ` - ${LOG_MESSAGE_PREFIX} ${token}`;
+  // Both engines' patterns close the MDC block with `] %m`.
+  const message = `] ${LOG_MESSAGE_PREFIX} ${token}`;
   return (await env.logs("engine", since))
     .split("\n")
     .filter((line) => line.trimEnd().endsWith(message))
