@@ -209,7 +209,9 @@ test(
             integrationOperationProtocolType: "kafka",
             // The schema's kafka-only default (async-api-trigger.schema.yaml); template.hbs reads it directly, with no engine-side fallback.
             reconnectDelay: 30000,
-            integrationOperationAsyncProperties: { groupId: topic },
+            // The group turns Stable before the consumer looks up its offset, so `latest` could skip the message
+            // published right after; the topic is new, so `earliest` reads only that message.
+            integrationOperationAsyncProperties: { groupId: topic, autoOffsetReset: "earliest" },
             idempotency: { enabled: false },
           },
         };

@@ -51,12 +51,13 @@ import type { APIRequestContext } from "@playwright/test";
  * Undeploys `fixtures/brokers/scheduler-basic`, the one chain in the whole run that keeps writing
  * sessions on its own, with nothing driving it, and answers the chain so the caller can redeploy it.
  *
- * `global` declares `brokers-seed-teardown` as its own `teardown` project in `playwright.config.ts`,
- * so that teardown runs strictly after this file, not before, and the scheduler fires every 3 s for
- * the whole `global` run. A tick landing between `deleteEverySession()` and the immediate "the index
- * holds nothing" read below would write a session into the exact window this case asserts is empty.
+ * `global` declares `suite-teardown` as its own `teardown` project in `playwright.config.ts`, so
+ * the broker teardown runs strictly after this file, not before, and the scheduler fires every 3 s
+ * for the whole `global` run. A tick landing between `deleteEverySession()` and the immediate "the
+ * index holds nothing" read below would write a session into the exact window this case asserts is
+ * empty.
  *
- * `brokers-seed-teardown` deletes the whole chain afterward when the corpus is this run's own, so
+ * The broker teardown deletes the whole chain afterward when the corpus is this run's own, so
  * leaving it undeployed here costs nothing downstream in the ordinary run. Under `E2E_KEEP=1` that
  * teardown returns before deleting anything, so an undeploy here would otherwise outlive the run and
  * break scheduler.spec.ts's own rerun against the kept corpus — `restoreBrokerScheduler` below is
