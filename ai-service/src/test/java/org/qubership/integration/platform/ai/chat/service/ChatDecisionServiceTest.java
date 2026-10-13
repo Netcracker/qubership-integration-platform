@@ -26,6 +26,17 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
+import org.qubership.integration.platform.ai.chain.deploy.MaasTopicsCreatedStore;
+import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
+import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DomainDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainLoggingPropertiesSetDto;
+import org.qubership.integration.platform.ai.llm.scenario.DeployChainScenario;
+import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.chain.patch.ProposedChainPatch;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -56,6 +67,39 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.RestartChec
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
+
+  @Test
+  void openDecisionKeepsTheAutomaticLoggingQuestionAfterTheDeployStream() {
+    String conversationId = "conv-deploy-logging";
+    PendingRedeployStore pending = new PendingRedeployStore();
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listDomains()).thenReturn(List.of(new DomainDto("default", "")));
+    when(catalog.listDeployments("chain-1")).thenReturn(List.of());
+    when(catalog.getLoggingProperties("chain-1"))
+        .thenReturn(new ChainLoggingPropertiesSetDto(null, null, null));
+    ChainContextExtractor context = mock(ChainContextExtractor.class);
+    when(context.resolveChainId(any(), org.mockito.ArgumentMatchers.eq(conversationId)))
+        .thenReturn(Optional.of("chain-1"));
+    DeployChainScenario scenario = new DeployChainScenario(
+        context, catalog, pending, new MaasTopicsCreatedStore(), new KnownFailureMapper(),
+        new PinnedFailureStore(), Optional.empty(), Optional.empty());
+    ChatDecisionService decisions = new ChatDecisionService(
+        mock(CreateChainApplicationFacade.class), questionStore(), new RequirementDraftStore());
+    decisions.pendingRedeployStore = pending;
+    ChatRequest request = new ChatRequest();
+    request.setMessage("Deploy this chain");
+
+    ChatEvent.Decision emitted = assertInstanceOf(ChatEvent.Decision.class,
+        scenario.handle(request, conversationId, ScenarioType.DEPLOY_CHAIN)
+            .collect().asList().await().indefinitely().get(0));
+
+    assertEquals(ChatEvent.SESSION_LOGGING_ACTIONS, emitted.actions());
+    assertTrue(emitted.question().contains("Which session logging level"));
+    assertEquals(emitted, decisions.openDecision(conversationId).orElse(null));
+    verify(catalog, never()).createSnapshot(any());
+    verify(catalog, never()).createDeployment(any(), any());
+    verify(catalog, never()).updateLoggingProperties(any(), any());
+  }
 
   @ParameterizedTest
   @CsvSource(

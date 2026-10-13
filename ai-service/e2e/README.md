@@ -3,6 +3,9 @@
 CREATE and COMPARE_AND_PATCH acceptance tests live under `product-pipeline/`.
 Isolated design-planner evaluations live under `planner-eval/`.
 
+Run the [deployment and logging smoke test](deployment-logging-smoke.md) once per live browser campaign
+on a retained HTTP chain. It checks the automatic logging question, chat reload, logging settings, and engine deployment.
+
 ## Offline
 
 ```bash

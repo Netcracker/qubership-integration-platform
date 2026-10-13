@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chat;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.chat.activity.ActivityDisplayLabels;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
@@ -257,8 +258,17 @@ public sealed interface ChatEvent {
       List<String> actions,
       RecoveryPresentation recovery,
       @JsonInclude(JsonInclude.Include.NON_EMPTY) List<UploadedSpecItem> specs,
-      @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> chainIds)
+      @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> chainIds,
+      @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, String> actionLabels)
       implements ChatEvent {
+
+    public Decision(
+        String id, String kind, String question, String artifactType, String artifactHash,
+        long revision, String reason, List<String> missingEvidence, List<String> actions,
+        RecoveryPresentation recovery, List<UploadedSpecItem> specs, List<String> chainIds) {
+      this(id, kind, question, artifactType, artifactHash, revision, reason, missingEvidence,
+          actions, recovery, specs, chainIds, Map.of());
+    }
 
     /** Every gate except the chain export card, which alone carries chain ids. */
     public Decision(
@@ -342,6 +352,7 @@ public sealed interface ChatEvent {
       actions = actions == null ? List.of() : List.copyOf(actions);
       specs = specs == null ? List.of() : List.copyOf(specs);
       chainIds = chainIds == null ? List.of() : List.copyOf(chainIds);
+      actionLabels = actionLabels == null ? Map.of() : Map.copyOf(actionLabels);
     }
   }
 

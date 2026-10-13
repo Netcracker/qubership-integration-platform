@@ -103,6 +103,20 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
           )
         : [],
     };
+    if (
+      typeof parsed.actionLabels === "object" &&
+      parsed.actionLabels !== null
+    ) {
+      const labels = parsed.actionLabels as Record<string, unknown>;
+      decision.actionLabels = Object.fromEntries(
+        decision.actions.flatMap((action) => {
+          const label = labels[action];
+          return typeof label === "string" && label.trim()
+            ? [[action, label]]
+            : [];
+        }),
+      );
+    }
     if (typeof parsed.artifactType === "string") {
       decision.artifactType = parsed.artifactType;
     }

@@ -156,8 +156,8 @@ const PRIMARY_ACTIONS = new Set([
   "rebuild-plan",
 ]);
 
-function actionLabel(action: string): string {
-  return ACTION_LABELS[action] ?? action;
+function actionLabel(action: string, decision?: ChatDecision): string {
+  return decision?.actionLabels?.[action] || ACTION_LABELS[action] || action;
 }
 
 /** Drop identifiers the interface has no label for, including internal pipeline stage ids. */
@@ -308,12 +308,12 @@ function answeredLabel(decision: ChatDecision): string {
     answered === "no" ||
     answered === "pass_through"
   ) {
-    return actionLabel(answered);
+    return actionLabel(answered, decision);
   }
   if (decision.kind === "clarify") {
     return "Sent";
   }
-  return actionLabel(answered);
+  return actionLabel(answered, decision);
 }
 
 export interface AiDecisionCardProps {
@@ -454,7 +454,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
         menu={{
           items: restartActions.map((action) => ({
             key: action,
-            label: actionLabel(action),
+            label: actionLabel(action, decision),
           })),
           onClick: ({ key }) => handleClick(key),
         }}
@@ -534,7 +534,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                 disabled={disabled}
                 onClick={() => handleClick(action)}
               >
-                {actionLabel(action)}
+                {actionLabel(action, decision)}
               </Button>
             ))}
             {restartMenu}
@@ -666,7 +666,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                   >
                     {usePerSpecImport && action === "import-specification"
                       ? "Import"
-                      : actionLabel(action)}
+                      : actionLabel(action, decision)}
                   </Button>
                 ))
             )}

@@ -11,6 +11,20 @@ To make a chain available for usage, its snapshot shall be deployed on the speci
 
 ---
 
+### Deploy through Rocky
+
+With a chain open, a request such as `Deploy this chain to domain default` starts the deployment conversation.
+Rocky asks for confirmation before replacing an existing deployment, then automatically asks for the session logging level.
+The level choices correspond to Off, Error, Info, and Debug. Other logging settings keep their existing values.
+
+Deployment questions, action labels, and results follow the language of the request.
+Chain names, domains, snapshot names, logging levels, and statuses appear in bold; identifiers appear as inline code.
+Catalog names and identifiers retain their original values. The logging question and selected answer remain visible
+after reopening the chat or reloading the page.
+
+If language detection or translation fails, the deployment conversation uses English.
+An incomplete deployment offers a status refresh; a failed deployment retains its diagnostic information.
+
 ### View Deployments Tab
 Under the chain it is possible to navigate on "**Deployments**" tab. The following information about deployments is available:
 - **Snapshot**: Displays the deployed version (e.g., _V1.2_ ).

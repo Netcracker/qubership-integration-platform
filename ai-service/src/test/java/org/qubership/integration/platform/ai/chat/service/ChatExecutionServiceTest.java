@@ -206,8 +206,50 @@ class ChatExecutionServiceTest {
         ChatEvent.DISMISS_MAAS_KAFKA_TOPICS_ACTION);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void theOpenGateEmitsOnlyAChangedDecisionAfterAStreamedDeploymentCard(boolean changed) {
+    ChatEvent.Decision card = (ChatEvent.Decision) ChatEvent.sessionLoggingDecision(
+        "operation", "Which session logging level should this chain use?");
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(card));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    ChatEvent.Decision current = changed
+        ? (ChatEvent.Decision) ChatEvent.deploymentProcessingDecision("deployment", "Check status?")
+        : card;
+    when(decisions.openDecision(anyString())).thenReturn(Optional.of(current));
+    ChatRequest request = new ChatRequest();
+    request.setConversationId(CONVERSATION_ID);
+    request.setMessage("Deploy this chain");
+
+    List<String> frames = service(router, decisions).streamV1Sse(request)
+        .collect().asList().await().indefinitely();
+
+    assertEquals(changed ? 2 : 1,
+        frames.stream().filter(frame -> frame.startsWith("event: decision\n")).count());
+  }
+
+  @Test
+  void localizedActionLabelsAreIncludedInTheDecisionFrame() throws Exception {
+    ChatEvent.Decision card = new ChatEvent.Decision("gate", "approve", "Bereitstellen?",
+        ChatEvent.DEPLOY_ARTIFACT, "operation", 0L, null, List.of(),
+        List.of(ChatEvent.DEPLOY_ACTION), null, List.of(), List.of(),
+        Map.of(ChatEvent.DEPLOY_ACTION, "Bereitstellen"));
+    ObjectMapper mapper = new ObjectMapper();
+
+    String frame = ChatExecutionService.toSse(card, mapper);
+    var payload = mapper.readTree(frame.substring(frame.indexOf("data: ") + 6));
+
+    assertEquals("Bereitstellen", payload.path("actionLabels").path(ChatEvent.DEPLOY_ACTION).asText());
+    assertEquals(ChatEvent.DEPLOY_ACTION, payload.path("actions").get(0).asText());
+    assertEquals("operation", payload.path("artifactHash").asText());
+  }
+
   @Test
   void proposeDeploymentFixRunsAsPatchScenario() {
+    PendingRedeployStore pending = new PendingRedeployStore();
+    pending.rememberDecision("conv-failed-deploy",
+        (ChatEvent.Decision) ChatEvent.deploymentFailureDecision("dep-failed", "Propose a fix?"));
     ScenarioRouter router = mock(ScenarioRouter.class);
     when(router.route(any(), anyString()))
         .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
@@ -217,15 +259,17 @@ class ChatExecutionServiceTest {
     request.setConversationId("conv-failed-deploy");
     ChatDecisionCommand decision = new ChatDecisionCommand();
     decision.setAction(ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION);
+    decision.setArtifactType(ChatEvent.DEPLOYMENT_FAILURE_ARTIFACT);
     decision.setArtifactHash("dep-failed");
     request.setDecision(decision);
 
-    service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+    service(router, decisions, pending).streamV1Sse(request).collect().asList().await().indefinitely();
 
     ArgumentCaptor<ChatRequest> routed = ArgumentCaptor.forClass(ChatRequest.class);
     verify(router).route(routed.capture(), eq("conv-failed-deploy"));
     assertEquals(ScenarioType.COMPARE_AND_PATCH, routed.getValue().getScenarioHint());
     verify(decisions, never()).apply(anyString(), any());
+    assertTrue(pending.openDecision("conv-failed-deploy").isEmpty());
   }
 
   @Test
