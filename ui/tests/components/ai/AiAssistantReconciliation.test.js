@@ -141,6 +141,9 @@ test.each([false, true])(
       throttledRefreshSessions: () => {},
       scrollToBottom: () => {},
       chainContext: undefined,
+      interruptionRefreshRef: { current: { refreshed: false } },
+      refreshAfterInterruption: () => {},
+      publishCatalogChange: () => {},
       abortControllerRef: { current: new AbortController() },
       attachActivityToLastAssistant: (messages) => messages,
       handleResponseComplete: (_id, response) => {
@@ -288,6 +291,27 @@ function setup() {
   };
 }
 
+test.each(["yes", "no"])(
+  "sends IDS %s with the displayed decision revision",
+  async (action) => {
+    const h = setup();
+    const decision = {
+      ...h.offer,
+      question: "Show IDS?",
+      actions: ["yes", "no"],
+      recovery: undefined,
+    };
+    const submission = h.answer(decision, action, "");
+    assert.equal(h.submissions.length, 1);
+    assert.equal(h.submissions[0][6].action, action);
+    assert.equal(h.submissions[0][6].revision, decision.revision);
+    assert.equal(h.submissions[0][6].artifactType, decision.artifactType);
+    assert.equal(h.submissions[0][6].artifactHash, decision.artifactHash);
+    h.sendCompletion.resolve();
+    await submission;
+  },
+);
+
 test("ignores a stale decision response after a completed repair continuation", async () => {
   const inFlight = setup();
   const responseDuringTurn = deferred();
@@ -372,4 +396,61 @@ test("ignores a stale decision response after a completed repair continuation", 
     0,
     "A stale pre-command response must not resurrect an actionable repair allowance card",
   );
+});
+
+test("typed support suppresses legacy refresh, and the next legacy request enables it again", () => {
+  let refreshes = 0;
+  const callback = vm.runInNewContext(
+    transpile(
+      `const callback = ${extractCallback("handleResponseComplete")}; callback;`,
+    ),
+    {
+      sessionStore: {
+        updateSessionMessages() {},
+        updateConversationId() {},
+        getSession: () => ({ conversationId: "c" }),
+      },
+      flushRefresh() {},
+      tryParseChainModificationProposal: () => undefined,
+      refreshChainContexts: () => {
+        refreshes += 1;
+      },
+      refreshChainPlanStatus() {},
+      reconcileOpenDecision() {},
+    },
+  );
+  callback("s", {
+    finalMessages: [{ role: "assistant", content: "Draft only" }],
+    supportsCatalogChangeEvents: true,
+  });
+  assert.equal(refreshes, 0);
+  callback("s", {
+    finalMessages: [{ role: "assistant", content: "Legacy turn" }],
+  });
+  assert.equal(refreshes, 1);
+});
+
+test("interruption refreshes once and offers only a catalog read retry", () => {
+  const changes = [];
+  let retry;
+  const callback = vm.runInNewContext(
+    transpile(
+      `const callback = ${extractCallback("refreshAfterInterruption")}; callback;`,
+    ),
+    {
+      interruptionRefreshRef: { current: { refreshed: false } },
+      publishCatalogChange: (change) => changes.push(change),
+      notificationService: {
+        warning: (_title, _message, action) => {
+          retry = action;
+        },
+      },
+    },
+  );
+  callback();
+  callback();
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].chainIds, null);
+  retry();
+  assert.equal(changes.length, 2);
 });

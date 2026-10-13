@@ -6,6 +6,29 @@ import {
 } from "../../src/ai/modelProviders/sseParsing.ts";
 
 describe("parseCipSseBlock", () => {
+  it("should deliver catalog changes independently of chat text", () => {
+    expect(
+      parseCipSseBlock(
+        'event: catalog-changed\ndata: {"chainIds":["chain-1","chain-1"],"chainsListChanged":true}\n',
+      ),
+    ).toEqual([
+      {
+        type: "catalog-changed",
+        catalogChange: { chainIds: ["chain-1"], chainsListChanged: true },
+      },
+    ]);
+  });
+
+  it("should distinguish a broad change from a list-only change", () => {
+    for (const chainIds of [null, []]) {
+      const catalogChange = { chainIds, chainsListChanged: true };
+      expect(
+        parseCipSseBlock(
+          `event: catalog-changed\ndata: ${JSON.stringify(catalogChange)}\n`,
+        ),
+      ).toEqual([{ type: "catalog-changed", catalogChange }]);
+    }
+  });
   it("parses meta with conversationId", () => {
     const chunks = parseCipSseBlock(
       'event: meta\ndata: {"conversationId":"conv-abc"}\n',
