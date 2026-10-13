@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
-import { K8sEnv, OVERLAYS_UNAVAILABLE, recordedMicroDomain } from "../../env/k8s.js";
+import { K8sEnv, recordedMicroDomain, type Kubectl } from "../../env/k8s.js";
 import { readingOfTop } from "../../env/k8s-observer.js";
 import {
   restartStamp,
@@ -22,7 +22,6 @@ import {
   helmArguments,
   imageTag,
   suiteImages,
-  type Kubectl,
 } from "../../env/provision/k8s.js";
 import { repoRoot } from "../../env/host.js";
 import { CLASSIC_ONLY_RUNTIME_FILES, targetSetup } from "../../env/target-setup.js";
@@ -341,10 +340,94 @@ test("a kubectl top reading counts the service container and never the sidecar",
   ]);
 });
 
-test("the broker overlays fail on the k8s target, naming the target", { tag: ["@infra", "@tier1"] }, async () => {
-  const env = new K8sEnv({ engineKind: "classic" });
-  await expect(env.ensureOverlay("kafka")).rejects.toThrow(OVERLAYS_UNAVAILABLE);
-  await expect(env.restartOverlay("rabbitmq")).rejects.toThrow(OVERLAYS_UNAVAILABLE);
+/** A broker pod as `kubectl get pods -o json` lists it, beside a terminating one the adapter skips. */
+function brokerPods(name: string, restartCount: number, ready: boolean): string {
+  return JSON.stringify({
+    items: [
+      {
+        metadata: { name: `${name}-old`, deletionTimestamp: "2026-10-13T00:00:00Z" },
+        status: { containerStatuses: [{ name, restartCount: 0, ready: false }] },
+      },
+      {
+        metadata: { name: `${name}-live` },
+        status: { containerStatuses: [{ name, restartCount, ready }] },
+      },
+    ],
+  });
+}
+
+/** A `kubectl` that records every call and answers `get pods` from `pods` in order, the last one repeated. */
+function recordingKubectl(pods: string[] = []): { calls: string[]; run: Kubectl } {
+  const calls: string[] = [];
+  let next = 0;
+  return {
+    calls,
+    run: async (args) => {
+      calls.push(args.join(" "));
+      if (args[0] !== "get") return "";
+      return pods[Math.min(next++, pods.length - 1)];
+    },
+  };
+}
+
+test("ensureOverlay waits for the broker's rollout, then for its host port", { tag: ["@infra", "@tier1"] }, async () => {
+  const { calls, run } = recordingKubectl();
+  const probed: string[] = [];
+  const env = new K8sEnv({
+    engineKind: "classic",
+    kubectl: run,
+    overlayReady: (overlay) => async () => {
+      probed.push(`${overlay} after ${calls.length} kubectl calls`);
+      return null;
+    },
+  });
+  await env.ensureOverlay("pubsub");
+  expect(calls).toEqual(["rollout status deploy/pubsub -n qip-e2e --timeout=180s"]);
+  expect(probed).toEqual(["pubsub after 1 kubectl calls"]);
+});
+
+test("restartOverlay kills PID 1 and waits for a higher restartCount, a Ready container, and the host port", { tag: ["@infra", "@tier1"] }, async () => {
+  // Right after `kill 1` the old container can still read Ready with the same restartCount.
+  const { calls, run } = recordingKubectl([
+    brokerPods("kafka", 2, true),
+    brokerPods("kafka", 2, true),
+    brokerPods("kafka", 3, true),
+  ]);
+  const probed: string[] = [];
+  const env = new K8sEnv({
+    engineKind: "classic",
+    kubectl: run,
+    overlayReady: (overlay) => async () => {
+      probed.push(`${overlay} after ${calls.length} kubectl calls`);
+      return null;
+    },
+  });
+  await env.restartOverlay("kafka");
+  expect(calls).toEqual([
+    "get pods -n qip-e2e -l app=kafka -o json",
+    "exec deploy/kafka -n qip-e2e -c kafka -- sh -c kill 1",
+    "get pods -n qip-e2e -l app=kafka -o json",
+    "get pods -n qip-e2e -l app=kafka -o json",
+  ]);
+  expect(probed).toEqual(["kafka after 4 kubectl calls"]);
+});
+
+test("restartOverlay keeps polling while the restarted container is not Ready", { tag: ["@infra", "@tier1"] }, async () => {
+  const { calls, run } = recordingKubectl([
+    brokerPods("rabbitmq", 0, true),
+    brokerPods("rabbitmq", 1, false),
+    brokerPods("rabbitmq", 1, true),
+  ]);
+  const env = new K8sEnv({ engineKind: "classic", kubectl: run, overlayReady: () => async () => null });
+  await env.restartOverlay("rabbitmq");
+  expect(calls.filter((each) => each.startsWith("get pods"))).toHaveLength(3);
+});
+
+test("removeOverlay leaves the Helm-owned brokers alone", { tag: ["@infra", "@tier1"] }, async () => {
+  const { calls, run } = recordingKubectl();
+  const env = new K8sEnv({ engineKind: "classic", kubectl: run, overlayReady: () => async () => null });
+  await env.removeOverlay("sftp");
+  expect(calls).toEqual([]);
 });
 
 test("the k8s target declares its own projects and lists the brokers and the classic-only files as not run", { tag: ["@infra", "@tier1"] }, () => {

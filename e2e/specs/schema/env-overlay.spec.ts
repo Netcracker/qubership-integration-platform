@@ -16,9 +16,10 @@ import yaml from "js-yaml";
 import { test, expect } from "@playwright/test";
 import { overlayDefinition, overlayNames } from "../../env/compose.js";
 import { BROKER_PORT } from "../../env/containers.js";
-import { httpReady, tcpReady } from "../../env/overlays.js";
+import { hostReady, httpReady, tcpReady } from "../../env/overlays.js";
 import { repoRoot } from "../../env/host.js";
 import type { Overlay } from "../../env/index.js";
+import { withEnv } from "../../support/with-env.js";
 
 test("the adapter knows exactly the four broker overlays the suite starts", { tag: ["@infra", "@tier1"] }, async () => {
   expect(overlayNames()).toEqual(["kafka", "pubsub", "rabbitmq", "sftp"]);
@@ -95,4 +96,31 @@ test("the TCP and HTTP probes report a listener as ready and a closed port as no
   }
   expect(await tcpReady("127.0.0.1", port)()).toMatch(/refused a connection/);
   expect(await httpReady(`http://127.0.0.1:${port}/`)()).toMatch(/did not answer/);
+});
+
+test("each host probe reads its broker's host address, CIP_* overrides included", { tag: ["@infra", "@tier1"] }, async () => {
+  const server = http.createServer((_, response) => response.end("ok"));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  const overrides = {
+    CIP_KAFKA_URL: `127.0.0.1:${port}`,
+    CIP_RABBITMQ_URL: `amqp://guest:guest@127.0.0.1:${port}`,
+    CIP_PUBSUB_URL: `http://127.0.0.1:${port}`,
+    CIP_SFTP_HOST: "127.0.0.1",
+    CIP_SFTP_PORT: String(port),
+  };
+  // Created before the overrides are set, so each probe has to read its address when it runs.
+  const probes = Object.fromEntries(overlayNames().map((overlay) => [overlay, hostReady(overlay as Overlay)]));
+  const probe = (overlay: Overlay) => withEnv(overrides, () => probes[overlay]());
+  try {
+    expect(await probe("rabbitmq")).toBeNull();
+    expect(await probe("pubsub")).toBeNull();
+    expect(await probe("sftp")).toBeNull();
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+  expect(await probe("kafka")).toContain(`127.0.0.1:${port} did not answer a metadata request`);
+  expect(await probe("rabbitmq")).toContain(`127.0.0.1:${port} refused a connection`);
+  expect(await probe("pubsub")).toContain(`http://127.0.0.1:${port}/v1/projects/`);
+  expect(await probe("sftp")).toContain(`127.0.0.1:${port} refused a connection`);
 });

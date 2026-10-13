@@ -20,6 +20,7 @@ import {
   healthUrl,
   K8S_OVERRIDES_FILE,
   kubectl,
+  type Kubectl,
   NAMESPACE,
   RELEASE,
   restoreDeclared,
@@ -36,9 +37,6 @@ const README = "e2e/k8s/README.md";
 // ---------------------------------------------------------------------------
 // Prerequisites
 // ---------------------------------------------------------------------------
-
-/** Runs `kubectl` with the given arguments and returns stdout; a non-zero exit throws. */
-export type Kubectl = (args: string[]) => Promise<string>;
 
 /** A cluster-wide prerequisite the suite does not install, and the README section that does. */
 export interface Prerequisite {

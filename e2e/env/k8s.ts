@@ -28,6 +28,7 @@ import {
   type PatchOperation,
 } from "./k8s-env-patch.js";
 import { capture, httpStatus, pollUntil } from "./host.js";
+import { hostReady, OVERLAY_READY_TIMEOUT } from "./overlays.js";
 import { forgetOverride, recordOverride } from "./overrides.js";
 import { UUID } from "../support/absent.js";
 import { readStateFile } from "../support/state-file.js";
@@ -103,7 +104,8 @@ export function healthUrl(role: ServiceRole): string {
   return `${serviceUrl(role)}${role === "testing-service" ? "/health" : "/actuator/health"}`;
 }
 
-export const OVERLAYS_UNAVAILABLE = "Broker overlays are not available on the k8s target.";
+/** Runs `kubectl` with the given arguments and returns stdout; a non-zero exit throws. */
+export type Kubectl = (args: string[]) => Promise<string>;
 
 /** Runs `kubectl` and returns its standard output; a non-zero exit throws with its stderr. */
 export function kubectl(args: string[]): Promise<string> {
@@ -213,7 +215,7 @@ interface PodView {
     phase?: string;
     startTime?: string;
     podIP?: string;
-    containerStatuses?: { name: string; restartCount: number }[];
+    containerStatuses?: { name: string; restartCount: number; ready?: boolean }[];
   };
 }
 
@@ -226,23 +228,41 @@ async function actuatorGauge(role: ServiceRole, metric: string): Promise<number 
   return body.measurements?.find((each) => each.statistic === "VALUE")?.value ?? null;
 }
 
-/** The one pod of a role that is not being deleted. */
-async function livePod(role: ServiceRole): Promise<PodView> {
+/** The one pod labelled `app=<app>` that is not being deleted. */
+async function livePodOf(app: string, run: Kubectl = kubectl): Promise<PodView> {
   const pods = JSON.parse(
-    await kubectl([
-      "get", "pods", "-n", NAMESPACE, "-l", `app=${deploymentOf(role)}`, "-o", "json",
-    ]),
+    await run(["get", "pods", "-n", NAMESPACE, "-l", `app=${app}`, "-o", "json"]),
   ) as { items: PodView[] };
   // A Recreate rollout leaves the old pod terminating for a while beside nothing, or beside the new
   // one once it is scheduled; the live one is the one not being deleted.
   const live = pods.items.filter((pod) => pod.metadata.deletionTimestamp === undefined);
   if (live.length !== 1) {
     throw new Error(
-      `expected one live pod of ${deploymentOf(role)} in ${NAMESPACE}, found ` +
+      `expected one live pod of ${app} in ${NAMESPACE}, found ` +
         `${live.map((pod) => pod.metadata.name).join(", ") || "none"}`,
     );
   }
   return live[0];
+}
+
+/** The one pod of a role that is not being deleted. */
+function livePod(role: ServiceRole): Promise<PodView> {
+  return livePodOf(deploymentOf(role));
+}
+
+/**
+ * The status of a broker's container. Each broker sub-chart names its Deployment, its `app` label,
+ * and its container after the overlay.
+ */
+async function overlayContainer(
+  overlay: Overlay,
+  run: Kubectl,
+): Promise<{ restartCount: number; ready: boolean }> {
+  const status = (await livePodOf(overlay, run)).status.containerStatuses?.find(
+    (each) => each.name === overlay,
+  );
+  if (!status) throw new Error(`the ${overlay} pod in ${NAMESPACE} reports no container ${overlay}`);
+  return { restartCount: status.restartCount, ready: status.ready === true };
 }
 
 /** The envelope of one role, from its pod and its actuator. */
@@ -270,6 +290,10 @@ export interface K8sEnvOptions {
   engineKind: EngineKind;
   /** The micro domain a micro chain is addressed on; `recordedMicroDomain` by default. */
   microDomain?: () => string;
+  /** The `kubectl` the overlay methods run; the real one by default. */
+  kubectl?: Kubectl;
+  /** The host probe the overlay methods poll; `hostReady` by default. */
+  overlayReady?: (overlay: Overlay) => () => Promise<string | null>;
 }
 
 export class K8sEnv implements Env {
@@ -279,10 +303,14 @@ export class K8sEnv implements Env {
 
   private readonly engineKind: EngineKind;
   private readonly microDomain: () => string;
+  private readonly kubectl: Kubectl;
+  private readonly overlayReady: (overlay: Overlay) => () => Promise<string | null>;
 
   constructor(options: K8sEnvOptions) {
     this.engineKind = options.engineKind;
     this.microDomain = options.microDomain ?? (() => recordedMicroDomain());
+    this.kubectl = options.kubectl ?? kubectl;
+    this.overlayReady = options.overlayReady ?? hostReady;
   }
 
   url(service: ServiceRole): string {
@@ -362,16 +390,47 @@ export class K8sEnv implements Env {
     return readK8sPeaks();
   }
 
-  async ensureOverlay(_overlay: Overlay): Promise<void> {
-    throw new Error(OVERLAYS_UNAVAILABLE);
+  /** Helm installs the brokers, so this only waits for the rollout and the host port. */
+  async ensureOverlay(overlay: Overlay): Promise<void> {
+    await this.kubectl([
+      "rollout", "status", `deploy/${overlay}`, "-n", NAMESPACE, "--timeout=180s",
+    ]);
+    await this.awaitHostReady(overlay, "start serving");
   }
 
-  async restartOverlay(_overlay: Overlay): Promise<void> {
-    throw new Error(OVERLAYS_UNAVAILABLE);
+  /**
+   * Kills the broker's PID 1, so the kubelet restarts the container in place and the pod keeps its
+   * `emptyDir` with the topics and queues. Kafka and RabbitMQ run their broker as PID 1, which
+   * handles SIGTERM; the pub/sub emulator's PID 1 does not.
+   */
+  async restartOverlay(overlay: Overlay): Promise<void> {
+    const before = await overlayContainer(overlay, this.kubectl);
+    await this.kubectl([
+      "exec", `deploy/${overlay}`, "-n", NAMESPACE, "-c", overlay, "--", "sh", "-c", "kill 1",
+    ]);
+    await pollUntil(
+      OVERLAY_READY_TIMEOUT,
+      2_000,
+      async () => {
+        const now = await overlayContainer(overlay, this.kubectl);
+        if (now.restartCount <= before.restartCount) return `restartCount stayed ${now.restartCount}`;
+        return now.ready ? null : "the restarted container is not Ready";
+      },
+      (last) => `the ${overlay} container did not restart within ${OVERLAY_READY_TIMEOUT}ms (${last})`,
+    );
+    await this.awaitHostReady(overlay, "resume serving after a restart");
   }
 
-  async removeOverlay(_overlay: Overlay): Promise<void> {
-    throw new Error(OVERLAYS_UNAVAILABLE);
+  /** Nothing to remove: the brokers belong to the Helm release. */
+  async removeOverlay(_overlay: Overlay): Promise<void> {}
+
+  private async awaitHostReady(overlay: Overlay, what: string): Promise<void> {
+    await pollUntil(
+      OVERLAY_READY_TIMEOUT,
+      2_000,
+      this.overlayReady(overlay),
+      (last) => `overlay ${overlay} did not ${what} within ${OVERLAY_READY_TIMEOUT}ms (${last})`,
+    );
   }
 
   /** The chart's `ClassicDomainSource` reads the engine Deployments and lists their pods. */

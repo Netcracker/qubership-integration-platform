@@ -5,6 +5,8 @@
  */
 import net from "node:net";
 import { Kafka, logLevel } from "kafkajs";
+import type { Overlay } from "./index.js";
+import { kafkaHostBrokers, pubsubHostUrl, rabbitmqHostUrl, sftpHostAddress } from "./containers.js";
 
 /**
  * How long `ensureOverlay` and `restartOverlay` each poll for one overlay to answer ready, on top
@@ -79,6 +81,30 @@ export function kafkaReady(brokers: string[]): () => Promise<string | null> {
       return `${brokers.join(",")} did not answer a metadata request (${String(cause)})`;
     } finally {
       await admin.disconnect().catch(() => {});
+    }
+  };
+}
+
+/**
+ * The probe of `overlay` at its host address, read when the probe runs, so a `CIP_*` override set
+ * later still applies. RabbitMQ gets a bare TCP connect; the Compose adapter uses the container's
+ * health check for it instead.
+ */
+export function hostReady(overlay: Overlay): () => Promise<string | null> {
+  return () => {
+    switch (overlay) {
+      case "kafka":
+        return kafkaReady([kafkaHostBrokers()])();
+      case "rabbitmq": {
+        const url = new URL(rabbitmqHostUrl());
+        return tcpReady(url.hostname, Number(url.port))();
+      }
+      case "pubsub":
+        return httpReady(`${pubsubHostUrl()}/v1/projects/e2e-overlay-ready-probe/topics`)();
+      case "sftp": {
+        const { host, port } = sftpHostAddress();
+        return tcpReady(host, port)();
+      }
     }
   };
 }
