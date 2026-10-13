@@ -80,6 +80,8 @@ qip-runtime-catalog:
   # read-only; it writes the truststore it builds from those certificates to
   # truststore:/app/truststore.
   microDomainEmptyDirs: []
+  # Sets CIP_METRICS_ENABLED, so every micro domain serves the chain meters on /metrics.
+  microDomainMetrics: false
   podAnnotations: {}
   strategy: {}
   extraEnv: []

@@ -40,6 +40,8 @@ qip-engine:
       value: "false"
 
 qip-runtime-catalog:
+  # The metrics cases read a micro domain's /metrics, as they read the engine's with MONITORING_ENABLED.
+  microDomainMetrics: true
   # The http-out fixture calls the catalog by its Compose name.
   serviceAliases:
     - qip-runtime-catalog
