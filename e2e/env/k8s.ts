@@ -322,10 +322,18 @@ export class K8sEnv implements Env {
   }
 
   chainUrl(contextPath: string): string {
-    // The classic engine answers on its own port, as on Compose.
+    return `${this.engineUrl()}${chainRoute(contextPath)}`;
+  }
+
+  engineUrl(): string {
+    // The classic engine answers on its own port, as on Compose; a micro domain has no host port.
     return this.engineKind === "classic"
-      ? `${serviceUrl("engine")}${chainRoute(contextPath)}`
-      : microChainUrl(this.microDomain(), contextPath);
+      ? serviceUrl("engine")
+      : proxiedServiceUrl(microServiceOf(this.microDomain()), "");
+  }
+
+  engineMetricsUrl(): string {
+    return `${this.engineUrl()}${this.engineKind === "classic" ? "/actuator/prometheus" : "/metrics"}`;
   }
 
   uiUrl(page: string): string {

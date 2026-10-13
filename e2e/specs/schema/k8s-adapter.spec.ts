@@ -80,18 +80,22 @@ test("each role answers on its fixed host port, and a chain on the engine kind t
     expect(classic.uiUrl("chains")).toBe("http://localhost:30080/chains");
     expect(classic.chainUrl("e2e/echo")).toBe("http://localhost:30092/routes/e2e/echo");
     expect(classic.chainUrl("/e2e/echo")).toBe("http://localhost:30092/routes/e2e/echo");
+    expect(classic.engineUrl()).toBe("http://localhost:30092");
+    expect(classic.engineMetricsUrl()).toBe("http://localhost:30092/actuator/prometheus");
 
     // A micro domain has no host port; the proxy reaches its Service by the name the catalog gives it.
     const micro = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro" });
-    expect(micro.chainUrl("micro/e2e/echo")).toBe(
-      "http://localhost:30080/e2e/svc/qip-engine-e2e-run1-micro-v1/routes/micro/e2e/echo",
-    );
+    const microEngine = "http://localhost:30080/e2e/svc/qip-engine-e2e-run1-micro-v1";
+    expect(micro.chainUrl("micro/e2e/echo")).toBe(`${microEngine}/routes/micro/e2e/echo`);
+    expect(micro.engineUrl()).toBe(microEngine);
+    expect(micro.engineMetricsUrl()).toBe(`${microEngine}/metrics`);
     expect(micro.url("engine")).toBe("http://localhost:30092");
     const unseeded = new K8sEnv({
       engineKind: "micro",
       microDomain: () => recordedMicroDomain(path.join(os.tmpdir(), "e2e-no-micro-corpus.json")),
     });
     expect(() => unseeded.chainUrl("x")).toThrow(/seed-micro/);
+    expect(() => unseeded.engineUrl()).toThrow(/seed-micro/);
   });
 });
 

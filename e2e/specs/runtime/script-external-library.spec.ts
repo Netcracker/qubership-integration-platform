@@ -145,7 +145,7 @@ function readWidgetScript(fqcn: string): string {
 async function waitForLibrary(env: Env, since: string, modelId: string): Promise<void> {
   const saved = `Saved library: /tmp/cip-engine-libraries/${modelId}.jar`;
   const log = await readUntil(
-    () => env.logs("engine", since),
+    () => env.engineLogs(since),
     (read) => read.includes(saved),
     LIBRARY_TIMEOUT,
     1_000,
@@ -249,7 +249,7 @@ test("a DTO library replaced under a deployed script is seen without a redeploy"
     const after = await widgetFields(request, env.chainUrl(chain.contextPath));
     expect(after.className, "the lever changed the library, not the class name").toBe(fqcn);
 
-    const log = await env.logs("engine", since);
+    const log = await env.engineLogs(since);
     // The positive half, tied to this case's own library rather than to the window alone. The reset
     // line names nothing, so a concurrent GraphQL import elsewhere would satisfy a bare `toContain`
     // — the model id is what makes the line this case's, and the reset has to come after it.

@@ -107,7 +107,7 @@ interface WorkerFixtures {
   /** One catalog client per worker, on the catalog's own port. */
   catalog: Catalog;
   /**
-   * The engine's own REST surface, on its own port.
+   * The REST surface of the engine this project's chains run on, at `env.engineUrl()`.
    *
    * A transport rather than a `request.fetch` in the spec, for the reason `support/engine.ts`
    * states: `noteReached()` fires inside a transport and nowhere else, so an engine call made any
@@ -186,9 +186,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   ],
 
   engine: [
-    async ({ playwright }, use) => {
+    async ({ playwright, env }, use) => {
       const api = await playwright.request.newContext();
-      await use(new Engine(api));
+      await use(new Engine(api, env.engineUrl()));
       await api.dispose();
     },
     { scope: "worker" },

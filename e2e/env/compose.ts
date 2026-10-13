@@ -134,7 +134,15 @@ export class ComposeEnv implements Env {
 
   chainUrl(contextPath: string): string {
     const route = contextPath.startsWith("/") ? contextPath : `/${contextPath}`;
-    return `${this.url("engine")}${CHAIN_ROUTE_PREFIX}${route}`;
+    return `${this.engineUrl()}${CHAIN_ROUTE_PREFIX}${route}`;
+  }
+
+  engineUrl(): string {
+    return this.url("engine");
+  }
+
+  engineMetricsUrl(): string {
+    return `${this.engineUrl()}/actuator/prometheus`;
   }
 
   uiUrl(page: string): string {
