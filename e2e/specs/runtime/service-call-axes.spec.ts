@@ -27,13 +27,13 @@ import {
   CORRELATION_ECHO,
   CORRELATION_ID_FIELD,
   CORRELATION_ID_HEADER,
-  ENGINE_LOOPBACK,
   expectEchoedMethod,
   HTTP_METHODS,
   mapperHandler,
   scriptHandler,
   handlerReply,
 } from "../../fixtures/axis-generator.js";
+import { ENGINE_LOOPBACK } from "../../fixtures/templating.js";
 import { callToken, tokenized } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, element, elementNames, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER, type ExecutionStatus } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";

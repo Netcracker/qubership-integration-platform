@@ -13,15 +13,24 @@ import { test, expect } from "@playwright/test";
 import {
   CHAIN_FIXTURE_DIR,
   corpusFixtureNames,
+  ENGINE_LOOPBACK,
   httpTriggerPaths,
   MICRO_FIXTURES,
   MICRO_PATH_PREFIX,
+  microCopy,
   readFixtureDocument,
   SCRIPT_FIXTURE_DIR,
   type RenderedTree,
 } from "../../fixtures/templating.js";
-import { axisFixtureName, axisFixtures } from "../../fixtures/axis-generator.js";
-import { fixtureTrees, flatten, microCorpusTrees, type FixtureElement } from "../../support/corpus.js";
+import { axisFixtureName, axisFixtures, METHOD_ECHO_URI } from "../../fixtures/axis-generator.js";
+import {
+  fixtureTrees,
+  flatten,
+  microCorpusTrees,
+  PLACEHOLDER_FIXTURE,
+  placeholderVariable,
+  type FixtureElement,
+} from "../../support/corpus.js";
 import { CLASSIC_ONLY_RUNTIME_FILES } from "../../env/target-setup.js";
 import { UUID, UUID_TEXT } from "../../support/absent.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
@@ -29,6 +38,7 @@ import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RUNTIME_DIR = path.join(HERE, "..", "runtime");
 const ANY_UUID = new RegExp(UUID_TEXT, "gi");
+const LOOPBACK_ROUTE = new RegExp(`${ENGINE_LOOPBACK.replaceAll(".", "\\.")}/routes/([^"\\s?]+)`, "g");
 
 interface Copy {
   chainIds: string[];
@@ -38,11 +48,14 @@ interface Copy {
   triggerPaths: string[];
   /** Every UUID written anywhere in the copy's files. */
   references: string[];
-  texts: string[];
+  /** The name of every `#{name}` placeholder in an element property. */
+  variables: string[];
+  /** The `contextPath` every `ENGINE_LOOPBACK` call addresses. */
+  loopbacks: string[];
 }
 
 function read(trees: Array<[string, RenderedTree]>): Copy {
-  const copy: Copy = { chainIds: [], elementIds: [], paths: [], triggerPaths: [], references: [], texts: [] };
+  const copy: Copy = { chainIds: [], elementIds: [], paths: [], triggerPaths: [], references: [], variables: [], loopbacks: [] };
   for (const [name, tree] of trees) {
     const { id, document } = readFixtureDocument(name, tree);
     copy.chainIds.push(id);
@@ -51,11 +64,13 @@ function read(trees: Array<[string, RenderedTree]>): Copy {
       if (typeof element.id === "string") copy.elementIds.push(element.id);
       const contextPath = element.properties?.contextPath;
       if (typeof contextPath === "string") copy.paths.push(contextPath);
+      const properties = JSON.stringify(element.properties ?? {});
+      copy.variables.push(...[...properties.matchAll(/#\{([^}]+)\}/g)].map((match) => match[1]));
     }
     copy.triggerPaths.push(...httpTriggerPaths(document));
     for (const text of tree.values()) {
-      copy.texts.push(text);
       copy.references.push(...(text.match(ANY_UUID) ?? []));
+      copy.loopbacks.push(...[...text.matchAll(LOOPBACK_ROUTE)].map((match) => match[1]));
     }
   }
   return copy;
@@ -166,11 +181,34 @@ test("micro trigger paths carry the prefix with no leading slash, and checkpoint
   expect(checkpointPaths.filter((each) => each.includes(MICRO_PATH_PREFIX))).toEqual([]);
 });
 
-// The micro engine resolves `#{variable}` when it loads a route and fails the load on a variable it
-// does not find, so a copy reading one would need `seed-micro` to create the variable first.
-test("no micro fixture reads a common variable", { tag: ["@infra", "@tier1"] }, async () => {
+/** The micro copy of each named fixture, whether `MICRO_FIXTURES` lists it or not. */
+async function microCopies(names: readonly string[]): Promise<Array<[string, RenderedTree]>> {
+  return (await fixtureTrees(names, EXAMPLE_RUN_TOKEN)).map(([name, tree]) => [name, microCopy(name, tree)]);
+}
+
+// The micro engine substitutes `#{variable}` once, when the domain loads its routes, so a variable
+// the copy reads has to exist before `seed-micro` deploys, and that seed writes only this one.
+test("the micro copy reads no common variable but the one seed-micro writes", { tag: ["@infra", "@tier1"] }, async () => {
+  const written = placeholderVariable(EXAMPLE_RUN_TOKEN);
   const micro = read(await microCorpusTrees(EXAMPLE_RUN_TOKEN));
-  expect(micro.texts.filter((text) => /#\{[^}]+\}/.test(text)).length).toBe(0);
+  expect(micro.variables.filter((name) => name !== written)).toEqual([]);
+  // The name the seed writes is the one the placeholder fixture renders.
+  expect(read(await microCopies([PLACEHOLDER_FIXTURE])).variables).toEqual([written]);
+});
+
+// The method echo and every fixture that calls it, whether the micro copy holds them yet or not.
+const LOOPBACK_FIXTURES = [
+  "method-echo",
+  ...axisFixtures.filter((each) => each.properties?.uri === METHOD_ECHO_URI).map(axisFixtureName),
+];
+
+test("a loopback call in the micro copy addresses the micro copy of its callee", { tag: ["@infra", "@tier1"] }, async () => {
+  const classic = read(await fixtureTrees(LOOPBACK_FIXTURES, EXAMPLE_RUN_TOKEN));
+  const micro = read([...(await microCorpusTrees(EXAMPLE_RUN_TOKEN)), ...(await microCopies(LOOPBACK_FIXTURES))]);
+  expect(classic.loopbacks.length).toBeGreaterThan(0);
+  expect(classic.loopbacks.filter((each) => !classic.triggerPaths.includes(each))).toEqual([]);
+  expect(micro.loopbacks.length).toBeGreaterThanOrEqual(classic.loopbacks.length);
+  expect(micro.loopbacks.filter((each) => !micro.triggerPaths.includes(each))).toEqual([]);
 });
 
 // The suite calls a corpus chain on the engine's own port, so the corpus writes no gateway route

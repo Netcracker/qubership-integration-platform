@@ -26,8 +26,7 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import { ENGINE_CASE_TIMEOUT, readCorpusState, seedChain } from "../../support/corpus.js";
-import { ENGINE_LOOPBACK } from "../../fixtures/axis-generator.js";
-import { readSpecificationFixture } from "../../fixtures/templating.js";
+import { ENGINE_LOOPBACK, readSpecificationFixture } from "../../fixtures/templating.js";
 import { callToken, tokenized } from "../../support/run.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS, trace, type RecordedSession } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
