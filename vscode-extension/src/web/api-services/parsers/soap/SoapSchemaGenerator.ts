@@ -326,7 +326,10 @@ export class SoapSchemaGenerator {
             sequenceChild,
             context,
           );
-          baseSchema = this.mergeObjectSchemas(baseSchema, sequenceSchema);
+          baseSchema = this.mergeObjectSchemas(
+            this.dereferenceDefinition(baseSchema, context),
+            sequenceSchema,
+          );
         }
         return baseSchema;
       }
@@ -519,6 +522,21 @@ export class SoapSchemaGenerator {
     return { type: "string" };
   }
 
+  // A named base type resolves to a `$ref`, and `mergeObjectSchemas` needs the fields it points at:
+  // merging the reference itself dropped every inherited field. A definition still being built is
+  // absent from the map, which leaves the reference in place and ends the recursion.
+  private dereferenceDefinition(
+    schema: any,
+    context: SchemaBuildContext,
+  ): any {
+    const ref: unknown = schema?.$ref;
+    if (typeof ref !== "string") {
+      return schema;
+    }
+    const name = ref.replace("#/definitions/", "");
+    return context.definitions[name] ?? schema;
+  }
+
   private mergeObjectSchemas(baseSchema: any, extensionSchema: any): any {
     if (
       !baseSchema ||
@@ -672,10 +690,10 @@ export class SoapSchemaGenerator {
         const ns = current.getAttribute("targetNamespace");
         return ns || undefined;
       }
-      current =
-        current.parentNode instanceof Element
-          ? (current.parentNode as Element)
-          : null;
+      // `Element` is exposed on Window only, and the extension host is a web worker, so an
+      // `instanceof Element` here threw `ReferenceError` for every schema it walked.
+      const parent = current.parentNode as Element | null;
+      current = parent && parent.nodeType === 1 ? parent : null;
     }
     return undefined;
   }

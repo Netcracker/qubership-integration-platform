@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The WSDL's dependency, imported by its bare file name. It makes the SOAP import a two-file one:
+  two specificationSources, two files under resources/, mainSource only on the WSDL, and one
+  specification rather than two, since SpecificationProcessorService skips a WSDL dependency.
+
+  Its declarations are not indexed, because WsdlParser.collectSchemas only walks a wsdl:types
+  element. AddressType is referenced from orders.wsdl so the golden records what that reference
+  becomes.
+-->
+<xsd:schema
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="http://orders.qip.test/types"
+    elementFormDefault="qualified">
+
+  <xsd:complexType name="AddressType">
+    <xsd:sequence>
+      <xsd:element name="city" type="xsd:string"/>
+      <xsd:element name="street" type="xsd:string"/>
+      <xsd:element name="postalCode" type="xsd:string" minOccurs="0"/>
+      <xsd:element name="window" type="xsd:string" minOccurs="0"/>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:simpleType name="DeliveryWindow">
+    <xsd:restriction base="xsd:string">
+      <xsd:enumeration value="MORNING"/>
+      <xsd:enumeration value="EVENING"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+</xsd:schema>
