@@ -154,7 +154,8 @@ export interface RabbitmqTopology {
 /**
  * Every RabbitMQ object a `rabbitmq-trigger-2` or `rabbitmq-sender-2` element needs, or an AMQP
  * operation does, from the given documents. An `async-api-trigger` consumes its queues off a fanout
- * exchange named by the operation path, and a `service-call` publishes to that exchange.
+ * exchange named by the operation path, with the dead-letter objects its async properties name, and a
+ * `service-call` publishes to that exchange.
  */
 export function rabbitmqTopologyIn(documents: readonly Record<string, unknown>[]): RabbitmqTopology {
   const queues: RabbitmqQueue[] = [];
@@ -190,7 +191,15 @@ export function rabbitmqTopologyIn(documents: readonly Record<string, unknown>[]
           continue;
         }
         for (const queue of splitNames(operation.queues)) {
-          queues.push({ queue, exchange, exchangeType: "fanout", routingKey: "" });
+          queues.push({
+            queue,
+            exchange,
+            exchangeType: "fanout",
+            routingKey: "",
+            deadLetterExchange: operation.deadLetterExchange as string | undefined,
+            deadLetterQueue: operation.deadLetterQueue as string | undefined,
+            deadLetterRoutingKey: operation.deadLetterRoutingKey as string | undefined,
+          });
         }
       }
     }

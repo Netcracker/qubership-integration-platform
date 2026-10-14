@@ -16,3 +16,38 @@ channels:
           properties:
             ping:
               type: string
+  e2e-{{RUN}}-async-api-trigger-idempotency-disabled:
+    subscribe:
+      message:
+        payload:
+          type: object
+  e2e-{{RUN}}-async-api-trigger-idempotency-ignore:
+    subscribe:
+      message:
+        payload:
+          type: object
+  e2e-{{RUN}}-async-api-trigger-idempotency-throw-exception:
+    subscribe:
+      message:
+        payload:
+          type: object
+  e2e-{{RUN}}-async-api-trigger-idempotency-execute-subchain:
+    subscribe:
+      message:
+        payload:
+          type: object
+  e2e-{{RUN}}-async-api-trigger-ack-auto:
+    subscribe:
+      message:
+        payload:
+          type: object
+  e2e-{{RUN}}-async-api-trigger-ack-manual:
+    subscribe:
+      message:
+        payload:
+          type: object
+  e2e-{{RUN}}-async-api-trigger-ack-none:
+    subscribe:
+      message:
+        payload:
+          type: object

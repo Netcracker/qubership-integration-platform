@@ -229,6 +229,10 @@ export interface AsyncOperation {
   path: unknown;
   groupId: unknown;
   queues: unknown;
+  /** The dead-letter objects an AMQP trigger's queue names, which the brokers seed declares. */
+  deadLetterExchange: unknown;
+  deadLetterQueue: unknown;
+  deadLetterRoutingKey: unknown;
 }
 
 /**
@@ -242,7 +246,15 @@ export function asyncOperationOf(element: FixtureElement): AsyncOperation | unde
   const protocol = String(properties.integrationOperationProtocolType);
   if (!ASYNC_OPERATION_PROTOCOLS.has(protocol)) return undefined;
   const async = (properties.integrationOperationAsyncProperties ?? {}) as Record<string, unknown>;
-  return { protocol, path: properties.integrationOperationPath, groupId: async.groupId, queues: async.queues };
+  return {
+    protocol,
+    path: properties.integrationOperationPath,
+    groupId: async.groupId,
+    queues: async.queues,
+    deadLetterExchange: async.deadLetterExchange,
+    deadLetterQueue: async.deadLetterQueue,
+    deadLetterRoutingKey: async.deadLetterRoutingKey,
+  };
 }
 
 /** Every address property of a broker element, with its value. */
@@ -253,6 +265,8 @@ function brokerAddressesOf(element: FixtureElement): Array<[string, unknown]> {
       ["integrationOperationPath", operation.path],
       ["groupId", operation.groupId],
       ["queues", operation.queues],
+      ["deadLetterExchange", operation.deadLetterExchange],
+      ["deadLetterQueue", operation.deadLetterQueue],
     ];
   }
   const properties = element.properties ?? {};
