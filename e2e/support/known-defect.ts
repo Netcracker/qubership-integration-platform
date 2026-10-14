@@ -22,6 +22,7 @@
 import { test } from "@playwright/test";
 import type { APIResponse } from "@playwright/test";
 import type { EngineKind } from "../env/index.js";
+import { withoutColors } from "./colors.js";
 import type { ProjectUse } from "./corpus.js";
 
 /**
@@ -78,9 +79,12 @@ export interface ConditionalDefect {
   matches(message: string): boolean;
 }
 
-/** Whether a step that failed with `message` on `engine` met `defect`. */
+/**
+ * Whether a step that failed with `message` on `engine` met `defect`. A `matches` reads the message
+ * without color codes, which Playwright writes into every matcher failure in a worker.
+ */
 export function strikes(defect: ConditionalDefect, engine: EngineKind, message: string): boolean {
-  return engine === defect.engine && defect.matches(message);
+  return engine === defect.engine && defect.matches(withoutColors(message));
 }
 
 /** The engine the running project's chains run on, which a project sets with `use: { engineKind }`. */
