@@ -154,6 +154,8 @@ definitions:
         type: string
       schema:
         type: string
+      validationSchemaFilename:
+        $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-validation-schema"
       type:
         const: responseValidation
   ExchangeTransformation:

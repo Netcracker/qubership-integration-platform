@@ -92,6 +92,8 @@ properties:
         type: string
         title: Scheme
         description: Schema for input message validation.
+      validationSchemaFilename:
+        $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-validation-schema"
       httpBinding:
         type: string
         default: handlingHttpBinding
