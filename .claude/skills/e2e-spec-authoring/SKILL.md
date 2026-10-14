@@ -272,8 +272,8 @@ right now, so a controller added to a service fails a run.
     `{ type: "classic-only", description: "<reason>" }` on its declaration line; the micro projects
     leave it out through `grepInvert: /@classic-only/`. The files still listed in
     `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`, which `runtime-micro` ignores and the
-    report header lists, deploy their own chains, call the classic engine directly, or go through
-    the testing service; each leaves the list once its chains are seeded on both engines.
+    report header lists, deploy their own chains or call the classic engine directly; each leaves
+    the list once its chains are seeded on both engines.
     `specs/schema/target-rules.spec.ts` checks this rule, that the tag and the annotation come
     together, and the `support/kube.ts` half of rule 4.
 

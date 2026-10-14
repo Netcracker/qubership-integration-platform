@@ -81,14 +81,17 @@ function read(trees: Array<[string, RenderedTree]>, known: readonly ServiceFixtu
 }
 
 /**
- * The fixtures a runtime file reads through `seedChain`: each literal name, the constant
- * `MASKED_FIXTURE`, and, for a file that builds a name with `axisFixtureName`, every generated axis
- * fixture of each family it names in a `family: "…"` literal. The files that do so iterate over
- * every value the generator declares for the axes they cover; together they read every axis of
- * those families.
+ * The fixtures a runtime file reads through `seedChain` or `triggerOf`: each literal name, the
+ * constant `MASKED_FIXTURE`, and, for a file that builds a name with `axisFixtureName`, every
+ * generated axis fixture of each family it names in a `family: "…"` literal. The files that do so
+ * iterate over every value the generator declares for the axes they cover; together they read
+ * every axis of those families.
  */
 function fixturesReadBy(source: string): string[] {
-  const read = [...source.matchAll(/seedChain\(\s*[^,]+,\s*"([^"]+)"\s*\)/g)].map((match) => match[1]);
+  const read = [
+    ...[...source.matchAll(/seedChain\(\s*[^,]+,\s*"([^"]+)"\s*\)/g)].map((match) => match[1]),
+    ...[...source.matchAll(/triggerOf\(\s*"([^"]+)"\s*\)/g)].map((match) => match[1]),
+  ];
   if (/seedChain\(\s*[^,]+,\s*MASKED_FIXTURE\s*\)/.test(source)) read.push("masking");
   if (/axisFixtureName\(/.test(source)) {
     const families = new Set([...source.matchAll(/family: "([^"]+)"/g)].map((match) => match[1]));
