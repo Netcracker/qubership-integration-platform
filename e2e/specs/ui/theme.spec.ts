@@ -164,6 +164,9 @@ for (const { mode, title, system } of MODES) {
       { name: "the Create button", text: page.getByRole("button", { name: "Create" }), onPage: false },
       { name: "the search field", text: chains.searchField, onPage: false },
     ];
+    // The table swaps in a fixed header once its first rows arrive and replaces the header cell a
+    // measurement may already be reading. The chain's micro copy shares its name, hence `first()`.
+    const listed = chains.link(chain.name).first();
     // The node's label renders before its type badge, which repeats the same text at 8 px.
     const nodeLabel = graph.node(header).getByText("Header Modification", { exact: true }).first();
     const editorSurfaces: Surface[] = [
@@ -174,6 +177,7 @@ for (const { mode, title, system } of MODES) {
     await watchThemeEvents(page);
     await page.emulateMedia({ colorScheme: system });
     await chains.goto();
+    await expect(listed).toBeVisible();
     await waitForTheme(page, system);
 
     await chooseTheme(page, title);
@@ -181,6 +185,7 @@ for (const { mode, title, system } of MODES) {
     await expectReadable(listSurfaces, mode);
 
     await page.reload();
+    await expect(listed).toBeVisible();
     await waitForTheme(page, mode);
     await expectReadable(listSurfaces, mode);
 
