@@ -46,6 +46,14 @@ describe("DeploymentCreate", () => {
     expect(screen.getByText("Deploy").closest("button")).toBeDisabled();
   });
 
+  it("should name the Domains select after its form label", () => {
+    render(<DeploymentCreate chainId="chain-1" />);
+
+    expect(
+      screen.getByRole("combobox", { name: "Domains" }),
+    ).toBeInTheDocument();
+  });
+
   it("should enable Deploy when initialDomains are provided", () => {
     render(
       <DeploymentCreate
