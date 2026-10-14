@@ -18,7 +18,9 @@
  * disk first, so the claim cannot quietly shrink to the chains that survived.
  *
  * `env-micro` runs this file against the micro copy of the corpus, where `env.restart("engine")`
- * deletes the micro domain's pod and waits for its replacement.
+ * deletes the micro domain's pod and waits for its replacement. The proxy has no `/api/` location for
+ * a micro domain, so on `env-micro` the closing `/api/` read reaches the classic engine and checks
+ * only the proxy; the `http-echo` call and the route wait are what show the micro pod recovered.
  *
  * The restart goes through `env.restart`, which recreates the container, waits for its health
  * check, and reloads the proxy — nginx resolves `proxy_pass http://engine:8080` once, at config

@@ -62,9 +62,10 @@ then test the dev server. A preview an interrupted run left on 4200 is stopped f
 `.e2e-ui-server.json` still records it; when the runner that started it is still alive, the setup
 fails naming its pid instead.
 
-`schema`, `api`, `tooling`, `runtime`, `brokers`, `brokers-micro`, and `brokers-restart` run with no browser
-installed. `env` and `global` depend on `ui`, so `--project=env` and `--project=global` build the
-bundle and launch Chromium too. Set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment
+`schema`, `api`, `tooling`, `runtime`, `runtime-micro`, `runtime-micro-redeploy`, `k8s`, `brokers`,
+`brokers-micro`, and `brokers-restart` run with no browser installed. `env`, `global`,
+`global-micro`, and `env-micro` depend on `ui`, directly or through `global`, so
+`--project=env` and `--project=global` build the bundle and launch Chromium too. Set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment
 downloads a browser you do not want.
 
 The default Compose run also starts the four broker overlays and binds their host ports: `9092`
@@ -125,8 +126,9 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, the proxy's `/e2e/` locations, and a micro domain that a broken chain takes down |
 
 That is fifteen projects on Compose and twenty-three on Kubernetes, three fewer on Compose and five fewer on
-Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project and spec file the target
-leaves out, with the reason.
+Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project the target
+leaves out, with the reason. It does not list the cases a micro project leaves out; see
+"The classic-only cases" below.
 
 **The Kubernetes target.** You install the cluster and what runs cluster-wide once, as
 [the Kubernetes target page](k8s/README.md) describes, and the suite owns namespace `qip-e2e`. It
@@ -151,16 +153,18 @@ logging properties and records no sessions, so seed it again:
 CIP_TARGET=k8s E2E_KEEP=1 npx playwright test --project=seed
 ```
 
-**The classic-only runtime cases.** `runtime-micro` runs every file of `specs/runtime/` and leaves
-out the cases tagged `@classic-only`. Each such case carries an annotation saying why the micro engine
-cannot run it, for example that it deploys a chain into the shared micro domain, whose pod then rolls.
-The micro case of such a deploy goes in `specs/runtime-micro-redeploy/`, which deploys each file's
-chains to a micro domain of its own through `tokenedDomain` and `deployToDomain` in
-`support/deployable.ts`.
+**The classic-only cases.** Every micro project (`runtime-micro`, `runtime-micro-redeploy`,
+`brokers-micro`, `global-micro`, and `env-micro`) leaves out the cases tagged `@classic-only`. Each
+such case carries an annotation saying why the micro engine cannot run it, for example that it
+deploys a chain into the shared micro domain, whose pod then rolls. The micro case of such a deploy
+goes in `specs/runtime-micro-redeploy/`, which deploys each file's chains to a micro domain of its
+own through `tokenedDomain` and `deployToDomain` in `support/deployable.ts`. The run header does not
+list these cases; `grep -rn '"@classic-only"' specs/` finds them, and
+`npx playwright test --list --project=runtime-micro` lists what a micro project runs.
 
-**Parity findings.** A case that passes under `runtime` and fails under `runtime-micro` is a
-finding, pinned with `strikesAsKnown` and a `ConditionalDefect` (rule 13 of the `e2e-spec-authoring`
-skill) and its issue.
+**Parity findings.** A case that passes on a classic project and fails on its micro twin is a
+finding, pinned with `strikesAsKnown` and a `ConditionalDefect` that names the micro engine (rule 13
+of the `e2e-spec-authoring` skill) and its issue.
 
 **What each target costs**, measured with the other target stopped:
 
@@ -338,8 +342,7 @@ Kubernetes run:
 Wall time 768.4 s: 935 passed, 0 failed, 0 flaky, 0 skipped.
 ```
 
-"Not run on this target" is the `absent` list: a project or spec file this target leaves out, with
-the reason. A case that did not run is not a case that passed, so read the passed, failed, and
+"Not run on this target" is the `absent` list: a project this target leaves out, with the reason. A case that did not run is not a case that passed, so read the passed, failed, and
 skipped counts off the last line. `test-results/report.json` holds the same run in machine-readable
 form.
 
@@ -465,10 +468,12 @@ pre-deploy connectivity checks would stall the whole corpus whenever a broker is
 imports the AsyncAPI services under `fixtures/broker-services/` before the chains that name them, and
 creates the run's topics, queues, exchanges, dead-letter bindings, and pub/sub subscriptions. Teardown
 deletes the run's topology and its `/upload/<run>` SFTP tree, then stops and removes the overlay
-containers. On `k8s`, `brokers-micro-seed` deploys a micro copy of the same fixtures, whose topics,
-groups, queues, exchanges, and subscriptions end in `-micro` and whose SFTP tree is
-`/upload/<run>-micro`, so the two copies never consume each other's messages. A name a broker spec
-mints itself, such as a verification consumer group, is built from the chain's own address. A kept corpus (`E2E_KEEP=1`) keeps them, and so does a teardown that left residue.
+containers. A kept corpus (`E2E_KEEP=1`) keeps them, and so does a teardown that left residue.
+
+On `k8s`, `brokers-micro-seed` deploys a micro copy of the same fixtures, whose topics, groups,
+queues, exchanges, and subscriptions end in `-micro` and whose SFTP tree is `/upload/<run>-micro`,
+so the two copies never consume each other's messages. A name a broker spec mints itself, such as
+a verification consumer group, is built from the chain's own address.
 
 On `k8s` the brokers are subcharts of `infrastructure/qip-dev`, and provisioning installs them with
 the release unless `E2E_BROKERS=0`. `brokers-seed` then only waits for each broker's rollout and
@@ -555,8 +560,10 @@ env/        the seam between a spec and whatever runs the platform: target.ts re
 k8s/        the e2e chart values, the cluster bootstrap script, and the page that installs a
             local cluster
 fixtures/   the chains the seed imports, the axis chain generator, the API documents a spec
-            imports as a specification, the frozen import corpus, and services/, the catalog
-            export specs/api/service-roundtrip.spec.ts imports
+            imports as a specification, and the frozen import corpus; services/ holds one
+            directory per service the seeds import, and the catalog export
+            specs/api/service-roundtrip.spec.ts imports; broker-services/ holds the AsyncAPI
+            services the broker seeds import
 registry/   what the suite claims to cover, and the checks that keep the claim honest
 support/    the service clients, the corpus assembler, the chain builders, the report, the page
             guard every browser spec imports, the UI bundle server, and the release-check runner
@@ -592,7 +599,8 @@ after `api`, `runtime`, `env`, and `ui`, because its reads cover every worker's 
 endpoints change state the others read. Both are `dependencies`, so a failed `ui` case skips `env`
 and `global`. The broker projects are not dependencies of `global`: its teardown ordering holds the
 broker corpus until `global` has finished, without one failing broker case skipping it.
-`runtime-micro` has no directory of its own; it runs `specs/runtime/` again.
+`runtime-micro`, `brokers-micro`, `global-micro`, and `env-micro` have no directory of their own;
+each runs files of its classic counterpart against the micro engine.
 
 The seed imports the services under `fixtures/services/` that the corpus chains call, context and
 MCP services included, then every
