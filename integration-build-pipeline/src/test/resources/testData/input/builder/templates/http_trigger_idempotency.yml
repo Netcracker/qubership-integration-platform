@@ -1,0 +1,27 @@
+id: "1c2ba1b1-1c1c-4d0e-9d3c-1a9cf3b1f7c1"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "5e9dd4b0-5e0d-4a45-8f7d-6e5b0d6a9c11"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    original-id: "b0a3f9a2-1f6f-4a4b-9a6e-2d7c9c0a5b33"
+    properties:
+      chunked: true
+      contextPath: "v1/idempotent"
+      externalRoute: true
+      accessControlType: "NONE"
+      httpMethodRestrict: "POST"
+      handleValidationAction: default
+      handleChainFailureAction: default
+      rejectRequestIfNonNullBodyGetDelete: false
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: "${headers.requestId}"
+        contextExpression: "orders"
+        actionOnDuplicate: "execute-subchain"
+        chainTriggerParameters:
+          triggerElementId: "9f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f"
+          chainCallTimeout: 30000

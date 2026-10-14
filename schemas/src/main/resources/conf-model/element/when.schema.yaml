@@ -1,0 +1,33 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/when
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: When (deprecated)
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: when
+  properties:
+    type: object
+    properties:
+      condition:
+        type: string
+        title: Condition
+        description: Predicate written using Simple language
+      priorityNumber:
+        type: integer
+        title: Priority
+        description: Determines the order of the if blocks.
+        minimum: 0
+        default: 0
+    required:
+      - condition
+    additionalProperties: false
+required:
+  - type

@@ -1,4 +1,5 @@
-import { Breadcrumb, Button, Flex, Table } from "antd";
+import { Table } from "antd";
+import { Breadcrumb, Button, Flex } from "antd";
 import { message, modal } from "../misc/antd-app.ts";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { useNavigate, useSearchParams } from "react-router";
@@ -27,6 +28,7 @@ import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
+import { shouldIgnoreRowClick } from "../components/table/rowClick.ts";
 import { nameLinkStyle } from "../components/table/nameLinkStyle.ts";
 import type { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
@@ -36,6 +38,11 @@ import {
   type ChainMetadataUpdate,
 } from "../components/modal/ChainCreate.tsx";
 import { mergeUpdatedChainInFolderItems } from "./chains/mergeUpdatedChainInFolderItems.ts";
+import {
+  collectDescendantFolderIds,
+  collectSubtreeBatches,
+} from "./chains/chainSubtree.ts";
+import type { FolderContent } from "./chains/chainSubtree.ts";
 import { copyToClipboard } from "../misc/clipboard-util.ts";
 import { traverseElementsDepthFirst } from "../misc/tree-utils.ts";
 import {
@@ -66,7 +73,7 @@ import {
 } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
@@ -80,6 +87,7 @@ const CHAINS_EXPAND_COLUMN_WIDTH = 48;
 const CHAINS_SELECTION_COLUMN_WIDTH = 48;
 import { Domain } from "../components/SelectDomains.tsx";
 import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
+import { useTableRowExpandCollapse } from "../components/table/useTableRowExpandCollapse.ts";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -132,18 +140,6 @@ type Operation = {
 
 const chainExpandIcon = treeExpandIcon<ChainTableItem>();
 
-// A row click opens the details drawer, except on interactive controls and the
-// table's own selection/expand cells. The portaled actions menu stops its own
-// click (see the menu onClick below).
-const ROW_CLICK_IGNORE_SELECTOR =
-  "a, button, input, label, .ant-table-selection-column, .ant-table-row-expand-icon";
-
-function shouldIgnoreRowClick(target: EventTarget | null): boolean {
-  return (
-    target instanceof Element && !!target.closest(ROW_CLICK_IGNORE_SELECTOR)
-  );
-}
-
 const Chains = () => {
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
@@ -156,7 +152,6 @@ const Chains = () => {
   const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
   const [searchParams] = useSearchParams();
   const [folderPath, setFolderPath] = useState<FolderItem[]>([]);
-  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [searchString, setSearchString] = useState<string>("");
   const [detailsChain, setDetailsChain] = useState<ChainItem | null>(null);
@@ -166,6 +161,84 @@ const Chains = () => {
   const notificationService = useNotificationService();
   const { filters, filterButton } = useChainFilters();
   const { showGenerateDdsModal } = useGenerateDds();
+
+  const getChainSubtreeIds = useCallback(
+    (record: ChainTableItem | FolderItem): React.Key[] => {
+      if (record.itemType !== CatalogItemType.FOLDER) {
+        return [record.id];
+      }
+      return collectDescendantFolderIds(record.id, folderItems);
+    },
+    [folderItems],
+  );
+
+  const ensureChainSubtreeLoaded = useCallback(
+    async (record: ChainTableItem | FolderItem): Promise<React.Key[]> => {
+      if (record.itemType !== CatalogItemType.FOLDER) {
+        return [record.id];
+      }
+      const knownLoaded = new Set<string>(loadedFolders);
+      const visited = new Set<string>();
+      const needsFetch = !knownLoaded.has(record.id);
+      if (needsFetch) {
+        setIsLoading(true);
+      }
+      let batches: FolderContent[];
+      try {
+        batches = await collectSubtreeBatches(record.id, {
+          folderItems,
+          knownLoaded,
+          visited,
+          filters,
+          searchString,
+          notifyLoadFailed: (error) =>
+            notificationService.requestFailed(
+              "Failed to get folder content",
+              error,
+            ),
+        });
+      } finally {
+        if (needsFetch) {
+          setIsLoading(false);
+        }
+      }
+      if (batches.length === 0) {
+        return collectDescendantFolderIds(record.id, folderItems);
+      }
+      const flat = batches.flat();
+      setFolderItems((prev) => {
+        const prevIds = new Set(prev.map((item) => item.id));
+        const fresh = flat.filter((item) => !prevIds.has(item.id));
+        return fresh.length > 0 ? [...prev, ...fresh] : prev;
+      });
+      setLoadedFolders((prev) => {
+        const next = new Set(prev);
+        flat.forEach((item) => {
+          if (item.itemType === CatalogItemType.FOLDER) {
+            next.add(item.id);
+          }
+        });
+        return next;
+      });
+      const prevIds = new Set(folderItems.map((item) => item.id));
+      const freshItems = flat.filter((item) => !prevIds.has(item.id));
+      return collectDescendantFolderIds(record.id, [
+        ...folderItems,
+        ...freshItems,
+      ]);
+    },
+    [folderItems, loadedFolders, filters, searchString, notificationService],
+  );
+
+  const {
+    expandedRowKeys,
+    setExpandedRowKeys,
+    expandSubtree,
+    collapseSubtree,
+  } = useTableRowExpandCollapse<ChainTableItem | FolderItem>({
+    getSubtreeIds: getChainSubtreeIds,
+    ensureLoaded: ensureChainSubtreeLoaded,
+  });
 
   const getFolderId = useCallback((): string | undefined => {
     return searchParams.get("folder") ?? undefined;
@@ -854,11 +927,19 @@ const Chains = () => {
   };
 
   const onDeployBtnClick = () => {
-    if (selectedRowKeys.length > 0) {
+    const chainIds = folderItems
+      .filter(
+        (i) =>
+          selectedRowKeys.includes(i.id) &&
+          i.itemType === CatalogItemType.CHAIN,
+      )
+      .map((i) => i.id);
+    if (chainIds.length > 0) {
       showModal({
         component: (
           <DeployChains
-            chainCount={selectedRowKeys.length}
+            chainCount={chainIds.length}
+            chainIds={chainIds}
             onSubmit={(request: DeployRequest) => deploySelectedChains(request)}
           />
         ),
@@ -976,6 +1057,10 @@ const Chains = () => {
         return exportChainsWithOptions([item.id]);
       case "generateDDS":
         return showGenerateDdsModal(item.id);
+      case "expandAll":
+        return void expandSubtree(item);
+      case "collapseAll":
+        return collapseSubtree(item);
       default:
         return modal.error({ title: "Not implemented yet" });
     }
@@ -1172,6 +1257,7 @@ const Chains = () => {
               size="small"
               type="text"
               icon={<OverridableIcon name="more" />}
+              data-testid="chains-row-actions"
             />
           </ProtectedDropdown>
         </>
@@ -1182,25 +1268,30 @@ const Chains = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<ChainTableItem>("chainsTable", columns);
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 220,
-        id: 200,
-        description: 240,
-        status: 200,
-        labels: 200,
-        createdBy: 120,
-        createdWhen: 168,
-        modifiedBy: 120,
-        modifiedWhen: 168,
-      },
-      {
-        expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
-        selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
-      },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 220,
+      id: 200,
+      description: 240,
+      status: 200,
+      labels: 200,
+      createdBy: 120,
+      createdWhen: 168,
+      modifiedBy: 120,
+      modifiedWhen: 168,
+    },
+    {
+      expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
+    },
+    "chainsTable",
+  );
 
   const rowSelection: TableRowSelection<ChainTableItem> = {
     type: "checkbox",
@@ -1231,6 +1322,7 @@ const Chains = () => {
     <>
       <Flex vertical gap={16} className={styles.container}>
         <TableToolbar
+          refresh={{ onRefresh: updateFolderItems, loading: isLoading }}
           leading={
             <Flex
               align="center"
@@ -1255,8 +1347,13 @@ const Chains = () => {
           }
           trailing={
             <>
-              {filterButton}
-              <span style={{ flexShrink: 0 }}>{columnSettingsButton}</span>
+              <span data-testid="chains-filter">{filterButton}</span>
+              <span
+                data-testid="chains-column-settings"
+                style={{ flexShrink: 0 }}
+              >
+                {columnSettingsButton}
+              </span>
               <ProtectedButton
                 require={{ chain: ["read"] }}
                 tooltipProps={{
@@ -1264,6 +1361,7 @@ const Chains = () => {
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "chains-compare",
                   iconName: "compare",
                   disabled: selectedChains.length !== 2,
                   onClick: onCompareChainsBtnClick,
@@ -1273,6 +1371,7 @@ const Chains = () => {
                 require={{ chain: ["create"] }}
                 tooltipProps={{ title: "Paste", placement: "bottom" }}
                 buttonProps={{
+                  "data-testid": "chains-paste",
                   iconName: "carryOut",
                   onClick: () => {
                     Promise.resolve(pasteItem(getFolderId())).catch(
@@ -1288,7 +1387,9 @@ const Chains = () => {
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "chains-deploy",
                   iconName: "send",
+                  disabled: selectedChains.length === 0,
                   onClick: onDeployBtnClick,
                 }}
               />
@@ -1299,6 +1400,7 @@ const Chains = () => {
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "chains-export",
                   iconName: "cloudDownload",
                   onClick: onExportBtnClick,
                 }}
@@ -1307,6 +1409,7 @@ const Chains = () => {
                 require={{ chain: ["export"] }}
                 tooltipProps={{ title: "Import chains", placement: "bottom" }}
                 buttonProps={{
+                  "data-testid": "chains-import",
                   iconName: "cloudUpload",
                   onClick: onImportBtnClick,
                 }}
@@ -1318,6 +1421,7 @@ const Chains = () => {
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "chains-delete",
                   iconName: "delete",
                   onClick: onDeleteBtnClick,
                 }}
@@ -1358,6 +1462,7 @@ const Chains = () => {
           locale={{ emptyText: tableEmpty("No chains or folders") }}
           scroll={tableScroll(scrollX, tableItems.length)}
           components={components}
+          onChange={handleConfiguredTableChange}
           rowKey="id"
           rowClassName={(record) =>
             [

@@ -45,6 +45,7 @@ import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 import { exportAdditionsForChains } from "../misc/export-additions.ts";
 import { generateSequenceDiagrams } from "../diagrams/main.ts";
 import { Domain } from "../components/SelectDomains.tsx";
+import { toDomains } from "../misc/domain-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
@@ -204,11 +205,19 @@ const ChainGraphInner: React.FC = () => {
     [chainId, chainContext, notificationService],
   );
 
+  const chainDeployments = chainContext?.chain?.deployments;
+
   const openSaveAndDeployDialog = useCallback(() => {
     showModal({
-      component: <SaveAndDeploy chainId={chainId} onSubmit={saveAndDeploy} />,
+      component: (
+        <SaveAndDeploy
+          chainId={chainId}
+          initialDomains={toDomains(chainDeployments)}
+          onSubmit={saveAndDeploy}
+        />
+      ),
     });
-  }, [showModal, chainId, saveAndDeploy]);
+  }, [showModal, chainId, chainDeployments, saveAndDeploy]);
 
   const exportChain = useCallback(
     async (chainIdParam: string | undefined, options: ExportChainOptions) => {

@@ -1,10 +1,26 @@
 import { Chain } from "../../../api/apiTypes.ts";
 import { Change } from "./compare/types.ts";
-import React, { useEffect, useState } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import yaml, { DumpOptions } from "js-yaml";
 import { DiffEditor } from "@monaco-editor/react";
-import { useMonacoTheme } from "../../../hooks/useMonacoTheme.ts";
+import type * as monacoNs from "monaco-editor";
+import type { editor } from "monaco-editor";
+import {
+  applyVSCodeThemeToMonaco,
+  useMonacoTheme,
+} from "../../../hooks/useMonacoTheme.ts";
 import { buildElementMap } from "./compare/compare.ts";
+import styles from "./ChainDiffTextView.module.css";
+
+type Monaco = typeof monacoNs;
+export type DiffNavigationDirection = "next" | "previous";
 
 export type ChainDiffTextViewProps = {
   chain1?: Chain;
@@ -12,6 +28,10 @@ export type ChainDiffTextViewProps = {
   changes: Change[];
   selectedChangeId?: string;
   onSelectChange: (id: string) => void;
+};
+
+export type ChainDiffTextViewHandle = {
+  goToDiff: (direction: DiffNavigationDirection) => void;
 };
 
 const IGNORED_PROPERTIES = new Set<string>([
@@ -63,16 +83,33 @@ export function dumpYaml(chain: Chain, m: Map<string, string>): string {
   return yaml.dump(chain, options);
 }
 
-export const ChainDiffTextView: React.FC<ChainDiffTextViewProps> = ({
-  chain1,
-  chain2,
-}): React.ReactNode => {
+export const ChainDiffTextView = forwardRef<
+  ChainDiffTextViewHandle,
+  ChainDiffTextViewProps
+>(({ chain1, chain2 }, ref): React.ReactNode => {
   const [elementMap, setElementMap] = useState<Map<string, string>>(
     new Map<string, string>(),
   );
   const [yaml1, setYaml1] = useState<string>("");
   const [yaml2, setYaml2] = useState<string>("");
   const monacoTheme = useMonacoTheme();
+  const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      goToDiff: (direction) => editorRef.current?.goToDiff(direction),
+    }),
+    [],
+  );
+
+  const handleMount = useCallback(
+    (editorInstance: editor.IStandaloneDiffEditor, monaco: Monaco) => {
+      editorRef.current = editorInstance;
+      applyVSCodeThemeToMonaco(monaco);
+    },
+    [],
+  );
 
   useEffect(() => {
     setYaml1(chain1 ? dumpYaml(chain1, new Map<string, string>()) : "");
@@ -91,19 +128,26 @@ export const ChainDiffTextView: React.FC<ChainDiffTextViewProps> = ({
   }, [chain1, chain2]);
 
   return (
-    <DiffEditor
-      className="qip-editor"
-      originalLanguage={"yaml"}
-      modifiedLanguage={"yaml"}
-      original={yaml1}
-      modified={yaml2}
-      theme={monacoTheme}
-      options={{
-        readOnly: true,
-        originalAriaLabel: "Body Before",
-        modifiedAriaLabel: "Body After",
-        automaticLayout: true,
-      }}
-    />
+    <div className={styles.fill}>
+      <DiffEditor
+        className="qip-editor"
+        height="calc(90vh - 14rem)"
+        wrapperProps={{ "data-testid": "chain-diff-editor" }}
+        originalLanguage={"yaml"}
+        modifiedLanguage={"yaml"}
+        original={yaml1}
+        modified={yaml2}
+        theme={monacoTheme}
+        options={{
+          readOnly: true,
+          originalAriaLabel: "Body Before",
+          modifiedAriaLabel: "Body After",
+          automaticLayout: true,
+        }}
+        onMount={handleMount}
+      />
+    </div>
   );
-};
+});
+
+ChainDiffTextView.displayName = "ChainDiffTextView";

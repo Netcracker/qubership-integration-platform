@@ -137,8 +137,9 @@ export const useVariablesState = ({
     async (keys: string[]) => {
       if (!exportVariables) return;
       try {
-        await exportVariables(keys);
-        message.success("Exported");
+        if (await exportVariables(keys)) {
+          message.success("Exported");
+        }
       } catch (error) {
         notificationService.requestFailed("Failed to export", error);
       }

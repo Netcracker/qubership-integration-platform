@@ -43,6 +43,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -125,8 +126,14 @@ public abstract class DeploymentMapper {
                 .build();
     }
 
-    @Mapping(source = "snapshotId", target = "snapshot.id")
-    public abstract Deployment asEntity(DeploymentRequest request);
+    public Deployment asEntity(DeploymentRequest request) {
+        Deployment deployment = new Deployment();
+        deployment.setName(request.getName());
+        deployment.setDomain(request.getDomain());
+        Optional.ofNullable(request.getSuspended()).ifPresent(deployment::setSuspended);
+        deployment.setSnapshot(snapshotService.findById(request.getSnapshotId()));
+        return deployment;
+    }
 
     public List<Deployment> asEntities(List<DeploymentRequest> request) {
         return request.stream().map(this::asEntity).collect(Collectors.toList());

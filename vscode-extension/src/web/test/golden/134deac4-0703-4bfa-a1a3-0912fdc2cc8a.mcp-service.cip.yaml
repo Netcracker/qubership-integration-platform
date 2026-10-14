@@ -1,0 +1,7 @@
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service
+id: 134deac4-0703-4bfa-a1a3-0912fdc2cc8a
+name: vsc-created-mcp
+content:
+  identifier: vscCreatedMcp
+  instructions: ""
+  description: Created as MCP

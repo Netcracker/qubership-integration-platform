@@ -3,9 +3,10 @@ package org.qubership.integration.platform.runtime.catalog.service.deployment.pr
 import com.netcracker.cloud.dbaas.client.config.MSInfoProvider;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.configuration.tenant.TenantConfiguration;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -28,10 +29,10 @@ public class MaasPropertiesUtils {
         this.msInfoProvider = msInfoProvider;
     }
 
-    public void enrichWithMaasEnvProperties(ChainElement element, @NotNull Map<String, String> elementProperties) {
-        String maasClassifierNamespace = element.getPropertyAsString(CamelOptions.MAAS_CLASSIFIER_NAMESPACE_PROP);
-        String maasTenantTopicEnabled = element.getPropertyAsString(MAAS_CLASSIFIER_TENANT_ENABLED_PROP);
-        String maasTenantId = element.getPropertyAsString(MAAS_CLASSIFIER_TENANT_ID_PROP);
+    public void enrichWithMaasEnvProperties(Element element, @NotNull Map<String, String> elementProperties) {
+        String maasClassifierNamespace = ElementUtils.getPropertyAsString(element, CamelOptions.MAAS_CLASSIFIER_NAMESPACE_PROP);
+        String maasTenantTopicEnabled = ElementUtils.getPropertyAsString(element, MAAS_CLASSIFIER_TENANT_ENABLED_PROP);
+        String maasTenantId = ElementUtils.getPropertyAsString(element, MAAS_CLASSIFIER_TENANT_ID_PROP);
 
         elementProperties.put(
                 CamelOptions.MAAS_CLASSIFIER_NAMESPACE_PROP,

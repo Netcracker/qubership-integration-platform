@@ -18,7 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.persistence.configs.r
 
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ConfigParameter;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
+import java.sql.Timestamp;
 import java.util.List;
 
 public interface ConfigParameterRepository extends JpaRepository<ConfigParameter, String> {
@@ -30,5 +33,16 @@ public interface ConfigParameterRepository extends JpaRepository<ConfigParameter
     void deleteByNamespaceAndName(String namespace, String name);
 
     void deleteAllByNamespace(String namespace);
+
+    // Returns 1 if it took the lock: the row was missing, released, or last taken before staleBefore.
+    @Modifying
+    @Query(
+            nativeQuery = true,
+            value = """
+                INSERT INTO catalog.config_parameters (id, namespace, name, value_type, value, created_when, modified_when)
+                VALUES (:id, :namespace, :name, 'BOOLEAN', 'true', :now, :now)
+                ON CONFLICT (namespace, name) DO UPDATE SET value = 'true', modified_when = :now
+                WHERE config_parameters.value = 'false' OR config_parameters.modified_when < :staleBefore""")
+    int acquireLock(String id, String namespace, String name, Timestamp now, Timestamp staleBefore);
 
 }

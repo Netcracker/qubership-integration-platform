@@ -162,6 +162,7 @@ const config: Config = {
     "<rootDir>/tests/setup/jest-dom.ts",
     "<rootDir>/tests/setup/jsdom-navigation.ts",
     "<rootDir>/tests/setup/intersection-observer.ts",
+    "<rootDir>/tests/setup/crypto-random-uuid.ts",
   ],
 
   // The number of seconds after which a test is considered as slow and reported as such in the results.
@@ -195,7 +196,7 @@ const config: Config = {
   ],
 
   // An array of regexp pattern strings that are matched against all test paths, matched tests are skipped
-  testPathIgnorePatterns: ["\\\\node_modules\\\\"],
+  testPathIgnorePatterns: ["\\\\node_modules\\\\", "[\\\\/]scripts[\\\\/]"],
 
   // The regexp pattern or array of patterns that Jest uses to detect test files
   // testRegex: [],

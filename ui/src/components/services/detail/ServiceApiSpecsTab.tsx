@@ -603,6 +603,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 require={{ specificationGroup: ["import"] }}
                 tooltipProps={{ title: "Add Specification Group" }}
                 buttonProps={{
+                  "data-testid": "api-specs-add-group",
                   type: "primary",
                   iconName: "plus",
                   onClick: onImportSpecGroupClick,

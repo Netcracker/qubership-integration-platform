@@ -1,0 +1,13 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Entity with description
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  description:
+    type: string
+    title: Description

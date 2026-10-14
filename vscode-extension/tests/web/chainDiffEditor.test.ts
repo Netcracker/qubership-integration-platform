@@ -88,8 +88,8 @@ describe("registerChainDiffMessageHandlers", () => {
   test("responds to comparedDocumentsRequest", async () => {
     const panel = createPanel();
     const documents = {
-      original: createDocument("/original.chain.qip.yaml", "original"),
-      modified: createDocument("/modified.chain.qip.yaml", "modified"),
+      original: createDocument("/original.chain.cip.yaml", "original"),
+      modified: createDocument("/modified.chain.cip.yaml", "modified"),
     };
 
     registerChainDiffMessageHandlers({

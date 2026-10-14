@@ -81,7 +81,6 @@ import type {
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
   CustomResourceBuildRequest,
   MicroDomainDeployRequest,
   BulkMicroDomainDeployResult,
@@ -96,6 +95,19 @@ import type {
   MCPSystemCreateRequest,
   MCPSystemUpdateRequest,
   ChainSnapshot,
+  TestingServiceMode,
+  TestingSelectionSpecification,
+  TestingListOptions,
+  TestCase,
+  TestCaseView,
+  TestCaseRequest,
+  TestingImportResult,
+  EndpointMock,
+  EndpointMockRequest,
+  TestsRunView,
+  TestsRunSource,
+  TestCaseRunView,
+  TestingValidationError,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -337,11 +349,18 @@ export interface Api {
   getServices(
     modelType: string,
     withSpec: boolean,
+    includeChainUsage?: boolean,
   ): Promise<IntegrationSystem[]>;
 
-  filterServices(filters: EntityFilterModel[]): Promise<IntegrationSystem[]>;
+  filterServices(
+    filters: EntityFilterModel[],
+    includeChainUsage?: boolean,
+  ): Promise<IntegrationSystem[]>;
 
-  searchServices(searchCondition: string): Promise<IntegrationSystem[]>;
+  searchServices(
+    searchCondition: string,
+    includeChainUsage?: boolean,
+  ): Promise<IntegrationSystem[]>;
 
   createService(system: SystemRequest): Promise<IntegrationSystem>;
 
@@ -593,11 +612,9 @@ export interface Api {
 
   updateHttpTriggerAccessControl(
     searchRequest: AccessControlUpdateRequest[],
-  ): Promise<AccessControlResponse>;
+  ): Promise<void>;
 
-  bulkDeployChainsAccessControl(
-    searchRequest: AccessControlBulkDeployRequest[],
-  ): Promise<AccessControlResponse>;
+  bulkDeployChainsAccessControl(chainIds: string[]): Promise<void>;
 
   runServiceDiscovery(): Promise<unknown>;
 
@@ -668,6 +685,93 @@ export interface Api {
   getChainSnapshot(snapshotId: string): Promise<ChainSnapshot>;
 
   extractChain(archive: File, chainId: string): Promise<Chain>;
+
+  getTestingServiceMode(): Promise<TestingServiceMode>;
+
+  getTestCases(
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<TestCaseView[]>;
+
+  getTestCaseIds(
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]>;
+
+  getTestCase(id: string): Promise<TestCaseView>;
+
+  createTestCase(testCase: TestCaseRequest): Promise<TestCase>;
+
+  updateTestCase(id: string, testCase: TestCaseRequest): Promise<TestCase>;
+
+  deleteTestCases(ids: string[]): Promise<void>;
+
+  importTestCases(files: File[]): Promise<TestingImportResult[]>;
+
+  exportTestCases(ids: string[]): Promise<File>;
+
+  getEndpointMocks(
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<EndpointMock[]>;
+
+  getEndpointMockIds(
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]>;
+
+  getEndpointMock(id: string): Promise<EndpointMock>;
+
+  createEndpointMock(endpointMock: EndpointMockRequest): Promise<EndpointMock>;
+
+  updateEndpointMock(
+    id: string,
+    endpointMock: EndpointMockRequest,
+  ): Promise<EndpointMock>;
+
+  deleteEndpointMocks(ids: string[]): Promise<void>;
+
+  importEndpointMocks(files: File[]): Promise<TestingImportResult[]>;
+
+  exportEndpointMocks(ids: string[]): Promise<File>;
+
+  getTestsRuns(
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<TestsRunView[]>;
+
+  getTestsRunIds(
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]>;
+
+  deleteTestsRuns(ids: string[]): Promise<void>;
+
+  cancelTestsRuns(ids: string[]): Promise<void>;
+
+  exportTestsRuns(ids: string[]): Promise<File>;
+
+  startTestsRun(ids: string[], from?: TestsRunSource): Promise<string>;
+
+  getTestCaseRuns(
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<TestCaseRunView[]>;
+
+  getTestCaseRunIds(
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]>;
+
+  getTestCaseRun(id: string): Promise<TestCaseRunView>;
+
+  cancelTestCaseRuns(ids: string[]): Promise<void>;
+
+  exportTestCaseRuns(ids: string[]): Promise<File>;
+
+  getTestCaseRunErrors(
+    testCaseRunId: string,
+  ): Promise<TestingValidationError[]>;
+
+  exportTestCaseRunErrors(ids: string[]): Promise<File>;
+
+  getSessionByExternalId(externalSessionId: string): Promise<Session>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

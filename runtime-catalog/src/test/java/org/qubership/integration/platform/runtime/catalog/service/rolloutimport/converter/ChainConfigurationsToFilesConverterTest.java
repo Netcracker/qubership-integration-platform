@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ChainConfigurationsToFilesConverterTest {
 
-    private static final String APP_PREFIX = "qip";
+    private static final String APP_NAME = "cip";
     private static final String CHAIN_ID = "chain-abc";
 
     private ObjectMapper objectMapper;
@@ -26,7 +26,7 @@ class ChainConfigurationsToFilesConverterTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        converter = new ChainConfigurationsToFilesConverter(objectMapper, APP_PREFIX, Collections.emptyList());
+        converter = new ChainConfigurationsToFilesConverter(objectMapper, Collections.emptyList());
     }
 
     @Test
@@ -38,10 +38,10 @@ class ChainConfigurationsToFilesConverterTest {
     }
 
     @Test
-    @DisplayName("Single chain config creates file at {chainId}/{chainId}.chain.{appPrefix}.yaml")
+    @DisplayName("Single chain config creates file at {chainId}/{chainId}.chain.cip.yaml")
     void singleChainConfigCreatesCorrectFilePath() throws JsonProcessingException {
         RolloutImportConfigurationItem item = chainItem(CHAIN_ID, objectMapper.createObjectNode());
-        Path expectedPath = Path.of(CHAIN_ID).resolve(CHAIN_ID + ".chain." + APP_PREFIX + ".yaml");
+        Path expectedPath = Path.of(CHAIN_ID).resolve(CHAIN_ID + ".chain." + APP_NAME + ".yaml");
 
         Map<Path, byte[]> result = converter.convert(Map.of(CHAIN_ID, item), Collections.emptyMap());
 
@@ -102,7 +102,7 @@ class ChainConfigurationsToFilesConverterTest {
         Path missingPath = Path.of(CHAIN_ID).resolve("missing-file.groovy");
         assertThat(result).doesNotContainKey(missingPath);
         // chain yaml file is still present
-        Path chainFilePath = Path.of(CHAIN_ID).resolve(CHAIN_ID + ".chain." + APP_PREFIX + ".yaml");
+        Path chainFilePath = Path.of(CHAIN_ID).resolve(CHAIN_ID + ".chain." + APP_NAME + ".yaml");
         assertThat(result).containsKey(chainFilePath);
     }
 
@@ -118,7 +118,7 @@ class ChainConfigurationsToFilesConverterTest {
         Map<Path, byte[]> result = converter.convert(configs, Collections.emptyMap());
 
         for (String id : chainIds) {
-            Path expected = Path.of(id).resolve(id + ".chain." + APP_PREFIX + ".yaml");
+            Path expected = Path.of(id).resolve(id + ".chain." + APP_NAME + ".yaml");
             assertThat(result).containsKey(expected);
         }
     }

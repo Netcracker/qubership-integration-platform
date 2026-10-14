@@ -1,0 +1,24 @@
+---
+name: Integration Build Pipeline Library Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'integration-build-pipeline/**'
+      - 'parent/**'
+      - 'pom.xml'
+
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_maven-module-build.yaml
+    with:
+      module: integration-build-pipeline
+      sonar-project-key: ${{ vars.SONAR_INTEGRATION_BUILD_PIPELINE_PROJECT_KEY }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

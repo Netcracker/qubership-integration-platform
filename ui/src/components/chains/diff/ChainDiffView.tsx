@@ -1,5 +1,5 @@
 import { Col, Flex, FlexProps, Row, Spin } from "antd";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ChainDiffViewControls,
   DiffViewType,
@@ -7,7 +7,10 @@ import {
 import { ChainDiffTableView } from "./ChainDiffTableView.tsx";
 import { ChainDiffGraphView } from "./ChainDiffGraphView.tsx";
 import { ElementSchemasProvider } from "./ElementSchemasProvider.tsx";
-import { ChainDiffTextView } from "./ChainDiffTextView.tsx";
+import {
+  ChainDiffTextView,
+  ChainDiffTextViewHandle,
+} from "./ChainDiffTextView.tsx";
 import { ComparedItemSelector } from "./ComparedItemSelector.tsx";
 import { ComparableItem, useChainDiff } from "./useChainDiff.tsx";
 import styles from "./ChainDiffView.module.css";
@@ -25,6 +28,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
   item2,
   editable1,
   editable2,
+  className,
   ...rest
 }): React.ReactNode => {
   const [i1, setI1] = useState<ComparableItem>(item1);
@@ -39,11 +43,17 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
   } = useChainDiff(i1, i2);
 
   const [viewType, setViewType] = useState<DiffViewType>("graph");
+  const textViewRef = useRef<ChainDiffTextViewHandle>(null);
 
   return isLoading ? (
     <Spin className={styles.loader} size={"large"}></Spin>
   ) : (
-    <Flex {...rest} vertical gap={8}>
+    <Flex
+      {...rest}
+      className={[className, styles.root].filter(Boolean).join(" ")}
+      vertical
+      gap={8}
+    >
       <Row gutter={16} align="middle">
         <Col span={12}>
           <DiffDocumentContextProvider type={"left"}>
@@ -66,10 +76,21 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
         </Col>
       </Row>
       <ChainDiffViewControls
+        viewType={viewType}
         changes={changes ?? []}
         selectedChangeId={selectedChangeId}
         onSelectChange={setSelectedChangeId}
         onViewTypeChange={(viewType) => setViewType(viewType)}
+        onPreviousChange={
+          viewType === "text"
+            ? () => textViewRef.current?.goToDiff("previous")
+            : undefined
+        }
+        onNextChange={
+          viewType === "text"
+            ? () => textViewRef.current?.goToDiff("next")
+            : undefined
+        }
       />
       <ElementSchemasProvider>
         {viewType === "graph" ? (
@@ -89,13 +110,16 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
             onSelectChange={setSelectedChangeId}
           />
         ) : (
-          <ChainDiffTextView
-            chain1={chain1}
-            chain2={chain2}
-            changes={changes ?? []}
-            selectedChangeId={selectedChangeId}
-            onSelectChange={setSelectedChangeId}
-          />
+          <div className={styles.textHost}>
+            <ChainDiffTextView
+              ref={textViewRef}
+              chain1={chain1}
+              chain2={chain2}
+              changes={changes ?? []}
+              selectedChangeId={selectedChangeId}
+              onSelectChange={setSelectedChangeId}
+            />
+          </div>
         )}
       </ElementSchemasProvider>
     </Flex>

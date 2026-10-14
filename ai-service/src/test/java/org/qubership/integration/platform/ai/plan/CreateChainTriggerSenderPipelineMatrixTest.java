@@ -511,9 +511,8 @@ class CreateChainTriggerSenderPipelineMatrixTest {
       properties.addAll(node.properties());
     }
     for (Map.Entry<String, String> seed : seeds.entrySet()) {
-      if (properties.stream().noneMatch(property -> seed.getKey().equals(property.key()))) {
-        properties.add(new PlanProperty(seed.getKey(), seed.getValue()));
-      }
+      properties.removeIf(property -> seed.getKey().equals(property.key()));
+      properties.add(new PlanProperty(seed.getKey(), seed.getValue()));
     }
     for (String required :
         CONTRACT.elements().get(elementType).requiredProperties()) {

@@ -79,7 +79,7 @@ class ContextLoaderProcessorTest {
         SessionInfo parentSession = mock(SessionInfo.class);
         SessionInfo originalSession = mock(SessionInfo.class);
 
-        when(checkpointSessionService.findCheckpoint(
+        when(checkpointSessionService.findCheckpointForRestore(
                 "a7d6d278-87db-43f8-8cda-2d23f6b7f0b1",
                 "f2b4f91e-4fd5-43e8-b9b9-fcb4c7b7e28a",
                 "e93ad8d0-a925-4b89-b6d0-551be4ee2a77"
@@ -142,7 +142,7 @@ class ContextLoaderProcessorTest {
         when(checkpointInfo.chainId()).thenReturn("46a4ce5f-a4f4-4f57-8f88-3f7463220de1");
         when(checkpointInfo.checkpointElementId()).thenReturn("7f9f42e8-c089-4236-9f87-5bbd6e2e0c10");
 
-        when(checkpointSessionService.findCheckpoint(
+        when(checkpointSessionService.findCheckpointForRestore(
                 "4d0d2a1e-7b63-44f6-9f97-bdf83ff8d4de",
                 "46a4ce5f-a4f4-4f57-8f88-3f7463220de1",
                 "7f9f42e8-c089-4236-9f87-5bbd6e2e0c10"

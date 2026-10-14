@@ -21,16 +21,19 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.*;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ActionLogException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.InvalidEnumConstantException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.filter.ActionLogFilterColumn;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.service.filter.FilterConditionPredicateBuilderFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository {
@@ -41,29 +44,48 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
             ActionLogFilterColumn.PARENT_ID, Pair.of("parentId", Function.identity()),
             ActionLogFilterColumn.PARENT_NAME, Pair.of("parentName", Function.identity()),
             ActionLogFilterColumn.REQUEST_ID, Pair.of("requestId", Function.identity()),
-            ActionLogFilterColumn.OPERATION, Pair.of("operation", LogOperation::valueOf),
-            ActionLogFilterColumn.ENTITY_TYPE, Pair.of("entityType", EntityType::valueOf),
+            ActionLogFilterColumn.OPERATION, Pair.of("operation", enumConverter(LogOperation.class)),
+            ActionLogFilterColumn.ENTITY_TYPE, Pair.of("entityType", enumConverter(EntityType.class)),
             ActionLogFilterColumn.ACTION_TIME, Pair.of("actionTime", Function.identity()),
             ActionLogFilterColumn.INITIATOR, Pair.of("user.username", Function.identity())
     );
     private static final String ACTION_TIME_COLUMN = "actionTime";
+    private static final List<String> SEARCH_COLUMNS = List.of(
+            "user.username", "user.id", "operation", "requestId",
+            "entityType", "entityName", "entityId", "parentType", "parentName", "parentId");
+
+    // valueOf() throws past the handler that would answer 400, so the caller used to get a 500
+    // carrying the enum's fully qualified name.
+    private static <E extends Enum<E>> Function<String, E> enumConverter(Class<E> type) {
+        return value -> {
+            try {
+                return Enum.valueOf(type, value);
+            } catch (IllegalArgumentException exception) {
+                throw new BadRequestException("Value " + value + " is not supported. Supported values: "
+                        + Arrays.toString(type.getEnumConstants()));
+            }
+        };
+    }
 
     @PersistenceContext
     private EntityManager entityManager;
 
+    @Autowired
+    private FilterConditionPredicateBuilderFactory filterConditionPredicateBuilderFactory;
+
 
     @Override
     public List<ActionLog> findActionLogsByFilter(
-            Timestamp offsetTime, long rangeTime, List<ActionLogFilterRequestDTO> filters) throws InvalidEnumConstantException {
+            Timestamp offsetTime, long rangeTime, List<ActionLogFilterRequestDTO> filters) {
         CriteriaQuery<ActionLog> query = buildFilterQuery(offsetTime, rangeTime, filters);
         return entityManager.createQuery(query).getResultList();
     }
 
     @Override
     public List<ActionLog> findActionLogsByFilter(
-        int offset, int limit, List<ActionLogFilterRequestDTO> filters) {
+        int offset, int limit, List<ActionLogFilterRequestDTO> filters, String searchString) {
 
-        CriteriaQuery<ActionLog> query = buildFilterOnlyQuery(filters);
+        CriteriaQuery<ActionLog> query = buildFilterOnlyQuery(filters, searchString);
 
         return entityManager.createQuery(query)
             .setFirstResult(offset)
@@ -98,7 +120,7 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
     }
 
     // without time window
-    private CriteriaQuery<ActionLog> buildFilterOnlyQuery(List<ActionLogFilterRequestDTO> filters) {
+    private CriteriaQuery<ActionLog> buildFilterOnlyQuery(List<ActionLogFilterRequestDTO> filters, String searchString) {
         CriteriaBuilder builder = entityManager.getCriteriaBuilder();
         CriteriaQuery<ActionLog> query = builder.createQuery(ActionLog.class);
         Root<ActionLog> actionLog = query.from(ActionLog.class);
@@ -107,6 +129,9 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
         List<ActionLogFilterRequestDTO> mutableFilters = new ArrayList<>(filters);
         removeRedundantFilters(mutableFilters);
         addFiltersToQuery(mutableFilters, builder, actionLog, predicates);
+        if (searchString != null) {
+            predicates.add(buildSearchPredicate(searchString, builder, actionLog));
+        }
 
         query.select(actionLog);
         if (!predicates.isEmpty()) {
@@ -119,7 +144,7 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
     private CriteriaQuery<ActionLog> buildFilterQuery(
             Timestamp offsetTime,
             long rangeTime,
-            List<ActionLogFilterRequestDTO> filters) throws InvalidEnumConstantException {
+            List<ActionLogFilterRequestDTO> filters) {
         CriteriaBuilder builder = entityManager.getCriteriaBuilder();
         CriteriaQuery<ActionLog> query = builder.createQuery(ActionLog.class);
         Root<ActionLog> actionLog = query.from(ActionLog.class);
@@ -158,10 +183,7 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
                 }
 
                 if (filter.getColumn() == actionLogFilterColumn) {
-                    Path valuePath = actionLog;
-                    for (String path : columnName.split("\\.")) {
-                        valuePath = valuePath.get(path);
-                    }
+                    Path valuePath = resolvePath(actionLog, columnName);
                     switch (filter.getCondition()) {
                         case IS -> predicates.add(builder.equal(valuePath, value));
                         case IS_NOT -> predicates.add(builder.notEqual(valuePath, value));
@@ -199,6 +221,22 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
                 }
             }
         }
+    }
+
+    private Predicate buildSearchPredicate(String searchString, CriteriaBuilder builder, Root<ActionLog> actionLog) {
+        BiFunction<Expression<Object>, Object, Predicate> contains =
+                filterConditionPredicateBuilderFactory.getPredicateBuilder(builder, FilterCondition.CONTAINS);
+        return builder.or(SEARCH_COLUMNS.stream()
+                .map(column -> contains.apply(resolvePath(actionLog, column), searchString))
+                .toArray(Predicate[]::new));
+    }
+
+    private static Path resolvePath(Root<ActionLog> actionLog, String columnName) {
+        Path valuePath = actionLog;
+        for (String path : columnName.split("\\.")) {
+            valuePath = valuePath.get(path);
+        }
+        return valuePath;
     }
 
     private void removeRedundantFilters(List<ActionLogFilterRequestDTO> filters) {

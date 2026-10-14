@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: "parent"
+deployments:
+  - id: "parent"
+    route: "nested-async-parent"
+    dependsOn:
+      - "child"
+  - id: "child"
+    route: "nested-async-child"
+fixtures:
+  - id: "child-branches"
+    provider: "async-flow"
+    deployment: "child"
+  - id: "parent-branches"
+    provider: "async-flow"
+    deployment: "parent"
+scenarios:
+  - id: "returns-before-parent-and-child-branches-complete"
+    scope: Short
+    endpointUri: "cip-chain:14a39104-0635-459e-9132-67267ee81748"
+    body: "Original"
+    headers:
+      X-Test-Request: "request-value"
+    properties:
+      testProperty: "property-value"
+    expectedBody: "Original"
+    expectedHeaders:
+      X-Test-Request: "request-value"
+    expectedProperties:
+      testProperty: "property-value"
+    expectedAbsentHeaders:
+      - "X-Parent-Branch"
+      - "X-Child-Branch"
+    interactions:
+      - fixture: "parent-branches"
+        expectedExchanges:
+          - count: 1
+            body: "Parent branch"
+            headers:
+              X-Test-Request: "request-value"
+              X-Parent-Branch: "completed"
+            properties:
+              testProperty: "property-value"
+      - fixture: "child-branches"
+        expectedExchanges:
+          - count: 1
+            body: "Child branch"
+            headers:
+              X-Test-Request: "request-value"
+              X-Child-Branch: "completed"
+            properties:
+              testProperty: "property-value"

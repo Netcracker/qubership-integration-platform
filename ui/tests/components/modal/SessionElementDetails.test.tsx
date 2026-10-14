@@ -68,6 +68,12 @@ jest.mock("../../../src/components/sessions/SessionStatus.tsx", () => ({
   ),
 }));
 
+/** Sort getters the properties tab hands to the table, held for the assertions. */
+const mockPropertiesGetters: {
+  typeGetter?: (property?: { type?: string; value?: string }) => string;
+  valueGetter?: (property?: { type?: string; value?: string }) => string;
+} = {};
+
 jest.mock(
   "../../../src/components/sessions/SessionElementKVChanges.tsx",
   () => ({
@@ -81,6 +87,8 @@ jest.mock(
       ) => number;
       typeRenderer?: (property: { type?: string; value?: string }) => unknown;
       valueRenderer?: (property: { type?: string; value?: string }) => unknown;
+      typeGetter?: (property?: { type?: string; value?: string }) => string;
+      valueGetter?: (property?: { type?: string; value?: string }) => string;
       onColumnClick?: (
         item: {
           name: string;
@@ -101,6 +109,8 @@ jest.mock(
       const afterVal = props.after?.[name];
 
       if (props.addTypeColumns) {
+        mockPropertiesGetters.typeGetter = props.typeGetter;
+        mockPropertiesGetters.valueGetter = props.valueGetter;
         const b = beforeVal as { type: string; value: string } | undefined;
         const a = afterVal as { type: string; value: string } | undefined;
         const item = { name, before: b, after: a };
@@ -527,6 +537,175 @@ describe("SessionElementDetails", () => {
     );
   });
 
+  describe("chain link fallback", () => {
+    test("uses actualElementChainId when it differs from session chainId", () => {
+      const el = baseElement({
+        elementId: "e1",
+        elementName: "NodeA",
+        actualElementChainId: "actual-chain-99",
+      });
+      const session = { ...baseSession([el]), chainId: "session-chain-1" };
+      render(<SessionElementDetails session={session} elementId="e1" />);
+
+      fireEvent.click(screen.getByTestId("icon-link"));
+      expect(mockOpen).toHaveBeenCalledWith(
+        "/chains/actual-chain-99/graph/ce-e1",
+        "_blank",
+      );
+    });
+
+    test("uses session.chainId for chain-call element even when actualElementChainId differs", () => {
+      const el = baseElement({
+        elementId: "e1",
+        elementName: "Chain Call",
+        camelName: "chain-call-2",
+        chainElementId: "cba96d04-4bf2-4042-955a-f0cbb174d507",
+        actualElementChainId: "e30bc212-5952-4262-b610-8ee5fd77e0a7",
+      });
+      const session = {
+        ...baseSession([el]),
+        chainId: "0b052b4d-60c1-4132-a921-71b6f771ef94",
+      };
+      render(<SessionElementDetails session={session} elementId="e1" />);
+
+      fireEvent.click(screen.getByTestId("icon-link"));
+      expect(mockOpen).toHaveBeenCalledWith(
+        "/chains/0b052b4d-60c1-4132-a921-71b6f771ef94/graph/cba96d04-4bf2-4042-955a-f0cbb174d507",
+        "_blank",
+      );
+    });
+
+    test("uses session.chainId for legacy chain-call element", () => {
+      const el = baseElement({
+        elementId: "e1",
+        elementName: "Chain Call",
+        camelName: "chain-call",
+        actualElementChainId: "sub-chain-id",
+      });
+      const session = { ...baseSession([el]), chainId: "session-chain-1" };
+      render(<SessionElementDetails session={session} elementId="e1" />);
+
+      fireEvent.click(screen.getByTestId("icon-link"));
+      expect(mockOpen).toHaveBeenCalledWith(
+        "/chains/session-chain-1/graph/ce-e1",
+        "_blank",
+      );
+    });
+
+    test("uses actualElementChainId for child element inside subchain", () => {
+      const el = baseElement({
+        elementId: "e-child",
+        elementName: "Log Record",
+        camelName: "log-record",
+        chainElementId: "6b893a78-ab47-4678-966b-3819d662f499",
+        actualElementChainId: "e30bc212-5952-4262-b610-8ee5fd77e0a7",
+        parentElement: "5bc7b8ea-6a24-4ad1-a434-3ec3bf33e8c4",
+      });
+      const session = {
+        ...baseSession([el]),
+        chainId: "0b052b4d-60c1-4132-a921-71b6f771ef94",
+      };
+      render(<SessionElementDetails session={session} elementId="e-child" />);
+
+      fireEvent.click(screen.getByTestId("icon-link"));
+      expect(mockOpen).toHaveBeenCalledWith(
+        "/chains/e30bc212-5952-4262-b610-8ee5fd77e0a7/graph/6b893a78-ab47-4678-966b-3819d662f499",
+        "_blank",
+      );
+    });
+
+    test("falls back to session.chainId when actualElementChainId is undefined", () => {
+      const el = {
+        ...baseElement({
+          elementId: "e1",
+          elementName: "NodeA",
+        }),
+        actualElementChainId: undefined as unknown as string,
+      };
+      const session = { ...baseSession([el]), chainId: "fallback-chain" };
+      render(<SessionElementDetails session={session} elementId="e1" />);
+
+      fireEvent.click(screen.getByTestId("icon-link"));
+      expect(mockOpen).toHaveBeenCalledWith(
+        "/chains/fallback-chain/graph/ce-e1",
+        "_blank",
+      );
+    });
+
+    test("falls back to session.chainId when actualElementChainId is null", () => {
+      const el = {
+        ...baseElement({
+          elementId: "e1",
+          elementName: "NodeA",
+        }),
+        actualElementChainId: null as unknown as string,
+      };
+      const session = { ...baseSession([el]), chainId: "fallback-chain-2" };
+      render(<SessionElementDetails session={session} elementId="e1" />);
+
+      fireEvent.click(screen.getByTestId("icon-link"));
+      expect(mockOpen).toHaveBeenCalledWith(
+        "/chains/fallback-chain-2/graph/ce-e1",
+        "_blank",
+      );
+    });
+
+    test("falls back to session.chainId when element is missing (elementId not found)", () => {
+      const el = baseElement({
+        elementId: "known",
+        elementName: "Known",
+        actualElementChainId: "actual-chain",
+      });
+      const session = { ...baseSession([el]), chainId: "session-fallback" };
+      render(
+        <SessionElementDetails session={session} elementId="missing-id" />,
+      );
+
+      fireEvent.click(screen.getByTestId("icon-link"));
+      // element is undefined → element?.actualElementChainId is undefined → falls back
+      // chainElementId also undefined, but chain part must be fallback
+      expect(mockOpen).toHaveBeenCalledWith(
+        expect.stringContaining("/chains/session-fallback/graph/"),
+        "_blank",
+      );
+    });
+
+    test("navigated element keeps its own actualElementChainId in link", () => {
+      const first = baseElement({
+        elementId: "e1",
+        elementName: "First",
+        actualElementChainId: "chain-A",
+        chainElementId: "ce-e1",
+      });
+      const second = baseElement({
+        elementId: "e2",
+        elementName: "Second",
+        actualElementChainId: "chain-B",
+        chainElementId: "ce-e2",
+      });
+      const session = {
+        ...baseSession([first, second]),
+        chainId: "session-chain",
+      };
+      render(<SessionElementDetails session={session} elementId="e1" />);
+
+      // initially first element's chain
+      fireEvent.click(screen.getByTestId("icon-link"));
+      expect(mockOpen).toHaveBeenLastCalledWith(
+        "/chains/chain-A/graph/ce-e1",
+        "_blank",
+      );
+
+      // navigate to second
+      fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+      fireEvent.click(screen.getByTestId("icon-link"));
+      expect(mockOpen).toHaveBeenLastCalledWith(
+        "/chains/chain-B/graph/ce-e2",
+        "_blank",
+      );
+    });
+  });
+
   test("Body tab renders body changes stub", () => {
     const el = baseElement({ elementId: "e1", elementName: "A" });
     render(
@@ -605,6 +784,32 @@ describe("SessionElementDetails", () => {
     await waitFor(() => {
       expect(mockCopyToClipboard).toHaveBeenCalledWith("before-val");
     });
+  });
+
+  test("Exchange properties passes type and value getters for sorting", () => {
+    const el = baseElement({
+      elementId: "e1",
+      elementName: "A",
+      propertiesBefore: {
+        propA: { type: "number", value: "before-val" },
+      },
+      propertiesAfter: {
+        propA: { type: "string", value: "after-val" },
+      },
+    });
+    render(
+      <SessionElementDetails session={baseSession([el])} elementId="e1" />,
+    );
+
+    const { typeGetter, valueGetter } = mockPropertiesGetters;
+    expect(typeGetter?.({ type: "number", value: "before-val" })).toBe(
+      "number",
+    );
+    expect(valueGetter?.({ type: "number", value: "before-val" })).toBe(
+      "before-val",
+    );
+    expect(typeGetter?.(undefined)).toBe("");
+    expect(valueGetter?.(undefined)).toBe("");
   });
 
   test("Headers tab copies key name when clicking name cell", async () => {

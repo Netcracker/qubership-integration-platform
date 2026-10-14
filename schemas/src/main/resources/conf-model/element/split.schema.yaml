@@ -1,0 +1,46 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: Split (deprecated)
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: split
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/main-split-element"
+        - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split-element"
+        - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split-result"
+  properties:
+    type: object
+    properties:
+      timeout:
+        allOf:
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
+        title: Timeout
+        description: Sets a total timeout specified in millis
+        default: 0
+      stopOnException:
+        type: boolean
+        title: Stop On Exception
+        description: >
+          Stop further processing if an exception or failure
+          occurred during processing.
+        default: true
+      aggregationStrategy:
+        type: string
+        title: Aggregation Strategy
+        description: Define reference to Aggregation processor.
+        default: chainsAggregationStrategy
+    additionalProperties: false
+required:
+  - type

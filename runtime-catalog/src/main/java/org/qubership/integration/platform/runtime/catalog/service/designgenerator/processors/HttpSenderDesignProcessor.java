@@ -16,18 +16,18 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.designgenerator.processors;
 
+import org.qubership.integration.platform.io.util.SimpleHttpUriUtils;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.designgenerator.SequenceDiagramBuilder;
 import org.qubership.integration.platform.runtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.qubership.integration.platform.runtime.catalog.util.DiagramBuilderEscapeUtil;
-import org.qubership.integration.platform.runtime.catalog.util.SimpleHttpUriUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.*;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.DEFAULT_RESPONSE_TITLE;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.EMPTY_PROPERTY_STUB;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.*;
 
 
 @Component

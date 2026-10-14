@@ -1,0 +1,30 @@
+---
+# Not a platform element. It exists so the coverage gap detector can be shown going red:
+#
+#     E2E_ELEMENT_SCHEMA_DIR=fixtures/schema-mutation npx playwright test --project=schema
+#
+# The extractor then reads this directory instead of the schemas tree and reports a family and an
+# axis the registry has never heard of, which is exactly the condition the detector exists to
+# catch. Nothing writes into `schemas/` to arrange it.
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/gap-probe
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: Gap Probe
+properties:
+  type:
+    type: string
+    const: gap-probe
+  properties:
+    type: object
+    properties:
+      probeMode:
+        type: string
+        title: Probe Mode
+        enum:
+          - alpha
+          - beta
+    additionalProperties: false
+required:
+  - type

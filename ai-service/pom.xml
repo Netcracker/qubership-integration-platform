@@ -46,7 +46,7 @@
         <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
         <qip.schemas.sync.skip>false</qip.schemas.sync.skip>
-        <qip.schemas.local.dir>${project.basedir}/../schemas/src/main/resources/qip-model</qip.schemas.local.dir>
+        <qip.schemas.local.dir>${project.basedir}/../schemas/src/main/resources/conf-model</qip.schemas.local.dir>
         <qip.schemas.download.url>
             https://github.com/Netcracker/qubership-integration-schemas/archive/refs/heads/main.tar.gz
         </qip.schemas.download.url>

@@ -161,7 +161,10 @@ describe("AiAssistantPanel.css polish contracts", () => {
     const message = declarationsFor(css, ".ai-message");
     const card = declarationsFor(css, ".ai-activity-inline__card");
     const childRow = declarationsFor(css, ".ai-activity-inline__row--child");
-    const thinking = declarationsFor(css, ".ai-activity-inline__thinking");
+    const thinking = declarationsFor(
+      css.replace(/@media\s*\(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\n\}/g, ""),
+      ".ai-activity-inline__thinking",
+    );
     const thinkingOpen = declarationsFor(
       css,
       ".ai-activity-inline__thinking--open",

@@ -14,8 +14,8 @@ services:
       [
         "/opt/java/openjdk/bin/java",
         "-Xmx642m",
-        "-XX:MetaspaceSize=192m",
-        "-XX:MaxMetaspaceSize=192m",
+        "-XX:MetaspaceSize=320m",
+        "-XX:MaxMetaspaceSize=320m",
         "-XX:MaxDirectMemorySize=64m",
         "-XX:+ExitOnOutOfMemoryError",
         "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
@@ -55,12 +55,19 @@ services:
     env_file:
       - "qip-dev.env"
       - "engine-dev.env"
+    environment:
+      # The pubsub check builds its own admin client from `serviceAccountKey` with no emulator
+      # endpoint, so against the local emulator it always reaches real googleapis and fails
+      # UNAUTHENTICATED. Off until the check itself learns about the emulator.
+      CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED: "false"
+    # Each connector a chain uses loads its library's classes into Metaspace once: with Kafka,
+    # RabbitMQ, Pub/Sub and SFTP in use the engine needs more than 224m, and redeploys add nothing.
     command:
       [
         "/opt/java/openjdk/bin/java",
         "-Xmx832m",
-        "-XX:MetaspaceSize=512m",
-        "-XX:MaxMetaspaceSize=224m",
+        "-XX:MetaspaceSize=384m",
+        "-XX:MaxMetaspaceSize=384m",
         "-XX:MaxDirectMemorySize=224m",
         "-XX:+ExitOnOutOfMemoryError",
         "-XX:+HeapDumpOnOutOfMemoryError",
@@ -262,6 +269,34 @@ services:
       default:
         aliases:
           - minio
+  qip-testing-service:
+    build:
+      context: ../testing-service
+      dockerfile: Dockerfile
+    container_name: qip-testing-service
+    read_only: true
+    ports:
+      - "8095:8080"
+    environment:
+      CIP_TESTING_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
+      CIP_TESTING_CATALOG_ADDRESS: "http://runtime-catalog:8080"
+      CIP_TESTING_ENGINE_ADDRESS: "http://engine:8080"
+      # The installation-wide flag every service reads. It defaults to production,
+      # which hides the Testing section in the UI, and a local stack is not one.
+      PRODUCTION_MODE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    networks:
+      default:
+        aliases:
+          - testing-service
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   ui-proxy:
     image: nginx:latest
@@ -277,6 +312,8 @@ services:
         condition: service_started
       qip-engine:
         condition: service_started
+      qip-testing-service:
+        condition: service_started
 
   #    ###### AI Assistant (optional, activated by `--profile ai`)
   #    qip-ai-assistant:
@@ -288,16 +325,16 @@ services:
   #        ports:
   #        - "8094:8094"
   #        environment:
-  #          QIP_AI_SERVICE_PORT: "8094"
-  #          QIP_AI_LOG_LEVEL: "INFO"
-  #          QIP_AI_LOG_FORMAT: "json"
-  #          QIP_AI_LLM_PROVIDER: "${QIP_AI_LLM_PROVIDER:-gemini}"
-  #          QIP_AI_GEMINI_API_KEY: "${QIP_AI_GEMINI_API_KEY:-}"
-  #          QIP_AI_GEMINI_MODEL: "${QIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
-  #          QIP_AI_OPENROUTER_API_KEY: "${QIP_AI_OPENROUTER_API_KEY:-}"
-  #          QIP_AI_OPENROUTER_MODEL: "${QIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
-  #          QIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
-  #          QIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
+  #          CIP_AI_SERVICE_PORT: "8094"
+  #          CIP_AI_LOG_LEVEL: "INFO"
+  #          CIP_AI_LOG_FORMAT: "json"
+  #          CIP_AI_LLM_PROVIDER: "${CIP_AI_LLM_PROVIDER:-gemini}"
+  #          CIP_AI_GEMINI_API_KEY: "${CIP_AI_GEMINI_API_KEY:-}"
+  #          CIP_AI_GEMINI_MODEL: "${CIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
+  #          CIP_AI_OPENROUTER_API_KEY: "${CIP_AI_OPENROUTER_API_KEY:-}"
+  #          CIP_AI_OPENROUTER_MODEL: "${CIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
+  #          CIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
+  #          CIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
   #        command:
   #        - "/bin/sh"
   #        - "-c"
@@ -339,7 +376,7 @@ services:
       - ./init-db:/docker-entrypoint-initdb.d
 
   opensearch:
-    image: opensearchproject/opensearch:2.18.0
+    image: opensearchproject/opensearch:2.19.6
     container_name: opensearch
     ports:
       - 9200:9200

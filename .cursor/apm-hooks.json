@@ -2,7 +2,19 @@
   "afterAgentResponse": [
     {
       "command": "ai-agent-telemetry ingest --agent=cursor",
-      "_apm_source": "ai-agent-telemetry"
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
+    }
+  ],
+  "afterMCPExecution": [
+    {
+      "command": "ai-agent-telemetry ingest --agent=cursor",
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
+    }
+  ],
+  "subagentStop": [
+    {
+      "command": "ai-agent-telemetry ingest --agent=cursor",
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
     }
   ]
 }

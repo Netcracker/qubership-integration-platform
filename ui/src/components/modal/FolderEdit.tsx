@@ -118,7 +118,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
             },
           ]}
         >
-          <Input ref={nameInput} />
+          <Input autoFocus={true} ref={nameInput} />
         </Form.Item>
         {mode === "create" ? (
           <Flex vertical={false} style={{ marginLeft: 150 }}>

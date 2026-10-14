@@ -20,10 +20,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.io.model.exportimport.ExportImportConstants;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -48,13 +48,16 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 
 
 @Slf4j
 public class ExportImportUtils {
 
     public static final String IMPORT_TMP_DIR_PATH = "/tmp/";
+    private static final String EXPORT_FILE_APP_NAME = "cip";
+    // Import also accepts this segment, which file names carried before the move to the CIP namespace.
+    private static final String LEGACY_EXPORT_FILE_APP_NAME = "qip";
 
     public static String generateArchiveExportName() {
         DateFormat dateFormat = new SimpleDateFormat(DATE_TIME_FORMAT_PATTERN);
@@ -161,10 +164,10 @@ public class ExportImportUtils {
         return new ZipEntry(zipEntryPrefix + File.separator + filename);
     }
 
-    public static String generateSpecificationFileExportName(String id, String appName, boolean isLegacyExport) {
+    public static String generateSpecificationFileExportName(String id, boolean isLegacyExport) {
         return isLegacyExport
                 ? SPECIFICATION_FILE_PREFIX + id + "." + YAML_EXTENSION
-                : id + SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+                : exportFileName(id, SPECIFICATION_FILE_POSTFIX, EXPORT_FILE_APP_NAME);
     }
 
     public static void writeZip(ZipOutputStream zipOut, SystemModel systemModel) {
@@ -217,32 +220,48 @@ public class ExportImportUtils {
         };
     }
 
-    public static String generateMainSystemFileExportName(String id, String appName, boolean isLegacyExport) {
+    public static String generateMainSystemFileExportName(String id, boolean isLegacyExport) {
         return isLegacyExport
                 ? SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
-                : id + SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+                : exportFileName(id, SERVICE_YAML_NAME_POSTFIX, EXPORT_FILE_APP_NAME);
     }
 
-    public static String generateMainContextServiceFileExportName(String id, String appName, boolean isLegacyExport) {
+    public static String generateMainContextServiceFileExportName(String id, boolean isLegacyExport) {
         return isLegacyExport
                 ? CONTEXT_SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
-                : id + CONTEXT_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+                : exportFileName(id, CONTEXT_SERVICE_YAML_NAME_POSTFIX, EXPORT_FILE_APP_NAME);
     }
 
-    public static String generateMCPServiceFileExportName(String id, String appName, boolean isLegacyExport) {
+    public static String generateMCPServiceFileExportName(String id, boolean isLegacyExport) {
         return isLegacyExport
                 ? MCP_SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
-                : id + MCP_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+                : exportFileName(id, MCP_SERVICE_YAML_NAME_POSTFIX, EXPORT_FILE_APP_NAME);
     }
 
     public static String generateSourceExportDir(String id) {
         return SOURCE_YAML_NAME_PREFIX + id;
     }
 
-    public static String generateSpecificationGroupFileExportName(String id, String appName, boolean isLegacyExport) {
+    public static String generateSpecificationGroupFileExportName(String id, boolean isLegacyExport) {
         return isLegacyExport
                 ? SPECIFICATION_GROUP_FILE_PREFIX + id + "." + YAML_EXTENSION
-                : id + SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+                : exportFileName(id, SPECIFICATION_GROUP_FILE_POSTFIX, EXPORT_FILE_APP_NAME);
+    }
+
+    public static String generateChainFileExportName(String id, boolean isLegacyExport) {
+        return isLegacyExport
+                ? CHAIN_YAML_NAME_PREFIX + id + YAML_FILE_NAME_POSTFIX
+                : exportFileName(id, CHAIN_YAML_NAME_POSTFIX, EXPORT_FILE_APP_NAME);
+    }
+
+    public static boolean isChainFileName(String fileName) {
+        return (fileName.startsWith(CHAIN_YAML_NAME_PREFIX) && fileName.endsWith(YAML_FILE_NAME_POSTFIX))
+                || fileName.endsWith(exportFileName("", CHAIN_YAML_NAME_POSTFIX, EXPORT_FILE_APP_NAME))
+                || fileName.endsWith(exportFileName("", CHAIN_YAML_NAME_POSTFIX, LEGACY_EXPORT_FILE_APP_NAME));
+    }
+
+    private static String exportFileName(String id, String kindPostfix, String appName) {
+        return id + kindPostfix + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static ResponseEntity<Object> convertFileToResponse(byte[] payload, String fileName) {

@@ -1,0 +1,86 @@
+<route>
+<onCompletion>
+    <process ref="httpTriggerFinishProcessor"/>
+</onCompletion>
+<onCompletion mode="BeforeConsumer">
+    <removeHeader name="Authorization"/>
+</onCompletion>
+<onCompletion mode="BeforeConsumer" onFailureOnly="true">
+    <setProperty name="internalProperty_httpThreadFailed">
+        <constant>true</constant>
+    </setProperty>
+    <setProperty name="internalProperty_sessionFailed">
+        <constant>true</constant>
+    </setProperty>
+
+    <process ref="chainExceptionResponseHandlerProcessor" />
+
+</onCompletion>
+
+
+    <from uri="servlet-custom:v1/idempotent?chunked=true&amp;httpMethodRestrict=POST&amp;tagsProvider=#5e9dd4b0-5e0d-4a45-8f7d-6e5b0d6a9c11"/>
+
+<step id="5e9dd4b0-5e0d-4a45-8f7d-6e5b0d6a9c11">
+        <setProperty name="internalProperty_rejectRequestIfNonNullBodyGetDelete">
+            <constant>false</constant>
+        </setProperty>
+
+    <doTry>
+            <step id="Validate Request--5e9dd4b0-5e0d-4a45-8f7d-6e5b0d6a9c11">
+                <process ref="httpTriggerProcessor" />
+            </step>
+
+        <doCatch>
+            <exception>org.qubership.integration.platform.engine.errorhandling.ValidationException</exception>
+            <setProperty name="internalProperty_sessionFailed">
+                <constant>true</constant>
+            </setProperty>
+            <process ref="chainExceptionResponseHandlerProcessor" />
+
+
+            <setProperty name="internalProperty_elementFailed">
+                <constant>true</constant>
+            </setProperty>
+            <process ref="interruptExchangeProcessor" />
+        </doCatch>
+    </doTry>
+     <step id="Idempotency--5e9dd4b0-5e0d-4a45-8f7d-6e5b0d6a9c11">
+        <setProperty name="systemProperty_idempotencyKey">
+            <simple>
+                ${headers.requestId}
+            </simple>
+        </setProperty>
+        <setProperty name="systemProperty_idempotencyContext">
+            <simple>
+                orders
+            </simple>
+        </setProperty>
+        <setProperty name="systemProperty_keyExpiry">
+            <constant>600</constant>
+        </setProperty>
+        <idempotentConsumer
+            idempotentRepository="idempotentRepository"
+            eager="true"
+            completionEager="false"
+            skipDuplicate="true"
+            removeOnFailure="false"
+        >
+            <simple>
+                orders:${headers.requestId}
+            </simple>
+            <process ref="noopProcessor"/>
+        </idempotentConsumer>
+        <choice>
+            <when>
+                <simple>
+                    ${exchangeProperty.CamelDuplicateMessage} == true
+                </simple>
+                    <toD uri="cip-chain:9f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f?timeout=30000&amp;block=true&amp;failIfNoConsumers=false"/>
+                    <process ref="interruptExchangeProcessor" />
+            </when>
+        </choice>
+    </step>
+</step>
+
+<removeProperties pattern="abacParameters_*"/>
+</route>

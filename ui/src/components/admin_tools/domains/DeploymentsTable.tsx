@@ -3,7 +3,7 @@ import { Table, Typography, Spin } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { ChainDeployment } from "../../../api/apiTypes.ts";
 import { DeploymentRuntimeState } from "../../deployment_runtime_states/DeploymentRuntimeState";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import layoutStyles from "./DomainsTablesLayout.module.css";
 
 interface Props {
@@ -50,13 +50,15 @@ export const DeploymentsTable: React.FC<Props> = ({
   deployments,
   isLoading = false,
 }) => {
-  const { columnsWithResize, components } = useColumnsWithResizeAndScroll(
+  const { columnsWithResize, components } = useTableConfiguration(
     deploymentColumns,
     {
       chainName: 240,
       snapshotName: 200,
       state: 220,
     },
+    {},
+    "engineDeploymentsTable",
   );
 
   return (

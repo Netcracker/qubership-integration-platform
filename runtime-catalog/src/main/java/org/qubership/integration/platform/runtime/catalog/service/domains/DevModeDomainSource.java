@@ -14,9 +14,9 @@ import java.util.List;
 
 @Component
 @Profile("development")
-@ConditionalOnProperty(prefix = "qip.deploy.classic", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "cip.deploy.classic", name = "enabled", havingValue = "true")
 public class DevModeDomainSource implements EngineDomainSource {
-    @Value("${qip.domain.default}")
+    @Value("${cip.domain.default}")
     private String engineDefaultDomain;
 
     @Value("${kubernetes.cluster.namespace}")

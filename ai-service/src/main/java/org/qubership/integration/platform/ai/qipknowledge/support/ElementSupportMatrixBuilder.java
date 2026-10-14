@@ -30,7 +30,7 @@ public final class ElementSupportMatrixBuilder {
 
   public static final int SCHEMA_VERSION = 1;
   private static final String RUNTIME_ELEMENTS =
-      "runtime-catalog/src/main/resources/elements";
+      "integration-build-pipeline/src/main/resources/elements";
 
   public ElementSupportMatrix build(
       Path repoRoot, CompilerPipelineIndex pipelineIndex, CompilerContract contract) {

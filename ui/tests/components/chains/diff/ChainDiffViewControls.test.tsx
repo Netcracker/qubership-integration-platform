@@ -15,12 +15,13 @@ jest.mock("antd", () => ({
     </button>
   ),
   Radio: {
-    Group: ({ options, onChange }: any) => (
+    Group: ({ options, value, onChange }: any) => (
       <div data-testid="radio-group">
         {options?.map((opt: any) => (
           <button
             key={opt.value}
             data-testid={`radio-${opt.value}`}
+            data-selected={opt.value === value}
             onClick={() => onChange({ target: { value: opt.value } })}
           >
             {opt.label}
@@ -46,8 +47,7 @@ const changes = [c1, c2, c3];
 
 const prevBtn = () =>
   screen.getByTestId("icon-previousChange").closest("button")!;
-const nextBtn = () =>
-  screen.getByTestId("icon-nextChange").closest("button")!;
+const nextBtn = () => screen.getByTestId("icon-nextChange").closest("button")!;
 
 describe("ChainDiffViewControls", () => {
   it("should disable the Previous button when the selected change is the first in the list", () => {
@@ -56,6 +56,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c1"
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -69,6 +70,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c2"
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -81,6 +83,7 @@ describe("ChainDiffViewControls", () => {
       <ChainDiffViewControls
         changes={changes}
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -94,6 +97,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c3"
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -107,6 +111,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c2"
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -119,6 +124,7 @@ describe("ChainDiffViewControls", () => {
       <ChainDiffViewControls
         changes={changes}
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -133,6 +139,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c3"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -149,6 +156,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c1"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -165,6 +173,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c1"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -181,6 +190,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c3"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -196,6 +206,7 @@ describe("ChainDiffViewControls", () => {
       <ChainDiffViewControls
         changes={changes}
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -205,12 +216,53 @@ describe("ChainDiffViewControls", () => {
     expect(onSelectChange).toHaveBeenCalledWith("c3");
   });
 
+  it("should use the custom Previous handler for text diff navigation", () => {
+    const onPreviousChange = jest.fn();
+    const onSelectChange = jest.fn();
+    render(
+      <ChainDiffViewControls
+        changes={changes}
+        selectedChangeId="c1"
+        onSelectChange={onSelectChange}
+        viewType="graph"
+        onViewTypeChange={jest.fn()}
+        onPreviousChange={onPreviousChange}
+      />,
+    );
+
+    fireEvent.click(prevBtn());
+
+    expect(onPreviousChange).toHaveBeenCalledTimes(1);
+    expect(onSelectChange).not.toHaveBeenCalled();
+  });
+
+  it("should use the custom Next handler for text diff navigation", () => {
+    const onNextChange = jest.fn();
+    const onSelectChange = jest.fn();
+    render(
+      <ChainDiffViewControls
+        changes={changes}
+        selectedChangeId="c3"
+        onSelectChange={onSelectChange}
+        viewType="graph"
+        onViewTypeChange={jest.fn()}
+        onNextChange={onNextChange}
+      />,
+    );
+
+    fireEvent.click(nextBtn());
+
+    expect(onNextChange).toHaveBeenCalledTimes(1);
+    expect(onSelectChange).not.toHaveBeenCalled();
+  });
+
   it("should call onViewTypeChange with table when the Table option is selected", () => {
     const onViewTypeChange = jest.fn();
     render(
       <ChainDiffViewControls
         changes={[]}
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={onViewTypeChange}
       />,
     );
@@ -220,12 +272,33 @@ describe("ChainDiffViewControls", () => {
     expect(onViewTypeChange).toHaveBeenCalledWith("table");
   });
 
+  it("should select the option that matches the provided viewType", () => {
+    render(
+      <ChainDiffViewControls
+        changes={[]}
+        onSelectChange={jest.fn()}
+        viewType="table"
+        onViewTypeChange={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("radio-table")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(screen.getByTestId("radio-graph")).toHaveAttribute(
+      "data-selected",
+      "false",
+    );
+  });
+
   it("should call onViewTypeChange with graph when the Graph option is selected", () => {
     const onViewTypeChange = jest.fn();
     render(
       <ChainDiffViewControls
         changes={[]}
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={onViewTypeChange}
       />,
     );

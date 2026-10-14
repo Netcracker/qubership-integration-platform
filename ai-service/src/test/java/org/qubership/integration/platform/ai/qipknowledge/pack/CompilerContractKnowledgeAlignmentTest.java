@@ -177,7 +177,7 @@ class CompilerContractKnowledgeAlignmentTest {
   }
 
   private static Path elementDescriptorPath(String elementType) {
-    Path dir = resolveRepoPath("runtime-catalog/src/main/resources/elements/" + elementType);
+    Path dir = resolveRepoPath("integration-build-pipeline/src/main/resources/elements/" + elementType);
     Path yaml = dir.resolve("description.yaml");
     if (Files.isRegularFile(yaml)) {
       return yaml;
@@ -284,7 +284,12 @@ class CompilerContractKnowledgeAlignmentTest {
   private static Path descriptorFileFromPath(String descriptorPath) {
     int fragment = descriptorPath.indexOf('#');
     String filePath = fragment >= 0 ? descriptorPath.substring(0, fragment) : descriptorPath;
-    return resolveRepoPath(filePath);
+    // The pinned skill pack still cites paths from before the module moves.
+    return resolveRepoPath(filePath
+        .replace("runtime-catalog/src/main/resources/elements/",
+            "integration-build-pipeline/src/main/resources/elements/")
+        .replace("schemas/src/main/resources/qip-model/",
+            "schemas/src/main/resources/conf-model/"));
   }
 
   private static boolean hasCompilerSourceChoice(String text) {

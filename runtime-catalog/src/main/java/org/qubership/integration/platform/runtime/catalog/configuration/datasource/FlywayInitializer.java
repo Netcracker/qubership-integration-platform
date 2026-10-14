@@ -31,7 +31,7 @@ import java.util.List;
 import javax.sql.DataSource;
 
 @Configuration
-@ConditionalOnProperty(value = "qip.standalone", havingValue = "true")
+@ConditionalOnProperty(value = "cip.standalone", havingValue = "true")
 @EnableConfigurationProperties(FlywayConfigProperties.class)
 public class FlywayInitializer {
     private final DataSource configsDataSource;

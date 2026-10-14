@@ -39,6 +39,8 @@ on:
           - micro-engine
           - runtime-catalog
           - sessions-management
+          - integration-build-pipeline
+          - integration-build-maven-plugin
         default: engine
 
 concurrency:
@@ -62,12 +64,25 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: "21"
           distribution: "temurin"
           # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
-          cache: "maven"
+
+      # setup-java's built-in maven cache restores on an exact pom-hash key only.
+      # Every release rewrites the poms in a [skip ci] commit, so the tree the
+      # next run checks out was never cached and the restore always missed. A
+      # prefix fallback gives a warm start, and keying per module stops the Java
+      # jobs in a wave from racing for one entry — only the first to finish could
+      # save it, and the rest logged "Unable to reserve cache".
+      - name: Cache the Maven repository
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-${{ inputs.module }}-
 
       # Pre-install the parent pom so the single-module deploy below resolves it.
       - name: Install qip-monorepo-parent locally
@@ -75,6 +90,22 @@ jobs:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
+
+      # runtime-catalog and the Maven plugin pin integration-build-pipeline at its
+      # development coordinate, and the deploy below builds one module with no
+      # reactor. Publishing the library first gives that build the matching bytes
+      # (deploy installs locally too) and leaves consumers of the published
+      # SNAPSHOT a library SNAPSHOT they can actually resolve.
+      - name: Deploy the pinned library SNAPSHOT
+        if: ${{ inputs.module == 'runtime-catalog' || inputs.module == 'integration-build-maven-plugin' }}
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -f integration-build-pipeline/pom.xml deploy -Pgithub \
+            -Dmaven.test.skip=true -Dmaven.javadoc.skip=true \
+            -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Deploy SNAPSHOT to GitHub Packages
         working-directory: ${{ inputs.module }}

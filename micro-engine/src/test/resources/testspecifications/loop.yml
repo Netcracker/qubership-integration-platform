@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: "loop"
+deployments:
+  - id: "loop"
+    route: "loop"
+  - id: "loop-copy-context"
+    route: "loop copy context true"
+  - id: "loop-without-copy"
+    route: "loop copy context false"
+scenarios:
+  - id: "loop-completes"
+    scope: Short
+    endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
+    body: "Original"
+    expectedProperties:
+      increment: 10
+      counter: 0
+
+  - id: "skips-iterations-when-counter-is-zero"
+    scope: Short
+    endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
+    body: "Original"
+    properties:
+      counter: 0
+    expectedProperties:
+      increment: 0
+      counter: 0
+
+  - id: "enforces-maximum-iteration-limit"
+    scope: Short
+    endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
+    invocations:
+      - id: "completes-after-fifteen-iterations"
+        body: "Original"
+        properties:
+          counter: 15
+        expectedProperties:
+          increment: 15
+          counter: 0
+      - id: "fails-before-sixteenth-iteration"
+        body: "Original"
+        properties:
+          counter: 16
+        expectedFailure:
+          type: "org.qubership.integration.platform.engine.camel.exceptions.IterationLimitException"
+          message: "Maximum number of iterations reached"
+          cause: null
+        expectedProperties:
+          increment: 15
+          counter: 1
+
+  - id: "copies-start-context-for-each-counted-iteration"
+    scope: Short
+    endpointUri: "cip-chain:323784c9-d55f-491f-b0da-4cc25a002243"
+    body: "Original"
+    properties:
+      iterations: 3
+    expectedBody: "S:2"
+
+  - id: "skips-counted-iterations-when-count-is-zero"
+    scope: Short
+    endpointUri: "cip-chain:323784c9-d55f-491f-b0da-4cc25a002243"
+    body: "Original"
+    properties:
+      iterations: 0
+    expectedBody: "S"
+
+  - id: "reuses-context-across-counted-iterations"
+    scope: Short
+    endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
+    body: "Original"
+    properties:
+      iterations: 3
+    expectedBody: "S:0:1:2"
+    expectedProperties:
+      visitedIterations: [0, 1, 2]
+      iterationIndex: null
+
+  - id: "skips-counted-iterations-without-copy-when-count-is-zero"
+    scope: Short
+    endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
+    body: "Original"
+    properties:
+      iterations: 0
+    expectedBody: "S"
+    expectedProperties:
+      visitedIterations: []
+      iterationIndex: null
+
+  - id: "clears-custom-iteration-index-after-script-failure"
+    scope: Short
+    endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
+    invocations:
+      - id: "fails-on-second-iteration"
+        body: "Original"
+        properties:
+          iterations: 3
+          failAtIteration: 1
+        expectedFailure:
+          type: "java.lang.IllegalStateException"
+          message: "Loop failed at iteration index 1"
+          cause: null
+        expectedBody: "S:0"
+        expectedProperties:
+          visitedIterations: [0, 1]
+          iterationIndex: null

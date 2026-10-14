@@ -3,6 +3,8 @@ package org.qubership.integration.platform.engine.camel.context.propagation;
 import com.netcracker.cloud.context.propagation.core.ContextManager;
 import com.netcracker.cloud.context.propagation.core.RequestContextPropagation;
 import com.netcracker.cloud.context.propagation.core.contextdata.IncomingContextData;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.ManagedContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +12,7 @@ import org.apache.commons.collections4.map.CaseInsensitiveMap;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.nonNull;
@@ -109,17 +112,52 @@ public class CamelExchangeContextPropagation {
     }
 
     public Map<String, Object> getContextForHeaders(IncomingContextData incomingContextData) {
-        return ContextManager.getContextProviders().stream()
+        return withActiveRequestScope(() -> ContextManager.getContextProviders().stream()
                 .map(contextProvider -> {
                     Object contextValue = contextProvider.provide(incomingContextData);
                     return nonNull(contextValue) ? Map.entry(contextProvider.contextName(), contextValue) : null;
                 })
                 .filter(Objects::nonNull)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     protected void initRequestContextUnhandled(Map<String, Object> headers) {
-        RequestContextPropagation.clear();
-        RequestContextPropagation.initRequestContext(new CamelExchangeRequestContextData(headers));
+        withActiveRequestScope(() -> {
+            RequestContextPropagation.clear();
+            RequestContextPropagation.initRequestContext(new CamelExchangeRequestContextData(headers));
+        });
+    }
+
+    /**
+     * Ensures the Quarkus CDI {@code RequestScoped} context is active while {@code action} runs,
+     * activating it first if needed and terminating it again before returning.
+     *
+     * <p>Context providers invoked here (e.g. {@code WhoAmIProvider}) may need that scope, but
+     * Quarkus only activates it automatically for HTTP requests. Every other caller of this
+     * class — Quartz jobs, Kafka/RabbitMQ consumer threads, Camel's own multicast/wireTap/producer
+     * -callback threads — would otherwise hit {@code ContextNotActiveException}. This is the one
+     * choke point all of them pass through, so guarding it here covers every caller without a
+     * per-trigger fix. Already-active scopes (e.g. HTTP) are left untouched.
+     */
+    private <T> T withActiveRequestScope(Supplier<T> action) {
+        ManagedContext requestContext = Arc.container().requestContext();
+        boolean scopeActivatedHere = !requestContext.isActive();
+        if (scopeActivatedHere) {
+            requestContext.activate();
+        }
+        try {
+            return action.get();
+        } finally {
+            if (scopeActivatedHere) {
+                requestContext.terminate();
+            }
+        }
+    }
+
+    private void withActiveRequestScope(Runnable action) {
+        withActiveRequestScope(() -> {
+            action.run();
+            return null;
+        });
     }
 }

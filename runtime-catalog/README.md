@@ -2,14 +2,14 @@
 
 Runtime Catalog Service is a part of Qubership Integration Platform.
 It provides an API to manage integration flows (so-called integration chains) snapshots and deployments.
-Service publishes information about integration chain deployments to Consul from where it is fetched by [Engine](https://github.com/Netcracker/qubership-integration-engine).  
+Service publishes information about integration chain deployments to Consul from where it is fetched by [Engine](../engine).  
 All operations on integration chains are being logged, and an API is provided to get the action journal.
 
 ## Installation
 
 Runtime Catalog Service is a Spring Boot Application and requires Java 21 and Maven to build.
 [Dockerfile](Dockerfile) is provided to build a containerized application.
-It can be run locally using a [Docker compose configuration](https://github.com/Netcracker/qubership-integration-platform).
+It can be run locally using a [Docker compose configuration](../infrastructure).
 
 ## Configuration
 
@@ -25,6 +25,7 @@ Application parameters can be set by environment variables.
 | ACTION_LOG_CLEANUP_INTERVAL       | 14 days                                              | Maximum age of action log records. Records older than specified value will be deleted. Examples: '1 hour', '7 days', '2 years 3 month' |
 | ACTION_LOG_CLEANUP_CRON           | 0 0 0 ? * SAT                                        | Action log cleanup task schedule in cron expression format                                                                             |
 | MAX_UPLOAD_MULTIPART_FILE_SIZE    | 25                                                   | Maximum file size to upload, MB. Limits data size for upload operations like import of integration chain definitions.                  |
+| IMPORT_LOG_LIFETIME_MINUTES          | 10080                                                | The time in minutes that import session metadata is stored in postgres |
 | KUBE_TOKEN_PATH                   | /var/run/secrets/kubernetes.io/serviceaccount/token  | Kubernetes token path                                                                                                                  |
 | KUBE_CERT_PATH                    | /var/run/secrets/kubernetes.io/serviceaccount/ca.crt | Kubernetes certificate path                                                                                                            |
 | MICROSERVICE_NAME                 |                                                      | Microservice name.                                                                                                                     |
@@ -41,10 +42,19 @@ Application parameters can be set by environment variables.
 | PG_MIN_IDLE                       | 0                                                    |                                                                                                                                        |
 | PG_IDLE_TIMEOUT                   | 300000                                               | Sets the maximum allowed idle time between queries, when not in a transaction.                                                         |
 | PG_LEAK_DETECTION_INTERVAL        | 30000                                                | The maximum number of milliseconds that a client will wait for a connection from the pool.                                             |
-| QIP_EXPORT_REMOVE_UNUSED_SPECS    | true                                                 | Enables removal of unsed specifications from exported data.                                                                            |
-| QIP_REGISTER_INGRESS_CHAIN_ROUTES | true                                                 | Marks integration endpoints to be registered in ingress.                                                                               |
-| QIP_REGISTER_EGRESS_CHAIN_ROUTES  | true                                                 | Marks outcoming routes to be registered in egress.                                                                                     |  
-| QIP_EXPORT_LEGACY_FORMAT          | false                                                | Export configuration in "old" format.                                                                                                  |  
+| CIP_EXPORT_REMOVE_UNUSED_SPECS    | true                                                 | Enables removal of unsed specifications from exported data.                                                                            |
+| CIP_REGISTER_INGRESS_CHAIN_ROUTES | true                                                 | Marks integration endpoints to be registered in ingress.                                                                               |
+| CIP_REGISTER_EGRESS_CHAIN_ROUTES  | true                                                 | Marks outcoming routes to be registered in egress.                                                                                     |  
+| CIP_EXPORT_LEGACY_FORMAT          | false                                                | Export configuration in "old" format.                                                                                                  |  
+| CHAIN_JSON_SCHEMA_URI             | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain` | `$schema` that export writes on chains. |
+| SERVICE_JSON_SCHEMA_URI           | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service` | `$schema` that export writes on services. |
+| CONTEXT_SERVICE_JSON_SCHEMA_URI   | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service` | `$schema` that export writes on context services. |
+| MCP_SERVICE_JSON_SCHEMA_URI       | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service` | `$schema` that export writes on MCP services. |
+| SPECIFICATION_GROUP_JSON_SCHEMA_URI | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group` | `$schema` that export writes on specification groups. |
+| SPECIFICATION_JSON_SCHEMA_URI     | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification` | `$schema` that export writes on specifications. |
+
+An import that checks `$schema` accepts the configured value and the value that exports wrote before the move to
+the CIP namespace, `http://qubership.org/schemas/product/qip/<type>`.
 
 Configuration can be overridden with values stored in Consul.
 The ```config/${NAMESPACE}``` prefix is used.
@@ -71,7 +81,7 @@ mvn test -Dtest=OpenApiSpecGeneratorTest
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues see [Security Reporting Process](../SECURITY.md).
 
-The library uses [Checkstyle](https://checkstyle.org/) via [Maven Checkstyle Plugin](https://maven.apache.org/plugins/maven-checkstyle-plugin/) to ensure code style consistency among Qubership Integration Platform's libraries and services. The rules are located in a separate [repository](https://github.com/Netcracker/qubership-integration-checkstyle).
+The library uses [Checkstyle](https://checkstyle.org/) via [Maven Checkstyle Plugin](https://maven.apache.org/plugins/maven-checkstyle-plugin/) to ensure code style consistency among Qubership Integration Platform's libraries and services. The rules are located in the [checkstyle](../checkstyle) module.
 
 Commits and pool requests should follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) strategy.
 
@@ -81,4 +91,4 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 ## Additional Resources
 
-- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment guide.
+- [Qubership Integration Platform](../README.md) — core deployment guide.

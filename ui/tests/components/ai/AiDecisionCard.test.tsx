@@ -4,7 +4,7 @@
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
+  value: jest.fn<(query: string) => MediaQueryList>().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -12,7 +12,7 @@ Object.defineProperty(window, "matchMedia", {
     removeListener: jest.fn(),
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    dispatchEvent: jest.fn<MediaQueryList["dispatchEvent"]>(),
   })),
 });
 
@@ -23,10 +23,10 @@ import type { ReactElement, ReactNode } from "react";
 import { AiDecisionCard } from "../../../src/components/ai/AiDecisionCard.tsx";
 import type { ChatDecision } from "../../../src/ai/modelProviders/types.ts";
 
-const mockGetElementsByType = jest.fn();
+const mockGetElementsByType = jest.fn<(...args: unknown[]) => Promise<unknown[]>>();
 jest.mock("../../../src/api/api", () => ({
   api: {
-    getElementsByType: (...args: unknown[]): unknown =>
+    getElementsByType: (...args: Parameters<typeof mockGetElementsByType>): unknown =>
       mockGetElementsByType(...args) as unknown,
   },
 }));
@@ -786,6 +786,7 @@ describe("AiDecisionCard", () => {
             title: "The design cannot be used",
             summary: "Restore the approved inline hook.",
             preservedWork: "Your approved requirements stay unchanged.",
+            technicalDetails: "",
           },
         })}
         onAnswer={onAnswer}

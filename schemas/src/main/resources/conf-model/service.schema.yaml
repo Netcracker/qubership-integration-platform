@@ -1,0 +1,82 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/top-level-entity-properties"
+title: Service
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+  fileExtension: service.cip
+properties:
+  content:
+    type: object
+    allOf:
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/labels-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/migrations-property"
+    properties:
+      activeEnvironmentId:
+        type: string
+        title: Active environment ID
+      integrationSystemType:
+        title: Integration system type
+        $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/service-type"
+      protocol:
+        title: Protocol
+        $ref: "#/definitions/Protocol"
+      environments:
+        type: array
+        title: Environments
+        items:
+          $ref: "#/definitions/Environment"
+    required:
+      - integrationSystemType
+required:
+  - content
+definitions:
+  Protocol:
+    enum:
+      - HTTP
+      - AMQP
+      - KAFKA
+      - SOAP
+      - GRAPHQL
+      - METAMODEL
+      - GRPC
+  SourceType:
+    enum:
+      - MANUAL
+      - MAAS_BY_CLASSIFIER
+  Environment:
+    type: object
+    allOf:
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/labels-property"
+    properties:
+      id:
+        type: string
+        title: Identifier
+      name:
+        type: string
+        title: Name
+      address:
+        type: string
+      sourceType:
+        $ref: "#/definitions/SourceType"
+      properties:
+        type: object
+      additionalProperties: true
+    required:
+      - id
+      - name
+      - sourceType
+    if:
+      properties:
+        sourceType:
+          const: MANUAL
+    then:
+      required:
+        - address

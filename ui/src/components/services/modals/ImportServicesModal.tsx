@@ -14,7 +14,7 @@ import { getErrorMessage } from "../../../misc/error-utils";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import { validateFiles } from "../utils";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -101,7 +101,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
     [],
   );
 
-  const { columnsWithResize, components } = useColumnsWithResizeAndScroll(
+  const { columnsWithResize, components } = useTableConfiguration(
     importResultColumns,
     {
       name: 180,

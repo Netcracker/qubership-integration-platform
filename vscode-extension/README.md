@@ -1,13 +1,18 @@
 # Qubership Integration Visual Studio Code Extension
 
 This is Visual Studio Code extension based
-on [Qubership Integration Platform - UI](https://github.com/Netcracker/qubership-integration-ui)
+on [Qubership Integration Platform - UI](../ui)
 project to manipulate chain configurations offline. To run configurations you still need the other part
-of [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform).
+of [Qubership Integration Platform](../README.md).
 
 ## Build
 
 This application should be built by Visual Studio Code itself (usually F5 hotkey at opened project in Visual Studio Code).
+
+## Tests
+
+Run `npm run test:unit` for the Jest suite and `npm run test:integration` for the integration tests, which run in
+VS Code for the Web and need the upstream builds from `npm run prepare-deps`.
 
 ## Contribution
 
@@ -22,5 +27,5 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 ## Additional Resources
 
-- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment
+- [Qubership Integration Platform](../README.md) — core deployment
   guide.

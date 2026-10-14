@@ -1,0 +1,46 @@
+---
+id: "e2e0g004-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual"
+description: "The MANUAL twin of rabbitmq-trigger-dlq-auto: same dead-letter setup, same\
+  \ deterministic failure downstream, opposite outcome. RabbitMqTriggerProcessor.process acks a\
+  \ MANUAL delivery as its first statement, before validate and before the chain body runs, so the\
+  \ failure that follows can never reject the message and it never reaches the dead-letter queue."
+content:
+  labels: []
+  elements:
+  - id: "e2e0g004-0000-4000-8000-000000000002"
+    name: "RabbitMQ Trigger"
+    type: "rabbitmq-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      addresses: "rabbitmq:5672"
+      username: "guest"
+      password: "guest"
+      exchange: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual"
+      routingKey: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual"
+      queues: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual"
+      exchangeType: "direct"
+      acknowledgeMode: "MANUAL"
+      deadLetterExchange: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual-dlx"
+      deadLetterExchangeType: "direct"
+      deadLetterQueue: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual-dlq"
+      deadLetterRoutingKey: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual-dlk"
+      idempotency:
+        enabled: false
+  - id: "e2e0g004-0000-4000-8000-000000000003"
+    name: "HTTP Sender"
+    type: "http-sender"
+    properties:
+      uri: "http://e2e-rabbitmq-fail.invalid/boom"
+      httpMethod: "POST"
+      isExternalCall: false
+      m2m: false
+      reuseEstablishedConnection: true
+      propagateContext: false
+      receiveCorrelationId: false
+  dependencies:
+  - from: "e2e0g004-0000-4000-8000-000000000002"
+    to: "e2e0g004-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -207,6 +207,11 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
                 ? capitalize(loggingProperties.sessionsLoggingLevel)
                 : EMPTY}
             </Descriptions.Item>
+            <Descriptions.Item label="Session log details">
+              {loggingProperties?.sessionLogDetails
+                ? capitalize(loggingProperties.sessionLogDetails)
+                : EMPTY}
+            </Descriptions.Item>
             <Descriptions.Item label="Log logging level">
               {loggingProperties
                 ? capitalize(loggingProperties.logLoggingLevel)

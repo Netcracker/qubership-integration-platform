@@ -1,0 +1,37 @@
+id: 904e3040-3343-4eaf-bda1-868c35136018
+$schema: http://qubership.org/schemas/product/qip/chain
+name: graphql-sender-context
+content:
+  labels: []
+  elements:
+  - id: 68fb59ae-efb7-44ef-9850-ae64674a8b12
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 68fb59ae-efb7-44ef-9850-ae64674a8b12
+  - id: c5d7ee87-daf4-4227-b507-0581255f4d63
+    name: GraphQL sender
+    type: graphql-sender
+    properties:
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      query: ${header.CamelGraphQLQuery}
+      queryHeader: CamelGraphQLQuery
+      receiveCorrelationId: true
+      reuseEstablishedConnection: true
+      uri: http://graphql-mock:8080/graphql
+      variablesHeader: CamelGraphQLVariables
+      operationName: Request
+      variablesJSON: ${exchangeProperty.graphqlVariables}
+      overrideContextParams:
+        X-Request-Id: graphql-overridden-request
+      correlationIdName: X-Correlation-Id
+      correlationIdPosition: Header
+  dependencies:
+  - from: 68fb59ae-efb7-44ef-9850-ae64674a8b12
+    to: c5d7ee87-daf4-4227-b507-0581255f4d63
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

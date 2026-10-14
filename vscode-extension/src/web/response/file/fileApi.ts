@@ -72,4 +72,6 @@ export interface FileApi {
   getFileCreatedWhen(fileUri: Uri): Promise<number>;
 
   getSpecApiFiles(): Promise<Uri[]>;
+
+  getDirectoriesToRemove(fileUri: Uri): Promise<Uri[]>;
 }

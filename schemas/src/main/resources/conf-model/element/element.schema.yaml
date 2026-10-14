@@ -1,0 +1,80 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/element
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Chain element
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+discriminator:
+  propertyName: type
+oneOf:
+
+  # Composite Triggers
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/checkpoint"
+
+  # Files
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/file-read"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/file-write"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/sftp-download"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/sftp-upload"
+
+  # Grouping
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/container"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/swimlane"
+
+  # Deprecated Routing
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split-async"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/try-catch-finally"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/choice"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/loop"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/circuit-breaker"
+
+  # Routing
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/chain-call-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/circuit-breaker-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/condition"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/log-record"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/loop-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/reuse"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/reuse-reference"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split-async-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/try-catch-finally-2"
+
+  # Senders
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/graphql-sender"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/http-sender"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/jms-sender"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/kafka-sender-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/mail-sender"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/pubsub-sender"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/rabbitmq-sender-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/scs-sender"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/service-call"
+
+  # Services
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/context-storage"
+
+  # Transformation
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/header-modification"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/mapper-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/script"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/xslt"
+
+  # Triggers
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/async-api-trigger"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/chain-trigger-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/http-trigger"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/jms-trigger"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/kafka-trigger-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/mcp-trigger"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/pubsub-trigger"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/rabbitmq-trigger-2"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/quartz-scheduler"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/sds-trigger"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/sftp-trigger-2"
+required:
+  - type

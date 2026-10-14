@@ -12,7 +12,8 @@ import { OverridableIcon } from "../icons/IconProvider.tsx";
 import styles from "./UsedPropertiesList.module.css";
 import { SidebarSearch } from "./elements_library/SidebarSearch.tsx";
 import { MenuItem } from "./elements_library/ElementsLibrarySidebar";
-import { analyzeUsedProperties,
+import {
+  analyzeUsedProperties,
   AnalyzableElement,
 } from "../misc/used-properties-analyzer.ts";
 import { useUsedProperties } from "../hooks/useUsedProperties.tsx";
@@ -210,7 +211,13 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
 
   if (parsedProperties.length === 0) {
     return (
-      <Empty description="Properties not found" style={{ padding: "24px" }} />
+      <Flex
+        justify="center"
+        align="center"
+        style={{ flex: 1, minHeight: 0, padding: "24px" }}
+      >
+        <Empty description="Properties not found" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      </Flex>
     );
   }
 

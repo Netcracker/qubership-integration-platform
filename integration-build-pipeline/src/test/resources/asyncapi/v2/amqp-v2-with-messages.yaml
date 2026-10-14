@@ -1,0 +1,98 @@
+asyncapi: 2.6.0
+info:
+  title: AMQP Notification API
+  version: 1.0.0
+
+servers:
+  production:
+    url: rabbitmq.internal:5672
+    protocol: amqp
+
+channels:
+  notifications:
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: notifications
+          durable: true
+        exchange:
+          name: notifications.direct
+          type: direct
+          durable: true
+        userId: notification-svc
+    subscribe:
+      operationId: consumeNotification
+      message:
+        payload:
+          type: object
+          required:
+            - to
+            - subject
+          properties:
+            to:
+              type: string
+            subject:
+              type: string
+            body:
+              type: string
+    publish:
+      operationId: sendNotification
+      message:
+        $ref: '#/components/messages/Notification'
+
+  alerts:
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: alerts
+          durable: true
+    subscribe:
+      operationId: consumeAlert
+      message:
+        oneOf:
+          - $ref: '#/components/messages/CriticalAlert'
+          - $ref: '#/components/messages/WarningAlert'
+
+components:
+  messages:
+    Notification:
+      payload:
+        type: object
+        required:
+          - to
+          - subject
+        properties:
+          to:
+            type: string
+          subject:
+            type: string
+          body:
+            type: string
+          priority:
+            type: string
+    CriticalAlert:
+      payload:
+        type: object
+        required:
+          - level
+          - message
+        properties:
+          level:
+            type: string
+          message:
+            type: string
+          source:
+            type: string
+    WarningAlert:
+      payload:
+        type: object
+        required:
+          - level
+          - message
+        properties:
+          level:
+            type: string
+          message:
+            type: string

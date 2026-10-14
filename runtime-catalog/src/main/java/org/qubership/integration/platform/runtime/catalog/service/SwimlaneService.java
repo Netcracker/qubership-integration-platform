@@ -18,18 +18,18 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementDeletionException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementTransferException;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -93,7 +93,7 @@ public class SwimlaneService {
             chainDiff.setCreatedDefaultSwimlaneId(defaultSwimlane.getId());
 
             boolean chainHasReuseElements = chain.getElements().stream()
-                    .map(libraryService::getElementDescriptor)
+                    .map(element -> libraryService.getElementDescriptorOrDefault(element.getType()))
                     .anyMatch(descriptor -> ElementType.REUSE == descriptor.getType());
             if (chainHasReuseElements) {
                 SwimlaneChainElement reuseSwimlane = createSwimlaneElement(REUSE_SWIMLANE_NAME, elementDescriptor, chain);
@@ -148,7 +148,7 @@ public class SwimlaneService {
                 .filter(swimlaneElement -> StringUtils.equals(swimlaneElement.getId(), swimlaneId))
                 .findFirst()
                 .orElse(null);
-        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(element);
+        ElementDescriptor elementDescriptor = libraryService.getElementDescriptorOrDefault(element.getType());
         if (ElementType.REUSE != elementDescriptor.getType()) {
             if (swimlane == null) {
                 updateElementsHierarchy(
@@ -157,8 +157,10 @@ public class SwimlaneService {
                 );
             } else {
                 boolean parentElementReuse = Optional.ofNullable(elementService.findRootParent(element))
-                        .map(libraryService::getElementDescriptor)
-                        .map(descriptor -> ElementType.REUSE == descriptor.getType())
+                        .map(ChainElement::getType)
+                        .flatMap(libraryService::lookupElementDescriptor)
+                        .map(ElementDescriptor::getType)
+                        .map(ElementType.REUSE::equals)
                         .orElse(false);
                 if (Objects.equals(swimlane, chain.getReuseSwimlane()) && !parentElementReuse) {
                     throw new ElementTransferException("Element " + element.getId() + " cannot be moved to Reuse group");
@@ -248,7 +250,7 @@ public class SwimlaneService {
     ) {
         List<ChainElement> updatedElements = chainElements.stream()
                 .filter(element -> !SWIMLANE_TYPE_NAME.equals(element.getType()))
-                .filter(element -> elementFilter.test(libraryService.getElementDescriptor(element)))
+                .filter(element -> elementFilter.test(libraryService.getElementDescriptorOrDefault(element.getType())))
                 .toList();
         updateElementsHierarchy(updatedElements, groupElement::addElement);
         return updatedElements;

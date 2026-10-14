@@ -80,7 +80,9 @@ import {
 } from "./formValidationHelpers.ts";
 import BasePathField from "./field/BasePathField.tsx";
 import ExternalRouteCheckbox from "./field/ExternalRouteCheckbox.tsx";
+import CorrelationIdSwitchField from "./field/CorrelationIdSwitchField.tsx";
 import ContextPathWithPrefixField from "./field/ContextPathWithPrefixField.tsx";
+import CopyableTextWidget from "./widget/CopyableTextWidget.tsx";
 import DescriptionTooltipFieldTemplate from "./DescriptionTooltipFieldTemplate.tsx";
 import { getSchemaModules } from "./chainElementSchemaModules.ts";
 import {
@@ -221,6 +223,7 @@ const WIDGETS: RegistryWidgetsType = {
   singleColumnTableWidget: SingleColumnTableWidget,
   debouncedTextareaWidget: DebouncedTextareaWidget,
   textarea: DebouncedTextareaWidget,
+  copyableTextWidget: CopyableTextWidget,
 };
 
 const FIELDS = {
@@ -243,6 +246,7 @@ const FIELDS = {
   chainTriggerElementIdField: ChainTriggerElementIdField,
   basePathField: BasePathField,
   externalRouteCheckbox: ExternalRouteCheckbox,
+  correlationIdSwitchField: CorrelationIdSwitchField,
   contextPathWithPrefixField: ContextPathWithPrefixField,
 };
 
@@ -382,6 +386,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const isUnsupported =
     node.data.unsupported ??
     isUnsupportedCanvasElementType(node.data.elementType);
+  const isDeprecated = node.data.deprecated === true;
+  const shouldShowDeprecatedWarning = isDeprecated && !isUnsupported;
 
   const reportMissingRequiredParams = useCallback(
     (key: string, params: string[]) => {
@@ -953,6 +959,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
       if (node.data.elementType === "checkpoint") {
         props["httpMethodRestrict"] = { "ui:widget": "hidden" };
+        props["contextPath"] = { "ui:widget": "copyableTextWidget" };
       }
 
       if (node.data.elementType === "http-trigger") {
@@ -1127,8 +1134,17 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           <Alert
             type="error"
             showIcon
-            message="Unsupported element"
+            title="Unsupported element"
             description={`Element type is not supported. Changes cannot be saved.`}
+            style={{ marginBottom: 12 }}
+          />
+        )}
+        {shouldShowDeprecatedWarning && (
+          <Alert
+            type="warning"
+            showIcon
+            title="Deprecated element"
+            description="This element is deprecated and may be removed in a future release."
             style={{ marginBottom: 12 }}
           />
         )}

@@ -339,23 +339,32 @@ export class VSCodeFileApi implements FileApi {
     }
   }
 
-  async readFile(parameters: any, propertiesFilename: string): Promise<string> {
-    const baseUri = parameters as Uri;
+  private async getFileUri(
+    baseUri: Uri,
+    propertiesFilename: string,
+  ): Promise<Uri> {
     const baseFolder = await this.getParentDirectoryUri(baseUri);
     const fileUri = this.addToPath(baseFolder, propertiesFilename);
-    let fileContent;
+
     try {
-      fileContent = await this.readFileContent(fileUri);
+      await vscode.workspace.fs.stat(fileUri);
+      return fileUri;
     } catch (error) {
       if (!propertiesFilename.includes(RESOURCES_FOLDER)) {
-        return await this.readFile(
+        return await this.getFileUri(
           baseUri,
           RESOURCES_FOLDER + "/" + propertiesFilename,
         );
       }
       throw error;
     }
-    return fileContent;
+  }
+
+  async readFile(parameters: any, propertiesFilename: string): Promise<string> {
+    const baseUri = parameters as Uri;
+    const fileUri = await this.getFileUri(baseUri, propertiesFilename);
+
+    return await this.readFileContent(fileUri);
   }
 
   async parseFile(fileUri: Uri): Promise<any> {
@@ -415,8 +424,7 @@ export class VSCodeFileApi implements FileApi {
     mainFolderUri: Uri,
     propertyFilename: string,
   ): Promise<void> {
-    const baseFolder = await this.getParentDirectoryUri(mainFolderUri);
-    const fileUri = vscode.Uri.joinPath(baseFolder, propertyFilename);
+    const fileUri = await this.getFileUri(mainFolderUri, propertyFilename);
     try {
       await this.deleteFile(fileUri);
     } catch (error) {
@@ -726,7 +734,6 @@ export class VSCodeFileApi implements FileApi {
               name: serviceName.trim(),
               content: {
                 description: serviceDescription?.trim() || "",
-                migrations: [],
               },
             }
           : serviceType.value === "MCP"
@@ -738,7 +745,6 @@ export class VSCodeFileApi implements FileApi {
                   identifier: identifier?.trim() || "",
                   instructions: "",
                   description: serviceDescription?.trim() || "",
-                  migrations: [],
                 },
               }
             : {
@@ -754,7 +760,6 @@ export class VSCodeFileApi implements FileApi {
                   specification: "",
                   environments: [],
                   labels: [],
-                  migrations: [],
                 },
               };
 
@@ -798,6 +803,12 @@ export class VSCodeFileApi implements FileApi {
         if (name.endsWith(extensions.contextService)) {
           return QipFileType.CONTEXT_SERVICE;
         }
+        if (name.endsWith(extensions.specificationGroup)) {
+          return QipFileType.SPECIFICATION_GROUP;
+        }
+        if (name.endsWith(extensions.specification)) {
+          return QipFileType.SPECIFICATION;
+        }
         if (name.endsWith(extensions.service)) {
           return QipFileType.SERVICE;
         }
@@ -836,6 +847,31 @@ export class VSCodeFileApi implements FileApi {
   async getFileCreatedWhen(fileUri: Uri): Promise<number> {
     const fileStat = await vscode.workspace.fs.stat(fileUri);
     return fileStat.ctime;
+  }
+
+  async getDirectoriesToRemove(fileUri: Uri): Promise<Uri[]> {
+    const fileType = await this.getFileType(fileUri);
+    const qipFileType = fileType as unknown as QipFileType;
+    if (
+      qipFileType === QipFileType.CHAIN ||
+      qipFileType === QipFileType.SERVICE ||
+      qipFileType === QipFileType.CONTEXT_SERVICE ||
+      qipFileType === QipFileType.MCP_SERVICE
+    ) {
+      const directory = await this.getParentDirectoryUri(fileUri);
+      const haveResourceFolder =
+        qipFileType === QipFileType.CHAIN ||
+        qipFileType === QipFileType.SERVICE;
+      return directory.fsPath === this.getRootDirectory().fsPath
+        ? []
+        : [
+            ...(haveResourceFolder
+              ? [vscode.Uri.joinPath(directory, RESOURCES_FOLDER)]
+              : []),
+            directory,
+          ];
+    }
+    return [];
   }
 
   private hasFileWithExtension(entries: [string, number][], extension: string) {

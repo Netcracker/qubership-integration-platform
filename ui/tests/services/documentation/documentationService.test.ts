@@ -422,6 +422,21 @@ describe("DocumentationService - Element Type Mapping", () => {
       expect(mapping["http-trigger"]).toBeDefined();
     });
 
+    test("should not register readme as an element type when pages are named readme.md", async () => {
+      const mockPaths = [
+        "01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md",
+      ];
+
+      jest.spyOn(service, "loadPaths").mockResolvedValue(mockPaths);
+
+      const mapping = await service.buildElementTypeMapping();
+
+      expect(mapping["readme"]).toBeUndefined();
+      expect(mapping["http-trigger"]).toBe(
+        "/doc/01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme",
+      );
+    });
+
     test("ignores folders that merely embed 'Elements_Library' as a substring", async () => {
       const mockPaths = [
         "01__Chains/1__Graph/Custom_Elements_Library_Guide/1__Intro/intro.md",

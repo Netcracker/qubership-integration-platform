@@ -22,6 +22,7 @@ import { useChainFullscreenContext } from "./ChainFullscreenContext.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { useCatalogRefresh } from "../hooks/useCatalogRefresh.ts";
 import { RestApiError } from "../api/apiTypes.ts";
+import { useTestingServiceAvailability } from "../hooks/useTestingServiceAvailability.ts";
 
 export type ChainContextData = {
   chain: Chain | undefined;
@@ -41,6 +42,7 @@ const ChainPage = () => {
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
   const [headerActions, setHeaderActions] = useState<ReactNode>(null);
   const notificationService = useNotificationService();
+  const { isAvailable: isTestingAvailable } = useTestingServiceAvailability();
   const headerActionsRegistrationRef = useRef(0);
   const [graphRefreshVersion, setGraphRefreshVersion] = useState(0);
   const [localOperations, setLocalOperations] = useState(0);
@@ -81,6 +83,12 @@ const ChainPage = () => {
 
   const { chain, setChain, updateChain, getChain, isLoading, error } =
     useChain(chainId);
+
+  useEffect(() => {
+    if (!isVsCode && chain?.name) {
+      document.title = chain.name;
+    }
+  }, [chain?.name]);
 
   const { refresh: refreshChain } = useCatalogRefresh(
     chainId ?? "",
@@ -195,6 +203,7 @@ const ChainPage = () => {
             key: "logging-settings",
             label: "Logging",
           },
+          ...(isTestingAvailable ? [{ key: "testing", label: "Testing" }] : []),
         ]),
     { key: "masking", label: "Masking" },
     { key: "properties", label: "Properties" },

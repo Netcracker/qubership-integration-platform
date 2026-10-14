@@ -30,7 +30,7 @@ import org.qubership.integration.platform.engine.service.ExecutionStatus;
 @Setter
 @SuperBuilder
 @NoArgsConstructor
-@OpenSearchDocument(documentNameProperty = "qip.opensearch.index.elements.name")
+@OpenSearchDocument(documentNameProperty = "cip.opensearch.index.elements.name")
 public class SessionElementElastic extends AbstractElementElastic {
 
     @OpenSearchField(type = OpenSearchFieldType.Keyword)
@@ -58,6 +58,7 @@ public class SessionElementElastic extends AbstractElementElastic {
     @OpenSearchField(type = OpenSearchFieldType.Keyword)
     private String actualElementChainId;
 
+    @OpenSearchField(type = OpenSearchFieldType.Keyword)
     private String chainName;
 
     @OpenSearchField(type = OpenSearchFieldType.Keyword)

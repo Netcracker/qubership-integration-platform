@@ -770,6 +770,9 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         layout={"vertical"}
                       >
                         <Editor
+                          wrapperProps={{
+                            "data-testid": "load-schema-graphql-schema-editor",
+                          }}
                           className="qip-editor"
                           language={"graphql"}
                           theme={monacoTheme}
@@ -789,6 +792,9 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         layout={"vertical"}
                       >
                         <Editor
+                          wrapperProps={{
+                            "data-testid": "load-schema-graphql-query-editor",
+                          }}
                           className="qip-editor"
                           language={"graphql"}
                           theme={monacoTheme}
@@ -810,6 +816,9 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                       layout={"vertical"}
                     >
                       <Editor
+                        wrapperProps={{
+                          "data-testid": "load-schema-text-editor",
+                        }}
                         className="qip-editor"
                         options={{ readOnly: true, fixedOverflowWidgets: true }}
                         language={"json"}
@@ -930,6 +939,9 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         ]}
                       >
                         <Editor
+                          wrapperProps={{
+                            "data-testid": "load-sample-graphql-schema-editor",
+                          }}
                           className="qip-editor"
                           language={"graphql"}
                           theme={monacoTheme}
@@ -972,6 +984,9 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         ]}
                       >
                         <Editor
+                          wrapperProps={{
+                            "data-testid": "load-sample-graphql-query-editor",
+                          }}
                           className="qip-editor"
                           language={"graphql"}
                           theme={monacoTheme}
@@ -1018,6 +1033,9 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                       ]}
                     >
                       <Editor
+                        wrapperProps={{
+                          "data-testid": "load-sample-text-editor",
+                        }}
                         className="qip-editor"
                         language={selectedLanguage}
                         theme={monacoTheme}

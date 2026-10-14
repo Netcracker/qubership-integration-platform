@@ -27,11 +27,32 @@ jest.mock("../../../src/ModalContextProvider.tsx", () => ({
 jest.mock("../../../src/hooks/useDomains.tsx", () => ({
   useDomains: () => ({
     isLoading: false,
-    domains: [{ id: "default", name: "default" }],
+    domains: [{ id: "default", name: "default", type: DomainType.CLASSIC }],
   }),
 }));
 
+const mockGetDeployments =
+  jest.fn<
+    (chainId: string) => Promise<{ domain: string; domainType: DomainType }[]>
+  >();
+
+jest.mock("../../../src/api/api.ts", () => ({
+  api: {
+    getDeployments: (chainId: string) => mockGetDeployments(chainId),
+  },
+}));
+
 import { DeployChains } from "../../../src/components/modal/DeployChains.tsx";
+import { openSelect, querySelectOption } from "../../helpers/antdSelect.ts";
+
+async function selectDefaultDomain() {
+  openSelect(document.body);
+  await waitFor(() => expect(querySelectOption("default")).not.toBeNull());
+  fireEvent.click(querySelectOption("default") as HTMLElement);
+  await waitFor(() =>
+    expect(screen.getByText("Deploy").closest("button")).toBeEnabled(),
+  );
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -65,6 +86,7 @@ describe("DeployChains", () => {
       .mockResolvedValue([]);
     render(<DeployChains chainCount={3} onSubmit={mockOnSubmit} />);
 
+    await selectDefaultDomain();
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
@@ -95,6 +117,7 @@ describe("DeployChains", () => {
       .mockResolvedValue(results);
     render(<DeployChains chainCount={2} onSubmit={mockOnSubmit} />);
 
+    await selectDefaultDomain();
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
@@ -114,6 +137,7 @@ describe("DeployChains", () => {
       .mockResolvedValue([]);
     render(<DeployChains chainCount={1} onSubmit={mockOnSubmit} />);
 
+    await selectDefaultDomain();
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
@@ -130,6 +154,7 @@ describe("DeployChains", () => {
       .mockResolvedValue([]);
     render(<DeployChains chainCount={1} onSubmit={mockOnSubmit} />);
 
+    await selectDefaultDomain();
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
@@ -146,6 +171,7 @@ describe("DeployChains", () => {
       .mockRejectedValue(new Error("Deploy failed"));
     render(<DeployChains chainCount={1} onSubmit={mockOnSubmit} />);
 
+    await selectDefaultDomain();
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
@@ -171,6 +197,7 @@ describe("DeployChains", () => {
       .mockResolvedValue(results);
     render(<DeployChains chainCount={1} onSubmit={mockOnSubmit} />);
 
+    await selectDefaultDomain();
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
@@ -192,6 +219,7 @@ describe("DeployChains", () => {
       .mockResolvedValue(results);
     render(<DeployChains chainCount={1} onSubmit={mockOnSubmit} />);
 
+    await selectDefaultDomain();
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
@@ -215,11 +243,96 @@ describe("DeployChains", () => {
       .mockResolvedValue(results);
     render(<DeployChains chainCount={1} onSubmit={mockOnSubmit} />);
 
+    await selectDefaultDomain();
     fireEvent.click(screen.getByText("Deploy"));
 
     await waitFor(() => {
       const element = screen.getByText("Bad Chain");
       expect(element.tagName).not.toBe("A");
     });
+  });
+
+  it("uses provided initialDomains without fetching", async () => {
+    const mockOnSubmit = jest
+      .fn<() => Promise<BulkDeploymentResult[]>>()
+      .mockResolvedValue([]);
+    render(
+      <DeployChains
+        chainCount={1}
+        chainIds={["chain-1"]}
+        initialDomains={[{ name: "default", type: DomainType.CLASSIC }]}
+        onSubmit={mockOnSubmit}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Deploy").closest("button")).toBeEnabled(),
+    );
+    expect(mockGetDeployments).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("Deploy"));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith({
+        domains: [{ name: "default", type: DomainType.CLASSIC }],
+        snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
+      });
+    });
+  });
+
+  it("fetches domains for a single chain when initialDomains omitted", async () => {
+    mockGetDeployments.mockResolvedValue([
+      { domain: "d1", domainType: DomainType.CLASSIC },
+    ]);
+    const mockOnSubmit = jest
+      .fn<() => Promise<BulkDeploymentResult[]>>()
+      .mockResolvedValue([]);
+    render(
+      <DeployChains
+        chainCount={1}
+        chainIds={["chain-1"]}
+        onSubmit={mockOnSubmit}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Deploy").closest("button")).toBeEnabled(),
+    );
+    expect(mockGetDeployments).toHaveBeenCalledWith("chain-1");
+
+    fireEvent.click(screen.getByText("Deploy"));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith({
+        domains: [{ name: "d1", type: DomainType.CLASSIC }],
+        snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
+      });
+    });
+  });
+
+  it("does not fetch for multiple chains without initialDomains", () => {
+    render(<DeployChains chainCount={2} chainIds={["c1", "c2"]} />);
+    expect(mockGetDeployments).not.toHaveBeenCalled();
+    expect(screen.getByText("Deploy").closest("button")).toBeDisabled();
+  });
+
+  it("keeps Deploy disabled when the domains fetch fails", async () => {
+    mockGetDeployments.mockRejectedValue(new Error("load failed"));
+    render(
+      <DeployChains
+        chainCount={1}
+        chainIds={["chain-1"]}
+        onSubmit={jest
+          .fn<() => Promise<BulkDeploymentResult[]>>()
+          .mockResolvedValue([])}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(mockGetDeployments).toHaveBeenCalledWith("chain-1"),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Deploy").closest("button")).toBeDisabled(),
+    );
   });
 });

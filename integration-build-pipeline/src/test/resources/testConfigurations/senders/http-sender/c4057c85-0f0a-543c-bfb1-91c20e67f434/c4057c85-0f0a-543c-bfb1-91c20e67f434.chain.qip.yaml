@@ -1,0 +1,29 @@
+id: c4057c85-0f0a-543c-bfb1-91c20e67f434
+$schema: http://qubership.org/schemas/product/qip/chain
+name: http-sender-delete
+content:
+  labels: []
+  elements:
+  - id: 6cdb303b-bc48-5eea-824d-8638acba9677
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 6cdb303b-bc48-5eea-824d-8638acba9677
+  - id: 5046de11-6662-5be8-b178-5b60b61fdbae
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: DELETE
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=delete
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+  dependencies:
+  - from: 6cdb303b-bc48-5eea-824d-8638acba9677
+    to: 5046de11-6662-5be8-b178-5b60b61fdbae
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

@@ -259,8 +259,9 @@ describe("PageWithRightPanel", () => {
   });
 
   it("renders list elements tab by default", () => {
-    renderWithContext(<PageWithRightPanel />);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
+    const { container } = renderWithContext(<PageWithRightPanel />);
+    expect(screen.getByPlaceholderText("Search")).toBeInTheDocument();
+    expect(container.querySelector(".ant-empty")).toBeInTheDocument();
   });
 
   it("accepts custom width prop", () => {
@@ -388,20 +389,20 @@ describe("PageWithRightPanel", () => {
   });
 
   it("renders when ElkDirectionContext is provided", () => {
-    renderWithContext(<PageWithRightPanel />);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
+    const { container } = renderWithContext(<PageWithRightPanel />);
+    expect(container.querySelector(".ant-empty")).toBeInTheDocument();
   });
 
   it("renders without crash when elements list is empty", () => {
     (api.getElements as jest.Mock).mockResolvedValue([]);
-    renderWithContext(<PageWithRightPanel />);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
+    const { container } = renderWithContext(<PageWithRightPanel />);
+    expect(container.querySelector(".ant-empty")).toBeInTheDocument();
   });
 
   it("renders with default direction when ElkDirectionContext throws", () => {
     mockElkDirectionThrows = true;
-    renderWithContext(<PageWithRightPanel />);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
+    const { container } = renderWithContext(<PageWithRightPanel />);
+    expect(container.querySelector(".ant-empty")).toBeInTheDocument();
   });
 
   it("does not call showModal when onElementDoubleClick with non-existent id", () => {
@@ -614,13 +615,13 @@ describe("PageWithRightPanel", () => {
       });
     });
 
-    it("still renders the menu when api.getElements rejects", async () => {
+    it("renders the empty state when api.getElements rejects", async () => {
       (api.getElements as jest.Mock).mockRejectedValue(
         new Error("server down"),
       );
-      renderWithChain();
+      const { container } = renderWithChain();
       await waitFor(() => {
-        expect(screen.getByRole("menu")).toBeInTheDocument();
+        expect(container.querySelector(".ant-empty")).toBeInTheDocument();
       });
     });
   });

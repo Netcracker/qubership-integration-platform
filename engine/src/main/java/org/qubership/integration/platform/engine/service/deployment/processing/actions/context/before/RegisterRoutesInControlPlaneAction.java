@@ -19,9 +19,9 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.configuration.ApplicationAutoConfiguration;
+import org.qubership.integration.platform.engine.controlplane.ChainRouteRegistry;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -38,6 +38,7 @@ import org.springframework.stereotype.Component;
 
 import java.net.MalformedURLException;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static java.util.Objects.nonNull;
 
@@ -47,16 +48,19 @@ public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingA
     private final VariablesService variablesService;
     private final ControlPlaneService controlPlaneService;
     private final ApplicationAutoConfiguration applicationConfiguration;
+    private final ChainRouteRegistry chainRouteRegistry;
 
     @Autowired
     public RegisterRoutesInControlPlaneAction(
         VariablesService variablesService,
         ControlPlaneService controlPlaneService,
-        ApplicationAutoConfiguration applicationConfiguration
+        ApplicationAutoConfiguration applicationConfiguration,
+        ChainRouteRegistry chainRouteRegistry
     ) {
         this.variablesService = variablesService;
         this.controlPlaneService = controlPlaneService;
         this.applicationConfiguration = applicationConfiguration;
+        this.chainRouteRegistry = chainRouteRegistry;
     }
 
     @Override
@@ -75,29 +79,42 @@ public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingA
                     .setPath("/" + StringUtils.strip(externalRoute.getPath(), "/")))
             .toList();
 
+        // Register http based senders and service call paths '/{senderType}/{elementId}', '/system/{elementId}'
+        List<DeploymentRouteUpdate> egressRoutes = deploymentConfiguration.getRoutes().stream()
+            .filter(route -> RouteType.isEgressRoute(route.getType()))
+            .map(RegisterRoutesInControlPlaneAction::formatServiceRoutes)
+            .toList();
+
+        String chainId = deploymentInfo.getChainId();
         try {
             controlPlaneService.postPublicEngineRoutes(
+                chainId,
                 gatewayTriggersRoutes.stream()
                     .filter(route -> RouteType.isPublicTriggerRoute(route.getType())).toList(),
                 applicationConfiguration.getDeploymentName());
             controlPlaneService.postPrivateEngineRoutes(
+                chainId,
                 gatewayTriggersRoutes.stream()
                     .filter(route -> RouteType.isPrivateTriggerRoute(route.getType())).toList(),
                 applicationConfiguration.getDeploymentName());
 
-            // cleanup triggers routes if necessary (for internal triggers)
-            controlPlaneService.removeEngineRoutesByPathsAndEndpoint(
+            chainRouteRegistry.register(
+                chainId,
+                deploymentInfo.getDeploymentId(),
+                Stream.concat(gatewayTriggersRoutes.stream(), egressRoutes.stream()).toList());
+
+            // Purge each route from the gateway tier it no longer belongs to (visibility
+            // changed public<->private, or downgraded to internal).
+            controlPlaneService.removeEngineRoutes(
+                chainId,
                 deploymentConfiguration.getRoutes().stream()
                     .filter(route -> RouteType.triggerRouteCleanupNeeded(route.getType()))
-                    .map(route -> Pair.of(route.getPath(), route.getType()))
+                    .flatMap(RegisterRoutesInControlPlaneAction::opposingTierRemovals)
                     .toList(),
                 applicationConfiguration.getDeploymentName());
 
-            // Register http based senders and service call paths '/{senderType}/{elementId}', '/system/{elementId}'
-            deploymentConfiguration.getRoutes().stream()
-                .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
-                    || route.getType() == RouteType.EXTERNAL_SERVICE)
-                .forEach(route -> controlPlaneService.postEgressGatewayRoutes(formatServiceRoutes(route)));
+            controlPlaneService.postEgressGatewayRoutes(
+                chainId, egressRoutes, applicationConfiguration.getDeploymentName());
         } catch (ControlPlaneException e) {
             throw new DeploymentRetriableException(e);
         }
@@ -125,6 +142,19 @@ public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingA
         }
 
         return routeUpdate;
+    }
+
+    // Re-tags a route with the type of the tier(s) it must be purged from, since
+    // ControlPlaneService.removeEngineRoutes keys removal off type alone.
+    private static Stream<DeploymentRouteUpdate> opposingTierRemovals(DeploymentRouteUpdate route) {
+        return switch (route.getType()) {
+            case EXTERNAL_TRIGGER -> Stream.of(route.toBuilder().type(RouteType.PRIVATE_TRIGGER).build());
+            case PRIVATE_TRIGGER -> Stream.of(route.toBuilder().type(RouteType.EXTERNAL_TRIGGER).build());
+            case INTERNAL_TRIGGER -> Stream.of(
+                route.toBuilder().type(RouteType.EXTERNAL_TRIGGER).build(),
+                route.toBuilder().type(RouteType.PRIVATE_TRIGGER).build());
+            default -> Stream.empty();
+        };
     }
 
     private static String getCPRouteHash(DeploymentRouteUpdate route) {

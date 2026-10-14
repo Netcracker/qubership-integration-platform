@@ -8,6 +8,7 @@ import React, {
 import { FieldProps, RJSFSchema } from "@rjsf/utils";
 import { Input, Button, Tag, Tooltip } from "antd";
 import styles from "./EnhancedPatternPropertiesField.module.css";
+import { CollapsibleSection } from "../../../CollapsibleSection.tsx";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { DescriptionTooltipIcon } from "../DescriptionTooltipFieldTemplate";
 import { FormContext } from "../ChainElementModificationContext";
@@ -419,9 +420,6 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
     schema?.title,
     uiSchema,
   ]);
-
-  const rowCount = Object.entries(formData).length;
-  const [collapsed, setCollapsed] = useState(!(rowCount > 0));
 
   // operationSpecification is now published to FormContext centrally by
   // SystemOperationField (via api.getOperationInfo). We just read it here and
@@ -886,80 +884,51 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
   }, []);
 
   return (
-    <div>
-      <div className={styles.header}>
-        <div
-          className={styles.leftHeader}
-          onClick={() => setCollapsed((s) => !s)}
-        >
-          <span className={styles.iconWrapper}>
-            {collapsed ? (
-              <OverridableIcon name="right" />
-            ) : (
-              <OverridableIcon name="down" />
-            )}
-          </span>
-          <span>{title}</span>
-          {schema?.description && (
-            <DescriptionTooltipIcon description={schema.description} />
-          )}
-          <span className={styles.badge}>{mergedParameters.length}</span>
-        </div>
-
-        <div>
-          <Button
-            size="small"
-            type="text"
-            icon={<OverridableIcon name="plus" />}
-            onClick={handleAdd}
-            disabled={disabled || readonly}
-            style={{ marginLeft: 8 }}
+    <CollapsibleSection
+      title={title}
+      count={mergedParameters.length}
+      onAdd={handleAdd}
+      addDisabled={disabled || readonly}
+      titleExtra={
+        schema?.description ? (
+          <DescriptionTooltipIcon description={schema.description} />
+        ) : undefined
+      }
+    >
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th className={styles.th}>Name</th>
+            <th className={styles.th}>Value</th>
+            <th className={`${styles.th} ${styles.actionsCol}`}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {mergedParameters.map((param, idx) => (
+            <ParamRow
+              key={idx}
+              param={param}
+              displayedValue={localValues[param.name] ?? param.value}
+              isDisabled={!!(disabled || readonly)}
+              onKeyChange={handleKeyChange}
+              onValueChange={handleValueChange}
+              onPathMappedValueChange={handlePathMappedValueChange}
+              onDelete={handleDelete}
+              onRestoreDefault={restoreDefaultValue}
+            />
+          ))}
+        </tbody>
+      </table>
+      {paramType === "query" &&
+        formContext?.integrationOperationProtocolType?.toLowerCase() ===
+          "http" && (
+          <QueryParametersCheckbox
+            formContext={formContext}
+            disabled={disabled}
+            readonly={readonly}
           />
-        </div>
-      </div>
-      {!collapsed &&
-        (mergedParameters.length === 0 ? (
-          <div className={styles.noEntries}>
-            No entries. Click <b>+</b> to add.
-          </div>
-        ) : (
-          <>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th className={styles.th}>Name</th>
-                  <th className={styles.th}>Value</th>
-                  <th className={`${styles.th} ${styles.actionsCol}`}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {mergedParameters.map((param, idx) => (
-                  <ParamRow
-                    key={idx}
-                    param={param}
-                    displayedValue={localValues[param.name] ?? param.value}
-                    isDisabled={!!(disabled || readonly)}
-                    onKeyChange={handleKeyChange}
-                    onValueChange={handleValueChange}
-                    onPathMappedValueChange={handlePathMappedValueChange}
-                    onDelete={handleDelete}
-                    onRestoreDefault={restoreDefaultValue}
-                  />
-                ))}
-              </tbody>
-            </table>
-            {paramType === "query" &&
-              formContext?.integrationOperationProtocolType?.toLowerCase() ===
-                "http" && (
-                <QueryParametersCheckbox
-                  formContext={formContext}
-                  disabled={disabled}
-                  readonly={readonly}
-                />
-              )}
-          </>
-        ))}
-    </div>
+        )}
+    </CollapsibleSection>
   );
 };
 

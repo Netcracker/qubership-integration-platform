@@ -57,7 +57,10 @@ public class SessionController {
     }
 
     @Operation(extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}),
-    description = "Get session by specified external id")
+    description = "Get session by specified external id. The session elements (steps) are left out "
+            + "unless includeDetails asks for them, which is where this endpoint differs from "
+            + "GET /v1/sessions/{sessionId}. An id whose session is not recorded yet answers 404, "
+            + "so a caller polling for one has to tolerate a non-2xx.")
     @GetMapping("/external-id/{externalSessionId}")
     public ResponseEntity<Session> findByExternalId(@PathVariable @Parameter(description = "External id that was specified during chain execution") String externalSessionId,
                                                     @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether we need to include session elements(steps) in the response") boolean includeDetails) {

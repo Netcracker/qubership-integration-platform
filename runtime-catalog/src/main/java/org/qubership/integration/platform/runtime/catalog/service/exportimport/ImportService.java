@@ -22,12 +22,20 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.chain.model.ImportChain;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainExternalEntity;
+import org.qubership.integration.platform.io.model.exportimport.chain.DeploymentExternalEntity;
+import org.qubership.integration.platform.io.readers.chain.ChainModelMapper;
+import org.qubership.integration.platform.io.readers.chain.DirectoryPropertyFileSource;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.MigrationException;
+import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainImportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalMapperEntity;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.DeploymentExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -49,15 +57,10 @@ import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeployPrepare;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeserializationResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.MigrationException;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.CollectionUtils;
@@ -74,9 +77,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import static java.util.Objects.nonNull;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.CONTEXT_SYSTEM_ID;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.CONTEXT_SYSTEM_ID;
+import static org.qubership.integration.platform.library.constants.CamelOptions.SYSTEM_ID;
 
 
 /**
@@ -88,6 +91,7 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 public class ImportService {
 
     private final ChainExternalEntityMapper chainExternalEntityMapper;
+    private final ChainModelMapper chainModelMapper;
     private final YAMLMapper yamlMapper;
     private final ObjectMapper objectMapper;
     protected final ActionsLogService actionLogger;
@@ -105,11 +109,9 @@ public class ImportService {
     private static final short ASYNC_IMPORT_PERCENTAGE_THRESHOLD = 40;
     private static final short ASYNC_SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD = 90;
 
-    @Value("${app.prefix}")
-    private String appName;
-
     @Autowired
     public ImportService(ChainExternalEntityMapper chainExternalEntityMapper,
+                         ChainModelMapper chainModelMapper,
                          YAMLMapper yamlMapper,
                          @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                          ActionsLogService actionLogger,
@@ -125,6 +127,7 @@ public class ImportService {
                          Collection<ChainImportFileMigration> chainImportFileMigrations
     ) {
         this.chainExternalEntityMapper = chainExternalEntityMapper;
+        this.chainModelMapper = chainModelMapper;
         this.objectMapper = objectMapper;
         this.yamlMapper = yamlMapper;
         this.actionLogger = actionLogger;
@@ -257,7 +260,7 @@ public class ImportService {
             throw new RuntimeException("Exception while extract files from zip", e);
         }
 
-        logImportAction(file.getOriginalFilename());
+        logImportAction(file.getOriginalFilename(), importId);
         String requestId = RequestIdContext.get();
         File finalUnpackDirectory = unpackDirectory;
         CompletableFuture.supplyAsync(() -> {
@@ -460,11 +463,13 @@ public class ImportService {
                 Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
                 ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
                 Folder existingFolder = chainImportService.resolveOrCreateRootFolder(chainExternalEntity);
+                ImportChain importChain = chainModelMapper.map(
+                        chainExternalEntity,
+                        chainFilesDir == null ? null : new DirectoryPropertyFileSource(chainFilesDir));
                 Chain chain = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
-                        .chainExternalEntity(chainExternalEntity)
+                        .importChain(importChain)
                         .existingChain(currentChainState)
                         .existingFolder(existingFolder)
-                        .chainFilesDirectory(chainFilesDir)
                         .build());
 
                 ChainImportService.replaceTechnicalLabels(technicalLabels, chain);
@@ -507,7 +512,12 @@ public class ImportService {
     }
 
     private void logImportAction(String archiveName) {
+        logImportAction(archiveName, null);
+    }
+
+    private void logImportAction(String archiveName, String importId) {
         actionLogger.logAction(ActionLog.builder()
+                .entityId(importId)
                 .entityType(EntityType.CHAINS)
                 .entityName(archiveName)
                 .operation(LogOperation.IMPORT)
@@ -693,10 +703,7 @@ public class ImportService {
     protected File getChainYAMLFile(File chainDir) {
         if (chainDir.listFiles() != null) {
             List<File> dirFiles = Arrays.asList(Objects.requireNonNull(chainDir.listFiles()));
-            return dirFiles.stream().filter(
-                            f -> (f.getName().startsWith(CHAIN_YAML_NAME_PREFIX)
-                                    && f.getName().endsWith(YAML_FILE_NAME_POSTFIX))
-                                    || f.getName().endsWith(CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+            return dirFiles.stream().filter(f -> ExportImportUtils.isChainFileName(f.getName()))
                     .findFirst().orElseThrow(() -> new RuntimeException(
                             "Directory " + chainDir.getName() + " does not contain chain YAML file")
                     );

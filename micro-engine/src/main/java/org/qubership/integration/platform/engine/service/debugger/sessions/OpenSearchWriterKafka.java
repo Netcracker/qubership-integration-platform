@@ -22,12 +22,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.kafka.OpenSearchKafkaProducer;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 
 @Slf4j
 @ApplicationScoped
-@IfBuildProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
+@IfBuildProperty(name = "cip.opensearch.kafka-client.enabled", stringValue = "true")
 public class OpenSearchWriterKafka extends OpenSearchWriter {
 
     private final OpenSearchKafkaProducer openSearchKafkaProducer;
@@ -38,11 +37,7 @@ public class OpenSearchWriterKafka extends OpenSearchWriter {
     }
 
     private void sendToKafka(SessionElementElastic element) {
-        KafkaQueueElement kafkaQueueElement = KafkaQueueElement.builder()
-                .id(element.getId())
-                .source(element)
-                .build();
-        openSearchKafkaProducer.send(element.getId(), kafkaQueueElement);
+        openSearchKafkaProducer.send(element.getId(), element);
     }
 
     @Override

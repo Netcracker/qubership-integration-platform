@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import org.qubership.integration.platform.runtime.catalog.model.chain.LogLoggingLevel;
 import org.qubership.integration.platform.runtime.catalog.model.chain.LogPayload;
+import org.qubership.integration.platform.runtime.catalog.model.chain.SessionLogDetails;
 import org.qubership.integration.platform.runtime.catalog.model.chain.SessionsLoggingLevel;
 
 import java.util.Set;
@@ -38,6 +39,7 @@ public class DeploymentRuntimeProperties {
             .logPayloadEnabled(false)
             .dptEventsEnabled(false)
             .maskingEnabled(true)
+            .sessionLogDetails(SessionLogDetails.OFF)
             .build();
 
     private SessionsLoggingLevel sessionsLoggingLevel;
@@ -47,7 +49,15 @@ public class DeploymentRuntimeProperties {
     private boolean logPayloadEnabled;  //Deprecated since 24.4
     private boolean dptEventsEnabled;
     private boolean maskingEnabled;
+    @Getter(AccessLevel.NONE)
+    @Builder.Default
+    @Schema(defaultValue = "OFF")
+    private SessionLogDetails sessionLogDetails = SessionLogDetails.OFF;
 
+
+    public SessionsLoggingLevel getSessionsLoggingLevel() {
+        return sessionsLoggingLevel == null ? SessionsLoggingLevel.OFF : sessionsLoggingLevel;
+    }
 
     public LogLoggingLevel getLogLoggingLevel() {
         return logLoggingLevel == null ? LogLoggingLevel.defaultLevel() : logLoggingLevel;
@@ -55,5 +65,9 @@ public class DeploymentRuntimeProperties {
 
     public static DeploymentRuntimeProperties getDefaultValues() {
         return DEFAULT_VALUES;
+    }
+
+    public SessionLogDetails getSessionLogDetails() {
+        return sessionLogDetails == null ? SessionLogDetails.OFF : sessionLogDetails;
     }
 }

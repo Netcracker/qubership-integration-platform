@@ -3,30 +3,34 @@ kind: Deployment
 metadata:
   labels:
     qip_engine_app: "true"
-    name: {{ .Release.Name }}-engine
-    app: {{ .Release.Name }}-engine
-  name: {{ .Release.Name }}-engine
+    name: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
+    app: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
+  name: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-engine
+      app: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
   strategy:
-    type: Recreate
+    {{- toYaml .Values.strategy | nindent 4 }}
   template:
     metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         qip_engine_app: "true"
-        name: {{ .Release.Name }}-engine
-        app: {{ .Release.Name }}-engine
+        name: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
+        app: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
     spec:
       serviceAccountName: {{ .Release.Name }}-service-account
       containers:
         - args:
             - /opt/java/openjdk/bin/java
-            - -Xmx832m
-            - -XX:MetaspaceSize=512m
-            - -XX:MaxMetaspaceSize=224m
+            - -Xmx{{ .Values.jvm.maxHeap }}
+            - -XX:MetaspaceSize={{ .Values.jvm.metaspaceSize }}
+            - -XX:MaxMetaspaceSize={{ .Values.jvm.maxMetaspaceSize }}
             - -XX:MaxDirectMemorySize=224m
             - -XX:+ExitOnOutOfMemoryError
             - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
@@ -40,11 +44,8 @@ spec:
             - -jar
             - /app/qip-engine.jar
           env:
-            - name: CONSUL_ADMIN_TOKEN
-              valueFrom:
-                configMapKeyRef:
-                  key: CONSUL_ADMIN_TOKEN
-                  name: {{ .Release.Name }}-env
+            - name: CONSUL_ADMIN_TOKEN_FILE
+              value: /etc/secrets/pod-secrets/consul_admin_token
             - name: CONSUL_URL
               valueFrom:
                 configMapKeyRef:
@@ -64,6 +65,16 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   key: RUNTIME_CATALOG_SERVICE_URL
+                  name: {{ .Release.Name }}-engine-env
+            - name: TESTING_SERVICE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: TESTING_SERVICE_ENABLED
+                  name: {{ .Release.Name }}-engine-env
+            - name: TESTING_SERVICE_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: TESTING_SERVICE_ADDRESS
                   name: {{ .Release.Name }}-engine-env
             - name: NAMESPACE
               valueFrom:
@@ -112,7 +123,25 @@ spec:
                   name: {{ .Release.Name }}-env
             - name: MICROSERVICE_NAME
               value: {{ .Release.Name }}-engine
-          image: ghcr.io/netcracker/qubership-integration-engine:latest
+            - name: CONTROL_PLANE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: CONTROL_PLANE_ENABLED
+                  name: {{ .Release.Name }}-env
+            - name: SERVICE_MESH_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  key: SERVICE_MESH_TYPE
+                  name: {{ .Release.Name }}-env
+            - name: DEPLOYMENT_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  key: BLUE_GREEN_VERSION
+                  name: {{ .Release.Name }}-env
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          image: ghcr.io/netcracker/qubership-integration-engine:{{ .Values.image.tag }}
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
@@ -122,8 +151,23 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 15
+          # The readiness group carries readinessState alone. Probing /actuator/health
+          # instead would gate traffic on every dependency the service reports.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            timeoutSeconds: 5
           name: {{ .Release.Name }}-engine
           ports:
             - containerPort: 8080
             - containerPort: 5005
+          volumeMounts:
+            - name: pod-secrets
+              mountPath: /etc/secrets/pod-secrets
+              readOnly: true
+      volumes:
+        - name: pod-secrets
+          secret:
+            secretName: {{ .Release.Name }}-engine-pod-secrets
       restartPolicy: Always

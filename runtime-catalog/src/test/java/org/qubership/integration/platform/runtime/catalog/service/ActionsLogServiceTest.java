@@ -20,10 +20,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.InvalidEnumConstantException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogDTO;
+import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.model.filter.ActionLogFilterColumn;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.ActionsLogMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -36,7 +41,9 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,7 +76,7 @@ class ActionsLogServiceTest {
         ActionLogDTO dto = ActionLogDTO.builder().id("log-1").build();
         List<ActionLog> logs = List.of(log);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList(), null))
                 .thenReturn(logs);
         when(actionsLogMapper.asDTO(logs)).thenReturn(List.of(dto));
 
@@ -86,7 +93,7 @@ class ActionsLogServiceTest {
         request.setOffset(-5);
         request.setLimit(50);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList(), null))
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
@@ -103,13 +110,13 @@ class ActionsLogServiceTest {
         request.setOffset(0);
         request.setLimit(0);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 100, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 100, Collections.emptyList(), null))
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
         ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
 
-        verify(actionLogRepository).findActionLogsByFilter(0, 100, Collections.emptyList());
+        verify(actionLogRepository).findActionLogsByFilter(0, 100, Collections.emptyList(), null);
         assertThat(response.getOffset()).isZero();
         assertThat(response.getActionLogs()).isEmpty();
     }
@@ -121,13 +128,13 @@ class ActionsLogServiceTest {
         request.setOffset(0);
         request.setLimit(5000);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 1000, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 1000, Collections.emptyList(), null))
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
         ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
 
-        verify(actionLogRepository).findActionLogsByFilter(0, 1000, Collections.emptyList());
+        verify(actionLogRepository).findActionLogsByFilter(0, 1000, Collections.emptyList(), null);
         assertThat(response.getOffset()).isZero();
         assertThat(response.getActionLogs()).isEmpty();
     }
@@ -140,30 +147,81 @@ class ActionsLogServiceTest {
         request.setLimit(50);
         request.setFilters(null);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList(), null))
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
         ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
 
-        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList());
+        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList(), null);
         assertThat(response.getOffset()).isZero();
         assertThat(response.getActionLogs()).isEmpty();
     }
 
     @Test
-    @DisplayName("findByPagedSearchRequest returns empty result on invalid enum filter")
-    void findByPagedSearchRequestReturnsEmptyOnInvalidEnum() {
+    @DisplayName("A condition the column cannot translate is rejected instead of reaching the query")
+    void findByPagedSearchRequestRejectsUnsupportedCondition() {
         ActionLogSearchRequest request = new ActionLogSearchRequest();
         request.setOffset(10);
         request.setLimit(50);
+        request.setFilters(List.of(filter(ActionLogFilterColumn.ACTION_TIME, FilterCondition.CONTAINS)));
 
-        when(actionLogRepository.findActionLogsByFilter(10, 50, Collections.emptyList()))
-                .thenThrow(new InvalidEnumConstantException("invalid enum"));
+        assertThatThrownBy(() -> actionsLogService.findByPagedSearchRequest(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("CONTAINS")
+                .hasMessageContaining("ACTION_TIME");
 
-        ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
+        verifyNoInteractions(actionLogRepository);
+    }
 
-        assertThat(response.getOffset()).isEqualTo(10);
-        assertThat(response.getActionLogs()).isEmpty();
+    @Test
+    @DisplayName("A condition no column implements is rejected on a text column too")
+    void findByPagedSearchRequestRejectsConditionWithoutQueryBuilderCase() {
+        ActionLogSearchRequest request = new ActionLogSearchRequest();
+        request.setOffset(0);
+        request.setLimit(50);
+        request.setFilters(List.of(filter(ActionLogFilterColumn.ENTITY_NAME, FilterCondition.LESS_THAN)));
+
+        assertThatThrownBy(() -> actionsLogService.findByPagedSearchRequest(request))
+                .isInstanceOf(BadRequestException.class);
+
+        verifyNoInteractions(actionLogRepository);
+    }
+
+    @Test
+    @DisplayName("A condition the column does support still reaches the query")
+    void findByPagedSearchRequestRunsSupportedCondition() {
+        ActionLogSearchRequest request = new ActionLogSearchRequest();
+        request.setOffset(0);
+        request.setLimit(50);
+        List<ActionLogFilterRequestDTO> filters =
+                List.of(filter(ActionLogFilterColumn.ENTITY_NAME, FilterCondition.CONTAINS));
+        request.setFilters(filters);
+
+        when(actionLogRepository.findActionLogsByFilter(0, 50, filters, null)).thenReturn(Collections.emptyList());
+        when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
+
+        assertThat(actionsLogService.findByPagedSearchRequest(request).getActionLogs()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "\"{0}\" is passed as {1}")
+    @CsvSource({"'  alice ', alice", "'   ',"})
+    @DisplayName("findByPagedSearchRequest trims the search string and ignores a blank one")
+    void findByPagedSearchRequestTrimsSearchString(String searchString, String expected) {
+        ActionLogSearchRequest request = new ActionLogSearchRequest();
+        request.setLimit(50);
+        request.setSearchString(searchString);
+
+        actionsLogService.findByPagedSearchRequest(request);
+
+        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList(), expected);
+    }
+
+    private ActionLogFilterRequestDTO filter(ActionLogFilterColumn column, FilterCondition condition) {
+        ActionLogFilterRequestDTO filter = new ActionLogFilterRequestDTO();
+        filter.setColumn(column);
+        filter.setCondition(condition);
+        filter.setValue("probe-value");
+        return filter;
     }
 }

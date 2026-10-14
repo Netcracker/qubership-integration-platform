@@ -1,0 +1,51 @@
+asyncapi: 2.6.0
+info:
+  title: AMQP API with payload $ref
+  version: 1.0.0
+
+servers:
+  production:
+    url: rabbitmq.internal:5672
+    protocol: amqp
+
+channels:
+  events:
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: events
+          durable: true
+        exchange:
+          name: events.direct
+          type: direct
+    subscribe:
+      operationId: consumeEvent
+      message:
+        $ref: '#/components/messages/Event'
+
+components:
+  messages:
+    Event:
+      payload:
+        $ref: '#/components/schemas/Event'
+  schemas:
+    Event:
+      type: object
+      required:
+        - id
+        - type
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        data:
+          $ref: '#/components/schemas/EventData'
+    EventData:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string

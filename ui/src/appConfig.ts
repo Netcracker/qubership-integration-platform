@@ -23,6 +23,14 @@ export type AppConfig = {
   additionalCss?: string[];
   themeOverrides?: Partial<ThemeConfig>;
   documentationBaseUrl?: string;
+  /**
+   * Whether this is a live installation. Set on every service of the platform,
+   * not on the front end alone, and read here to keep the screens that are
+   * unsafe on a live installation out of reach without asking a service first.
+   * Absent means the installation named no mode, and the services it talks to
+   * answer that question for themselves.
+   */
+  productionMode?: boolean;
   dev?: boolean;
   permissions?: UserPermissions;
   userInfo?: UserInfo;
@@ -160,12 +168,25 @@ export function configure(config: Partial<AppConfig>): void {
     appConfigValue.dev = config.dev;
     overrides.push(`dev: ${oldValue} -> ${config.dev}`);
   }
+  if (config.productionMode !== undefined) {
+    const oldValue = appConfigValue.productionMode;
+    appConfigValue.productionMode = config.productionMode;
+    overrides.push(`productionMode: ${oldValue} -> ${config.productionMode}`);
+  }
 
   if (config.permissions !== undefined) {
     const oldValue = appConfigValue.permissions;
     appConfigValue.permissions = config.permissions;
     overrides.push(
       `permissions: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.permissions)}`,
+    );
+  }
+
+  if (config.domainTypes !== undefined) {
+    const oldValue = appConfigValue.domainTypes;
+    appConfigValue.domainTypes = config.domainTypes;
+    overrides.push(
+      `domainTypes: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.domainTypes)}`,
     );
   }
 
@@ -268,6 +289,16 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
         error,
       );
     }
+  }
+
+  // Only "true" turns it on. A value the installation misspelled leaves the
+  // flag absent, and the services it talks to are asked instead, rather than
+  // the front end deciding on a string it did not understand.
+  const productionMode = import.meta.env.VITE_PRODUCTION_MODE as
+    | string
+    | undefined;
+  if (productionMode !== undefined && productionMode !== "") {
+    config.productionMode = productionMode === "true";
   }
 
   return config;

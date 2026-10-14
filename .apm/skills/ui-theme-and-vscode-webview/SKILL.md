@@ -5,34 +5,45 @@ description: Theme and environment behavior for QIP UI. Use when working on styl
 
 # Theme and VS Code Webview
 
-Use this skill when any UI behavior depends on theme or runtime environment.
+Any UI behavior that depends on color or on the host environment.
 
-## Supported modes
+## Four modes, two runtimes
 
-The UI must work in all four modes:
+| Mode | Activated by | Colors come from |
+|---|---|---|
+| Light | default, no attribute | `--vscode-*` fallbacks in `styles/theme-variables.css` |
+| Dark | `[data-theme="dark"]` on `:root` | dark overrides in the same file |
+| High contrast | `[data-theme="high-contrast"]` on `:root` | high-contrast overrides in the same file |
+| VS Code webview | `.vscode-webview` class on `:root` | real `--vscode-*` variables injected by the extension host |
 
-- Light (default)
-- Dark (`[data-theme="dark"]`)
-- High contrast (`[data-theme="high-contrast"]`)
-- VS Code webview (`:root.vscode-webview`)
+The fallbacks in `theme-variables.css` exist for standalone browser use. In the webview the
+extension host injects the IDE's actual colors and overrides them, so a value that looks right in
+the browser says nothing about how it renders in VS Code. Never hardcode a color that a
+`--vscode-*` variable already covers.
 
-## Source of theme values
-
-- Browser mode uses fallback `--vscode-*` values from `theme-variables.css`.
-- VS Code webview mode receives actual IDE theme variables injected by extension host.
-- Do not assume browser fallback values are authoritative in webview mode.
-
-## Runtime detection
-
-Use `useVSCodeTheme()` in components:
+## Reading the theme in a component
 
 ```typescript
 const { isDark, isVSCodeWebview, palette } = useVSCodeTheme();
 ```
 
-- Use `isDark` for conditional visuals (for example chart/Monaco/icon variants).
-- Use `isVSCodeWebview` for behavior differences specific to extension runtime.
+- `isDark` — conditional visuals: Monaco theme, chart colors, icon variants.
+- `isVSCodeWebview` — behavior that differs inside the extension host.
+- `palette` — resolved VS Code colors, with the browser fallbacks applied when a variable is absent.
 
-## Theming rule
+## Where color lives
 
-- Any new visual behavior must be validated for browser and webview runtimes, across all supported theme modes.
+- `styles/theme-variables.css` — the CSS variables and their per-mode overrides.
+- `styles/antd-overrides.css`, `styles/reactflow-theme.css` — library surfaces that need their own
+  themed rules.
+- `theme/antdTokens.ts` — the Ant Design token set.
+- `theme/semanticColors.ts` — meaning-carrying palettes shared across components: `METHOD_COLORS`,
+  `PROTOCOL_COLORS`, `SOURCE_COLORS`, `COLOR_PALETTE`, `SOLID_TAG_TONES`. Reuse these instead of
+  picking a hex per component, or the same concept ends up a different color on two pages.
+- `theme/themeInit.ts` — theme lifecycle and the initial mode detection.
+
+## The rule
+
+Any new visual behavior has to hold in all four modes and in both runtimes. Check dark and
+high contrast before handing the change back — high contrast is the one that usually breaks, because
+a fallback that merely looks dim in dark mode becomes unreadable there.

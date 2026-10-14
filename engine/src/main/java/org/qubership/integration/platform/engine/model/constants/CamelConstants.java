@@ -68,8 +68,15 @@ public final class CamelConstants {
     public static final class Properties {
         public static final String ELEMENT_EXECUTION_MAP = INTERNAL_PROPERTY_PREFIX + "elementExecutionMap";
         public static final String SESSION_ID = INTERNAL_PROPERTY_PREFIX + "sessionId";
+        // The test case run the exchange belongs to. A chain is free to drop the header it was read
+        // from, so endpoint mocking asks this property instead.
+        public static final String TESTING_SESSION_ID = INTERNAL_PROPERTY_PREFIX + "testingSessionId";
         public static final String SESSION_SHOULD_BE_LOGGED = INTERNAL_PROPERTY_PREFIX + "sessionShouldBeLogged";
+        public static final String GQL_ENDPOINT_URI = INTERNAL_PROPERTY_PREFIX + "graphQLEndpointUri";
         public static final String STEPS = INTERNAL_PROPERTY_PREFIX + "steps";
+        public static final String SESSION_STEP_JSON_LOGGED = INTERNAL_PROPERTY_PREFIX + "sessionStepJsonLogged";
+        public static final String SESSION_STEP_NODE_IDS = INTERNAL_PROPERTY_PREFIX + "sessionStepNodeIds";
+        public static final String SESSION_STEP_IDS = INTERNAL_PROPERTY_PREFIX + "sessionStepIds";
         public static final String EXCHANGES = INTERNAL_PROPERTY_PREFIX + "exchanges";
         public static final String START_TIME = INTERNAL_PROPERTY_PREFIX + "startTime";
         public static final String START_TIME_MS = INTERNAL_PROPERTY_PREFIX + "startTimeMs";

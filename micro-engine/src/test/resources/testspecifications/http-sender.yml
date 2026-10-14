@@ -1,0 +1,4119 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: http-sender-post
+deployments:
+- id: http-sender-get
+  route: http-sender-get
+- id: http-sender-post
+  route: http-sender-post
+- id: http-sender-put
+  route: http-sender-put
+- id: http-sender-patch
+  route: http-sender-patch
+- id: http-sender-delete
+  route: http-sender-delete
+- id: http-sender-head
+  route: http-sender-head
+- id: http-sender-external
+  route: http-sender-external
+- id: http-sender-external-default
+  route: http-sender-external-default
+- id: http-sender-correlation-header
+  route: http-sender-correlation-header
+- id: http-sender-context-dynamic
+  route: http-sender-context-dynamic
+- id: http-sender-no-reuse
+  route: http-sender-no-reuse
+- id: http-sender-correlation-body
+  route: http-sender-correlation-body
+- id: http-sender-timeout
+  route: http-sender-timeout
+- id: http-sender-dynamic-uri
+  route: http-sender-dynamic-uri
+- id: http-sender-context-disabled
+  route: http-sender-context-disabled
+- id: http-sender-context-literal
+  route: http-sender-context-literal
+fixtures:
+- id: http-sender-get-service
+  provider: http-sender-http
+  sourceElementId: b8c02644-7b47-5981-9232-dd89ce95ffc4
+  deployment: http-sender-get
+- id: http-sender-post-service
+  provider: http-sender-http
+  sourceElementId: 7ba80dfb-43d5-5d80-b5dc-e30c6f78a907
+  deployment: http-sender-post
+- id: http-sender-put-service
+  provider: http-sender-http
+  sourceElementId: 69215c24-68f2-57ea-82ff-ae5daf149a83
+  deployment: http-sender-put
+- id: http-sender-patch-service
+  provider: http-sender-http
+  sourceElementId: 09b18c46-b173-5800-954c-993c9a0e0111
+  deployment: http-sender-patch
+- id: http-sender-delete-service
+  provider: http-sender-http
+  sourceElementId: 5046de11-6662-5be8-b178-5b60b61fdbae
+  deployment: http-sender-delete
+- id: http-sender-head-service
+  provider: http-sender-http
+  sourceElementId: 1c6dacdf-0e5b-5c48-aebb-2f0c8a71e2e2
+  deployment: http-sender-head
+- id: http-sender-external-service
+  provider: http-sender-http
+  sourceElementId: e3bd4b30-223a-5540-a774-9bcc7773e639
+  deployment: http-sender-external
+- id: http-sender-external-default-service
+  provider: http-sender-http
+  sourceElementId: f1a26664-4439-5f21-921e-c9156b33bfa6
+  deployment: http-sender-external-default
+- id: http-sender-correlation-header-service
+  provider: http-sender-http
+  sourceElementId: caa4ff99-ec43-5c1a-b9e8-eda5f27896d5
+  deployment: http-sender-correlation-header
+- id: http-sender-context-dynamic-service
+  provider: http-sender-http
+  sourceElementId: 833a0484-35ee-5273-ab86-fcf10cd99c6e
+  deployment: http-sender-context-dynamic
+- id: http-sender-no-reuse-service
+  provider: http-sender-http
+  sourceElementId: 6b585636-a932-59ce-bb14-0e847a44fa3e
+  deployment: http-sender-no-reuse
+- id: http-sender-correlation-body-service
+  provider: http-sender-http
+  sourceElementId: 449ab4ef-472a-5725-a6ff-6aea37be28d3
+  deployment: http-sender-correlation-body
+- id: http-sender-timeout-service
+  provider: http-sender-http
+  sourceElementId: 121b6390-6802-5af6-8bdb-dfeb085f6554
+  deployment: http-sender-timeout
+- id: http-sender-dynamic-uri-service
+  provider: http-sender-http
+  sourceElementId: a4979157-ac8c-5860-9376-0ac60ebb87e3
+  deployment: http-sender-dynamic-uri
+- id: http-sender-context-disabled-service
+  provider: http-sender-http
+  sourceElementId: d7b260a2-3753-5067-b8df-5d90cf466601
+  deployment: http-sender-context-disabled
+- id: http-sender-context-literal-service
+  provider: http-sender-http
+  sourceElementId: 559b3eb3-56c3-585e-832b-83344b33531d
+  deployment: http-sender-context-literal
+scenarios:
+- id: sends-get-requests-with-query-and-response-headers
+  scope: Short
+  deployment: http-sender-get
+  endpointUri: cip-chain:19b6125f-bf3b-5979-9070-ba33b59aa7a3
+  invocations:
+  - id: gets-json-response
+    body: null
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: gets-json-response
+      X-Request-Id: request-gets-json-response
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      items:
+      - id: 1
+        name: QIP
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: gets-json-response
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-get-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: gets-json-response
+        body:
+          items:
+          - id: 1
+            name: QIP
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-gets-json-response
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: GET
+        path: /api/v1/items
+        query: source=snapshot&mode=get
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=get
+        headers:
+          Accept: application/json
+          Content-Type: null
+          X-Http-Test: gets-json-response
+          X-Request-Id: request-gets-json-response
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: null
+  - id: gets-text-response
+    body: null
+    headers:
+      Accept: text/plain; charset=UTF-8
+      Content-Type: application/json
+      X-Http-Test: gets-text-response
+      X-Request-Id: request-gets-text-response
+      CamelHttpMethod: OPTIONS
+    expectedBody: Hello, world!
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: text/plain; charset=UTF-8
+      X-Http-Response: gets-text-response
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-get-service
+      response:
+        status: 200
+        headers:
+          Content-Type: text/plain; charset=UTF-8
+          X-Http-Response: gets-text-response
+        body: Hello, world!
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-gets-text-response
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: GET
+        path: /api/v1/items
+        query: source=snapshot&mode=get
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=get
+        headers:
+          Accept: text/plain; charset=UTF-8
+          Content-Type: null
+          X-Http-Test: gets-text-response
+          X-Request-Id: request-gets-text-response
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: null
+- id: sends-post-requests-and-recovers-from-failures
+  scope: Short
+  deployment: http-sender-post
+  endpointUri: cip-chain:7c3851ad-4163-5aa2-aa0d-d8029dcb0e8a
+  invocations:
+  - id: fails-on-connection-refused
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-on-connection-refused
+      X-Request-Id: incoming-fails-on-connection-refused
+    expectedBody: '{"input":"original"}'
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpResponseCode
+    - X-Http-Response
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-on-connection-refused
+        body:
+          invocation: fails-on-connection-refused
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-fails-on-connection-refused
+            Authorization: null
+          transportFault: CONNECTION_REFUSED
+      expectedRequest:
+        count: 0
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-on-connection-refused
+          X-Request-Id: incoming-fails-on-connection-refused
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: org.apache.hc.client5.http.HttpHostConnectException
+      message: 'Connect to http://127.0.0.1:<loopback-port> failed: Connection refused'
+      cause: null
+  - id: recovers-after-connection-refused
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-connection-refused
+      X-Request-Id: incoming-recovers-after-connection-refused
+    expectedBody:
+      invocation: recovers-after-connection-refused
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-connection-refused
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-connection-refused
+        body:
+          invocation: recovers-after-connection-refused
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-after-connection-refused
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-connection-refused
+          X-Request-Id: incoming-recovers-after-connection-refused
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: fails-on-empty-response
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-on-empty-response
+      X-Request-Id: incoming-fails-on-empty-response
+    expectedBody: '{"input":"original"}'
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpResponseCode
+    - X-Http-Response
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-on-empty-response
+        body:
+          invocation: fails-on-empty-response
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-fails-on-empty-response
+            Authorization: null
+          transportFault: EMPTY_RESPONSE
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-on-empty-response
+          X-Request-Id: incoming-fails-on-empty-response
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: org.apache.hc.core5.http.NoHttpResponseException
+      message: The target server failed to respond
+      cause: null
+  - id: recovers-after-empty-response
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-empty-response
+      X-Request-Id: incoming-recovers-after-empty-response
+    expectedBody:
+      invocation: recovers-after-empty-response
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-empty-response
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-empty-response
+        body:
+          invocation: recovers-after-empty-response
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-after-empty-response
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-empty-response
+          X-Request-Id: incoming-recovers-after-empty-response
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: fails-on-connection-reset
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-on-connection-reset
+      X-Request-Id: incoming-fails-on-connection-reset
+    expectedBody: '{"input":"original"}'
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpResponseCode
+    - X-Http-Response
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-on-connection-reset
+        body:
+          invocation: fails-on-connection-reset
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-fails-on-connection-reset
+            Authorization: null
+          transportFault: CONNECTION_RESET_BY_PEER
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-on-connection-reset
+          X-Request-Id: incoming-fails-on-connection-reset
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: java.net.SocketException
+      message: Connection reset
+      cause: null
+  - id: recovers-after-connection-reset
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-connection-reset
+      X-Request-Id: incoming-recovers-after-connection-reset
+    expectedBody:
+      invocation: recovers-after-connection-reset
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-connection-reset
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-connection-reset
+        body:
+          invocation: recovers-after-connection-reset
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-after-connection-reset
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-connection-reset
+          X-Request-Id: incoming-recovers-after-connection-reset
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: posts-json-body
+    body: '{"name":"QIP","enabled":true}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: posts-json-body
+      X-Request-Id: request-posts-json-body
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      id: 17
+      created: true
+    expectedHeaders:
+      CamelHttpResponseCode: 201
+      Content-Type: application/json
+      X-Http-Response: posts-json-body
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 201
+        headers:
+          Content-Type: application/json
+          X-Http-Response: posts-json-body
+        body:
+          id: 17
+          created: true
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-posts-json-body
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: posts-json-body
+          X-Request-Id: request-posts-json-body
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"name":"QIP","enabled":true}'
+  - id: posts-text-body
+    body: Hello, world!
+    headers:
+      Accept: text/plain; charset=UTF-8
+      Content-Type: text/plain
+      X-Http-Test: posts-text-body
+      X-Request-Id: request-posts-text-body
+      CamelHttpMethod: OPTIONS
+    expectedBody: 'Received: world'
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: text/plain; charset=UTF-8
+      X-Http-Response: posts-text-body
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: text/plain; charset=UTF-8
+          X-Http-Response: posts-text-body
+        body: 'Received: world'
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-posts-text-body
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: text/plain; charset=UTF-8
+          Content-Type: text/plain; charset=UTF-8
+          X-Http-Test: posts-text-body
+          X-Request-Id: request-posts-text-body
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: Hello, world!
+  - id: posts-empty-body
+    body: null
+    headers:
+      Accept: text/plain
+      Content-Type: text/plain
+      X-Http-Test: posts-empty-body
+      X-Request-Id: request-posts-empty-body
+      CamelHttpMethod: OPTIONS
+    expectedBody: ''
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: text/plain
+      X-Http-Response: posts-empty-body
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: text/plain
+          X-Http-Response: posts-empty-body
+        body: ''
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-posts-empty-body
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: text/plain
+          Content-Type: null
+          X-Http-Test: posts-empty-body
+          X-Request-Id: request-posts-empty-body
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: null
+  - id: fails-on-http-400
+    body: '{"case":400}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-on-http-400
+      X-Request-Id: request-fails-on-http-400
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      code: 400
+      message: HTTP request rejected.
+    expectedHeaders:
+      CamelHttpResponseCode: 400
+      Content-Type: application/json
+      X-Http-Response: fails-on-http-400
+    expectedAbsentHeaders:
+    - X-Request-Id
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 400
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-on-http-400
+        body:
+          code: 400
+          message: HTTP request rejected.
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-fails-on-http-400
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-on-http-400
+          X-Request-Id: request-fails-on-http-400
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"case":400}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=post with statusCode:
+        400'
+      cause: null
+  - id: recovers-after-http-400
+    body: '{"retryAfter":400}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-http-400
+      X-Request-Id: request-recovers-after-http-400
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      recoveredAfter: 400
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-http-400
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-http-400
+        body:
+          recoveredAfter: 400
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-recovers-after-http-400
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-http-400
+          X-Request-Id: request-recovers-after-http-400
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"retryAfter":400}'
+  - id: fails-on-http-401
+    body: '{"case":401}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-on-http-401
+      X-Request-Id: request-fails-on-http-401
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      code: 401
+      message: HTTP request rejected.
+    expectedHeaders:
+      CamelHttpResponseCode: 401
+      Content-Type: application/json
+      X-Http-Response: fails-on-http-401
+    expectedAbsentHeaders:
+    - X-Request-Id
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 401
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-on-http-401
+        body:
+          code: 401
+          message: HTTP request rejected.
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-fails-on-http-401
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-on-http-401
+          X-Request-Id: request-fails-on-http-401
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"case":401}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=post with statusCode:
+        401'
+      cause: null
+  - id: recovers-after-http-401
+    body: '{"retryAfter":401}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-http-401
+      X-Request-Id: request-recovers-after-http-401
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      recoveredAfter: 401
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-http-401
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-http-401
+        body:
+          recoveredAfter: 401
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-recovers-after-http-401
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-http-401
+          X-Request-Id: request-recovers-after-http-401
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"retryAfter":401}'
+  - id: fails-on-http-403
+    body: '{"case":403}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-on-http-403
+      X-Request-Id: request-fails-on-http-403
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      code: 403
+      message: HTTP request rejected.
+    expectedHeaders:
+      CamelHttpResponseCode: 403
+      Content-Type: application/json
+      X-Http-Response: fails-on-http-403
+    expectedAbsentHeaders:
+    - X-Request-Id
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 403
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-on-http-403
+        body:
+          code: 403
+          message: HTTP request rejected.
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-fails-on-http-403
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-on-http-403
+          X-Request-Id: request-fails-on-http-403
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"case":403}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=post with statusCode:
+        403'
+      cause: null
+  - id: recovers-after-http-403
+    body: '{"retryAfter":403}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-http-403
+      X-Request-Id: request-recovers-after-http-403
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      recoveredAfter: 403
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-http-403
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-http-403
+        body:
+          recoveredAfter: 403
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-recovers-after-http-403
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-http-403
+          X-Request-Id: request-recovers-after-http-403
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"retryAfter":403}'
+  - id: fails-on-http-404
+    body: '{"case":404}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-on-http-404
+      X-Request-Id: request-fails-on-http-404
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      code: 404
+      message: HTTP request rejected.
+    expectedHeaders:
+      CamelHttpResponseCode: 404
+      Content-Type: application/json
+      X-Http-Response: fails-on-http-404
+    expectedAbsentHeaders:
+    - X-Request-Id
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 404
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-on-http-404
+        body:
+          code: 404
+          message: HTTP request rejected.
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-fails-on-http-404
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-on-http-404
+          X-Request-Id: request-fails-on-http-404
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"case":404}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=post with statusCode:
+        404'
+      cause: null
+  - id: recovers-after-http-404
+    body: '{"retryAfter":404}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-http-404
+      X-Request-Id: request-recovers-after-http-404
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      recoveredAfter: 404
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-http-404
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-http-404
+        body:
+          recoveredAfter: 404
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-recovers-after-http-404
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-http-404
+          X-Request-Id: request-recovers-after-http-404
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"retryAfter":404}'
+  - id: fails-on-http-500
+    body: '{"case":500}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-on-http-500
+      X-Request-Id: request-fails-on-http-500
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      code: 500
+      message: HTTP request rejected.
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Http-Response: fails-on-http-500
+    expectedAbsentHeaders:
+    - X-Request-Id
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-on-http-500
+        body:
+          code: 500
+          message: HTTP request rejected.
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-fails-on-http-500
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-on-http-500
+          X-Request-Id: request-fails-on-http-500
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"case":500}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=post with statusCode:
+        500'
+      cause: null
+  - id: recovers-after-http-500
+    body: '{"retryAfter":500}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-http-500
+      X-Request-Id: request-recovers-after-http-500
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      recoveredAfter: 500
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-http-500
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-http-500
+        body:
+          recoveredAfter: 500
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-recovers-after-http-500
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-http-500
+          X-Request-Id: request-recovers-after-http-500
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"retryAfter":500}'
+  - id: follows-http-301
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: follows-http-301
+      X-Request-Id: incoming-follows-http-301
+    expectedBody:
+      invocation: follows-http-301
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: follows-http-301
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: follows-http-301
+        body:
+          invocation: follows-http-301
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-follows-http-301
+            Authorization: null
+          redirects:
+          - status: 301
+            location: /redirect/301/intermediate?hop=first
+          - status: 307
+            location: /redirect/301/final?hop=final
+          expectedRequests:
+          - method: POST
+            path: /api/v1/items
+            query: source=snapshot&mode=post
+            headers:
+              Accept: application/json
+              Content-Type: application/json; charset=UTF-8
+              X-Http-Test: follows-http-301
+              X-Request-Id: incoming-follows-http-301
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: '{"input":"original"}'
+          - method: GET
+            path: /redirect/301/intermediate
+            query: hop=first
+            headers:
+              Accept: null
+              Content-Type: null
+              X-Http-Test: null
+              X-Request-Id: null
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: null
+          - method: GET
+            path: /redirect/301/final
+            query: hop=final
+            headers:
+              Accept: null
+              Content-Type: null
+              X-Http-Test: null
+              X-Request-Id: null
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: null
+      expectedRequest:
+        count: 3
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: follows-http-301
+          X-Request-Id: incoming-follows-http-301
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: follows-http-302
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: follows-http-302
+      X-Request-Id: incoming-follows-http-302
+    expectedBody:
+      invocation: follows-http-302
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: follows-http-302
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: follows-http-302
+        body:
+          invocation: follows-http-302
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-follows-http-302
+            Authorization: null
+          redirects:
+          - status: 302
+            location: /redirect/302/intermediate?hop=first
+          - status: 307
+            location: /redirect/302/final?hop=final
+          expectedRequests:
+          - method: POST
+            path: /api/v1/items
+            query: source=snapshot&mode=post
+            headers:
+              Accept: application/json
+              Content-Type: application/json; charset=UTF-8
+              X-Http-Test: follows-http-302
+              X-Request-Id: incoming-follows-http-302
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: '{"input":"original"}'
+          - method: GET
+            path: /redirect/302/intermediate
+            query: hop=first
+            headers:
+              Accept: null
+              Content-Type: null
+              X-Http-Test: null
+              X-Request-Id: null
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: null
+          - method: GET
+            path: /redirect/302/final
+            query: hop=final
+            headers:
+              Accept: null
+              Content-Type: null
+              X-Http-Test: null
+              X-Request-Id: null
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: null
+      expectedRequest:
+        count: 3
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: follows-http-302
+          X-Request-Id: incoming-follows-http-302
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: follows-http-307
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: follows-http-307
+      X-Request-Id: incoming-follows-http-307
+    expectedBody:
+      invocation: follows-http-307
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: follows-http-307
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: follows-http-307
+        body:
+          invocation: follows-http-307
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-follows-http-307
+            Authorization: null
+          redirects:
+          - status: 307
+            location: /redirect/307/intermediate?hop=first
+          - status: 307
+            location: /redirect/307/final?hop=final
+          expectedRequests:
+          - method: POST
+            path: /api/v1/items
+            query: source=snapshot&mode=post
+            headers:
+              Accept: application/json
+              Content-Type: application/json; charset=UTF-8
+              X-Http-Test: follows-http-307
+              X-Request-Id: incoming-follows-http-307
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: '{"input":"original"}'
+          - method: POST
+            path: /redirect/307/intermediate
+            query: hop=first
+            headers:
+              Accept: application/json
+              Content-Type: application/json; charset=UTF-8
+              X-Http-Test: follows-http-307
+              X-Request-Id: incoming-follows-http-307
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: '{"input":"original"}'
+          - method: POST
+            path: /redirect/307/final
+            query: hop=final
+            headers:
+              Accept: application/json
+              Content-Type: application/json; charset=UTF-8
+              X-Http-Test: follows-http-307
+              X-Request-Id: incoming-follows-http-307
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: '{"input":"original"}'
+      expectedRequest:
+        count: 3
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: follows-http-307
+          X-Request-Id: incoming-follows-http-307
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: follows-http-308
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: follows-http-308
+      X-Request-Id: incoming-follows-http-308
+    expectedBody:
+      invocation: follows-http-308
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: follows-http-308
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: follows-http-308
+        body:
+          invocation: follows-http-308
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-follows-http-308
+            Authorization: null
+          redirects:
+          - status: 308
+            location: /redirect/308/intermediate?hop=first
+          - status: 307
+            location: /redirect/308/final?hop=final
+          expectedRequests:
+          - method: POST
+            path: /api/v1/items
+            query: source=snapshot&mode=post
+            headers:
+              Accept: application/json
+              Content-Type: application/json; charset=UTF-8
+              X-Http-Test: follows-http-308
+              X-Request-Id: incoming-follows-http-308
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: '{"input":"original"}'
+          - method: POST
+            path: /redirect/308/intermediate
+            query: hop=first
+            headers:
+              Accept: application/json
+              Content-Type: application/json; charset=UTF-8
+              X-Http-Test: follows-http-308
+              X-Request-Id: incoming-follows-http-308
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: '{"input":"original"}'
+          - method: POST
+            path: /redirect/308/final
+            query: hop=final
+            headers:
+              Accept: application/json
+              Content-Type: application/json; charset=UTF-8
+              X-Http-Test: follows-http-308
+              X-Request-Id: incoming-follows-http-308
+              Authorization: null
+              CamelHttpMethod: null
+              CamelHttpUri: null
+            body: '{"input":"original"}'
+      expectedRequest:
+        count: 3
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: follows-http-308
+          X-Request-Id: incoming-follows-http-308
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+- id: sends-put-request-body
+  scope: Short
+  deployment: http-sender-put
+  endpointUri: cip-chain:3cd590fa-8f70-5302-886f-cb0c081a0bf5
+  invocations:
+  - id: replaces-json-resource
+    body: '{"id":17,"name":"updated"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: replaces-json-resource
+      X-Request-Id: request-replaces-json-resource
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      id: 17
+      name: updated
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: replaces-json-resource
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-put-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: replaces-json-resource
+        body:
+          id: 17
+          name: updated
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-replaces-json-resource
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: PUT
+        path: /api/v1/items
+        query: source=snapshot&mode=put
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=put
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: replaces-json-resource
+          X-Request-Id: request-replaces-json-resource
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"id":17,"name":"updated"}'
+- id: sends-patch-request-body
+  scope: Short
+  deployment: http-sender-patch
+  endpointUri: cip-chain:77417e82-2dd7-5721-8851-5b01b0a5947c
+  invocations:
+  - id: patches-json-resource
+    body: '{"name":"patched"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: patches-json-resource
+      X-Request-Id: request-patches-json-resource
+      CamelHttpMethod: OPTIONS
+    expectedBody:
+      id: 17
+      name: patched
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: patches-json-resource
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-patch-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: patches-json-resource
+        body:
+          id: 17
+          name: patched
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-patches-json-resource
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: PATCH
+        path: /api/v1/items
+        query: source=snapshot&mode=patch
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=patch
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: patches-json-resource
+          X-Request-Id: request-patches-json-resource
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"name":"patched"}'
+- id: sends-delete-and-returns-no-content
+  scope: Short
+  deployment: http-sender-delete
+  endpointUri: cip-chain:6cdb303b-bc48-5eea-824d-8638acba9677
+  invocations:
+  - id: deletes-resource
+    body: null
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: deletes-resource
+      X-Request-Id: request-deletes-resource
+      CamelHttpMethod: OPTIONS
+    expectedBody: null
+    expectedHeaders:
+      CamelHttpResponseCode: 204
+      Content-Type: application/json
+      X-Http-Response: deletes-resource
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-delete-service
+      response:
+        status: 204
+        headers:
+          Content-Type: application/json
+          X-Http-Response: deletes-resource
+        body: null
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-deletes-resource
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: DELETE
+        path: /api/v1/items
+        query: source=snapshot&mode=delete
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=delete
+        headers:
+          Accept: application/json
+          Content-Type: null
+          X-Http-Test: deletes-resource
+          X-Request-Id: request-deletes-resource
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: null
+- id: sends-head-and-returns-response-headers
+  scope: Short
+  deployment: http-sender-head
+  endpointUri: cip-chain:5d48c72f-5819-57fa-935b-94d264300604
+  invocations:
+  - id: reads-resource-headers
+    body: null
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: reads-resource-headers
+      X-Request-Id: request-reads-resource-headers
+      CamelHttpMethod: OPTIONS
+    expectedBody: null
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: reads-resource-headers
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    interactions:
+    - fixture: http-sender-head-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: reads-resource-headers
+        body: null
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: request-reads-resource-headers
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: HEAD
+        path: /api/v1/items
+        query: source=snapshot&mode=head
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=head
+        headers:
+          Accept: application/json
+          Content-Type: null
+          X-Http-Test: reads-resource-headers
+          X-Request-Id: request-reads-resource-headers
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: null
+- id: recovers-after-response-timeout
+  scope: Long
+  deployment: http-sender-timeout
+  endpointUri: cip-chain:d50d8eea-a585-5b18-be63-6943ab710453
+  invocations:
+  - id: times-out-waiting-for-response
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: times-out-waiting-for-response
+      X-Request-Id: incoming-times-out-waiting-for-response
+    expectedBody: '{"input":"original"}'
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpResponseCode
+    - X-Http-Response
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-timeout-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: times-out-waiting-for-response
+        body:
+          invocation: times-out-waiting-for-response
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-times-out-waiting-for-response
+            Authorization: null
+        delayMillis: 2000
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=timeout
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=timeout
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: times-out-waiting-for-response
+          X-Request-Id: incoming-times-out-waiting-for-response
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: java.net.SocketTimeoutException
+      message: Read timed out
+      cause: null
+  - id: succeeds-after-response-timeout
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: succeeds-after-response-timeout
+      X-Request-Id: incoming-succeeds-after-response-timeout
+    expectedBody:
+      invocation: succeeds-after-response-timeout
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: succeeds-after-response-timeout
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-timeout-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: succeeds-after-response-timeout
+        body:
+          invocation: succeeds-after-response-timeout
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-succeeds-after-response-timeout
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=timeout
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=timeout
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: succeeds-after-response-timeout
+          X-Request-Id: incoming-succeeds-after-response-timeout
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+- id: evaluates-and-normalizes-dynamic-uris
+  scope: Short
+  deployment: http-sender-dynamic-uri
+  endpointUri: cip-chain:716d9462-69ff-536b-8b9a-eeb7738993a4
+  invocations:
+  - id: uses-first-dynamic-address
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: uses-first-dynamic-address
+      X-Request-Id: incoming-uses-first-dynamic-address
+    expectedBody:
+      invocation: uses-first-dynamic-address
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: uses-first-dynamic-address
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-dynamic-uri-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: uses-first-dynamic-address
+        body:
+          invocation: uses-first-dynamic-address
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-uses-first-dynamic-address
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /dynamic/first
+        query: name=first&repeat=one
+        destination: http://first-http.invalid/dynamic/first?name=first&repeat=one
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: uses-first-dynamic-address
+          X-Request-Id: incoming-uses-first-dynamic-address
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    properties:
+      targetUri: http://first-http.invalid/dynamic/first?name=first&repeat=one
+  - id: uses-second-dynamic-address
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: uses-second-dynamic-address
+      X-Request-Id: incoming-uses-second-dynamic-address
+    expectedBody:
+      invocation: uses-second-dynamic-address
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: uses-second-dynamic-address
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-dynamic-uri-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: uses-second-dynamic-address
+        body:
+          invocation: uses-second-dynamic-address
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-uses-second-dynamic-address
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /dynamic/second
+        query: name=second&repeat=two
+        destination: http://second-http.invalid/dynamic/second?name=second&repeat=two
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: uses-second-dynamic-address
+          X-Request-Id: incoming-uses-second-dynamic-address
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    properties:
+      targetUri: http://second-http.invalid/dynamic/second?name=second&repeat=two
+  - id: encodes-spaces-in-path-and-query
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: encodes-spaces-in-path-and-query
+      X-Request-Id: incoming-encodes-spaces-in-path-and-query
+    expectedBody:
+      invocation: encodes-spaces-in-path-and-query
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: encodes-spaces-in-path-and-query
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-dynamic-uri-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: encodes-spaces-in-path-and-query
+        body:
+          invocation: encodes-spaces-in-path-and-query
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-encodes-spaces-in-path-and-query
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /path%20with%20spaces
+        query: name=world%20&mode=one
+        destination: http://snapshot-http.invalid/path%20with%20spaces?name=world%20&mode=one
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: encodes-spaces-in-path-and-query
+          X-Request-Id: incoming-encodes-spaces-in-path-and-query
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    properties:
+      targetUri: http://snapshot-http.invalid/path with spaces?name=world &mode=one
+  - id: adds-default-http-scheme
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: adds-default-http-scheme
+      X-Request-Id: incoming-adds-default-http-scheme
+    expectedBody:
+      invocation: adds-default-http-scheme
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: adds-default-http-scheme
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-dynamic-uri-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: adds-default-http-scheme
+        body:
+          invocation: adds-default-http-scheme
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-adds-default-http-scheme
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /dynamic/default
+        query: mode=default
+        destination: http://snapshot-http.invalid/dynamic/default?mode=default
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: adds-default-http-scheme
+          X-Request-Id: incoming-adds-default-http-scheme
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    properties:
+      targetUri: snapshot-http.invalid/dynamic/default?mode=default
+  - id: rejects-invalid-uri-before-http
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: rejects-invalid-uri-before-http
+      X-Request-Id: incoming-rejects-invalid-uri-before-http
+    expectedBody: '{"input":"original"}'
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpResponseCode
+    - X-Http-Response
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-dynamic-uri-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: rejects-invalid-uri-before-http
+        body:
+          invocation: rejects-invalid-uri-before-http
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-rejects-invalid-uri-before-http
+            Authorization: null
+      expectedRequest:
+        count: 0
+        method: POST
+        path: /unused
+        query: case=invalid
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: rejects-invalid-uri-before-http
+          X-Request-Id: incoming-rejects-invalid-uri-before-http
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    properties:
+      targetUri: ://broken
+    expectedFailure:
+      type: java.net.URISyntaxException
+      message: 'Expected scheme name at index 0: ://broken'
+      cause: null
+  - id: recovers-after-invalid-uri
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-after-invalid-uri
+      X-Request-Id: incoming-recovers-after-invalid-uri
+    expectedBody:
+      invocation: recovers-after-invalid-uri
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-after-invalid-uri
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-dynamic-uri-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-after-invalid-uri
+        body:
+          invocation: recovers-after-invalid-uri
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-after-invalid-uri
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /dynamic/recovered
+        query: after=invalid
+        destination: http://snapshot-http.invalid/dynamic/recovered?after=invalid
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-after-invalid-uri
+          X-Request-Id: incoming-recovers-after-invalid-uri
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    properties:
+      targetUri: http://snapshot-http.invalid/dynamic/recovered?after=invalid
+- id: skips-context-propagation-when-disabled
+  scope: Short
+  deployment: http-sender-context-disabled
+  endpointUri: cip-chain:1b6bcbe7-6269-5349-8457-39d8e6f80c30
+  invocations:
+  - id: context-disabled-success
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-disabled-success
+      X-Request-Id: incoming-context-disabled-success
+      Authorization: Bearer incoming-success
+    expectedBody:
+      invocation: context-disabled-success
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-disabled-success
+      Authorization: Bearer incoming-success
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-disabled-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-disabled-success
+        body:
+          invocation: context-disabled-success
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-disabled-success
+            Authorization: Bearer incoming-success
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-disabled
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-disabled
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-disabled-success
+          X-Request-Id: null
+          Authorization: Bearer incoming-success
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: context-disabled-error
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-disabled-error
+      X-Request-Id: incoming-context-disabled-error
+      Authorization: Bearer incoming-error
+    expectedBody:
+      invocation: context-disabled-error
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Http-Response: context-disabled-error
+      Authorization: Bearer incoming-error
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-disabled-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-disabled-error
+        body:
+          invocation: context-disabled-error
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-disabled-error
+            Authorization: Bearer incoming-error
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-disabled
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-disabled
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-disabled-error
+          X-Request-Id: null
+          Authorization: Bearer incoming-error
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=context-disabled with
+        statusCode: 500'
+      cause: null
+  - id: context-disabled-recovery
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-disabled-recovery
+      X-Request-Id: incoming-context-disabled-recovery
+      Authorization: Bearer incoming-recovery
+    expectedBody:
+      invocation: context-disabled-recovery
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-disabled-recovery
+      Authorization: Bearer incoming-recovery
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-disabled-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-disabled-recovery
+        body:
+          invocation: context-disabled-recovery
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-disabled-recovery
+            Authorization: Bearer incoming-recovery
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-disabled
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-disabled
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-disabled-recovery
+          X-Request-Id: null
+          Authorization: Bearer incoming-recovery
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: context-disabled-missing-incoming-context
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-disabled-missing-incoming-context
+      Authorization: Bearer incoming-missing-incoming-context
+    expectedBody:
+      invocation: context-disabled-missing-incoming-context
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-disabled-missing-incoming-context
+      Authorization: Bearer incoming-missing-incoming-context
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-disabled-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-disabled-missing-incoming-context
+        body:
+          invocation: context-disabled-missing-incoming-context
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id:
+              $match: non-empty
+            Authorization: Bearer incoming-missing-incoming-context
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-disabled
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-disabled
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-disabled-missing-incoming-context
+          Authorization: Bearer incoming-missing-incoming-context
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Request-Id: null
+        body: '{"input":"original"}'
+- id: restores-context-after-literal-overrides
+  scope: Short
+  deployment: http-sender-context-literal
+  endpointUri: cip-chain:7dc82e6c-742d-54e2-84f8-276856835559
+  invocations:
+  - id: context-literal-without-incoming-authorization
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-literal-without-incoming-authorization
+      X-Request-Id: incoming-context-literal-without-incoming-authorization
+    expectedBody:
+      invocation: context-literal-without-incoming-authorization
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-literal-without-incoming-authorization
+      Authorization: Bearer literal-context-token
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-literal-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-literal-without-incoming-authorization
+        body:
+          invocation: context-literal-without-incoming-authorization
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-literal-without-incoming-authorization
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-literal
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-literal
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-literal-without-incoming-authorization
+          X-Request-Id: http-literal-override
+          Authorization: Bearer literal-context-token
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: context-literal-success
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-literal-success
+      X-Request-Id: incoming-context-literal-success
+      Authorization: Bearer incoming-success
+    expectedBody:
+      invocation: context-literal-success
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-literal-success
+      Authorization: Bearer incoming-success
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-literal-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-literal-success
+        body:
+          invocation: context-literal-success
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-literal-success
+            Authorization: Bearer incoming-success
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-literal
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-literal
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-literal-success
+          X-Request-Id: http-literal-override
+          Authorization: Bearer incoming-success
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: context-literal-error
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-literal-error
+      X-Request-Id: incoming-context-literal-error
+      Authorization: Bearer incoming-error
+    expectedBody:
+      invocation: context-literal-error
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Http-Response: context-literal-error
+      Authorization: Bearer incoming-error
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-literal-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-literal-error
+        body:
+          invocation: context-literal-error
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-literal-error
+            Authorization: Bearer incoming-error
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-literal
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-literal
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-literal-error
+          X-Request-Id: http-literal-override
+          Authorization: Bearer incoming-error
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=context-literal with
+        statusCode: 500'
+      cause: null
+  - id: context-literal-recovery
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-literal-recovery
+      X-Request-Id: incoming-context-literal-recovery
+      Authorization: Bearer incoming-recovery
+    expectedBody:
+      invocation: context-literal-recovery
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-literal-recovery
+      Authorization: Bearer incoming-recovery
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-literal-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-literal-recovery
+        body:
+          invocation: context-literal-recovery
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-literal-recovery
+            Authorization: Bearer incoming-recovery
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-literal
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-literal
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-literal-recovery
+          X-Request-Id: http-literal-override
+          Authorization: Bearer incoming-recovery
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: context-literal-missing-incoming-context
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-literal-missing-incoming-context
+    expectedBody:
+      invocation: context-literal-missing-incoming-context
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-literal-missing-incoming-context
+      Authorization: Bearer literal-context-token
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-literal-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-literal-missing-incoming-context
+        body:
+          invocation: context-literal-missing-incoming-context
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id:
+              $match: non-empty
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-literal
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-literal
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-literal-missing-incoming-context
+          Authorization: Bearer literal-context-token
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Request-Id: http-literal-override
+        body: '{"input":"original"}'
+- id: evaluates-context-overrides-for-each-invocation
+  scope: Short
+  deployment: http-sender-context-dynamic
+  endpointUri: cip-chain:7df71ab2-e6ce-51c9-9cef-fe247dd11697
+  invocations:
+  - id: context-dynamic-success
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-dynamic-success
+      X-Request-Id: incoming-context-dynamic-success
+      Authorization: Bearer incoming-success
+      OverrideRequestId: override-success
+      OverrideToken: token-context-dynamic-success
+    expectedBody:
+      invocation: context-dynamic-success
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-dynamic-success
+      Authorization: Bearer incoming-success
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-dynamic-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-dynamic-success
+        body:
+          invocation: context-dynamic-success
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-dynamic-success
+            Authorization: Bearer incoming-success
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-dynamic
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-dynamic
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-dynamic-success
+          X-Request-Id: override-success
+          Authorization: Bearer incoming-success
+          OverrideRequestId: override-success
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          OverrideToken: token-context-dynamic-success
+        body: '{"input":"original"}'
+  - id: context-dynamic-error
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-dynamic-error
+      X-Request-Id: incoming-context-dynamic-error
+      Authorization: Bearer incoming-error
+      OverrideRequestId: override-error
+      OverrideToken: token-context-dynamic-error
+    expectedBody:
+      invocation: context-dynamic-error
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Http-Response: context-dynamic-error
+      Authorization: Bearer incoming-error
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-dynamic-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-dynamic-error
+        body:
+          invocation: context-dynamic-error
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-dynamic-error
+            Authorization: Bearer incoming-error
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-dynamic
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-dynamic
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-dynamic-error
+          X-Request-Id: override-error
+          Authorization: Bearer incoming-error
+          OverrideRequestId: override-error
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          OverrideToken: token-context-dynamic-error
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=context-dynamic with
+        statusCode: 500'
+      cause: null
+  - id: context-dynamic-recovery
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-dynamic-recovery
+      X-Request-Id: incoming-context-dynamic-recovery
+      Authorization: Bearer incoming-recovery
+      OverrideRequestId: override-recovery
+      OverrideToken: token-context-dynamic-recovery
+    expectedBody:
+      invocation: context-dynamic-recovery
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-dynamic-recovery
+      Authorization: Bearer incoming-recovery
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-dynamic-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-dynamic-recovery
+        body:
+          invocation: context-dynamic-recovery
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-dynamic-recovery
+            Authorization: Bearer incoming-recovery
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-dynamic
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-dynamic
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-dynamic-recovery
+          X-Request-Id: override-recovery
+          Authorization: Bearer incoming-recovery
+          OverrideRequestId: override-recovery
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          OverrideToken: token-context-dynamic-recovery
+        body: '{"input":"original"}'
+  - id: context-dynamic-missing-incoming-context
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: context-dynamic-missing-incoming-context
+      OverrideRequestId: override-missing-incoming-context
+      OverrideToken: token-context-dynamic-missing-incoming-context
+    expectedBody:
+      invocation: context-dynamic-missing-incoming-context
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: context-dynamic-missing-incoming-context
+      Authorization: Bearer token-context-dynamic-missing-incoming-context
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-context-dynamic-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: context-dynamic-missing-incoming-context
+        body:
+          invocation: context-dynamic-missing-incoming-context
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id:
+              $match: non-empty
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=context-dynamic
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-dynamic
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: context-dynamic-missing-incoming-context
+          Authorization: Bearer token-context-dynamic-missing-incoming-context
+          OverrideRequestId: override-missing-incoming-context
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Request-Id: override-missing-incoming-context
+          OverrideToken: token-context-dynamic-missing-incoming-context
+        body: '{"input":"original"}'
+- id: propagates-and-receives-header-correlation-ids
+  scope: Short
+  deployment: http-sender-correlation-header
+  endpointUri: cip-chain:7232f625-6d77-5e12-9278-825e1a415716
+  invocations:
+  - id: receives-response-header-id
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: receives-response-header-id
+      X-Request-Id: incoming-receives-response-header-id
+      X-Correlation-Id: stale-header-id
+    expectedBody:
+      invocation: receives-response-header-id
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: receives-response-header-id
+      X-Correlation-Id: response-header-id
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: response-header-id
+    interactions:
+    - fixture: http-sender-correlation-header-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: receives-response-header-id
+          X-Correlation-Id: response-header-id
+        body:
+          invocation: receives-response-header-id
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-receives-response-header-id
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-header
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-header
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: receives-response-header-id
+          X-Request-Id: incoming-receives-response-header-id
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: outgoing-header-id
+        body: '{"input":"original"}'
+    properties:
+      correlationId: outgoing-header-id
+  - id: keeps-outgoing-id-without-response-header
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: keeps-outgoing-id-without-response-header
+      X-Request-Id: incoming-keeps-outgoing-id-without-response-header
+      X-Correlation-Id: stale-header-id
+    expectedBody:
+      invocation: keeps-outgoing-id-without-response-header
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: keeps-outgoing-id-without-response-header
+      X-Correlation-Id: outgoing-without-response
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: outgoing-without-response
+    interactions:
+    - fixture: http-sender-correlation-header-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: keeps-outgoing-id-without-response-header
+        body:
+          invocation: keeps-outgoing-id-without-response-header
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-outgoing-id-without-response-header
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-header
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-header
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: keeps-outgoing-id-without-response-header
+          X-Request-Id: incoming-keeps-outgoing-id-without-response-header
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: outgoing-without-response
+        body: '{"input":"original"}'
+    properties:
+      correlationId: outgoing-without-response
+  - id: has-no-header-id
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: has-no-header-id
+      X-Request-Id: incoming-has-no-header-id
+    expectedBody:
+      invocation: has-no-header-id
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: has-no-header-id
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: null
+    interactions:
+    - fixture: http-sender-correlation-header-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: has-no-header-id
+        body:
+          invocation: has-no-header-id
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-has-no-header-id
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-header
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-header
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: has-no-header-id
+          X-Request-Id: incoming-has-no-header-id
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body: '{"input":"original"}'
+  - id: receives-header-id-without-outgoing-id
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: receives-header-id-without-outgoing-id
+      X-Request-Id: incoming-receives-header-id-without-outgoing-id
+    expectedBody:
+      invocation: receives-header-id-without-outgoing-id
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: receives-header-id-without-outgoing-id
+      X-Correlation-Id: response-only-header-id
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: response-only-header-id
+    interactions:
+    - fixture: http-sender-correlation-header-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: receives-header-id-without-outgoing-id
+          X-Correlation-Id: response-only-header-id
+        body:
+          invocation: receives-header-id-without-outgoing-id
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-receives-header-id-without-outgoing-id
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-header
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-header
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: receives-header-id-without-outgoing-id
+          X-Request-Id: incoming-receives-header-id-without-outgoing-id
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body: '{"input":"original"}'
+  - id: keeps-outgoing-id-after-header-error
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: keeps-outgoing-id-after-header-error
+      X-Request-Id: incoming-keeps-outgoing-id-after-header-error
+      X-Correlation-Id: stale-header-id
+    expectedBody:
+      invocation: keeps-outgoing-id-after-header-error
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Http-Response: keeps-outgoing-id-after-header-error
+      X-Correlation-Id: error-header-id
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: outgoing-before-error
+    interactions:
+    - fixture: http-sender-correlation-header-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Http-Response: keeps-outgoing-id-after-header-error
+          X-Correlation-Id: error-header-id
+        body:
+          invocation: keeps-outgoing-id-after-header-error
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-outgoing-id-after-header-error
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-header
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-header
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: keeps-outgoing-id-after-header-error
+          X-Request-Id: incoming-keeps-outgoing-id-after-header-error
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: outgoing-before-error
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=correlation-header
+        with statusCode: 500'
+      cause: null
+    properties:
+      correlationId: outgoing-before-error
+  - id: receives-header-id-after-recovery
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: receives-header-id-after-recovery
+      X-Request-Id: incoming-receives-header-id-after-recovery
+      X-Correlation-Id: stale-header-id
+    expectedBody:
+      invocation: receives-header-id-after-recovery
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: receives-header-id-after-recovery
+      X-Correlation-Id: recovered-header-id
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: recovered-header-id
+    interactions:
+    - fixture: http-sender-correlation-header-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: receives-header-id-after-recovery
+          X-Correlation-Id: recovered-header-id
+        body:
+          invocation: receives-header-id-after-recovery
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-receives-header-id-after-recovery
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-header
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-header
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: receives-header-id-after-recovery
+          X-Request-Id: incoming-receives-header-id-after-recovery
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: outgoing-before-recovery
+        body: '{"input":"original"}'
+    properties:
+      correlationId: outgoing-before-recovery
+- id: propagates-and-receives-body-correlation-ids
+  scope: Short
+  deployment: http-sender-correlation-body
+  endpointUri: cip-chain:b6aac2b6-31c1-558d-84d6-4f6c1bfdb754
+  invocations:
+  - id: propagates-and-receives-body-id
+    body: '{"input":"original","requestId":"stale-body-id"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: propagates-and-receives-body-id
+      X-Request-Id: incoming-propagates-and-receives-body-id
+    expectedBody:
+      requestId: response-body-id
+      payload: Hello, world!
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: propagates-and-receives-body-id
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: response-body-id
+    interactions:
+    - fixture: http-sender-correlation-body-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: propagates-and-receives-body-id
+        body:
+          requestId: response-body-id
+          payload: Hello, world!
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-propagates-and-receives-body-id
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-body
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: propagates-and-receives-body-id
+          X-Request-Id: incoming-propagates-and-receives-body-id
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body:
+          input: original
+          requestId: outgoing-body-id
+    properties:
+      correlationId: outgoing-body-id
+  - id: receives-body-id-without-outgoing-id
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: receives-body-id-without-outgoing-id
+      X-Request-Id: incoming-receives-body-id-without-outgoing-id
+    expectedBody:
+      requestId: response-only-body-id
+      payload: received
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: receives-body-id-without-outgoing-id
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: response-only-body-id
+    interactions:
+    - fixture: http-sender-correlation-body-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: receives-body-id-without-outgoing-id
+        body:
+          requestId: response-only-body-id
+          payload: received
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-receives-body-id-without-outgoing-id
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-body
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: receives-body-id-without-outgoing-id
+          X-Request-Id: incoming-receives-body-id-without-outgoing-id
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body: '{"input":"original"}'
+  - id: keeps-id-when-response-field-is-absent
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: keeps-id-when-response-field-is-absent
+      X-Request-Id: incoming-keeps-id-when-response-field-is-absent
+    expectedBody:
+      payload: field absent
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: keeps-id-when-response-field-is-absent
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: outgoing-without-response
+    interactions:
+    - fixture: http-sender-correlation-body-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: keeps-id-when-response-field-is-absent
+        body:
+          payload: field absent
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-id-when-response-field-is-absent
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-body
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: keeps-id-when-response-field-is-absent
+          X-Request-Id: incoming-keeps-id-when-response-field-is-absent
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body:
+          input: original
+          requestId: outgoing-without-response
+    properties:
+      correlationId: outgoing-without-response
+  - id: has-no-body-id
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: has-no-body-id
+      X-Request-Id: incoming-has-no-body-id
+    expectedBody:
+      payload: no correlation
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: has-no-body-id
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: null
+    interactions:
+    - fixture: http-sender-correlation-body-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: has-no-body-id
+        body:
+          payload: no correlation
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-has-no-body-id
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-body
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: has-no-body-id
+          X-Request-Id: incoming-has-no-body-id
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body: '{"input":"original"}'
+  - id: keeps-id-for-plain-text-response
+    body: '{"input":"original"}'
+    headers:
+      Accept: text/plain
+      Content-Type: application/json
+      X-Http-Test: keeps-id-for-plain-text-response
+      X-Request-Id: incoming-keeps-id-for-plain-text-response
+    expectedBody: plain upstream response
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: text/plain
+      X-Http-Response: keeps-id-for-plain-text-response
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: outgoing-plain-response
+    interactions:
+    - fixture: http-sender-correlation-body-service
+      response:
+        status: 200
+        headers:
+          Content-Type: text/plain
+          X-Http-Response: keeps-id-for-plain-text-response
+        body: plain upstream response
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-id-for-plain-text-response
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-body
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+        headers:
+          Accept: text/plain
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: keeps-id-for-plain-text-response
+          X-Request-Id: incoming-keeps-id-for-plain-text-response
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body:
+          input: original
+          requestId: outgoing-plain-response
+    properties:
+      correlationId: outgoing-plain-response
+  - id: keeps-plain-text-request-body
+    body: plain outgoing request
+    headers:
+      Accept: text/plain
+      Content-Type: text/plain
+      X-Http-Test: keeps-plain-text-request-body
+      X-Request-Id: incoming-keeps-plain-text-request-body
+    expectedBody: plain upstream response
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: text/plain
+      X-Http-Response: keeps-plain-text-request-body
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: outgoing-plain-request
+    interactions:
+    - fixture: http-sender-correlation-body-service
+      response:
+        status: 200
+        headers:
+          Content-Type: text/plain
+          X-Http-Response: keeps-plain-text-request-body
+        body: plain upstream response
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-plain-text-request-body
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-body
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+        headers:
+          Accept: text/plain
+          Content-Type: text/plain; charset=UTF-8
+          X-Http-Test: keeps-plain-text-request-body
+          X-Request-Id: incoming-keeps-plain-text-request-body
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body: plain outgoing request
+    properties:
+      correlationId: outgoing-plain-request
+  - id: keeps-id-after-body-error
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: keeps-id-after-body-error
+      X-Request-Id: incoming-keeps-id-after-body-error
+    expectedBody:
+      requestId: ignored-error-id
+      payload: failed
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Http-Response: keeps-id-after-body-error
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: outgoing-before-error
+    interactions:
+    - fixture: http-sender-correlation-body-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Http-Response: keeps-id-after-body-error
+        body:
+          requestId: ignored-error-id
+          payload: failed
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-id-after-body-error
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-body
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: keeps-id-after-body-error
+          X-Request-Id: incoming-keeps-id-after-body-error
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body:
+          input: original
+          requestId: outgoing-before-error
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v1/items?source=snapshot&mode=correlation-body with
+        statusCode: 500'
+      cause: null
+    properties:
+      correlationId: outgoing-before-error
+  - id: receives-body-id-after-recovery
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: receives-body-id-after-recovery
+      X-Request-Id: incoming-receives-body-id-after-recovery
+    expectedBody:
+      requestId: recovered-body-id
+      payload: recovered
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: receives-body-id-after-recovery
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    - X-Correlation-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      correlationId: recovered-body-id
+    interactions:
+    - fixture: http-sender-correlation-body-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: receives-body-id-after-recovery
+        body:
+          requestId: recovered-body-id
+          payload: recovered
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-receives-body-id-after-recovery
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=correlation-body
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: receives-body-id-after-recovery
+          X-Request-Id: incoming-receives-body-id-after-recovery
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+          X-Correlation-Id: null
+        body:
+          input: original
+          requestId: outgoing-before-recovery
+    properties:
+      correlationId: outgoing-before-recovery
+- id: routes-through-external-gateway-prefix
+  scope: Short
+  deployment: http-sender-external
+  endpointUri: cip-chain:7bc3a198-ab3f-5c4c-aef6-e4c4f6e4314b
+  invocations:
+  - id: uses-external-address
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: uses-external-address
+      X-Request-Id: incoming-uses-external-address
+    expectedBody:
+      invocation: uses-external-address
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: uses-external-address
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-external-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: uses-external-address
+        body:
+          invocation: uses-external-address
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-uses-external-address
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /http-sender/e3bd4b30-223a-5540-a774-9bcc7773e639/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items
+        query: source=snapshot&mode=external
+        destination: http://egress-gateway:8080/http-sender/e3bd4b30-223a-5540-a774-9bcc7773e639/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items?source=snapshot&mode=external
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: uses-external-address
+          X-Request-Id: incoming-uses-external-address
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: fails-through-external-address
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-through-external-address
+      X-Request-Id: incoming-fails-through-external-address
+    expectedBody:
+      invocation: fails-through-external-address
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Http-Response: fails-through-external-address
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-external-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-through-external-address
+        body:
+          invocation: fails-through-external-address
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-fails-through-external-address
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /http-sender/e3bd4b30-223a-5540-a774-9bcc7773e639/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items
+        query: source=snapshot&mode=external
+        destination: http://egress-gateway:8080/http-sender/e3bd4b30-223a-5540-a774-9bcc7773e639/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items?source=snapshot&mode=external
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-through-external-address
+          X-Request-Id: incoming-fails-through-external-address
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/http-sender/e3bd4b30-223a-5540-a774-9bcc7773e639/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items?source=snapshot&mode=external
+        with statusCode: 500'
+      cause: null
+  - id: recovers-through-external-address
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-through-external-address
+      X-Request-Id: incoming-recovers-through-external-address
+    expectedBody:
+      invocation: recovers-through-external-address
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-through-external-address
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-external-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-through-external-address
+        body:
+          invocation: recovers-through-external-address
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-through-external-address
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /http-sender/e3bd4b30-223a-5540-a774-9bcc7773e639/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items
+        query: source=snapshot&mode=external
+        destination: http://egress-gateway:8080/http-sender/e3bd4b30-223a-5540-a774-9bcc7773e639/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items?source=snapshot&mode=external
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-through-external-address
+          X-Request-Id: incoming-recovers-through-external-address
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+- id: routes-through-external-default-gateway-prefix
+  scope: Short
+  deployment: http-sender-external-default
+  endpointUri: cip-chain:841f1b08-9b74-5ff1-ac64-913155b42cad
+  invocations:
+  - id: uses-external-default-address
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: uses-external-default-address
+      X-Request-Id: incoming-uses-external-default-address
+    expectedBody:
+      invocation: uses-external-default-address
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: uses-external-default-address
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-external-default-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: uses-external-default-address
+        body:
+          invocation: uses-external-default-address
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-uses-external-default-address
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /http-sender/f1a26664-4439-5f21-921e-c9156b33bfa6/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items
+        query: source=snapshot&mode=external-default
+        destination: http://egress-gateway:8080/http-sender/f1a26664-4439-5f21-921e-c9156b33bfa6/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items?source=snapshot&mode=external-default
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: uses-external-default-address
+          X-Request-Id: incoming-uses-external-default-address
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: fails-through-external-default-address
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: fails-through-external-default-address
+      X-Request-Id: incoming-fails-through-external-default-address
+    expectedBody:
+      invocation: fails-through-external-default-address
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Http-Response: fails-through-external-default-address
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-external-default-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Http-Response: fails-through-external-default-address
+        body:
+          invocation: fails-through-external-default-address
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-fails-through-external-default-address
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /http-sender/f1a26664-4439-5f21-921e-c9156b33bfa6/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items
+        query: source=snapshot&mode=external-default
+        destination: http://egress-gateway:8080/http-sender/f1a26664-4439-5f21-921e-c9156b33bfa6/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items?source=snapshot&mode=external-default
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: fails-through-external-default-address
+          X-Request-Id: incoming-fails-through-external-default-address
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/http-sender/f1a26664-4439-5f21-921e-c9156b33bfa6/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items?source=snapshot&mode=external-default
+        with statusCode: 500'
+      cause: null
+  - id: recovers-through-external-default-address
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: recovers-through-external-default-address
+      X-Request-Id: incoming-recovers-through-external-default-address
+    expectedBody:
+      invocation: recovers-through-external-default-address
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: recovers-through-external-default-address
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-external-default-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: recovers-through-external-default-address
+        body:
+          invocation: recovers-through-external-default-address
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-through-external-default-address
+            Authorization: null
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /http-sender/f1a26664-4439-5f21-921e-c9156b33bfa6/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items
+        query: source=snapshot&mode=external-default
+        destination: http://egress-gateway:8080/http-sender/f1a26664-4439-5f21-921e-c9156b33bfa6/d05e0eb117da1e1797845aa81bb3dc220114f5c0/api/v1/items?source=snapshot&mode=external-default
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: recovers-through-external-default-address
+          X-Request-Id: incoming-recovers-through-external-default-address
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+- id: reuses-established-connections
+  scope: Short
+  deployment: http-sender-post
+  endpointUri: cip-chain:7c3851ad-4163-5aa2-aa0d-d8029dcb0e8a
+  invocations:
+  - id: sends-request-1
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: sends-request-1
+      X-Request-Id: incoming-sends-request-1
+    expectedBody:
+      invocation: sends-request-1
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: sends-request-1
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: sends-request-1
+        body:
+          invocation: sends-request-1
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-sends-request-1
+            Authorization: null
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: sends-request-1
+          X-Request-Id: incoming-sends-request-1
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: sends-request-2
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: sends-request-2
+      X-Request-Id: incoming-sends-request-2
+    expectedBody:
+      invocation: sends-request-2
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: sends-request-2
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: sends-request-2
+        body:
+          invocation: sends-request-2
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-sends-request-2
+            Authorization: null
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: sends-request-2
+          X-Request-Id: incoming-sends-request-2
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: sends-request-3
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: sends-request-3
+      X-Request-Id: incoming-sends-request-3
+    expectedBody:
+      invocation: sends-request-3
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: sends-request-3
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-post-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: sends-request-3
+        body:
+          invocation: sends-request-3
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-sends-request-3
+            Authorization: null
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=post
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=post
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: sends-request-3
+          X-Request-Id: incoming-sends-request-3
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+- id: opens-a-connection-for-each-request
+  scope: Short
+  deployment: http-sender-no-reuse
+  endpointUri: cip-chain:0d1244a0-3beb-5846-a913-4d13e58866d0
+  invocations:
+  - id: sends-request-1
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: sends-request-1
+      X-Request-Id: incoming-sends-request-1
+    expectedBody:
+      invocation: sends-request-1
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: sends-request-1
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-no-reuse-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: sends-request-1
+        body:
+          invocation: sends-request-1
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-sends-request-1
+            Authorization: null
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=no-reuse
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=no-reuse
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: sends-request-1
+          X-Request-Id: incoming-sends-request-1
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: sends-request-2
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: sends-request-2
+      X-Request-Id: incoming-sends-request-2
+    expectedBody:
+      invocation: sends-request-2
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: sends-request-2
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-no-reuse-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: sends-request-2
+        body:
+          invocation: sends-request-2
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-sends-request-2
+            Authorization: null
+          expectedConnectionCount: 2
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=no-reuse
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=no-reuse
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: sends-request-2
+          X-Request-Id: incoming-sends-request-2
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'
+  - id: sends-request-3
+    body: '{"input":"original"}'
+    headers:
+      Accept: application/json
+      Content-Type: application/json
+      X-Http-Test: sends-request-3
+      X-Request-Id: incoming-sends-request-3
+    expectedBody:
+      invocation: sends-request-3
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Http-Response: sends-request-3
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - CamelHttpUri
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: http-sender-no-reuse-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Http-Response: sends-request-3
+        body:
+          invocation: sends-request-3
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-sends-request-3
+            Authorization: null
+          expectedConnectionCount: 3
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v1/items
+        query: source=snapshot&mode=no-reuse
+        destination: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=no-reuse
+        headers:
+          Accept: application/json
+          Content-Type: application/json; charset=UTF-8
+          X-Http-Test: sends-request-3
+          X-Request-Id: incoming-sends-request-3
+          Authorization: null
+          CamelHttpMethod: null
+          CamelHttpUri: null
+        body: '{"input":"original"}'

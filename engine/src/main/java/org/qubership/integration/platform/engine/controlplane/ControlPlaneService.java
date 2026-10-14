@@ -16,22 +16,20 @@
 
 package org.qubership.integration.platform.engine.controlplane;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
-import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
 
 import java.util.List;
 
 public interface ControlPlaneService {
 
-    void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
+    void postPublicEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
         throws ControlPlaneException;
 
-    void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
+    void postPrivateEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
         throws ControlPlaneException;
 
-    void removeEngineRoutesByPathsAndEndpoint(List<Pair<String, RouteType>> paths,
+    void removeEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes,
         String deploymentName) throws ControlPlaneException;
 
-    void postEgressGatewayRoutes(DeploymentRouteUpdate route);
+    void postEgressGatewayRoutes(String chainId, List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException;
 }

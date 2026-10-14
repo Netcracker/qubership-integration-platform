@@ -1,0 +1,59 @@
+# The specification the operation-info spec imports.
+#
+# `widgets.openapi.yaml` declares no request body and no response content, so every schema the
+# catalog derives from it is empty and nothing about the derivation can be asserted. This one
+# carries both, and carries the request under **two** content types, so the request schema map has
+# more than one key and a case can tell "the whole map" from "the entry the caller asked for".
+#
+# Two response codes rather than one, for the same reason: `responseSchemas` is keyed by code and
+# then by content type, and a single-code document cannot show that.
+#
+# `info.version` is load-bearing here as it is in every fixture: the model id is
+# `{systemId}-{groupName}-{version}`, so a spec addresses the import's result without reading it
+# back.
+openapi: 3.0.3
+info:
+  title: E2E Orders API
+  version: 1.0.0
+paths:
+  /orders:
+    post:
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sku
+              properties:
+                sku:
+                  type: string
+                quantity:
+                  type: integer
+          application/xml:
+            schema:
+              type: object
+              properties:
+                sku:
+                  type: string
+      responses:
+        "201":
+          description: the order that was created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+        "422":
+          description: the order was rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reason:
+                    type: string

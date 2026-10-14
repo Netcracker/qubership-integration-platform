@@ -19,7 +19,9 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 import org.mapstruct.*;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.UserMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.ChainLabel;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainLabelDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainsBySpecificationGroup;
@@ -30,6 +32,7 @@ import org.qubership.integration.platform.runtime.catalog.util.StringTrimmer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Mapper(componentModel = "spring",
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
@@ -78,6 +81,10 @@ public interface ChainMapper {
     default List<ChainsBySpecificationGroup> asChainsBySpecificationGroup(Map<String, List<Chain>> response) {
         return response.entrySet().stream().map(e -> asChainsBySpecificationGroup(e.getKey(), e.getValue())).toList();
     }
+
+    // Declared only to host RETURN_DEFAULT: MapStruct otherwise passes null to the Chain builder.
+    @IterableMapping(nullValueMappingStrategy = NullValueMappingStrategy.RETURN_DEFAULT)
+    Set<ChainLabel> asLabelEntities(List<ChainLabelDTO> labels);
 
     Chain mapRequest(ChainRequest request);
 

@@ -23,6 +23,7 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import org.codehaus.plexus.util.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.events.ChainsDeletedEvent;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.FolderMoveException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
@@ -37,6 +38,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.folder.Fol
 import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.ListFolderRequest;
 import org.qubership.integration.platform.runtime.catalog.service.filter.ChainFilterSpecificationBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -52,6 +54,7 @@ import static java.util.Objects.nonNull;
 @Transactional
 public class FolderService {
     private static final String FOLDER_WITH_ID_NOT_FOUND_MESSAGE = "Can't find folder with id: ";
+    private static final String PARENT_FOLDER = "parentFolder";
 
     private final FolderRepository folderRepository;
     private final ActionsLogService actionLogger;
@@ -62,6 +65,7 @@ public class FolderService {
 
     private final EntityManager entityManager;
     private final ChainFilterSpecificationBuilder chainFilterSpecificationBuilder;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Autowired
     public FolderService(FolderRepository folderRepository,
@@ -70,7 +74,8 @@ public class FolderService {
                          DeploymentService deploymentService,
                          AuditingHandler jpaAuditingHandler,
                          EntityManager entityManager,
-                         ChainFilterSpecificationBuilder chainFilterSpecificationBuilder) {
+                         ChainFilterSpecificationBuilder chainFilterSpecificationBuilder,
+                         ApplicationEventPublisher applicationEventPublisher) {
         this.folderRepository = folderRepository;
         this.actionLogger = actionLogger;
         this.chainRepository = chainRepository;
@@ -78,6 +83,7 @@ public class FolderService {
         this.auditingHandler = jpaAuditingHandler;
         this.entityManager = entityManager;
         this.chainFilterSpecificationBuilder = chainFilterSpecificationBuilder;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     public List<Folder> findAllInRoot() {
@@ -166,8 +172,8 @@ public class FolderService {
 
         Specification<Folder> folderSpecification = (r, q, cb) ->
                 isNull(request.getFolderId())
-                        ? cb.isNull(r.get("parentFolder").get("id"))
-                        : cb.equal(r.get("parentFolder").get("id"), cb.literal(request.getFolderId()));
+                        ? cb.isNull(r.get(PARENT_FOLDER).get("id"))
+                        : cb.equal(r.get(PARENT_FOLDER).get("id"), cb.literal(request.getFolderId()));
 
         Specification<Folder> searchSpecification = null;
 
@@ -186,7 +192,7 @@ public class FolderService {
                     criteriaBuilder.literal(0L)));
 
             Specification<Chain> chainSpecification = (r, q, cb) ->
-                    cb.isTrue(cb.function("is_parent_folder", Boolean.class, root.get("id"), chainRoot.get("parentFolder").get("id")));
+                    cb.isTrue(cb.function("catalog.is_parent_folder", Boolean.class, root.get("id"), chainRoot.get(PARENT_FOLDER).get("id")));
             if (StringUtils.isNotBlank(request.getSearchString())) {
                 chainSpecification = chainSpecification.and(chainFilterSpecificationBuilder.buildSearch(request.getSearchString()));
             }
@@ -244,6 +250,10 @@ public class FolderService {
         deleteRuntimeDeployments(folder);
         List<FoldableEntity> nestedEntities = findAllNestedFoldableEntity(folderId);
         folderRepository.deleteById(folderId);
+        applicationEventPublisher.publishEvent(new ChainsDeletedEvent(nestedEntities.stream()
+                .filter(entity -> !(entity instanceof Folder))
+                .map(FoldableEntity::getId)
+                .toList()));
 
         for (FoldableEntity entity : nestedEntities) {
             if (!(entity instanceof Folder)) {
@@ -262,12 +272,10 @@ public class FolderService {
 
     public void deleteByIds(List<String> folderIds) {
         List<Chain> chains = chainRepository.findAllChainsInFolders(folderIds);
-        chains.forEach(FoldableEntity::getParentFolder); // To ensure that parent folders are loaded.
-        chains.stream().map(Chain::getId).toList().forEach(deploymentService::deleteAllByChainId);
-        folderRepository.deleteFolderTree(folderIds);
-        chains.forEach(chain -> {
+        // Read the parent folders before the native delete removes their rows under the lazy proxies.
+        List<ActionLog> actions = chains.stream().map(chain -> {
             Optional<Folder> folder = Optional.ofNullable(chain.getParentFolder());
-            actionLogger.logAction(ActionLog.builder()
+            return ActionLog.builder()
                     .entityType(EntityType.CHAIN)
                     .entityId(chain.getId())
                     .entityName(chain.getName())
@@ -275,8 +283,12 @@ public class FolderService {
                     .parentId(folder.map(Folder::getId).orElse(null))
                     .parentName(folder.map(Folder::getName).orElse(null))
                     .operation(LogOperation.DELETE)
-                    .build());
-        });
+                    .build();
+        }).toList();
+        chains.stream().map(Chain::getId).toList().forEach(deploymentService::deleteAllByChainId);
+        folderRepository.deleteFolderTree(folderIds);
+        applicationEventPublisher.publishEvent(new ChainsDeletedEvent(chains.stream().map(Chain::getId).toList()));
+        actions.forEach(actionLogger::logAction);
     }
 
     private void deleteRuntimeDeployments(Folder folder) {
@@ -305,8 +317,8 @@ public class FolderService {
     public List<Chain> findNestedChains(String folderId, FolderContentFilter filter) {
         List<Folder> nestedFolders = folderRepository.findNestedFolders(folderId);
         Specification<Chain> specification = (root, query, criteriaBuilder) -> criteriaBuilder.or(
-                root.get("parentFolder").in(nestedFolders),
-                criteriaBuilder.equal(root.get("parentFolder").get("id"), folderId)
+                root.get(PARENT_FOLDER).in(nestedFolders),
+                criteriaBuilder.equal(root.get(PARENT_FOLDER).get("id"), folderId)
         );
         if (nonNull(filter)) {
             specification = specification.and(filter.getSpecification());

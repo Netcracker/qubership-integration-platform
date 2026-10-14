@@ -16,32 +16,33 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.SERVICE_CALL_RETRY_COUNT;
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.SERVICE_CALL_RETRY_DELAY;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.SERVICE_CALL_RETRY_COUNT;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.SERVICE_CALL_RETRY_DELAY;
 
 @Component
 public class ServiceCallPropertiesBuilder implements ElementPropertiesBuilder {
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return CamelNames.SERVICE_CALL_COMPONENT.equals(element.getType());
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         Map<String, String> propertiesMap = new HashMap<>();
         Stream.of(
                 SERVICE_CALL_RETRY_COUNT,
                 SERVICE_CALL_RETRY_DELAY
-        ).forEach(property -> propertiesMap.put(property, element.getPropertyAsString(property)));
+        ).forEach(property -> propertiesMap.put(property, ElementUtils.getPropertyAsString(element, property)));
         return propertiesMap;
     }
 }

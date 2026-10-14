@@ -1,0 +1,63 @@
+---
+id: "0ad412c1-776d-47a0-91fe-fb424ee523a0"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "choise-priority"
+content:
+  labels: []
+  elements:
+  - id: "385fdfba-2dcf-4f8b-813a-262db9c2bbb1"
+    name: "Condition"
+    type: "condition"
+    children:
+    - id: "11f4e4e0-c474-4053-8a26-bf346e6a2c27"
+      name: "If-10"
+      type: "if"
+      children:
+      - id: "56553eff-b316-49d8-8f8a-1f5756469f98"
+        name: "If Script 10"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-56553eff-b316-49d8-8f8a-1f5756469f98.groovy"
+          propertiesToExportInSeparateFile: "script"
+        originalId: "c5a9eaf2-cad8-4ba4-aa2e-5c0e9b91d6fd"
+      properties:
+        condition: "${exchangeProperty.condition10}"
+        priority: 10
+    - id: "83ee2658-e071-4470-a5ad-faa92251dca0"
+      name: "If"
+      type: "if"
+      children:
+      - id: "c5a9eaf2-cad8-4ba4-aa2e-5c0e9b91d6fd"
+        name: "If Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-c5a9eaf2-cad8-4ba4-aa2e-5c0e9b91d6fd.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        condition: "${exchangeProperty.condition}"
+        priority: 0
+    - id: "dd95acfb-c138-4588-9ab5-c2386e1fb329"
+      name: "Else"
+      type: "else"
+      children:
+      - id: "5b246e95-65e3-4ea8-9827-a53d56b9bd1d"
+        name: "Else Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-5b246e95-65e3-4ea8-9827-a53d56b9bd1d.groovy"
+          propertiesToExportInSeparateFile: "script"
+  - id: "b26e3138-f99c-4ffd-814e-e923db1b03e5"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "b26e3138-f99c-4ffd-814e-e923db1b03e5"
+  dependencies:
+  - from: "b26e3138-f99c-4ffd-814e-e923db1b03e5"
+    to: "385fdfba-2dcf-4f8b-813a-262db9c2bbb1"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -226,7 +226,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
                       name="name"
                       rules={[{ required: true, message: "Name is required" }]}
                     >
-                      <Input ref={nameInput} />
+                      <Input autoFocus={true} ref={nameInput} />
                     </Form.Item>
                     <Form.Item label="Labels" name="labels">
                       <Select

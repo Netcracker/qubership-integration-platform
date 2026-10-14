@@ -6,8 +6,11 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
+import org.apache.camel.model.StepDefinition;
 import org.apache.camel.observation.MicrometerObservationTracer;
+import org.apache.camel.reifier.ProcessorReifier;
 import org.apache.camel.spi.CamelContextCustomizer;
+import org.qubership.integration.platform.engine.camel.reifiers.CustomStepReifier;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
 @Slf4j
@@ -30,5 +33,8 @@ public class ContextCustomizer implements CamelContextCustomizer {
         // Setting up debugger
         camelContext.setDebugger(debugger);
         camelContext.setDebugging(true);
+
+        // Lets chains with an empty step element deploy, as they do in engine.
+        ProcessorReifier.registerReifier(StepDefinition.class, CustomStepReifier::new);
     }
 }

@@ -5,29 +5,25 @@ import { useModalContext } from "../../../ModalContextProvider.tsx";
 import {
   AccessControl as AccessControlData,
   AccessControlProperty,
-  AccessControlUpdateRequest,
 } from "../../../api/apiTypes.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
-import { useAccessControl } from "../../../hooks/useAccessControl.tsx";
+import { api } from "../../../api/api.ts";
+import { buildUpdateRequests, chainIdsOf } from "./accessControlRequests.ts";
 
 export type AddDeleteRolesPopUpProps = {
-  record?: AccessControlData;
   records?: AccessControlData[];
   onSuccess?: () => void;
   mode?: "add" | "delete";
 };
 
 export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
-  record,
   records,
   onSuccess,
   mode = "add",
 }) => {
-  const recordsToProcess =
-    records && records.length > 0 ? records : record ? [record] : [];
+  const recordsToProcess = records ?? [];
   const { closeContainingModal } = useModalContext();
   const notificationService = useNotificationService();
-  const { updateAccessControl } = useAccessControl();
   const [form] = Form.useForm();
   const getAllUniqueRoles = (): string[] => {
     const allRoles = new Set<string>();
@@ -92,42 +88,30 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
         roles?: string[];
         redeploy?: boolean;
       };
-      const updateRequests: AccessControlUpdateRequest[] = recordsToProcess.map(
-        (rec) => {
-          if (!rec.elementId) {
-            throw new Error("Element ID is required");
-          }
 
-          const props = rec.properties as unknown as
-            | AccessControlProperty
-            | undefined;
-          const existingRoles = Array.isArray(props?.roles) ? props?.roles : [];
-          let finalRoles: string[];
-
-          if (isDeleteMode) {
-            finalRoles = existingRoles.filter(
-              (role: string) => !selectedRoles.includes(role),
-            );
-          } else {
-            const mergedRoles = [...existingRoles, ...selectedRoles];
-            finalRoles = Array.from(new Set(mergedRoles));
-          }
-
-          return {
-            elementId: rec.elementId,
-            isRedeploy: Boolean(formValues.redeploy),
-            roles: finalRoles,
-          };
-        },
+      await api.updateHttpTriggerAccessControl(
+        buildUpdateRequests(recordsToProcess, selectedRoles, isDeleteMode),
       );
 
-      await updateAccessControl(updateRequests);
-      notificationService.info(
-        "Success",
-        isDeleteMode
-          ? "Roles deleted successfully"
-          : "Roles updated successfully",
-      );
+      try {
+        if (formValues.redeploy) {
+          await api.bulkDeployChainsAccessControl(chainIdsOf(recordsToProcess));
+        }
+        notificationService.info(
+          "Success",
+          isDeleteMode
+            ? "Roles deleted successfully"
+            : "Roles updated successfully",
+        );
+      } catch (err: unknown) {
+        // The roles are saved either way; a chain that failed keeps its unsaved changes.
+        notificationService.requestFailed(
+          isDeleteMode
+            ? "Roles deleted, but some chains were not deployed"
+            : "Roles updated, but some chains were not deployed",
+          err,
+        );
+      }
       onSuccess?.();
       closeContainingModal();
     } catch (err: unknown) {

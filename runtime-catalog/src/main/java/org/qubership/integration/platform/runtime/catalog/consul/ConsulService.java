@@ -239,18 +239,6 @@ public class ConsulService {
     }
 
     /**
-     * No error handling in case of empty KV
-     */
-    public Map<String, String> getCommonVariables(List<String> variablesNames) {
-        List<KVResponse> response = client.getKVsInTransaction(variablesNames.stream()
-                .map(this::buildCommonVariableKeyForTxn)
-                .toList());
-        return response.stream().map(this::parseCommonVariable)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(Pair::getKey, nullValueRemapping()));
-    }
-
-    /**
      * Use {@link ConsulService#getAllCommonVariables()}
      */
     @Deprecated(since = "24.1")

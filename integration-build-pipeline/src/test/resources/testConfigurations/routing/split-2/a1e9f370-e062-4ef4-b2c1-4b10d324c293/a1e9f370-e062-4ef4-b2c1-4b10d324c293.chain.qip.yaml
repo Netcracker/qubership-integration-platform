@@ -1,0 +1,55 @@
+---
+id: "a1e9f370-e062-4ef4-b2c1-4b10d324c293"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "split"
+content:
+  labels: []
+  elements:
+  - id: "0cf0040d-4ee8-437d-ab08-cbee9affa53d"
+    name: "Split"
+    type: "split-2"
+    children:
+    - id: "b7910b11-8b3d-43c3-822d-58ef5b169f45"
+      name: "Split Element"
+      type: "split-element-2"
+      children:
+      - id: "a80b36b2-df11-4f7c-a946-542061ed8de0"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-a80b36b2-df11-4f7c-a946-542061ed8de0.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        propagateHeaders: true
+        propagateProperties: true
+        splitName: "secondary"
+    - id: "f79454fa-0929-40b2-b680-0a3b3e3d9533"
+      name: "Main Split Element"
+      type: "main-split-element-2"
+      children:
+      - id: "269d4de8-29a6-412d-9dbf-a451f765bbe1"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-269d4de8-29a6-412d-9dbf-a451f765bbe1.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        splitName: "main"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+  - id: "1a029906-e0f8-457f-9a2e-d805e0f933e6"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "1a029906-e0f8-457f-9a2e-d805e0f933e6"
+  dependencies:
+  - from: "1a029906-e0f8-457f-9a2e-d805e0f933e6"
+    to: "0cf0040d-4ee8-437d-ab08-cbee9affa53d"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -1,0 +1,25 @@
+---
+id: "455cfcf6-1a00-40ed-a003-a7f731c589f7"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "file-write"
+content:
+  labels: []
+  elements:
+  - id: "b7bcb153-2f51-4415-9c00-4b4138fa6843"
+    name: "File Write"
+    type: "file-write"
+    properties:
+      allowNullBody: true
+      fileName: "target.txt"
+  - id: "fd62b92f-160c-4c43-93e3-d5fe6d86d009"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "fd62b92f-160c-4c43-93e3-d5fe6d86d009"
+  dependencies:
+  - from: "fd62b92f-160c-4c43-93e3-d5fe6d86d009"
+    to: "b7bcb153-2f51-4415-9c00-4b4138fa6843"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -72,7 +72,7 @@ class ElementSupportMatrixBuilderTest {
 
   private static void addRuntimeDescriptor(Path repoRoot, String elementType) throws Exception {
     Path directory =
-        repoRoot.resolve("runtime-catalog/src/main/resources/elements").resolve(elementType);
+        repoRoot.resolve("integration-build-pipeline/src/main/resources/elements").resolve(elementType);
     Files.createDirectories(directory);
     Files.writeString(directory.resolve("description.yaml"), "name: " + elementType);
   }

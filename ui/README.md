@@ -11,11 +11,9 @@ npm to build and run.
 ## Dependencies
 
 This application relies
-on [Design-Time Catalog](https://github.com/Netcracker/qubership-integration-designtime-catalog),
-[Runtime Catalog](https://github.com/Netcracker/qubership-integration-runtime-catalog),
-[Variables Management](https://github.com/Netcracker/qubership-integration-variables-management),
-[Sessions Management](https://github.com/Netcracker/qubership-integration-sessions-management),
-and [Engine](https://github.com/Netcracker/qubership-integration-engine) services.
+on [Runtime Catalog](../runtime-catalog),
+[Sessions Management](../sessions-management),
+and [Engine](../engine) services.
 
 ## Documentation
 
@@ -36,5 +34,5 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 ## Additional Resources
 
-- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment
+- [Qubership Integration Platform](../README.md) — core deployment
   guide.

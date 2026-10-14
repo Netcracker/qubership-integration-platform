@@ -1,0 +1,64 @@
+---
+id: "425c1b4d-ed85-49ce-a3ff-236222bc5f88"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "split stop on execution true"
+content:
+  labels: []
+  elements:
+  - id: "812eda58-3073-4386-a2fa-4c13ad0f1025"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-812eda58-3073-4386-a2fa-4c13ad0f1025.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "8a40542b-acb5-43bc-97d3-89e0696b17f6"
+    name: "Split"
+    type: "split-2"
+    children:
+    - id: "0258bb67-c49b-4c08-9434-abebf05364af"
+      name: "Split Element"
+      type: "split-element-2"
+      children:
+      - id: "04932e1c-5c07-45b5-8807-7df0ed2e5efd"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-04932e1c-5c07-45b5-8807-7df0ed2e5efd.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        propagateHeaders: true
+        propagateProperties: true
+        splitName: "secondary"
+    - id: "e0ef7e3e-ad48-43b5-8842-feda0e014e44"
+      name: "Main Split Element"
+      type: "main-split-element-2"
+      children:
+      - id: "4eafa498-af45-4a2b-b117-9c70478bbe4f"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-4eafa498-af45-4a2b-b117-9c70478bbe4f.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        splitName: "main"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+  - id: "94985917-7854-4148-bb30-9a6245a76c94"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "94985917-7854-4148-bb30-9a6245a76c94"
+  dependencies:
+  - from: "8a40542b-acb5-43bc-97d3-89e0696b17f6"
+    to: "812eda58-3073-4386-a2fa-4c13ad0f1025"
+  - from: "94985917-7854-4148-bb30-9a6245a76c94"
+    to: "8a40542b-acb5-43bc-97d3-89e0696b17f6"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

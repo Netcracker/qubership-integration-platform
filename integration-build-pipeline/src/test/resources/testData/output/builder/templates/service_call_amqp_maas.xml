@@ -1,0 +1,168 @@
+<route>
+
+<step id="3281d540-cead-4199-8d18-d6f2b5a6bac7">
+
+
+        <setProperty name="serviceCallMethod">
+            <simple>publish</simple>
+        </setProperty>
+        <setProperty name="serviceCallExchange">
+            <simple>sample-exchange</simple>
+        </setProperty>
+        <setProperty name="serviceCallAddress">
+            <simple>%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_addresses}</simple>
+        </setProperty>
+
+            <setProperty name="serviceCallParameter_vhost">
+                <simple>%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_vhost}</simple>
+            </setProperty>
+            <setProperty name="serviceCallParameter_password">
+                <simple>%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_password}</simple>
+            </setProperty>
+            <setProperty name="serviceCallParameter_acknowledgeMode">
+                <simple>AUTO</simple>
+            </setProperty>
+            <setProperty name="serviceCallParameter_sslProtocol">
+                <simple>%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_sslProtocol}</simple>
+            </setProperty>
+            <setProperty name="serviceCallParameter_username">
+                <simple>%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_username}</simple>
+            </setProperty>
+
+
+
+    <removeHeader name="CamelHttpQuery"/>
+
+
+
+
+
+
+    <removeHeader name="CamelHttpResponseCode"/>
+    <setHeader name="CamelHttpMethod">
+        <constant> publish </constant>
+    </setHeader>
+
+
+    <setProperty name="internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Retry"><constant>true</constant></setProperty>
+    <setProperty name="internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Iterator"><constant>0</constant></setProperty>
+    <loop doWhile="true">
+        <simple>${exchangeProperty[internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Retry]}</simple>
+
+        <removeProperty name="internalProperty_elementFailed" />
+        <removeProperty name="CamelExceptionCaught"/>
+        <removeProperty name="lastException"/>
+        <removeProperty name="internalProperty_sessionFailed"/>
+        <step id="Request attempt--3281d540-cead-4199-8d18-d6f2b5a6bac7">
+            <choice>
+                <when>
+                    <simple>${exchangeProperty[internalProperty_retryAwait]}</simple>
+
+                    <delay>
+                        <simple></simple>
+                    </delay>
+                </when>
+            </choice>
+
+            <setProperty name="internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Retry"><constant>false</constant></setProperty>
+            <doTry id="Request--3281d540-cead-4199-8d18-d6f2b5a6bac7">
+
+
+
+                    <process ref="messagingXHeadersPropagationProcessor"/>
+                    <process ref="rabbitMqSenderProcessor" />
+                    <toD uri="rabbitmq-custom:sample-exchange?addresses=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_addresses}&amp;vhost=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_vhost}&amp;password=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_password}&amp;acknowledgeMode=AUTO&amp;sslProtocol=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_sslProtocol}&amp;username=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_username}&amp;exchangePattern=InOnly&amp;metricsCollector=#3281d540-cead-4199-8d18-d6f2b5a6bac7"/>
+                    <process ref="messagingXHeadersPropagationRestoreProcessor"/>
+                    <setProperty name="internalProperty_enableAuthRestore">
+                        <constant>true</constant>
+                    </setProperty>
+
+
+                <removeProperty name ="internalProperty_enableAuthRestore"/>
+
+
+
+                <doCatch>
+                    <exception>java.lang.Exception</exception>
+                    <setProperty name="internalProperty_elementFailed"><constant>true</constant></setProperty>
+                    <choice>
+                        <when>
+                            <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+                            <setHeader name="CamelHttpResponseCode">
+                                <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                            </setHeader>
+                            <choice>
+                                <when>
+                                    <simple>${exchangeProperty[internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Iterator]} == 0</simple>
+                                    <process ref="setCaughtHttpExceptionContextProcessor" />
+                                </when>
+                            </choice>
+                        </when>
+                    </choice>
+                    <choice>
+                        <when>
+                            <simple>${exception} !is 'org.apache.camel.http.base.HttpOperationFailedException' || ${exchangeProperty.CamelExceptionCaught.statusCode} !range '400..499'</simple>
+                            <choice>
+                                <when>
+                                    <simple>${exchangeProperty[internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Iterator]} &lt; 0</simple>
+                                    <setProperty name="internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Retry"><constant>true</constant></setProperty>
+                                    <setProperty name="internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Iterator">
+                                        <simple resultType="java.lang.Integer">${exchangeProperty[internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Iterator]}++</simple>
+                                    </setProperty>
+                                </when>
+                                <when>
+                                    <simple>${exception} !is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+                                    <setProperty name="internalProperty_elementFailed"><constant>false</constant></setProperty>
+                                    <process ref="throwCaughtExceptionProcessor" />
+                                </when>
+                                <otherwise>
+                                    <setProperty name="internalProperty_retryAwait"><constant>false</constant></setProperty>
+                                </otherwise>
+                            </choice>
+                        </when>
+                        <otherwise>
+                            <process ref="setCaughtHttpExceptionContextProcessor" />
+                        </otherwise>
+                    </choice>
+                </doCatch>
+
+                <doFinally>
+                    <removeProperty name="external-service-name"/>
+                    <removeProperty name="external-service-environment-name"/>
+
+                    <choice>
+                        <when>
+                            <simple>${exchangeProperty[internalProperty_serviceCall_3281d540-cead-4199-8d18-d6f2b5a6bac7_Retry]} != true</simple>
+
+                            <removeProperty name="internalProperty_overrideContextParams"/>
+                            <removeProperty name="internalProperty_retryAwait"/>
+                            <process ref="contextRestoreProcessor"/>
+                        </when>
+                    </choice>
+                </doFinally>
+            </doTry>
+        </step>
+        <removeProperty name="internalProperty_elementFailed"></removeProperty>
+    </loop>
+
+
+
+</step>
+
+<removeHeader name="CamelHttpUri"/>
+
+<removeProperty name="serviceCallAddress"/>
+<removeProperty name="serviceCallUrl"/>
+<removeProperty name="serviceCallMethod"/>
+<removeProperty name="serviceCallPath"/>
+<removeProperties pattern="serviceCallQueryParameter_*"/>
+<removeProperties pattern="serviceCallPathParameter_*"/>
+<removeProperties pattern="serviceCallParameter_*"/>
+<removeProperties pattern="internalProperty_queryParam_*"/>
+<removeProperty name="serviceCallTopic"/>
+<removeProperty name="serviceCallBrokers"/>
+<removeProperty name="serviceCallExchange"/>
+<removeProperty name="serviceCallService"/>
+<removeProperty name="serviceCallVariablesHeader"/>
+<removeProperty name="serviceCallSkipEmptyQueryParams"/>
+</route>

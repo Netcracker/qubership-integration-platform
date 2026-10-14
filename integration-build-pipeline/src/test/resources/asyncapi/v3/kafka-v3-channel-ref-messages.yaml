@@ -1,0 +1,79 @@
+asyncapi: 3.0.0
+info:
+  title: Channel Ref Messages API
+  version: 1.0.0
+channels:
+  inlineChannel:
+    address: events/inline
+    messages:
+      InlineEvent:
+        payload:
+          type: object
+          properties:
+            data:
+              type: string
+        headers:
+          type: object
+          properties:
+            correlationId:
+              type: string
+  refChannel:
+    address: events/ref
+    messages:
+      RefEvent:
+        $ref: '#/components/messages/SharedEvent'
+  mixedChannel:
+    address: events/mixed
+    messages:
+      MixedInline:
+        payload:
+          type: object
+          properties:
+            inlineField:
+              type: string
+      MixedRef:
+        $ref: '#/components/messages/SharedEvent'
+  replyTargetChannel:
+    address: reply/target
+    messages:
+      ReplyMsg:
+        payload:
+          type: object
+          properties:
+            result:
+              type: string
+operations:
+  sendWithMultipleChannelRefs:
+    action: send
+    channel:
+      $ref: '#/channels/inlineChannel'
+    summary: Operation with explicit messages referencing channel inline messages
+    messages:
+      - $ref: '#/channels/inlineChannel/messages/InlineEvent'
+      - $ref: '#/channels/mixedChannel/messages/MixedInline'
+  consumeRefChannel:
+    action: receive
+    channel:
+      $ref: '#/channels/refChannel'
+    summary: Single channel message is $ref to component
+  consumeMixedChannel:
+    action: receive
+    channel:
+      $ref: '#/channels/mixedChannel'
+    summary: Multiple channel messages - some inline, some $ref - no explicit op messages
+  receiveWithReply:
+    action: receive
+    channel:
+      $ref: '#/channels/inlineChannel'
+    summary: Receive action with reply - reply becomes publish
+    reply:
+      channel:
+        $ref: '#/channels/replyTargetChannel'
+components:
+  messages:
+    SharedEvent:
+      payload:
+        type: object
+        properties:
+          sharedField:
+            type: string

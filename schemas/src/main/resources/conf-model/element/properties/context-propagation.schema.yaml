@@ -1,0 +1,25 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/context-propagation
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Context propagation properties
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  propagateContext:
+    type: boolean
+    title: Propagate context
+    description: Propagate context to headers before sending message.
+    default: true
+if:
+  properties:
+    propagateContext:
+      const: true
+then:
+  properties:
+    overrideContextParams:
+      title: Override technical context headers
+      description: Propagate props to headers before sending message.
+      $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/headers"

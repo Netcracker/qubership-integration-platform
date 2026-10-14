@@ -1,0 +1,34 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/swimlane
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: Swimlane
+description: >
+  Group elements, that will be represented in UI as Swimlanes.
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: swimlane
+  properties:
+    type: object
+    properties:
+      color:
+        $ref: "#/definitions/Color"
+    additionalProperties: false
+definitions:
+  Color:
+    enum:
+      - Blue
+      - Green
+      - Yellow
+      - Purple
+      - Lagoon
+      - Brown
+required:
+  - type

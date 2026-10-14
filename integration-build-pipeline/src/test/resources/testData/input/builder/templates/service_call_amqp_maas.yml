@@ -1,0 +1,30 @@
+id: "a3c4ba79-1e0a-4da6-96e9-cc94a6ed2fe4"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "3281d540-cead-4199-8d18-d6f2b5a6bac7"
+    name: "Publish Message"
+    element-type: "service-call"
+    original-id: "5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f"
+    properties:
+      retryCount: "0"
+      systemType: "INTERNAL"
+      integrationSystemId: "184228e9-2514-4e70-8b8e-d55b06f26dd9"
+      integrationOperationPath: "sample-exchange"
+      integrationOperationMethod: "publish"
+      integrationOperationProtocolType: "amqp"
+      integrationOperationAsyncProperties:
+        maas.classifier.name: "public"
+    service-environment:
+      id: "9c8c1b26-63b6-4f6d-91f9-371d743965f1"
+      name: "main"
+      address: ""
+      systemId: "184228e9-2514-4e70-8b8e-d55b06f26dd9"
+      properties:
+        routingKey: ""
+        acknowledgeMode: "AUTO"
+      sourceType: "MAAS_BY_CLASSIFIER"
+      createdWhen: 1666715860344
+      modifiedWhen: 1669643915793
+      notActivated: false

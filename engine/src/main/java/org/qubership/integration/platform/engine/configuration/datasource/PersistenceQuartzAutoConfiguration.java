@@ -71,7 +71,7 @@ public class PersistenceQuartzAutoConfiguration {
      */
     @Primary
     @Bean("qrtzDataSource")
-    @ConditionalOnProperty(value = "qip.standalone", havingValue = "false")
+    @ConditionalOnProperty(value = "cip.standalone", havingValue = "false")
     public DataSource qrtzDataSource(DatabasePool dbaasConnectionPool,
                               DbaasClassifierFactory classifierFactory,
                               @Autowired(required = false) @Qualifier("dbaasApiProperties") DbaasApiProperties dbaasApiProperties) {
