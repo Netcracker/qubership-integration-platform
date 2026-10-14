@@ -72,6 +72,12 @@ export const BROKERS_FIXTURE_DIR = path.join(HERE, "brokers");
  */
 export const SERVICE_FIXTURE_DIR = path.join(HERE, "services");
 
+/**
+ * `e2e/fixtures/broker-services/` — the AsyncAPI services the broker chains under `fixtures/brokers/`
+ * consume from or send to. The broker seeds import them, each its own copy, before their chains.
+ */
+export const BROKER_SERVICE_FIXTURE_DIR = path.join(HERE, "broker-services");
+
 /** Every directory the seed's corpus is assembled from. A fixture name is unique across them. */
 export const CORPUS_FIXTURE_DIRS: readonly string[] = [
   CHAIN_FIXTURE_DIR,
@@ -86,7 +92,8 @@ export const CORPUS_FIXTURE_DIRS: readonly string[] = [
  * rest are always there, and a fixture that does not validate breaks the seed minutes into a run.
  * `BROKERS_FIXTURE_DIR` is outside `CORPUS_FIXTURE_DIRS` because the shared corpus never imports
  * it, but it is tracked and rendered the same way every other fixture is, so it validates here too.
- * `SERVICE_FIXTURE_DIR` is outside it too, and its fixtures are imported by both seeds.
+ * `SERVICE_FIXTURE_DIR` is outside it too, and its fixtures are imported by both seeds;
+ * `BROKER_SERVICE_FIXTURE_DIR` holds the services the broker seeds import.
  *
  * The corpus half is derived from `CORPUS_FIXTURE_DIRS` rather than spelled out again: a second
  * literal list is a directory somebody adds to one of them, and the validation it silently drops
@@ -96,6 +103,7 @@ export const TRACKED_FIXTURE_DIRS: readonly string[] = [
   ...CORPUS_FIXTURE_DIRS.filter((dir) => dir !== AXIS_FIXTURE_DIR),
   BROKERS_FIXTURE_DIR,
   SERVICE_FIXTURE_DIR,
+  BROKER_SERVICE_FIXTURE_DIR,
 ];
 
 /**
@@ -325,6 +333,29 @@ const BROKER_ADDRESS_PROPERTIES: Record<string, readonly string[]> = {
   "sftp-upload": ["connectUrl"],
 };
 
+/** The protocols whose operation path an `async-api-trigger` or a `service-call` consumes from or sends to. */
+export const ASYNC_OPERATION_PROTOCOLS: ReadonlySet<string> = new Set(["kafka", "amqp"]);
+
+/**
+ * Every address property of a broker element, with its value: the topic or exchange of an
+ * asynchronous operation is its `integrationOperationPath`, and its group or queue sits under
+ * `integrationOperationAsyncProperties`.
+ */
+function brokerAddressesOf(element: DocumentElement): Array<[string, unknown]> {
+  const properties = element.properties ?? {};
+  const type = String(element.type);
+  if (type === "async-api-trigger" || type === "service-call") {
+    if (!ASYNC_OPERATION_PROTOCOLS.has(String(properties.integrationOperationProtocolType))) return [];
+    const async = (properties.integrationOperationAsyncProperties ?? {}) as Record<string, unknown>;
+    return [
+      ["integrationOperationPath", properties.integrationOperationPath],
+      ["groupId", async.groupId],
+      ["queues", async.queues],
+    ];
+  }
+  return (BROKER_ADDRESS_PROPERTIES[type] ?? []).map((property) => [property, properties[property]]);
+}
+
 /**
  * The micro copy's address: each listed name gets `MICRO_ADDRESS_SUFFIX`, and an SFTP URL moves to
  * a sibling of its run directory under `/upload`, so each copy's teardown deletes a tree of its own.
@@ -347,7 +378,9 @@ function microAddress(property: string, value: string): string {
  * prefix too, in a chain or in a service address: inside a micro pod `localhost` is the copy's own
  * domain, which serves the callee's micro copy under the prefixed path. A service fixture is copied
  * the same way, so the copy's chains call the copy's services, and an MCP service identifier gets
- * a `micro-` prefix. A broker element's addresses get `microAddress`.
+ * a `micro-` prefix. A broker element's addresses get `microAddress`, and so does the topic or
+ * exchange of an asynchronous operation; the operation in the service copy keeps its path, because
+ * the deploy reads the element's.
  */
 export function microCopy(name: string, tree: RenderedTree): RenderedTree {
   const copy: RenderedTree = new Map();
@@ -375,8 +408,7 @@ export function microCopy(name: string, tree: RenderedTree): RenderedTree {
     source = source.replace(line, `contextPath: "${MICRO_PATH_PREFIX}${contextPath}"`);
   }
   for (const element of elementsOf(document)) {
-    for (const property of BROKER_ADDRESS_PROPERTIES[String(element.type)] ?? []) {
-      const value = element.properties?.[property];
+    for (const [property, value] of brokerAddressesOf(element)) {
       if (typeof value !== "string") continue;
       const line = `${property}: ${JSON.stringify(value)}`;
       const count = source.split(line).length - 1;

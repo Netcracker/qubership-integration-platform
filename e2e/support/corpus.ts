@@ -146,7 +146,7 @@ export const SERVICE_IMPORTS: Partial<Record<DocumentKind, string>> = {
 };
 
 /** Deletes a seeded service through the delete of its kind. */
-async function deleteService(catalog: Catalog, kind: DocumentKind, id: string): Promise<void> {
+export async function deleteService(catalog: Catalog, kind: DocumentKind, id: string): Promise<void> {
   if (kind === "context-service") await catalog.deleteContextSystem(id);
   else if (kind === "mcp-service") await catalog.deleteMcpSystem(id);
   else await catalog.deleteSystem(id);
@@ -276,7 +276,7 @@ export function serviceTrees(run: string): Array<[string, RenderedTree]> {
 }
 
 /** Imports the services, one archive per kind through that kind's import, and asserts it created each of them. */
-async function importServices(
+export async function importServices(
   catalog: Catalog,
   trees: ReadonlyArray<readonly [string, RenderedTree]>,
   archiveName: string,

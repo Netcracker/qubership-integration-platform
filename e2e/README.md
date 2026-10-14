@@ -119,7 +119,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `runtime-micro-redeploy` | not declared | `specs/runtime-micro-redeploy/`, one file at a time: micro cases that deploy their own chains to a micro domain of their own |
 | `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | the same |
 | `brokers-micro-seed` | not declared | unless `E2E_BROKERS=0`, a second copy of `fixtures/brokers/` with addresses of its own, deployed to a micro domain named `e2e-<run>-brokers-micro` |
-| `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts`, `missing-target.spec.ts`, `async-api.spec.ts`, and the cases tagged `@classic-only` |
+| `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts` and the cases tagged `@classic-only` |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, and the proxy's `/e2e/` locations |
 
 That is fifteen projects on Compose and twenty-one on Kubernetes, three fewer on Compose and five fewer on
@@ -459,7 +459,8 @@ base stack's project name so the containers share its network, then imports and 
 at setup, naming the overlay. There is no compose command to run by hand.
 
 The broker fixtures are a corpus of their own, outside the shared one, because the engine's
-pre-deploy connectivity checks would stall the whole corpus whenever a broker is down. The seed also
+pre-deploy connectivity checks would stall the whole corpus whenever a broker is down. The seed
+imports the AsyncAPI services under `fixtures/broker-services/` before the chains that name them, and
 creates the run's topics, queues, exchanges, dead-letter bindings, and pub/sub subscriptions. Teardown
 deletes the run's topology and its `/upload/<run>` SFTP tree, then stops and removes the overlay
 containers. On `k8s`, `brokers-micro-seed` deploys a micro copy of the same fixtures, whose topics,
@@ -477,7 +478,8 @@ The engine runs with `CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED=false` in
 `infrastructure/docker/docker-compose.yml` and in `e2e/k8s/values.e2e.yaml`, because the pub/sub pre-deploy
 check always reaches the real Google endpoint rather than the emulator. So
 `specs/brokers/missing-target.spec.ts` covers a missing Kafka topic and a missing RabbitMQ queue and
-exchange, and a missing pub/sub topic is an uncovered gap.
+exchange, and a missing pub/sub topic is an uncovered gap. Its cases are `@classic-only`: the micro
+engine runs no pre-deploy check, so a micro domain reports such a chain `DEPLOYED`.
 
 `brokers-restart` holds `broker-restart.spec.ts` alone and runs one worker after `brokers`, and on
 `k8s` after `brokers-micro` too, because restarting a broker container disturbs every broker spec in

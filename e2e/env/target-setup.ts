@@ -151,12 +151,10 @@ function microBrokerProjects(): SuiteProject[] {
     {
       // `specs/brokers/` against the micro copy, which `brokerChain` returns on a micro project. The
       // specs read the classic corpus state first, so the project waits for both seeds.
-      // `broker-restart.spec.ts` runs in `brokers-restart`, after this project. Two more files stay
-      // out until they run on micro: `missing-target.spec.ts` deploys to the classic engine, so here
-      // it would pass without testing the micro one, and `async-api.spec.ts` builds its own chains.
+      // `broker-restart.spec.ts` runs in `brokers-restart`, after this project.
       name: "brokers-micro",
       testDir: "./specs/brokers",
-      testIgnore: [/broker-restart\.spec\.ts$/, /missing-target\.spec\.ts$/, /async-api\.spec\.ts$/],
+      testIgnore: [/broker-restart\.spec\.ts$/],
       grepInvert: /@classic-only/,
       fullyParallel: true,
       dependencies: ["brokers-seed", "brokers-micro-seed"],

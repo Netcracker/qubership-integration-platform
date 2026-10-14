@@ -377,9 +377,13 @@ seeded Kafka triggers keep `latest`, because that value is the axis they cover.
 
 `fixtures/specifications/` holds the API documents a spec imports as a service specification
 (OpenAPI, GraphQL, AsyncAPI), read with `readSpecificationFixture`. The seed never touches them: a
-spec imports the one it needs into a group it created and deletes it again. An AsyncAPI document for
-a broker spec lives here too, never under `fixtures/brokers/`, whose every top-level entry
-`corpusFixtureNames` reads as a chain.
+spec imports the one it needs into a group it created and deletes it again. A broker chain that
+names an AsyncAPI operation (`async-api-trigger`, a kafka or amqp `service-call`) is seeded like any
+other broker chain: its service sits under `fixtures/broker-services/`, never under
+`fixtures/brokers/`, whose every top-level entry `corpusFixtureNames` reads as a chain, and each
+broker seed imports its own copy of the services before its chains. The operation's topic or
+exchange is the element's `integrationOperationPath`, so the seed creates it and `microCopy` renames
+it.
 
 ## Residue from a previous run
 

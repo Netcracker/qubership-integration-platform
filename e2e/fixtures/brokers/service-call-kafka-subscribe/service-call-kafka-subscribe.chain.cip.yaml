@@ -1,0 +1,41 @@
+---
+id: "e2e0e014-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-service-call-kafka-subscribe"
+description: "service-call over kafka with integrationOperationMethod subscribe, on the service-call-async-kafka service\
+  \ fixture. An HTTP call drives it and a spec reads what it sent off the broker."
+content:
+  labels: []
+  elements:
+  - id: "e2e0e014-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-service-call-kafka-subscribe"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e0e014-0000-4000-8000-000000000003"
+    name: "Service Call"
+    type: "service-call"
+    properties:
+      systemType: "EXTERNAL"
+      integrationSystemId: "e2e0e003-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e0e003-0000-4000-8000-000000000001-kafka-calls"
+      integrationSpecificationId: "e2e0e003-0000-4000-8000-000000000001-kafka-calls-1.0.0"
+      integrationOperationId: "e2e0e003-0000-4000-8000-000000000001-kafka-calls-1.0.0-e2eServiceCallKafkaSubscribe"
+      integrationOperationPath: "e2e-{{RUN}}-service-call-kafka-subscribe"
+      integrationOperationMethod: "subscribe"
+      integrationOperationProtocolType: "kafka"
+      retryCount: 0
+      retryDelay: 5000
+  dependencies:
+  - from: "e2e0e014-0000-4000-8000-000000000002"
+    to: "e2e0e014-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

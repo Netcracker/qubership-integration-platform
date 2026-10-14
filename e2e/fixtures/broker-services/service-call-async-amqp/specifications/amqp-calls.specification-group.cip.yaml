@@ -1,0 +1,7 @@
+---
+id: "e2e0e004-0000-4000-8000-000000000001-amqp-calls"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group"
+name: "amqp-calls"
+content:
+  synchronization: false
+  parentId: "e2e0e004-0000-4000-8000-000000000001"
