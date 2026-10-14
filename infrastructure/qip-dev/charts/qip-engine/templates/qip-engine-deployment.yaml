@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    qip_engine_app: "true"
+    cip_engine_app: "true"
     name: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
     app: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
   name: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
