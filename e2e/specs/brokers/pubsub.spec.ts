@@ -48,19 +48,13 @@ import {
   type Sessions,
 } from "../../support/sessions.js";
 import { readUntil } from "../../support/poll.js";
-import { logWindowStart, withEngineLines } from "../../support/logs.js";
+import { logWindowStart } from "../../support/logs.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
 import { covers } from "../../registry/covers.js";
-import type { Env } from "../../env/index.js";
-import { PUBSUB_EMULATOR_BYPASSED, pubsubAuthFailure } from "./micro-defects.js";
+import { PUBSUB_EMULATOR_BYPASSED, pubsubDelivered } from "./micro-defects.js";
 
 /** What `readUntil` gets for the ackMode=NONE case's settle window, instead of a bare literal. */
 const ACKMODE_NONE_SETTLE_TIMEOUT = 12_000;
-
-/** Runs a trigger case's wait; a failure carries the subscriber's authentication failures. */
-async function delivered<T>(env: Env, since: string, wait: () => Promise<T>): Promise<T> {
-  return strikesAsKnown(PUBSUB_EMULATOR_BYPASSED, () => withEngineLines(env, since, "naming UNAUTHENTICATED", pubsubAuthFailure, wait));
-}
 
 /** Asserts a sender call answered 200; a failure carries the exceptions its session recorded. */
 async function expectSent(sessions: Sessions, call: ChainCall): Promise<void> {
@@ -92,7 +86,7 @@ test(
 
     await publishPubsub(topic, { ping: "pubsub", token: callToken("pubsub-trigger") });
 
-    const session = await delivered(env, since, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
+    const session = await pubsubDelivered(env, since, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
     expect(elementNames(session)).toEqual(["PubSub Trigger", "Header Modification"]);
     expect(failedElements(session)).toEqual([]);
   },
@@ -130,7 +124,7 @@ test(
       1_000,
     );
     const fresh = [...settled].filter((id) => !before.has(id));
-    await delivered(env, since, async () => expect(fresh.length, "exactly one session for the one message published").toBe(1));
+    await pubsubDelivered(env, since, async () => expect(fresh.length, "exactly one session for the one message published").toBe(1));
     expect(failedElements(await sessions.session(fresh[0]))).toEqual([]);
   },
 );

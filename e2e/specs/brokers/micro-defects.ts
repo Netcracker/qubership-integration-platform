@@ -4,7 +4,9 @@
  *
  * Not a spec: Playwright's default `testMatch` does not collect it.
  */
-import type { ConditionalDefect } from "../../support/known-defect.js";
+import { strikesAsKnown, type ConditionalDefect } from "../../support/known-defect.js";
+import { withEngineLines } from "../../support/logs.js";
+import type { Env } from "../../env/index.js";
 
 const PUBSUB_UNAUTHENTICATED = "UNAUTHENTICATED: Failed computing credential metadata";
 
@@ -24,6 +26,11 @@ export const PUBSUB_EMULATOR_BYPASSED: ConditionalDefect = {
 /** Selects the engine log lines that carry the pub/sub authentication failure. */
 export function pubsubAuthFailure(line: string): boolean {
   return line.includes(PUBSUB_UNAUTHENTICATED);
+}
+
+/** Runs a pub/sub trigger case's wait; a failure carries the subscriber's authentication failures. */
+export async function pubsubDelivered<T>(env: Env, since: string, wait: () => Promise<T>): Promise<T> {
+  return strikesAsKnown(PUBSUB_EMULATOR_BYPASSED, () => withEngineLines(env, since, "naming UNAUTHENTICATED", pubsubAuthFailure, wait));
 }
 
 const NO_LINE_FOR_CHAIN = /logged 0 lines for chain /;

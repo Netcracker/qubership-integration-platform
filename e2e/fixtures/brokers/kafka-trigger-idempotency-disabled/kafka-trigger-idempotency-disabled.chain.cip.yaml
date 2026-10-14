@@ -1,0 +1,40 @@
+---
+id: "e2e10002-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-trigger-idempotency-disabled"
+description: "The Kafka trigger with idempotency/enabled=false. It keys on the e2e-idempotency-key record header and consumes from earliest on a topic only the spec publishes to."
+content:
+  labels: []
+  elements:
+  - id: "e2e10002-0000-4000-8000-000000000002"
+    name: "idempotency/enabled=false"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-kafka-trigger-idempotency-disabled"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      groupId: "e2e-{{RUN}}-kafka-trigger-idempotency-disabled"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "earliest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: false
+        contextExpression: "e2e"
+        keyExpiry: 600
+        keyExpression: "${header.e2e-idempotency-key}"
+  - id: "e2e10002-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e10002-0000-4000-8000-000000000002"
+    to: "e2e10002-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
