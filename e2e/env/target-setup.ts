@@ -56,7 +56,8 @@ export interface TargetSetup {
   absent: Absence[];
 }
 
-function brokerProjects(): SuiteProject[] {
+/** The broker projects of both targets; `brokers-restart` runs after `restartAfter`. */
+function brokerProjects(restartAfter: string[] = ["brokers"]): SuiteProject[] {
   return [
     {
       // Imports and deploys `fixtures/brokers/`. A project of its own rather than a step hung
@@ -93,12 +94,13 @@ function brokerProjects(): SuiteProject[] {
       // other broker spec — the same scheduling need `env` exists for, applied to a broker
       // rather than a platform service. `workers: 1` rather than `fullyParallel: false`, for the
       // measured reason `env`'s own comment gives: the latter only serializes within one file and
-      // says nothing about files run alongside it.
+      // says nothing about files run alongside it. On `k8s` it also runs after `brokers-micro`, so a
+      // red micro parity case there skips the classic restart cases.
       name: "brokers-restart",
       testDir: "./specs/brokers",
       testMatch: /broker-restart\.spec\.ts$/,
       workers: 1,
-      dependencies: ["brokers"],
+      dependencies: restartAfter,
     },
   ];
 }
@@ -144,6 +146,20 @@ function microBrokerProjects(): SuiteProject[] {
       testDir: "./specs/brokers-micro-seed",
       testMatch: /.*\.setup\.ts$/,
       teardown: "suite-teardown",
+      use: { engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE },
+    },
+    {
+      // `specs/brokers/` against the micro copy, which `brokerChain` returns on a micro project. The
+      // specs read the classic corpus state first, so the project waits for both seeds.
+      // `broker-restart.spec.ts` runs in `brokers-restart`, after this project. Two more files stay
+      // out until they run on micro: `missing-target.spec.ts` deploys to the classic engine, so here
+      // it would pass without testing the micro one, and `async-api.spec.ts` builds its own chains.
+      name: "brokers-micro",
+      testDir: "./specs/brokers",
+      testIgnore: [/broker-restart\.spec\.ts$/, /missing-target\.spec\.ts$/, /async-api\.spec\.ts$/],
+      grepInvert: /@classic-only/,
+      fullyParallel: true,
+      dependencies: ["brokers-seed", "brokers-micro-seed"],
       use: { engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE },
     },
   ];
@@ -214,7 +230,10 @@ function k8sSetup(): TargetSetup {
       },
       header: collectK8sHeader,
     },
-    projects: [...k8sProjects(), ...(brokers ? [...brokerProjects(), ...microBrokerProjects()] : [])],
+    projects: [
+      ...k8sProjects(),
+      ...(brokers ? [...brokerProjects(["brokers", "brokers-micro"]), ...microBrokerProjects()] : []),
+    ],
     absent: brokers ? [] : brokersAbsent([...brokerProjects(), ...microBrokerProjects()]),
   };
 }

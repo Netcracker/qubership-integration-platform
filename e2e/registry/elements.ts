@@ -877,15 +877,15 @@ const NON_SELECTING_OPTIONS = new Map<string, "flag" | "value">([
 ]);
 
 /**
- * The `brokers`-family project names `env/target-setup.ts` declares on either target unless
- * `E2E_BROKERS=0`.
+ * The `brokers`-family project names `env/target-setup.ts` declares unless `E2E_BROKERS=0`: the
+ * first three on either target, the micro pair on `k8s` only.
  *
  * Named here rather than imported from the config, which reads `process.env.E2E_BROKERS` at import
  * time: `npm run reconcile` runs as a process separate from `npm test` and is not guaranteed to see
  * the same environment the run itself saw. The report's own `config.projects` is what actually
  * happened, so `runFilters` reads that instead of trusting the two invocations to agree.
  */
-const BROKER_PROJECT_NAMES = ["brokers-seed", "brokers", "brokers-restart"];
+const BROKER_PROJECT_NAMES = ["brokers-seed", "brokers", "brokers-restart", "brokers-micro-seed", "brokers-micro"];
 
 /**
  * The target the run was made on, as `playwright.config.ts` records it in the report's metadata.

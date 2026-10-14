@@ -261,3 +261,25 @@ test("brokers-micro-seed deploys to the domain its own state file records, and s
   // Compose declares no micro engine, so it declares no micro broker seed either.
   expect(composeProjects(undefined).map((each) => each.name)).not.toContain("brokers-micro-seed");
 });
+
+test("brokers-micro runs the broker specs on the micro copy after both broker seeds, and brokers-restart waits for it on k8s", { tag: ["@infra", "@tier1"] }, () => {
+  const projects = withEnv({ E2E_BROKERS: undefined }, () => targetSetup("k8s")).projects;
+  const project = projects.find((each) => each.name === "brokers-micro");
+  expect(project && schedule(project)).toBe(
+    "./specs/brokers except /broker-restart\\.spec\\.ts$/,/missing-target\\.spec\\.ts$/,/async-api\\.spec\\.ts$/; " +
+      "after brokers-seed, brokers-micro-seed; parallel",
+  );
+  expect(project?.grepInvert).toEqual(/@classic-only/);
+  // The env fixture and brokerChain both read the brokers-micro domain, never the shared micro one.
+  expect(project?.use).toEqual({ engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE });
+  // Each pattern it leaves out matches one spec file of specs/brokers/.
+  const files = fs.readdirSync(path.join(E2E_DIR, "specs", "brokers"));
+  for (const pattern of project?.testIgnore as RegExp[]) {
+    expect(files.filter((file) => pattern.test(file))).toHaveLength(1);
+  }
+  expect(projects.find((each) => each.name === "brokers-restart")?.dependencies).toEqual(["brokers", "brokers-micro"]);
+  // Compose has no micro engine, so brokers-restart there waits for brokers alone.
+  const compose = composeProjects(undefined);
+  expect(compose.map((each) => each.name)).not.toContain("brokers-micro");
+  expect(compose.find((each) => each.name === "brokers-restart")?.dependencies).toEqual(["brokers"]);
+});
