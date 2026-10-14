@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan.mapping.schema;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -12,6 +13,32 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContra
 class JsonSchemaMappingContractFactoryTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  @Test
+  void recursiveObjectReferenceIsRejected() throws Exception {
+    JsonNode schema = MAPPER.readTree("""
+        {"$ref":"#/$defs/Node","$defs":{"Node":{
+          "type":"object","properties":{"child":{"$ref":"#/$defs/Node"}}
+        }}}
+        """);
+
+    IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        () -> JsonSchemaMappingContractFactory.from(schema));
+    assertTrue(error.getMessage().contains("Recursive JSON Schema"));
+  }
+
+  @Test
+  void repeatedSiblingReferencesRemainValid() throws Exception {
+    JsonNode schema = MAPPER.readTree("""
+        {"type":"object","properties":{
+          "first":{"$ref":"#/$defs/Address"},"second":{"$ref":"#/$defs/Address"}
+        },"$defs":{"Address":{"type":"object","properties":{"city":{"type":"string"}}}}}
+        """);
+
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertEquals("string", contract.field("$.first.city").orElseThrow().type());
+    assertEquals("string", contract.field("$.second.city").orElseThrow().type());
+  }
 
   @Test
   void objectPropertiesBecomeKnownFields() throws Exception {

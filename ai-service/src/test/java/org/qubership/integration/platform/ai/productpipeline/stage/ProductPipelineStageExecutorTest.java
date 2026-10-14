@@ -117,6 +117,10 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
+import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 
 class ProductPipelineStageExecutorTest {
 
@@ -292,7 +296,7 @@ class ProductPipelineStageExecutorTest {
                   MappingValidationDetails.empty(), "call-1", "/properties")), ""))));
     });
     var profile = analysisThenPlanningThenExecutionProfile();
-    var runtime = new CreateChainTestOrchestrator(ProductPipelineRunSupport.builder(runStore, artifactStore,
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
         new StageCapabilityRegistry(List.of(analysisCandidate(), planningAlwaysCandidate(), stage)),
         Clock.fixed(FIXED, ZoneOffset.UTC)).failureNarrative(new FailureNarrative(agent))
         .recoveryLedger(new RecoveryAttemptLedger()).build(), runStore);
@@ -1547,7 +1551,7 @@ class ProductPipelineStageExecutorTest {
             : StageOutcomeClass.CONTRACT_FAILURE, "Invalid generated shape"))));
     var profile = retryProfile("design-planning", "budget-cap", new RetryPolicy(0, 1L));
     var telemetry = new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry();
-    var runtime = new CreateChainTestOrchestrator(ProductPipelineRunSupport.builder(runStore, artifactStore,
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
         new StageCapabilityRegistry(List.of(capability)), Clock.fixed(FIXED, ZoneOffset.UTC))
         .failureNarrative(new FailureNarrative(agent)).recoveryTelemetry(telemetry).build(), runStore);
     runtime.support().withLlmBudget(budget);
@@ -1582,7 +1586,7 @@ class ProductPipelineStageExecutorTest {
           return "Approve the saved candidate.";
         }, reference -> "Create the chain.");
     var profile = analysisThenPlanningThenExecutionProfile();
-    var runtime = new CreateChainTestOrchestrator(ProductPipelineRunSupport.builder(runStore, artifactStore,
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
         new StageCapabilityRegistry(List.of(analysisCandidate(), planningAlwaysCandidate())),
         Clock.fixed(FIXED, ZoneOffset.UTC)).approvalPrompts(prompts).build(), runStore);
     runtime.support().withLlmBudget(budget);
@@ -2390,7 +2394,7 @@ class ProductPipelineStageExecutorTest {
     });
     var profile = retryProfile("design-execution", "execution-cap", new RetryPolicy(0, 1L));
     var telemetry = new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry();
-    var runtime = new CreateChainTestOrchestrator(ProductPipelineRunSupport.builder(runStore, artifactStore,
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
         new StageCapabilityRegistry(List.of(rejecting)), Clock.fixed(FIXED, ZoneOffset.UTC))
         .repeatedFailureThreshold(2).recoveryLedger(ledger).recoveryTelemetry(telemetry).build(), runStore);
     startAndRecordInput(runtime, profile);
@@ -3505,17 +3509,28 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void validationHaltStoresStructuredGraphFindingsInRecoveryEvidence() {
+  void validationHaltUsesSuppliedSchemaBeansAndReusesSavedRecoveryDiagnosis() throws Exception {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    ObjectMapper recoveryMapper = org.mockito.Mockito.spy(new ObjectMapper().registerModule(new JavaTimeModule()));
+    SchemaResourceLoader loader = org.mockito.Mockito.spy(new SchemaResourceLoader());
+    SchemaRefResolver resolver = org.mockito.Mockito.spy(new SchemaRefResolver(loader, new QipSchemaYamlParser()));
+    DeterministicElementSchemaService schemaService =
+        org.mockito.Mockito.spy(DeterministicElementSchemaService.createForUnitTests(recoveryMapper));
+    var observed = new AtomicReference<RecoveryContext>();
+    FailureNarrative narrative = org.mockito.Mockito.spy(new FailureNarrative(agent));
+    org.mockito.Mockito.doAnswer(call -> {
+      observed.set(call.getArgument(1));
+      return call.callRealMethod();
+    }).when(narrative).diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     AtomicInteger executionCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionWithGraphProfile();
-    CreateChainTestOrchestrator runtime =
-        newRuntime(
-            new FailureNarrative(agent),
-            profile,
-            analysisCandidate(),
-            planningAlwaysCandidate(),
-            executionGraphSchemaValidationFailure(executionCalls));
+    CreateChainTestOrchestrator runtime = new CreateChainTestOrchestrator(
+        ProductPipelineRunSupport.builder(runStore, artifactStore,
+            new StageCapabilityRegistry(List.of(analysisCandidate(), planningAlwaysCandidate(),
+                executionGraphSchemaValidationFailure(executionCalls))), Clock.fixed(FIXED, ZoneOffset.UTC))
+            .failureNarrative(narrative)
+            .recoveryValidation(recoveryMapper, loader, resolver, schemaService)
+            .build(), runStore);
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
@@ -3550,6 +3565,20 @@ class ProductPipelineStageExecutorTest {
     assertNotEquals("design-planning", graphFinding.occurrenceId());
     assertNotEquals("requirement-analysis", graphFinding.occurrenceId());
     assertNotEquals("planning", graphFinding.occurrenceId());
+    org.mockito.Mockito.verify(loader, org.mockito.Mockito.atLeastOnce()).existsElementSchema("service-call");
+    org.mockito.Mockito.verify(resolver, org.mockito.Mockito.atLeastOnce())
+        .loadDocumentRoot(org.mockito.ArgumentMatchers.anyString());
+    org.mockito.Mockito.verify(schemaService).coercePatchPropertyValue(
+        "service-call", "integrationOperationMethod", "GET");
+    org.mockito.Mockito.verify(recoveryMapper, org.mockito.Mockito.atLeastOnce())
+        .writeValueAsString(org.mockito.ArgumentMatchers.any());
+    var executor = (ProductPipelineStageExecutor) runtime.stageExecutor();
+    int diagnosisCalls = agent.calls.get();
+    var saved = executor.acceptedRecoveryDecision(RUN_ID, observed.get());
+    assertEquals(saved, executor.acceptedRecoveryDecision(RUN_ID, observed.get()));
+    assertEquals(diagnosisCalls, agent.calls.get());
+    org.mockito.Mockito.verify(recoveryMapper, org.mockito.Mockito.atLeastOnce())
+        .readValue(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Class.class));
   }
 
   @ParameterizedTest
@@ -6550,7 +6579,7 @@ class ProductPipelineStageExecutorTest {
       MappingTurnAdapter mappingTurnAdapter,
       StageCapability... capabilities) {
     ProductPipelineRunSupport.Builder builder =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(List.of(capabilities)),
@@ -6577,7 +6606,7 @@ class ProductPipelineStageExecutorTest {
       ProductPipelineProfile ignoredProfile,
       StageCapability... capabilities) {
     return new CreateChainTestOrchestrator(
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(List.of(capabilities)),
@@ -7746,16 +7775,9 @@ class ProductPipelineStageExecutorTest {
   }
 
   private ProductPipelineStageExecutor stageExecutor() {
-    return new ProductPipelineStageExecutor(
-        runStore,
-        artifactStore,
-        new StageCapabilityRegistry(List.of()),
-        Clock.fixed(FIXED, ZoneOffset.UTC),
-        Map.of(),
-        Map.of(),
-        Map.of(),
-        Map.of(),
-        null);
+    return (ProductPipelineStageExecutor) CreateChainTestOrchestrator.supportBuilder(
+        runStore, artifactStore, new StageCapabilityRegistry(List.of()),
+        Clock.fixed(FIXED, ZoneOffset.UTC)).build().stageExecutor();
   }
 
   private ApprovalRecordV2 approve(ChainSemanticRevision revision) {

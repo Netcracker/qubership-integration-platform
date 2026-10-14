@@ -45,7 +45,6 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
@@ -104,7 +103,7 @@ final class A2aRealRuntimeFacadeFactory {
                   materialization(materialize)));
       CreateChainTestOrchestrator runtime =
           new CreateChainTestOrchestrator(
-              ProductPipelineRunSupport.builder(runStore, artifactStore, capabilities, clock)
+              CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore, capabilities, clock)
                   .profileCatalog(catalog)
                   .compilerRunPinResolver(stubPinResolver())
                   .build(),

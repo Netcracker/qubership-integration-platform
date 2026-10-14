@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -37,7 +38,6 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStag
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
@@ -136,7 +136,7 @@ public class CreateChainProcessRestartIT {
       return Multi.createFrom().item(new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Second stage committed.")));
     });
-    var runtime = ProductPipelineRunSupport.builder(runStore, artifacts,
+    var runtime = CreateChainTestOrchestrator.supportBuilder(runStore, artifacts,
         new StageCapabilityRegistry(List.of(first, second)), Clock.systemUTC()).build();
     var manifest = new RunManifest(RUN_ID, null, List.of(), "product", profile.profileId(), profile.profileVersion(),
         "profile", "baseline", "baseline", List.of(), "closure",

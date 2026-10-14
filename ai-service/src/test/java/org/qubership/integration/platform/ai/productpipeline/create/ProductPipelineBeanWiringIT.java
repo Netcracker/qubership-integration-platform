@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import io.quarkus.arc.ClientProxy;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import java.lang.reflect.Field;
@@ -17,6 +18,11 @@ import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.flow.ProvidedIdsFlowOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
+import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 
 /**
  * Quarkus Arc smoke test for the CREATE product-pipeline CDI graph that failed bean discovery.
@@ -36,6 +42,26 @@ class ProductPipelineBeanWiringIT {
   @Inject CompilerPlanningSpine compilerPlanningSpine;
   @Inject CompilerDerivedPlanningRunner compilerDerivedPlanningRunner;
   @Inject CompilerDerivedPlanningSpine compilerDerivedPlanningSpine;
+  @Inject ProductPipelineRunSupport runSupport;
+  @Inject ObjectMapper objectMapper;
+  @Inject SchemaResourceLoader schemaResourceLoader;
+  @Inject SchemaRefResolver schemaRefResolver;
+  @Inject DeterministicElementSchemaService schemaService;
+
+  @Test
+  void recoveryUsesApplicationSchemaBeans() throws Exception {
+    Object executor = runSupport.stageExecutor();
+    for (var dependency : java.util.Map.of(
+        "objectMapper", objectMapper,
+        "schemaResourceLoader", schemaResourceLoader,
+        "schemaRefResolver", schemaRefResolver,
+        "schemaService", schemaService).entrySet()) {
+      Field field = ProductPipelineStageExecutor.class.getDeclaredField(dependency.getKey());
+      field.setAccessible(true);
+      assertSame(ClientProxy.unwrap(dependency.getValue()), ClientProxy.unwrap(field.get(executor)),
+          "Recovery must use the application bean for " + dependency.getKey());
+    }
+  }
 
   @Test
   void productCreateBeansAreResolvable() {

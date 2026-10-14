@@ -11,17 +11,6 @@ import java.util.Optional;
  */
 public interface A2aMessageReceiptRepository {
 
-  /**
-   * Records the Message once with its command fingerprint. A second delivery with the same
-   * fingerprint returns {@link A2aMessageReceiptResult.Duplicate}. A different fingerprint returns
-   * {@link A2aMessageReceiptResult.FingerprintConflict}.
-   *
-   * @deprecated Prefer {@link #claimContinuation}; retained for older tests and transitional call
-   *     sites.
-   */
-  @Deprecated
-  A2aMessageReceiptResult recordIfAbsent(String taskId, String messageId, String commandFingerprint);
-
   boolean exists(String taskId, String messageId);
 
   /**
@@ -67,15 +56,6 @@ public interface A2aMessageReceiptRepository {
       String commandKind, String taskId, Long preconditionRevision, String commandPayloadJson);
 
   /**
-   * Transitions {@code CLAIMED} → {@code DISPATCHING} for the receipt. Returns {@code false} when
-   * another owner already holds dispatch or the receipt is already {@code COMPLETED}.
-   *
-   * @deprecated Prefer {@link #acquireDispatch}; retained for transitional unit tests.
-   */
-  @Deprecated
-  boolean markDispatching(String tenantId, String subjectId, String messageId);
-
-  /**
    * Acquires exclusive dispatch ownership with an owner token and lease. Concurrent callers receive
    * {@link A2aDispatchAcquisition.Result#BUSY}. Completed receipts return {@link
    * A2aDispatchAcquisition.Result#COMPLETED}. Expired leases allow crash recovery.
@@ -90,20 +70,6 @@ public interface A2aMessageReceiptRepository {
    */
   boolean renewDispatch(
       String tenantId, String subjectId, String messageId, java.util.UUID ownerToken);
-
-  /**
-   * Marks the receipt {@code COMPLETED} after the projected response revision is durable. Only
-   * legal from {@code DISPATCHING} or {@code CLAIMED}.
-   *
-   * @deprecated Prefer {@link #completeDispatch}; retained for transitional unit tests.
-   */
-  @Deprecated
-  void markCompleted(
-      String tenantId,
-      String subjectId,
-      String messageId,
-      long lastTaskRevision,
-      long responseTaskRevision);
 
   /** Completes the receipt only when {@code ownerToken} still owns the active lease. */
   void completeDispatch(

@@ -232,7 +232,7 @@ class ProductPipelineRunSupportTest {
         .verifyPersistedPin(any(), any(), any(CompilerContract.class));
 
     ProductPipelineRunSupport support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore, artifactStore, new StageCapabilityRegistry(List.of()), clock)
             .profileCatalog(new ProductPipelineProfileCatalog(List.of(profile)))
             .compilerRunPinResolver(pinResolver)

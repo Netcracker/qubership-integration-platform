@@ -22,6 +22,9 @@ import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspaceStore;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
+import org.qubership.integration.platform.ai.llm.scenario.ChainListScenario;
+import org.qubership.integration.platform.ai.llm.scenario.ForScenario;
+import org.qubership.integration.platform.ai.model.ScenarioType;
 
 /**
  * Single entry point for Edit/Regenerate/Clear turn resets: truncate or clear transcript messages
@@ -49,6 +52,7 @@ public class ConversationTurnReset {
   private final LastAssistantTurnStore lastAssistantTurnStore;
   private final ConversationApiHubCache conversationApiHubCache;
   private final PendingRedeployStore pendingRedeployStore;
+  private final ChainListScenario chainListScenario;
 
   @Inject
   ConversationTurnReset(
@@ -66,7 +70,8 @@ public class ConversationTurnReset {
       PinnedFailureStore pinnedFailureStore,
       LastAssistantTurnStore lastAssistantTurnStore,
       ConversationApiHubCache conversationApiHubCache,
-      PendingRedeployStore pendingRedeployStore) {
+      PendingRedeployStore pendingRedeployStore,
+      @ForScenario(ScenarioType.MANAGE_CHAIN_LIST) ChainListScenario chainListScenario) {
     this.conversationService = conversationService;
     this.chatMemoryStore = chatMemoryStore;
     this.workspaceStore = workspaceStore;
@@ -82,6 +87,7 @@ public class ConversationTurnReset {
     this.lastAssistantTurnStore = lastAssistantTurnStore;
     this.conversationApiHubCache = conversationApiHubCache;
     this.pendingRedeployStore = pendingRedeployStore;
+    this.chainListScenario = chainListScenario;
   }
 
   public void truncateAndReset(String conversationId, int afterMessageIndex) {
@@ -130,6 +136,7 @@ public class ConversationTurnReset {
     workspaceStore.clear(conversationId);
     conversationApiHubCache.clear(conversationId);
     pendingRedeployStore.clear(conversationId);
+    chainListScenario.clearConversation(conversationId);
   }
 
   private void clearChatMemory(String conversationId, Set<String> completedSkillIds) {

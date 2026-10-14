@@ -1232,7 +1232,7 @@ class CreateChainApplicationFacadeTest {
                   materialization()));
       runtime =
           new CreateChainTestOrchestrator(
-              ProductPipelineRunSupport.builder(runStore, storeFacade, capabilities, clock)
+              CreateChainTestOrchestrator.supportBuilder(runStore, storeFacade, capabilities, clock)
                   .profileCatalog(catalog)
                   .compilerRunPinResolver(stubPinResolver())
                   .build(),

@@ -18,6 +18,9 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
+import org.qubership.integration.platform.ai.llm.scenario.ChainListScenario;
+import org.qubership.integration.platform.ai.llm.scenario.ForScenario;
+import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -67,6 +70,10 @@ public class ChatDecisionService {
   @Inject PendingRedeployStore pendingRedeployStore;
 
   @Inject
+  @ForScenario(ScenarioType.MANAGE_CHAIN_LIST)
+  ChainListScenario chainListScenario;
+
+  @Inject
   public ChatDecisionService(
       CreateChainApplicationFacade facade,
       ApprovalQuestionStore approvalQuestions,
@@ -89,6 +96,12 @@ public class ChatDecisionService {
       Optional<ChatEvent.Decision> deployment = pendingRedeployStore.openDecision(conversationId);
       if (deployment.isPresent()) {
         return deployment;
+      }
+    }
+    if (chainListScenario != null) {
+      Optional<ChatEvent.Decision> chainList = chainListScenario.openDecision(conversationId);
+      if (chainList.isPresent()) {
+        return chainList;
       }
     }
     Optional<ChatEvent.Decision> waiting =

@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.qubership.integration.platform.ai.compiler.CompilerMarkdownMetadata;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerRuntimeGeneratorRegistry;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackFileKind;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
@@ -19,11 +20,6 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedQipKnowled
 
 /** Loads the production compiler skill catalog from package indexes, specs, source metadata, and markers. */
 public class CompilerSkillCatalogLoader {
-
-  private static final Pattern YAML_METADATA =
-      Pattern.compile("(?s)##\\s+Metadata\\s*\\R\\s*```yaml\\s*\\R(.*?)\\R```");
-  private static final Pattern FRONTMATTER =
-      Pattern.compile("(?s)^---\\s*\\R(.*?)\\R---\\s*\\R");
 
   private static final Pattern GENERATOR_CONTRACT =
       Pattern.compile("generator-contract:.*::\\s*(GEN-\\d+)", Pattern.MULTILINE);
@@ -119,7 +115,7 @@ public class CompilerSkillCatalogLoader {
     skill.skillSource = true;
     skill.addSource(file.relativePath());
 
-    Map<String, String> metadata = parseMarkdownMetadata(file.content());
+    Map<String, String> metadata = CompilerMarkdownMetadata.parse(file.content(), yamlMapper);
     skill.category = firstNonBlank(skill.category, metadata.get("category"));
     skill.substrate = firstNonBlank(skill.substrate, metadata.get("substrate"));
     if (metadata.containsKey("public-api")) {
@@ -142,7 +138,7 @@ public class CompilerSkillCatalogLoader {
     skill.sourceSpecification = true;
     skill.addSource(file.relativePath());
 
-    Map<String, String> metadata = parseMarkdownMetadata(file.content());
+    Map<String, String> metadata = CompilerMarkdownMetadata.parse(file.content(), yamlMapper);
     skill.category = firstNonBlank(skill.category, metadata.get("category"));
     skill.stage = firstNonBlank(skill.stage, metadata.get("compiler-stage"));
     skill.generatorId = firstNonBlank(skill.generatorId, metadata.get("generator-id"));
@@ -180,38 +176,6 @@ public class CompilerSkillCatalogLoader {
       }
       skill.addSource(CompilerRuntimeGeneratorRegistry.MANIFEST_SOURCE);
     }
-  }
-
-  private Map<String, String> parseMarkdownMetadata(String content) {
-    Map<String, String> metadata = new LinkedHashMap<>();
-    Matcher frontmatterMatcher = FRONTMATTER.matcher(content);
-    if (frontmatterMatcher.find()) {
-      metadata.putAll(readFlatYaml(frontmatterMatcher.group(1)));
-    }
-    Matcher metadataMatcher = YAML_METADATA.matcher(content);
-    if (metadataMatcher.find()) {
-      metadata.putAll(readFlatYaml(metadataMatcher.group(1)));
-    }
-    return metadata;
-  }
-
-  private Map<String, String> readFlatYaml(String yaml) {
-    JsonNode root;
-    try {
-      root = yamlMapper.readTree(yaml);
-    } catch (IOException e) {
-      return Map.of();
-    }
-    Map<String, String> result = new LinkedHashMap<>();
-    for (Map.Entry<String, JsonNode> entry : root.properties()) {
-      JsonNode value = entry.getValue();
-      if (value.isValueNode()) {
-        result.put(
-            normalizeKey(entry.getKey()),
-            value.isTextual() ? value.asText() : value.toString());
-      }
-    }
-    return result;
   }
 
   private JsonNode readYaml(ScannedQipKnowledgeFile file) {
@@ -277,10 +241,6 @@ public class CompilerSkillCatalogLoader {
       return first;
     }
     return second != null && !second.isBlank() ? second : first;
-  }
-
-  private static String normalizeKey(String key) {
-    return key.toLowerCase(Locale.ROOT).replace("_", "-").replace(" ", "-");
   }
 
   private static String parseGeneratorContractId(String content) {

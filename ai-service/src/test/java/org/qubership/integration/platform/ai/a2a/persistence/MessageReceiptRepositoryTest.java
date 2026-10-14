@@ -37,15 +37,17 @@ class MessageReceiptRepositoryTest {
             "[]",
             null));
 
-    A2aMessageReceiptResult first =
-        messageReceiptRepository.recordIfAbsent(taskId, messageId, fingerprint);
-    assertInstanceOf(A2aMessageReceiptResult.Accepted.class, first);
+    A2aCallerMessageClaimResult first =
+        messageReceiptRepository.claimContinuation(
+            "local", "local-user", messageId, fingerprint, "clarify", taskId);
+    assertInstanceOf(A2aCallerMessageClaimResult.Claimed.class, first);
     assertTrue(messageReceiptRepository.exists(taskId, messageId));
 
     long revisionBefore = taskRepository.findByTaskId(taskId).orElseThrow().revision();
-    A2aMessageReceiptResult second =
-        messageReceiptRepository.recordIfAbsent(taskId, messageId, fingerprint);
-    assertInstanceOf(A2aMessageReceiptResult.Duplicate.class, second);
+    A2aCallerMessageClaimResult second =
+        messageReceiptRepository.claimContinuation(
+            "local", "local-user", messageId, fingerprint, "clarify", taskId);
+    assertInstanceOf(A2aCallerMessageClaimResult.Incomplete.class, second);
 
     A2aPersistedTask after = taskRepository.findByTaskId(taskId).orElseThrow();
     assertEquals(revisionBefore, after.revision(), "duplicate receipt must not transition the Task");
@@ -70,13 +72,15 @@ class MessageReceiptRepositoryTest {
             null));
 
     assertInstanceOf(
-        A2aMessageReceiptResult.Accepted.class,
-        messageReceiptRepository.recordIfAbsent(taskId, messageId, "fp-a"));
-    A2aMessageReceiptResult conflict =
-        messageReceiptRepository.recordIfAbsent(taskId, messageId, "fp-b");
-    assertInstanceOf(A2aMessageReceiptResult.FingerprintConflict.class, conflict);
+        A2aCallerMessageClaimResult.Claimed.class,
+        messageReceiptRepository.claimContinuation(
+            "local", "local-user", messageId, "fp-a", "clarify", taskId));
+    A2aCallerMessageClaimResult conflict =
+        messageReceiptRepository.claimContinuation(
+            "local", "local-user", messageId, "fp-b", "clarify", taskId);
+    assertInstanceOf(A2aCallerMessageClaimResult.FingerprintConflict.class, conflict);
     assertEquals(
-        "fp-a", ((A2aMessageReceiptResult.FingerprintConflict) conflict).existingFingerprint());
+        "fp-a", ((A2aCallerMessageClaimResult.FingerprintConflict) conflict).existingFingerprint());
   }
 
   @Test
@@ -148,9 +152,11 @@ class MessageReceiptRepositoryTest {
     assertInstanceOf(A2aCallerMessageClaimResult.Incomplete.class, incomplete);
     assertEquals(taskId, ((A2aCallerMessageClaimResult.Incomplete) incomplete).taskId());
 
-    assertTrue(
-        messageReceiptRepository.markDispatching("local", "local-user", messageId));
-    messageReceiptRepository.markCompleted("local", "local-user", messageId, 1L, 1L);
+    A2aDispatchAcquisition dispatch =
+        messageReceiptRepository.acquireDispatch("local", "local-user", messageId);
+    assertEquals(A2aDispatchAcquisition.Result.ACQUIRED, dispatch.result());
+    messageReceiptRepository.completeDispatch(
+        "local", "local-user", messageId, dispatch.ownerToken(), 1L, 1L);
 
     A2aCallerMessageClaimResult completed =
         messageReceiptRepository.claimInitialWithWorkingTask(

@@ -134,7 +134,7 @@ class ProductPipelineImplementationGateTest {
     createChainProfile = loadCreateChainProfileOrFallback();
     runtime =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(

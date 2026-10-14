@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.integration.catalog.model.CatalogEl
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.schema.ElementPatchValidationMessages;
+import org.qubership.integration.platform.ai.integration.catalog.util.CatalogElementWrites;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.integration.catalog.util.HttpMethodRestrictCatalogShape;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -151,7 +152,7 @@ public class ChainPlanPropertiesMaterializer {
     // Catalog PatchElementRequest defaults properties to {} and MapStruct replaces the whole map.
     // Validate the plan overlay against the JSON schema, then merge the live element so catalog
     // keys the schema does not list (hidden defaults such as chain-call-2.block) stay on the PATCH.
-    Map<String, Object> mergedPatch = mergeWithCurrentElement(current, validated.patchBody());
+    Map<String, Object> mergedPatch = CatalogElementWrites.mergeWithCurrentElement(current, validated.patchBody());
     HttpMethodRestrictCatalogShape.applyToPatchBody(mergedPatch);
     preservePlacementFields(mergedPatch, current);
     try {
@@ -336,42 +337,6 @@ public class ChainPlanPropertiesMaterializer {
     }
     putIfPresent(body, "parentElementId", current.parentElementId);
     putIfPresent(body, "swimlaneId", current.swimlaneId);
-  }
-
-  /**
-   * Overlays the plan patch on the live catalog element. Catalog keys stay in the map even when
-   * the plan (or schema defaults) omit them, so MapStruct replacement does not wipe hidden
-   * defaults.
-   */
-  static Map<String, Object> mergeWithCurrentElement(
-      CatalogElementResponseDto current, Map<String, Object> patch) {
-    Map<String, Object> merged = new LinkedHashMap<>();
-    if (current != null && current.name != null && !current.name.isBlank()) {
-      merged.put("name", current.name);
-    }
-    if (current != null && current.description != null) {
-      merged.put("description", current.description);
-    }
-    Map<String, Object> properties = new LinkedHashMap<>();
-    if (current != null && current.properties != null) {
-      properties.putAll(current.properties);
-    }
-    Object patchProperties = patch.get("properties");
-    if (patchProperties instanceof Map<?, ?> patchMap) {
-      for (Map.Entry<?, ?> entry : patchMap.entrySet()) {
-        if (entry.getKey() != null) {
-          properties.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-      }
-    }
-    for (Map.Entry<String, Object> entry : patch.entrySet()) {
-      if ("properties".equals(entry.getKey())) {
-        continue;
-      }
-      merged.put(entry.getKey(), entry.getValue());
-    }
-    merged.put("properties", properties);
-    return merged;
   }
 
   private static void putIfPresent(Map<String, Object> body, String key, String value) {

@@ -241,8 +241,8 @@ public class CreateChainReceiptRestartProbe {
         ProductPipelineRunStore runs, ProductPipelineArtifactStore artifacts,
         StageCapabilityRegistry capabilities,
         ProductPipelineProfileCatalog profiles) {
-      return org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
-          .builder(runs, artifacts, capabilities, Clock.systemUTC()).profileCatalog(profiles)
+      return org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator
+          .supportBuilder(runs, artifacts, capabilities, Clock.systemUTC()).profileCatalog(profiles)
           .compilerRunPinResolver(pinResolver()).build();
     }
 

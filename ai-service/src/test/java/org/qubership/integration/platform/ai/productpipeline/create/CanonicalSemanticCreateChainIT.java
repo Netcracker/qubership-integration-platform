@@ -363,7 +363,7 @@ class CanonicalSemanticCreateChainIT {
     org.mockito.Mockito.doNothing()
         .when(pinResolver)
         .verifyPersistedPin(any(), any(ChainSemanticRevision.class));
-    return ProductPipelineRunSupport.builder(
+    return CreateChainTestOrchestrator.supportBuilder(
             store,
             artifacts,
             new StageCapabilityRegistry(

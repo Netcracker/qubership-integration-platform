@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -115,7 +116,16 @@ public class ChainListScenario implements ScenarioHandler {
     this.chainContext = chainContext;
   }
 
-  private record Pending(String operationId, Change change) {}
+  private record Pending(String operationId, Change change, ChatEvent.Decision decision) {}
+
+  public Optional<ChatEvent.Decision> openDecision(String conversationId) {
+    return Optional.ofNullable(pending.get(conversationId)).map(Pending::decision);
+  }
+
+  public void clearConversation(String conversationId) {
+    pending.remove(conversationId);
+    listed.remove(conversationId);
+  }
 
   /**
    * A catalog change, run at once or after its card. Target folders are full paths, resolved again
@@ -729,12 +739,18 @@ public class ChainListScenario implements ScenarioHandler {
 
   private Outcome offer(String conversationId, Change change, String confirm, String shown) {
     String operationId = UUID.randomUUID().toString();
-    pending.put(conversationId, new Pending(operationId, change));
+    Pending offered = new Pending(operationId, change, null);
+    pending.put(conversationId, offered);
     return new Outcome(
         confirm,
         shown,
         List.of(),
-        text -> ChatEvent.chainListChangeDecision(operationId, text));
+        text -> {
+          ChatEvent.Decision card =
+              (ChatEvent.Decision) ChatEvent.chainListChangeDecision(operationId, text);
+          pending.replace(conversationId, offered, new Pending(operationId, change, card));
+          return card;
+        });
   }
 
   private Outcome apply(String conversationId, ChatDecisionCommand decision) {

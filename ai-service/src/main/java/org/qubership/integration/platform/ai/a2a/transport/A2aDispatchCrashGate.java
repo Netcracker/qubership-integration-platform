@@ -15,7 +15,7 @@ public class A2aDispatchCrashGate {
 
   public enum Point {
     NONE,
-    /** After atomic claim / incomplete resume ownership, before {@code markDispatching}. */
+    /** After atomic claim / incomplete resume ownership, before {@code acquireDispatch}. */
     AFTER_CLAIM,
     /** After {@code DISPATCHING}, before the first facade command invocation. */
     AFTER_DISPATCHING,

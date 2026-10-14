@@ -130,7 +130,7 @@ class MappingGapResumeTest {
             StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Consumer input captured")));
       }
     };
-    var restored = ProductPipelineRunSupport.builder(runStore, artifactStore,
+    var restored = CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
         new StageCapabilityRegistry(List.of(analysisCapability(), consumer, planningCapability())), clock).build();
     restored.restoreForExternalWorkflow(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
         .collect().asList().await().indefinitely();
@@ -190,7 +190,7 @@ class MappingGapResumeTest {
   @Test
   void describeProseWithoutAdapterDoesNotRecapture() {
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(
@@ -224,7 +224,7 @@ class MappingGapResumeTest {
   @Test
   void analysisCommitDropsIdentityOnlyAutoAndKeepsHopsUncovered() {
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(
@@ -687,7 +687,7 @@ class MappingGapResumeTest {
   }
 
   private ProductPipelineRunSupport newSupport() {
-    return ProductPipelineRunSupport.builder(
+    return CreateChainTestOrchestrator.supportBuilder(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(
@@ -776,7 +776,7 @@ class MappingGapResumeTest {
   @Test
   void unsupportedMappingGateResumesWithoutChangingTheAcceptedBrief() {
     var brief = uncoveredBrief().withFacts(List.of());
-    support = ProductPipelineRunSupport.builder(runStore, artifactStore,
+    support = CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
         new StageCapabilityRegistry(List.of(
             new ScriptedCapability("requirement-analysis", new StageOutcome(StageOutcomeClass.CANDIDATE,
                 List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, brief, List.of())), "brief ready", null)),
@@ -821,7 +821,7 @@ class MappingGapResumeTest {
         template.assumptions(), template.citations(), template.summary(), draftRevision.artifactId(),
         template.approvedDraftText(), template.facts(), template.entryPoints(), template.serviceCalls(),
         template.requirements(), List.of(), template.flow(), template.catalogBindings(), List.of());
-    support = ProductPipelineRunSupport.builder(runStore, artifactStore,
+    support = CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
         new StageCapabilityRegistry(List.of(
             new ScriptedCapability("requirement-analysis", new StageOutcome(StageOutcomeClass.CANDIDATE,
                 List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, brief, List.of())), "brief ready", null)),

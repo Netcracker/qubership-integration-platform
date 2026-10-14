@@ -8,10 +8,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.qubership.integration.platform.ai.compiler.CompilerMarkdownMetadata;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackFileKind;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
 import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedQipKnowledgeFile;
@@ -19,10 +19,6 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedQipKnowled
 /** Builds an index of generator specs from top-level specs and normalized skill catalog entries. */
 public class CompilerGeneratorSpecIndexBuilder {
 
-  private static final Pattern YAML_METADATA =
-      Pattern.compile("(?s)##\\s+Metadata\\s*\\R\\s*```yaml\\s*\\R(.*?)\\R```");
-  private static final Pattern FRONTMATTER =
-      Pattern.compile("(?s)^---\\s*\\R(.*?)\\R---\\s*\\R");
   private static final Pattern GENERATOR_CONTRACT =
       Pattern.compile("generator-contract:.*::\\s*(GEN-\\d+)", Pattern.MULTILINE);
   private static final Pattern GENERATOR_ID =
@@ -68,7 +64,7 @@ public class CompilerGeneratorSpecIndexBuilder {
     spec.skillName = skillName;
     spec.addSource(file.relativePath());
 
-    Map<String, String> metadata = parseMarkdownMetadata(file.content());
+    Map<String, String> metadata = CompilerMarkdownMetadata.parse(file.content(), yamlMapper);
     spec.generatorId = firstNonBlank(spec.generatorId, metadata.get("generator-id"));
     if (spec.generatorId == null) {
       spec.generatorId = parseGeneratorContractId(file.content());
@@ -84,7 +80,7 @@ public class CompilerGeneratorSpecIndexBuilder {
     spec.skillName = skillName;
     spec.addSource(file.relativePath());
 
-    Map<String, String> metadata = parseMarkdownMetadata(file.content());
+    Map<String, String> metadata = CompilerMarkdownMetadata.parse(file.content(), yamlMapper);
     spec.generatorId = firstNonBlank(spec.generatorId, metadata.get("generator-id"));
     spec.compilerStage = firstNonBlank(spec.compilerStage, metadata.get("compiler-stage"));
     spec.category = firstNonBlank(spec.category, metadata.get("category"));
@@ -115,38 +111,6 @@ public class CompilerGeneratorSpecIndexBuilder {
           merge(spec.supportedElements, strings(node.path("supported-elements")));
       spec.addSource(file.relativePath());
     }
-  }
-
-  private Map<String, String> parseMarkdownMetadata(String content) {
-    Map<String, String> metadata = new LinkedHashMap<>();
-    Matcher frontmatterMatcher = FRONTMATTER.matcher(content);
-    if (frontmatterMatcher.find()) {
-      metadata.putAll(readFlatYaml(frontmatterMatcher.group(1)));
-    }
-    Matcher metadataMatcher = YAML_METADATA.matcher(content);
-    if (metadataMatcher.find()) {
-      metadata.putAll(readFlatYaml(metadataMatcher.group(1)));
-    }
-    return metadata;
-  }
-
-  private Map<String, String> readFlatYaml(String yaml) {
-    JsonNode root;
-    try {
-      root = yamlMapper.readTree(yaml);
-    } catch (IOException e) {
-      return Map.of();
-    }
-    Map<String, String> result = new LinkedHashMap<>();
-    for (Map.Entry<String, JsonNode> entry : root.properties()) {
-      JsonNode value = entry.getValue();
-      if (value.isValueNode()) {
-        result.put(
-            normalizeKey(entry.getKey()),
-            value.isTextual() ? value.asText() : value.toString());
-      }
-    }
-    return result;
   }
 
   private static String parseGeneratorContractId(String content) {
@@ -224,10 +188,6 @@ public class CompilerGeneratorSpecIndexBuilder {
       return first;
     }
     return second != null && !second.isBlank() ? second : first;
-  }
-
-  private static String normalizeKey(String key) {
-    return key.toLowerCase(Locale.ROOT).replace("_", "-").replace(" ", "-");
   }
 
   private static final class MutableSpec {

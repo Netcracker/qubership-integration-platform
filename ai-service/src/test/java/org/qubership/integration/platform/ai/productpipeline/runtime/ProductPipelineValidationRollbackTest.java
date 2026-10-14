@@ -92,7 +92,7 @@ class ProductPipelineValidationRollbackTest {
     profile = twoStageProfile();
     runtime =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(List.of(analysis, planning)),

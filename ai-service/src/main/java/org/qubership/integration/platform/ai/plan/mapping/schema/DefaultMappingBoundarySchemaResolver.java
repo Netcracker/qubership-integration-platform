@@ -1,12 +1,6 @@
 package org.qubership.integration.platform.ai.plan.mapping.schema;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +9,6 @@ import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCall
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
-import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
@@ -28,19 +21,14 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
 
   private final CompilationArtifacts artifacts;
   private final String compilationId;
-  private final ObjectMapper objectMapper;
 
   public DefaultMappingBoundarySchemaResolver(
-      CompilationArtifacts artifacts, String compilationId, ObjectMapper objectMapper) {
+      CompilationArtifacts artifacts, String compilationId) {
     this.artifacts = Objects.requireNonNull(artifacts, "artifacts");
     if (compilationId == null || compilationId.isBlank()) {
       throw new IllegalArgumentException("compilationId is required");
     }
     this.compilationId = compilationId.trim();
-    this.objectMapper =
-        Objects.requireNonNull(objectMapper, "objectMapper")
-            .copy()
-            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
   }
 
   @Override
@@ -48,19 +36,19 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       ChainSemanticRevision revision,
       List<ResolvedServiceCallBinding> bindings,
       MappingIntent intent,
-      Map<String, MappingEnvelope> envelopesByTransformNodeId) {
+      Map<String, MappingSchemaSide> outputSchemasByTransformNodeId) {
     Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(intent, "intent");
     List<ResolvedServiceCallBinding> bindingList = bindings == null ? List.of() : bindings;
-    Map<String, MappingEnvelope> envelopes =
-        envelopesByTransformNodeId == null ? Map.of() : envelopesByTransformNodeId;
+    Map<String, MappingSchemaSide> outputSchemas =
+        outputSchemasByTransformNodeId == null ? Map.of() : outputSchemasByTransformNodeId;
     List<MappingSchemaSide> persisted = persistedSides();
     MappingSchemaSide source =
         resolveSide(
             revision,
             bindingList,
             persisted,
-            envelopes,
+            outputSchemas,
             intent.sourceRef(),
             intent.sourcePort());
     MappingSchemaSide target =
@@ -68,7 +56,7 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
             revision,
             bindingList,
             persisted,
-            envelopes,
+            outputSchemas,
             intent.targetRef(),
             intent.targetPort());
     return new MappingBoundarySchemas(source, target);
@@ -78,12 +66,12 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       ChainSemanticRevision revision,
       List<ResolvedServiceCallBinding> bindings,
       List<MappingSchemaSide> persisted,
-      Map<String, MappingEnvelope> envelopes,
+      Map<String, MappingSchemaSide> outputSchemas,
       String ref,
       MappingPort port) {
     SemanticNode node = findNode(revision, ref, port);
     if (node instanceof SemanticNode.Operation && port == MappingPort.OUTPUT) {
-      return sideFromEnvelope(node, envelopes.get(node.nodeId()));
+      return sideFromTransformOutput(node, outputSchemas.get(node.nodeId()));
     }
     if (node instanceof SemanticNode.Trigger trigger && port != MappingPort.REQUEST) {
       return resolveTriggerOutput(trigger, bindings, persisted, port);
@@ -105,21 +93,21 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
     return selectUnique(persisted, trigger.nodeId(), MappingPort.OUTPUT, resultDirection);
   }
 
-  private MappingSchemaSide sideFromEnvelope(SemanticNode node, MappingEnvelope envelope) {
-    if (envelope == null || envelope.target() == null) {
-      throw new IllegalStateException("No prior envelope for transform node " + node.nodeId());
+  private static MappingSchemaSide sideFromTransformOutput(
+      SemanticNode node, MappingSchemaSide target) {
+    if (target == null) {
+      throw new IllegalStateException("No prior target schema for transform node " + node.nodeId());
     }
-    byte[] bytes = write(envelope.target());
     return new MappingSchemaSide(
-        SCHEMA_VERSION,
+        target.schemaVersion(),
         node.nodeId(),
-        null,
+        target.operationId(),
         MappingPort.OUTPUT,
-        null,
-        null,
-        sha256(bytes),
-        "envelope:" + envelope.digest() + ":target",
-        readTree(bytes));
+        target.contentType(),
+        target.responseCode(),
+        target.sha256(),
+        target.provenance(),
+        target.schema());
   }
 
   private List<MappingSchemaSide> persistedSides() {
@@ -295,29 +283,5 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       return trigger.nodeId();
     }
     return node.nodeId();
-  }
-
-  private byte[] write(Object value) {
-    try {
-      return objectMapper.writeValueAsBytes(value);
-    } catch (Exception e) {
-      throw new IllegalStateException("Cannot serialize envelope target", e);
-    }
-  }
-
-  private JsonNode readTree(byte[] bytes) {
-    try {
-      return objectMapper.readTree(bytes);
-    } catch (Exception e) {
-      throw new IllegalStateException("Cannot parse envelope target as JSON", e);
-    }
-  }
-
-  private static String sha256(byte[] content) {
-    try {
-      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 is unavailable", e);
-    }
   }
 }

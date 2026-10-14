@@ -76,6 +76,23 @@ class ChainListScenarioTest {
   }
 
   @Test
+  void resetDuringCardWordingDoesNotRestoreThePendingChange() {
+    answer(command(ChainListAction.DELETE_CHAINS, null, null, List.of("orders sync"), List.of()));
+    when(table.find(List.of())).thenReturn(List.of(ORDERS));
+    when(replies.reply(any(), any(), any())).thenAnswer(invocation -> {
+      scenario.clearConversation(CONVERSATION);
+      return "Confirm deletion.";
+    });
+
+    ChatEvent.Decision emitted =
+        assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
+
+    assertTrue(scenario.openDecision(CONVERSATION).isEmpty());
+    scenario.dispatch(card(ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION, emitted), CONVERSATION);
+    verify(catalog, never()).deleteChain(anyString());
+  }
+
+  @Test
   void workerRetainsCatalogMutationTracker() {
     answer(command(ChainListAction.MOVE_CHAINS, null, "CRM", List.of("orders sync"), List.of()));
     when(table.find(List.of())).thenReturn(List.of(ORDERS));

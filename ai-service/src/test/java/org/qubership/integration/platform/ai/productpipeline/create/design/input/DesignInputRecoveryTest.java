@@ -162,7 +162,7 @@ class DesignInputRecoveryTest {
               "fact-call", "successorElementRef", "http-in", "", "ELEMENT_INTENT_ORDER", false)),
           "", "Remove the generated successor that contradicts the saved flow." );
     });
-    var support = ProductPipelineRunSupport.builder(runs, artifacts,
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts,
         new StageCapabilityRegistry(List.of(discovery, analysis, design)), clock)
         .failureNarrative(new FailureNarrative(agent)).build();
     var runtime = new CreateChainTestOrchestrator(support, runs);
@@ -419,7 +419,7 @@ class DesignInputRecoveryTest {
             });
     StageCapabilityRegistry registry = new StageCapabilityRegistry(List.of(analysis, design));
     ProductPipelineRunSupport support =
-        ProductPipelineRunSupport.builder(runs, artifacts, registry, clock)
+        CreateChainTestOrchestrator.supportBuilder(runs, artifacts, registry, clock)
             .failureNarrative(new FailureNarrative(agent))
             .recoveryLedger(
                 new RecoveryAttemptLedger(
@@ -466,7 +466,7 @@ class DesignInputRecoveryTest {
     runs = new ProductPipelineRunStore(blobs, mapper, clock);
     artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
     support =
-        ProductPipelineRunSupport.builder(runs, artifacts, registry, clock)
+        CreateChainTestOrchestrator.supportBuilder(runs, artifacts, registry, clock)
             .failureNarrative(new FailureNarrative(agent))
             .recoveryLedger(
                 new RecoveryAttemptLedger(

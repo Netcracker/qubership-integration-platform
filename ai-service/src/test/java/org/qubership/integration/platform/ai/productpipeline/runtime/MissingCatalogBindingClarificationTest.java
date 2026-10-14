@@ -134,7 +134,7 @@ class MissingCatalogBindingClarificationTest {
             .recoverAsksForCatalogChoice(INTERACTION_ID, "Name the catalog service this interaction should use.")
             .answeringOnly(WHAT_FAILED, FAILURE_ANSWER);
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(List.of(discovery, bindingRequirements(), execution)),

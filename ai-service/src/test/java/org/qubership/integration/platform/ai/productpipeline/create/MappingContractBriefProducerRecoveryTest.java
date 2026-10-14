@@ -854,7 +854,7 @@ class MappingContractBriefProducerRecoveryTest {
   private CreateChainTestOrchestrator runtime(
       FakeFailureNarrativeAgent agent, StageCapability execution) {
     ProductPipelineRunSupport support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(

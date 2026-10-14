@@ -279,7 +279,7 @@ class MappingContractExhaustedRecoveryTest {
   @Test
   void runCeilingStopsMappingRepairWithoutUpstreamReplay() {
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(
@@ -405,7 +405,7 @@ class MappingContractExhaustedRecoveryTest {
 
   private ProductPipelineRunSupport supportFor(
       FailureNarrative narrative, StageCapability... capabilities) {
-    return ProductPipelineRunSupport.builder(
+    return CreateChainTestOrchestrator.supportBuilder(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(List.of(capabilities)),

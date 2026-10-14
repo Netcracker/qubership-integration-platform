@@ -98,7 +98,7 @@ class MappingApprovalImpactTest {
     profile = threeStageProfile();
     mappingAdapter = changeAdapter();
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(
@@ -323,7 +323,7 @@ class MappingApprovalImpactTest {
   private void useFourStageRuntime(RequirementBrief approvedBrief) {
     profile = fourStageProfile();
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(

@@ -25,6 +25,23 @@ public record LogicalCommit(
     stages = stages == null ? List.of() : List.copyOf(stages);
   }
 
+  /** Changes stage status while preserving its outputs, candidates, and approval binding. */
+  public static LogicalCommit statusChange(
+      RunSnapshot current, StageStatus stageStatus, List<StageSnapshot> stages,
+      StageAttempt attempt, RunTransition transition) {
+    List<StageSnapshot> nextStages = stages.stream()
+        .map(snapshot -> snapshot.stageId().equals(current.currentStageId())
+            ? new StageSnapshot(
+                snapshot.stageId(), stageStatus, snapshot.outputRefs(),
+                snapshot.approvedArtifactId(), snapshot.candidateReferences(),
+                snapshot.approvableReference(), snapshot.candidateRevision())
+            : snapshot)
+        .toList();
+    return new LogicalCommit(
+        current.runId(), current.runRevision(), transition.toStatus(),
+        current.currentStageId(), nextStages, attempt, transition);
+  }
+
   /** Compatibility constructor for commits that do not move the work document. */
   public LogicalCommit(
       String runId,

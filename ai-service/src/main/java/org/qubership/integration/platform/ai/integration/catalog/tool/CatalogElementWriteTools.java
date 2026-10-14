@@ -14,6 +14,7 @@ import java.util.Objects;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.integration.catalog.util.CatalogElementWrites;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
@@ -82,7 +83,7 @@ public class CatalogElementWriteTools {
               trimmedType, CatalogStrings.blankToNull(parentElementId), null);
       CatalogRestClient.ChainDiffDto diff =
           catalogRestClient.createElement(trimmedChainId, request);
-      String elementId = extractPrimaryCreatedElementId(diff, trimmedType);
+      String elementId = CatalogElementWrites.extractCreatedElementId(diff, trimmedType);
       Map<String, Object> data = new LinkedHashMap<>();
       data.put("elementId", elementId);
       data.put("createdElements", summarizeCreatedElements(diff));
@@ -141,7 +142,8 @@ public class CatalogElementWriteTools {
       // Catalog PatchElementRequest defaults properties to {} and MapStruct replaces the
       // whole map. Merge with the current element so partial patches keep mandatory defaults.
       Map<String, Object> mergedPatch =
-          mergeWithCurrentElement(trimmedChainId, trimmedElementId, patch);
+          CatalogElementWrites.mergeWithCurrentElement(
+              catalogRestClient.getElement(trimmedChainId, trimmedElementId), patch);
       HttpMethodRestrictCatalogShape.applyToPatchBody(mergedPatch);
       CatalogRestClient.ChainDiffDto diff =
           catalogRestClient.updateElement(trimmedChainId, trimmedElementId, mergedPatch);
@@ -247,71 +249,6 @@ public class CatalogElementWriteTools {
     } catch (Exception e) {
       throw new IllegalArgumentException("patchJson must be valid JSON: " + e.getMessage());
     }
-  }
-
-  private Map<String, Object> mergeWithCurrentElement(
-      String chainId, String elementId, Map<String, Object> patch) {
-    CatalogElementResponseDto current = catalogRestClient.getElement(chainId, elementId);
-    Map<String, Object> merged = new LinkedHashMap<>();
-    if (current != null && current.name != null && !current.name.isBlank()) {
-      merged.put("name", current.name);
-    }
-    if (current != null && current.description != null) {
-      merged.put("description", current.description);
-    }
-    Map<String, Object> properties = new LinkedHashMap<>();
-    if (current != null && current.properties != null) {
-      properties.putAll(current.properties);
-    }
-    Object patchProperties = patch.get("properties");
-    if (patchProperties instanceof Map<?, ?> patchMap) {
-      for (Map.Entry<?, ?> entry : patchMap.entrySet()) {
-        if (entry.getKey() != null) {
-          properties.put(String.valueOf(entry.getKey()), entry.getValue());
-        }
-      }
-    }
-    for (Map.Entry<String, Object> entry : patch.entrySet()) {
-      if ("properties".equals(entry.getKey())) {
-        continue;
-      }
-      merged.put(entry.getKey(), entry.getValue());
-    }
-    merged.put("properties", properties);
-    return merged;
-  }
-
-  private static String extractPrimaryCreatedElementId(
-      CatalogRestClient.ChainDiffDto diff, String expectedType) {
-    if (diff == null || diff.createdElements() == null || diff.createdElements().isEmpty()) {
-      throw new IllegalStateException("createElement did not return created elements");
-    }
-    int primaryIdx = indexOfPrimaryCreated(diff.createdElements(), expectedType);
-    if (primaryIdx < 0) {
-      throw new IllegalStateException(
-          "createElement response has no element of type " + expectedType);
-    }
-    String elementId = diff.createdElements().get(primaryIdx).id();
-    if (elementId == null || elementId.isBlank()) {
-      throw new IllegalStateException("createElement returned empty element id");
-    }
-    return elementId;
-  }
-
-  private static int indexOfPrimaryCreated(
-      List<CatalogRestClient.ElementSummaryDto> created, String expectedType) {
-    String want = expectedType != null ? expectedType.trim() : "";
-    for (int i = 0; i < created.size(); i++) {
-      CatalogRestClient.ElementSummaryDto element = created.get(i);
-      if (element == null) {
-        continue;
-      }
-      String type = element.type() != null ? element.type().trim() : "";
-      if (want.equals(type)) {
-        return i;
-      }
-    }
-    return -1;
   }
 
   private static List<Map<String, String>> summarizeCreatedElements(
