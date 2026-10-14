@@ -290,6 +290,15 @@ export const axisFixtures: readonly AxisFixture[] = [
     downstream: PASSED_STEP,
   },
 
+  // The mcp-trigger idempotency axes: the trigger under test is not an HTTP trigger, so the chains are hand-written.
+  { family: "mcp-trigger", axisPath: "idempotency/enabled", value: false, handWritten: "mcp-trigger-idempotency-disabled" },
+  ...(["ignore", "throw-exception", "execute-subchain"] as const).map((value): AxisFixture => ({
+    family: "mcp-trigger",
+    axisPath: "idempotency/actionOnDuplicate",
+    value,
+    handWritten: `mcp-trigger-idempotency-${value}`,
+  })),
+
   // The breaker's window type: the configuration is a child of `circuit-breaker-2`, so both chains
   // are hand-written.
   { family: "circuit-breaker-configuration-2", axisPath: "slidingWindowType", value: "COUNT_BASED", handWritten: "circuit-breaker-count-based" },

@@ -580,6 +580,12 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   masking: { labels: ["Echo"] },
   // `mcp-trigger` has no converter, so the chain draws its trigger group alone.
   "mcp-trigger": { trigger: "MCP Trigger" },
+  // The idempotency chains name their trigger after the branch.
+  ...Object.fromEntries(
+    axisFixtures
+      .filter((fixture) => fixture.family === "mcp-trigger")
+      .map((fixture) => [fixture.handWritten, { trigger: `${fixture.axisPath}=${String(fixture.value)}` }]),
+  ),
   "method-echo": { labels: ["Echo Method"] },
   "metrics-failure": { labels: ["Failing Script"] },
   "placeholder-resolution": { labels: ["Resolve Placeholder"] },
