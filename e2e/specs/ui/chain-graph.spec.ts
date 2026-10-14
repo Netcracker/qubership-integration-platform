@@ -4,7 +4,7 @@
  * What the API cannot see: which nodes and edges the canvas draws, which element the form loads
  * when its node is opened, that a library element dropped on the canvas shows there and raises the
  * unsaved-changes tag with no reload, and what the form shows for a value the catalog stored, a
- * script in its Monaco editor included.
+ * script in its Monaco editor included, and the protocol the form writes when a service is picked.
  *
  * The canvas is virtualized (`onlyRenderVisibleElements`), so every graph assertion runs over a
  * chain whose elements all fit the viewport the `ui` project pins. Dragging nodes and the automatic
@@ -15,7 +15,9 @@ import { test, expect } from "../../support/page-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
 import { ChainTabsPage } from "../../pages/ChainTabsPage.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
-import { tokenized } from "../../support/run.js";
+import { callToken, tokenized } from "../../support/run.js";
+import { readSpecificationFixture } from "../../fixtures/templating.js";
+import { leftBehind } from "../../support/teardown.js";
 
 /** Two elements and one dependency, pinned by `fixtures/chains/http-echo`. Read, never edited. */
 const SMALL_SEED = "http-echo";
@@ -108,4 +110,50 @@ test("a script element's form loads the stored script into its editor", { tag: [
   const editor = form.getByTestId("script-editor").locator(".monaco-editor[data-uri]");
   await expect(editor).toBeVisible();
   await expect(editor).toContainText(marker);
+});
+
+// The form copies the protocol `GET /systems` reports for the picked service, and the catalog reports
+// a WSDL service as `http`, so no click writes the `soap` that service-call/template.hbs has no branch for.
+test("a service-call on a WSDL service is saved with protocol http and compiles an HTTP call", { tag: ["@ui", "@tier2"] }, async ({ page, catalog, folder, run }) => {
+  // Typing the name into the field picks the first service whose name contains it, so the name is unique per call.
+  const service = await catalog.createSystem(tokenized(run, callToken("ui-graph-soap")), "EXTERNAL");
+  let chainId: string | undefined;
+  try {
+    const wsdl = readSpecificationFixture("hello.wsdl");
+    await catalog.awaitSpecificationImport(await catalog.importSpecificationGroup(service.id, tokenized(run, "ui-graph-wsdl"), wsdl));
+    const chain = await catalog.createChain(tokenized(run, "ui-graph-soap"), folder.id);
+    chainId = chain.id;
+    const trigger = await catalog.createElement(chain.id, "http-trigger");
+    await catalog.patchElementProperties(chain.id, trigger.id, { contextPath: tokenized(run, "ui-graph-soap"), httpMethodRestrict: "POST" });
+    const call = await catalog.createElement(chain.id, "service-call");
+    await catalog.connectElements(chain.id, trigger.id, call.id);
+    const graph = new ChainGraphPage(page);
+
+    await graph.goto(chain.id);
+    const form = await graph.openElement(call.id);
+    const serviceField = form.getByRole("combobox", { name: "Service" });
+    await serviceField.fill(service.name);
+    await serviceField.press("Enter");
+    const specificationField = form.getByRole("combobox", { name: "API Specification" });
+    await specificationField.click();
+    await expect(page.getByRole("option", { name: "1.0.0" })).toBeAttached();
+    await specificationField.press("Enter");
+    const operationField = form.getByRole("combobox", { name: "Operation" });
+    await operationField.click();
+    await expect(page.getByRole("option").filter({ hasText: "sayHello" })).toBeAttached();
+    await operationField.press("Enter");
+    await form.getByRole("button", { name: "Save" }).click();
+    await expect(form).toBeHidden();
+
+    const saved = (await catalog.getElement(chain.id, call.id)).properties;
+    expect(saved).toMatchObject({ integrationSystemId: service.id, integrationOperationMethod: "POST", integrationOperationProtocolType: "http" });
+    const built = await catalog.createSnapshot(chain.id);
+    const xml = (await catalog.getSnapshot(chain.id, built.id)).xmlDefinition ?? "";
+    expect(xml).toContain('<process ref="httpSenderProcessor"/>');
+    expect(xml).toMatch(/<toD uri="http:/);
+  } finally {
+    // The catalog refuses to delete a service a chain still uses.
+    if (chainId) await catalog.deleteChain(chainId).catch(leftBehind(`chain ${chainId}`));
+    await catalog.deleteSystem(service.id).catch(leftBehind(`service ${service.name}`));
+  }
 });
