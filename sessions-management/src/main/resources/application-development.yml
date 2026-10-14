@@ -19,6 +19,6 @@ spring:
 cip:
   standalone: true
   internal-services:
-    runtime-catalog: cip-runtime-catalog
+    runtime-catalog: runtime-catalog
   logging:
     format: ${LOG_FORMAT:text}
