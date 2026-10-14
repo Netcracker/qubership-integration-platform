@@ -31,11 +31,12 @@ import { BROKERS_MICRO_CORPUS_STATE_FILE } from "../env/k8s.js";
 import { stateFileName } from "../env/target.js";
 import {
   assembleTrees,
-  ASYNC_OPERATION_PROTOCOLS,
+  asyncOperationOf,
   BROKER_SERVICE_FIXTURE_DIR,
   BROKERS_FIXTURE_DIR,
   chainFixtureNames,
   corpusFixtureNames,
+  elementsOf,
   isMicroAddress,
   microCopy,
   readFixtureDocument,
@@ -43,15 +44,15 @@ import {
   type RenderedTree,
 } from "../fixtures/templating.js";
 import {
+  corpusRequestTimeout,
   deleteService,
+  deleteServiceRaw,
   deployCorpus,
-  flatten,
   importServices,
   projectUse,
   waitForDeployed,
   waitForRoutes,
   waitForUndeployed,
-  type FixtureElement,
   type ProjectUse,
   type SeedChain,
   type SeededService,
@@ -93,25 +94,9 @@ export const SFTP_HOST_CONFIG = {
   password: "e2epass",
 };
 
-function elementsOf(document: Record<string, unknown>): FixtureElement[] {
-  const content = (document.content ?? {}) as { elements?: FixtureElement[] };
-  return flatten(content.elements ?? []);
-}
-
 function splitNames(value: unknown): string[] {
   if (typeof value !== "string") return [];
   return value.split(",").map((each) => each.trim()).filter(Boolean);
-}
-
-/** The broker an `async-api-trigger` or a `service-call` element reaches through its operation, if any. */
-function asyncProtocolOf(element: FixtureElement): string | undefined {
-  if (element.type !== "async-api-trigger" && element.type !== "service-call") return undefined;
-  const protocol = String(element.properties?.integrationOperationProtocolType);
-  return ASYNC_OPERATION_PROTOCOLS.has(protocol) ? protocol : undefined;
-}
-
-function asyncPropertiesOf(element: FixtureElement): Record<string, unknown> {
-  return (element.properties?.integrationOperationAsyncProperties ?? {}) as Record<string, unknown>;
 }
 
 /**
@@ -122,8 +107,9 @@ export function kafkaTopicsIn(documents: readonly Record<string, unknown>[]): st
   const topics = new Set<string>();
   for (const document of documents) {
     for (const element of elementsOf(document)) {
-      if (asyncProtocolOf(element) === "kafka") {
-        for (const topic of splitNames(element.properties?.integrationOperationPath)) topics.add(topic);
+      const operation = asyncOperationOf(element);
+      if (operation?.protocol === "kafka") {
+        for (const topic of splitNames(operation.path)) topics.add(topic);
       }
       if (element.type !== "kafka-trigger-2" && element.type !== "kafka-sender-2") continue;
       for (const topic of splitNames(element.properties?.topics)) topics.add(topic);
@@ -137,11 +123,10 @@ export function kafkaGroupsIn(documents: readonly Record<string, unknown>[]): st
   const groups = new Set<string>();
   for (const document of documents) {
     for (const element of elementsOf(document)) {
+      const operation = asyncOperationOf(element);
       let groupId: unknown;
       if (element.type === "kafka-trigger-2") groupId = element.properties?.groupId;
-      else if (element.type === "async-api-trigger" && asyncProtocolOf(element) === "kafka") {
-        groupId = asyncPropertiesOf(element).groupId;
-      }
+      else if (element.type === "async-api-trigger" && operation?.protocol === "kafka") groupId = operation.groupId;
       if (typeof groupId === "string" && groupId) groups.add(groupId);
     }
   }
@@ -177,6 +162,7 @@ export function rabbitmqTopologyIn(documents: readonly Record<string, unknown>[]
   for (const document of documents) {
     for (const element of elementsOf(document)) {
       const properties = element.properties ?? {};
+      const operation = asyncOperationOf(element);
       if (element.type === "rabbitmq-trigger-2") {
         const exchange = String(properties.exchange ?? "");
         const exchangeType = String(properties.exchangeType ?? "direct");
@@ -197,13 +183,13 @@ export function rabbitmqTopologyIn(documents: readonly Record<string, unknown>[]
       } else if (element.type === "rabbitmq-sender-2") {
         const exchange = properties.exchange;
         if (typeof exchange === "string" && exchange) senderExchanges.add(exchange);
-      } else if (asyncProtocolOf(element) === "amqp") {
-        const exchange = String(properties.integrationOperationPath ?? "");
+      } else if (operation?.protocol === "amqp") {
+        const exchange = String(operation.path ?? "");
         if (element.type === "service-call") {
           if (exchange) senderExchanges.add(exchange);
           continue;
         }
-        for (const queue of splitNames(asyncPropertiesOf(element).queues)) {
+        for (const queue of splitNames(operation.queues)) {
           queues.push({ queue, exchange, exchangeType: "fanout", routingKey: "" });
         }
       }
@@ -217,7 +203,7 @@ function overlaysNeededBy(documents: readonly Record<string, unknown>[]): Overla
   const needed = new Set<Overlay>();
   for (const document of documents) {
     for (const element of elementsOf(document)) {
-      const protocol = asyncProtocolOf(element);
+      const protocol = asyncOperationOf(element)?.protocol;
       if (element.type === "kafka-trigger-2" || element.type === "kafka-sender-2" || protocol === "kafka") {
         needed.add("kafka");
       }
@@ -261,7 +247,7 @@ export interface PubsubTopology {
  * the topology derivable from the element the way `kafkaTopicsIn` and `rabbitmqTopologyIn` are,
  * rather than adding a second, driftable declaration this schema has no room for.
  */
-export function pubsubTopologyIn(documents: readonly Record<string, unknown>[]): PubsubTopology {
+function pubsubTopologyIn(documents: readonly Record<string, unknown>[]): PubsubTopology {
   const subscriptions: PubsubSubscription[] = [];
   const senderTopics: Array<{ projectId: string; topic: string }> = [];
   for (const document of documents) {
@@ -451,6 +437,9 @@ async function withKafkaAdmin<T>(fn: (admin: Admin) => Promise<T>): Promise<T> {
   }
 }
 
+/** How long a created topic may take to show in the broker's topic list. */
+const KAFKA_TOPIC_LIST_TIMEOUT = 15_000;
+
 /** Creates every topic, then confirms the broker actually lists it before returning. */
 export async function ensureKafkaTopics(topics: readonly string[]): Promise<void> {
   if (topics.length === 0) return;
@@ -472,9 +461,6 @@ export async function ensureKafkaTopics(topics: readonly string[]): Promise<void
       .toEqual([]);
   });
 }
-
-/** How long a created topic may take to show in the broker's topic list. */
-const KAFKA_TOPIC_LIST_TIMEOUT = 15_000;
 
 /**
  * Waits until every named consumer group has an attached, `Stable` member.
@@ -840,6 +826,15 @@ export function brokerCorpusOf(
   };
 }
 
+/** One copy of the broker corpus as `importBrokerCopy` imports it. */
+interface BrokerCopy {
+  trees: ReadonlyArray<readonly [string, RenderedTree]>;
+  services: ReadonlyArray<readonly [string, RenderedTree]>;
+  archiveName: string;
+  /** Where the copy is recorded for its teardown. */
+  stateFile: string;
+}
+
 /**
  * Brings up the overlays a copy needs, creates its topics and queues, deletes its chains and the
  * services they name, imports the services and then the chains, and raises the chains' logging.
@@ -852,10 +847,7 @@ async function importBrokerCopy(
   catalog: Catalog,
   env: Env,
   corpus: SeededBrokerCorpus,
-  trees: ReadonlyArray<readonly [string, RenderedTree]>,
-  services: ReadonlyArray<readonly [string, RenderedTree]>,
-  archiveName: string,
-  stateFile: string,
+  { trees, services, archiveName, stateFile }: BrokerCopy,
 ): Promise<void> {
   for (const overlay of overlaysNeededBy(documentsOf(trees))) await env.ensureOverlay(overlay);
 
@@ -875,7 +867,7 @@ async function importBrokerCopy(
   await importServices(catalog, services, `services-${archiveName}`);
 
   const { archive } = await assembleTrees(trees);
-  const response = await catalog.importChains(archive, archiveName);
+  const response = await catalog.importChains(archive, archiveName, { timeout: corpusRequestTimeout(trees.length) });
   expect(response.status(), `the broker corpus import answered ${response.status()}`).toBe(200);
   const imported = (await response.json()) as { chains: Array<{ id: string; status: string }> };
   expect(
@@ -899,7 +891,12 @@ export async function seedBrokers(
   const trees = brokerTrees(run, fixtures);
   const services = brokerServiceTrees(run);
   const corpus = brokerCorpusOf(run, trees, services);
-  await importBrokerCopy(catalog, env, corpus, trees, services, `brokers-${run}.zip`, BROKERS_CORPUS_STATE_FILE);
+  await importBrokerCopy(catalog, env, corpus, {
+    trees,
+    services,
+    archiveName: `brokers-${run}.zip`,
+    stateFile: BROKERS_CORPUS_STATE_FILE,
+  });
 
   await deployCorpus(catalog, corpus.chains);
   await waitForDeployed(catalog, corpus.chains);
@@ -923,7 +920,12 @@ export async function seedMicroBrokers(catalog: Catalog, env: Env, run: string):
   const services = microBrokerServiceTrees(run);
   const target = tokenedDomain(run, "brokers-micro");
   const corpus: MicroBrokerCorpus = { ...brokerCorpusOf(run, trees, services), domain: target.domain };
-  await importBrokerCopy(catalog, env, corpus, trees, services, `brokers-micro-${run}.zip`, BROKERS_MICRO_CORPUS_STATE_FILE);
+  await importBrokerCopy(catalog, env, corpus, {
+    trees,
+    services,
+    archiveName: `brokers-micro-${run}.zip`,
+    stateFile: BROKERS_MICRO_CORPUS_STATE_FILE,
+  });
 
   await deployToDomain(catalog, target, corpus.chains);
   await waitForKafkaConsumers(kafkaGroupsIn(documentsOf(trees)));
@@ -970,7 +972,7 @@ async function deleteBrokerChains(
  */
 async function deleteBrokerServices(catalog: Catalog, services: readonly SeededService[], failures: string[]): Promise<void> {
   for (const service of services) {
-    const response = await catalog.raw("delete", `/v1/systems/${service.id}`);
+    const response = await deleteServiceRaw(catalog, service.kind, service.id);
     if (response.status() === 404) continue;
     if (!response.ok()) failures.push(`the service ${service.name} (${service.id}) was not deleted: ${response.status()}`);
   }
@@ -1013,6 +1015,7 @@ export async function teardownBrokers(catalog: Catalog, corpus: SeededBrokerCorp
   if (keepEntities()) {
     console.log(`[keep] ${corpus.chains.length} broker chains left behind for run ${corpus.run}`);
     for (const chain of corpus.chains) console.log(`[keep]   chain ${chain.name} (${chain.id})`);
+    for (const service of corpus.services) console.log(`[keep]   service ${service.name} (${service.id})`);
     return;
   }
 
@@ -1029,9 +1032,9 @@ export async function teardownBrokers(catalog: Catalog, corpus: SeededBrokerCorp
 }
 
 /**
- * Deletes the micro copy's logging properties, chains and services, then its domain, then its topology, as
- * `teardownMicroCorpus` and `teardownBrokers` do. It reads only the catalog and the state file,
- * because `suite-teardown` runs it with a classic `env`.
+ * Deletes the micro copy's logging properties, chains and services, then its domain, then its
+ * topology, as `teardownMicroCorpus` and `teardownBrokers` do. It reads only the catalog and the
+ * state file, because `suite-teardown` runs it with a classic `env`.
  */
 export async function teardownMicroBrokers(catalog: Catalog, corpus: MicroBrokerCorpus): Promise<void> {
   if (keepEntities()) {

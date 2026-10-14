@@ -300,7 +300,7 @@ test("env-micro restarts the shared micro domain after global-micro and runtime-
   expect(composeProjects(undefined).map((each) => each.name)).not.toContain("env-micro");
 });
 
-test("brokers-micro-seed deploys to the domain its own state file records, and suite-teardown removes it",{ tag: ["@infra", "@tier1"] }, () => {
+test("brokers-micro-seed deploys to the domain its own state file records, and suite-teardown removes it", { tag: ["@infra", "@tier1"] }, () => {
   const project = withEnv({ E2E_BROKERS: undefined }, () => targetSetup("k8s")).projects.find(
     (each) => each.name === "brokers-micro-seed",
   );

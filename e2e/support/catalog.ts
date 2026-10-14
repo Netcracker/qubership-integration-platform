@@ -151,6 +151,11 @@ function targetQuery(targetFolderId?: string): string {
   return targetFolderId ? `?targetFolderId=${encodeURIComponent(targetFolderId)}` : "";
 }
 
+/** A request's own timeout, which replaces Playwright's default of 30 s. */
+export interface RequestTimeout {
+  timeout?: number;
+}
+
 /** Throws naming the call and the start of the answer. The engine client throws the same way. */
 export async function fail(response: APIResponse, method: string, url: string): Promise<never> {
   const body = await response.text().catch(() => "<unreadable>");
@@ -216,10 +221,10 @@ export class Catalog {
   }
 
   /** The raw response, for a spec asserting a status or a failure body. */
-  raw(method: string, path: string, data?: unknown, timeout?: number): Promise<APIResponse> {
+  raw(method: string, path: string, data?: unknown, options: RequestTimeout = {}): Promise<APIResponse> {
     return this.send(method, path, {
       ...(data === undefined ? {} : { data: data as object }),
-      ...(timeout === undefined ? {} : { timeout }),
+      ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
     });
   }
 
@@ -655,14 +660,14 @@ export class Catalog {
    */
   async bulkDeploy(
     chainIds: string[],
-    options: { domains?: string[]; snapshotAction?: BulkSnapshotAction; timeout?: number } = {},
+    options: { domains?: string[]; snapshotAction?: BulkSnapshotAction } & RequestTimeout = {},
   ): Promise<{ status: number; rows: BulkDeploymentRow[] }> {
     const body = {
       chainIds,
       domains: options.domains ?? [DEFAULT_DOMAIN],
       snapshotAction: options.snapshotAction ?? "CREATE_NEW",
     };
-    const response = await this.raw("post", "/v1/catalog/chains/deployments/bulk", body, options.timeout);
+    const response = await this.raw("post", "/v1/catalog/chains/deployments/bulk", body, options);
     if (response.status() !== 200 && response.status() !== 207) {
       await fail(response, "POST", `${this.base}/v1/catalog/chains/deployments/bulk`);
     }
@@ -724,8 +729,8 @@ export class Catalog {
    * writes no row to `catalog.deployments`, so the answer is the only record of it, and an unknown
    * chain id is dropped from it with no error: a caller compares the rows with the ids it sent.
    */
-  async deployChains(chainIds: string[], domains: string[], timeout?: number): Promise<BulkDeploymentRow[]> {
-    const response = await this.raw("post", "/v1/cr/deploy-chains", { chainIds, domains }, timeout);
+  async deployChains(chainIds: string[], domains: string[], options: RequestTimeout = {}): Promise<BulkDeploymentRow[]> {
+    const response = await this.raw("post", "/v1/cr/deploy-chains", { chainIds, domains }, options);
     if (!response.ok()) await fail(response, "POST", `${this.base}/v1/cr/deploy-chains`);
     return (await response.json()) as BulkDeploymentRow[];
   }
@@ -1077,14 +1082,11 @@ export class Catalog {
     return this.send("get", `/v1/export/specifications?${parameters}`);
   }
 
-  /**
-   * `path` is the import endpoint, because services and chains do not share one. `timeout`
-   * replaces the request's default of 30 s.
-   */
-  async importArchive(path: string, archive: Buffer, name = "fixture.zip", timeout?: number): Promise<APIResponse> {
+  /** `path` is the import endpoint, because services and chains do not share one. */
+  async importArchive(path: string, archive: Buffer, name = "fixture.zip", options: RequestTimeout = {}): Promise<APIResponse> {
     return await this.send("post", path, {
       multipart: { file: { name, mimeType: "application/zip", buffer: archive } },
-      ...(timeout === undefined ? {} : { timeout }),
+      ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
     });
   }
 
@@ -1095,8 +1097,8 @@ export class Catalog {
    * `chains` array for an archive whose entries sit at the zip root, which is the quiet way an
    * import that imported nothing reports success.
    */
-  importChains(archive: Buffer, name = "chains.zip", timeout?: number): Promise<APIResponse> {
-    return this.importArchive("/v1/catalog/import", archive, name, timeout);
+  importChains(archive: Buffer, name = "chains.zip", options: RequestTimeout = {}): Promise<APIResponse> {
+    return this.importArchive("/v1/catalog/import", archive, name, options);
   }
 
   /** What an import would write. Reads the archive and touches nothing. */

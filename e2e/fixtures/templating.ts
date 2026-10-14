@@ -145,11 +145,16 @@ export const MICRO_PATH_PREFIX = "micro/";
 /** The engine's own port as the engine sees it, not the one `Env.chainUrl` publishes. */
 export const ENGINE_LOOPBACK = "http://localhost:8080";
 
+/** `RegExp` source matching `text` literally. */
+export function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * The chain routes on the engine's own port, followed by a `contextPath` or ending a service
  * address that an operation path completes.
  */
-const LOOPBACK_ROUTES = new RegExp(`${ENGINE_LOOPBACK.replaceAll(".", "\\.")}/routes(?=[/"]|$)`, "gm");
+const LOOPBACK_ROUTES = new RegExp(`${escapeRegExp(ENGINE_LOOPBACK)}/routes(?=[/"]|$)`, "gm");
 
 const UUID_PATTERN = new RegExp(`\\b${UUID_TEXT}\\b`, "gi");
 
@@ -159,22 +164,28 @@ function microId(id: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-interface DocumentElement {
+/** A fixture document's element, as much of its shape as `flatten` and its callers read. */
+export interface FixtureElement {
+  id?: unknown;
+  name?: unknown;
   type?: unknown;
   properties?: Record<string, unknown>;
-  children?: unknown[];
+  children?: FixtureElement[];
 }
 
-/** Every element of a chain document, at any depth. */
-function elementsOf(document: Record<string, unknown>): DocumentElement[] {
-  const found: DocumentElement[] = [];
-  const pending = [...(((document.content as { elements?: unknown[] })?.elements) ?? [])];
-  while (pending.length > 0) {
-    const element = pending.shift() as DocumentElement;
-    found.push(element);
-    pending.push(...(element.children ?? []));
+/** Every element of a fixture document, parents before their children. */
+export function flatten(elements: readonly FixtureElement[]): FixtureElement[] {
+  const flat: FixtureElement[] = [];
+  for (const element of elements) {
+    flat.push(element);
+    if (element.children) flat.push(...flatten(element.children));
   }
-  return found;
+  return flat;
+}
+
+/** Every element of a chain document, at any depth, parents before their children. */
+export function elementsOf(document: Record<string, unknown>): FixtureElement[] {
+  return flatten(((document.content as { elements?: FixtureElement[] } | undefined)?.elements) ?? []);
 }
 
 /** The `contextPath` of every `http-trigger` in a chain document, at any depth. */
@@ -209,26 +220,43 @@ const BROKER_ADDRESS_PROPERTIES: Record<string, readonly string[]> = {
 };
 
 /** The protocols whose operation path an `async-api-trigger` or a `service-call` consumes from or sends to. */
-export const ASYNC_OPERATION_PROTOCOLS: ReadonlySet<string> = new Set(["kafka", "amqp"]);
+const ASYNC_OPERATION_PROTOCOLS: ReadonlySet<string> = new Set(["kafka", "amqp"]);
+
+/** The broker operation an `async-api-trigger` or a `service-call` element names. */
+export interface AsyncOperation {
+  protocol: string;
+  /** The topic or exchange. */
+  path: unknown;
+  groupId: unknown;
+  queues: unknown;
+}
 
 /**
- * Every address property of a broker element, with its value: the topic or exchange of an
- * asynchronous operation is its `integrationOperationPath`, and its group or queue sits under
+ * The broker operation of an `async-api-trigger` or a `service-call`, if it names one: its topic or
+ * exchange is its `integrationOperationPath`, and its group or queue sits under
  * `integrationOperationAsyncProperties`.
  */
-function brokerAddressesOf(element: DocumentElement): Array<[string, unknown]> {
+export function asyncOperationOf(element: FixtureElement): AsyncOperation | undefined {
+  if (element.type !== "async-api-trigger" && element.type !== "service-call") return undefined;
   const properties = element.properties ?? {};
-  const type = String(element.type);
-  if (type === "async-api-trigger" || type === "service-call") {
-    if (!ASYNC_OPERATION_PROTOCOLS.has(String(properties.integrationOperationProtocolType))) return [];
-    const async = (properties.integrationOperationAsyncProperties ?? {}) as Record<string, unknown>;
+  const protocol = String(properties.integrationOperationProtocolType);
+  if (!ASYNC_OPERATION_PROTOCOLS.has(protocol)) return undefined;
+  const async = (properties.integrationOperationAsyncProperties ?? {}) as Record<string, unknown>;
+  return { protocol, path: properties.integrationOperationPath, groupId: async.groupId, queues: async.queues };
+}
+
+/** Every address property of a broker element, with its value. */
+function brokerAddressesOf(element: FixtureElement): Array<[string, unknown]> {
+  const operation = asyncOperationOf(element);
+  if (operation) {
     return [
-      ["integrationOperationPath", properties.integrationOperationPath],
-      ["groupId", async.groupId],
-      ["queues", async.queues],
+      ["integrationOperationPath", operation.path],
+      ["groupId", operation.groupId],
+      ["queues", operation.queues],
     ];
   }
-  return (BROKER_ADDRESS_PROPERTIES[type] ?? []).map((property) => [property, properties[property]]);
+  const properties = element.properties ?? {};
+  return (BROKER_ADDRESS_PROPERTIES[String(element.type)] ?? []).map((property) => [property, properties[property]]);
 }
 
 /**

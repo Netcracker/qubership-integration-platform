@@ -13,9 +13,12 @@ import path from "node:path";
 import { test, expect } from "@playwright/test";
 import yaml from "js-yaml";
 import {
+  elementsOf,
   ENGINE_LOOPBACK,
+  escapeRegExp,
   httpTriggerPaths,
   isMicroAddress,
+  MICRO_ADDRESS_SUFFIX,
   MICRO_PATH_PREFIX,
   readFixtureDocument,
   readServiceFixture,
@@ -25,12 +28,10 @@ import {
 import {
   corpusChainNames,
   fixtureTrees,
-  flatten,
   microCorpusTrees,
   microServiceTrees,
   placeholderVariable,
   serviceTrees,
-  type FixtureElement,
 } from "../../support/corpus.js";
 import {
   brokerChain,
@@ -46,7 +47,7 @@ import { UUID, UUID_TEXT } from "../../support/absent.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
 const ANY_UUID = new RegExp(UUID_TEXT, "gi");
-const LOOPBACK_ROUTE = new RegExp(`${ENGINE_LOOPBACK.replaceAll(".", "\\.")}/routes/([^"\\s?]+)`, "g");
+const LOOPBACK_ROUTE = new RegExp(`${escapeRegExp(ENGINE_LOOPBACK)}/routes/([^"\\s?]+)`, "g");
 
 interface Copy {
   chainIds: string[];
@@ -68,7 +69,7 @@ function read(trees: Array<[string, RenderedTree]>, known: readonly ServiceFixtu
   for (const [name, tree] of trees) {
     const { id, document } = readFixtureDocument(name, tree);
     copy.chainIds.push(id);
-    const elements = flatten(((document.content as { elements?: FixtureElement[] })?.elements) ?? []);
+    const elements = elementsOf(document);
     for (const element of elements) {
       if (typeof element.id === "string") copy.elementIds.push(element.id);
       const contextPath = element.properties?.contextPath;
@@ -211,7 +212,7 @@ test("every HTTP trigger the corpus seeds, in both copies, is internal", { tag: 
   const external = (trees: Array<[string, RenderedTree]>) =>
     trees.flatMap(([name, tree]) => {
       const { document } = readFixtureDocument(name, tree);
-      return flatten(((document.content as { elements?: FixtureElement[] })?.elements) ?? [])
+      return elementsOf(document)
         .filter((element) => element.type === "http-trigger" && element.properties?.externalRoute !== false)
         .map((element) => `${name}: ${String(element.name)}`);
     });
@@ -284,7 +285,7 @@ test("every reference in the micro broker copy names its own chain, element, or 
 test("the micro copy renames the topic, exchange, group, and queue of every asynchronous operation", { tag: ["@infra", "@tier1"] }, () => {
   const operationAddresses = (trees: Array<[string, RenderedTree]>) =>
     trees.flatMap(([name, tree]) =>
-      flatten(((readFixtureDocument(name, tree).document.content as { elements?: FixtureElement[] })?.elements) ?? [])
+      elementsOf(readFixtureDocument(name, tree).document)
         .filter((element) => element.type === "async-api-trigger" || element.type === "service-call")
         .flatMap((element) => {
           const properties = element.properties ?? {};
@@ -295,7 +296,7 @@ test("the micro copy renames the topic, exchange, group, and queue of every asyn
   const classic = operationAddresses(brokerTrees(EXAMPLE_RUN_TOKEN));
   const micro = operationAddresses(microBrokerTrees(EXAMPLE_RUN_TOKEN));
   expect(classic.length, "no broker chain calls an asynchronous operation").toBeGreaterThan(0);
-  expect(micro).toEqual(classic.map((each) => `${each}-micro`));
+  expect(micro).toEqual(classic.map((each) => `${each}${MICRO_ADDRESS_SUFFIX}`));
 });
 
 // Both teardowns run side by side in `suite-teardown`, and each deletes the run's consumer groups of

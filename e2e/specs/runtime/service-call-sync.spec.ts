@@ -26,29 +26,25 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
-import { axisFixtureName, GRAPHQL_QUERY, GRAPHQL_VARIABLES, ORDER_CHANNEL, ORDER_ID } from "../../fixtures/axis-generator.js";
+import { GRAPHQL_QUERY, GRAPHQL_VARIABLES, ORDER_CHANNEL, ORDER_ID } from "../../fixtures/axis-generator.js";
 import { callToken, tokenized } from "../../support/run.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS, trace, type RecordedSession } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
-import { MOCK_BYPASSED, MOCKED_BODY } from "./service-call.js";
+import { MOCK_BYPASSED } from "./micro-defects.js";
+import { axisChain, MOCKED_BODY } from "./service-call.js";
 
 /** The steps of the looked-up session (`own`), or of the other session the lookup folded in. */
 function stepsOf(session: RecordedSession, own: boolean): string[] {
   return trace(session).filter((each) => (each.sessionId === session.id) === own).map((each) => each.elementName);
 }
 
-/** The seeded chain of one protocol, and the name of its service call. */
-function protocolChain(value: "http" | "graphql") {
-  const chain = seedChain(readCorpusState(), axisFixtureName({ family: "service-call", axisPath: "integrationOperationProtocolType", value }));
-  const branch = `integrationOperationProtocolType=${value}`;
-  return { chain, branch, callerId: chain.elements[branch] };
-}
+const PROTOCOL = "integrationOperationProtocolType";
 
 test("integrationOperationProtocolType http sends the path, query and body the element declares", { tag: ["@engine", "@catalog", "@sessions", "@testing-service", "@tier2"] }, async ({ request, env, sessions, testingService, run }) => {
   covers("service-call");
   covers("service-call", "integrationOperationProtocolType", "http");
-  const { chain, branch, callerId } = protocolChain("http");
+  const { chain, branch, callerId } = axisChain(PROTOCOL, "http");
 
   const payload = callToken("payload");
   const matchers = [
@@ -71,7 +67,7 @@ test("integrationOperationProtocolType http sends the path, query and body the e
 
 test("integrationOperationProtocolType graphql posts the query and its variables to the service", { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("service-call", "integrationOperationProtocolType", "graphql");
-  const { chain, branch } = protocolChain("graphql");
+  const { chain, branch } = axisChain(PROTOCOL, "graphql");
 
   const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
   expect(call.response.status()).toBe(200);

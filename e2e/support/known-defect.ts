@@ -22,6 +22,7 @@
 import { test } from "@playwright/test";
 import type { APIResponse } from "@playwright/test";
 import type { EngineKind } from "../env/index.js";
+import type { ProjectUse } from "./corpus.js";
 
 /**
  * Fails the running `test.fail()` case for real, because what it saw is not the defect it pins.
@@ -84,7 +85,7 @@ export function strikes(defect: ConditionalDefect, engine: EngineKind, message: 
 
 /** The engine the running project's chains run on, which a project sets with `use: { engineKind }`. */
 function projectEngine(): EngineKind {
-  return (test.info().project.use as { engineKind?: EngineKind }).engineKind ?? "classic";
+  return (test.info().project.use as ProjectUse).engineKind ?? "classic";
 }
 
 /**

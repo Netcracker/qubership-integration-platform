@@ -24,7 +24,7 @@ import { UUID } from "../../support/absent.js";
 import { readCorpusState, seedChain, triggerOf } from "../../support/corpus.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
 import { tokenized } from "../../support/run.js";
-import { MOCK_BYPASSED } from "./service-call.js";
+import { MOCK_BYPASSED } from "./micro-defects.js";
 import type { TestCase, TestCaseRequest, TestCaseRun, TestingService } from "../../support/testing-service.js";
 
 /** How the exports write a timestamp: Go's `time.Time.String()`, kept for the ported service's readers. */

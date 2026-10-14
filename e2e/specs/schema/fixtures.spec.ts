@@ -6,8 +6,9 @@
  * spec catches it in under a second.
  *
  * Every tracked directory, not just `fixtures/chains/`: the seed imports `fixtures/script/` and
- * `fixtures/services/` too, so a fixture there costs the same run if it is wrong. The generated `fixtures/axes/` is left out
- * because it is absent in a fresh clone, and the generator validates what it writes.
+ * `fixtures/services/` too, so a fixture there costs the same run if it is wrong. The generated
+ * `fixtures/axes/` is left out because it is absent in a fresh clone, and the generator validates
+ * what it writes.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -25,12 +26,14 @@ import {
   assembleFixture,
   assertSubstituted,
   chainFixtureNames,
+  elementsOf,
   readFixtureDocument,
   readServiceFixture,
   renderFixture,
   substitute,
+  type FixtureElement as ChainElement,
 } from "../../fixtures/templating.js";
-import { flatten, SERVICE_IMPORTS, type FixtureElement as ChainElement } from "../../support/corpus.js";
+import { SERVICE_IMPORTS } from "../../support/corpus.js";
 import { EXPORTED_CHAIN_SCHEMA, schemaValidator, validateDocument } from "../../fixtures/validate.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
@@ -158,7 +161,7 @@ function trackedChainElements(): Array<[string, ChainElement]> {
     .filter(({ dir }) => !SERVICE_DIRS.includes(dir))
     .flatMap(({ dir, name }) => {
       const { document } = readFixtureDocument(name, renderFixture(dir, name, RUN));
-      return flatten(((document.content as { elements?: ChainElement[] })?.elements) ?? []).map((element) => [name, element] as [string, ChainElement]);
+      return elementsOf(document).map((element) => [name, element] as [string, ChainElement]);
     });
 }
 
