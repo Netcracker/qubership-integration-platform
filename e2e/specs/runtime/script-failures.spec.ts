@@ -12,6 +12,10 @@
  * never sees `FAILED` on the second one — it times out — and the two are asserted apart here: the
  * status, and for the retriable one the retry itself.
  *
+ * Those statuses are the classic engine's. On micro the action throws from a Camel event notifier,
+ * which logs the exception and ignores it, so an unparseable script deploys;
+ * `specs/runtime-micro-redeploy/script-failures.spec.ts` pins that.
+ *
  * Getting an unresolved class is harder than it looks and the fixture says so: Groovy resolves a
  * dotted expression dynamically, so `org.qubership.nothing.Missing.class` in the body compiles and
  * deploys. It takes an `import`, which is resolved at compile time.
@@ -102,7 +106,7 @@ function occurrences(log: string, needle: string): number {
   return log.split(needle).length - 1;
 }
 
-test("a script that does not compile fails the deployment", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "a chain that fails to load takes its micro domain down" } }, async ({ env, catalog, run }) => {
+test("a script that does not compile fails the deployment", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys a chain of its own, and on a micro engine each deploy rolls the shared domain; the micro case is in runtime-micro-redeploy" } }, async ({ env, catalog, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   covers("script");
 
@@ -120,7 +124,7 @@ test("a script that does not compile fails the deployment", { tag: ["@engine", "
   });
 });
 
-test("a script naming a class the engine cannot resolve parks the deployment and keeps retrying", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine does not retry a DeploymentRetriableException, and a chain that fails to load takes its domain down" } }, async ({ env, catalog, run }) => {
+test("a script naming a class the engine cannot resolve parks the deployment and keeps retrying", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine does not retry a parked deployment, and the case deploys a chain of its own" } }, async ({ env, catalog, run }) => {
   test.setTimeout(RETRY_CASE_TIMEOUT);
 
   // Opened before the import, so every compile attempt counted below is this case's.
@@ -166,7 +170,7 @@ test("a script naming a class the engine cannot resolve parks the deployment and
   });
 });
 
-test("a syntax error inside a container fails the deployment too", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "a chain that fails to load takes its micro domain down" } }, async ({ env, catalog, run }) => {
+test("a syntax error inside a container fails the deployment too", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys a chain of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ env, catalog, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
 
   await withOwnFixture(catalog, run, "script-failures-nested-syntax.yaml", SCRIPT_FIXTURE_DIR, async (chain) => {
