@@ -42,7 +42,6 @@ import {
   chainFixtureNames,
   corpusFixtureNames,
   corpusFixtures,
-  MICRO_FIXTURES,
   microCopy,
   readFixtureDocument,
   renderFixture,
@@ -52,9 +51,9 @@ import {
   type FixtureDocument,
   type RenderedTree,
 } from "../fixtures/templating.js";
-import { renderAxisFixtures } from "../fixtures/axis-generator.js";
+import { axisFixtureName, axisFixtures, renderAxisFixtures } from "../fixtures/axis-generator.js";
 import type { EngineKind, Env } from "../env/index.js";
-import { BROKERS_MICRO_CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../env/k8s.js";
+import { MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../env/k8s.js";
 import { noteChain } from "./diagnostics.js";
 import { keepEntities } from "./fixtures.js";
 import { tokenized } from "./run.js";
@@ -140,7 +139,6 @@ export interface SeedChain extends DeployedChain {
 
 /** One imported service fixture, which the corpus chains call. */
 export interface SeededService {
-  fixture: string;
   /** `service`, `context-service` or `mcp-service`: each kind has an import and a delete of its own. */
   kind: DocumentKind;
   id: string;
@@ -295,8 +293,7 @@ export async function importServices(
     const ofKind = trees.filter(([name, tree]) => readFixtureDocument(name, tree).kind === kind);
     if (ofKind.length === 0) continue;
     const assembled = await assembleTrees(ofKind);
-    const services = assembled.documents.map((each, index) => ({
-      fixture: ofKind[index][0],
+    const services = assembled.documents.map((each) => ({
       kind,
       id: each.id,
       name: String(each.document.name),
@@ -524,14 +521,15 @@ export function readCorpusState(): SeededCorpus {
 }
 
 /**
- * Drops the classic and the micro state files, the broker corpus's micro copy included, when the
- * corpus or the domain each names belonged to a run that has just been swept.
+ * Drops the classic and the micro state files when the corpus or the domain each names belonged to
+ * a run that has just been swept.
  *
  * Without it the file outlives the chains it points at, and the next `--no-deps` run addresses
- * deleted ids and fails with 404s rather than with "the seed did not run".
+ * deleted ids and fails with 404s rather than with "the seed did not run". The broker state files
+ * stay: the sweep leaves a run's topics, queues, and SFTP tree, and the file is their only record.
  */
 export function discardCorpusStateOf(runs: readonly string[]): void {
-  for (const file of [CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE, BROKERS_MICRO_CORPUS_STATE_FILE]) {
+  for (const file of [CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE]) {
     const corpus = readStateFile<SeededCorpus>(file);
     if (corpus && runs.includes(corpus.run)) fs.rmSync(file, { force: true });
   }
@@ -564,13 +562,14 @@ export interface ProjectCorpus {
 
 /**
  * The classic corpus, or on a micro project the micro copy its `microDomainState` names, so a spec
- * that lists the corpus reads the engine kind nowhere else.
+ * that lists the corpus reads the engine kind nowhere else. Both copies hold every corpus fixture.
  */
 export function projectCorpus(use: ProjectUse = projectUse()): ProjectCorpus {
   const micro = microCopyOf(use);
+  const fixtures = corpusFixtureNames().sort();
   return micro
-    ? { chains: micro.chains, fixtures: [...MICRO_FIXTURES].sort(), domain: micro.domain }
-    : { chains: readCorpusState().chains, fixtures: corpusFixtureNames().sort(), domain: DEFAULT_DOMAIN };
+    ? { chains: micro.chains, fixtures, domain: micro.domain }
+    : { chains: readCorpusState().chains, fixtures, domain: DEFAULT_DOMAIN };
 }
 
 /**
@@ -584,11 +583,7 @@ export function seedChain(corpus: SeededCorpus, fixture: string): SeedChain {
   const micro = microCopyOf(projectUse());
   const found = (micro ?? corpus).chains.find((each) => each.fixture === fixture);
   if (!found) {
-    throw new Error(
-      micro
-        ? `the micro copy holds no chain from fixture ${fixture}: add it to MICRO_FIXTURES`
-        : `the seeded corpus holds no chain from fixture ${fixture}`,
-    );
+    throw new Error(`the ${micro ? "micro copy" : "seeded corpus"} holds no chain from fixture ${fixture}`);
   }
   noteChain({ id: found.id, name: found.name, contextPath: found.contextPath });
   return found;
@@ -737,9 +732,20 @@ export async function fixtureTrees(
   });
 }
 
-/** `MICRO_FIXTURES` rendered with `run` and turned into the micro copy. */
+/**
+ * Every chain fixture of the corpus, the generated axis chains named by the generator rather than
+ * read off `fixtures/axes/`, which `seed` deletes and rewrites while `seed-micro` runs beside it.
+ */
+export function corpusChainNames(): string[] {
+  return [
+    ...corpusFixtureNames([CHAIN_FIXTURE_DIR, SCRIPT_FIXTURE_DIR]),
+    ...axisFixtures.filter((each) => !each.handWritten).map(axisFixtureName),
+  ];
+}
+
+/** Every chain fixture of the corpus, rendered with `run` and turned into the micro copy. */
 export async function microCorpusTrees(run: string): Promise<Array<[string, RenderedTree]>> {
-  return (await fixtureTrees(MICRO_FIXTURES, run)).map(([name, tree]) => [name, microCopy(name, tree)]);
+  return (await fixtureTrees(corpusChainNames(), run)).map(([name, tree]) => [name, microCopy(name, tree)]);
 }
 
 /** Every service fixture rendered with `run` and turned into the micro copy, which the micro chains call. */

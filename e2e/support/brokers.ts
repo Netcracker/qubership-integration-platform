@@ -832,7 +832,7 @@ export function brokerCorpusOf(
     chains: documents.map((document, index) => describe(trees[index][0], document)),
     services: services.map(([name, tree]) => {
       const { kind, id, document } = readFixtureDocument(name, tree);
-      return { fixture: name, kind, id, name: String(document.name) };
+      return { kind, id, name: String(document.name) };
     }),
     kafkaTopics: kafkaTopicsIn(documents),
     rabbitmqTopology: rabbitmqTopologyIn(documents),
@@ -855,7 +855,7 @@ async function importBrokerCopy(
   trees: ReadonlyArray<readonly [string, RenderedTree]>,
   services: ReadonlyArray<readonly [string, RenderedTree]>,
   archiveName: string,
-  record: () => void,
+  stateFile: string,
 ): Promise<void> {
   for (const overlay of overlaysNeededBy(documentsOf(trees))) await env.ensureOverlay(overlay);
 
@@ -864,7 +864,7 @@ async function importBrokerCopy(
   // deploy, the consumer wait) leaves the run's topics, queues and subscriptions on the broker with
   // nothing on disk naming them: the broker teardown runs whether or not the seed passed, but only
   // the state file tells it what to remove.
-  record();
+  writeStateFile(stateFile, corpus);
 
   await ensureKafkaTopics(corpus.kafkaTopics);
   await ensureRabbitmqTopology(corpus.rabbitmqTopology);
@@ -899,9 +899,7 @@ export async function seedBrokers(
   const trees = brokerTrees(run, fixtures);
   const services = brokerServiceTrees(run);
   const corpus = brokerCorpusOf(run, trees, services);
-  await importBrokerCopy(catalog, env, corpus, trees, services, `brokers-${run}.zip`, () =>
-    writeBrokersCorpusState(corpus),
-  );
+  await importBrokerCopy(catalog, env, corpus, trees, services, `brokers-${run}.zip`, BROKERS_CORPUS_STATE_FILE);
 
   await deployCorpus(catalog, corpus.chains);
   await waitForDeployed(catalog, corpus.chains);
@@ -925,9 +923,7 @@ export async function seedMicroBrokers(catalog: Catalog, env: Env, run: string):
   const services = microBrokerServiceTrees(run);
   const target = tokenedDomain(run, "brokers-micro");
   const corpus: MicroBrokerCorpus = { ...brokerCorpusOf(run, trees, services), domain: target.domain };
-  await importBrokerCopy(catalog, env, corpus, trees, services, `brokers-micro-${run}.zip`, () =>
-    writeStateFile(BROKERS_MICRO_CORPUS_STATE_FILE, corpus),
-  );
+  await importBrokerCopy(catalog, env, corpus, trees, services, `brokers-micro-${run}.zip`, BROKERS_MICRO_CORPUS_STATE_FILE);
 
   await deployToDomain(catalog, target, corpus.chains);
   await waitForKafkaConsumers(kafkaGroupsIn(documentsOf(trees)));
@@ -938,14 +934,19 @@ export async function seedMicroBrokers(catalog: Catalog, env: Env, run: string):
  * Deletes each chain's logging properties and then the chain, adding a line to `failures` for each
  * one left. A chain whose properties survived is kept, for the reason `teardownCorpus` keeps one.
  */
-async function deleteBrokerChains(catalog: Catalog, chains: readonly BrokerChain[], failures: string[], undeploy: boolean): Promise<void> {
+async function deleteBrokerChains(
+  catalog: Catalog,
+  chains: readonly BrokerChain[],
+  failures: string[],
+  { undeployFirst }: { undeployFirst: boolean },
+): Promise<void> {
   const kept = new Set<string>();
   for (const chain of chains) {
     await catalog.deleteLoggingProperties(chain.id).catch((cause: unknown) => {
       failures.push(`${chain.name} (${chain.id}) kept its logging properties, so it was kept: ${String(cause)}`);
       kept.add(chain.id);
     });
-    if (!undeploy) continue;
+    if (!undeployFirst) continue;
     await catalog.undeployAll(chain.id).catch((cause: unknown) => {
       console.error(`[teardown] ${chain.name} (${chain.id}) was not undeployed before its delete: ${String(cause)}`);
     });
@@ -1016,7 +1017,7 @@ export async function teardownBrokers(catalog: Catalog, corpus: SeededBrokerCorp
   }
 
   const failures: string[] = [];
-  await deleteBrokerChains(catalog, corpus.chains, failures, true);
+  await deleteBrokerChains(catalog, corpus.chains, failures, { undeployFirst: true });
   await deleteBrokerServices(catalog, corpus.services, failures);
   // A consumer the engine has not stopped yet still holds its group, its queue, its subscription or
   // its directory, so the broker topology goes only once the engine runs none of the corpus.
@@ -1041,7 +1042,7 @@ export async function teardownMicroBrokers(catalog: Catalog, corpus: MicroBroker
   }
 
   const failures: string[] = [];
-  await deleteBrokerChains(catalog, corpus.chains, failures, false);
+  await deleteBrokerChains(catalog, corpus.chains, failures, { undeployFirst: false });
   await deleteBrokerServices(catalog, corpus.services, failures);
   await catalog.deleteCustomResource(corpus.domain).catch((cause: unknown) => {
     failures.push(`the micro domain ${corpus.domain} was not deleted: ${String(cause)}`);

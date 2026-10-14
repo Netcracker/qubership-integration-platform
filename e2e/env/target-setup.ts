@@ -15,7 +15,7 @@ import type {
 import { ComposeEnv } from "./compose.js";
 import type { EngineKind, Env, ProcessEnvelope } from "./index.js";
 import type { ProvisionMode, ProvisionReport } from "./provision.js";
-import { BROKERS_MICRO_CORPUS_STATE_FILE, K8sEnv, MICRO_REDEPLOY_STATE_FILE } from "./k8s.js";
+import { BROKERS_MICRO_CORPUS_STATE_FILE, K8sEnv, MICRO_REDEPLOY_STATE_FILE, recordedMicroDomain } from "./k8s.js";
 import { collectK8sHeader, k8sBaseline, topSample } from "./k8s-observer.js";
 import { provisionCompose } from "./provision/compose.js";
 import { provisionK8s } from "./provision/k8s.js";
@@ -52,7 +52,7 @@ export interface TargetSetup {
   observer: StackObserver;
   /** Projects this target adds to the common ones. */
   projects: SuiteProject[];
-  /** Projects and spec files left out on this target, printed in the report header. */
+  /** Projects left out on this target, printed in the report header. */
   absent: Absence[];
 }
 
@@ -246,7 +246,8 @@ function k8sSetup(): TargetSetup {
   const brokers = brokersEnabled();
   return {
     name: "k8s",
-    createEnv: (engineKind, microDomainState) => new K8sEnv({ engineKind, microDomainState }),
+    createEnv: (engineKind, microDomainState) =>
+      new K8sEnv({ engineKind, microDomain: () => recordedMicroDomain(microDomainState) }),
     provision: provisionK8s,
     observer: {
       baseline: k8sBaseline,

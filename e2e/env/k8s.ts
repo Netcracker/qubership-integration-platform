@@ -316,16 +316,16 @@ export async function k8sProcessEnvelope(role: ServiceRole): Promise<ProcessEnve
 
 export interface K8sEnvOptions {
   engineKind: EngineKind;
-  /** The micro domain a micro chain is addressed on; by default the one `microDomainState` records. */
+  /** The micro domain a micro chain is addressed on; by default the one `MICRO_CORPUS_STATE_FILE` records. */
   microDomain?: () => string;
-  /** The state file the micro domain is read from; `MICRO_CORPUS_STATE_FILE` by default. */
-  microDomainState?: string;
   /** The `kubectl` the overlay methods run; the real one by default. */
   kubectl?: Kubectl;
   /** The host probe the overlay methods poll; `hostReady` by default. */
   overlayReady?: (overlay: Overlay) => () => Promise<string | null>;
   /** The status probe a micro engine restart polls; `httpStatus` by default. */
   httpStatus?: (url: string) => Promise<number>;
+  /** How long a micro engine restart waits for the replacement pod; `MICRO_RESTART_TIMEOUT` by default. */
+  microRestartTimeout?: number;
 }
 
 export class K8sEnv implements Env {
@@ -338,13 +338,15 @@ export class K8sEnv implements Env {
   private readonly kubectl: Kubectl;
   private readonly overlayReady: (overlay: Overlay) => () => Promise<string | null>;
   private readonly httpStatus: (url: string) => Promise<number>;
+  private readonly microRestartTimeout: number;
 
   constructor(options: K8sEnvOptions) {
     this.engineKind = options.engineKind;
-    this.microDomain = options.microDomain ?? (() => recordedMicroDomain(options.microDomainState));
+    this.microDomain = options.microDomain ?? (() => recordedMicroDomain());
     this.kubectl = options.kubectl ?? kubectl;
     this.overlayReady = options.overlayReady ?? hostReady;
     this.httpStatus = options.httpStatus ?? httpStatus;
+    this.microRestartTimeout = options.microRestartTimeout ?? MICRO_RESTART_TIMEOUT;
   }
 
   url(service: ServiceRole): string {
@@ -437,7 +439,7 @@ export class K8sEnv implements Env {
     await this.kubectl(["delete", "pod", old, "-n", NAMESPACE, "--wait=false"]);
     const ready = `${this.engineUrl()}/q/health/ready`;
     await pollUntil(
-      MICRO_RESTART_TIMEOUT,
+      this.microRestartTimeout,
       2_000,
       async () => {
         const pods = (await livePodsOf(selector, this.kubectl)).filter((pod) => pod.metadata.name !== old);
@@ -448,7 +450,7 @@ export class K8sEnv implements Env {
         const status = await this.httpStatus(ready);
         return status === 200 ? null : `${ready} answered ${status || "nothing"}`;
       },
-      (last) => `micro pod ${old} was deleted and no pod replaced it within ${MICRO_RESTART_TIMEOUT}ms (${last})`,
+      (last) => `micro pod ${old} was deleted and no pod replaced it within ${this.microRestartTimeout}ms (${last})`,
     );
   }
 

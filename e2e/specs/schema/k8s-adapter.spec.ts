@@ -30,7 +30,6 @@ import { targetSetup } from "../../env/target-setup.js";
 import type { Overlay, ServiceRole } from "../../env/index.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
 import { projectCorpus } from "../../support/corpus.js";
-import { MICRO_FIXTURES } from "../../fixtures/templating.js";
 import { BROKER_PROJECTS, K8S_PROJECTS, MICRO_BROKER_PROJECTS } from "./projects.js";
 import type { Catalog } from "../../support/catalog.js";
 import { deleteDomain, deployToDomain, dispatchToDomain, tokenedDomain } from "../../support/deployable.js";
@@ -114,20 +113,18 @@ test("a micro project reads its domain and its corpus copy from the state file i
     const ownEngine = "http://localhost:30080/e2e/svc/qip-engine-e2e-run2-own-v1";
 
     withEnv(ON_K8S, () => {
-      expect(new K8sEnv({ engineKind: "micro", microDomainState: state }).engineUrl()).toBe(ownEngine);
       expect(targetSetup("k8s").createEnv("micro", state).engineUrl()).toBe(ownEngine);
     });
 
     const micro = projectCorpus({ engineKind: "micro", microDomainState: state });
     expect(micro.chains).toEqual(chains);
     expect(micro.domain).toBe("e2e-run2-own");
-    expect(micro.fixtures).toEqual([...MICRO_FIXTURES].sort());
     // A chain with no HTTP route; a spec that lists the corpus meets it on both engines.
     expect(micro.fixtures).toContain("scheduler-basic");
 
     const missing = path.join(dir, "absent.json");
     expect(() => projectCorpus({ engineKind: "micro", microDomainState: missing })).toThrow(missing);
-    expect(() => new K8sEnv({ engineKind: "micro", microDomainState: missing }).engineUrl()).toThrow(missing);
+    expect(() => targetSetup("k8s").createEnv("micro", missing).engineUrl()).toThrow(missing);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -573,6 +570,24 @@ test("on a micro env the engine restart deletes the domain's pod and waits for a
   // Probed only once the replacement's engine container is Ready, and until it answers 200.
   expect(probed).toHaveLength(2);
   for (const url of probed) expect(url).toMatch(/\/e2e\/svc\/qip-engine-e2e-run1-micro-v1\/q\/health\/ready$/);
+});
+
+test("a micro engine restart fails when no single Ready pod replaces the deleted one", { tag: ["@infra", "@tier1"] }, async () => {
+  const restart = async (replacements: string) => {
+    const { run } = recordingKubectl([microPods(["old", false, true]), replacements]);
+    const env = new K8sEnv({
+      engineKind: "micro",
+      microDomain: () => "e2e-run1-micro",
+      kubectl: run,
+      httpStatus: async () => 200,
+      microRestartTimeout: 50,
+    });
+    return String(await env.restart("engine").catch((cause: unknown) => cause));
+  };
+  expect(await restart(microPods(["old", true, true], ["new", false, false]))).toContain(
+    "micro pod old was deleted and no pod replaced it within 50ms (container integration of new is not Ready)",
+  );
+  expect(await restart(microPods(["new", false, true], ["newer", false, true]))).toContain("(2 pods replace old)");
 });
 
 test("the k8s target declares its own projects and the broker projects, and leaves nothing out", { tag: ["@infra", "@tier1"] }, () => {
