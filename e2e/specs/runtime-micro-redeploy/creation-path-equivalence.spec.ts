@@ -9,7 +9,7 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import type { ImportResult } from "../../support/catalog.js";
-import { releaseChains } from "../../support/cleanup.js";
+import { releaseChains, waitForRecording } from "../../support/cleanup.js";
 import { MICRO_READY_TIMEOUT, SEED_LOGGING } from "../../support/corpus.js";
 import {
   createDeployableChain,
@@ -25,7 +25,7 @@ import { tokenized } from "../../support/run.js";
 /** The domain create and the route poll, plus building the chain. */
 const SETUP_TIMEOUT = MICRO_READY_TIMEOUT + 60_000;
 
-/** A second domain's create and route poll, plus the export, the import, and two driven calls. */
+/** A second domain's create and route poll, plus the export, the import, two warm-ups, and two driven calls. */
 const CASE_TIMEOUT = MICRO_READY_TIMEOUT + 120_000;
 
 let built: DeployableChain | undefined;
@@ -55,6 +55,9 @@ test("a chain from its own export runs on the micro engine the same way the API-
   const chain = built as DeployableChain;
   const fromApiDomain = live as TokenedDomain;
 
+  // A new micro pod serves calls before its first read of the chain's logging level from Consul,
+  // and records no session until then.
+  await waitForRecording(fromApiDomain.env, sessions, chain);
   const fromApi = await drive(request, fromApiDomain.env, sessions, chain, RECORDED_STEPS);
   expect(fromApi.status).toBe(200);
   expect(fromApi.steps.length, "the API-built chain recorded a trace of another shape").toBe(RECORDED_STEPS);
@@ -76,6 +79,7 @@ test("a chain from its own export runs on the micro engine the same way the API-
   await catalog.saveLoggingProperties(chain.id, SEED_LOGGING);
   live = tokenedDomain(run, "equivalence-import", microDomainState);
   await deployToDomain(catalog, live, [chain]);
+  await waitForRecording(live.env, sessions, chain);
   const fromDocument = await drive(request, live.env, sessions, chain, fromApi.steps.length);
 
   expectSameRun(fromDocument, fromApi);
