@@ -140,8 +140,8 @@ for (const { method, covers: declareCoverage } of KAFKA_METHOD_CASES) {
 
       // Started only now, after the session lookup above already spent part of its own budget: the
       // topic retains what it holds and `consumeOneKafka` subscribes `fromBeginning`, so a
-      // consumer that starts this late still reads the message.
-      const message = await consumeOneKafka(topic, `${topic}-consumer`);
+      // consumer that starts this late still reads the message. The nonce skips one an earlier run left.
+      const message = await consumeOneKafka(topic, `${topic}-consumer`, (value) => value?.includes(body.nonce) ?? false);
       expect(message, `no message arrived on ${topic} within the wait`).not.toBeNull();
       expect(JSON.parse(message!.value ?? "null")).toEqual(body);
     },

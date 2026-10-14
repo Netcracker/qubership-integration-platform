@@ -195,8 +195,8 @@ test(
     // Started only now, after the session lookup above already spent part of its own budget: the
     // topic retains what it holds and `consumeOne` subscribes `fromBeginning`, so a consumer that
     // starts this late still reads the message, and the wait gets the full window instead of one
-    // `sessions.byExternalId` poll already ate into.
-    const message = await consumeOne(topic, `${topic}-consumer`);
+    // `sessions.byExternalId` poll already ate into. The nonce skips a message an earlier run left.
+    const message = await consumeOne(topic, `${topic}-consumer`, (value) => value?.includes(body.nonce) ?? false);
     expect(message, `no message arrived on ${topic} within the wait`).not.toBeNull();
     expect(JSON.parse(message!.value ?? "null")).toEqual(body);
   },

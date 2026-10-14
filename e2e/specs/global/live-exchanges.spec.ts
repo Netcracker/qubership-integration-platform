@@ -311,13 +311,11 @@ test("a kill aimed at nothing is a 404 on both services, and leaves no audit row
   const exchangeId = tokenized(run, "no-such-exchange");
 
   // The engine is correct about it, and specific: an unknown deployment and a known deployment
-  // with no such exchange are two different messages under one status.
+  // with no such exchange are two different messages under one status. The messages are read at the
+  // end of the case, so a micro engine that names the wrong 404 still runs every other check.
   const noDeployment = await engine.killExchange("no-such-deployment", exchangeId);
   expect(noDeployment.status()).toBe(404);
   const noDeploymentText = await noDeployment.text();
-  await strikesAsKnown(KILL_NOT_FOUND_UNSPECIFIC, async () =>
-    expect(noDeploymentText, `the engine answered ${noDeploymentText}`).toContain("No deployment found for id no-such-deployment"),
-  );
 
   // Through the catalog this used to be a 500: `RestTemplate.delete` raised on the engine's 4xx and
   // `LiveExchangesService` did not catch it, so terminating an exchange that had already finished
@@ -325,7 +323,7 @@ test("a kill aimed at nothing is a 404 on both services, and leaves no audit row
   // engine's message, which is the half that says *which* of the two 404s it is.
   const throughCatalog = await catalog.killLiveExchange(host, "no-such-deployment", exchangeId);
   expect(throughCatalog.status()).toBe(404);
-  expect(await throughCatalog.text()).toContain("No deployment found for id no-such-deployment");
+  const throughCatalogText = await throughCatalog.text();
 
   // An address that is not a registered engine host is the other 404, and it names no address —
   // the kill used to send a DELETE to any host on port 8080 and put that URL in the error.
@@ -345,6 +343,11 @@ test("a kill aimed at nothing is a 404 on both services, and leaves no audit row
       .actionLogs,
     "a kill that found nothing should leave no audit row",
   ).toEqual([]);
+
+  await strikesAsKnown(KILL_NOT_FOUND_UNSPECIFIC, async () => {
+    expect(noDeploymentText, `the engine answered ${noDeploymentText}`).toContain("No deployment found for id no-such-deployment");
+    expect(throughCatalogText, `the catalog answered ${throughCatalogText}`).toContain("No deployment found for id no-such-deployment");
+  });
 });
 
 test("limit is validated, and the two services disagree about how", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, engine }) => {
@@ -357,8 +360,8 @@ test("limit is validated, and the two services disagree about how", { tag: ["@ca
 
   const fromEngine = await engine.raw("get", "/v1/engine/live-exchanges?limit=0");
   const fromEngineText = await fromEngine.text();
+  expect(fromEngineText).toContain("must be greater than 0");
   await strikesAsKnown(LIMIT_REFUSED_WITH_400, async () =>
     expect(fromEngine.status(), `the engine answered ${fromEngineText}`).toBe(500),
   );
-  expect(fromEngineText).toContain("must be greater than 0");
 });

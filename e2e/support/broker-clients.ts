@@ -41,10 +41,14 @@ export async function publishKafka(
   }
 }
 
-/** One message off `topic`, or `null` if none arrives within `timeoutMs` — for a sender/delivery case. */
+/**
+ * The first message off `topic` whose value `wanted` accepts, or `null` if none arrives within
+ * `timeoutMs`, for a sender or delivery case. A message an earlier run left on the topic is skipped.
+ */
 export async function consumeOneKafka(
   topic: string,
   groupId: string,
+  wanted: (value: string | null) => boolean,
   timeoutMs = 20_000,
 ): Promise<{ value: string | null; key: string | null } | null> {
   const consumer: Consumer = kafka.consumer({ groupId });
@@ -58,11 +62,10 @@ export async function consumeOneKafka(
   try {
     await consumer.run({
       eachMessage: async ({ message }) => {
+        const value = message.value ? message.value.toString("utf-8") : null;
+        if (!wanted(value)) return;
         clearTimeout(timer);
-        resolveFound({
-          value: message.value ? message.value.toString("utf-8") : null,
-          key: message.key ? message.key.toString("utf-8") : null,
-        });
+        resolveFound({ value, key: message.key ? message.key.toString("utf-8") : null });
       },
     });
     return await found;
