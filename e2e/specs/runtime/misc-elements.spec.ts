@@ -22,11 +22,11 @@
  *   `bodyAfter`. `useCorrelationId` true with no context id stores under the exchange's correlation
  *   id. Every case stores under context ids of its own, so the cases share the chains.
  * - `mcp-trigger` is driven as an MCP client drives it, over the engine's streamable HTTP endpoint at
- *   `/mcp`, against the seeded tool on the seeded MCP service. The protocol is spoken over the
- *   `request` fixture: three JSON-RPC calls do not justify an SDK dependency. Its session carries no
- *   correlation id, so it is found by the tool call's argument. That undeploying the chain removes
- *   the tool is a case of its own, on a chain it builds. Its idempotency rows are not covered, and
- *   the registry says why.
+ *   `/mcp`, against the seeded tool on the seeded MCP service. `support/mcp.ts` speaks the protocol
+ *   over the `request` fixture: three JSON-RPC calls do not justify an SDK dependency. Its session
+ *   carries no correlation id, so it is found by the tool call's argument. That undeploying the
+ *   chain removes the tool is a case of its own, on a chain it builds. Its idempotency axes are in
+ *   `mcp-trigger-idempotency.spec.ts`.
  *
  * `swimlane.color` has no runtime at all, and the registry says why.
  */
@@ -75,6 +75,7 @@ import { strikesAsKnown } from "../../support/known-defect.js";
 import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "./micro-defects.js";
 import { waitForFirstRecording, withBuilt } from "../../support/cleanup.js";
 import type { APIRequestContext } from "@playwright/test";
+import { McpSession, offeredTool } from "../../support/mcp.js";
 import type { Env } from "../../env/index.js";
 
 /** How long a log line may take to reach the engine log after its step is traced. */
@@ -323,59 +324,6 @@ test.describe("context-storage", () => {
   });
 });
 
-interface Tool {
-  name: string;
-  title?: string;
-  description?: string;
-  annotations?: Record<string, unknown>;
-}
-
-/** A streamable HTTP MCP session: JSON-RPC over POST, answered as JSON or as one SSE event. */
-class McpSession {
-  private readonly request: APIRequestContext;
-  private readonly url: string;
-  private id = "";
-  private next = 1;
-
-  constructor(request: APIRequestContext, url: string) {
-    this.request = request;
-    this.url = url;
-  }
-
-  async open(): Promise<void> {
-    const response = await this.post({ jsonrpc: "2.0", id: this.next++, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "qip-e2e", version: "1" } } });
-    expect(response.status(), await response.text()).toBe(200);
-    this.id = response.headers()["mcp-session-id"];
-    expect(this.id, "the server opens a session").toBeTruthy();
-    expect((await this.post({ jsonrpc: "2.0", method: "notifications/initialized" })).status()).toBe(202);
-  }
-
-  async call<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const id = this.next++;
-    const response = await this.post({ jsonrpc: "2.0", id, method, params });
-    const text = await response.text();
-    expect(response.status(), text).toBe(200);
-    const payload = response.headers()["content-type"]?.startsWith("text/event-stream")
-      ? text.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice("data:".length)).join("")
-      : text;
-    const message = JSON.parse(payload) as { id: number; result?: T; error?: unknown };
-    expect(message.id).toBe(id);
-    expect(message.error, `${method} answered an error`).toBeUndefined();
-    return message.result as T;
-  }
-
-  async tools(): Promise<Tool[]> {
-    return (await this.call<{ tools: Tool[] }>("tools/list")).tools;
-  }
-
-  private post(data: unknown) {
-    return this.request.post(this.url, {
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", ...(this.id ? { "Mcp-Session-Id": this.id } : {}) },
-      data,
-    });
-  }
-}
-
 const MCP_TRIGGER = "MCP Trigger";
 const ECHO_STEP = "Echo Arguments";
 
@@ -386,13 +334,6 @@ async function mcpSessionOf(sessions: Sessions, chainId: string, ping: string): 
     if (element(session, ECHO_STEP)?.bodyAfter?.includes(ping)) return session;
   }
   return undefined;
-}
-
-/** The tool a deployed `mcp-trigger` chain offers, once `tools/list` lists it. */
-async function offeredTool(mcp: McpSession, toolName: string): Promise<Tool> {
-  let tool: Tool | undefined;
-  await expect.poll(async () => (tool = (await mcp.tools()).find((each) => each.name === toolName)) !== undefined, { timeout: DEPLOY_TIMEOUT, message: `tools/list never offered ${toolName}` }).toBe(true);
-  return tool!;
 }
 
 test("mcp-trigger: a deployed chain is an MCP tool that runs the chain", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
