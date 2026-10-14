@@ -23,31 +23,19 @@
  * The chain is deployed and called, so this file is the expensive one in `specs/api/`: two deploys
  * at roughly three seconds each. It stays here rather than in `specs/env/` because it restarts
  * nothing, which is what that project's placement rule is actually about.
+ *
+ * `specs/runtime-micro-redeploy/creation-path-equivalence.spec.ts` runs the same comparison on the
+ * micro engine, in micro domains of its own.
  */
 import { test, expect } from "../../support/fixtures.js";
 import type { Catalog, ImportResult } from "../../support/catalog.js";
 import { tokenized } from "../../support/run.js";
-import { createDeployableChain, MARKER_HEADER, type DeployableChain } from "../../support/deployable.js";
+import { createDeployableChain, type DeployableChain } from "../../support/deployable.js";
 import { DEPLOY_TIMEOUT, SEED_LOGGING } from "../../support/corpus.js";
-import { Sessions, callChain, trace, type RecordedSession } from "../../support/sessions.js";
+import { drive, expectSameRun, RECORDED_STEPS } from "../../support/equivalence.js";
 import { releaseChains } from "../../support/cleanup.js";
 import type { Env } from "../../env/index.js";
 import type { APIRequestContext } from "@playwright/test";
-
-/** What the request produced, in the terms the two paths are compared on. */
-interface Answer {
-  status: number;
-  body: string;
-  marker: string | null;
-  /** `elementName camelName executionStatus` per step, depth first — the trace, not its outline. */
-  steps: string[];
-}
-
-function stepsOf(session: RecordedSession): string[] {
-  return trace(session).map(
-    (each) => `${each.elementName} ${each.camelName} ${each.executionStatus}`,
-  );
-}
 
 /**
  * What the route answers to a `GET`.
@@ -133,41 +121,6 @@ async function waitForRouteGone(
     .toBe(404);
 }
 
-/**
- * How many steps `createDeployableChain`'s chain records.
- *
- * Three, not two: the trigger contributes **`HTTP Trigger`** and **`Validate Request`**, and the
- * header modification one. The floor here used to be two, and being one short made the comparison
- * vacuous rather than merely lenient — a first read that caught 2 of the 3 set the second read's
- * target to 2, the second read then saw all three, and the case reported a divergence between one
- * chain and itself. Measured once in four full runs.
- *
- * Waiting for the session to settle does not close that gap and is already done:
- * `Sessions.byExternalId` polls past `IN_PROGRESS`, and the element documents are indexed
- * separately from the session, so a settled session can still be a step short.
- */
-const RECORDED_STEPS = 3;
-
-/** The one request both paths are driven with, and everything observable about what it did. */
-async function drive(
-  request: APIRequestContext,
-  env: Env,
-  sessions: Sessions,
-  chain: DeployableChain,
-  wantedSteps: number,
-): Promise<Answer> {
-  const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), {
-    data: { ping: "equivalence" },
-  });
-  const session = await sessions.byExternalId(token, { elements: wantedSteps });
-  return {
-    status: response.status(),
-    body: await response.text(),
-    marker: response.headers()[MARKER_HEADER] ?? null,
-    steps: stepsOf(session),
-  };
-}
-
 test("a chain from its own export runs the same way the API-built original did", { tag: ["@catalog", "@engine", "@sessions", "@tier1"] }, async ({ catalog, env, folder, request, run, sessions }) => {
   const name = tokenized(run, "equivalence");
   const contextPath = tokenized(run, "equivalence");
@@ -216,15 +169,7 @@ test("a chain from its own export runs the same way the API-built original did",
     await deployAndServe(catalog, request, env, built);
     const fromDocument = await drive(request, env, sessions, built, fromApi.steps.length);
 
-    // The comparison, and it is deliberately over what the chain *did* rather than over what the
-    // catalog stored: the defect this exists for is one where both records look identical and the
-    // two chains behave differently.
-    expect(fromDocument.status, "the imported chain answered a different status").toBe(fromApi.status);
-    expect(fromDocument.body, "the imported chain answered a different body").toBe(fromApi.body);
-    expect(fromDocument.marker, "the header modification did not survive the round trip").toBe(
-      fromApi.marker,
-    );
-    expect(fromDocument.steps, "the imported chain ran a different trace").toEqual(fromApi.steps);
+    expectSameRun(fromDocument, fromApi);
     bodyFailed = false;
   } finally {
     // `releaseChains` rather than two hops of this spec's own, and it is the same policy for the

@@ -116,10 +116,11 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `suite-teardown` | the teardowns of `seed-micro` and `brokers-seed`, after `global` | the same |
 | `seed-micro` | not declared | a second copy of the corpus, deployed to a micro domain named `e2e-<run>-micro` |
 | `runtime-micro` | not declared | `specs/runtime/` against the micro engine, minus the cases tagged `@classic-only` |
+| `runtime-micro-redeploy` | not declared | `specs/runtime-micro-redeploy/`, one file at a time: micro cases that deploy their own chains to a micro domain of their own |
 | `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | the same |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, and the proxy's `/e2e/` locations |
 
-That is fifteen projects on Compose and eighteen on Kubernetes, three fewer on either with
+That is fifteen projects on Compose and nineteen on Kubernetes, three fewer on either with
 `E2E_BROKERS=0`. The run header records the target and lists every project and spec file the target
 leaves out, with the reason.
 
@@ -135,8 +136,8 @@ Run one target at a time: both stacks together do not fit in 15.6 GiB. Stop the 
 its broker overlays before a Kubernetes run, and run `helm uninstall qip -n qip-e2e --wait` before a
 Compose run. Each target keeps its own state files. The Kubernetes ones start with `.e2e-k8s-`
 (`.e2e-k8s-corpus.json`, `.e2e-k8s-brokers-corpus.json`, `.e2e-k8s-runs.json`,
-`.e2e-k8s-overrides.json`, `.e2e-k8s-micro-corpus.json`, `.e2e-k8s-resources.json`,
-`.e2e-k8s-samples.jsonl`), so a sweep or a settings revert never reaches the other target.
+`.e2e-k8s-overrides.json`, `.e2e-k8s-micro-corpus.json`, `.e2e-k8s-micro-redeploy.json`,
+`.e2e-k8s-resources.json`, `.e2e-k8s-samples.jsonl`), so a sweep or a settings revert never reaches the other target.
 `.e2e-ui-server.json` is shared, because the UI bundle is the same on both.
 
 The chart's Consul keeps no volume. When its pod restarts, a corpus kept with `E2E_KEEP=1` loses its
@@ -149,6 +150,9 @@ CIP_TARGET=k8s E2E_KEEP=1 npx playwright test --project=seed
 **The classic-only runtime cases.** `runtime-micro` runs every file of `specs/runtime/` and leaves
 out the cases tagged `@classic-only`. Each such case carries an annotation saying why the micro engine
 cannot run it, for example that it deploys a chain into the shared micro domain, whose pod then rolls.
+The micro case of such a deploy goes in `specs/runtime-micro-redeploy/`, which deploys each file's
+chains to a micro domain of its own through `tokenedDomain` and `deployToDomain` in
+`support/deployable.ts`.
 
 **Parity findings.** A case that passes under `runtime` and fails under `runtime-micro` is a
 finding, pinned with `strikesAsKnown` and a `ConditionalDefect` (rule 13 of the `e2e-spec-authoring`
@@ -557,6 +561,9 @@ specs/
   ui-server/    builds and serves the UI bundle on 4200, then stops it
   ui/           the browser layer, Chromium through nginx on 8080
   seed-micro/   k8s only: deploys the micro copy of the corpus to a micro domain, then removes it
+  runtime-micro-redeploy/
+                k8s only: micro cases that deploy and redeploy, each file in a micro domain of its
+                own, one file at a time
   k8s/          k8s only: custom resources, gateway routes, discovery, and the /e2e/ locations
 pages/      page objects for the UI and the shared TableView; selectors by role, test id, then title
 ```

@@ -20,11 +20,18 @@
  * while the route is live and **404** once it is gone (which is how an undeploy is asserted on the
  * engine rather than on the catalog's own record of it), and `externalRoute: false` keeps the route
  * off the gateway, where a duplicate path is refused by a different check.
+ *
+ * The end of the file holds `TokenedDomain`, the micro domain a spec file deploys such chains to.
  */
+import fs from "node:fs";
+import { expect } from "@playwright/test";
 import type { Catalog, LoggingProperties } from "./catalog.js";
-import type { SeedChain } from "./corpus.js";
+import { MICRO_READY_TIMEOUT, waitForRoutes, type DeployedChain, type SeedChain } from "./corpus.js";
 import { noteChain } from "./diagnostics.js";
 import { tokenized } from "./run.js";
+import { writeStateFile } from "./state-file.js";
+import type { Env } from "../env/index.js";
+import { K8sEnv } from "../env/k8s.js";
 
 /** The response header the header modification adds, and the handle on which version answered. */
 export const MARKER_HEADER = "e2e-marker";
@@ -320,4 +327,58 @@ export async function addCollidingTrigger(
   await catalog.patchElementProperties(chain.id, header.id, markerProperties("collision"));
   await catalog.connectElements(chain.id, trigger.id, header.id);
   return trigger.id;
+}
+
+/**
+ * A micro domain one spec file deploys its own chains to, named after the run, and the `Env` that
+ * addresses it. A case reads `chainUrl` and `engineLogs` through this `env`, since the project's
+ * `env` fixture may address another domain.
+ */
+export interface TokenedDomain {
+  run: string;
+  domain: string;
+  env: Env;
+  /** The state file `deployToDomain` records the domain in, for a project whose `env` fixture reads it. */
+  record?: string;
+}
+
+/**
+ * Names the domain `tokenized(run, what)`, so the run-token sweep deletes one a run left behind.
+ * Nothing is created until `deployToDomain`.
+ */
+export function tokenedDomain(run: string, what: string, record?: string): TokenedDomain {
+  const domain = tokenized(run, what);
+  return { run, domain, env: new K8sEnv({ engineKind: "micro", microDomain: () => domain }), record };
+}
+
+/**
+ * Deploys `chains` to the domain in one batch, creating the domain when it does not exist and
+ * otherwise replacing what it runs, and returns once every route answers. Each call takes new
+ * snapshots, so the domain's pod rolls and the engine loads the chains again.
+ *
+ * The domain is recorded before the deploy, as `seedMicroCorpus` records its own.
+ */
+export async function deployToDomain(
+  catalog: Catalog,
+  target: TokenedDomain,
+  chains: readonly DeployedChain[],
+): Promise<void> {
+  if (target.record) writeStateFile(target.record, { run: target.run, domain: target.domain });
+  const rows = await catalog.deployChains(chains.map((each) => each.id), [target.domain]);
+  expect(
+    rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
+    "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
+  ).toEqual(chains.map((each) => `${each.id} CREATED`).sort());
+  await waitForRoutes(
+    target.env,
+    chains,
+    MICRO_READY_TIMEOUT,
+    `chains whose route never began to answer on micro domain ${target.domain}`,
+  );
+}
+
+/** Deletes the domain with `DELETE /v1/cr/{name}`, then its record. */
+export async function deleteDomain(catalog: Catalog, target: TokenedDomain): Promise<void> {
+  await catalog.deleteCustomResource(target.domain);
+  if (target.record) fs.rmSync(target.record, { force: true });
 }
