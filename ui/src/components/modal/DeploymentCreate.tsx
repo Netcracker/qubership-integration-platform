@@ -2,7 +2,8 @@ import { Button, Form, Modal, Select, SelectProps } from "antd";
 import React, { useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { useSnapshots } from "../../hooks/useSnapshots.tsx";
-import { DomainType } from "../../api/apiTypes.ts";
+import { useInitialDomains } from "../../hooks/useInitialDomains.ts";
+import { handleModalSubmit } from "../../misc/modal-submit.ts";
 import {
   Domain,
   DomainsFormItem,
@@ -16,11 +17,13 @@ export type CreateDeploymentOptions = {
 
 type CreateDeploymentProps = {
   chainId?: string;
+  initialDomains?: Domain[];
   onSubmit?: (request: CreateDeploymentOptions) => void | Promise<void>;
 };
 
 export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
   chainId,
+  initialDomains,
   onSubmit,
 }) => {
   const [form] = Form.useForm<{ domains: Domain[]; snapshot: string }>();
@@ -30,6 +33,8 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
   const domains = Form.useWatch("domains", form);
   const isDeployDisabled =
     snapshotsLoading || isDomainSelectionInvalid(domains);
+
+  useInitialDomains(form, initialDomains);
 
   const snapshotOptions: SelectProps["options"] =
     snapshots
@@ -43,24 +48,12 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
     if (!chainId) {
       return;
     }
-    setConfirmLoading(true);
     const options: CreateDeploymentOptions = { domains, snapshotId };
-    try {
-      const result = onSubmit?.(options);
-      if (result instanceof Promise) {
-        void result.finally(() => {
-          setConfirmLoading(false);
-          closeContainingModal();
-        });
-      } else {
-        setConfirmLoading(false);
-        closeContainingModal();
-      }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      setConfirmLoading(false);
-      closeContainingModal();
-    }
+    handleModalSubmit(
+      () => onSubmit?.(options),
+      setConfirmLoading,
+      closeContainingModal,
+    );
   };
 
   const handleCancel = () => {
@@ -92,7 +85,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
         id="deploymentCreateForm"
         form={form}
         initialValues={{
-          domains: [{ name: "default", type: DomainType.CLASSIC }],
+          domains: initialDomains ?? [],
         }}
         onFinish={(values) => handleOk(values.domains, values.snapshot)}
         layout="horizontal"

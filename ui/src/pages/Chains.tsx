@@ -845,11 +845,19 @@ const Chains = () => {
   };
 
   const onDeployBtnClick = () => {
-    if (selectedRowKeys.length > 0) {
+    const chainIds = folderItems
+      .filter(
+        (i) =>
+          selectedRowKeys.includes(i.id) &&
+          i.itemType === CatalogItemType.CHAIN,
+      )
+      .map((i) => i.id);
+    if (chainIds.length > 0) {
       showModal({
         component: (
           <DeployChains
-            chainCount={selectedRowKeys.length}
+            chainCount={chainIds.length}
+            chainIds={chainIds}
             onSubmit={(request: DeployRequest) => deploySelectedChains(request)}
           />
         ),
@@ -1299,6 +1307,7 @@ const Chains = () => {
                 buttonProps={{
                   "data-testid": "chains-deploy",
                   iconName: "send",
+                  disabled: selectedChains.length === 0,
                   onClick: onDeployBtnClick,
                 }}
               />
