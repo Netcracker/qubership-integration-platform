@@ -158,10 +158,9 @@ export interface ScriptChainOptions {
 /**
  * A one-trigger, one-script chain in the worker's folder, wired and ready to snapshot.
  *
- * The terminal element is the parameter, and it is the only thing the first two callers differed
- * in: the logging spec runs a script that throws on a header, the metrics spec one that always
- * throws. `between` came later, for the one case that needs a checkpoint on the path, and it is a
- * wiring difference rather than a second prologue.
+ * The terminal element is the parameter, and it is what the callers differ in. `between` is for the
+ * one case that needs a checkpoint on the path, and it is a wiring difference rather than a second
+ * prologue.
  *
  * Every step of that — the trigger, the connections, the logging write, the diagnostics note and
  * the `built` entry that makes the caller's `finally` releasable — is `createStepsChain`, so this
