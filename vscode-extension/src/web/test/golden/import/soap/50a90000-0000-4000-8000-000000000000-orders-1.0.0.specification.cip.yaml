@@ -51,8 +51,18 @@ content:
                 - quantity
             Type_http_orders_qip_test__Payment:
               anyOf:
-                - type: string
-                - type: string
+                - type: object
+                  properties:
+                    card:
+                      type: string
+                  required:
+                    - card
+                - type: object
+                  properties:
+                    invoiceRef:
+                      type: string
+                  required:
+                    - invoiceRef
             Type_http_orders_qip_test__Metadata:
               type: object
               properties:

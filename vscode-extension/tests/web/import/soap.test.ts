@@ -25,11 +25,10 @@
 //   - `Type_…Order` carries `orderId` and `total` from `OrderSummary` through `xsd:complexContent`
 //     as well as its own `customer` and `lines`. That is the second of the two defects Task 1 of
 //     the plan found and fixed; before the fix the two inherited fields were dropped
-//   - `Type_…Payment` comes out `anyOf: [{ type: string }, { type: string }]`. The `xsd:choice` arm
-//     resolves each option through `buildSchemaFromElement`, which looks an inline `xsd:element` up
-//     among the top-level declarations and misses, so the option names `card` and `invoiceRef` are
-//     nowhere. The golden records that; it is a narrower third candidate defect, reported and not
-//     fixed
+//   - `Type_…Payment` comes out an `anyOf` of two objects, one carrying `card` and one
+//     `invoiceRef`. The `xsd:choice` arm reads each option with `buildSequenceElementSchema`, the
+//     reader the sequence arm uses, so an option names the element it declares. Until that repair
+//     both options were a bare `{ type: string }` and the two names reached no file
 //   - `shippingAddress` references `ext:AddressType` from the `.xsd` and comes out
 //     `{ type: string }`: `collectSchemas` walks only `wsdl:types`, so a standalone `.xsd`
 //     contributes no schema entry

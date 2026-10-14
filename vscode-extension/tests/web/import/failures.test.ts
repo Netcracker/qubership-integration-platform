@@ -273,43 +273,35 @@ describe("a refused specification import", () => {
   });
 
   describe("a malformed specification", () => {
-    test("a WSDL with no definitions element imports with no warning at all", async () => {
-      // The observed behavior, which this case pins rather than asks to change: `WsdlParser`
-      // treats a document with no `wsdl:definitions` as a WSDL with nothing in it, so the import
-      // succeeds, writes the whole tree and reports neither an error nor a warning. The
-      // specification it leaves behind carries an empty operation list. No environment is created,
-      // because the document has no `soap:address` to build a candidate from.
+    test("a WSDL whose root is in no WSDL namespace reaches the user as a refusal", async () => {
+      // The file is detected as SOAP by its extension alone, so it reaches `WsdlParser`, which
+      // refuses a root element in neither WSDL namespace. Until that guard the document parsed as
+      // a WSDL with nothing in it, and the import wrote the whole tree — a specification with an
+      // empty operation list, its group file and the source copy — and reported neither an error
+      // nor a warning. The route out is the one the proto case below takes: `runImport` turns the
+      // parser's text into the `warningMessage` and the dialog, and the only write that survives is
+      // the service file `ensureSystemProtocol` had already rewritten to `SOAP`.
       const serviceFileUri = seedServiceDocument({ id: SERVICE_ID });
 
       const result = await importGroup(serviceFileUri, [
         serializedFile("broken.wsdl", "<notDefinitions><oops/></notDefinitions>\n"),
       ]);
 
+      const message =
+        "Unsupported WSDL: root element <notDefinitions> is in no WSDL namespace";
       expect(result).toEqual({
         id: IMPORT_ID,
         specificationGroupId: GROUP_ID,
         done: true,
+        warningMessage: message,
       });
-      expect(errorMessagesShown()).toEqual([]);
+      expect(errorMessagesShown()).toEqual([message]);
 
       const tree = workspaceTree();
       expect(Object.keys(tree).sort()).toEqual(
-        [
-          "services",
-          SERVICE_DIR,
-          SERVICE_FILE,
-          `${SERVICE_DIR}/${SPECIFICATION_ID}.specification.cip.yaml`,
-          `${SERVICE_DIR}/${GROUP_ID}.specification-group.cip.yaml`,
-          `${SERVICE_DIR}/resources`,
-          `${SERVICE_DIR}/resources/source-${SPECIFICATION_ID}`,
-          `${SERVICE_DIR}/resources/source-${SPECIFICATION_ID}/broken.wsdl`,
-        ].sort(),
+        ["services", SERVICE_DIR, SERVICE_FILE].sort(),
       );
-      const specification = yaml.parse(
-        tree[`${SERVICE_DIR}/${SPECIFICATION_ID}.specification.cip.yaml`],
-      );
-      expect(specification.content.operations).toEqual([]);
-      expect(yaml.parse(tree[SERVICE_FILE]).content.environments).toEqual([]);
+      expect(yaml.parse(tree[SERVICE_FILE]).content.protocol).toBe("SOAP");
     });
 
     test("a proto with a syntax error reaches the user as the parser's own message", async () => {

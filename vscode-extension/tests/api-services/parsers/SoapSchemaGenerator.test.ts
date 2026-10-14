@@ -23,8 +23,8 @@
 //   - reachable only from a degenerate document: a `wsdl:part` with no name, element or type, a
 //     `wsdl:definitions` with no `targetNamespace` that still prefixes its message references, and
 //     a non-element child of an `xsd:sequence`
-//   - reachable and not covered: an `xsd:element ref` inside an `xsd:choice`, an unprefixed type
-//     reference inside a schema, and a `complexContent` extension whose base is not an object
+//   - reachable and not covered: an unprefixed type reference inside a schema, and a
+//     `complexContent` extension whose base is not an object
 import { SoapSchemaGenerator } from "../../../src/web/api-services/parsers/soap/SoapSchemaGenerator";
 import { WsdlParser } from "../../../src/web/api-services/parsers/soap/WsdlParser";
 
@@ -428,6 +428,220 @@ describe("SoapSchemaGenerator", () => {
         properties: { label: { type: "string" } },
         required: ["label"],
       },
+    });
+  });
+
+  // `buildChoiceSchema` over the three shapes the golden fixture's `Payment` does not declare: an
+  // option by `ref`, an unbounded option and an optional one. The fixture declares two mandatory
+  // inline options, which is the one shape that reaches neither `buildSequenceElementSchema` arm's
+  // second half.
+  it("names every option of a choice, by ref, unbounded and optional", () => {
+    const schema = requestSchema(
+      operationBody(
+        `    <wsdl:part name="how" type="tns:Payment"/>`,
+        `  <wsdl:types>
+    <xsd:schema targetNamespace="${TNS}">
+      <xsd:element name="voucher" type="xsd:string"/>
+      <xsd:complexType name="Payment">
+        <xsd:choice>
+          <xsd:element name="card" type="xsd:string"/>
+          <xsd:element ref="tns:voucher"/>
+          <xsd:element name="codes" type="xsd:string" maxOccurs="unbounded"/>
+          <xsd:element name="note" type="xsd:string" minOccurs="0"/>
+          <!-- Not an element, so it contributes no option. -->
+          <xsd:any/>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:schema>
+  </wsdl:types>`,
+      ),
+    );
+
+    expect(schema.definitions.Type_urn_test_Payment).toEqual({
+      anyOf: [
+        {
+          type: "object",
+          properties: { card: { type: "string" } },
+          required: ["card"],
+        },
+        {
+          type: "object",
+          properties: {
+            voucher: { $ref: "#/definitions/Element_urn_test_voucher" },
+          },
+          required: ["voucher"],
+        },
+        {
+          type: "object",
+          properties: {
+            codes: { type: "array", items: { type: "string" } },
+          },
+          required: ["codes"],
+        },
+        // `minOccurs="0"` leaves the option's own element optional inside it.
+        { type: "object", properties: { note: { type: "string" } } },
+      ],
+    });
+  });
+
+  // The `complexContent` extension arm over the two model groups it ignored until this repair. The
+  // golden fixture extends a named base with an `xsd:sequence`, the one group that arm handled, so
+  // an `xsd:all` and an `xsd:choice` under an extension lost their declared fields silently.
+  it("merges an all and keeps a choice under a complexContent extension", () => {
+    const schema = requestSchema(
+      operationBody(
+        `    <wsdl:part name="a" type="tns:WithAll"/>
+    <wsdl:part name="c" type="tns:WithChoice"/>`,
+        `  <wsdl:types>
+    <xsd:schema targetNamespace="${TNS}">
+      <xsd:complexType name="Base">
+        <xsd:sequence>
+          <xsd:element name="id" type="xsd:string"/>
+        </xsd:sequence>
+      </xsd:complexType>
+      <xsd:complexType name="WithAll">
+        <xsd:complexContent>
+          <xsd:extension base="tns:Base">
+            <xsd:all>
+              <xsd:element name="label" type="xsd:string"/>
+            </xsd:all>
+          </xsd:extension>
+        </xsd:complexContent>
+      </xsd:complexType>
+      <xsd:complexType name="WithChoice">
+        <xsd:complexContent>
+          <xsd:extension base="tns:Base">
+            <xsd:choice>
+              <xsd:element name="left" type="xsd:string"/>
+              <xsd:element name="right" type="xsd:int"/>
+            </xsd:choice>
+          </xsd:extension>
+        </xsd:complexContent>
+      </xsd:complexType>
+    </xsd:schema>
+  </wsdl:types>`,
+      ),
+    );
+
+    // An `xsd:all` merges exactly as a sequence does: the base's field and the extension's own.
+    expect(schema.definitions.Type_urn_test_WithAll).toEqual({
+      type: "object",
+      properties: { id: { type: "string" }, label: { type: "string" } },
+      required: ["id", "label"],
+    });
+    // A choice cannot merge into one property set, so its options stay beside the base's fields.
+    expect(schema.definitions.Type_urn_test_WithChoice).toEqual({
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+      anyOf: [
+        {
+          type: "object",
+          properties: { left: { type: "string" } },
+          required: ["left"],
+        },
+        {
+          type: "object",
+          properties: { right: { type: "integer" } },
+          required: ["right"],
+        },
+      ],
+    });
+  });
+  // A named base that declares the choice, which the case above does not: there the choice is the
+  // extension's and the base is a sequence. Composing the two schemas the other way round dropped
+  // the base's alternatives, whichever group the extension declared.
+  it("keeps the base's choice under a complexContent extension", () => {
+    const schema = requestSchema(
+      operationBody(
+        `    <wsdl:part name="c" type="tns:ChoiceOverChoice"/>
+    <wsdl:part name="s" type="tns:SequenceOverChoice"/>
+    <wsdl:part name="d" type="tns:SequenceOverComposed"/>`,
+        `  <wsdl:types>
+    <xsd:schema targetNamespace="${TNS}">
+      <xsd:complexType name="ChoiceBase">
+        <xsd:choice>
+          <xsd:element name="baseA" type="xsd:string"/>
+          <xsd:element name="baseB" type="xsd:int"/>
+        </xsd:choice>
+      </xsd:complexType>
+      <xsd:complexType name="ChoiceOverChoice">
+        <xsd:complexContent>
+          <xsd:extension base="tns:ChoiceBase">
+            <xsd:choice>
+              <xsd:element name="childA" type="xsd:string"/>
+              <xsd:element name="childB" type="xsd:string"/>
+            </xsd:choice>
+          </xsd:extension>
+        </xsd:complexContent>
+      </xsd:complexType>
+      <xsd:complexType name="SequenceOverChoice">
+        <xsd:complexContent>
+          <xsd:extension base="tns:ChoiceBase">
+            <xsd:sequence>
+              <xsd:element name="childId" type="xsd:string"/>
+            </xsd:sequence>
+          </xsd:extension>
+        </xsd:complexContent>
+      </xsd:complexType>
+      <xsd:complexType name="SequenceOverComposed">
+        <xsd:complexContent>
+          <xsd:extension base="tns:ChoiceOverChoice">
+            <xsd:sequence>
+              <xsd:element name="leaf" type="xsd:string"/>
+            </xsd:sequence>
+          </xsd:extension>
+        </xsd:complexContent>
+      </xsd:complexType>
+    </xsd:schema>
+  </wsdl:types>`,
+      ),
+    );
+
+    const baseOptions = [
+      {
+        type: "object",
+        properties: { baseA: { type: "string" } },
+        required: ["baseA"],
+      },
+      {
+        type: "object",
+        properties: { baseB: { type: "integer" } },
+        required: ["baseB"],
+      },
+    ];
+
+    const childOptions = [
+      {
+        type: "object",
+        properties: { childA: { type: "string" } },
+        required: ["childA"],
+      },
+      {
+        type: "object",
+        properties: { childB: { type: "string" } },
+        required: ["childB"],
+      },
+    ];
+
+    // Two choices are two constraints, and one `anyOf` cannot hold both, so each keeps its own.
+    expect(schema.definitions.Type_urn_test_ChoiceOverChoice).toEqual({
+      allOf: [{ anyOf: baseOptions }, { anyOf: childOptions }],
+    });
+    // The extension's fields and the base's alternatives, the mirror of the case above.
+    expect(schema.definitions.Type_urn_test_SequenceOverChoice).toEqual({
+      type: "object",
+      properties: { childId: { type: "string" } },
+      required: ["childId"],
+      anyOf: baseOptions,
+    });
+    // A third level, where the base is the composed type above: both constraints it carries reach
+    // the leaf, which otherwise accepted a document holding `leaf` alone.
+    expect(schema.definitions.Type_urn_test_SequenceOverComposed).toEqual({
+      type: "object",
+      properties: { leaf: { type: "string" } },
+      required: ["leaf"],
+      allOf: [{ anyOf: baseOptions }, { anyOf: childOptions }],
     });
   });
 });
