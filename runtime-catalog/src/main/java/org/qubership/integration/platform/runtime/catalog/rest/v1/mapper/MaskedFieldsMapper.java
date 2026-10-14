@@ -39,12 +39,8 @@ public interface MaskedFieldsMapper {
     @Mapping(source = "dto.modifiedWhen", target = "modifiedWhen")
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "description", ignore = true)
-    @Mapping(target = "snapshot", ignore = true)
     MaskedField asEntity(Chain chain, MaskedFieldDTO dto);
 
-    @Mapping(target = "description", ignore = true)
-    @Mapping(target = "chain", ignore = true)
-    @Mapping(target = "snapshot", ignore = true)
     MaskedField asEntity(MaskedFieldDTO dto);
 
 }

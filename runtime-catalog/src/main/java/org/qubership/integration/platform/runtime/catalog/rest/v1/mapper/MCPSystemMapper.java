@@ -24,20 +24,10 @@ public interface MCPSystemMapper {
     MCPSystemResponseDTO toResponseDto(MCPSystem system);
 
     @Mapping(target = "labels", ignore = true)
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "chains", ignore = true)
     MCPSystem updateWithoutLabels(@MappingTarget MCPSystem contextSystem, MCPSystemRequestDTO request);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "system", ignore = true)
     MCPSystemLabel updateLabel(@MappingTarget MCPSystemLabel label, SystemLabelDTO labelDTO);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "system", ignore = true)
     MCPSystemLabel asLabel(SystemLabelDTO labelDTO);
 
     List<MCPSystemLabel> asLabels(List<SystemLabelDTO> labelDTOs);

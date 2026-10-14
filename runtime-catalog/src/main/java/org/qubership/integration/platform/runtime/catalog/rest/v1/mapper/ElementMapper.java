@@ -52,15 +52,12 @@ public abstract class ElementMapper {
     @Mapping(source = "parent.id", target = "parentElementId")
     @Mapping(source = "chain.id", target = "chainId")
     @Mapping(source = "swimlane.id", target = "swimlaneId")
-    @Mapping(target = "children", ignore = true)
-    @Mapping(target = "mandatoryChecksPassed", ignore = true)
     public abstract void elementToResponse(@MappingTarget ElementResponse target, ChainElement element);
 
     @Mapping(source = "elements", target = "children")
     @Mapping(source = "parent.id", target = "parentElementId")
     @Mapping(source = "chain.id", target = "chainId")
     @Mapping(source = "swimlane.id", target = "swimlaneId")
-    @Mapping(target = "mandatoryChecksPassed", ignore = true)
     public abstract void containerElementToResponse(@MappingTarget ElementResponse target, ContainerChainElement container);
 
     public List<ElementWithChainNameResponse> toElementWithChainNameResponses(List<Pair<String, ChainElement>> elementsPairs) {
@@ -98,20 +95,6 @@ public abstract class ElementMapper {
         return toElementResponses(chain.getRootElements());
     }
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "chain", ignore = true)
-    @Mapping(target = "parent", ignore = true)
-    @Mapping(target = "swimlane", ignore = true)
-    @Mapping(target = "environment", ignore = true)
-    @Mapping(target = "snapshot", ignore = true)
-    @Mapping(target = "originalId", ignore = true)
-    @Mapping(target = "inputDependencies", ignore = true)
-    @Mapping(target = "outputDependencies", ignore = true)
-    @Mapping(target = "validationAlerts", ignore = true)
     public abstract void patch(@MappingTarget ChainElement element, PatchElementRequest request);
 
     public abstract void merge(@MappingTarget ChainElement element, ChainElement request);

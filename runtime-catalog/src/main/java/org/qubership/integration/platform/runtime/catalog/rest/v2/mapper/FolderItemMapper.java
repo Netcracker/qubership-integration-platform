@@ -21,23 +21,8 @@ import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 )
 public interface FolderItemMapper {
     @Mapping(target = "id", nullValueCheckStrategy = NullValueCheckStrategy.ALWAYS)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "parentFolder", ignore = true)
-    @Mapping(target = "folderList", ignore = true)
-    @Mapping(target = "chainList", ignore = true)
     Folder asFolder(CreateFolderRequest request);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "parentFolder", ignore = true)
-    @Mapping(target = "folderList", ignore = true)
-    @Mapping(target = "chainList", ignore = true)
     Folder asFolder(UpdateFolderRequest request);
 
     @Mapping(source = "parentFolder.id", target = "parentId")

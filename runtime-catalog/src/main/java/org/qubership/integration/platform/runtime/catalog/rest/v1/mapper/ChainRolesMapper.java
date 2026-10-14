@@ -44,19 +44,16 @@ public interface ChainRolesMapper {
     @Mapping(source = "chain.id", target = "chainId")
     @Mapping(source = "chain.name", target = "chainName")
     @Mapping(source = "chain.unsavedChanges", target = "unsavedChanges")
-    @Mapping(target = "deploymentStatus", ignore = true)
     ChainRolesDTO asChainRolesResponse(ChainElement chainElement);
 
     @Mapping(source = "deployment.domain", target = "domain")
     @Mapping(source = "deployment.snapshot.id", target = "snapshotId")
     @Mapping(source = "deployment.suspended", target = "suspended")
-    @Mapping(target = "description", ignore = true)
     DeploymentRequest prepareDeploymentRequest(Deployment deployment);
 
     List<DeploymentRequest> prepareDeploymentRequest(List<Deployment> deployment);
 
     @Mapping(target = "domain", constant = "default")
     @Mapping(source = "id", target = "snapshotId")
-    @Mapping(target = "suspended", ignore = true)
     DeploymentRequest prepareDeploymentRequest(Snapshot snapshot);
 }

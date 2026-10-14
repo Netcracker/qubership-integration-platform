@@ -17,16 +17,11 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.ImportInstructionRequest;
 
 @Mapper(componentModel = "spring")
 public interface ImportInstructionRequestMapper {
 
-    @Mapping(target = "labels", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "entityName", ignore = true)
-    @Mapping(target = "overriddenByName", ignore = true)
     ImportInstruction toEntity(ImportInstructionRequest request);
 }

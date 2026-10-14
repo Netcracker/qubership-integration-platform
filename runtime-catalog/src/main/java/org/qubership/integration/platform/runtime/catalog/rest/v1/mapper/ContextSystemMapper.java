@@ -52,22 +52,10 @@ public interface ContextSystemMapper {
                 .build();
     }
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "chains", ignore = true)
     ContextSystem update(@MappingTarget ContextSystem contextSystem, ContextSystemUpdateRequestDTO request);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "labels", ignore = true)
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "chains", ignore = true)
     void mergeWithoutLabels(@MappingTarget ContextSystem contextSystem, ContextSystemUpdateRequestDTO request);
 
     List<ContextSystemLabel> asLabelRequests(List<SystemLabelDTO> labels);

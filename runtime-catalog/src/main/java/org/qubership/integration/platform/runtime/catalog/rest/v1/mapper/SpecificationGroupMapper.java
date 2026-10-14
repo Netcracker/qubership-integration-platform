@@ -42,22 +42,8 @@ public interface SpecificationGroupMapper {
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "labels", ignore = true)
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "name", ignore = true)
-    @Mapping(target = "description", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "nonTechnicalLabels", ignore = true)
-    @Mapping(target = "url", ignore = true)
-    @Mapping(target = "system", ignore = true)
-    @Mapping(target = "systemModels", ignore = true)
-    @Mapping(target = "chains", ignore = true)
     void mergeWithoutLabels(SpecificationGroupRequestDTO specificationGroupDTO, @MappingTarget SpecificationGroup specificationGroup);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "specificationGroup", ignore = true)
     SpecificationGroupLabel asLabelRequest(SpecificationGroupLabelDTO snapshotLabel);
 
     List<SpecificationGroupLabel> asLabelRequests(List<SpecificationGroupLabelDTO> snapshotLabel);

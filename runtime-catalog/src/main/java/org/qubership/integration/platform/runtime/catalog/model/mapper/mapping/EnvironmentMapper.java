@@ -44,22 +44,8 @@ public abstract class EnvironmentMapper {
 
     public abstract List<EnvironmentDTO> toDTOs(List<Environment> environments);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "description", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "system", ignore = true)
     public abstract Environment toEnvironment(EnvironmentRequestDTO environmentRequestDTO);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "description", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "system", ignore = true)
     public abstract void merge(EnvironmentRequestDTO environmentRequestDTO, @MappingTarget Environment environment);
 
     @SuppressWarnings("unused")

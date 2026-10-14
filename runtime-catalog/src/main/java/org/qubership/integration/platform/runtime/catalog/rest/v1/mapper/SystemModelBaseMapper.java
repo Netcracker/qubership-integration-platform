@@ -34,13 +34,10 @@ public interface SystemModelBaseMapper {
 
     @Mapping(target = "specificationGroupId", source = "systemModel.specificationGroup.id")
     @Mapping(target = "systemId", source = "systemModel.specificationGroup.system.id")
-    @Mapping(target = "active", ignore = true)
     SystemModelBaseDTO toDTO(SystemModel systemModel);
 
     List<SystemModelBaseDTO> toDTOs(List<SystemModel> systemModels);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "specification", ignore = true)
     SystemModelLabel asLabelRequest(SystemModelLabelDTO snapshotLabel);
 
     List<SystemModelLabel> asLabelRequests(List<SystemModelLabelDTO> snapshotLabel);

@@ -47,23 +47,8 @@ public interface SnapshotMapper {
 
     List<SnapshotResponse> asResponse(List<Snapshot> snapshots);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "description", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "xmlDefinition", ignore = true)
-    @Mapping(target = "chain", ignore = true)
-    @Mapping(target = "deployments", ignore = true)
-    @Mapping(target = "elements", ignore = true)
-    @Mapping(target = "defaultSwimlane", ignore = true)
-    @Mapping(target = "reuseSwimlane", ignore = true)
-    @Mapping(target = "maskedFields", ignore = true)
     Snapshot asRequest(SnapshotRequest snapshot);
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "snapshot", ignore = true)
     SnapshotLabel asLabelRequest(SnapshotLabelDTO snapshotLabel);
 
     List<SnapshotLabel> asLabelRequests(List<SnapshotLabelDTO> snapshotLabel);

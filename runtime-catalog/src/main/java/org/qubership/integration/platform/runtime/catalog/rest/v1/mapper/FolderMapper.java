@@ -45,14 +45,6 @@ public abstract class FolderMapper {
     @Autowired
     private ChainMapper chainMapper;
 
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "createdWhen", ignore = true)
-    @Mapping(target = "modifiedWhen", ignore = true)
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "modifiedBy", ignore = true)
-    @Mapping(target = "parentFolder", ignore = true)
-    @Mapping(target = "folderList", ignore = true)
-    @Mapping(target = "chainList", ignore = true)
     public abstract Folder asEntity(FolderItemRequest request);
 
     @Mapping(source = "parentFolder", target = "parentId")
@@ -68,18 +60,6 @@ public abstract class FolderMapper {
     }
 
     @Mapping(source = "parentFolder.id", target = "parentId")
-    @Mapping(target = "itemType", ignore = true)
-    @Mapping(target = "labels", ignore = true)
-    @Mapping(target = "deployments", ignore = true)
-    @Mapping(target = "chainRuntimeProperties", ignore = true)
-    @Mapping(target = "businessDescription", ignore = true)
-    @Mapping(target = "assumptions", ignore = true)
-    @Mapping(target = "outOfScope", ignore = true)
-    @Mapping(target = "overriddenByChainId", ignore = true)
-    @Mapping(target = "overriddenByChainName", ignore = true)
-    @Mapping(target = "overridesChainId", ignore = true)
-    @Mapping(target = "overridesChainName", ignore = true)
-    @Mapping(target = "items", ignore = true)
     public abstract SearchFilterItemResponse asSearchItemResponse(Folder entity);
 
     public SearchFilterItemResponse asFolderSearchResponse(Folder entity) {
@@ -103,23 +83,9 @@ public abstract class FolderMapper {
     public abstract List<FolderItemResponse> asFolderItemResponse(Collection<Folder> folder);
 
     @Mapping(source = "parentFolder.id", target = "parentId")
-    @Mapping(target = "itemType", ignore = true)
-    @Mapping(target = "labels", ignore = true)
-    @Mapping(target = "deployments", ignore = true)
-    @Mapping(target = "chainRuntimeProperties", ignore = true)
-    @Mapping(target = "businessDescription", ignore = true)
-    @Mapping(target = "assumptions", ignore = true)
-    @Mapping(target = "outOfScope", ignore = true)
-    @Mapping(target = "overriddenByChainId", ignore = true)
-    @Mapping(target = "overriddenByChainName", ignore = true)
-    @Mapping(target = "overridesChainId", ignore = true)
-    @Mapping(target = "overridesChainName", ignore = true)
     public abstract FolderItemResponse asFolderItemResponse(Folder entity);
 
     @Mapping(source = "parentFolder.id", target = "parentId")
-    @Mapping(target = "navigationPath", ignore = true)
-    @Mapping(target = "items", ignore = true)
-    @Mapping(target = "labels", ignore = true)
     public abstract void merge(@MappingTarget FolderResponse dto, Folder entity);
 
     private void buildItemList(@MappingTarget FolderResponse responseDTO, Folder folder) {
