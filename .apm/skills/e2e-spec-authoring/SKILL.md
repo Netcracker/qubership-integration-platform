@@ -172,7 +172,9 @@ right now, so a controller added to a service fails a run.
    lives in `env/compose.ts` and `env/k8s.ts`. Without that seam the suite cannot run on a cluster,
    and the micro engine exists only there. Two `specs/schema/` files construct an `Env` directly, and
    neither reaches a stack: `report.spec.ts` builds a `ComposeEnv` to read a URL off, and
-   `k8s-adapter.spec.ts` builds `K8sEnv` instances to unit-test the adapter. `specs/k8s/` is the
+   `k8s-adapter.spec.ts` builds `K8sEnv` instances to unit-test the adapter. `tokenedDomain` in
+   `support/deployable.ts` builds the `K8sEnv` of a micro domain that a spec creates for itself
+   (rule 20). `specs/k8s/` is the
    exception to the first half: its specs run on the Kubernetes target alone and read Integrations,
    ConfigMaps, HTTPRoutes, and Services through `support/kube.ts`, a `kubectl` reader that no spec
    outside `specs/k8s/` imports.
@@ -219,10 +221,12 @@ right now, so a controller added to a service fails a run.
     - It is for a divergence a spec can reproduce on demand. Where no create path manufactures the
       offending state, such as an element of a type the library does not offer, the spec asserts the
       healthy contract and prints the query that finds the offender instead.
-    - A defect that only a stack holding enough data meets would turn a plain `test.fail()` red on a
-      small stack. Wrap the step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
-      `support/known-defect.ts`: the case becomes an expected failure only when the step throws that
-      defect, and the defect's `matches` gets a case in `specs/schema/conditional-defects.spec.ts`.
+    - A defect that only one engine meets would turn a plain `test.fail()` red on the other. Wrap
+      the step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
+      `support/known-defect.ts`, which names the engine that meets the defect: the case becomes an
+      expected failure only when the step throws that defect on that engine, and the defect's
+      `matches` gets a case in `specs/schema/conditional-defects.spec.ts`. On the other engine the
+      same message stays a real failure, because a regression of the same feature can produce it.
 14. **A `specs/schema/` spec imports `test` and `expect` from `@playwright/test`, never from
     `support/fixtures.js`.** That module installs `auto: true` fixtures which create a folder over
     HTTP and shell out to `docker logs`, so one wrong import turns the `schema` project into one that
@@ -260,23 +264,27 @@ right now, so a controller added to a service fails a run.
     `sftp-trigger-2`, and `quartz-scheduler` correlate through `POST /v1/sessions/chains/{chainId}`
     filtered on the window the spec opened, then `GET /v1/sessions/{sessionId}` for the element
     trace.
-20. **A runtime spec reads `engineKind` in one place only.** `specs/runtime/` runs twice on `k8s`,
-    as `runtime` against the classic engine and as `runtime-micro` against the micro engine, and
-    `seedChain` returns the copy of the corpus that matches the project's `engineKind`. Only
-    `engine-identity.spec.ts` reads `engineKind`, because its subject is the engine kind. A
-    difference between the two engines is a finding, and only the run on one engine meets it: pin
-    it with `strikesAsKnown` and a `ConditionalDefect` (rule 13), name its issue, and never loosen
-    the assertion for one engine. A case the micro engine cannot run by design, such as a library
-    replaced under a deployed chain, a deployment parked for a retry, or a chain that fails to load
-    and so takes its micro domain down, carries the `@classic-only` tag and the annotation
-    `{ type: "classic-only", description: "<reason>" }` on its declaration line; the micro projects
-    leave it out through `grepInvert: /@classic-only/`. A case that deploys a chain of its own is
-    one of them, since a deploy into the shared micro domain rolls the pod under every
+20. **A spec reads `engineKind` in one place only.** On `k8s` a micro project runs the files of a
+    classic one against the micro engine: `runtime-micro` runs `specs/runtime/`, `brokers-micro`
+    runs `specs/brokers/`, `global-micro` runs the two engine files of `specs/global/`, and
+    `env-micro` runs `specs/env/restart-resilience.spec.ts`. A spec reads its corpus through
+    `seedChain` or `projectCorpus` in `support/corpus.ts`, or `brokerChain` in
+    `support/brokers.ts`, which return the copy the project's engine runs, and never branches on
+    `engineKind`. Only `engine-identity.spec.ts` reads it, because its subject is the engine kind. A
+    micro project names the state file that records its domain through `use: { microDomainState }`.
+    A difference between the two engines is a finding, and only the run on one engine meets it: pin
+    it with `strikesAsKnown` and a `ConditionalDefect` that names that engine (rule 13), name its
+    issue, and never loosen the assertion for one engine. A case the micro engine cannot run by
+    design, such as a library replaced under a deployed chain, a deployment parked for a retry, or a
+    chain that fails to load and so takes its micro domain down, carries the `@classic-only` tag and
+    the annotation `{ type: "classic-only", description: "<reason>" }` on its declaration line; the
+    micro projects leave it out through `grepInvert: /@classic-only/`. A case that deploys a chain
+    of its own is one of them, since a deploy into the shared micro domain rolls the pod under every
     `runtime-micro` case; every other case reads a chain both seeds deploy. The micro case of such a
     deploy goes in `specs/runtime-micro-redeploy/`, whose project runs one file at a time: the file
     deploys its chains in `beforeAll` to a micro domain of its own through `tokenedDomain` and
-    `deployToDomain` in `support/deployable.ts`, deletes it in `afterAll`, and calls the chains
-    through the `env` the helper returns.
+    `deployToDomain` in `support/deployable.ts` (`dispatchToDomain` for a chain that is not meant
+    to serve), deletes it in `afterAll`, and calls the chains through the `env` the helper returns.
     `specs/schema/target-rules.spec.ts` checks this rule, that the tag and the annotation come
     together, and the `support/kube.ts` half of rule 4.
 
@@ -289,7 +297,8 @@ exist for that shape, and each is invisible from inside the file that carries it
 - **Creation-path equivalence**, `specs/api/creation-path-equivalence.spec.ts`. A chain built through
   the API and the same chain restored from its own export are deployed, driven with one request, and
   their session traces compared. Every fixture spells out its full property set, which makes every
-  other spec blind to a schema-default defect.
+  other spec blind to a schema-default defect. Its micro half is in `specs/runtime-micro-redeploy/`;
+  both drive and compare through `support/equivalence.ts`.
 - **Process envelope**, `specs/env/process-envelope.spec.ts`. Every service is still the process the
   run started, its Metaspace is inside a stated share of its ceiling, and its peak memory and CPU are
   inside stated bands, sampled over the run.
@@ -312,6 +321,15 @@ creates and destroys itself is named in `SPEC_OWNED_FIXTURES` and the seed leave
 an import over a live id is an update and the two would fight over the same chain.
 `support/corpus.ts` is the one assembler, and every seed project calls it: a chain deployed alone
 pays the engine's deployment pickup on its own, about 2 s each against 0.49 s inside a batch.
+
+On `k8s`, `seed-micro` deploys a micro copy of every corpus chain to a micro domain of the run, so a
+fixture added to the corpus runs on both engines. `microCopy` in `fixtures/templating.ts` remaps the
+copy's ids and trigger paths. A chain that calls back into the engine calls `ENGINE_LOOPBACK`
+(`http://localhost:8080/routes/…`), in its own URI or as a service's address, and `microCopy`
+rewrites that call to the callee's micro copy. The micro engine resolves `#{…}` once, when the domain
+loads, so a corpus chain reads no common variable except the one both seeds write
+(`placeholderVariable`). `specs/schema/corpus-copies.spec.ts` checks the loopback rewrite and the
+variables.
 
 Three steps happen in an order that is not negotiable:
 
