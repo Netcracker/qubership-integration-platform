@@ -8,6 +8,9 @@
  * other worker is doing at that instant. `specs/global/` runs one worker after `api`, `runtime` and
  * `env`, which is what makes the readings below stable enough to assert.
  *
+ * `global-micro` runs this file again on the shared micro domain. The cases the micro engine fails
+ * are pinned with the defects in `micro-defects.ts`.
+ *
  * **The timing is handled by holding the exchange, never by sleeping and hoping.** An exchange can
  * finish before the first list call, and
  * "not in the list" on its own distinguishes nothing — an empty list is the answer for a call that
@@ -21,9 +24,9 @@
  * - **204 on empty, on both services.** `CollectionUtils.isEmpty(result)` answers
  *   `ResponseEntity.noContent()`, so a client parsing the body gets a parse error rather than `[]`.
  *   The transports unwrap it; one case asserts the raw status.
- * - **`limit` is `@Positive` and validated.** `?limit=0` answers **400** on both services, because
- *   each has a handler for `ConstraintViolationException`. The engine answered 500 with a stack trace
- *   until #1138.
+ * - **`limit` is `@Positive` and validated.** `?limit=0` answers **400** on the catalog and **500**
+ *   on the classic engine — the catalog has a handler for `ConstraintViolationException` and the
+ *   classic engine does not.
  * - **the filter key is `column`, not `feature`.** `FilterRequestDTO.feature` carries
  *   `@JsonProperty("column")`. A body spelling `feature` is accepted and silently ignored, because
  *   Jackson leaves the field null and `isApplicable` is then false for every filter, so the clause
@@ -42,13 +45,14 @@
  *   on both services, and an address that is no registered engine pod is a 404 of its own.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { ENGINE_CASE_TIMEOUT, readCorpusState, seedChain } from "../../support/corpus.js";
+import { ENGINE_CASE_TIMEOUT, projectCorpus, readCorpusState, seedChain } from "../../support/corpus.js";
 import { element } from "../../support/sessions.js";
 import { tokenized } from "../../support/run.js";
-import { DEFAULT_DOMAIN } from "../../support/catalog.js";
 import type { Catalog, LiveExchangeExtView } from "../../support/catalog.js";
-import { hold, untilListed } from "../../support/held-call.js";
+import { hold, untilListed, withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import type { LiveExchange } from "../../support/engine.js";
+import { strikesAsKnown } from "../../support/known-defect.js";
+import { KILL_NOT_FOUND_UNSPECIFIC, LIMIT_REFUSED_WITH_400, LIVE_EXCHANGE_UNLISTED } from "./micro-defects.js";
 
 /** The fixture whose script holds the exchange. Its hold is a header, so one deployment serves all. */
 const HOLDING_FIXTURE = "long-running";
@@ -61,6 +65,11 @@ const KILLED_MESSAGE = "Chain was interrupted manually";
 
 /** How long a held call stays in flight. Long enough to poll for it twice over on a loaded stack. */
 const HOLD_MS = 12_000;
+
+/** The held exchange as the catalog lists it, or the known micro defect when it is never listed. */
+function listedWhileHeld(catalog: Catalog, call: HeldCall, chainId: string): Promise<LiveExchangeExtView> {
+  return strikesAsKnown(LIVE_EXCHANGE_UNLISTED, () => withHeldAnswer(call, () => untilListed(catalog, chainId)));
+}
 
 /** Waits until the platform reports nothing in flight, so an emptiness assertion means something. */
 async function untilNothingInFlight(catalog: Catalog): Promise<void> {
@@ -90,12 +99,12 @@ test("an exchange in flight is listed by both services with one identity, and le
 
   const call = hold(request, env, chain.contextPath, HOLD_MS);
   try {
-    const listed = await untilListed(catalog, chain.id);
+    const listed = await listedWhileHeld(catalog, call, chain.id);
 
     // The catalog row is the engine's row plus the two fields the catalog adds. Asserted as a pair
     // so a fan-out that lost the chain name, or one that reported the wrong pod, fails here.
     expect(listed.chainName).toBe(chain.name);
-    expect(listed.podIp).toBe((await catalog.engineHosts())[DEFAULT_DOMAIN][0]);
+    expect(listed.podIp).toBe((await catalog.engineHosts())[projectCorpus().domain][0]);
     expect(listed.main).toBe(true);
     expect(listed.sessionLogLevel).toBe("DEBUG");
     expect(listed.duration, "the exchange reports no duration").toBeGreaterThan(0);
@@ -146,7 +155,7 @@ test("the filter form selects the chain it names and excludes it the other way r
 
   const call = hold(request, env, chain.contextPath, HOLD_MS);
   try {
-    const listed = await untilListed(catalog, chain.id);
+    const listed = await listedWhileHeld(catalog, call, chain.id);
 
     const selected = await catalog.filterLiveExchanges([
       { column: "CHAIN_NAME", condition: "CONTAINS", value: chain.name },
@@ -213,7 +222,7 @@ test("killing an exchange through the catalog interrupts the chain and the sessi
   try {
     // The `podIp` is learnable only from this list, which is the reason the kill is a global
     // operation rather than something a chain-scoped caller could do.
-    const listed = await untilListed(catalog, chain.id);
+    const listed = await listedWhileHeld(catalog, call, chain.id);
     const killed = await catalog.killLiveExchange(
       listed.podIp,
       listed.deploymentId,
@@ -268,15 +277,19 @@ test("killing through the engine needs no pod address and does the same thing", 
     // Straight to the engine, which is where the catalog's kill ends up: the deployment and the
     // exchange are all it needs, because a pod can only kill what it is running.
     let running: LiveExchange[] = [];
-    await expect
-      .poll(
-        async () => {
-          running = await engine.liveExchanges();
-          return running.some((each) => each.chainId === chain.id);
-        },
-        { message: `the engine never reported an exchange for ${chain.name}` },
-      )
-      .toBe(true);
+    await strikesAsKnown(LIVE_EXCHANGE_UNLISTED, () =>
+      withHeldAnswer(call, () =>
+        expect
+          .poll(
+            async () => {
+              running = await engine.liveExchanges();
+              return running.some((each) => each.chainId === chain.id);
+            },
+            { message: `the engine never reported an exchange for ${chain.name}` },
+          )
+          .toBe(true),
+      ),
+    );
     const mine = running.find((each) => each.chainId === chain.id)!;
 
     expect((await engine.killExchange(mine.deploymentId, mine.exchangeId)).status()).toBe(202);
@@ -291,7 +304,7 @@ test("killing through the engine needs no pod address and does the same thing", 
 });
 
 test("a kill aimed at nothing is a 404 on both services, and leaves no audit row", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, engine, run }) => {
-  const host = (await catalog.engineHosts())[DEFAULT_DOMAIN][0];
+  const host = (await catalog.engineHosts())[projectCorpus().domain][0];
   // The exchange id carries the run token, and that is what makes the audit assertion below an
   // assertion: `Catalog.recentActions` reads a ten-minute window, which is longer than a full run,
   // so a literal id would be satisfied by the row the previous run left.
@@ -301,7 +314,10 @@ test("a kill aimed at nothing is a 404 on both services, and leaves no audit row
   // with no such exchange are two different messages under one status.
   const noDeployment = await engine.killExchange("no-such-deployment", exchangeId);
   expect(noDeployment.status()).toBe(404);
-  expect(await noDeployment.text()).toContain("No deployment found for id no-such-deployment");
+  const noDeploymentText = await noDeployment.text();
+  await strikesAsKnown(KILL_NOT_FOUND_UNSPECIFIC, async () =>
+    expect(noDeploymentText, `the engine answered ${noDeploymentText}`).toContain("No deployment found for id no-such-deployment"),
+  );
 
   // Through the catalog this used to be a 500: `RestTemplate.delete` raised on the engine's 4xx and
   // `LiveExchangesService` did not catch it, so terminating an exchange that had already finished
@@ -331,17 +347,18 @@ test("a kill aimed at nothing is a 404 on both services, and leaves no audit row
   ).toEqual([]);
 });
 
-test("limit is validated, and refused with 400 by the catalog and the engine", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, engine }) => {
-  // `@Positive` on both. The engine had no handler for `ConstraintViolationException` and answered
-  // 500 with the stack trace in the body until #1138.
+test("limit is validated, and the two services disagree about how", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, engine }) => {
+  // `@Positive` on both, and the same violation reaches the caller as two different statuses: the
+  // catalog maps `ConstraintViolationException` to 400, the engine has no handler and falls through
+  // to its generic 500. Pinning both is what would notice either one changing.
   const fromCatalog = await catalog.liveExchangesResponse(0);
   expect(fromCatalog.status()).toBe(400);
   expect(await fromCatalog.text()).toContain("must be greater than 0");
 
   const fromEngine = await engine.raw("get", "/v1/engine/live-exchanges?limit=0");
   const fromEngineText = await fromEngine.text();
-  expect(fromEngine.status(), `the engine answered ${fromEngineText}`).toBe(400);
-  const body = JSON.parse(fromEngineText) as Record<string, unknown>;
-  expect(String(body.errorMessage)).toContain("must be greater than 0");
-  expect(body.stacktrace).toBe("No Stacktrace Available");
+  await strikesAsKnown(LIMIT_REFUSED_WITH_400, async () =>
+    expect(fromEngine.status(), `the engine answered ${fromEngineText}`).toBe(500),
+  );
+  expect(fromEngineText).toContain("must be greater than 0");
 });

@@ -247,6 +247,24 @@ test("runtime-micro-redeploy runs one file at a time after seed-micro, on the do
   expect(MICRO_REDEPLOY_STATE_FILE).not.toBe(MICRO_CORPUS_STATE_FILE);
 });
 
+test("global-micro runs the engine files of specs/global on the shared micro domain, one worker after global", { tag: ["@infra", "@tier1"] }, () => {
+  const project = targetSetup("k8s").projects.find((each) => each.name === "global-micro");
+  expect(project && schedule(project)).toBe(
+    "./specs/global /\\/(live-exchanges|runtime-deployments)\\.spec\\.ts$/; after global, seed-micro; 1 worker",
+  );
+  expect(project?.grepInvert).toEqual(/@classic-only/);
+  // The shared domain's state file, the default: global-micro deploys nothing.
+  expect(project?.use).toEqual({ engineKind: "micro" });
+  // Each file it names exists, so a rename cannot leave the project collecting nothing.
+  const files = fs.readdirSync(path.join(E2E_DIR, "specs", "global"));
+  expect(files.filter((file) => (project?.testMatch as RegExp).test(`/${file}`)).sort()).toEqual([
+    "live-exchanges.spec.ts",
+    "runtime-deployments.spec.ts",
+  ]);
+  // Compose declares no micro engine.
+  expect(composeProjects(undefined).map((each) => each.name)).not.toContain("global-micro");
+});
+
 test("brokers-micro-seed deploys to the domain its own state file records, and suite-teardown removes it", { tag: ["@infra", "@tier1"] }, () => {
   const project = withEnv({ E2E_BROKERS: undefined }, () => targetSetup("k8s")).projects.find(
     (each) => each.name === "brokers-micro-seed",
