@@ -225,6 +225,20 @@ function k8sProjects(): SuiteProject[] {
       dependencies: ["global", "seed-micro"],
       use: { engineKind: "micro" },
     },
+    {
+      // The engine and catalog restarts of `specs/env/`, against the shared micro domain, whose pod
+      // the engine restart deletes. After `global-micro`, which runs after `global` and so after
+      // `env`, so no micro JVM start overlaps the classic restarts, and after `runtime-micro`, whose
+      // cases call the pod this project deletes. The cost: a red `global` or `runtime-micro` case
+      // skips this project.
+      name: "env-micro",
+      testDir: "./specs/env",
+      testMatch: /restart-resilience\.spec\.ts$/,
+      grepInvert: /@classic-only/,
+      workers: 1,
+      dependencies: ["global-micro", "runtime-micro"],
+      use: { engineKind: "micro" },
+    },
   ];
 }
 
