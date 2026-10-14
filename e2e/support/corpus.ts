@@ -34,7 +34,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Catalog, type LoggingProperties } from "./catalog.js";
+import { Catalog, DEFAULT_DOMAIN, type LoggingProperties } from "./catalog.js";
 import {
   assembleCorpus,
   assembleTrees,
@@ -547,6 +547,8 @@ export interface ProjectCorpus {
   chains: SeedChain[];
   /** Sorted, to compare with the sorted `fixture` names of `chains`. */
   fixtures: string[];
+  /** The domain the catalog lists the copy's engine pods under. */
+  domain: string;
 }
 
 /**
@@ -556,8 +558,8 @@ export interface ProjectCorpus {
 export function projectCorpus(use: ProjectUse = projectUse()): ProjectCorpus {
   const micro = microCopyOf(use);
   return micro
-    ? { chains: micro.chains, fixtures: [...MICRO_FIXTURES].sort() }
-    : { chains: readCorpusState().chains, fixtures: corpusFixtureNames().sort() };
+    ? { chains: micro.chains, fixtures: [...MICRO_FIXTURES].sort(), domain: micro.domain }
+    : { chains: readCorpusState().chains, fixtures: corpusFixtureNames().sort(), domain: DEFAULT_DOMAIN };
 }
 
 /**

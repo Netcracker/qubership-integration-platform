@@ -2,8 +2,10 @@
  * The `matches` of every `ConditionalDefect`, against the failure messages it has to recognize and the
  * ones it must leave a real failure. No stack.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIResponse } from "@playwright/test";
 import { MOCK_BYPASSED } from "../runtime/service-call.js";
+import { KILL_NOT_FOUND_UNSPECIFIC, LIMIT_REFUSED_WITH_400, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
+import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { CONTEXT_STORE_UNTRANSACTED } from "../runtime/context-storage.js";
 import {
   PUBSUB_EMULATOR_BYPASSED,
@@ -114,4 +116,46 @@ test("withEngineLines returns what a successful wait returns and reads no log", 
   const env = { engineLogs: async () => { reads++; return ""; } } as unknown as Env;
   expect(await withEngineLines(env, "2026-10-14T06:18:41.203Z", "naming UNAUTHENTICATED", pubsubAuthFailure, async () => 42)).toBe(42);
   expect(reads).toBe(0);
+});
+
+/** What `withHeldAnswer` throws when `step` fails with `failure` and the held call answered `status` and `body`. */
+async function heldAnswerFailure(failure: string, status: number, body: string): Promise<string> {
+  const response = { status: () => status, text: async () => body } as unknown as APIResponse;
+  const call: HeldCall = { token: "t", answer: Promise.resolve(response) };
+  const thrown = await withHeldAnswer(call, async () => {
+    throw new Error(failure);
+  }).catch((error: unknown) => error);
+  return String(thrown);
+}
+
+test("an exchange the micro engine never listed while it was held is the known defect, and one that was not held is not", TAGS, async () => {
+  const held = '{"element":"long-running","heldMs":12000}';
+  const fromCatalog = await heldAnswerFailure("no live exchange for chain c1 was ever listed", 200, held);
+  expect(fromCatalog).toContain(`the held call answered 200 ${held}`);
+  expect(LIVE_EXCHANGE_UNLISTED.matches(fromCatalog)).toBe(true);
+  expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("the engine never reported an exchange for e2e-x-long-running", 200, held))).toBe(true);
+
+  // The call failed, or answered without holding, so nothing was in flight to list.
+  expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("no live exchange for chain c1 was ever listed", 503, "no healthy upstream"))).toBe(false);
+  expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("no live exchange for chain c1 was ever listed", 200, '{"element":"other"}'))).toBe(false);
+  // The exchange was listed, and a later assertion failed.
+  expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("expect(received).toBe(expected)\n\nExpected: true\nReceived: false", 200, held))).toBe(false);
+});
+
+test("withHeldAnswer returns what a successful step returns", TAGS, async () => {
+  const call: HeldCall = { token: "t", answer: new Promise<APIResponse>(() => undefined) };
+  expect(await withHeldAnswer(call, async () => 42)).toBe(42);
+});
+
+test("an unknown deployment the micro engine reports as an unknown exchange is the known defect, and another 404 is not", TAGS, () => {
+  const micro = `Error: the engine answered {"serviceName":"Engine","errorMessage":"No live exchange found for deployment id no-such-deployment"}\n\nexpect(received).toContain(expected) // indexOf`;
+  expect(KILL_NOT_FOUND_UNSPECIFIC.matches(micro)).toBe(true);
+  expect(KILL_NOT_FOUND_UNSPECIFIC.matches("Error: the engine answered Not Found\n\nexpect(received).toContain(expected) // indexOf")).toBe(false);
+});
+
+test("limit=0 refused with the micro engine's 400 is the known divergence, and another status is not", TAGS, () => {
+  const micro = `Error: the engine answered {"title":"Constraint Violation","status":400,"violations":[{"field":"getLiveExchanges.limit","message":"must be greater than 0"}]}\n\nExpected: 500\nReceived: 400`;
+  expect(LIMIT_REFUSED_WITH_400.matches(micro)).toBe(true);
+  expect(LIMIT_REFUSED_WITH_400.matches("Error: the engine answered no healthy upstream\n\nExpected: 500\nReceived: 503")).toBe(false);
+  expect(LIMIT_REFUSED_WITH_400.matches("Error: the engine answered \n\nExpected: 500\nReceived: 200")).toBe(false);
 });

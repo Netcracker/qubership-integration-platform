@@ -212,6 +212,19 @@ function k8sProjects(): SuiteProject[] {
       dependencies: ["seed-micro"],
       use: { engineKind: "micro", microDomainState: MICRO_REDEPLOY_STATE_FILE },
     },
+    {
+      // The two `specs/global/` files that read the engine, against the shared micro domain. After
+      // `global`, because `global` deletes every session in OpenSearch and the kill cases here read
+      // the sessions they caused. The cost is the trade `env` makes with `ui`: a red `global` case
+      // skips this project.
+      name: "global-micro",
+      testDir: "./specs/global",
+      testMatch: /\/(live-exchanges|runtime-deployments)\.spec\.ts$/,
+      grepInvert: /@classic-only/,
+      workers: 1,
+      dependencies: ["global", "seed-micro"],
+      use: { engineKind: "micro" },
+    },
   ];
 }
 

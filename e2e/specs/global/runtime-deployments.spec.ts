@@ -30,7 +30,7 @@
  *   to the same `String[]`, so the client sends the comma form and both are the same request.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { readCorpusState } from "../../support/corpus.js";
+import { projectCorpus } from "../../support/corpus.js";
 import type { Catalog, RuntimeDeployment } from "../../support/catalog.js";
 
 /**
@@ -44,7 +44,7 @@ async function corpusRows(
   catalog: Catalog,
 ): Promise<Array<{ fixture: string; chainId: string; rows: RuntimeDeployment[] }>> {
   const all = await catalog.runtimeDeployments();
-  return readCorpusState().chains.map((chain) => ({
+  return projectCorpus().chains.map((chain) => ({
     fixture: chain.fixture,
     chainId: chain.id,
     rows: all[chain.id] ?? [],
@@ -77,7 +77,7 @@ test("every seed chain is keyed by its own id, carrying the deployment the catal
 });
 
 test("fields reduces every row to the names it lists, at the top level and inside deploymentInfo", { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-  const corpus = readCorpusState().chains;
+  const corpus = projectCorpus().chains;
 
   // One top-level name on its own: the row is that key and nothing else, `deploymentInfo`
   // included. A filter that left the nested object in would make the parameter useless to the UI,
@@ -109,7 +109,7 @@ test("fields reduces every row to the names it lists, at the top level and insid
 });
 
 test("a field name nothing carries selects nothing rather than being refused", { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-  const corpus = readCorpusState().chains;
+  const corpus = projectCorpus().chains;
 
   const unknown = await catalog.runtimeDeploymentFields(["no-such-field"]);
   for (const chain of corpus) {

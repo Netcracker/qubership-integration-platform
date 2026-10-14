@@ -119,6 +119,7 @@ test("a micro project reads its domain and its corpus copy from the state file i
 
     const micro = projectCorpus({ engineKind: "micro", microDomainState: state });
     expect(micro.chains).toEqual(chains);
+    expect(micro.domain).toBe("e2e-run2-own");
     expect(micro.fixtures).toEqual([...MICRO_FIXTURES].sort());
     // A chain with no HTTP route; a spec that lists the corpus meets it on both engines.
     expect(micro.fixtures).toContain("scheduler-basic");
@@ -515,6 +516,7 @@ test("the k8s target declares its own projects and the broker projects, and leav
     { name: "seed-micro", dependencies: undefined, teardown: "suite-teardown", engineKind: "micro" },
     { name: "runtime-micro", dependencies: ["seed-micro", "tooling"], teardown: undefined, engineKind: "micro" },
     { name: "runtime-micro-redeploy", dependencies: ["seed-micro"], teardown: undefined, engineKind: "micro" },
+    { name: "global-micro", dependencies: ["global", "seed-micro"], teardown: undefined, engineKind: "micro" },
     { name: "brokers-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: undefined },
     { name: "brokers", dependencies: ["brokers-seed"], teardown: undefined, engineKind: undefined },
     { name: "brokers-restart", dependencies: ["brokers", "brokers-micro"], teardown: undefined, engineKind: undefined },
