@@ -132,8 +132,8 @@ const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
   "failed elements AUTO's case already shows; the case still runs, without a covers() call";
 
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
-// `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close as a
-// byproduct of building those two chains. Its method, systemType, idempotency and acknowledgeMode
+// `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close through
+// the kafka case's seeded chain. Its method, systemType, idempotency and acknowledgeMode
 // axes have no case.
 const R_ASYNC_API_TRIGGER_METHOD_V3 =
   "the two async-api-trigger cases exercise one AsyncAPI 2.6 document each, which resolves to " +

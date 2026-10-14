@@ -42,8 +42,10 @@ import {
 import {
   brokerChain,
   brokerCorpusOf,
+  brokerServiceTrees,
   brokerTrees,
   kafkaGroupsIn,
+  microBrokerServiceTrees,
   microBrokerTrees,
   sftpRootsOf,
 } from "../../support/brokers.js";
@@ -353,7 +355,7 @@ test("every HTTP trigger the corpus seeds, in both copies, is internal", { tag: 
 /** Every broker address a copy consumes from or sends to, by kind. */
 function brokerAddresses(trees: Array<[string, RenderedTree]>): Record<string, string[]> {
   const documents = trees.map(([name, tree]) => readFixtureDocument(name, tree).document);
-  const corpus = brokerCorpusOf(EXAMPLE_RUN_TOKEN, trees);
+  const corpus = brokerCorpusOf(EXAMPLE_RUN_TOKEN, trees, []);
   const { queues, senderExchanges } = corpus.rabbitmqTopology;
   const { subscriptions, senderTopics } = corpus.pubsubTopology;
   return {
@@ -395,6 +397,34 @@ test("the broker copies share no chain id, element id, trigger path, or broker a
   }
 });
 
+// The broker chains that name an AsyncAPI service call the service copy their seed imports.
+test("every reference in the micro broker copy names its own chain, element, or service", { tag: ["@infra", "@tier1"] }, () => {
+  const microServices = microBrokerServiceTrees(EXAMPLE_RUN_TOKEN);
+  const micro = read(microBrokerTrees(EXAMPLE_RUN_TOKEN));
+  const known = new Set([...micro.chainIds, ...micro.elementIds, ...uuidsOf(microServices)]);
+  expect(microServices.length).toBeGreaterThan(0);
+  expect([...new Set(micro.references)].filter((id) => !known.has(id))).toEqual([]);
+  expect(uuidsOf(microServices).filter((id) => uuidsOf(brokerServiceTrees(EXAMPLE_RUN_TOKEN)).includes(id))).toEqual([]);
+});
+
+// An asynchronous operation consumes from or sends to its element's operation path, so that path is a broker address.
+test("the micro copy renames the topic, exchange, group, and queue of every asynchronous operation", { tag: ["@infra", "@tier1"] }, () => {
+  const operationAddresses = (trees: Array<[string, RenderedTree]>) =>
+    trees.flatMap(([name, tree]) =>
+      flatten(((readFixtureDocument(name, tree).document.content as { elements?: FixtureElement[] })?.elements) ?? [])
+        .filter((element) => element.type === "async-api-trigger" || element.type === "service-call")
+        .flatMap((element) => {
+          const properties = element.properties ?? {};
+          const async = (properties.integrationOperationAsyncProperties ?? {}) as Record<string, unknown>;
+          return [properties.integrationOperationPath, async.groupId, async.queues].filter((each) => typeof each === "string");
+        }),
+    );
+  const classic = operationAddresses(brokerTrees(EXAMPLE_RUN_TOKEN));
+  const micro = operationAddresses(microBrokerTrees(EXAMPLE_RUN_TOKEN));
+  expect(classic.length, "no broker chain calls an asynchronous operation").toBeGreaterThan(0);
+  expect(micro).toEqual(classic.map((each) => `${each}-micro`));
+});
+
 // Both teardowns run side by side in `suite-teardown`, and each deletes the run's consumer groups of
 // its own copy only, the groups a spec opens on a copy's topic included.
 test("every broker address of the micro copy, and a name a spec builds from one, belongs to the micro copy", { tag: ["@infra", "@tier1"] }, () => {
@@ -407,8 +437,11 @@ test("every broker address of the micro copy, and a name a spec builds from one,
 });
 
 test("brokerChain returns the micro copy on a micro project, from the state file the project names", { tag: ["@infra", "@tier1"] }, () => {
-  const classic = brokerCorpusOf(EXAMPLE_RUN_TOKEN, brokerTrees(EXAMPLE_RUN_TOKEN));
-  const micro = { ...brokerCorpusOf(EXAMPLE_RUN_TOKEN, microBrokerTrees(EXAMPLE_RUN_TOKEN)), domain: "e2e-example-brokers-micro" };
+  const classic = brokerCorpusOf(EXAMPLE_RUN_TOKEN, brokerTrees(EXAMPLE_RUN_TOKEN), brokerServiceTrees(EXAMPLE_RUN_TOKEN));
+  const micro = {
+    ...brokerCorpusOf(EXAMPLE_RUN_TOKEN, microBrokerTrees(EXAMPLE_RUN_TOKEN), microBrokerServiceTrees(EXAMPLE_RUN_TOKEN)),
+    domain: "e2e-example-brokers-micro",
+  };
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-brokers-micro-state-"));
   const file = path.join(dir, "brokers-micro.json");
   fs.writeFileSync(file, JSON.stringify(micro));

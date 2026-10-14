@@ -1,0 +1,23 @@
+---
+id: "e2e0e001-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service"
+name: "e2e-{{RUN}}-async-api-kafka"
+content:
+  activeEnvironmentId: "e2e0e001-0000-4000-8000-000000000002"
+  integrationSystemType: "EXTERNAL"
+  protocol: "KAFKA"
+  environments:
+  - id: "e2e0e001-0000-4000-8000-000000000002"
+    name: "production"
+    address: "kafka:29092"
+    sourceType: "MANUAL"
+    labels: []
+    properties:
+      key: ""
+      sslProtocol: ""
+      saslMechanism: ""
+      saslJaasConfig: ""
+      securityProtocol: ""
+      sslEnabledProtocols: ""
+      sslEndpointAlgorithm: ""
+  migrations: "[100, 101, 102]"

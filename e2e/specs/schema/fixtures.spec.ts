@@ -16,6 +16,7 @@ import yaml from "js-yaml";
 import JSZip from "jszip";
 import { QIP_MODEL_DIR } from "../../registry/discriminators.js";
 import {
+  BROKER_SERVICE_FIXTURE_DIR,
   DOCUMENT_KINDS,
   SCRIPT_FIXTURE_DIR,
   SERVICE_FIXTURE_DIR,
@@ -141,23 +142,27 @@ test("no two scripts in one chain under fixtures/script/ carry the same text", {
   expect(scripts, "no fixture under fixtures/script/ carries a script").toBeGreaterThan(0);
 });
 
+const SERVICE_DIRS = [SERVICE_FIXTURE_DIR, BROKER_SERVICE_FIXTURE_DIR];
+
 /** Every service fixture rendered, with its kind. */
-const serviceDocuments = chainFixtureNames(SERVICE_FIXTURE_DIR).map((service) => {
-  const tree = renderFixture(SERVICE_FIXTURE_DIR, service, RUN);
-  return { service, tree, ...readFixtureDocument(service, tree) };
-});
+const serviceDocuments = SERVICE_DIRS.flatMap((dir) =>
+  chainFixtureNames(dir).map((service) => {
+    const tree = renderFixture(dir, service, RUN);
+    return { service, tree, ...readFixtureDocument(service, tree) };
+  }),
+);
 
 /** The elements of every tracked chain fixture, by fixture name. */
 function trackedChainElements(): Array<[string, ChainElement]> {
   return fixtures
-    .filter(({ dir }) => dir !== SERVICE_FIXTURE_DIR)
+    .filter(({ dir }) => !SERVICE_DIRS.includes(dir))
     .flatMap(({ dir, name }) => {
       const { document } = readFixtureDocument(name, renderFixture(dir, name, RUN));
       return flatten(((document.content as { elements?: ChainElement[] })?.elements) ?? []).map((element) => [name, element] as [string, ChainElement]);
     });
 }
 
-test("every service call and implementing trigger in a tracked chain names an operation of a service fixture", { tag: ["@infra", "@tier1"] }, () => {
+test("every service call, async-api trigger, and implementing trigger in a tracked chain names an operation of a service fixture", { tag: ["@infra", "@tier1"] }, () => {
   // A seeded service call or trigger compiles against the service the seed imports, so an id that
   // names none imports cleanly and fails the deploy minutes into a run.
   const operations = new Map(
@@ -168,14 +173,20 @@ test("every service call and implementing trigger in a tracked chain names an op
         return fixture.operations.map((operation) => [operation.id, { ...operation, systemId: fixture.id }] as const);
       }),
   );
-  const references = { "service-call": 0, "http-trigger": 0 };
+  const references = { "service-call": 0, "async-api-trigger": 0, "http-trigger": 0 };
   for (const [name, element] of trackedChainElements()) {
     const properties = element.properties ?? {};
     const type = element.type;
-    if (type !== "service-call" && !(type === "http-trigger" && properties.integrationOperationId !== undefined)) continue;
+    if (
+      type !== "service-call" &&
+      type !== "async-api-trigger" &&
+      !(type === "http-trigger" && properties.integrationOperationId !== undefined)
+    ) {
+      continue;
+    }
     const operation = operations.get(String(properties.integrationOperationId));
     expect(operation, `${name}/${String(element.name)} names no operation of a service fixture`).toBeDefined();
-    const method = type === "service-call" ? properties.integrationOperationMethod : properties.httpMethodRestrict;
+    const method = type === "http-trigger" ? properties.httpMethodRestrict : properties.integrationOperationMethod;
     expect(
       {
         integrationSystemId: properties.integrationSystemId,
@@ -195,6 +206,7 @@ test("every service call and implementing trigger in a tracked chain names an op
     references[type]++;
   }
   expect(references["service-call"], "no tracked chain carries a service call").toBeGreaterThan(0);
+  expect(references["async-api-trigger"], "no tracked chain carries an async-api trigger").toBeGreaterThan(0);
   expect(references["http-trigger"], "no tracked chain carries an implementing trigger").toBeGreaterThan(0);
 });
 

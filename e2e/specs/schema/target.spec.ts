@@ -266,7 +266,7 @@ test("brokers-micro runs the broker specs on the micro copy after both broker se
   const projects = withEnv({ E2E_BROKERS: undefined }, () => targetSetup("k8s")).projects;
   const project = projects.find((each) => each.name === "brokers-micro");
   expect(project && schedule(project)).toBe(
-    "./specs/brokers except /broker-restart\\.spec\\.ts$/,/missing-target\\.spec\\.ts$/,/async-api\\.spec\\.ts$/; " +
+    "./specs/brokers except /broker-restart\\.spec\\.ts$/; " +
       "after brokers-seed, brokers-micro-seed; parallel",
   );
   expect(project?.grepInvert).toEqual(/@classic-only/);
