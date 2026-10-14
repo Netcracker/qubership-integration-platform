@@ -737,8 +737,6 @@ test("the session search names the page parameter the service reads", { tag: ["@
  * spec that quietly goes back to deleting the key of a chain that exists.
  */
 const OWN_CHAINS: Array<{ spec: string; ownDeletes: number }> = [
-  { spec: "specs/runtime/metrics.spec.ts", ownDeletes: 0 },
-  { spec: "specs/runtime/logging-level.spec.ts", ownDeletes: 0 },
   { spec: "specs/api/creation-path-equivalence.spec.ts", ownDeletes: 0 },
   { spec: "specs/api/masking.spec.ts", ownDeletes: 1 },
 ];

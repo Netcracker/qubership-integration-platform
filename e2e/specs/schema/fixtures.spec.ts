@@ -16,6 +16,7 @@ import yaml from "js-yaml";
 import JSZip from "jszip";
 import { QIP_MODEL_DIR } from "../../registry/discriminators.js";
 import {
+  DOCUMENT_KINDS,
   SCRIPT_FIXTURE_DIR,
   SERVICE_FIXTURE_DIR,
   TRACKED_FIXTURE_DIRS,
@@ -28,7 +29,7 @@ import {
   renderFixture,
   substitute,
 } from "../../fixtures/templating.js";
-import { flatten, type FixtureElement as ChainElement } from "../../support/corpus.js";
+import { flatten, SERVICE_IMPORTS, type FixtureElement as ChainElement } from "../../support/corpus.js";
 import { EXPORTED_CHAIN_SCHEMA, schemaValidator, validateDocument } from "../../fixtures/validate.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
@@ -107,7 +108,7 @@ for (const { dir, name } of fixtures) {
     const zip = await JSZip.loadAsync(await assembleFixture(name, RUN, dir));
 
     const entries = Object.values(zip.files).filter((f) => !f.dir).map((f) => f.name).sort();
-    const parent = `${fixture.kind}s/${fixture.id}`;
+    const parent = `${DOCUMENT_KINDS[fixture.kind].parentDir}/${fixture.id}`;
     const expected = [
       `${parent}/${fixture.id}.${fixture.kind}.cip.yaml`,
       ...[...fixture.companions.keys()].map((rel) => `${parent}/${rel}`),
@@ -140,43 +141,85 @@ test("no two scripts in one chain under fixtures/script/ carry the same text", {
   expect(scripts, "no fixture under fixtures/script/ carries a script").toBeGreaterThan(0);
 });
 
-test("every service call in a tracked chain names an operation of a service fixture", { tag: ["@infra", "@tier1"] }, () => {
-  // A seeded service call compiles against the service the seed imports, so an id that names none
-  // imports cleanly and fails the deploy minutes into a run.
+/** Every service fixture rendered, with its kind. */
+const serviceDocuments = chainFixtureNames(SERVICE_FIXTURE_DIR).map((service) => {
+  const tree = renderFixture(SERVICE_FIXTURE_DIR, service, RUN);
+  return { service, tree, ...readFixtureDocument(service, tree) };
+});
+
+/** The elements of every tracked chain fixture, by fixture name. */
+function trackedChainElements(): Array<[string, ChainElement]> {
+  return fixtures
+    .filter(({ dir }) => dir !== SERVICE_FIXTURE_DIR)
+    .flatMap(({ dir, name }) => {
+      const { document } = readFixtureDocument(name, renderFixture(dir, name, RUN));
+      return flatten(((document.content as { elements?: ChainElement[] })?.elements) ?? []).map((element) => [name, element] as [string, ChainElement]);
+    });
+}
+
+test("every service call and implementing trigger in a tracked chain names an operation of a service fixture", { tag: ["@infra", "@tier1"] }, () => {
+  // A seeded service call or trigger compiles against the service the seed imports, so an id that
+  // names none imports cleanly and fails the deploy minutes into a run.
   const operations = new Map(
-    chainFixtureNames(SERVICE_FIXTURE_DIR).flatMap((service) => {
-      const fixture = readServiceFixture(service, renderFixture(SERVICE_FIXTURE_DIR, service, RUN));
-      return fixture.operations.map((operation) => [operation.id, { ...operation, systemId: fixture.id }] as const);
-    }),
+    serviceDocuments
+      .filter((each) => each.kind === "service")
+      .flatMap(({ service, tree }) => {
+        const fixture = readServiceFixture(service, tree);
+        return fixture.operations.map((operation) => [operation.id, { ...operation, systemId: fixture.id }] as const);
+      }),
   );
-  let calls = 0;
-  for (const { dir, name } of fixtures.filter(({ dir }) => dir !== SERVICE_FIXTURE_DIR)) {
-    const { document } = readFixtureDocument(name, renderFixture(dir, name, RUN));
-    const elements = flatten(((document.content as { elements?: ChainElement[] })?.elements) ?? []);
-    for (const element of elements.filter((each) => each.type === "service-call")) {
-      const properties = element.properties ?? {};
-      const operation = operations.get(String(properties.integrationOperationId));
-      expect(operation, `${name}/${String(element.name)} calls no operation of a service fixture`).toBeDefined();
-      expect(
-        {
-          integrationSystemId: properties.integrationSystemId,
-          integrationSpecificationGroupId: properties.integrationSpecificationGroupId,
-          integrationSpecificationId: properties.integrationSpecificationId,
-          integrationOperationPath: properties.integrationOperationPath,
-          integrationOperationMethod: properties.integrationOperationMethod,
-        },
-        `${name}/${String(element.name)}`,
-      ).toEqual({
-        integrationSystemId: operation!.systemId,
-        integrationSpecificationGroupId: operation!.groupId,
-        integrationSpecificationId: operation!.specificationId,
-        integrationOperationPath: operation!.path,
-        integrationOperationMethod: operation!.method,
-      });
-      calls++;
+  const references = { "service-call": 0, "http-trigger": 0 };
+  for (const [name, element] of trackedChainElements()) {
+    const properties = element.properties ?? {};
+    const type = element.type;
+    if (type !== "service-call" && !(type === "http-trigger" && properties.integrationOperationId !== undefined)) continue;
+    const operation = operations.get(String(properties.integrationOperationId));
+    expect(operation, `${name}/${String(element.name)} names no operation of a service fixture`).toBeDefined();
+    const method = type === "service-call" ? properties.integrationOperationMethod : properties.httpMethodRestrict;
+    expect(
+      {
+        integrationSystemId: properties.integrationSystemId,
+        integrationSpecificationGroupId: properties.integrationSpecificationGroupId,
+        integrationSpecificationId: properties.integrationSpecificationId,
+        integrationOperationPath: properties.integrationOperationPath,
+        method,
+      },
+      `${name}/${String(element.name)}`,
+    ).toEqual({
+      integrationSystemId: operation!.systemId,
+      integrationSpecificationGroupId: operation!.groupId,
+      integrationSpecificationId: operation!.specificationId,
+      integrationOperationPath: operation!.path,
+      method: operation!.method,
+    });
+    references[type]++;
+  }
+  expect(references["service-call"], "no tracked chain carries a service call").toBeGreaterThan(0);
+  expect(references["http-trigger"], "no tracked chain carries an implementing trigger").toBeGreaterThan(0);
+});
+
+test("every context or MCP service a tracked chain names is a service fixture of that kind", { tag: ["@infra", "@tier1"] }, () => {
+  const ofKind = (kind: string) => new Set(serviceDocuments.filter((each) => each.kind === kind).map((each) => each.id));
+  const contexts = ofKind("context-service");
+  const mcps = ofKind("mcp-service");
+  let named = 0;
+  for (const [name, element] of trackedChainElements()) {
+    const properties = element.properties ?? {};
+    const where = `${name}/${String(element.name)}`;
+    if (properties.contextServiceId !== undefined) {
+      expect(contexts.has(String(properties.contextServiceId)), `${where} names no context service fixture`).toBe(true);
+      named++;
+    }
+    for (const id of (properties.mcpServiceIds as string[] | undefined) ?? []) {
+      expect(mcps.has(id), `${where} names no MCP service fixture`).toBe(true);
+      named++;
     }
   }
-  expect(calls, "no tracked chain carries a service call").toBeGreaterThan(0);
+  expect(named, "no tracked chain names a context or MCP service").toBeGreaterThan(0);
+});
+
+test("the seed has an import for every kind of service fixture", { tag: ["@infra", "@tier1"] }, () => {
+  expect(serviceDocuments.filter((each) => SERVICE_IMPORTS[each.kind] === undefined).map((each) => each.service)).toEqual([]);
 });
 
 test("EXPORTED_CHAIN_SCHEMA is the chain schema's $id and the validator resolves it", { tag: ["@infra", "@tier1"] }, () => {

@@ -138,10 +138,6 @@ function brokersAbsent(): Absence[] {
  */
 export const CLASSIC_ONLY_RUNTIME_FILES: readonly string[] = [
   "checkpoint-retry.spec.ts",
-  "http-trigger-system-type.spec.ts",
-  "logging-level.spec.ts",
-  "metrics.spec.ts",
-  "misc-elements.spec.ts",
   "placeholder.spec.ts",
   "script-external-library.spec.ts",
   "script-failures.spec.ts",

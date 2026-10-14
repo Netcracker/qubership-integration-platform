@@ -120,9 +120,14 @@ function loopbacksOf(tree: RenderedTree, services: readonly ServiceFixture[]): s
   return [text, ...urls].flatMap((each) => [...each.matchAll(LOOPBACK_ROUTE)].map((match) => match[1]));
 }
 
+/** The `service` fixtures among `trees`, leaving out context and MCP services. */
+function ofServiceKind(trees: Array<[string, RenderedTree]>): Array<[string, RenderedTree]> {
+  return trees.filter(([name, tree]) => readFixtureDocument(name, tree).kind === "service");
+}
+
 /** The service fixtures, in the classic copy or in the micro one, as a chain calls them. */
 function services(trees: Array<[string, RenderedTree]>): ServiceFixture[] {
-  return trees.map(([name, tree]) => readServiceFixture(name, tree));
+  return ofServiceKind(trees).map(([name, tree]) => readServiceFixture(name, tree));
 }
 
 /** Every chain fixture of the classic corpus: the tracked ones and the generated axis chains. */
@@ -211,7 +216,7 @@ test("the micro copy holds exactly the fixtures the runtime-micro files read, an
 // service's directory or its `resources/`, and builds a GraphQL library from that source.
 test("every specification source a service names is a file of the service, in both copies", { tag: ["@infra", "@tier1"] }, () => {
   for (const trees of [serviceTrees(EXAMPLE_RUN_TOKEN), microServiceTrees(EXAMPLE_RUN_TOKEN)]) {
-    for (const [name, tree] of trees) {
+    for (const [name, tree] of ofServiceKind(trees)) {
       const files = [...readFixtureDocument(name, tree).companions]
         .filter(([rel]) => rel.endsWith(".specification.cip.yaml"))
         .flatMap(([, source]) => (yaml.load(source) as { content: { specificationSources: Array<{ fileName: string }> } }).content.specificationSources)
@@ -220,6 +225,20 @@ test("every specification source a service names is a file of the service, in bo
       expect(files.filter((file) => !tree.has(file) && !tree.has(`resources/${file}`)), name).toEqual([]);
     }
   }
+});
+
+// The catalog keeps an MCP service identifier unique, and both copies are imported into one catalog.
+test("the copies of an MCP service carry different identifiers", { tag: ["@infra", "@tier1"] }, () => {
+  const identifiers = (trees: Array<[string, RenderedTree]>) =>
+    trees
+      .map(([name, tree]) => readFixtureDocument(name, tree))
+      .filter((each) => each.kind === "mcp-service")
+      .map((each) => (each.document.content as { identifier: string }).identifier);
+  const classic = identifiers(serviceTrees(EXAMPLE_RUN_TOKEN));
+  const micro = identifiers(microServiceTrees(EXAMPLE_RUN_TOKEN));
+  expect(classic.length).toBeGreaterThan(0);
+  expect(micro).toHaveLength(classic.length);
+  expect(micro.filter((each) => classic.includes(each))).toEqual([]);
 });
 
 /** Every UUID written anywhere in the trees. */

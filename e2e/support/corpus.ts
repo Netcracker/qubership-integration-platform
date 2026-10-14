@@ -48,6 +48,7 @@ import {
   renderFixture,
   SCRIPT_FIXTURE_DIR,
   SERVICE_FIXTURE_DIR,
+  type DocumentKind,
   type FixtureDocument,
   type RenderedTree,
 } from "../fixtures/templating.js";
@@ -113,7 +114,10 @@ export const ENGINE_CASE_TIMEOUT = 180_000;
 export interface DeployedChain {
   id: string;
   name: string;
-  /** The HTTP trigger's `contextPath`, already carrying the run token; `""` for a chain with no HTTP trigger. */
+  /**
+   * The HTTP trigger's `contextPath`, or the operation path of a trigger that implements a service,
+   * already carrying the run token; `""` for a chain with no HTTP trigger.
+   */
   contextPath: string;
 }
 
@@ -128,8 +132,24 @@ export interface SeedChain extends DeployedChain {
 /** One imported service fixture, which the corpus chains call. */
 export interface SeededService {
   fixture: string;
+  /** `service`, `context-service` or `mcp-service`: each kind has an import and a delete of its own. */
+  kind: DocumentKind;
   id: string;
   name: string;
+}
+
+/** The import of each service kind. */
+export const SERVICE_IMPORTS: Partial<Record<DocumentKind, string>> = {
+  service: "/v1/import/system",
+  "context-service": "/v1/catalog/context-system/import",
+  "mcp-service": "/v1/catalog/mcp-system/import",
+};
+
+/** Deletes a seeded service through the delete of its kind. */
+async function deleteService(catalog: Catalog, kind: DocumentKind, id: string): Promise<void> {
+  if (kind === "context-service") await catalog.deleteContextSystem(id);
+  else if (kind === "mcp-service") await catalog.deleteMcpSystem(id);
+  else await catalog.deleteSystem(id);
 }
 
 export interface SeededCorpus {
@@ -223,7 +243,7 @@ function describe(fixture: string, document: Record<string, unknown>): SeedChain
   const content = (document.content ?? {}) as { elements?: FixtureElement[] };
   const elements = flatten(content.elements ?? []);
   const trigger = elements.find((each) => each.type === "http-trigger");
-  const contextPath = (trigger?.properties?.contextPath as string | undefined) ?? "";
+  const contextPath = (trigger?.properties?.contextPath ?? trigger?.properties?.integrationOperationPath ?? "") as string;
 
   // A `Map` rather than an object: the keys are fixture-supplied names, and a plain object answers
   // `constructor` and `toString` out of its prototype, which reads as a duplicate that is not one.
@@ -255,26 +275,33 @@ export function serviceTrees(run: string): Array<[string, RenderedTree]> {
   return chainFixtureNames(SERVICE_FIXTURE_DIR).map((name) => [name, renderFixture(SERVICE_FIXTURE_DIR, name, run)]);
 }
 
-/** Imports the services through the service import, and asserts it created each of them. */
+/** Imports the services, one archive per kind through that kind's import, and asserts it created each of them. */
 async function importServices(
   catalog: Catalog,
   trees: ReadonlyArray<readonly [string, RenderedTree]>,
   archiveName: string,
 ): Promise<SeededService[]> {
-  const assembled = await assembleTrees(trees);
-  const services = assembled.documents.map((each, index) => ({
-    fixture: trees[index][0],
-    id: each.id,
-    name: String(each.document.name),
-  }));
-  const response = await catalog.importArchive("/v1/import/system", assembled.archive, archiveName);
-  expect(response.status(), `the service import answered ${response.status()}: ${await response.text()}`).toBe(200);
-  const rows = (await response.json()) as Array<{ id: string; status: string }>;
-  expect(
-    rows.map((row) => `${row.id} ${row.status}`).sort(),
-    `the delete before the import is what makes every row CREATED: ${JSON.stringify(rows)}`,
-  ).toEqual(services.map((each) => `${each.id} CREATED`).sort());
-  return services;
+  const seeded: SeededService[] = [];
+  for (const [kind, path] of Object.entries(SERVICE_IMPORTS) as Array<[DocumentKind, string]>) {
+    const ofKind = trees.filter(([name, tree]) => readFixtureDocument(name, tree).kind === kind);
+    if (ofKind.length === 0) continue;
+    const assembled = await assembleTrees(ofKind);
+    const services = assembled.documents.map((each, index) => ({
+      fixture: ofKind[index][0],
+      kind,
+      id: each.id,
+      name: String(each.document.name),
+    }));
+    const response = await catalog.importArchive(path, assembled.archive, `${kind}-${archiveName}`);
+    expect(response.status(), `${path} answered ${response.status()}: ${await response.text()}`).toBe(200);
+    const rows = (await response.json()) as Array<{ id: string; status: string }>;
+    expect(
+      rows.map((row) => `${row.id} ${row.status}`).sort(),
+      `the delete before the import is what makes every row CREATED: ${JSON.stringify(rows)}`,
+    ).toEqual(services.map((each) => `${each.id} CREATED`).sort());
+    seeded.push(...services);
+  }
+  return seeded;
 }
 
 /**
@@ -295,7 +322,8 @@ async function importCorpus(
   // The chains go first, since they call the services.
   for (const chain of chains) await catalog.deleteChain(chain.id).catch(() => {});
   for (const [name, tree] of services) {
-    await catalog.deleteSystem(readFixtureDocument(name, tree).id).catch(() => {});
+    const { kind, id } = readFixtureDocument(name, tree);
+    await deleteService(catalog, kind, id).catch(() => {});
   }
   const seeded = await importServices(catalog, services, `services-${archiveName}`);
 
@@ -577,7 +605,7 @@ async function deleteSeedChains(
 /** Deletes the services the corpus chains call, after the chains, and adds a line to `failures` for each one left. */
 async function deleteSeedServices(catalog: Catalog, services: readonly SeededService[], failures: string[]): Promise<void> {
   for (const service of services) {
-    await catalog.deleteSystem(service.id).catch((cause: unknown) => {
+    await deleteService(catalog, service.kind, service.id).catch((cause: unknown) => {
       failures.push(`the service ${service.name} (${service.id}) was not deleted: ${String(cause)}`);
     });
   }

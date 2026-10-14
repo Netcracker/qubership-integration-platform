@@ -333,7 +333,8 @@ did not scope by chain or by a window it opened leaves out the `*-scheduler-basi
 A chain that calls a service is seeded too. `fixtures/services/` holds one directory per service,
 with its specification group, its specification and the specification's source below it, and
 both seeds import every one through `POST /v1/import/system` before their chains, the micro seed
-its micro copy. A chain names an operation by the fixed IDs the service fixture carries:
+its micro copy. A context service or an MCP service a chain names sits there too, and goes
+through the import of its own kind (`SERVICE_IMPORTS` in `support/corpus.ts`). A chain names an operation by the fixed IDs the service fixture carries:
 `serviceCallTo` in `fixtures/axis-generator.ts` reads them for a generated chain, and
 `specs/schema/fixtures.spec.ts` checks the IDs a hand-written chain spells out.
 

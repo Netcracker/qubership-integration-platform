@@ -145,9 +145,26 @@ export const MICRO_FIXTURES: readonly string[] = [
   "condition",
   "condition-branches",
   "context-propagation",
+  "context-storage-correlation",
+  "context-storage-delete",
+  "context-storage-get",
+  "context-storage-header",
+  "context-storage-property",
+  "context-storage-set",
   "file-read",
   "file-write",
+  "graphql-sender-propagateContext-false",
+  "graphql-sender-propagateContext-true",
   "http-echo",
+  "http-sender-httpMethod-DELETE",
+  "http-sender-httpMethod-GET",
+  "http-sender-httpMethod-HEAD",
+  "http-sender-httpMethod-OPTIONS",
+  "http-sender-httpMethod-PATCH",
+  "http-sender-httpMethod-POST",
+  "http-sender-httpMethod-PUT",
+  "http-sender-propagateContext-false",
+  "http-sender-propagateContext-true",
   "http-trigger-correlationIdPosition-body",
   "http-trigger-handleChainFailureAction-chain-call",
   "http-trigger-handleChainFailureAction-default",
@@ -161,10 +178,19 @@ export const MICRO_FIXTURES: readonly string[] = [
   "http-trigger-idempotency-actionOnDuplicate-throw-exception",
   "http-trigger-idempotency-enabled-false",
   "http-trigger-receiveCorrelationId-true",
+  "http-trigger-system-type-implemented",
+  "log-record-logLevel-Error",
+  "log-record-logLevel-Info",
+  "log-record-logLevel-Warning",
+  "logging-level-debug",
+  "logging-level-error",
+  "logging-level-off",
   "loop",
   "mapper",
   "masking",
+  "mcp-trigger",
   "method-echo",
+  "metrics-failure",
   "reuse",
   "scheduler-basic",
   "script",
@@ -268,7 +294,8 @@ export function httpTriggerPaths(document: Record<string, unknown>): string[] {
  * unique already, because it carries the remapped ids. A loopback call (`ENGINE_LOOPBACK`) gets the
  * prefix too, in a chain or in a service address: inside a micro pod `localhost` is the copy's own
  * domain, which serves the callee's micro copy under the prefixed path. A service fixture is copied
- * the same way, so the copy's chains call the copy's services.
+ * the same way, so the copy's chains call the copy's services, and an MCP service identifier gets
+ * a `micro-` prefix.
  */
 export function microCopy(name: string, tree: RenderedTree): RenderedTree {
   const copy: RenderedTree = new Map();
@@ -282,9 +309,11 @@ export function microCopy(name: string, tree: RenderedTree): RenderedTree {
     );
   }
 
-  const { document } = readFixtureDocument(name, copy);
+  const { kind, document } = readFixtureDocument(name, copy);
   const file = [...copy.keys()].find((rel) => !rel.includes("/") && rel.endsWith(".yaml"))!;
   let source = copy.get(file)!;
+  // The catalog keeps an MCP service identifier unique, and the classic copy holds this one.
+  if (kind === "mcp-service") source = source.replace(/^( {2}identifier: ")/m, "$1micro-");
   for (const contextPath of httpTriggerPaths(document)) {
     const line = `contextPath: "${contextPath}"`;
     const count = source.split(line).length - 1;
@@ -341,9 +370,11 @@ export function readSpecificationFixture(file: string): {
 export type RenderedTree = Map<string, string>;
 
 /** The document kinds a fixture directory can hold, and how each is addressed in an archive. */
-const DOCUMENT_KINDS = {
+export const DOCUMENT_KINDS = {
   chain: { parentDir: "chains", postfix: ".chain.cip.yaml" },
   service: { parentDir: "services", postfix: ".service.cip.yaml" },
+  "context-service": { parentDir: "services", postfix: ".context-service.cip.yaml" },
+  "mcp-service": { parentDir: "services", postfix: ".mcp-service.cip.yaml" },
 } as const;
 
 export type DocumentKind = keyof typeof DOCUMENT_KINDS;

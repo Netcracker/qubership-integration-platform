@@ -107,6 +107,11 @@ export function healthUrl(role: ServiceRole): string {
 /** Runs `kubectl` with the given arguments and returns stdout; a non-zero exit throws. */
 export type Kubectl = (args: string[]) => Promise<string>;
 
+/** `text` without its ANSI color codes. */
+export function withoutColors(text: string): string {
+  return text.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
 /** Runs `kubectl` and returns its standard output; a non-zero exit throws with its stderr. */
 export function kubectl(args: string[]): Promise<string> {
   return capture("kubectl", args);
@@ -347,13 +352,16 @@ export class K8sEnv implements Env {
     ]);
   }
 
-  /** The classic engine's log, or the log of the micro domain's pod, which camel-k names after it. */
+  /**
+   * The classic engine's log, or the log of the micro domain's pod, which camel-k names after it,
+   * with the color codes the micro engine writes into its console log taken out.
+   */
   async engineLogs(since: string): Promise<string> {
     if (this.engineKind === "classic") return this.logs("engine", since);
-    return kubectl([
+    return withoutColors(await kubectl([
       "logs", `deploy/${microServiceOf(this.microDomain())}`, "-n", NAMESPACE, "-c", MICRO_CONTAINER,
       `--since-time=${since}`,
-    ]);
+    ]));
   }
 
   async settings(service: ServiceRole): Promise<Record<string, string>> {

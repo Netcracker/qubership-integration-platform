@@ -198,8 +198,9 @@ const CATALOG: readonly string[] = ["@catalog"];
 // NONE, RBAC and ABAC give an identical response and an identical trace on this stack.
 // Every value of its two handler axes, `script` included, belongs to
 // `specs/runtime/http-trigger-handlers.spec.ts`.
-// Its `systemType` EXTERNAL row is covered on the compile and tagged `@catalog`; INTERNAL and
-// IMPLEMENTED compile alike, so neither is covered, for `http-trigger` or `service-call`.
+// Its `systemType` EXTERNAL row is covered on the compile by `specs/api/http-trigger-system-type.spec.ts`
+// and tagged `@catalog`; INTERNAL and IMPLEMENTED compile alike, so neither is covered, for
+// `http-trigger` or `service-call`.
 // Its `correlationIdPosition` rows are covered by `specs/runtime/http-trigger-idempotency.spec.ts`,
 // and `service-call`'s by `specs/runtime/service-call-axes.spec.ts`.
 const R_RECEIVE_CORRELATION_ID =

@@ -4,6 +4,7 @@
  */
 import { test, expect } from "@playwright/test";
 import { MOCK_BYPASSED } from "../runtime/service-call.js";
+import { CONTEXT_STORE_UNTRANSACTED } from "../runtime/context-storage.js";
 
 const TAGS = { tag: ["@infra", "@tier1"] };
 
@@ -24,4 +25,20 @@ test("a mocked service call that reached its real address is the known defect, a
   // The testing service answers a request no mock matched with 404.
   expect(MOCK_BYPASSED.matches("Error: no mock matched: the element sent another path, query or body. \n\nExpected: 201\nReceived: 404")).toBe(false);
   expect(MOCK_BYPASSED.matches("Error: expect(received).toBe(expected)\n\nExpected: 201\nReceived: 500")).toBe(false);
+});
+
+test("a context SET the micro engine ran outside a transaction is the known defect, and another failure is not", TAGS, () => {
+  // The failure as `expectStored` in misc-elements.spec.ts reports it: the step's recorded exception.
+  const untransacted = [
+    "Error: Transaction is not active, consider adding @Transactional to your method to automatically activate one.",
+    "",
+    "expect(received).toBe(expected) // Object.is equality",
+    "",
+    "Expected: 200",
+    "Received: 500",
+  ].join("\n");
+  expect(CONTEXT_STORE_UNTRANSACTED.matches(untransacted)).toBe(true);
+
+  expect(CONTEXT_STORE_UNTRANSACTED.matches("Error: expect(received).toBe(expected)\n\nExpected: 200\nReceived: 500")).toBe(false);
+  expect(CONTEXT_STORE_UNTRANSACTED.matches("Error: Connection refused\n\nExpected: 200\nReceived: 500")).toBe(false);
 });

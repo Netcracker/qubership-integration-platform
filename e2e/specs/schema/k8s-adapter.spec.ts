@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
-import { K8sEnv, recordedMicroDomain, type Kubectl } from "../../env/k8s.js";
+import { K8sEnv, recordedMicroDomain, withoutColors, type Kubectl } from "../../env/k8s.js";
 import { readingOfTop } from "../../env/k8s-observer.js";
 import {
   restartStamp,
@@ -525,4 +525,11 @@ test("a restore replaces the whole env and stamps the pod template without dropp
     path: "/spec/template/metadata/annotations",
     value: { "kubectl.kubernetes.io/restartedAt": now },
   });
+});
+
+test("the micro engine's log line reads plain once its color codes are taken out", { tag: ["@infra", "@tier1"] }, () => {
+  // Measured on a micro domain, trimmed to the level and the message.
+  const colored = "\u001b[39m\u001b[38;5;251m[\u001b[39m\u001b[38;5;222mWARN \u001b[39m\u001b[38;5;251m] \u001b[39m\u001b[38;5;251m\u001b[38;5;231me2e-log log-odsfjcq3tqwo";
+  expect(withoutColors(colored)).toBe("[WARN ] e2e-log log-odsfjcq3tqwo");
+  expect(withoutColors("[INFO ] plain")).toBe("[INFO ] plain");
 });
