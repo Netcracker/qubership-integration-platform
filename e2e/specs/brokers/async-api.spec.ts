@@ -47,25 +47,8 @@ import {
   elementNames,
   failedElements,
   HTTP_TRIGGER_STEPS,
-  SESSION_TIMEOUT,
-  trace,
-  type RecordedSession,
-  type Sessions,
 } from "../../support/sessions.js";
-import { readUntil } from "../../support/poll.js";
 import { covers } from "../../registry/covers.js";
-
-/**
- * The session read again until no step reads `IN_PROGRESS`. The Service Call step settles after its
- * session and its child: CI run 38538504420 read it `IN_PROGRESS` beside a finished Request attempt.
- */
-function settled(sessions: Sessions, session: RecordedSession): Promise<RecordedSession> {
-  return readUntil(
-    () => sessions.session(session.id),
-    (read) => trace(read).every((each) => each.executionStatus !== "IN_PROGRESS"),
-    SESSION_TIMEOUT,
-  );
-}
 
 // ---------------------------------------------------------------------------
 // async-api-trigger
@@ -135,7 +118,7 @@ for (const { method, covers: declareCoverage } of KAFKA_METHOD_CASES) {
 
       const session = await sessions.byExternalId(token, { elements: 4 });
       expect(session.chainId).toBe(chain.id);
-      expect(failedElements(await settled(sessions, session))).toEqual([]);
+      expect(failedElements(await sessions.settled(session))).toEqual([]);
       expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Service Call", "Request attempt"]);
 
       // Started only now, after the session lookup above already spent part of its own budget: the
@@ -174,7 +157,7 @@ for (const { method, covers: declareCoverage } of AMQP_METHOD_CASES) {
 
         const session = await sessions.byExternalId(token, { elements: 4 });
         expect(session.chainId).toBe(chain.id);
-        expect(failedElements(await settled(sessions, session))).toEqual([]);
+        expect(failedElements(await sessions.settled(session))).toEqual([]);
         expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Service Call", "Request attempt"]);
 
         const message = await waitForAmqpMessage(channel, queue);

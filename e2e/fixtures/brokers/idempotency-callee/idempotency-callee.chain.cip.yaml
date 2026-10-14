@@ -1,0 +1,24 @@
+---
+id: "e2e10001-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-idempotency-callee"
+description: "The sub-chain the broker triggers run on a duplicate under actionOnDuplicate\
+  \ execute-subchain. A chain trigger is the only element the idempotency check can call."
+content:
+  labels: []
+  elements:
+  - id: "e2e10001-0000-4000-8000-000000000002"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "e2e10001-0000-4000-8000-000000000002"
+  - id: "e2e10001-0000-4000-8000-000000000003"
+    name: "Callee Reply"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setBody('{\"called\":\"chain\"}')"
+  dependencies:
+  - from: "e2e10001-0000-4000-8000-000000000002"
+    to: "e2e10001-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

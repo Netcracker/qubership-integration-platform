@@ -81,12 +81,13 @@ export async function publishAmqp(
   routingKey: string,
   token: string,
   body: unknown,
+  headers: Record<string, string> = {},
 ): Promise<void> {
   const connection: ChannelModel = await amqp.connect(RABBITMQ_HOST_URL);
   const channel: Channel = await openChannel(connection);
   try {
     channel.publish(exchange, routingKey, Buffer.from(JSON.stringify(body)), {
-      headers: { [CORRELATION_HEADER]: token },
+      headers: { [CORRELATION_HEADER]: token, ...headers },
     });
   } finally {
     await channel.close();
@@ -193,6 +194,16 @@ export async function createPullSubscription(topic: string, subscription: string
     senderTopics: [],
     subscriptions: [{ projectId: PUBSUB_PROJECT_ID, topic, subscription }],
   });
+}
+
+/** Seeks `subscription` to now, which acknowledges every message published to it before. */
+export async function seekPubsubToNow(subscription: string): Promise<void> {
+  const response = await fetch(pubsubUrl(`subscriptions/${subscription}:seek`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ time: new Date().toISOString() }),
+  });
+  if (!response.ok) throw new Error(`seeking subscription ${subscription} answered ${response.status}`);
 }
 
 export async function deletePullSubscription(subscription: string): Promise<void> {

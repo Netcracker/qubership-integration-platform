@@ -82,10 +82,6 @@ const R_KAFKA_SERIALIZER_PROPORTIONAL =
   "(R_KAFKA_SERIALIZER_INDISTINGUISHABLE), and most of the remaining (de)serializer values would only " +
   "prove that a mismatched type fails to serialize";
 
-const R_BROKER_IDEMPOTENCY =
-  "no case: the idempotency cases run on http-trigger (specs/runtime/http-trigger-idempotency.spec.ts), " +
-  "and none was built for the broker triggers";
-
 const R_PROPAGATE_CONTEXT =
   "no case: context-propagation.schema.yaml puts propagateContext on nine elements, and none was built " +
   "for the broker senders";
@@ -536,11 +532,11 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "kafka-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "consumerConsistencyMode", value: "EVENTUAL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_CONSUMER_CONSISTENCY, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "consumerConsistencyMode", value: "GUARANTEE_CONSUMPTION", tier: 2, status: NOT_COVERED, reason: R_KAFKA_CONSUMER_CONSISTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.ByteArrayDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.ByteBufferDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.BytesDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
@@ -647,11 +643,11 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "pubsub-trigger", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "pubsub-trigger", kind: "axis", axisPath: "ackMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
   { family: "pubsub-trigger", kind: "axis", axisPath: "ackMode", value: "NONE", tier: 2, status: NOT_COVERED, reason: R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "quartz-scheduler", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "maas", tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
@@ -672,11 +668,11 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "fanout", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "headers", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "topic", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "reuse", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "reuse-reference", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "script", kind: "element", tier: 1, status: "covered", tags: ENGINE },

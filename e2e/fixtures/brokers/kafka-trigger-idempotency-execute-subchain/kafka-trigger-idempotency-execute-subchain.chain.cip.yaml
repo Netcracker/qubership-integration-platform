@@ -1,0 +1,43 @@
+---
+id: "e2e10005-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-trigger-idempotency-execute-subchain"
+description: "The Kafka trigger with idempotency/actionOnDuplicate=execute-subchain. It keys on the e2e-idempotency-key record header and consumes from earliest on a topic only the spec publishes to."
+content:
+  labels: []
+  elements:
+  - id: "e2e10005-0000-4000-8000-000000000002"
+    name: "idempotency/actionOnDuplicate=execute-subchain"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-kafka-trigger-idempotency-execute-subchain"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      groupId: "e2e-{{RUN}}-kafka-trigger-idempotency-execute-subchain"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "earliest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: true
+        contextExpression: "e2e"
+        keyExpiry: 600
+        keyExpression: "${header.e2e-idempotency-key}"
+        chainTriggerParameters:
+          triggerElementId: "e2e10001-0000-4000-8000-000000000002"
+        actionOnDuplicate: "execute-subchain"
+  - id: "e2e10005-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e10005-0000-4000-8000-000000000002"
+    to: "e2e10005-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
