@@ -7,9 +7,13 @@
  *   correlation header is sent to the testing service rather than to its URI, so these calls carry
  *   none and the session is the chain's one uncorrelated session the call added. `propagateContext`
  *   is read the other way round, off a mock whose matcher requires the caller's `X-Request-Id` or
- *   requires it empty.
- * - `graphql-sender` is never mocked. Its chains call the same echo, whose steps land in the caller's
- *   session, and the echo's own trace carries the context it received.
+ *   requires it empty. `correlationIdPosition` puts the correlation id in the mock's answer, in a
+ *   header or in a body field, and the step after the sender writes what the sender received.
+ * - `graphql-sender` is never mocked. Its `propagateContext` chains call the same echo, whose steps
+ *   land in the caller's session, and the echo's own trace carries the context it received. Its
+ *   `correlationIdPosition` chains call `fixtures/chains/correlation-echo/`, which answers a different
+ *   correlation id in its header and in its body, so the id the sender received shows which one it
+ *   read.
  * - `log-record` `logLevel` is invisible in the trace (the level travels in an internal exchange
  *   property the session strips), so it is read off the engine log. A record is written only when
  *   the chain's `logLoggingLevel` lets its level through, and the corpus deploys at `INFO`.
@@ -24,8 +28,7 @@
  *   the tool is a case of its own, on a chain it builds. Its idempotency rows are not covered, and
  *   the registry says why.
  *
- * Correlation ids on both senders have no case, and the registry says why; `swimlane.color` has no
- * runtime at all.
+ * `swimlane.color` has no runtime at all, and the registry says why.
  */
 import { test, expect } from "../../support/fixtures.js";
 import {
@@ -39,6 +42,11 @@ import {
 } from "../../support/corpus.js";
 import {
   axisFixtureName,
+  CORRELATION_ECHO,
+  CORRELATION_ID_FIELD,
+  CORRELATION_ID_HEADER,
+  ECHOED_BODY_CORRELATION_ID,
+  ECHOED_HEADER_CORRELATION_ID,
   expectEchoedMethod,
   HTTP_METHODS,
   LOG_MESSAGE_PREFIX,
@@ -137,6 +145,40 @@ for (const value of [true, false]) {
     const received = element(session, "Echo Method")?.contextBefore?.[REQUEST_ID_HEADER];
     if (value) expect(received).toBe(CALLER_REQUEST_ID);
     else expect(received, "the echo's trigger mints a request id of its own").toMatch(/^\d+\.\d+\.\d+$/);
+  });
+}
+
+for (const position of ["header", "body"] as const) {
+  const branch = `correlationIdPosition=${position}`;
+  test(`${branch}: an http sender receives the correlation id the response carries`, { tag: ["@engine", "@sessions", "@testing-service", "@tier2"] }, async ({ request, env, sessions, testingService, run }) => {
+    covers("http-sender", "correlationIdPosition", position);
+    const chain = generated({ family: "http-sender", axisPath: "correlationIdPosition", value: position });
+    const sent = callToken("correlation");
+    const response = position === "header"
+      ? { status: 200, body: MOCKED, headers: [{ name: CORRELATION_ID_HEADER, value: sent }] }
+      : { status: 200, body: JSON.stringify({ [CORRELATION_ID_FIELD]: sent }), headers: [{ name: "Content-Type", value: "application/json" }] };
+    await testingService.withMock({ name: tokenized(run, `http-sender-correlationIdPosition-${position}`), reference: { chainId: chain.id, elementId: chain.elements[branch] }, response }, async () => {
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+      const body = await call.response.text();
+      await strikesAsKnown(MOCK_BYPASSED, async () => expect(call.response.status(), body).toBe(200));
+      expect(elementNames(await sessions.byExternalId(call.token, { elements: 4 }))).toEqual([...HTTP_TRIGGER_STEPS, branch, CORRELATION_ECHO.name]);
+      expect(JSON.parse(body)).toEqual({ correlationId: sent });
+    });
+  });
+}
+
+for (const [position, received] of [["header", ECHOED_HEADER_CORRELATION_ID], ["body", ECHOED_BODY_CORRELATION_ID]] as const) {
+  const branch = `correlationIdPosition=${position}`;
+  test(`${branch}: a GraphQL sender receives the correlation id the server answers in the ${position}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+    covers("graphql-sender", "correlationIdPosition", position);
+    const chain = generated({ family: "graphql-sender", axisPath: "correlationIdPosition", value: position });
+
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+    const body = await call.response.text();
+    expect(call.response.status(), body).toBe(200);
+    expect(JSON.parse(body)).toEqual({ correlationId: received });
+    const session = await sessions.byExternalId(call.token, { elements: 7 });
+    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, ...HTTP_TRIGGER_STEPS, "Echo Correlation Ids", CORRELATION_ECHO.name]);
   });
 }
 

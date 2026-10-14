@@ -82,9 +82,10 @@ const R_KAFKA_SERIALIZER_PROPORTIONAL =
   "(R_KAFKA_SERIALIZER_INDISTINGUISHABLE), and most of the remaining (de)serializer values would only " +
   "prove that a mismatched type fails to serialize";
 
-const R_PROPAGATE_CONTEXT =
-  "no case: context-propagation.schema.yaml puts propagateContext on nine elements, and none was built " +
-  "for the broker senders";
+const R_RABBITMQ_CONTEXT_ALWAYS_SENT =
+  "a defect: RabbitMqSenderProcessor copies the request context into the message headers on every send, so the " +
+  "caller's X-Request-Id reaches the message with propagateContext false on both engines; the test.fail() case in " +
+  "specs/brokers/rabbitmq.spec.ts carries it";
 
 const R_KAFKA_CONSUMER_CONSISTENCY =
   "the two values select a NetCracker Cloud Blue-Green consumer mode " +
@@ -229,9 +230,6 @@ const R_SERVICE_CALL_VALIDATION_TYPE =
 const R_MCP_IDEMPOTENCY =
   "not run on mcp-trigger: the shared idempotency partial branches on the element type (ignore answers 202 on http-trigger only), " +
   "and a tools/call carries no header for keyExpression, so the http-trigger cases do not prove these rows; no case covers them";
-const R_SENDER_CORRELATION =
-  "no case covers it: the sender reads correlationIdPosition through the same two processors as service-call, " +
-  "and the cases in specs/runtime/service-call-axes.spec.ts cover the service-call rows only";
 const R_CHECKPOINT_EXTERNAL_ROUTE =
   "the one value the checkpoint schema allows, and it does not reach the compiled retry route, " +
   "so no case can tell it from another value";
@@ -361,16 +359,16 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "finally", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("finally"), tags: ENGINE },
   { family: "finally-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "graphql-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE },
-  { family: "graphql-sender", kind: "axis", axisPath: "correlationIdPosition", value: "header", tier: 2, status: NOT_COVERED, reason: R_SENDER_CORRELATION, tags: ENGINE },
-  { family: "graphql-sender", kind: "axis", axisPath: "correlationIdPosition", value: "body", tier: 2, status: NOT_COVERED, reason: R_SENDER_CORRELATION, tags: ENGINE },
+  { family: "graphql-sender", kind: "axis", axisPath: "correlationIdPosition", value: "header", tier: 2, status: "covered", tags: ENGINE },
+  { family: "graphql-sender", kind: "axis", axisPath: "correlationIdPosition", value: "body", tier: 2, status: "covered", tags: ENGINE },
   { family: "graphql-sender", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
   { family: "graphql-sender", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "graphql-sender", kind: "axis", axisPath: "receiveCorrelationId", value: true, tier: 2, status: NOT_COVERED, reason: R_RECEIVE_CORRELATION_ID, tags: ENGINE },
   { family: "graphql-sender", kind: "axis", axisPath: "receiveCorrelationId", value: false, tier: 2, status: NOT_COVERED, reason: R_RECEIVE_CORRELATION_ID, tags: ENGINE },
   { family: "header-modification", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE },
-  { family: "http-sender", kind: "axis", axisPath: "correlationIdPosition", value: "header", tier: 2, status: NOT_COVERED, reason: R_SENDER_CORRELATION, tags: ENGINE },
-  { family: "http-sender", kind: "axis", axisPath: "correlationIdPosition", value: "body", tier: 2, status: NOT_COVERED, reason: R_SENDER_CORRELATION, tags: ENGINE },
+  { family: "http-sender", kind: "axis", axisPath: "correlationIdPosition", value: "header", tier: 2, status: "covered", tags: ENGINE },
+  { family: "http-sender", kind: "axis", axisPath: "correlationIdPosition", value: "body", tier: 2, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "axis", axisPath: "httpMethod", value: "POST", tier: 2, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "axis", axisPath: "httpMethod", value: "GET", tier: 2, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "axis", axisPath: "httpMethod", value: "PUT", tier: 2, status: "covered", tags: ENGINE },
@@ -450,8 +448,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.VoidSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "maasClassifierTenantEnabled", value: true, tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "maasClassifierTenantEnabled", value: false, tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
@@ -627,8 +625,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "pubsub-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: true, tier: 2, status: "covered", tags: ENGINE },
   { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: false, tier: 2, status: "covered", tags: ENGINE },
-  { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
+  { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "pubsub-trigger", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "pubsub-trigger", kind: "axis", axisPath: "ackMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
   { family: "pubsub-trigger", kind: "axis", axisPath: "ackMode", value: "NONE", tier: 2, status: NOT_COVERED, reason: R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE, tags: ENGINE },
@@ -641,8 +639,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "rabbitmq-sender-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "maas", tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE },
-  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
+  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_CONTEXT_ALWAYS_SENT, tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "NONE", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "MANUAL", tier: 2, status: "covered", tags: ENGINE },

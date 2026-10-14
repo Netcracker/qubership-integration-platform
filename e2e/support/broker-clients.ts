@@ -41,6 +41,13 @@ export async function publishKafka(
   }
 }
 
+/** A record a spec consumed, its header values decoded as UTF-8. */
+export interface KafkaRecord {
+  value: string | null;
+  key: string | null;
+  headers: Record<string, string>;
+}
+
 /**
  * The first message off `topic` whose value `wanted` accepts, or `null` if none arrives within
  * `timeoutMs`, for a sender or delivery case. A message an earlier run left on the topic is skipped.
@@ -50,12 +57,12 @@ export async function consumeOneKafka(
   groupId: string,
   wanted: (value: string | null) => boolean,
   timeoutMs = 20_000,
-): Promise<{ value: string | null; key: string | null } | null> {
+): Promise<KafkaRecord | null> {
   const consumer: Consumer = kafka.consumer({ groupId });
   await consumer.connect();
   await consumer.subscribe({ topic, fromBeginning: true });
-  let resolveFound: (message: { value: string | null; key: string | null } | null) => void;
-  const found = new Promise<{ value: string | null; key: string | null } | null>((resolve) => {
+  let resolveFound: (message: KafkaRecord | null) => void;
+  const found = new Promise<KafkaRecord | null>((resolve) => {
     resolveFound = resolve;
   });
   const timer = setTimeout(() => resolveFound(null), timeoutMs);
@@ -65,7 +72,8 @@ export async function consumeOneKafka(
         const value = message.value ? message.value.toString("utf-8") : null;
         if (!wanted(value)) return;
         clearTimeout(timer);
-        resolveFound({ value, key: message.key ? message.key.toString("utf-8") : null });
+        const headers = Object.fromEntries(Object.entries(message.headers ?? {}).map(([name, each]) => [name, String(each)]));
+        resolveFound({ value, key: message.key ? message.key.toString("utf-8") : null, headers });
       },
     });
     return await found;
@@ -147,8 +155,8 @@ export function waitForAmqpMessage(
   channel: Channel,
   queue: string,
   timeoutMs = 20_000,
-): Promise<{ body: unknown } | null> {
-  return new Promise<{ body: unknown } | null>((resolve) => {
+): Promise<{ body: unknown; headers: Record<string, unknown> } | null> {
+  return new Promise<{ body: unknown; headers: Record<string, unknown> } | null>((resolve) => {
     const timer = setTimeout(() => resolve(null), timeoutMs);
     channel
       .consume(
@@ -157,7 +165,7 @@ export function waitForAmqpMessage(
           if (!message) return;
           clearTimeout(timer);
           channel.ack(message);
-          resolve({ body: JSON.parse(message.content.toString("utf-8")) });
+          resolve({ body: JSON.parse(message.content.toString("utf-8")), headers: message.properties.headers ?? {} });
         },
         { noAck: false },
       )
@@ -211,7 +219,10 @@ export async function deletePullSubscription(subscription: string): Promise<void
 }
 
 /** One message off `subscription`, acked, or `null` if none arrives within `timeoutMs`. */
-export async function pullOnePubsub(subscription: string, timeoutMs = 20_000): Promise<{ data: unknown; orderingKey?: string } | null> {
+export async function pullOnePubsub(
+  subscription: string,
+  timeoutMs = 20_000,
+): Promise<{ data: unknown; orderingKey?: string; attributes: Record<string, string> } | null> {
   const received = await readUntil(
     async () => {
       const response = await fetch(pubsubUrl(`subscriptions/${subscription}:pull`), {
@@ -221,7 +232,7 @@ export async function pullOnePubsub(subscription: string, timeoutMs = 20_000): P
       });
       if (!response.ok) throw new Error(`pulling ${subscription} answered ${response.status}`);
       const body = (await response.json()) as {
-        receivedMessages?: Array<{ ackId: string; message: { data: string; orderingKey?: string } }>;
+        receivedMessages?: Array<{ ackId: string; message: { data: string; orderingKey?: string; attributes?: Record<string, string> } }>;
       };
       return body.receivedMessages?.[0] ?? null;
     },
@@ -237,6 +248,7 @@ export async function pullOnePubsub(subscription: string, timeoutMs = 20_000): P
   return {
     data: JSON.parse(Buffer.from(received.message.data, "base64").toString("utf-8")),
     orderingKey: received.message.orderingKey,
+    attributes: received.message.attributes ?? {},
   };
 }
 

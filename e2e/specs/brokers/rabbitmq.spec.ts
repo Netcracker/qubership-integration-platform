@@ -26,13 +26,19 @@
  * `deadLetterExchangeType`, `deadLetterQueue` and `deadLetterRoutingKey` properties. Under `NONE` the
  * container consumes with `autoAck`, so the broker counts the delivery as acknowledged when it sends
  * it: the failure records one session and the message is neither redelivered nor dead-lettered.
+ *
+ * `propagateContext` is read off the AMQP headers of the message the spec's own queue receives. The
+ * false case is a `test.fail()`: `RabbitMqSenderProcessor` sends the request context either way.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
 import { publishAmqp as publish, bindConsumerQueue, waitForAmqpMessage as waitForMessage } from "../../support/broker-clients.js";
 import { callToken } from "../../support/run.js";
-import { callChain, elementNames, failedElements } from "../../support/sessions.js";
+import { CALLER_REQUEST_ID, callChain, elementNames, failedElements, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER, type Sessions } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
+import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
+import type { APIRequestContext } from "@playwright/test";
+import type { Env } from "../../env/index.js";
 
 /** How long the MANUAL and NONE cases watch the dead-letter queue stay empty. */
 const DLQ_ABSENCE_TIMEOUT = 15_000;
@@ -237,3 +243,45 @@ test(
     }
   },
 );
+
+/** Drives the `propagateContext` chain of `value` with the caller's request id, and returns the headers of the message it sent. */
+async function sentHeaders(request: APIRequestContext, env: Env, sessions: Sessions, value: boolean): Promise<Record<string, unknown>> {
+  const chain = brokerChain(readBrokersCorpusState(), `rabbitmq-sender-propagate-context-${value}`);
+  const exchange = chain.broker.exchange as string;
+  const routingKey = chain.broker.routingKey as string;
+  const body = { ping: "rabbitmq-propagate-context", nonce: callToken("nonce") };
+
+  const { connection, channel, queue } = await bindConsumerQueue(exchange, routingKey);
+  try {
+    const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
+    expect(response.status()).toBe(200);
+    const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
+    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, `propagateContext=${value}`]);
+    expect(failedElements(session)).toEqual([]);
+
+    const message = await waitForMessage(channel, queue);
+    expect(message, `no message arrived on the queue bound to ${exchange}/${routingKey} within the wait`).not.toBeNull();
+    expect(message!.body).toEqual(body);
+    return message!.headers;
+  } finally {
+    await channel.close();
+    await connection.close();
+  }
+}
+
+test("propagateContext=true: rabbitmq-sender-2 sends the caller's request id", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+  covers("rabbitmq-sender-2", "propagateContext", true);
+  expect((await sentHeaders(request, env, sessions, true))[REQUEST_ID_HEADER]).toBe(CALLER_REQUEST_ID);
+});
+
+// `RabbitMqSenderProcessor` copies the request context into the message headers on every send, so the
+// caller's request id reaches the message with `propagateContext` false too, on both engines. No issue
+// is filed yet; the registry row stays not covered.
+test.fail("propagateContext=false: rabbitmq-sender-2 drops the caller's request id", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+  const headers = await outsideTheDefect("sending through the chain", () => sentHeaders(request, env, sessions, false));
+  const received = headers[REQUEST_ID_HEADER];
+  if (received !== undefined && received !== CALLER_REQUEST_ID) {
+    notTheKnownDefect(`the message carried ${REQUEST_ID_HEADER} ${String(received)}, which is neither the caller's id nor no id`);
+  }
+  expect(received, "the sender drops the request id: delete the test.fail() annotation and cover the row").toBeUndefined();
+});
