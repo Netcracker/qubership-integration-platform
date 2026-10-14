@@ -276,21 +276,65 @@ function microId(id: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-/** The `contextPath` of every `http-trigger` in a chain document, at any depth. */
-export function httpTriggerPaths(document: Record<string, unknown>): string[] {
-  const found: string[] = [];
+interface DocumentElement {
+  type?: unknown;
+  properties?: Record<string, unknown>;
+  children?: unknown[];
+}
+
+/** Every element of a chain document, at any depth. */
+function elementsOf(document: Record<string, unknown>): DocumentElement[] {
+  const found: DocumentElement[] = [];
   const pending = [...(((document.content as { elements?: unknown[] })?.elements) ?? [])];
   while (pending.length > 0) {
-    const element = pending.shift() as {
-      type?: unknown;
-      properties?: { contextPath?: unknown };
-      children?: unknown[];
-    };
-    const contextPath = element.properties?.contextPath;
-    if (element.type === "http-trigger" && typeof contextPath === "string") found.push(contextPath);
+    const element = pending.shift() as DocumentElement;
+    found.push(element);
     pending.push(...(element.children ?? []));
   }
   return found;
+}
+
+/** The `contextPath` of every `http-trigger` in a chain document, at any depth. */
+export function httpTriggerPaths(document: Record<string, unknown>): string[] {
+  return elementsOf(document)
+    .filter((element) => element.type === "http-trigger" && typeof element.properties?.contextPath === "string")
+    .map((element) => element.properties!.contextPath as string);
+}
+
+/**
+ * What the micro copy appends to every broker address it consumes from or sends to. Both copies of
+ * the broker corpus run at once, and a shared topic or exchange would deliver one message to both.
+ */
+export const MICRO_ADDRESS_SUFFIX = "-micro";
+
+/** Whether a broker name belongs to the micro copy, or to a spec name built from one of its addresses. */
+export function isMicroAddress(name: string): boolean {
+  return name.includes(MICRO_ADDRESS_SUFFIX);
+}
+
+/** The properties of each broker element that name an address: a comma-separated list, or an SFTP URL. */
+const BROKER_ADDRESS_PROPERTIES: Record<string, readonly string[]> = {
+  "kafka-trigger-2": ["topics", "groupId"],
+  "kafka-sender-2": ["topics"],
+  "rabbitmq-trigger-2": ["exchange", "queues", "deadLetterExchange", "deadLetterQueue"],
+  "rabbitmq-sender-2": ["exchange"],
+  "pubsub-trigger": ["destinationName"],
+  "pubsub-sender": ["destinationName"],
+  "sftp-trigger-2": ["connectUrl"],
+  "sftp-download": ["connectUrl"],
+  "sftp-upload": ["connectUrl"],
+};
+
+/**
+ * The micro copy's address: each listed name gets `MICRO_ADDRESS_SUFFIX`, and an SFTP URL moves to
+ * a sibling of its run directory under `/upload`, so each copy's teardown deletes a tree of its own.
+ */
+function microAddress(property: string, value: string): string {
+  if (property === "connectUrl") return value.replace(/(\/upload\/[^/]+)/, `$1${MICRO_ADDRESS_SUFFIX}`);
+  return value
+    .split(",")
+    .map((name) => `${name.trim()}${MICRO_ADDRESS_SUFFIX}`)
+    .join(",");
 }
 
 /**
@@ -303,7 +347,7 @@ export function httpTriggerPaths(document: Record<string, unknown>): string[] {
  * prefix too, in a chain or in a service address: inside a micro pod `localhost` is the copy's own
  * domain, which serves the callee's micro copy under the prefixed path. A service fixture is copied
  * the same way, so the copy's chains call the copy's services, and an MCP service identifier gets
- * a `micro-` prefix.
+ * a `micro-` prefix. A broker element's addresses get `microAddress`.
  */
 export function microCopy(name: string, tree: RenderedTree): RenderedTree {
   const copy: RenderedTree = new Map();
@@ -329,6 +373,16 @@ export function microCopy(name: string, tree: RenderedTree): RenderedTree {
       throw new Error(`fixture ${name}: expected one ${line} to prefix, found ${count}`);
     }
     source = source.replace(line, `contextPath: "${MICRO_PATH_PREFIX}${contextPath}"`);
+  }
+  for (const element of elementsOf(document)) {
+    for (const property of BROKER_ADDRESS_PROPERTIES[String(element.type)] ?? []) {
+      const value = element.properties?.[property];
+      if (typeof value !== "string") continue;
+      const line = `${property}: ${JSON.stringify(value)}`;
+      const count = source.split(line).length - 1;
+      if (count !== 1) throw new Error(`fixture ${name}: expected one ${line} to rename, found ${count}`);
+      source = source.replace(line, `${property}: ${JSON.stringify(microAddress(property, value))}`);
+    }
   }
   copy.set(file, source);
   return copy;

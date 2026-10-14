@@ -15,7 +15,7 @@ import type {
 import { ComposeEnv } from "./compose.js";
 import type { EngineKind, Env, ProcessEnvelope } from "./index.js";
 import type { ProvisionMode, ProvisionReport } from "./provision.js";
-import { K8sEnv, MICRO_REDEPLOY_STATE_FILE } from "./k8s.js";
+import { BROKERS_MICRO_CORPUS_STATE_FILE, K8sEnv, MICRO_REDEPLOY_STATE_FILE } from "./k8s.js";
 import { collectK8sHeader, k8sBaseline, topSample } from "./k8s-observer.js";
 import { provisionCompose } from "./provision/compose.js";
 import { provisionK8s } from "./provision/k8s.js";
@@ -129,8 +129,24 @@ function composeSetup(): TargetSetup {
   };
 }
 
-function brokersAbsent(): Absence[] {
-  return brokerProjects().map(({ name }) => ({ name, reason: "E2E_BROKERS=0" }));
+function brokersAbsent(projects: readonly SuiteProject[] = brokerProjects()): Absence[] {
+  return projects.map(({ name }) => ({ name, reason: "E2E_BROKERS=0" }));
+}
+
+/** The broker projects only the Kubernetes target declares, since the micro engine runs only there. */
+function microBrokerProjects(): SuiteProject[] {
+  return [
+    {
+      // The micro copy of `fixtures/brokers/`, on a micro domain of its own, declared the way
+      // `brokers-seed` and `seed-micro` are. Its teardown reads the catalog and the state file only,
+      // since `suite-teardown` runs with a classic `env`.
+      name: "brokers-micro-seed",
+      testDir: "./specs/brokers-micro-seed",
+      testMatch: /.*\.setup\.ts$/,
+      teardown: "suite-teardown",
+      use: { engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE },
+    },
+  ];
 }
 
 function k8sProjects(): SuiteProject[] {
@@ -198,8 +214,8 @@ function k8sSetup(): TargetSetup {
       },
       header: collectK8sHeader,
     },
-    projects: [...k8sProjects(), ...(brokers ? brokerProjects() : [])],
-    absent: brokers ? [] : brokersAbsent(),
+    projects: [...k8sProjects(), ...(brokers ? [...brokerProjects(), ...microBrokerProjects()] : [])],
+    absent: brokers ? [] : brokersAbsent([...brokerProjects(), ...microBrokerProjects()]),
   };
 }
 

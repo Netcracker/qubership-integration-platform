@@ -54,7 +54,7 @@ import {
 } from "../fixtures/templating.js";
 import { renderAxisFixtures } from "../fixtures/axis-generator.js";
 import type { EngineKind, Env } from "../env/index.js";
-import { MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../env/k8s.js";
+import { BROKERS_MICRO_CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../env/k8s.js";
 import { noteChain } from "./diagnostics.js";
 import { keepEntities } from "./fixtures.js";
 import { tokenized } from "./run.js";
@@ -513,14 +513,14 @@ export function readCorpusState(): SeededCorpus {
 }
 
 /**
- * Drops the classic and the micro state files when the corpus or the domain each names belonged to
- * a run that has just been swept.
+ * Drops the classic and the micro state files, the broker corpus's micro copy included, when the
+ * corpus or the domain each names belonged to a run that has just been swept.
  *
  * Without it the file outlives the chains it points at, and the next `--no-deps` run addresses
  * deleted ids and fails with 404s rather than with "the seed did not run".
  */
 export function discardCorpusStateOf(runs: readonly string[]): void {
-  for (const file of [CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE]) {
+  for (const file of [CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE, BROKERS_MICRO_CORPUS_STATE_FILE]) {
     const corpus = readStateFile<SeededCorpus>(file);
     if (corpus && runs.includes(corpus.run)) fs.rmSync(file, { force: true });
   }
@@ -532,7 +532,8 @@ export interface ProjectUse {
   microDomainState?: string;
 }
 
-function projectUse(): ProjectUse {
+/** The current project's `use`, which the corpus readers default to. */
+export function projectUse(): ProjectUse {
   return test.info().project.use as ProjectUse;
 }
 

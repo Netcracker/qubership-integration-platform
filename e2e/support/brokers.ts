@@ -27,9 +27,30 @@ import Client from "ssh2-sftp-client";
 import type { Catalog, LoggingProperties } from "./catalog.js";
 import type { Env, Overlay } from "../env/index.js";
 import { kafkaHostBrokers, pubsubHostUrl, rabbitmqHostUrl, sftpHostAddress } from "../env/containers.js";
+import { BROKERS_MICRO_CORPUS_STATE_FILE } from "../env/k8s.js";
 import { stateFileName } from "../env/target.js";
-import { assembleCorpus, corpusFixtureNames, BROKERS_FIXTURE_DIR } from "../fixtures/templating.js";
-import { deployCorpus, waitForDeployed, waitForRoutes, waitForUndeployed, flatten, type FixtureElement, type SeedChain } from "./corpus.js";
+import {
+  assembleTrees,
+  BROKERS_FIXTURE_DIR,
+  corpusFixtureNames,
+  isMicroAddress,
+  microCopy,
+  readFixtureDocument,
+  renderFixture,
+  type RenderedTree,
+} from "../fixtures/templating.js";
+import {
+  deployCorpus,
+  flatten,
+  projectUse,
+  waitForDeployed,
+  waitForRoutes,
+  waitForUndeployed,
+  type FixtureElement,
+  type ProjectUse,
+  type SeedChain,
+} from "./corpus.js";
+import { deployToDomain, tokenedDomain } from "./deployable.js";
 import { keepEntities } from "./fixtures.js";
 import { noteChain } from "./diagnostics.js";
 import { sleep } from "./poll.js";
@@ -89,7 +110,7 @@ export function kafkaTopicsIn(documents: readonly Record<string, unknown>[]): st
 }
 
 /** Every consumer group a `kafka-trigger-2` element names, across the given documents. */
-function kafkaGroupsIn(documents: readonly Record<string, unknown>[]): string[] {
+export function kafkaGroupsIn(documents: readonly Record<string, unknown>[]): string[] {
   const groups = new Set<string>();
   for (const document of documents) {
     for (const element of elementsOf(document)) {
@@ -196,7 +217,7 @@ export interface PubsubTopology {
  * the topology derivable from the element the way `kafkaTopicsIn` and `rabbitmqTopologyIn` are,
  * rather than adding a second, driftable declaration this schema has no room for.
  */
-function pubsubTopologyIn(documents: readonly Record<string, unknown>[]): PubsubTopology {
+export function pubsubTopologyIn(documents: readonly Record<string, unknown>[]): PubsubTopology {
   const subscriptions: PubsubSubscription[] = [];
   const senderTopics: Array<{ projectId: string; topic: string }> = [];
   for (const document of documents) {
@@ -290,31 +311,48 @@ async function deletePubsubTopology(topology: PubsubTopology): Promise<void> {
 }
 
 /**
- * Removes every file `files.spec.ts` dropped or uploaded for this run.
+ * The SFTP trees a corpus copy's chains write under: the run directory under `/upload` that each
+ * `connectUrl` names, `/upload/<run>` in the classic copy and `/upload/<run>-micro` in the micro one.
+ */
+export function sftpRootsOf(chains: readonly BrokerChain[]): string[] {
+  const roots = new Set<string>();
+  for (const chain of chains) {
+    const connectUrl = chain.broker.connectUrl;
+    if (typeof connectUrl !== "string") continue;
+    roots.add(connectUrl.slice(connectUrl.indexOf("/")).split("/").slice(0, 3).join("/"));
+  }
+  return [...roots].sort();
+}
+
+/**
+ * Removes every file `files.spec.ts` dropped or uploaded for one corpus copy.
  *
  * Every SFTP fixture's `connectUrl` nests under `/upload/{{RUN}}/<fixture>` (`fixtures/brokers/sftp-*`),
- * so one recursive delete of `/upload/<run>` is the whole run's residue: `atmoz/sftp` carries no
- * named volume in `infrastructure/docker-compose.sftp.yml`, so a healthy, left-running container
- * keeps every run's files until something removes them. A run whose corpus never wrote under the
- * directory still connects and finds `exists()` answers `false`; the connect is unconditional, so a
- * fixture set that never brought the `sftp` overlay up at all fails here instead of finding nothing.
+ * so one recursive delete of each root is the whole copy's residue: `atmoz/sftp` carries no named
+ * volume in `infrastructure/docker-compose.sftp.yml`, so a healthy, left-running container keeps
+ * every run's files until something removes them. A run whose corpus never wrote under a root still
+ * connects and finds `exists()` answers `false`; the connect is unconditional, so a fixture set that
+ * never brought the `sftp` overlay up at all fails here instead of finding nothing.
  */
 async function deleteSftpResidue(
-  run: string,
+  roots: readonly string[],
   timeoutMs = 15_000,
   settleMs = 2_000,
 ): Promise<void> {
   const client = new Client();
   await client.connect(SFTP_HOST_CONFIG);
   try {
-    const dir = `/upload/${run}`;
     // Every SFTP fixture sets `autoCreate: true`, so a consumer that has not yet noticed its route
-    // is gone can recreate this directory between the delete and the moment teardown returns.
+    // is gone can recreate a root between the delete and the moment teardown returns.
     await deleteUntilGone(
       "sftp directory",
-      async () => ((await client.exists(dir)) ? [dir] : []),
       async () => {
-        await client.rmdir(dir, true);
+        const present: string[] = [];
+        for (const dir of roots) if (await client.exists(dir)) present.push(dir);
+        return present;
+      },
+      async (present) => {
+        for (const dir of present) await client.rmdir(dir, true);
       },
       timeoutMs,
       settleMs,
@@ -453,6 +491,13 @@ export async function deleteKafkaTopics(
 }
 
 /**
+ * How long the micro copy's consumer groups get to empty after its domain is deleted. Measured on
+ * DD k8s: the groups still had members 15 s after the delete, and the teardown that waited for them
+ * took 78 s in all.
+ */
+export const MICRO_GROUP_LEAVE_TIMEOUT = 120_000;
+
+/**
  * Deletes every consumer group whose id carries the run token.
  *
  * Not just `kafkaGroupsIn`'s trigger-declared groups: a spec's own verification consumer also opens
@@ -463,17 +508,22 @@ export async function deleteKafkaTopics(
  * `KafkaJS` throws `KafkaJSDeleteGroupsError` for a group a member has not finished leaving yet, the
  * same wind-down asynchrony `deleteKafkaTopics` already retries through. So this redeletes whatever
  * is still listed on the next pass, rather than letting one busy group fail the whole teardown.
+ * `suite-teardown` removes the classic and the micro copy side by side, so each removes only the
+ * groups of its own copy (`micro`), and a group the other copy still consumes in is left to it.
  */
 async function deleteKafkaConsumerGroups(
   run: string,
-  timeoutMs = 15_000,
+  micro: boolean,
+  timeoutMs = micro ? MICRO_GROUP_LEAVE_TIMEOUT : 15_000,
 ): Promise<void> {
   await withKafkaAdmin(async (admin) => {
     const deadline = Date.now() + timeoutMs;
     let lastFailure = "no attempt";
     while (Date.now() < deadline) {
       const { groups } = await admin.listGroups();
-      const ours = groups.map((group) => group.groupId).filter((id) => id.includes(run));
+      const ours = groups
+        .map((group) => group.groupId)
+        .filter((id) => id.includes(run) && isMicroAddress(id) === micro);
       if (ours.length === 0) return;
       try {
         await admin.deleteGroups(ours);
@@ -677,14 +727,86 @@ export interface SeededBrokerCorpus {
   pubsubTopology: PubsubTopology;
 }
 
+/** The micro copy of the broker corpus, and the micro domain it is deployed to. */
+export interface MicroBrokerCorpus extends SeededBrokerCorpus {
+  domain: string;
+}
+
+/** The broker fixtures rendered with `run`, as the classic copy holds them. */
+export function brokerTrees(
+  run: string,
+  fixtures: readonly string[] = corpusFixtureNames([BROKERS_FIXTURE_DIR]),
+): Array<[string, RenderedTree]> {
+  return fixtures.map((name) => [name, renderFixture(BROKERS_FIXTURE_DIR, name, run)]);
+}
+
+/** The broker fixtures rendered with `run` and turned into the micro copy, whose addresses are its own. */
+export function microBrokerTrees(run: string): Array<[string, RenderedTree]> {
+  return brokerTrees(run).map(([name, tree]) => [name, microCopy(name, tree)]);
+}
+
+function documentsOf(trees: ReadonlyArray<readonly [string, RenderedTree]>): Record<string, unknown>[] {
+  return trees.map(([name, tree]) => readFixtureDocument(name, tree).document);
+}
+
+/** The chains and the topology a copy of the broker corpus declares: pure reads off its documents. */
+export function brokerCorpusOf(run: string, trees: ReadonlyArray<readonly [string, RenderedTree]>): SeededBrokerCorpus {
+  const documents = documentsOf(trees);
+  return {
+    run,
+    chains: documents.map((document, index) => describe(trees[index][0], document)),
+    kafkaTopics: kafkaTopicsIn(documents),
+    rabbitmqTopology: rabbitmqTopologyIn(documents),
+    pubsubTopology: pubsubTopologyIn(documents),
+  };
+}
+
 /**
- * Imports the broker fixtures, brings up the overlays they need, creates their topics and queues,
- * raises their logging, deploys them, and waits for a route on whichever chains carry an HTTP
- * trigger.
+ * Brings up the overlays a copy needs, creates its topics and queues, then deletes, imports and
+ * raises the logging of its chains.
  *
  * Order matters the way it does for the shared corpus, plus one step ahead of it: the topology has
  * to exist **before** the deploy, because `KafkaTopicAndConnectionCheckAction` and a missing
  * RabbitMQ queue are both discovered at deploy time, not at import time.
+ */
+async function importBrokerCopy(
+  catalog: Catalog,
+  env: Env,
+  corpus: SeededBrokerCorpus,
+  trees: ReadonlyArray<readonly [string, RenderedTree]>,
+  archiveName: string,
+  record: () => void,
+): Promise<void> {
+  for (const overlay of overlaysNeededBy(documentsOf(trees))) await env.ensureOverlay(overlay);
+
+  // Recorded now, before any of the topology below exists, not only once the seed returns. Without
+  // the early write, a failure anywhere from here to the return (creating a topic, the import, the
+  // deploy, the consumer wait) leaves the run's topics, queues and subscriptions on the broker with
+  // nothing on disk naming them: the broker teardown runs whether or not the seed passed, but only
+  // the state file tells it what to remove.
+  record();
+
+  await ensureKafkaTopics(corpus.kafkaTopics);
+  await ensureRabbitmqTopology(corpus.rabbitmqTopology);
+  await ensurePubsubTopology(corpus.pubsubTopology);
+
+  for (const chain of corpus.chains) await catalog.deleteChain(chain.id).catch(() => {});
+
+  const { archive } = await assembleTrees(trees);
+  const response = await catalog.importChains(archive, archiveName);
+  expect(response.status(), `the broker corpus import answered ${response.status()}`).toBe(200);
+  const imported = (await response.json()) as { chains: Array<{ id: string; status: string }> };
+  expect(
+    imported.chains.map((each) => each.id).sort(),
+    "the import wrote a different set of broker chains than the fixtures declare",
+  ).toEqual(corpus.chains.map((each) => each.id).sort());
+
+  for (const chain of corpus.chains) await catalog.saveLoggingProperties(chain.id, BROKERS_LOGGING);
+}
+
+/**
+ * Imports the broker fixtures, deploys them to the classic engine, and waits for a route on
+ * whichever chains carry an HTTP trigger and for every Kafka consumer group.
  */
 export async function seedBrokers(
   catalog: Catalog,
@@ -692,52 +814,99 @@ export async function seedBrokers(
   run: string,
   fixtures: readonly string[] = corpusFixtureNames([BROKERS_FIXTURE_DIR]),
 ): Promise<SeededBrokerCorpus> {
-  const { archive, documents } = await assembleCorpus(fixtures, run, [BROKERS_FIXTURE_DIR]);
-  const chains = documents.map((each, index) => describe(fixtures[index], each.document));
-  const rawDocuments = documents.map((each) => each.document);
+  const trees = brokerTrees(run, fixtures);
+  const corpus = brokerCorpusOf(run, trees);
+  await importBrokerCopy(catalog, env, corpus, trees, `brokers-${run}.zip`, () => writeBrokersCorpusState(corpus));
 
-  for (const overlay of overlaysNeededBy(rawDocuments)) await env.ensureOverlay(overlay);
-
-  const kafkaTopics = kafkaTopicsIn(rawDocuments);
-  const rabbitmqTopology = rabbitmqTopologyIn(rawDocuments);
-  const pubsubTopology = pubsubTopologyIn(rawDocuments);
-
-  // Written now, before any of the topology below exists, not only once this function returns.
-  // `chains`, `kafkaTopics`, `rabbitmqTopology` and `pubsubTopology` are already fixed at this point
-  // — pure reads off the fixture documents — so this is the same object the function returns.
-  // Without the early write, a failure anywhere from here to the return (creating a topic, the
-  // import, the deploy, the consumer wait) leaves the run's topics, queues and subscriptions on the
-  // broker with nothing on disk naming them: the broker teardown runs whether or not this test
-  // passed, but only `readBrokersCorpusState` tells it what to remove.
-  const corpus: SeededBrokerCorpus = { run, chains, kafkaTopics, rabbitmqTopology, pubsubTopology };
-  writeBrokersCorpusState(corpus);
-
-  await ensureKafkaTopics(kafkaTopics);
-  await ensureRabbitmqTopology(rabbitmqTopology);
-  await ensurePubsubTopology(pubsubTopology);
-
-  for (const chain of chains) await catalog.deleteChain(chain.id).catch(() => {});
-
-  const response = await catalog.importChains(archive, `brokers-${run}.zip`);
-  expect(response.status(), `the broker corpus import answered ${response.status()}`).toBe(200);
-  const imported = (await response.json()) as { chains: Array<{ id: string; status: string }> };
-  expect(
-    imported.chains.map((each) => each.id).sort(),
-    "the import wrote a different set of broker chains than the fixtures declare",
-  ).toEqual(chains.map((each) => each.id).sort());
-
-  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, BROKERS_LOGGING);
-
-  await deployCorpus(catalog, chains);
-  await waitForDeployed(catalog, chains);
-
-  await waitForRoutes(env, chains);
+  await deployCorpus(catalog, corpus.chains);
+  await waitForDeployed(catalog, corpus.chains);
+  await waitForRoutes(env, corpus.chains);
 
   // A kafka-trigger-2 chain with no HTTP trigger carries no route for the wait above to gate on, and
   // `DEPLOYED` is not consuming: see `waitForKafkaConsumers`.
-  await waitForKafkaConsumers(kafkaGroupsIn(rawDocuments));
-
+  await waitForKafkaConsumers(kafkaGroupsIn(documentsOf(trees)));
   return corpus;
+}
+
+/**
+ * Imports the micro copy of the broker fixtures and deploys it in one batch to a micro domain of
+ * its own, then waits for its routes and its Kafka consumer groups as `seedBrokers` does.
+ *
+ * A domain apart from `seed-micro`'s: one chain that fails to load takes its whole pod down, and a
+ * broker outage would then fail every `runtime-micro` case.
+ */
+export async function seedMicroBrokers(catalog: Catalog, env: Env, run: string): Promise<MicroBrokerCorpus> {
+  const trees = microBrokerTrees(run);
+  const target = tokenedDomain(run, "brokers-micro");
+  const corpus: MicroBrokerCorpus = { ...brokerCorpusOf(run, trees), domain: target.domain };
+  await importBrokerCopy(catalog, env, corpus, trees, `brokers-micro-${run}.zip`, () =>
+    writeStateFile(BROKERS_MICRO_CORPUS_STATE_FILE, corpus),
+  );
+
+  await deployToDomain(catalog, target, corpus.chains);
+  await waitForKafkaConsumers(kafkaGroupsIn(documentsOf(trees)));
+  return corpus;
+}
+
+/**
+ * Deletes each chain's logging properties and then the chain, adding a line to `failures` for each
+ * one left. A chain whose properties survived is kept, for the reason `teardownCorpus` keeps one.
+ */
+async function deleteBrokerChains(catalog: Catalog, chains: readonly BrokerChain[], failures: string[], undeploy: boolean): Promise<void> {
+  const kept = new Set<string>();
+  for (const chain of chains) {
+    await catalog.deleteLoggingProperties(chain.id).catch((cause: unknown) => {
+      failures.push(`${chain.name} (${chain.id}) kept its logging properties, so it was kept: ${String(cause)}`);
+      kept.add(chain.id);
+    });
+    if (!undeploy) continue;
+    await catalog.undeployAll(chain.id).catch((cause: unknown) => {
+      console.error(`[teardown] ${chain.name} (${chain.id}) was not undeployed before its delete: ${String(cause)}`);
+    });
+  }
+  for (const chain of chains) {
+    if (kept.has(chain.id)) continue;
+    // `ChainController.deleteById` answers 404 for an unknown chain, which is what every chain named
+    // here looks like when the seed failed before the import — the state file is written early (see
+    // `importBrokerCopy`), so it can name chains the corpus never actually created. That is not residue.
+    const response = await catalog.raw("delete", `/v1/chains/${chain.id}`);
+    if (response.status() === 404) continue;
+    if (!response.ok()) {
+      failures.push(`${chain.name} (${chain.id}) was not deleted: ${response.status()}`);
+    }
+  }
+}
+
+/** Deletes a copy's topics, its consumer groups, its RabbitMQ and Pub/Sub topology, and its SFTP trees. */
+async function deleteBrokerTopology(corpus: SeededBrokerCorpus, micro: boolean, failures: string[]): Promise<void> {
+  await deleteKafkaTopics(corpus.kafkaTopics).catch((cause: unknown) => {
+    failures.push(`kafka topics ${corpus.kafkaTopics.join(", ")} were not deleted: ${String(cause)}`);
+  });
+  await deleteKafkaConsumerGroups(corpus.run, micro).catch((cause: unknown) => {
+    failures.push(`kafka consumer groups for run ${corpus.run} were not deleted: ${String(cause)}`);
+  });
+  await deleteRabbitmqTopology(corpus.rabbitmqTopology).catch((cause: unknown) => {
+    failures.push(`rabbitmq topology was not deleted: ${String(cause)}`);
+  });
+  await deletePubsubTopology(corpus.pubsubTopology).catch((cause: unknown) => {
+    failures.push(`pubsub topology was not deleted: ${String(cause)}`);
+  });
+  const roots = sftpRootsOf(corpus.chains);
+  await deleteSftpResidue(roots).catch((cause: unknown) => {
+    failures.push(`sftp files under ${roots.join(", ")} were not deleted: ${String(cause)}`);
+  });
+}
+
+/** Removes `file` when nothing failed, and otherwise throws naming the residue and the kept file. */
+function finishTeardown(what: string, corpus: SeededBrokerCorpus, file: string, failures: readonly string[]): void {
+  if (failures.length === 0) {
+    fs.rmSync(file, { force: true });
+    return;
+  }
+  throw new Error(
+    `the ${what} teardown left residue of run ${corpus.run}: ${failures.join("; ")}. ` +
+      `${file} is kept, because it is what still names it.`,
+  );
 }
 
 /** Undeploys and deletes the broker corpus, and drops the topics, queues and files the run created. */
@@ -749,57 +918,36 @@ export async function teardownBrokers(catalog: Catalog, corpus: SeededBrokerCorp
   }
 
   const failures: string[] = [];
-  const kept = new Set<string>();
-  for (const chain of corpus.chains) {
-    await catalog.deleteLoggingProperties(chain.id).catch((cause: unknown) => {
-      failures.push(`${chain.name} (${chain.id}) kept its logging properties, so it was kept: ${String(cause)}`);
-      kept.add(chain.id);
-    });
-    await catalog.undeployAll(chain.id).catch((cause: unknown) => {
-      console.error(`[teardown] ${chain.name} (${chain.id}) was not undeployed before its delete: ${String(cause)}`);
-    });
-  }
-  for (const chain of corpus.chains) {
-    if (kept.has(chain.id)) continue;
-    // `ChainController.deleteById` answers 404 for an unknown chain, which is what every chain named
-    // here looks like when the seed failed before the import — the state file is written early (see
-    // `seedBrokers`), so it can name chains the corpus never actually created. That is not residue.
-    const response = await catalog.raw("delete", `/v1/chains/${chain.id}`);
-    if (response.status() === 404) continue;
-    if (!response.ok()) {
-      failures.push(`${chain.name} (${chain.id}) was not deleted: ${response.status()}`);
-    }
-  }
-
+  await deleteBrokerChains(catalog, corpus.chains, failures, true);
   // A consumer the engine has not stopped yet still holds its group, its queue, its subscription or
   // its directory, so the broker topology goes only once the engine runs none of the corpus.
   await waitForUndeployed(catalog, corpus.chains).catch((cause: unknown) => {
     failures.push(`the engine still ran broker chains after their undeploy: ${String(cause)}`);
   });
-  await deleteKafkaTopics(corpus.kafkaTopics).catch((cause: unknown) => {
-    failures.push(`kafka topics ${corpus.kafkaTopics.join(", ")} were not deleted: ${String(cause)}`);
-  });
-  await deleteKafkaConsumerGroups(corpus.run).catch((cause: unknown) => {
-    failures.push(`kafka consumer groups for run ${corpus.run} were not deleted: ${String(cause)}`);
-  });
-  await deleteRabbitmqTopology(corpus.rabbitmqTopology).catch((cause: unknown) => {
-    failures.push(`rabbitmq topology was not deleted: ${String(cause)}`);
-  });
-  await deletePubsubTopology(corpus.pubsubTopology).catch((cause: unknown) => {
-    failures.push(`pubsub topology was not deleted: ${String(cause)}`);
-  });
-  await deleteSftpResidue(corpus.run).catch((cause: unknown) => {
-    failures.push(`sftp files under /upload/${corpus.run} were not deleted: ${String(cause)}`);
-  });
+  await deleteBrokerTopology(corpus, false, failures);
+  finishTeardown("brokers seed", corpus, BROKERS_CORPUS_STATE_FILE, failures);
+}
 
-  if (failures.length === 0) {
-    fs.rmSync(BROKERS_CORPUS_STATE_FILE, { force: true });
+/**
+ * Deletes the micro copy's logging properties and chains, then its domain, then its topology, as
+ * `teardownMicroCorpus` and `teardownBrokers` do. It reads only the catalog and the state file,
+ * because `suite-teardown` runs it with a classic `env`.
+ */
+export async function teardownMicroBrokers(catalog: Catalog, corpus: MicroBrokerCorpus): Promise<void> {
+  if (keepEntities()) {
+    console.log(
+      `[keep] ${corpus.chains.length} micro broker chains and domain ${corpus.domain} left behind for run ${corpus.run}`,
+    );
     return;
   }
-  throw new Error(
-    `the brokers seed teardown left residue of run ${corpus.run}: ${failures.join("; ")}. ` +
-      `${BROKERS_CORPUS_STATE_FILE} is kept, because it is what still names it.`,
-  );
+
+  const failures: string[] = [];
+  await deleteBrokerChains(catalog, corpus.chains, failures, false);
+  await catalog.deleteCustomResource(corpus.domain).catch((cause: unknown) => {
+    failures.push(`the micro domain ${corpus.domain} was not deleted: ${String(cause)}`);
+  });
+  await deleteBrokerTopology(corpus, true, failures);
+  finishTeardown("brokers-micro seed", corpus, BROKERS_MICRO_CORPUS_STATE_FILE, failures);
 }
 
 /** Writes what the brokers seed imported, through a staging file and a rename — the same reason `writeCorpusState` does. */
@@ -809,11 +957,16 @@ export function writeBrokersCorpusState(corpus: SeededBrokerCorpus): void {
 
 /**
  * One broker fixture chain by the fixture directory it came from — `support/corpus.ts`'s
- * `seedChain`, over the broker corpus instead of the shared one.
+ * `seedChain`, over the broker corpus instead of the shared one. A micro project gets the chain's
+ * micro copy, from the state file its `microDomainState` names (`brokers-micro-seed`'s by default).
  */
-export function brokerChain(corpus: SeededBrokerCorpus, fixture: string): BrokerChain {
-  const found = corpus.chains.find((each) => each.fixture === fixture);
-  if (!found) throw new Error(`the seeded broker corpus holds no chain from fixture ${fixture}`);
+export function brokerChain(corpus: SeededBrokerCorpus, fixture: string, use: ProjectUse = projectUse()): BrokerChain {
+  const micro = use.engineKind === "micro";
+  const copy = micro ? readMicroBrokersCorpusState(use.microDomainState) : corpus;
+  const found = copy.chains.find((each) => each.fixture === fixture);
+  if (!found) {
+    throw new Error(`the seeded broker corpus${micro ? "'s micro copy" : ""} holds no chain from fixture ${fixture}`);
+  }
   noteChain({ id: found.id, name: found.name, contextPath: found.contextPath });
   return found;
 }
@@ -824,6 +977,18 @@ export function readBrokersCorpusState(): SeededBrokerCorpus {
   if (!corpus) {
     throw new Error(
       `no readable brokers corpus at ${BROKERS_CORPUS_STATE_FILE}: brokers-seed did not run, ran no ` +
+        `tests, or was killed partway through writing the file`,
+    );
+  }
+  return corpus;
+}
+
+/** The micro copy of the broker corpus `file` records, or a failure naming `brokers-micro-seed`. */
+export function readMicroBrokersCorpusState(file: string = BROKERS_MICRO_CORPUS_STATE_FILE): MicroBrokerCorpus {
+  const corpus = readStateFile<MicroBrokerCorpus>(file);
+  if (!corpus) {
+    throw new Error(
+      `no readable micro copy of the brokers corpus at ${file}: brokers-micro-seed did not run, ran no ` +
         `tests, or was killed partway through writing the file`,
     );
   }

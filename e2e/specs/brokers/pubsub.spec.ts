@@ -112,14 +112,14 @@ test(
 test(
   "an HTTP call drives pubsub-sender, and the payload lands on the topic",
   { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ request, env, sessions, run }) => {
+  async ({ request, env, sessions }) => {
     covers("pubsub-sender");
     covers("pubsub-sender", "messageOrderingEnabled", false);
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "pubsub-sender-basic");
     const topic = chain.broker.destinationName as string;
-    const subscription = tokenized(run, "pubsub-sender-basic-consumer");
+    const subscription = `${topic}-consumer`;
     const body = { ping: "pubsub-send", nonce: callToken("nonce") };
 
     await createPullSubscription(topic, subscription);
@@ -144,13 +144,13 @@ test(
 test(
   "pubsub-sender with messageOrderingEnabled=true publishes the message under its ordering key",
   { tag: ["@engine", "@sessions", "@tier2"] },
-  async ({ request, env, sessions, run }) => {
+  async ({ request, env, sessions }) => {
     covers("pubsub-sender", "messageOrderingEnabled", true);
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "pubsub-sender-ordering");
     const topic = chain.broker.destinationName as string;
-    const subscription = tokenized(run, "pubsub-sender-ordering-consumer");
+    const subscription = `${topic}-consumer`;
     const body = { ping: "pubsub-ordering", nonce: callToken("nonce") };
 
     await createPullSubscription(topic, subscription);

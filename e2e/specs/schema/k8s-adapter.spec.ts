@@ -518,6 +518,7 @@ test("the k8s target declares its own projects and the broker projects, and leav
     { name: "brokers-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: undefined },
     { name: "brokers", dependencies: ["brokers-seed"], teardown: undefined, engineKind: undefined },
     { name: "brokers-restart", dependencies: ["brokers"], teardown: undefined, engineKind: undefined },
+    { name: "brokers-micro-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: "micro" },
   ]);
   expect(setup.absent).toEqual([]);
   // Only a tagged case stays classic: runtime-micro runs every file of specs/runtime/.
@@ -533,6 +534,7 @@ test("E2E_BROKERS=0 drops the broker projects on k8s and names them as absent", 
     { name: "brokers-seed", reason: "E2E_BROKERS=0" },
     { name: "brokers", reason: "E2E_BROKERS=0" },
     { name: "brokers-restart", reason: "E2E_BROKERS=0" },
+    { name: "brokers-micro-seed", reason: "E2E_BROKERS=0" },
   ]);
 });
 

@@ -113,15 +113,16 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `seed`, `seed-teardown` | the corpus, deployed to the classic engine | the same |
 | `ui-server`, `ui-server-teardown` | build and serve the UI bundle on 4200, then stop it | the same |
 | `runtime` | `specs/runtime/` against the classic engine | the same |
-| `suite-teardown` | the teardowns of `seed-micro` and `brokers-seed`, after `global` | the same |
+| `suite-teardown` | the teardowns of `seed-micro`, `brokers-seed`, and `brokers-micro-seed`, after `global` | the same |
 | `seed-micro` | not declared | a second copy of the corpus, deployed to a micro domain named `e2e-<run>-micro` |
 | `runtime-micro` | not declared | `specs/runtime/` against the micro engine, minus the cases tagged `@classic-only` |
 | `runtime-micro-redeploy` | not declared | `specs/runtime-micro-redeploy/`, one file at a time: micro cases that deploy their own chains to a micro domain of their own |
 | `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | the same |
+| `brokers-micro-seed` | not declared | unless `E2E_BROKERS=0`, a second copy of `fixtures/brokers/` with addresses of its own, deployed to a micro domain named `e2e-<run>-brokers-micro` |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, and the proxy's `/e2e/` locations |
 
-That is fifteen projects on Compose and nineteen on Kubernetes, three fewer on either with
-`E2E_BROKERS=0`. The run header records the target and lists every project and spec file the target
+That is fifteen projects on Compose and twenty on Kubernetes, three fewer on Compose and four fewer on
+Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project and spec file the target
 leaves out, with the reason.
 
 **The Kubernetes target.** You install the cluster and what runs cluster-wide once, as
@@ -137,7 +138,7 @@ its broker overlays before a Kubernetes run, and run `helm uninstall qip -n qip-
 Compose run. Each target keeps its own state files. The Kubernetes ones start with `.e2e-k8s-`
 (`.e2e-k8s-corpus.json`, `.e2e-k8s-brokers-corpus.json`, `.e2e-k8s-runs.json`,
 `.e2e-k8s-overrides.json`, `.e2e-k8s-micro-corpus.json`, `.e2e-k8s-micro-redeploy.json`,
-`.e2e-k8s-resources.json`, `.e2e-k8s-samples.jsonl`), so a sweep or a settings revert never reaches the other target.
+`.e2e-k8s-brokers-micro-corpus.json`, `.e2e-k8s-resources.json`, `.e2e-k8s-samples.jsonl`), so a sweep or a settings revert never reaches the other target.
 `.e2e-ui-server.json` is shared, because the UI bundle is the same on both.
 
 The chart's Consul keeps no volume. When its pod restarts, a corpus kept with `E2E_KEEP=1` loses its
@@ -291,7 +292,7 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_SWEEP`               | unset                                | `never` stops a run from collecting a previous run's residue at its start.           |
 | `E2E_RUN`                 | minted per run                       | The token entities are named after. Pass one to pin it; the shape is validated.      |
 | `E2E_ELEMENT_SCHEMA_DIR`  | the tracked schemas                  | Points the coverage checks at another element-schema tree, which is how they are proved to still go red. |
-| `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
+| `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, and `brokers-micro-seed` on `k8s`, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
 | `CIP_COMPOSE_FILE`        | `infrastructure/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
@@ -459,7 +460,10 @@ The broker fixtures are a corpus of their own, outside the shared one, because t
 pre-deploy connectivity checks would stall the whole corpus whenever a broker is down. The seed also
 creates the run's topics, queues, exchanges, dead-letter bindings, and pub/sub subscriptions. Teardown
 deletes the run's topology and its `/upload/<run>` SFTP tree, then stops and removes the overlay
-containers. A kept corpus (`E2E_KEEP=1`) keeps them, and so does a teardown that left residue.
+containers. On `k8s`, `brokers-micro-seed` deploys a micro copy of the same fixtures, whose topics,
+groups, queues, exchanges, and subscriptions end in `-micro` and whose SFTP tree is
+`/upload/<run>-micro`, so the two copies never consume each other's messages. A name a broker spec
+mints itself, such as a verification consumer group, is built from the chain's own address. A kept corpus (`E2E_KEEP=1`) keeps them, and so does a teardown that left residue.
 
 On `k8s` the brokers are subcharts of `infrastructure/qip-dev`, and provisioning installs them with
 the release unless `E2E_BROKERS=0`. `brokers-seed` then only waits for each broker's rollout and
@@ -508,7 +512,9 @@ Some residue is not swept:
 - **Broker residue.** The sweep does not read `.e2e-brokers-corpus.json` or
   `.e2e-k8s-brokers-corpus.json`. A run's topics, queues, exchanges, subscriptions, and
   `/upload/<run>` SFTP tree come down only in the teardown of the run that created them, so a
-  `brokers-seed` run that dies before its teardown leaves them to be cleared by hand.
+  `brokers-seed` run that dies before its teardown leaves them to be cleared by hand. The same holds
+  for the micro copy that `brokers-micro-seed` records in `.e2e-k8s-brokers-micro-corpus.json`,
+  whose micro domain the sweep does delete.
 - **A `vite preview` on 4200.** The next run's `ui-server` setup stops it, finding it in
   `.e2e-ui-server.json`.
 
@@ -561,6 +567,9 @@ specs/
   ui-server/    builds and serves the UI bundle on 4200, then stops it
   ui/           the browser layer, Chromium through nginx on 8080
   seed-micro/   k8s only: deploys the micro copy of the corpus to a micro domain, then removes it
+  brokers-micro-seed/
+                k8s only: deploys the micro copy of fixtures/brokers/ to a micro domain, then
+                removes it
   runtime-micro-redeploy/
                 k8s only: micro cases that deploy and redeploy, each file in a micro domain of its
                 own, one file at a time

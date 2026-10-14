@@ -374,7 +374,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:bbffbe1c8d5041cdc4b55639269aa5c9393781d4b7d42bdbd0d66775cceef3f3
+  content_hash: sha256:18152bc1ddd683db73187f347b9132fb2b42255125011912497008bddffdf82a
 - kind: project-relative
   target: claude
   value: .claude/skills/e2e-spec-authoring/browser.md
@@ -914,7 +914,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:bbffbe1c8d5041cdc4b55639269aa5c9393781d4b7d42bdbd0d66775cceef3f3
+  content_hash: sha256:18152bc1ddd683db73187f347b9132fb2b42255125011912497008bddffdf82a
 - kind: project-relative
   target: legacy
   value: .agents/skills/e2e-spec-authoring/browser.md
@@ -1285,7 +1285,7 @@ local_deployed_files:
 local_deployed_file_hashes:
   .agents/skills/ci-fix/SKILL.md: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
   .agents/skills/docs-authoring/SKILL.md: sha256:1ad8f4e2efe177403af5cf5978c327cd57b39bee266620dec3395af182f15f6f
-  .agents/skills/e2e-spec-authoring/SKILL.md: sha256:bbffbe1c8d5041cdc4b55639269aa5c9393781d4b7d42bdbd0d66775cceef3f3
+  .agents/skills/e2e-spec-authoring/SKILL.md: sha256:18152bc1ddd683db73187f347b9132fb2b42255125011912497008bddffdf82a
   .agents/skills/e2e-spec-authoring/browser.md: sha256:a82782402b95389d96c28ecef1b9943dec82dd52d1dd54c9f30f3fcd690878ae
   .agents/skills/fix-issue/SKILL.md: sha256:651c6aae818de7cb4aa76fcb3a1c95b437574831e40a5a26884899ea8bbd4828
   .agents/skills/fix-issue/delivery.md: sha256:576647a2576a884334e23a43519fd4b7bdd549d0b3b0b7afe0d50c8c9af73dfe
@@ -1328,7 +1328,7 @@ local_deployed_file_hashes:
   .claude/rules/vscode-extension.md: sha256:58e0b419fb68e93c601d6eadfcace5b99a09a6787ea33344fd7611b34c39224e
   .claude/skills/ci-fix/SKILL.md: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
   .claude/skills/docs-authoring/SKILL.md: sha256:1ad8f4e2efe177403af5cf5978c327cd57b39bee266620dec3395af182f15f6f
-  .claude/skills/e2e-spec-authoring/SKILL.md: sha256:bbffbe1c8d5041cdc4b55639269aa5c9393781d4b7d42bdbd0d66775cceef3f3
+  .claude/skills/e2e-spec-authoring/SKILL.md: sha256:18152bc1ddd683db73187f347b9132fb2b42255125011912497008bddffdf82a
   .claude/skills/e2e-spec-authoring/browser.md: sha256:a82782402b95389d96c28ecef1b9943dec82dd52d1dd54c9f30f3fcd690878ae
   .claude/skills/fix-issue/SKILL.md: sha256:651c6aae818de7cb4aa76fcb3a1c95b437574831e40a5a26884899ea8bbd4828
   .claude/skills/fix-issue/delivery.md: sha256:576647a2576a884334e23a43519fd4b7bdd549d0b3b0b7afe0d50c8c9af73dfe

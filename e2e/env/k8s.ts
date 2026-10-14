@@ -90,6 +90,9 @@ export const MICRO_CORPUS_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-
 /** Where `runtime-micro-redeploy` records the micro domain its current spec file deployed to. */
 export const MICRO_REDEPLOY_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-redeploy.json");
 
+/** Where `brokers-micro-seed` records the micro copy of the broker corpus and the domain it deployed it to. */
+export const BROKERS_MICRO_CORPUS_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-brokers-micro-corpus.json");
+
 /** The micro domain a micro seed project recorded in `file`. */
 export function recordedMicroDomain(file: string = MICRO_CORPUS_STATE_FILE): string {
   const domain = readStateFile<{ domain?: string }>(file)?.domain;
