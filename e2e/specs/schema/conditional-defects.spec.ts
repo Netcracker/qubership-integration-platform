@@ -5,6 +5,7 @@
 import { test, expect, type APIResponse } from "@playwright/test";
 import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "../runtime/micro-defects.js";
 import { LIMIT_REFUSED_WITH_500 } from "../global/classic-defects.js";
+import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "../k8s/catalog-defects.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
@@ -194,4 +195,26 @@ test("limit=0 answered with the classic engine's 500 is the known defect, and an
   expect(strikes(LIMIT_REFUSED_WITH_500, "classic", statusFailure("no healthy upstream", 503))).toBe(false);
   expect(strikes(LIMIT_REFUSED_WITH_500, "classic", statusFailure("NullPointerException", 500))).toBe(false);
   expect(strikes(LIMIT_REFUSED_WITH_500, "micro", classic)).toBe(false);
+});
+
+/** What `strikesAsKnown` reads when the discovery case's result assertion fails on `read`. */
+function resultFailure(read: unknown): string {
+  try {
+    expect(read, RESULT_AT_100).toBeDefined();
+  } catch (cause) {
+    return String(cause);
+  }
+  throw new Error(`${String(read)} passed an assertion on a defined result`);
+}
+
+test("an empty discovery result at progress 100 is the known defect on either engine, and a failed read is not", TAGS, () => {
+  const empty = resultFailure(undefined);
+  expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "classic", empty)).toBe(true);
+  expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "micro", empty)).toBe(true);
+
+  // The catalog refused the read, so the result was never empty.
+  const refused = "Error: GET http://localhost:8090/v1/systems/discovery/result answered 500: Error in Autodiscovery service: timeout";
+  expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "classic", refused)).toBe(false);
+  // Another assertion that received nothing is not the discovery result.
+  expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "classic", "Error: expect(received).toBeDefined()\n\nReceived: undefined")).toBe(false);
 });
