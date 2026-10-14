@@ -15,7 +15,7 @@ export type FrozenIds = {
 };
 
 // `prefix` is the first uuid group, eight hex characters, and says in the golden that the ids are
-// fixtures. Each protocol uses its own, so three goldens imported into one catalog never collide.
+// fixtures. Each protocol uses its own, so the goldens imported into one catalog never collide.
 export function freezeSourceIds(prefix: string): FrozenIds {
   const issued: string[] = [];
   const original = globalThis.crypto.randomUUID;

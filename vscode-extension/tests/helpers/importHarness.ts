@@ -3,11 +3,12 @@
 // posts them, a golden directory read back as a tree, the tree `workspaceTree()` reports for a
 // service folder holding that golden, and the prompts the user was shown.
 //
-// All five files in `tests/web/import/` share `resetImportWorkspace`, `fixtureFile` and
-// `errorMessagesShown`. `fixtureText`, `goldenTree` and `expectedServiceTree` belong to the three
-// that compare a golden tree, `soap.test.ts`, `grpc.test.ts` and `graphql.test.ts`, which build the
-// router message inline. `postImportGroup` and `serializedFile` belong to the two that compare no
-// tree and write their documents inline, `failures.test.ts` and `importSession.test.ts`.
+// All seven files in `tests/web/import/` share `resetImportWorkspace`, `fixtureFile` and
+// `errorMessagesShown`. `fixtureText`, `goldenTree` and `expectedServiceTree` belong to the five
+// that compare a golden tree, one per protocol the import detects, which build the router message
+// inline. `postImportGroup` and `serializedFile` belong to the two that compare no tree and write
+// their documents inline, `failures.test.ts` and `importSession.test.ts`, and to the `.graphqls`
+// case in `graphql.test.ts`.
 import * as fs from "fs";
 import * as path from "path";
 import type { ExtensionContext, Uri } from "vscode";

@@ -45,7 +45,7 @@ The VS Code extension's integration tests are a sibling suite with their own run
 specs. A case that needs the `vscode` API goes under `vscode-extension/src/web/test/suite/`, never
 under `specs/`. The suites meet on `vscode-extension/src/web/test/golden/`, which
 `specs/api/extension-output.spec.ts` imports into the catalog, and two suites write it: the eight
-files at its top level come from the extension's own integration suite, and the thirteen under
+files at its top level come from the extension's own integration suite, and the twenty-one under
 `golden/import/` from the Jest cases in `vscode-extension/tests/web/import/`, which the integration
 bundle never loads. Regenerate a golden in the suite that writes it.
 

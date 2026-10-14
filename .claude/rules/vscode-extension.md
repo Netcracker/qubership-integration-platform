@@ -126,6 +126,11 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
   on every run (`1.142.0-insider`, `appHost web` at the time of writing), so no sha has to stand for that. Where the
   gate turns red on a download, or on a host answer that suite measured, re-pin `--commit <sha>` to unblock it and
   raise the host change as its own issue.
+- `vscode-test-web` serves the host on port 3000 and the script passes no `--port`, so a run on a
+  machine where something else holds 3000 hangs with `uncaughtException Error: listen EADDRINUSE`
+  after webpack has already finished. Run the command from `test:integration` by hand with
+  `--port <free>` to get the suite's result; the script is left alone, because CI runs it on a
+  clean runner.
 - The chromium the host runs in is the one `@playwright/browser-chromium` installs during `npm ci`. Its host table
   rejects an unlisted distribution, so on `ubuntu26.04` Playwright 1.60 printed
   `Playwright does not support chromium on ubuntu26.04` and left no browser to launch; 1.64 lists it. A newer runner
@@ -140,15 +145,12 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
   sends nothing. The webview DOM is out of scope.
 - `src/web/test/golden/` holds the eight files the extension wrote, and the specs that write them compare the bytes.
   `harness.ts` says how to regenerate one: copy the text a failing comparison reports into the file.
-  `golden/import/{soap,grpc,graphql}/` holds thirteen more, one per protocol these cases cover; the Jest cases in
-  `tests/web/import/` write those, not a level-2 spec. The import covers five protocols:
-  `detectProtocolFromParsedContent` also returns HTTP for an OpenAPI or Swagger document and an async protocol for an
-  AsyncAPI one, which `SpecificationProcessorService` dispatches to `OpenApiSpecificationParser` and
-  `AsyncApiSpecificationParser`. Those two stay at parser-level unit coverage and have no level-1 import case.
-  `require.context` in `harness.ts` is `require.context("../golden", false, /\.cip\.yaml$/)`, and the `false` makes
-  it non-recursive, so the `import/` tree is invisible to the level-2 bundle. The end-to-end suite imports all but the
-  INTERNAL service, plus all three import trees, into the catalog (`e2e/specs/api/extension-output.spec.ts`), so a change to what the
-  extension writes updates the golden file in the same commit and runs that spec too. On a cluster whose istiod
+  `golden/import/{soap,grpc,graphql,openapi,asyncapi}/` holds twenty-one more, one tree per protocol the import
+  detects; the Jest cases in `tests/web/import/` write those, not a level-2 spec. `require.context` in `harness.ts` is
+  `require.context("../golden", false, /\.cip\.yaml$/)`, and the `false` makes it non-recursive, so the `import/`
+  tree is invisible to the level-2 bundle. The end-to-end suite imports all but the INTERNAL service, plus all five
+  import trees, into the catalog (`e2e/specs/api/extension-output.spec.ts`), so a change to what the extension writes
+  updates the golden file in the same commit and runs that spec too. On a cluster whose istiod
   lacks `PILOT_ENABLE_ALPHA_GATEWAY_API=true`, run that spec with `E2E_PROVISION=never`: these cases only POST an
   archive, and provisioning otherwise refuses the whole run over the egress routes the `runtime` specs need.
 - The document schemas under `schemas/src/main/resources/conf-model/` are bundled as text by a webpack
@@ -170,12 +172,13 @@ archive is built from the golden tree, so no file is added under `e2e/fixtures/`
   `SpecificationImportService` directly drags the router case, `SpecificationImportApiHandler`,
   `ImportProgressTracker`, the parser and the writer into one assertion.
 - `tests/helpers/importHarness.ts` carries the pieces an import case needs, and which case needs which varies. All
-  five files in `tests/web/import/` import `resetImportWorkspace(prefix)` for the reset contract, a fixture as a
-  `SerializedFile`, and the messages `window.showErrorMessage` received. The three golden cases add a golden directory
+  seven files in `tests/web/import/` import `resetImportWorkspace(prefix)` for the reset contract, a fixture as a
+  `SerializedFile`, and the messages `window.showErrorMessage` received. The five golden cases add a golden directory
   as a tree and the tree `workspaceTree()` reports for a service folder holding it, and build the router message
   inline; `failures.test.ts` and `importSession.test.ts` add `postImportGroup` for the routed request and
-  `serializedFile` for a document written inline. A successful case asserts the dialog list is empty, because the
-  import logs and swallows failures that a regression could promote to a dialog without changing a byte on disk.
+  `serializedFile` for a document written inline, as does the `.graphqls` case in `graphql.test.ts`. A successful
+  case asserts the dialog list is empty, because the import logs and swallows failures that a regression could
+  promote to a dialog without changing a byte on disk.
 - `importSpecification` and `getImportSpecificationResult` are the sibling router cases, pinned in
   `tests/web/import/importSession.test.ts`. The modal polls the result after every import
   (`ImportSpecificationsModal.tsx`), so `Import session … not found. It may have expired or been cleaned up.` is on a
@@ -206,9 +209,9 @@ archive is built from the golden tree, so no file is added under `e2e/fixtures/`
   goldens are imported into one catalog in parallel.
 - `ServiceNormalizer` fills defaults into every written service file: `description: ""`, `activeEnvironmentId` (`""`
   where no environment was created), `extendedProtocol`, `specification: ""`, `environments` and `labels`. A golden is
-  the normalized document, not the seed plus one field. SOAP and gRPC write the service file twice, once from the
-  `saveSystem` call in `ensureSystemProtocol` and once for the environment, and the specification lands before its
-  group file. GraphQL writes it once, because no environment is created.
+  the normalized document, not the seed plus one field. Every protocol but GraphQL writes the service file twice, once from
+  the `saveSystem` call in `ensureSystemProtocol` and once for the environment, and the specification lands before
+  its group file. GraphQL writes it once, because its document declares no server and no fallback candidate applies.
 - Regenerate an import golden by printing what the case wrote — `console.log(workspaceTree())` after the import — and
   writing each entry into `src/web/test/golden/import/<protocol>/` at its path relative to the service folder, which
   is the layout the level-3 archive walk expects. The copies under `resources/` have to stay byte-identical to
@@ -229,16 +232,18 @@ archive is built from the golden tree, so no file is added under `e2e/fixtures/`
   `Failed to convert file …`, which needs a detached `ArrayBuffer` that `postMessage` cannot deliver;
   `No base folder available`, behind a `getBaseFolder` typed `Promise<Uri>` that throws rather than answering
   `undefined`; and `ensureInternalEnvironment`'s update arm, which needs a seeded environment with an empty address.
-- The picker offers three formats the import refuses. `detectImportingProtocol` reads the extension through
-  `detectProtocolByExtension`, whose table knows only `.wsdl`, `.graphql`, `.gql` and `.proto`, and then falls through
-  to the content: `isWsdlContent` matches either WSDL namespace in the first 512 bytes, and
+- The picker's list depends on which backend is running. `detectImportingProtocol` reads the extension through
+  `detectProtocolByExtension`, whose table knows `.wsdl`, `.graphql`, `.graphqls`, `.gql` and `.proto`, and then falls
+  through to the content: `isWsdlContent` matches either WSDL namespace in the first 512 bytes, and
   `detectProtocolFromParsedContent` reads `openapi`, `swagger` or `asyncapi` out of parsed JSON or YAML, which is the
-  only way an OpenAPI or AsyncAPI document is detected at all. `detectImportingProtocol` keeps an `ASYNC` result from
-  `detectProtocolByExtension` as a fallback, and that arm is dead: the table returns `SOAP`, `GRAPHQL`, `GRPC` or
-  `null`. `SUPPORTED_EXTENSIONS` in `ui/src/components/services/modals/ImportSpecificationsModal.tsx` also lists
-  `".zip"`, `".graphqls"` and `".xsd"`: an archive and a `.graphqls` SDL each take
-  `Unsupported specification format: unable to detect protocol`, and an `.xsd` imports only as a WSDL dependency.
-  `ProtocolDetectorService.extractArchives` unpacks nothing: both arms of its `isArchiveFile` branch are identical.
+  only way an OpenAPI or AsyncAPI document is detected at all. A table hit is answered directly: the `ASYNC`
+  fallback `detectImportingProtocol` used to keep was unreachable, because the table returns `SOAP`, `GRAPHQL`,
+  `GRPC` or `null` (#1081). A `.graphqls` is a second table away as well, in `SpecificationProcessorService.detectTypeByExtension`,
+  which decides the specification type after the protocol. `SUPPORTED_EXTENSIONS` in
+  `ui/src/components/services/modals/ImportSpecificationsModal.tsx` drops `".zip"` where `isVsCodeContext` holds,
+  because `ProtocolDetectorService.extractArchives` unpacks nothing where the backend's
+  `MultipartFileUtils.extractArchives` reads a zip's entries; the list keeps `".xsd"`, which imports only as a WSDL
+  dependency. `ui/tests/components/services/ImportSpecificationsModal.test.tsx` pins both halves of that list.
 - Five files counted in the import pipeline have no reachable caller, so a unit case on one raises a number without
   covering a path anyone walks: `SpecificationParserService`, forwarded from `api-services/index.ts` and called
   nowhere; `FileConversionService`, imported only by it; `FileParserService`; most of `ProtocolDetectorService`, whose
@@ -251,17 +256,19 @@ archive is built from the golden tree, so no file is added under `e2e/fixtures/`
   by the frozen `importId`, so a second case in one file overwrites the first rather than reading it; leave it without
   one.
 - A parser unit case can live in either of two roots, both listed in `testMatch`. The five pre-existing suites are
-  beside their source, under `src/web/api-services/parsers/`; the two written for the import pipeline,
-  `SoapSchemaGenerator.test.ts` and `GraphQLSpecificationParser.test.ts`, are under `tests/api-services/parsers/`.
-  Reading a fixture does not decide which root: `AsyncApiSpecificationParser.test.ts` sits beside its source and reads
-  `tests/fixtures/asyncapi/`, while the two under `tests/` import nothing from `tests/` and build every WSDL and SDL
-  inline. Nothing enforces a split, so put a new case wherever its neighbors are.
-- `tests/api-services/SpecificationImportService.test.ts` mocks the services around the import and pins the control
-  flow: that `validateAllowedSystemProtocol` is called at all, and that a throw from it resolves with a
-  `warningMessage`. `tests/web/import/failures.test.ts` pins that same refusal over the fake filesystem, with the exact
-  message, the untouched tree and the dialog text. A case about what the user is told, or about what lands on disk,
-  belongs in `tests/web/import/`; a case about which collaborator the service calls, or about an answer only a stub can
-  produce, belongs in the mock-based file.
+  beside their source, under `src/web/api-services/parsers/`; the three written for the import pipeline,
+  `SoapSchemaGenerator.test.ts`, `GraphQLSpecificationParser.test.ts` and `WsdlParser.test.ts`, are under
+  `tests/api-services/parsers/`. Reading a fixture does not decide which root:
+  `AsyncApiSpecificationParser.test.ts` sits beside its source and reads `tests/fixtures/asyncapi/`, while the three
+  under `tests/` import nothing from `tests/` and build every WSDL and SDL inline. Nothing enforces a split, so put a
+  new case wherever its neighbors are.
+- `tests/api-services/SpecificationImportService.test.ts` mocks the services around the import and holds one case:
+  that `validateAllowedSystemProtocol` is called with the system type and the detected protocol, an interaction no
+  filesystem case can see. Its stubbed sibling, which asserted only that a throw from that validator resolved with
+  some `warningMessage`, was deleted — `tests/web/import/failures.test.ts` pins the same refusal over the fake
+  filesystem with the real validator, naming the exact message, the untouched tree and the dialog text. A case about
+  what the user is told, or about what lands on disk, belongs in `tests/web/import/`; a case about which collaborator
+  the service calls, or about an answer only a stub can produce, belongs in the mock-based file.
 
 ### Platform Context
 

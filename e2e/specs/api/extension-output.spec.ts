@@ -13,19 +13,6 @@
  * - an `EXTERNAL`, a `CONTEXT`, and an `MCP` service from `qip.createService`, one per import
  *   endpoint.
  *
- * `golden/import/` holds three more trees, one per protocol these cases cover: SOAP, gRPC, and
- * GraphQL. The import itself covers five. `detectProtocolFromParsedContent` returns HTTP for an
- * OpenAPI or Swagger document and an async protocol for an AsyncAPI one, and
- * `SpecificationProcessorService` dispatches both, but OpenAPI and AsyncAPI stay at parser-level
- * unit coverage in `vscode-extension/` and have no import case at this level. These thirteen files
- * are written and byte-compared by the Jest cases in `vscode-extension/tests/web/import/`, not by
- * the extension's integration suite, whose `require.context` over `golden/` is non-recursive and
- * never loads them. Each tree is the state of a service folder after an import, so it carries the
- * service document, the specification group, the specification, and the source files under
- * `resources/source-<specificationId>/`. The last three cases of this spec walk one tree into
- * `services/<serviceId>/` and import it, so their ids come from the service document inside the
- * tree rather than from a file name.
- *
  * A created file carries no `migrations`, so the catalog reads it as current and runs no migration on
  * it. Each case imports the file and checks that the catalog's export keeps the name and the
  * description the extension wrote. Migration 101 of a chain or a service, run on a file already in
@@ -36,6 +23,15 @@
  * parallel-safe project: a one-document service imported under that id would race that case's own
  * import and export assertions, and each teardown would delete the other's subject. The extension
  * suite checks that golden on its own.
+ *
+ * `golden/import/` holds five more trees, one per protocol the import detects: SOAP, gRPC, GraphQL,
+ * OpenAPI and AsyncAPI. Each tree's files are written and byte-compared by the Jest cases in
+ * `vscode-extension/tests/web/import/`, not by the extension's integration suite, whose
+ * `require.context` over `golden/` is non-recursive and never loads them. Each tree is the state of
+ * a service folder after an import, so it carries the service document, the specification group,
+ * the specification, and the source files under `resources/source-<specificationId>/`. Each import
+ * case of this spec walks one tree into `services/<serviceId>/` and imports it, so their ids come
+ * from the service document inside the tree rather than from a file name.
  *
  * Every golden carries fixed ids, so each case deletes whatever holds its id before importing, and
  * two suite runs against one stack import the same entities. The top-level goldens are addressed by
@@ -317,13 +313,13 @@ function importGolden(protocol: string): ImportGolden {
   };
 }
 
-const IMPORTED = ["soap", "grpc", "graphql"].map(importGolden);
+const IMPORTED = ["soap", "grpc", "graphql", "openapi", "asyncapi"].map(importGolden);
 
 /**
  * Each case reads what it expects out of the golden documents rather than out of a list copied
  * beside them, so a regenerated golden moves this spec with the extension's own suite.
  *
- * **None of the three cases below has ever run.** They were written against a stack that was down,
+ * **None of the import cases below has ever run.** They were written against a stack that was down,
  * so every assertion in them is unproven, and the first failure to read is a wrong expectation here
  * as readily as a defect in the catalog.
  *
@@ -364,7 +360,8 @@ for (const golden of IMPORTED) {
       // grpc-java plugin for GRPC and runs the graphql-java-generator codegen and in-process
       // `javac` for GRAPHQL. Nothing under `e2e/fixtures/specifications/` has ever imported a
       // `.proto`, and `orders.graphql` carries a custom scalar, an enum, input types and non-default
-      // root type names that `widgets.graphql` does not.
+      // root type names that `widgets.graphql` does not. The OpenAPI tree is the one protocol here
+      // whose compilation path other specs already import documents through.
       expect(await rowsOf(response), `the import row of the ${golden.protocol} service`).toEqual([
         expect.objectContaining({ id: golden.serviceId, status: "CREATED" }),
       ]);
@@ -410,8 +407,9 @@ for (const golden of IMPORTED) {
           .sort(byId),
       );
 
-      // SOAP takes its environment from the WSDL's `soap:address` and gRPC from the fallback
-      // candidate, while GraphQL produces none, so this is an empty list for one of the three.
+      // SOAP takes its environment from the WSDL's `soap:address`, gRPC from the fallback candidate,
+      // and OpenAPI and AsyncAPI from their declared server. GraphQL produces none, so this is an
+      // empty list for one tree of the five.
       const environments = await catalog.listEnvironments(golden.serviceId);
       expect(
         environments.map((environment) => ({ id: environment.id, name: environment.name, address: environment.address })),

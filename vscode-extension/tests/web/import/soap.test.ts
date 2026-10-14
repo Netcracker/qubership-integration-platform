@@ -55,7 +55,7 @@ import {
 import { seedServiceDocument } from "../../helpers/seedServiceDocument";
 import { getApiResponse } from "../../../src/web/response/apiRouter";
 
-// The seeded service and the frozen prefix are this protocol's own: the three goldens are imported
+// The seeded service and the frozen prefix are this protocol's own: the goldens are imported
 // into one catalog in parallel at level 3, so a shared source or environment id would collide.
 const SERVICE_ID = "50a90000-0000-4000-8000-000000000000";
 const ID_PREFIX = "50a9da7a";

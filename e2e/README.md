@@ -614,6 +614,6 @@ npm run test:integration -w @netcracker/qip-vscode-extension
 The suites share one contract: the catalog imports what the extension writes.
 `specs/api/extension-output.spec.ts` imports the files in `vscode-extension/src/web/test/golden/`
 into the catalog, and two suites write them — the eight at the top level come from this integration
-suite, and the thirteen under `golden/import/` from the Jest cases in
+suite, and the twenty-one under `golden/import/` from the Jest cases in
 `vscode-extension/tests/web/import/`, which this suite never loads. So a change on either side of
 the contract fails one of the suites, and a golden is regenerated in the suite that writes it.

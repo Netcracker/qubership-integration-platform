@@ -1,0 +1,28 @@
+id: a5ce0000-0000-4000-8000-000000000000
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+name: import-a5ce0000
+content:
+  integrationSystemType: INTERNAL
+  migrations: "[100, 101, 102]"
+  description: ""
+  activeEnvironmentId: a5ce7fe5-0000-4000-8000-000000000003
+  extendedProtocol: KAFKA
+  specification: ""
+  environments:
+    - id: a5ce7fe5-0000-4000-8000-000000000003
+      name: production
+      address: kafka.orders.qip.test:9092
+      description: Environment created for orders specification group
+      sourceType: MANUAL
+      systemId: a5ce0000-0000-4000-8000-000000000000
+      properties:
+        key: ""
+        sslProtocol: ""
+        saslMechanism: ""
+        saslJaasConfig: ""
+        securityProtocol: ""
+        sslEnabledProtocols: ""
+        sslEndpointAlgorithm: ""
+      labels: []
+  labels: []
+  protocol: KAFKA
