@@ -479,7 +479,7 @@ public class ChainImportService {
 
         newChainState.setUnsavedChanges(true);
 
-        setActualChainState(currentChainState, newChainState);
+        persistImportedChainReplacingElements(currentChainState, newChainState);
 
         logImportAction(newChainState, LogOperation.CREATE_OR_UPDATE);
 
@@ -636,7 +636,7 @@ public class ChainImportService {
                             .build());
     }
 
-    private void setActualChainState(Chain currentChainState, Chain newChainState) {
+    private void persistImportedChainReplacingElements(Chain currentChainState, Chain newChainState) {
         SwimlaneChainElement defaultSwimlane = null;
         SwimlaneChainElement reuseSwimlane = null;
         if (currentChainState != null) {
@@ -652,24 +652,36 @@ public class ChainImportService {
                 Collections.emptySet(),
                 newChainState.getDependencies());
 
-        //Masked Field
-        maskedFieldsService.setActualizedMaskedFields(
-                currentChainState != null ? currentChainState.getMaskedFields() : Collections.emptySet(),
-                newChainState.getMaskedFields()
-        );
-
-        //Chain Folder — persist the (possibly newly built) folder tree before the chain is
-        //merged/persisted, so the chain references only managed folders.
-        if (newChainState.getParentFolder() != null) {
-            newChainState.setParentFolder(folderService.setActualizedFolderState(newChainState.getParentFolder()));
-        }
-
         if (currentChainState != null) {
             newChainState.setDefaultSwimlane(defaultSwimlane);
             newChainState.setReuseSwimlane(reuseSwimlane);
         }
 
-        //Chain
+        finalizeImportedChainPersistence(currentChainState, newChainState);
+    }
+
+    private void persistImportedChainMergingElements(Chain currentChainState, Chain newChainState) {
+        dependencyService.setActualizedElementDependencyStates(
+                currentChainState != null ? currentChainState.getDependencies() : Collections.emptySet(),
+                newChainState.getDependencies());
+
+        elementService.setActualizedChainElements(
+                currentChainState != null ? currentChainState.getElements() : Collections.emptyList(),
+                newChainState.getElements());
+
+        finalizeImportedChainPersistence(currentChainState, newChainState);
+    }
+
+    private void finalizeImportedChainPersistence(Chain currentChainState, Chain newChainState) {
+        maskedFieldsService.setActualizedMaskedFields(
+                currentChainState != null ? currentChainState.getMaskedFields() : Collections.emptySet(),
+                newChainState.getMaskedFields()
+        );
+
+        if (newChainState.getParentFolder() != null) {
+            newChainState.setParentFolder(folderService.setActualizedFolderState(newChainState.getParentFolder()));
+        }
+
         chainService.setActualizedChainState(currentChainState, newChainState);
     }
 
@@ -702,6 +714,6 @@ public class ChainImportService {
         if (currentChainState != null) {
             ChainUtils.chainPropertiesInitialization(currentChainState);
         }
-        setActualChainState(currentChainState, importedChain);
+        persistImportedChainMergingElements(currentChainState, importedChain);
     }
 }

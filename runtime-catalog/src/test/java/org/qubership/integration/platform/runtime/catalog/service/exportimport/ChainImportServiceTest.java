@@ -31,7 +31,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
@@ -175,7 +174,7 @@ class ChainImportServiceTest {
         verifyNoInteractions(folderService);
     }
 
-    @DisplayName("setActualChainState should persist the folder tree before the chain")
+    @DisplayName("saveImportedChainBackward should persist the folder tree before the chain")
     @Test
     void shouldPersistFolderBeforeChain() {
         Folder folder = Folder.builder().name("A").build();
@@ -191,7 +190,7 @@ class ChainImportServiceTest {
         order.verify(chainService).setActualizedChainState(null, imported);
     }
 
-    @DisplayName("setActualChainState should skip folder persistence when the chain has no parent")
+    @DisplayName("saveImportedChainBackward should skip folder persistence when the chain has no parent")
     @Test
     void shouldSkipFolderPersistWhenNoParent() {
         Chain imported = Chain.builder().id("c1").name("n").build();
@@ -243,21 +242,39 @@ class ChainImportServiceTest {
         order.verify(chainModelMapper).map(any(), any());
     }
 
-    @DisplayName("saveImportedChainBackward should replace elements and restore swimlane refs on update")
+    @DisplayName("saveImportedChainBackward should merge elements against the existing chain on update")
     @Test
-    void shouldReplaceElementsOnBackwardUpdate() {
+    void shouldMergeElementsOnBackwardUpdate() {
         Chain existingChain = Chain.builder().id("c1").name("Chain 1").build();
-        SwimlaneChainElement reuseSwimlane = SwimlaneChainElement.builder().id("reuse-sl").build();
         Chain imported = Chain.builder().id("c1").name("Chain 1").build();
-        imported.setReuseSwimlane(reuseSwimlane);
         when(chainFinderService.tryFindById("c1")).thenReturn(Optional.of(existingChain));
 
         service.saveImportedChainBackward(imported);
 
-        verify(elementService).replaceImportedChainElements(any());
+        verify(elementService).setActualizedChainElements(existingChain.getElements(), imported.getElements());
+        verify(elementService, never()).replaceImportedChainElements(any());
+        verify(dependencyService).setActualizedElementDependencyStates(
+                existingChain.getDependencies(), imported.getDependencies());
         verify(chainService).setActualizedChainState(existingChain, imported);
-        assertNotNull(imported.getReuseSwimlane());
-        assertEquals("reuse-sl", imported.getReuseSwimlane().getId());
+    }
+
+    @DisplayName("saveImportedChain should replace elements after delete on update")
+    @Test
+    void shouldReplaceElementsOnV3Update() {
+        Chain existingChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain refreshedChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain mapped = Chain.builder().id("c1").name("Chain 1").build();
+        when(chainFinderService.tryFindById("c1"))
+                .thenReturn(Optional.of(existingChain))
+                .thenReturn(Optional.of(existingChain))
+                .thenReturn(Optional.of(refreshedChain));
+        when(chainModelMapper.map(any(), any())).thenReturn(new ChainImpl());
+        when(chainExternalEntityMapper.toInternalEntity(any())).thenReturn(mapped);
+
+        service.saveImportedChain(externalChain(null), null, Collections.emptySet());
+
+        verify(elementService).replaceImportedChainElements(mapped.getElements());
+        verify(elementService, never()).setActualizedChainElements(any(), any());
     }
 
     // makeDeployActions builds a snapshot for every imported chain whose commit request asks for one,
