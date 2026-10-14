@@ -121,19 +121,16 @@ const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
 // `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close through
 // the kafka case's seeded chain. A third kafka case validates messages against the operation's
 // schema and declares no covers(). Its acknowledgeMode axis has amqp cases in the same file, and its
-// idempotency axes amqp cases in `specs/brokers/trigger-idempotency.spec.ts`. Its method and
-// systemType axes have no case.
-const R_ASYNC_API_TRIGGER_METHOD_V3 =
-  "the async-api-trigger cases exercise AsyncAPI 2.6 documents only, which resolve to " +
-  "subscribe (kafka) and publish (amqp, via AMQPSpecificationResolver.getMethod: a channel's " +
-  "subscribe: block with no v3 action reports PUBLISH, not SUBSCRIBE — measured, not a typo here); " +
-  "send and receive need an AsyncAPI 3.0 document, and no case builds one for the trigger";
+// idempotency axes amqp cases in `specs/brokers/trigger-idempotency.spec.ts`. Its method axis has a
+// passing case per AsyncAPI version and no covers() call; its systemType axis has no case.
 const R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE =
   "template.hbs never reads integrationOperationMethod and OperationElementPropertiesBuilder " +
   "branches only on integrationOperationProtocolType, so the trigger compiles to the same step " +
-  "whatever this axis holds; the kafka case resolves to subscribe and its amqp case to " +
+  "whatever this axis holds. The AsyncAPI 2.6 kafka case resolves to subscribe and its amqp case to " +
   "publish only because KafkaSpecificationResolver and AMQPSpecificationResolver invert getMethod " +
-  "for the same subscribe-only channel shape, not because either case's route reads the value";
+  "for the same subscribe-only channel shape. An AsyncAPI 3.0 document gives send and receive " +
+  "(specs/api/specifications.spec.ts), and the amqp case on its receive operation consumes the same " +
+  "way; no case's route reads the value";
 const R_ASYNC_API_TRIGGER_SYSTEM_TYPE =
   "EndpointHelperSource.integrationEndpoint, which kafka and amqp both resolve through, needs only " +
   "an activated environment with a non-blank address and never reads systemType, so INTERNAL and " +
@@ -316,8 +313,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "subscribe", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "publish", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "send", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_V3, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "receive", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_V3, tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "send", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "receive", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationProtocolType", value: "kafka", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationProtocolType", value: "amqp", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "systemType", value: "INTERNAL", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_SYSTEM_TYPE, tags: ENGINE },

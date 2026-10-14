@@ -25,9 +25,15 @@
  *   this file's last case together. Deleting a group takes its specifications whatever their
  *   state, and deleting the last specification does not take the group.
  */
+import path from "node:path";
 import { test, expect } from "../../support/fixtures.js";
 import type { Catalog, SpecificationImportView } from "../../support/catalog.js";
-import { readSpecificationFixture } from "../../fixtures/templating.js";
+import {
+  BROKER_SERVICE_FIXTURE_DIR,
+  readServiceFixture,
+  readSpecificationFixture,
+  renderFixture,
+} from "../../fixtures/templating.js";
 import { tokenized } from "../../support/run.js";
 
 async function serviceWithSpecification(
@@ -110,6 +116,31 @@ test("importing a specification into a group produces the operations the documen
       "getWidget",
       "listWidgets",
     ]);
+  } finally {
+    await catalog.deleteSystem(service.id).catch(() => {});
+  }
+});
+
+const ASYNC_API_V3_SERVICE = "async-api-v3-amqp";
+
+// The document is the source of the broker service fixture whose receive operation
+// `specs/brokers/async-api.spec.ts` triggers on, so the case also holds that fixture to what the
+// import gives.
+test("an AsyncAPI 3.0 import gives the send and receive operations the seeded broker service holds", { tag: ["@catalog", "@tier2"] }, async ({ catalog, run }) => {
+  const tree = renderFixture(BROKER_SERVICE_FIXTURE_DIR, ASYNC_API_V3_SERVICE, run);
+  const [[source, document]] = [...tree].filter(([rel]) => rel.startsWith("resources/"));
+  const service = await catalog.createSystem(tokenized(run, "spec-asyncapi-v3"), "EXTERNAL");
+  try {
+    const { operations } = await catalog.awaitSpecificationImport(
+      await catalog.importSpecificationGroup(service.id, tokenized(run, "group-asyncapi-v3"), {
+        name: path.basename(source),
+        mimeType: "application/yaml",
+        buffer: Buffer.from(document),
+      }),
+    );
+    const shape = (each: { method: string; name: string; path: string }) => `${each.method} ${each.name} ${each.path}`;
+    expect(operations.map((each) => each.method).sort()).toEqual(["receive", "send"]);
+    expect(operations.map(shape).sort()).toEqual(readServiceFixture(ASYNC_API_V3_SERVICE, tree).operations.map(shape).sort());
   } finally {
     await catalog.deleteSystem(service.id).catch(() => {});
   }
