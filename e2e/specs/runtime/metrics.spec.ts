@@ -131,8 +131,13 @@ test("a chain that ends in a failure increments the failure counter", { tag: ["@
   // alike, and the script of this chain always throws.
   const chain = seedChain(readCorpusState(), "metrics-failure");
 
-  // Zero on a fresh corpus, where the counter does not exist yet; what earlier runs counted on a kept one.
-  const before = sumForChain(await meters(request, url), "qip_engine_chains_failures_total", chain.id);
+  // Zero on a fresh corpus, where the counter does not exist yet; what earlier runs counted on a kept
+  // one. Read off an exposition that answered, since `meters` turns a failed read into zero.
+  let exposition = "";
+  await expect
+    .poll(async () => (exposition = await meters(request, url)) !== "", { timeout: METER_TIMEOUT, message: `${url} never answered` })
+    .toBe(true);
+  const before = sumForChain(exposition, "qip_engine_chains_failures_total", chain.id);
   const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "fail" } });
   expect(call.response.status()).toBe(500);
 
