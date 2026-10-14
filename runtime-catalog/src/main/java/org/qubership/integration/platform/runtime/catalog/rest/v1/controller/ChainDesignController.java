@@ -34,7 +34,8 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/design-generator/chains/{chainId}", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/design-generator/chains/{chainId}", "/api/v1/cip/catalog/design-generator/chains/{chainId}"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "chain-design-controller", description = "Chain Design Controller")
 public class ChainDesignController {

@@ -37,7 +37,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/specificationGroups")
+@RequestMapping({"/v1/specificationGroups", "/api/v1/cip/systems-catalog/specificationGroups"})
 @Tag(name = "specification-group-controller", description = "Specification Group Controller")
 public class SpecificationGroupController {
     private final SpecificationGroupService specificationGroupService;
