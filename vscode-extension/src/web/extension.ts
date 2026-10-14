@@ -987,7 +987,7 @@ async function getWebviewContent(context: ExtensionContext, webview: Webview) {
     }
 
     useBundled = bundledExists;
-    const cssFileUri = vscode.Uri.joinPath(qipUiAssetsRoot, "qip-ui.css");
+    const cssFileUri = vscode.Uri.joinPath(qipUiAssetsRoot, "cip-ui.css");
 
     jsUri = webview.asWebviewUri(jsFileUri);
     cssUri = webview.asWebviewUri(cssFileUri);

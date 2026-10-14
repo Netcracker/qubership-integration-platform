@@ -239,6 +239,21 @@ describe("extension.ts", () => {
       expect(mockWebview.html).toContain("importmap");
       expect(mockWebview.html).toContain("esm.sh/react@18.3.1");
     });
+
+    test("links the cip-ui stylesheet", async () => {
+      mockStatBehavior = "resolve";
+      const provider = activateAndGetProvider();
+
+      await provider.resolveCustomTextEditor(
+        validDocument as any,
+        mockPanel as any,
+        {} as any,
+      );
+
+      expect(mockWebview.asWebviewUri).toHaveBeenCalledWith(
+        expect.objectContaining({ path: "cip-ui.css" }),
+      );
+    });
   });
 
   describe("useDefaultDiffView toggle", () => {

@@ -101,11 +101,10 @@ describe("apiRouter export image handlers", () => {
     );
 
     expect(first).toEqual({
-      appName: "qip",
       operation: "exportImages",
       exportImages: startupPayload,
     });
-    expect(second).toEqual({ appName: "qip" });
+    expect(second).toEqual({});
   });
 
   test("exportImagesProgress reports progress when export is active", async () => {
