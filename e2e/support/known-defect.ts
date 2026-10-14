@@ -69,13 +69,17 @@ export async function onlyTheKnownStatus(
 }
 
 /**
- * A defect a case meets only on one engine, so the case cannot carry a plain `test.fail()`: on the
- * other engine it passes, and the annotation would turn that pass red.
+ * A defect a case meets only on one engine, or only in a race, so the case cannot carry a plain
+ * `test.fail()`: where the defect does not strike the case passes, and the annotation would turn
+ * that pass red.
  */
 export interface ConditionalDefect {
   title: string;
-  /** The engine that meets the defect. On the other engine a failure `matches` accepts stays a real one. */
-  engine: EngineKind;
+  /**
+   * The engine that meets the defect. On the other engine a failure `matches` accepts stays a real
+   * one. `any` is a defect outside the engines, which a case meets on either.
+   */
+  engine: EngineKind | "any";
   matches(message: string): boolean;
 }
 
@@ -84,7 +88,7 @@ export interface ConditionalDefect {
  * without color codes, which Playwright writes into every matcher failure in a worker.
  */
 export function strikes(defect: ConditionalDefect, engine: EngineKind, message: string): boolean {
-  return engine === defect.engine && defect.matches(withoutColors(message));
+  return (defect.engine === "any" || engine === defect.engine) && defect.matches(withoutColors(message));
 }
 
 /** The engine the running project's chains run on, which a project sets with `use: { engineKind }`. */
@@ -93,7 +97,7 @@ function projectEngine(): EngineKind {
 }
 
 /**
- * Runs `step`, and marks the running case an expected failure only when `step` throws `defect` on the
+ * Runs `step`, and marks the running case an expected failure only when `step` throws `defect` on an
  * engine that meets it. Any other failure stays a real one, and a step that succeeds leaves the case
  * an ordinary passing case.
  */

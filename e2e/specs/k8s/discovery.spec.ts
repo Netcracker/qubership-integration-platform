@@ -9,11 +9,16 @@
  * (`KubeOperator.REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME`), so the chart's `qip-<role>-v1` Services
  * are never discovered; the `qip-runtime-catalog` alias the e2e values add always is.
  *
+ * The catalog can report progress 100 before it stores the result (`DISCOVERY_RESULT_AFTER_PROGRESS`
+ * in `catalog-defects.ts`), so the result is read after the services are checked.
+ *
  * Measured on Docker Desktop's Kubernetes: a run took 8 s and discovered four services.
  */
 import { test, expect } from "../../support/fixtures.js";
 import type { Catalog } from "../../support/catalog.js";
+import { strikesAsKnown } from "../../support/known-defect.js";
 import { serviceNames } from "../../support/kube.js";
+import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "./catalog-defects.js";
 
 const DISCOVERY_TIMEOUT = 60_000;
 
@@ -38,9 +43,6 @@ test("discovery creates a catalog service for each Service in the namespace that
     await expect.poll(() => catalog.discoveryProgress(), { timeout: DISCOVERY_TIMEOUT }).toBe("100");
 
     const discovered = await catalog.discoveredServices();
-    const result = await catalog.discoveryResult();
-    expect(result.errorMessages).toEqual([]);
-    expect([...result.discoveredSystemIds].sort()).toEqual(discovered.map((each) => each.id).sort());
     expect(discovered.map((each) => each.id)).toContain(CATALOG_ALIAS);
 
     const services = await serviceNames();
@@ -50,6 +52,15 @@ test("discovery creates a catalog service for each Service in the namespace that
       expect(each.internalServiceName).not.toMatch(/-v\d+$/);
       expect(each.serviceGroups.map((group) => Boolean(group.specificationId)), each.id).toContain(true);
     }
+
+    // Read last, so the services above are checked even when the known defect strikes.
+    const result = await strikesAsKnown(DISCOVERY_RESULT_AFTER_PROGRESS, async () => {
+      const read = await catalog.discoveryResult();
+      expect(read, RESULT_AT_100).toBeDefined();
+      return read;
+    });
+    expect(result.errorMessages).toEqual([]);
+    expect([...result.discoveredSystemIds].sort()).toEqual(discovered.map((each) => each.id).sort());
     bodyFailed = false;
   } finally {
     const failures = await deleteDiscovered(catalog);
