@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
@@ -24,7 +25,12 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
+import org.qubership.integration.platform.ai.chain.folder.ChainListAction;
+import org.qubership.integration.platform.ai.chain.folder.ChainListCommand;
+import org.qubership.integration.platform.ai.chain.folder.ChainTable;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.deploy.MaasTopicsCreatedStore;
@@ -36,6 +42,7 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DomainDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainLoggingPropertiesSetDto;
 import org.qubership.integration.platform.ai.llm.scenario.DeployChainScenario;
+import org.qubership.integration.platform.ai.llm.scenario.ChainListScenario;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.chain.patch.ProposedChainPatch;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -43,6 +50,8 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
+import org.qubership.integration.platform.ai.llm.agent.ChainListIntentAgent;
+import org.qubership.integration.platform.ai.llm.agent.ChainListReplyAgent;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
@@ -67,6 +76,51 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.RestartChec
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
+
+  @ParameterizedTest
+  @ValueSource(strings = {ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION, ChatEvent.CANCEL_CHAIN_LIST_CHANGE_ACTION})
+  void openDecisionKeepsTheChainListCardUntilItIsAnswered(String action) {
+    String conversationId = "conv-chain-list";
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    ChainTable table = mock(ChainTable.class);
+    when(table.find(List.of())).thenReturn(
+        List.of(new ChainTable.Row("chain-a", "Orders", "", null, "", null, "")));
+    ChainListIntentAgent agent = mock(ChainListIntentAgent.class);
+    when(agent.resolve(any(), any(), any(), any())).thenReturn(
+        new ChainListCommand(ChainListAction.DELETE_CHAINS, null, null, null,
+            List.of(), List.of("Orders"), List.of(), null));
+    ChainListReplyAgent replies = mock(ChainListReplyAgent.class);
+    when(replies.reply(any(), any(), any())).thenReturn("Confirm deletion of Orders.");
+    ChainContextExtractor context = mock(ChainContextExtractor.class);
+    when(context.resolveChainId(any(), anyString())).thenReturn(Optional.empty());
+    ChainListScenario scenario = new ChainListScenario(agent, replies, mock(CatalogFolders.class),
+        table, catalog, mock(ConversationService.class), context);
+    ChatDecisionService service = new ChatDecisionService(
+        mock(CreateChainApplicationFacade.class), questionStore(), new RequirementDraftStore());
+    service.chainListScenario = scenario;
+
+    ChatEvent.Decision emitted = assertInstanceOf(ChatEvent.Decision.class,
+        scenario.handle(new ChatRequest(), conversationId, ScenarioType.MANAGE_CHAIN_LIST)
+            .collect().asList().await().indefinitely().getFirst());
+
+    assertEquals(emitted, service.openDecision(conversationId).orElse(null));
+    assertEquals(emitted, service.openDecision(conversationId).orElse(null));
+    assertTrue(service.openDecision("other-conversation").isEmpty());
+    verify(replies, times(1)).reply(any(), any(), any());
+    verify(catalog, never()).deleteChain(anyString());
+
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(action);
+    command.setArtifactHash(emitted.artifactHash());
+    ChatRequest answer = new ChatRequest();
+    answer.setDecision(command);
+    scenario.handle(answer, conversationId, ScenarioType.MANAGE_CHAIN_LIST)
+        .collect().asList().await().indefinitely();
+
+    assertTrue(service.openDecision(conversationId).isEmpty());
+    verify(catalog, times(ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION.equals(action) ? 1 : 0))
+        .deleteChain("chain-a");
+  }
 
   @Test
   void openDecisionKeepsTheAutomaticLoggingQuestionAfterTheDeployStream() {

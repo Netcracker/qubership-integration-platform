@@ -53,7 +53,7 @@ class RequirementAmendmentRuntimeTest {
     var capabilities = new StageCapabilityRegistry(List.of(discovery));
     var narrative = new FailureNarrative(FakeFailureNarrativeAgent.owner("", "")
         .answeringUnder("REQUIREMENT_CHANGE", ""), 12, null);
-    var support = ProductPipelineRunSupport.builder(runs, artifacts, capabilities, clock)
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts, capabilities, clock)
         .profileCatalog(new ProductPipelineProfileCatalog(List.of(profile)))
         .failureNarrative(narrative)
         .build();
@@ -127,7 +127,7 @@ class RequirementAmendmentRuntimeTest {
     assertEquals(List.of(source.turnId()), associated.sourceTurnIds());
     assertThrows(IllegalStateException.class, () -> support.recordApprove(new ApproveCommand(runId,
         briefRef, reopened.run().runRevision())).collect().asList().await().indefinitely());
-    var restored = ProductPipelineRunSupport.builder(runs, artifacts, capabilities, clock)
+    var restored = CreateChainTestOrchestrator.supportBuilder(runs, artifacts, capabilities, clock)
         .profileCatalog(new ProductPipelineProfileCatalog(List.of(profile))).build();
     restored.restoreForExternalWorkflow(command).collect().asList().await().indefinitely();
     restored.stageExecutor().execute(runId, "requirement-discovery").await().indefinitely();

@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelo
 import org.qubership.integration.platform.ai.plan.mapping.schema.DefaultMappingBoundarySchemaResolver;
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingBoundarySchemas;
+import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -94,17 +95,17 @@ public class MappingGenerationPipeline {
       return readyWithScriptContext(context, behaviorContext, requiredBlanks);
     }
     DefaultMappingBoundarySchemaResolver resolver =
-        new DefaultMappingBoundarySchemaResolver(artifacts, compilationId, objectMapper);
+        new DefaultMappingBoundarySchemaResolver(artifacts, compilationId);
     JsonSchemaMessageSchemaFactory envelopeFactory =
         new JsonSchemaMessageSchemaFactory(objectMapper);
-    Map<String, MappingEnvelope> envelopesByTransformNodeId = new LinkedHashMap<>();
+    Map<String, MappingSchemaSide> outputSchemasByTransformNodeId = new LinkedHashMap<>();
     List<Reference> envelopeRefs = new ArrayList<>();
     List<Reference> consumed =
         new ArrayList<>(context == null ? List.of() : context.consumedArtifacts());
     List<FrozenHop> hops = new ArrayList<>();
     for (MappingIntent intent : intents) {
       MappingBoundarySchemas schemas =
-          resolver.resolve(revision, bindings, intent, envelopesByTransformNodeId);
+          resolver.resolve(revision, bindings, intent, outputSchemasByTransformNodeId);
       MappingContractEvaluation evaluated = MappingContractGate.evaluate(intent, schemas);
       if (evaluated.blocked()) {
         Reference brief = consumedBrief(context);
@@ -139,7 +140,7 @@ public class MappingGenerationPipeline {
                   null));
       envelopeRefs.add(stored.reference());
       consumed.add(stored.reference());
-      indexEnvelope(envelopesByTransformNodeId, intent, envelope, context);
+      indexOutputSchema(outputSchemasByTransformNodeId, intent, schemas.target(), context);
       hops.add(new FrozenHop(intent, schemas, envelope));
     }
     Map<String, MappingContract> sourceContracts = new LinkedHashMap<>();
@@ -316,17 +317,17 @@ public class MappingGenerationPipeline {
     return List.copyOf(ordered);
   }
 
-  private static void indexEnvelope(
-      Map<String, MappingEnvelope> envelopes,
+  private static void indexOutputSchema(
+      Map<String, MappingSchemaSide> outputSchemas,
       MappingIntent intent,
-      MappingEnvelope envelope,
+      MappingSchemaSide target,
       GraphPatchExecutionContext context) {
     String intentId = intent.mappingIntentId();
-    envelopes.put(intentId, envelope);
-    envelopes.put("transform-" + intentId, envelope);
+    outputSchemas.put(intentId, target);
+    outputSchemas.put("transform-" + intentId, target);
     String siteId = siteNodeId(context, intentId);
     if (siteId != null && !siteId.isBlank()) {
-      envelopes.put(siteId, envelope);
+      outputSchemas.put(siteId, target);
     }
   }
 

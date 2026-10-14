@@ -316,7 +316,7 @@ class OneBriefLogTipTest {
 
   private ProductPipelineRunSupport newSupport() {
     CompilerRunPinResolver pinResolver = mock(CompilerRunPinResolver.class);
-    return ProductPipelineRunSupport.builder(
+    return CreateChainTestOrchestrator.supportBuilder(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(

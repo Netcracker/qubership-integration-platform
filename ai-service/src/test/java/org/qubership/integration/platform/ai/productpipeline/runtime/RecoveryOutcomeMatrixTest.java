@@ -535,7 +535,7 @@ class RecoveryOutcomeMatrixTest {
       ProductPipelineProfile ignoredProfile,
       StageCapability... capabilities) {
     ProductPipelineRunSupport support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(List.of(capabilities)),

@@ -110,7 +110,6 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveComm
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -509,7 +508,7 @@ class CreateChainSharedDesignRuntimeIT {
 
     CreateChainTestOrchestrator runtime =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(
@@ -579,7 +578,7 @@ class CreateChainSharedDesignRuntimeIT {
 
     CreateChainTestOrchestrator restarted =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(
@@ -868,7 +867,7 @@ class CreateChainSharedDesignRuntimeIT {
       stubs.run();
     }
     return new CreateChainTestOrchestrator(
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(
@@ -890,7 +889,7 @@ class CreateChainSharedDesignRuntimeIT {
   private CreateChainTestOrchestrator runtimeWithOmWfmDesignStack() {
     omWfmCatalogStubs().run();
     return new CreateChainTestOrchestrator(
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(

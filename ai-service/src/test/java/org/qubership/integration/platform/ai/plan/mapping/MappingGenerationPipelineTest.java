@@ -341,14 +341,17 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
-  @EnabledIf("mapper2Enabled")
-  void chainedMapperOutputReusesPriorEnvelopeBySiteNodeId() throws Exception {
+  void chainedScriptOutputPreservesPriorTargetSchemaBySiteNodeId() throws Exception {
     JsonNode looseOrder =
         MAPPER.readTree(
             """
             {
               "type": "object",
-              "properties": { "orderId": { "type": "string" } }
+              "properties": {
+                "orderId": { "type": "string" },
+                "quantity": { "type": "integer" }
+              },
+              "required": ["orderId", "quantity"]
             }
             """);
     persistSide("trigger-http", MappingPort.OUTPUT, looseOrder);
@@ -361,8 +364,10 @@ class MappingGenerationPipelineTest {
             MappingPort.OUTPUT,
             "node-call-b",
             MappingPort.REQUEST,
-            List.of(),
-            "MAPPER_2");
+            List.of(
+                new MappingIntentRule("$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule("$.quantity", "$.quantity", null, MappingRuleStatus.USER_DEFINED)),
+            "SCRIPT");
     MappingIntent upstream =
         new MappingIntent(
             "map-first",
@@ -372,13 +377,14 @@ class MappingGenerationPipelineTest {
             MappingPort.REQUEST,
             List.of(
                 new MappingIntentRule(
-                    "$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED)),
-            "MAPPER_2");
-    ChainPlanGraph graph = chainedMapperGraph();
+                    "$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule("$.quantity", "$.quantity", null, MappingRuleStatus.USER_DEFINED)),
+            "SCRIPT");
+    ChainPlanGraph graph = chainedScriptGraph();
     GraphPatchExecutionContext context =
         new GraphPatchExecutionContext(
             "run-chained",
-            TRANSFORMATION_SKILL,
+            SCRIPT_SKILL,
             "req-1",
             "graph-1",
             "compiler-1",
@@ -393,8 +399,8 @@ class MappingGenerationPipelineTest {
     MappingGenerationPipeline.Result prepared =
         pipeline.prepare(
             COMPILATION_ID,
-            TRANSFORMATION_SKILL,
-            chainedMapperRevision(List.of(downstream, upstream)),
+            SCRIPT_SKILL,
+            chainedScriptRevision(List.of(downstream, upstream)),
             List.of(
                 binding("node-call-a", "call-a", "op-a"),
                 binding("node-call-b", "call-b", "op-b")),
@@ -406,6 +412,8 @@ class MappingGenerationPipelineTest {
     MappingEnvelope second = loadEnvelope(prepared.envelopeRefs().get(1));
     assertEquals("map-first", first.mappingIntentId());
     assertEquals("map-second", second.mappingIntentId());
+    assertEquals(first.target(), second.source());
+    assertEquals(first.idToPath(), second.idToPath());
   }
 
   @Test
@@ -447,7 +455,7 @@ class MappingGenerationPipelineTest {
         pipeline.prepare(
             COMPILATION_ID,
             SCRIPT_SKILL,
-            chainedMapperRevision(List.of(intent)),
+            chainedScriptRevision(List.of(intent)),
             List.of(
                 binding("node-call-a", "call-a", "op-a"),
                 binding("node-call-b", "call-b", "op-b")),
@@ -676,7 +684,7 @@ class MappingGenerationPipelineTest {
         "");
   }
 
-  private static ChainPlanGraph chainedMapperGraph() {
+  private static ChainPlanGraph chainedScriptGraph() {
     return new ChainPlanGraph(
         "1.0",
         new ChainSection("id", "name"),
@@ -684,14 +692,14 @@ class MappingGenerationPipelineTest {
             new ChainPlanNode("trigger-http", "http-trigger", "Trigger", null, 1, List.of()),
             new ChainPlanNode(
                 "site-map-first",
-                "mapper-2",
+                "script",
                 "Map first",
                 null,
                 2,
                 List.of(new PlanProperty("mappingIntentId", "map-first"))),
             new ChainPlanNode(
                 "site-map-second",
-                "mapper-2",
+                "script",
                 "Map second",
                 null,
                 3,
@@ -701,7 +709,7 @@ class MappingGenerationPipelineTest {
         List.of());
   }
 
-  private static ChainSemanticRevision chainedMapperRevision(List<MappingIntent> intents) {
+  private static ChainSemanticRevision chainedScriptRevision(List<MappingIntent> intents) {
     ChainSemanticRevision base = SemanticFixtures.linearOrders();
     return new ChainSemanticRevision(
         base.schemaVersion(),
@@ -713,7 +721,7 @@ class MappingGenerationPipelineTest {
             new SemanticNode.Trigger(
                 "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
             new SemanticNode.Operation(
-                "site-map-first", "mapper-2", new SemanticProvenance(List.of())),
+                "site-map-first", "script", new SemanticProvenance(List.of())),
             new SemanticNode.ServiceCall(
                 "node-call-a", "call-a", "createOrder", new SemanticProvenance(List.of())),
             new SemanticNode.ServiceCall(

@@ -84,7 +84,7 @@ class ProductPipelineRefineReapproveTest {
     profile = createProfile();
     runtime =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(

@@ -105,7 +105,7 @@ class DesignPlanningCapabilityTest {
     profile = designPlanningProfile();
     runtime =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(

@@ -195,7 +195,7 @@ class ProductPipelineHaltQuestionTest {
     agent = narrativeAgent;
     profile = twoStageProfile();
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(List.of(analysisCapability(), planningCapability())),

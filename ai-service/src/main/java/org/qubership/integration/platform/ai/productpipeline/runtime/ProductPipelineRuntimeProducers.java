@@ -63,6 +63,9 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileValidator;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
+import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 /** CDI producers for the durable product-pipeline runtime graph. */
@@ -182,6 +185,10 @@ public class ProductPipelineRuntimeProducers {
       MappingTurnInterpreter mappingTurnInterpreter,
       MappingTurnTelemetry mappingTurnTelemetry,
       MappingRepairCaptureValidator mappingRepairCaptureValidator,
+      ObjectMapper objectMapper,
+      SchemaResourceLoader schemaResourceLoader,
+      SchemaRefResolver schemaRefResolver,
+      DeterministicElementSchemaService schemaService,
       org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
     AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
         appConfig.create().failureNarrative();
@@ -210,7 +217,11 @@ public class ProductPipelineRuntimeProducers {
             recoveryTelemetry,
             mappingTurnInterpreter,
             mappingTurnTelemetry,
-            mappingRepairCaptureValidator).withConversations(conversations).withLlmBudget(llmRunBudget);
+            mappingRepairCaptureValidator,
+            objectMapper,
+            schemaResourceLoader,
+            schemaRefResolver,
+            schemaService).withConversations(conversations).withLlmBudget(llmRunBudget);
   }
 
   @Produces

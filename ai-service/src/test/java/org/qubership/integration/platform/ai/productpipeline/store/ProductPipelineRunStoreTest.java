@@ -51,6 +51,32 @@ class ProductPipelineRunStoreTest {
   }
 
   @Test
+  void statusChangePreservesApprovalAndRecordsTheIndependentAttemptOutcome() {
+    var approved = new CompilationArtifacts.Reference(Kind.REQUIREMENT_BRIEF, "approved", "sha-approved");
+    var candidate = new CompilationArtifacts.Reference(Kind.REQUIREMENT_BRIEF, "candidate", "sha-candidate");
+    StageSnapshot stage = new StageSnapshot("collect", StageStatus.RUNNING,
+        List.of(approved), approved.artifactId(), List.of(candidate), candidate, 2);
+    StageSnapshot later = new StageSnapshot("later", StageStatus.PENDING, List.of(), null);
+    RunSnapshot snapshot = new RunSnapshot("run-status", CONVERSATION_ID, 1L,
+        RunStatus.RUNNING, "collect", List.of(stage, later), null);
+    runStore.create(snapshot);
+    StageAttempt attempt = new StageAttempt("retry", "collect", 2L, StageStatus.FAILED,
+        FIXED, FIXED, List.of(candidate), "retryable failure");
+    RunTransition transition = new RunTransition(1L, 2L, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT,
+        "collect", FIXED, "retry", "command-1", "payload-1");
+
+    ProductPipelineRunDocument saved = runStore.commit(1L,
+        LogicalCommit.statusChange(snapshot, StageStatus.WAITING_FOR_INPUT, snapshot.stages(), attempt, transition));
+
+    assertEquals(new StageSnapshot("collect", StageStatus.WAITING_FOR_INPUT,
+        List.of(approved), approved.artifactId(), List.of(candidate), candidate, 2),
+        saved.run().stages().getFirst());
+    assertEquals(later, saved.run().stages().get(1));
+    assertEquals(attempt, saved.attempts().getFirst());
+    assertEquals(transition, saved.appliedCommand("command-1", "payload-1").orElseThrow());
+  }
+
+  @Test
   void rejectsSecondWriterAtSameRunRevision() {
     ProductPipelineRunDocument created = runStore.create(sampleSnapshot(1L, RunStatus.RUNNING));
     advanceToRevision(created, 3L);

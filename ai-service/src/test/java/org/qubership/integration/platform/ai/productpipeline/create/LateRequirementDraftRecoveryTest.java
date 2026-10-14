@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -227,7 +228,7 @@ class LateRequirementDraftRecoveryTest {
             List.of(new ProposedBriefChange("retain-id", "text", WRONG, CORRECT, "SOURCE_LITERAL_MISMATCH", false)),
             "", "Restore the requirement stated in the saved source.");
       });
-      var support = ProductPipelineRunSupport.builder(runs, artifacts,
+      var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts,
           new StageCapabilityRegistry(List.of(discovery, analysis, design, execution)), clock)
           .failureNarrative(new FailureNarrative(agent)).build();
       runtime = new CreateChainTestOrchestrator(support, runs);

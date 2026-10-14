@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndexBuilder;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanner;
 
@@ -15,6 +16,40 @@ class CompilerSkillCatalogLoaderTest {
 
   private final QipKnowledgePackScanner scanner = new QipKnowledgePackScanner();
   private final CompilerSkillCatalogLoader loader = new CompilerSkillCatalogLoader();
+
+  @Test
+  void metadataOverridesFrontmatterAfterKeyNormalizationInBothIndexes(@TempDir Path tempDir)
+      throws Exception {
+    writeSkill(tempDir, "cip-trigger-generator", """
+        ---
+        generator_id: GEN-01
+        category: original
+        public_api: true
+        ---
+        # Trigger generator
+
+        ## Metadata
+
+        ```yaml
+        Generator ID: GEN-02
+        CATEGORY: generation
+        public api: false
+        Compiler_stage: generation
+        ignored: [one, two]
+        ```
+        """);
+
+    QipKnowledgePackScanResult scan = scanner.scan(tempDir);
+    CompilerSkillDescriptor skill = loader.load(scan).find("cip-trigger-generator").orElseThrow();
+    var spec = new CompilerGeneratorSpecIndexBuilder().build(scan)
+        .findBySkillName("cip-trigger-generator").orElseThrow();
+
+    assertEquals("GEN-02", spec.generatorId());
+    assertEquals("generation", skill.category());
+    assertFalse(skill.publicApi());
+    assertEquals(skill.category(), spec.category());
+    assertEquals("generation", spec.compilerStage());
+  }
 
   @Test
   void privateMarkerAndPublicApiFalseBecomePrivate(@TempDir Path tempDir) throws Exception {

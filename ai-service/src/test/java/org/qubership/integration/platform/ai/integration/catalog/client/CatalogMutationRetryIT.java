@@ -30,6 +30,8 @@ class CatalogMutationRetryIT {
   void reset() {
     Endpoint.chainCreates.set(0);
     Endpoint.elementCreates.set(0);
+    Endpoint.snapshotCreates.set(0);
+    Endpoint.deploymentCreates.set(0);
   }
 
   @Test
@@ -38,6 +40,21 @@ class CatalogMutationRetryIT {
 
     assertEquals("chain-1", chainId);
     assertEquals(1, Endpoint.chainCreates.get());
+  }
+
+  @Test
+  void snapshotCreateFailureDoesNotRepeatAnUnresolvedWrite() {
+    assertThrows(RuntimeException.class, () -> catalog.createSnapshot("chain-1"));
+
+    assertEquals(1, Endpoint.snapshotCreates.get());
+  }
+
+  @Test
+  void deploymentCreateFailureDoesNotRepeatAnUnresolvedWrite() {
+    assertThrows(RuntimeException.class, () -> catalog.createDeployment("chain-1",
+        new CatalogRestClient.CreateDeploymentRequest("default", "snapshot-1")));
+
+    assertEquals(1, Endpoint.deploymentCreates.get());
   }
 
   @Test
@@ -51,6 +68,8 @@ class CatalogMutationRetryIT {
   public static class Endpoint implements QuarkusTestResourceLifecycleManager {
     static final AtomicInteger chainCreates = new AtomicInteger();
     static final AtomicInteger elementCreates = new AtomicInteger();
+    static final AtomicInteger snapshotCreates = new AtomicInteger();
+    static final AtomicInteger deploymentCreates = new AtomicInteger();
     private HttpServer server;
 
     @Override
@@ -77,6 +96,14 @@ class CatalogMutationRetryIT {
               : "{\"id\":\"chain-" + created + "\",\"name\":\"Retry fixture\"}";
         } else if (path.equals("/v1/chains/chain-1/elements")) {
           elementCreates.incrementAndGet();
+          status = 503;
+          body = "{\"errorMessage\":\"Response failed after commit\"}";
+        } else if (path.equals("/v1/catalog/chains/chain-1/snapshots")) {
+          snapshotCreates.incrementAndGet();
+          status = 503;
+          body = "{\"errorMessage\":\"Response failed after commit\"}";
+        } else if (path.equals("/v1/catalog/chains/chain-1/deployments")) {
+          deploymentCreates.incrementAndGet();
           status = 503;
           body = "{\"errorMessage\":\"Response failed after commit\"}";
         } else {

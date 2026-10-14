@@ -83,7 +83,6 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEv
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryExecutor;
 import org.qubership.integration.platform.ai.productpipeline.recovery.SemanticFinding;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
-import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
@@ -133,21 +132,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private final RecoveryAttemptLedger recoveryLedger;
   private final RecoveryOutcomeTelemetry recoveryTelemetry;
   private final MappingRepairCaptureValidator mappingRepairCaptureValidator;
-  private volatile RecoveryValidationDeps recoveryValidationDeps;
-
-  private static final class RecoveryValidationDeps {
-    final ObjectMapper objectMapper;
-    final SchemaResourceLoader schemaResourceLoader;
-    final SchemaRefResolver schemaRefResolver;
-    final DeterministicElementSchemaService schemaService;
-
-    RecoveryValidationDeps() {
-      this.objectMapper = new ObjectMapper();
-      this.schemaResourceLoader = new SchemaResourceLoader();
-      this.schemaRefResolver = new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
-      this.schemaService = DeterministicElementSchemaService.createForUnitTests(objectMapper);
-    }
-  }
+  private final ObjectMapper objectMapper;
+  private final SchemaResourceLoader schemaResourceLoader;
+  private final SchemaRefResolver schemaRefResolver;
+  private final DeterministicElementSchemaService schemaService;
 
   public static final int MAX_SEMANTIC_REPAIRS = 2;
   public static final String PRODUCER_REPAIR_REASON_PREFIX = "producer-repair:";
@@ -172,147 +160,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       Map<String, RunManifest> manifestsByRun,
       Map<String, Map<String, Object>> attributesByRun,
       Map<String, Integer> technicalRetriesByStage,
-      ApprovalPrompts approvalPrompts) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        clock,
-        profilesByRun,
-        manifestsByRun,
-        attributesByRun,
-        technicalRetriesByStage,
-        approvalPrompts,
-        null);
-  }
-
-  public ProductPipelineStageExecutor(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      Clock clock,
-      Map<String, ProductPipelineProfile> profilesByRun,
-      Map<String, RunManifest> manifestsByRun,
-      Map<String, Map<String, Object>> attributesByRun,
-      Map<String, Integer> technicalRetriesByStage,
-      ApprovalPrompts approvalPrompts,
-      FailureNarrative failureNarrative) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        clock,
-        profilesByRun,
-        manifestsByRun,
-        attributesByRun,
-        technicalRetriesByStage,
-        approvalPrompts,
-        failureNarrative,
-        2);
-  }
-
-  public ProductPipelineStageExecutor(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      Clock clock,
-      Map<String, ProductPipelineProfile> profilesByRun,
-      Map<String, RunManifest> manifestsByRun,
-      Map<String, Map<String, Object>> attributesByRun,
-      Map<String, Integer> technicalRetriesByStage,
-      ApprovalPrompts approvalPrompts,
-      FailureNarrative failureNarrative,
-      int repeatedFailureThreshold) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        clock,
-        profilesByRun,
-        manifestsByRun,
-        attributesByRun,
-        technicalRetriesByStage,
-        approvalPrompts,
-        failureNarrative,
-        repeatedFailureThreshold,
-        new RecoveryAttemptLedger());
-  }
-
-  public ProductPipelineStageExecutor(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      Clock clock,
-      Map<String, ProductPipelineProfile> profilesByRun,
-      Map<String, RunManifest> manifestsByRun,
-      Map<String, Map<String, Object>> attributesByRun,
-      Map<String, Integer> technicalRetriesByStage,
-      ApprovalPrompts approvalPrompts,
-      FailureNarrative failureNarrative,
-      int repeatedFailureThreshold,
-      RecoveryAttemptLedger recoveryLedger) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        clock,
-        profilesByRun,
-        manifestsByRun,
-        attributesByRun,
-        technicalRetriesByStage,
-        approvalPrompts,
-        failureNarrative,
-        repeatedFailureThreshold,
-        recoveryLedger,
-        new RecoveryOutcomeTelemetry());
-  }
-
-  public ProductPipelineStageExecutor(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      Clock clock,
-      Map<String, ProductPipelineProfile> profilesByRun,
-      Map<String, RunManifest> manifestsByRun,
-      Map<String, Map<String, Object>> attributesByRun,
-      Map<String, Integer> technicalRetriesByStage,
-      ApprovalPrompts approvalPrompts,
-      FailureNarrative failureNarrative,
-      int repeatedFailureThreshold,
-      RecoveryAttemptLedger recoveryLedger,
-      RecoveryOutcomeTelemetry recoveryTelemetry) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        clock,
-        profilesByRun,
-        manifestsByRun,
-        attributesByRun,
-        technicalRetriesByStage,
-        approvalPrompts,
-        failureNarrative,
-        repeatedFailureThreshold,
-        recoveryLedger,
-        recoveryTelemetry,
-        null);
-  }
-
-  public ProductPipelineStageExecutor(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      Clock clock,
-      Map<String, ProductPipelineProfile> profilesByRun,
-      Map<String, RunManifest> manifestsByRun,
-      Map<String, Map<String, Object>> attributesByRun,
-      Map<String, Integer> technicalRetriesByStage,
       ApprovalPrompts approvalPrompts,
       FailureNarrative failureNarrative,
       int repeatedFailureThreshold,
       RecoveryAttemptLedger recoveryLedger,
       RecoveryOutcomeTelemetry recoveryTelemetry,
-      MappingRepairCaptureValidator mappingRepairCaptureValidator) {
+      MappingRepairCaptureValidator mappingRepairCaptureValidator,
+      ObjectMapper objectMapper,
+      SchemaResourceLoader schemaResourceLoader,
+      SchemaRefResolver schemaRefResolver,
+      DeterministicElementSchemaService schemaService) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -331,6 +188,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     this.recoveryTelemetry =
         recoveryTelemetry == null ? new RecoveryOutcomeTelemetry() : recoveryTelemetry;
     this.mappingRepairCaptureValidator = mappingRepairCaptureValidator;
+    this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+    this.schemaResourceLoader = Objects.requireNonNull(schemaResourceLoader, "schemaResourceLoader");
+    this.schemaRefResolver = Objects.requireNonNull(schemaRefResolver, "schemaRefResolver");
+    this.schemaService = Objects.requireNonNull(schemaService, "schemaService");
   }
 
   public ApprovalRecordV2 approveCandidate(
@@ -2025,14 +1886,14 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   private String recoveryJson(Object value) {
-    try { return recoveryValidationDeps().objectMapper.writeValueAsString(value); }
+    try { return objectMapper.writeValueAsString(value); }
     catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
       throw new IllegalStateException("Cannot save recovery request state", failure);
     }
   }
 
   private <T> T readRecoveryJson(String json, Class<T> type) {
-    try { return recoveryValidationDeps().objectMapper.readValue(json, type); }
+    try { return objectMapper.readValue(json, type); }
     catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
       throw new IllegalStateException("Cannot read recovery request state", failure);
     }
@@ -2043,20 +1904,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_RETRY_TECHNICAL,
         reason + " Progress is saved. Retry creation authorizes one additional model allowance.",
         "LLM_RESOURCE_LIMIT: " + reason, null, emitted);
-  }
-
-  private RecoveryValidationDeps recoveryValidationDeps() {
-    RecoveryValidationDeps deps = recoveryValidationDeps;
-    if (deps == null) {
-      synchronized (this) {
-        deps = recoveryValidationDeps;
-        if (deps == null) {
-          deps = new RecoveryValidationDeps();
-          recoveryValidationDeps = deps;
-        }
-      }
-    }
-    return deps;
   }
 
   private Optional<String> compiledBriefProducerStageId(String runId, RecoveryCause cause) {
@@ -2131,7 +1978,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   private JsonNode requirementField(List<?> records, String idField, String id, JsonPointer field) {
-    JsonNode tree = recoveryValidationDeps().objectMapper.valueToTree(records);
+    JsonNode tree = objectMapper.valueToTree(records);
     for (JsonNode record : tree) {
       if (record.path(idField).asText().equals(id)) return record.at(field);
     }
@@ -2294,7 +2141,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       for (PlanValidationFinding finding : cause.findings()) {
         projected.add(new SemanticFinding(finding.code(), finding.message(), failureId + "-typed-" + index++,
             finding.originRecordId(), "", List.of(), List.of(), List.of(), "", Map.of(), List.of(),
-            serializedFindingJson(recoveryValidationDeps().objectMapper, finding)));
+            serializedFindingJson(objectMapper, finding)));
       }
     }
     projected.addAll(semanticFindingsForRejectedGraph(runId, rejectedRefs, observingStageId));
@@ -2305,7 +2152,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (cause == null || cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
       return List.of();
     }
-    ObjectMapper mapper = recoveryValidationDeps().objectMapper;
+    ObjectMapper mapper = objectMapper;
     List<SemanticFinding> projected = new ArrayList<>();
     int index = 1;
     for (PlanValidationFinding finding : cause.findings()) {
@@ -2355,15 +2202,14 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       String observingStageId) {
     ChainPlanGraph graph = resolveRejectedGraph(runId, rejectedRefs);
     if (graph != null) {
-      RecoveryValidationDeps deps = recoveryValidationDeps();
       List<SemanticFinding> graphFindings =
           RecoveryEvidenceFactory.findingsFromChainPlanGraph(
               graph,
               observingStageId,
-              deps.objectMapper,
-              deps.schemaRefResolver,
-              deps.schemaService,
-              deps.schemaResourceLoader);
+              objectMapper,
+              schemaRefResolver,
+              schemaService,
+              schemaResourceLoader);
       if (!graphFindings.isEmpty()) {
         return graphFindings;
       }
@@ -2610,7 +2456,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               ? rejectedArtifact(runId, evidence.rejectedArtifactRefs()) : null;
           return new RepairHistory.Attempt(revision.reference(), evidence.failureId(), producer,
               evidence.producerInputs(), evidence.authorInputIds(), evidence.rejectedArtifactRefs(),
-              recoveryValidationDeps().objectMapper.valueToTree(proposal), evidence.findings(), evidence.cleanRebuild());
+              objectMapper.valueToTree(proposal), evidence.findings(), evidence.cleanRebuild());
         }).toList();
   }
 
@@ -2624,7 +2470,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private boolean recurringRejectedOutput(RecoveryEvidence current, Object output,
       List<RepairHistory.Attempt> history) {
     if (output == null || current.producerInputs().isEmpty()) { return false; }
-    var proposal = recoveryValidationDeps().objectMapper.valueToTree(output);
+    var proposal = objectMapper.valueToTree(output);
     return history.stream().filter(attempt -> current.producerInputs().equals(attempt.inputs()))
         .filter(attempt -> proposal.equals(attempt.proposal()))
         .filter(attempt -> sameFindingCoverage(current.findings(), attempt.findings()))
@@ -3031,7 +2877,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         Map<String, Set<String>> editable = new HashMap<>();
         mappingRepairEvidence(runId).ifPresent(evidence -> evidence.findings().forEach(finding -> {
           try {
-            var nativeFinding = recoveryValidationDeps().objectMapper
+            var nativeFinding = objectMapper
                 .readValue(finding.rawValidatorJson(), PlanValidationFinding.class);
             var details = nativeFinding.mappingDetails();
             String path = switch (nativeFinding.code()) {
@@ -3154,7 +3000,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       attributes.remove(StageRepairEvidence.REPAIR_HISTORY_ATTR);
     } else {
       attributes.put(StageRepairEvidence.REPAIR_HISTORY_ATTR,
-          RepairHistory.project(history, recoveryValidationDeps().objectMapper, RepairHistory.CHAR_BUDGET).toString());
+          RepairHistory.project(history, objectMapper, RepairHistory.CHAR_BUDGET).toString());
     }
     attributesByRun.put(runId, attributes);
     return attributes;
@@ -3605,31 +3451,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       String reason,
       String failureEvidence,
       StageStatus attemptOutcome) {
-    List<StageSnapshot> nextStages = new ArrayList<>();
-    for (StageSnapshot snapshot : stages) {
-      if (snapshot.stageId().equals(doc.run().currentStageId())) {
-        nextStages.add(
-            new StageSnapshot(
-                snapshot.stageId(),
-                stageStatus,
-                snapshot.outputRefs(),
-                snapshot.approvedArtifactId(),
-                snapshot.candidateReferences(),
-                snapshot.approvableReference(),
-                snapshot.candidateRevision()));
-      } else {
-        nextStages.add(snapshot);
-      }
-    }
     long expected = doc.run().runRevision();
     runStore.commit(
         expected,
-        new LogicalCommit(
-            doc.run().runId(),
-            expected,
-            nextStatus,
-            doc.run().currentStageId(),
-            nextStages,
+        LogicalCommit.statusChange(
+            doc.run(),
+            stageStatus,
+            stages,
             new StageAttempt(
                 UUID.randomUUID().toString(),
                 doc.run().currentStageId(),
@@ -3637,7 +3465,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 attemptOutcome,
                 clock.instant(),
                 clock.instant(),
-                nextStages.stream()
+                stages.stream()
                     .filter(s -> s.stageId().equals(doc.run().currentStageId()))
                     .findFirst()
                     .map(snapshot -> ProductPipelineRunSupport.preparingReplacement(

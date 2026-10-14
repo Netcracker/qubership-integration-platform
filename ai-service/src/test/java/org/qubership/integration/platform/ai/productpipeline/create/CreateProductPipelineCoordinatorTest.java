@@ -37,7 +37,6 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -352,7 +351,7 @@ public class CreateProductPipelineCoordinatorTest {
                   materialization(materializationCalls)));
       CreateChainTestOrchestrator runtime =
           new CreateChainTestOrchestrator(
-              ProductPipelineRunSupport.builder(runStore, storeFacade, capabilities, clock)
+              CreateChainTestOrchestrator.supportBuilder(runStore, storeFacade, capabilities, clock)
                   .profileCatalog(catalog)
                   .compilerRunPinResolver(stubPinResolver())
                   .build(),

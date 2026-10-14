@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -128,7 +129,7 @@ class DurableCreateChainFlowInstanceIT {
         new ProfileStage("requirement-discovery", discovery.capabilityId(), List.of(input), List.of(),
             null, null, new RetryPolicy(2, 50L))),
         new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"), List.of(discovery.capabilityId()));
-    var support = ProductPipelineRunSupport.builder(store, artifacts,
+    var support = CreateChainTestOrchestrator.supportBuilder(store, artifacts,
         new StageCapabilityRegistry(List.of(discovery)), Clock.systemUTC()).build();
     var manifest = new RunManifest(runId, null, List.of(), "product", profile.profileId(), profile.profileVersion(),
         "profile", "baseline", "baseline", List.of(), "closure",

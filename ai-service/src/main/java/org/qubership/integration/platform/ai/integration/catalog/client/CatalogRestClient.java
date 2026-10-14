@@ -165,6 +165,7 @@ public interface CatalogRestClient {
    */
   @POST
   @Path("/v1/catalog/chains/{chainId}/snapshots")
+  @Retry(maxRetries = 0)
   SnapshotDto createSnapshot(@PathParam("chainId") String chainId);
 
   @GET
@@ -175,6 +176,7 @@ public interface CatalogRestClient {
 
   @POST
   @Path("/v1/catalog/chains/{chainId}/deployments")
+  @Retry(maxRetries = 0)
   DeploymentDto createDeployment(
       @PathParam("chainId") String chainId, CreateDeploymentRequest body);
 

@@ -21,9 +21,6 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
-import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.MessageSchema;
-import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.NullType;
-import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
@@ -51,7 +48,7 @@ class MappingBoundarySchemaResolverTest {
             new InMemoryArtifactBlobStore(),
             MAPPER,
             Clock.fixed(Instant.parse("2026-07-30T09:00:00Z"), ZoneOffset.UTC));
-    resolver = new DefaultMappingBoundarySchemaResolver(artifacts, COMPILATION_ID, MAPPER);
+    resolver = new DefaultMappingBoundarySchemaResolver(artifacts, COMPILATION_ID);
     orderSchema =
         MAPPER.readTree(
             """
@@ -198,11 +195,10 @@ class MappingBoundarySchemaResolverTest {
   }
 
   @Test
-  void mapperOutputReusesPriorEnvelopeTarget() {
+  void transformOutputPreservesTheOriginalTargetSchema() {
     persistSide("call-1", "op-1", MappingPort.REQUEST, "application/json", null, orderSchema);
-    MessageSchema emptySchema = new MessageSchema(List.of(), List.of(), new NullType());
-    MappingEnvelope prior =
-        new MappingEnvelope(emptySchema, emptySchema, Map.of(), "digest-ab12");
+    MappingSchemaSide priorTarget = new MappingSchemaSide("1", "call-first", "op-first",
+        MappingPort.REQUEST, "application/json", null, "sha-target", "catalog:op-first", orderSchema);
     MappingIntent intent =
         new MappingIntent(
             "map-next",
@@ -217,10 +213,13 @@ class MappingBoundarySchemaResolverTest {
             withMapper(SemanticFixtures.linearOrders()),
             List.of(binding("node-call", "call-1", "op-1")),
             intent,
-            Map.of("mapper-1", prior));
+            Map.of("mapper-1", priorTarget));
 
-    assertTrue(sides.source().provenance().startsWith("envelope:"));
-    assertTrue(sides.source().provenance().contains(prior.digest()));
+    assertEquals(orderSchema, sides.source().schema());
+    assertEquals(priorTarget.sha256(), sides.source().sha256());
+    assertEquals(priorTarget.contentType(), sides.source().contentType());
+    assertEquals(MappingPort.OUTPUT, sides.source().direction());
+    assertEquals("mapper-1", sides.source().serviceCallId());
   }
 
   @Test

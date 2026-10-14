@@ -385,7 +385,7 @@ class MissingBriefFactsExhaustedRecoveryTest {
 
   private ProductPipelineRunSupport supportFor(
       FailureNarrative narrative, StageCapability... capabilities) {
-    return ProductPipelineRunSupport.builder(
+    return CreateChainTestOrchestrator.supportBuilder(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(List.of(capabilities)),

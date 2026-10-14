@@ -207,7 +207,7 @@ class ProductPipelineApprovalQuestionTest {
     agent = narrativeAgent;
     profile = singleGatedStageProfile();
     ProductPipelineRunSupport support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(List.of(analysisCapability())),

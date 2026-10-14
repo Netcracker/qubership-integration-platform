@@ -107,7 +107,7 @@ class BindingIdentityMismatchRecoveryTest {
     planningCalls = new AtomicInteger();
     profile = fourStageProfile();
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(
@@ -209,7 +209,7 @@ class BindingIdentityMismatchRecoveryTest {
   @Test
   void runCeilingStopsIdentityMismatchWithoutUpstreamReplay() {
     support =
-        ProductPipelineRunSupport.builder(
+        CreateChainTestOrchestrator.supportBuilder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(

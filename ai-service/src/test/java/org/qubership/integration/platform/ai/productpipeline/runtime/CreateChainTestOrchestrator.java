@@ -1,11 +1,20 @@
 package org.qubership.integration.platform.ai.productpipeline.runtime;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.smallrye.mutiny.Multi;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
+import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutionResult;
@@ -27,6 +36,19 @@ public final class CreateChainTestOrchestrator implements CreateChainOrchestrato
       ProductPipelineRunSupport support, ProductPipelineRunStore runStore) {
     this.support = Objects.requireNonNull(support, "support");
     this.runStore = Objects.requireNonNull(runStore, "runStore");
+  }
+
+  public static ProductPipelineRunSupport.Builder supportBuilder(
+      ProductPipelineRunStore runs,
+      ProductPipelineArtifactStore artifacts,
+      StageCapabilityRegistry capabilities,
+      Clock clock) {
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    SchemaResourceLoader loader = new SchemaResourceLoader();
+    SchemaRefResolver resolver = new SchemaRefResolver(loader, new QipSchemaYamlParser());
+    return ProductPipelineRunSupport.builder(runs, artifacts, capabilities, clock)
+        .recoveryValidation(mapper, loader, resolver,
+            DeterministicElementSchemaService.createForUnitTests(mapper));
   }
 
   public SemanticRecoveryState captureSemanticRecoveryState(String runId) {

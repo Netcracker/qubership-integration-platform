@@ -2,8 +2,14 @@ package org.qubership.integration.platform.ai.chat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -17,6 +23,11 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.deploy.MaasKafkaTopicsFollowUp;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
+import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
+import org.qubership.integration.platform.ai.chain.folder.ChainListAction;
+import org.qubership.integration.platform.ai.chain.folder.ChainListCommand;
+import org.qubership.integration.platform.ai.chain.folder.ChainTable;
+import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.evidence.ConversationEvidenceStore;
@@ -28,6 +39,13 @@ import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactB
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.llm.agent.ChainListIntentAgent;
+import org.qubership.integration.platform.ai.llm.agent.ChainListReplyAgent;
+import org.qubership.integration.platform.ai.llm.scenario.ChainListScenario;
+import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.ChainPlanRepairDraftStore;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
@@ -47,6 +65,9 @@ class ConversationTurnResetTest {
   private ChainPlanStore chainPlanStore;
   private ConversationApiHubCache apiHubCache;
   private PendingRedeployStore pendingRedeployStore;
+  private ChainListScenario chainListScenario;
+  private ChainListIntentAgent chainListAgent;
+  private CatalogRestClient catalog;
 
   @BeforeEach
   void setUp() {
@@ -60,6 +81,16 @@ class ConversationTurnResetTest {
     pinnedFailureStore = new PinnedFailureStore();
     apiHubCache = new ConversationApiHubCache();
     pendingRedeployStore = new PendingRedeployStore();
+    chainListAgent = mock(ChainListIntentAgent.class);
+    catalog = mock(CatalogRestClient.class);
+    ChainTable table = mock(ChainTable.class);
+    when(table.find(List.of()))
+        .thenReturn(List.of(new ChainTable.Row("chain-a", "Orders", "", null, "", null, "")));
+    ChainContextExtractor chainContext = mock(ChainContextExtractor.class);
+    when(chainContext.resolveChainId(any(), anyString())).thenReturn(java.util.Optional.empty());
+    chainListScenario = new ChainListScenario(
+        chainListAgent, mock(ChainListReplyAgent.class), mock(CatalogFolders.class), table,
+        catalog, conversationService, chainContext);
     reset =
         new ConversationTurnReset(
             conversationService,
@@ -76,7 +107,66 @@ class ConversationTurnResetTest {
             pinnedFailureStore,
             new LastAssistantTurnStore(),
             apiHubCache,
-            pendingRedeployStore);
+            pendingRedeployStore,
+            chainListScenario);
+  }
+
+  @Test
+  void fullResetInvalidatesPendingChainListChanges() {
+    assertOldChainListDecisionIsRejected(() -> reset.fullReset(CONVERSATION_ID));
+  }
+
+  @Test
+  void truncateInvalidatesPendingChainListChanges() {
+    assertOldChainListDecisionIsRejected(() -> reset.truncateAndReset(CONVERSATION_ID, -1));
+  }
+
+  @Test
+  void fullResetDropsTheLastChainList() {
+    when(chainListAgent.resolve(any(), any(), any(), any())).thenReturn(
+        new ChainListCommand(ChainListAction.FIND_CHAINS, null, null, null,
+            List.of(), List.of(), List.of(), null));
+    chainListEvent(new ChatRequest(), CONVERSATION_ID);
+    reset.fullReset(CONVERSATION_ID);
+    when(chainListAgent.resolve(any(), any(), any(), any())).thenReturn(
+        new ChainListCommand(ChainListAction.DELETE_CHAINS, null, null, null,
+            null, null, null, null, null, null, null, true, List.of(1), null, null));
+
+    assertInstanceOf(ChatEvent.Token.class, chainListEvent(new ChatRequest(), CONVERSATION_ID));
+    verify(catalog, never()).deleteChain(anyString());
+  }
+
+  private void assertOldChainListDecisionIsRejected(Runnable resetAction) {
+    when(chainListAgent.resolve(any(), any(), any(), any())).thenReturn(
+        new ChainListCommand(ChainListAction.DELETE_CHAINS, null, null, null,
+            List.of(), List.of("Orders"), List.of(), null));
+    ChatEvent.Decision oldCard = assertInstanceOf(ChatEvent.Decision.class,
+        chainListEvent(new ChatRequest(), CONVERSATION_ID));
+    ChatEvent.Decision otherCard = assertInstanceOf(ChatEvent.Decision.class,
+        chainListEvent(new ChatRequest(), "other-conv"));
+    resetAction.run();
+
+    assertTrue(chainListScenario.openDecision(CONVERSATION_ID).isEmpty());
+    assertEquals(otherCard, chainListScenario.openDecision("other-conv").orElseThrow());
+
+    chainListEvent(chainListAnswer(oldCard), CONVERSATION_ID);
+    verify(catalog, never()).deleteChain(anyString());
+    chainListEvent(chainListAnswer(otherCard), "other-conv");
+    verify(catalog).deleteChain("chain-a");
+  }
+
+  private ChatEvent chainListEvent(ChatRequest request, String conversationId) {
+    return chainListScenario.handle(request, conversationId, ScenarioType.MANAGE_CHAIN_LIST)
+        .collect().asList().await().indefinitely().getFirst();
+  }
+
+  private static ChatRequest chainListAnswer(ChatEvent.Decision card) {
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION);
+    command.setArtifactHash(card.artifactHash());
+    ChatRequest request = new ChatRequest();
+    request.setDecision(command);
+    return request;
   }
 
   @Test

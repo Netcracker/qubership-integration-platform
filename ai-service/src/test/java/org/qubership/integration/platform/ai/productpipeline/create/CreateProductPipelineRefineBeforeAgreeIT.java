@@ -55,7 +55,6 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInput
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -94,7 +93,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
     profile = createProfile();
     runtime =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(

@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.integration.catalog.util.CatalogElementWrites;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
@@ -245,7 +246,7 @@ public class ChainPlanSkeletonMaterializer {
         node.nodeId(), elementType, parentElementId);
     Set<String> beforeCreate = new HashSet<>(listElementIds(chainId));
     CatalogRestClient.ChainDiffDto diff = catalogRestClient.createElement(chainId, createRequest);
-    String elementId = extractCreatedElementId(diff, elementType);
+    String elementId = CatalogElementWrites.extractCreatedElementId(diff, elementType);
     if (beforeCreate.contains(elementId)) {
       throw new IllegalStateException(
           "createElement did not produce a new id for node '" + node.nodeId() + "'");
@@ -449,39 +450,6 @@ public class ChainPlanSkeletonMaterializer {
           "Parent node '" + parentNodeId + "' was not materialized before child");
     }
     return parentElementId;
-  }
-
-  private static String extractCreatedElementId(
-      CatalogRestClient.ChainDiffDto diff, String expectedType) {
-    if (diff == null || diff.createdElements() == null || diff.createdElements().isEmpty()) {
-      throw new IllegalStateException("createElement did not return created elements");
-    }
-    int primaryIdx = indexOfPrimaryCreated(diff.createdElements(), expectedType);
-    if (primaryIdx < 0) {
-      throw new IllegalStateException(
-          "createElement response has no element of type " + expectedType);
-    }
-    String elementId = diff.createdElements().get(primaryIdx).id();
-    if (elementId == null || elementId.isBlank()) {
-      throw new IllegalStateException("createElement returned empty element id");
-    }
-    return elementId;
-  }
-
-  private static int indexOfPrimaryCreated(
-      List<CatalogRestClient.ElementSummaryDto> created, String expectedType) {
-    String want = expectedType != null ? expectedType.trim() : "";
-    for (int i = 0; i < created.size(); i++) {
-      CatalogRestClient.ElementSummaryDto element = created.get(i);
-      if (element == null) {
-        continue;
-      }
-      String type = element.type() != null ? element.type().trim() : "";
-      if (want.equals(type)) {
-        return i;
-      }
-    }
-    return -1;
   }
 
   public static List<ChainPlanNode> orderParentBeforeChild(ChainPlanGraph graph) {

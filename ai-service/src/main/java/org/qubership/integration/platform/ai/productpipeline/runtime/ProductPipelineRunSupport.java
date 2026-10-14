@@ -92,6 +92,9 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
+import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 /**
@@ -283,6 +286,10 @@ public final class ProductPipelineRunSupport {
     private MappingTurnAdapter mappingTurnAdapter;
     private MappingTurnTelemetry mappingTurnTelemetry;
     private MappingRepairCaptureValidator mappingRepairCaptureValidator;
+    private ObjectMapper objectMapper;
+    private SchemaResourceLoader schemaResourceLoader;
+    private SchemaRefResolver schemaRefResolver;
+    private DeterministicElementSchemaService schemaService;
 
     private Builder(
         ProductPipelineRunStore runStore,
@@ -356,6 +363,18 @@ public final class ProductPipelineRunSupport {
       return this;
     }
 
+    public Builder recoveryValidation(
+        ObjectMapper objectMapper,
+        SchemaResourceLoader schemaResourceLoader,
+        SchemaRefResolver schemaRefResolver,
+        DeterministicElementSchemaService schemaService) {
+      this.objectMapper = objectMapper;
+      this.schemaResourceLoader = schemaResourceLoader;
+      this.schemaRefResolver = schemaRefResolver;
+      this.schemaService = schemaService;
+      return this;
+    }
+
     public ProductPipelineRunSupport build() {
       return new ProductPipelineRunSupport(
           runStore,
@@ -373,7 +392,11 @@ public final class ProductPipelineRunSupport {
           recoveryTelemetry,
           mappingTurnAdapter,
           mappingTurnTelemetry,
-          mappingRepairCaptureValidator);
+          mappingRepairCaptureValidator,
+          objectMapper,
+          schemaResourceLoader,
+          schemaRefResolver,
+          schemaService);
     }
   }
 
@@ -392,43 +415,12 @@ public final class ProductPipelineRunSupport {
       RecoveryAttemptLedger recoveryLedger,
       RecoveryOutcomeTelemetry recoveryTelemetry,
       MappingTurnAdapter mappingTurnAdapter,
-      MappingTurnTelemetry mappingTurnTelemetry) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        profileCatalog,
-        compilerRunPinResolver,
-        clock,
-        approvalPrompts,
-        s3Service,
-        failureNarrative,
-        cacheIdleTimeout,
-        repeatedFailureThreshold,
-        recoveryLedger,
-        recoveryTelemetry,
-        mappingTurnAdapter,
-        mappingTurnTelemetry,
-        null);
-  }
-
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver,
-      Clock clock,
-      ApprovalPrompts approvalPrompts,
-      S3Service s3Service,
-      FailureNarrative failureNarrative,
-      Duration cacheIdleTimeout,
-      int repeatedFailureThreshold,
-      RecoveryAttemptLedger recoveryLedger,
-      RecoveryOutcomeTelemetry recoveryTelemetry,
-      MappingTurnAdapter mappingTurnAdapter,
       MappingTurnTelemetry mappingTurnTelemetry,
-      MappingRepairCaptureValidator mappingRepairCaptureValidator) {
+      MappingRepairCaptureValidator mappingRepairCaptureValidator,
+      ObjectMapper objectMapper,
+      SchemaResourceLoader schemaResourceLoader,
+      SchemaRefResolver schemaRefResolver,
+      DeterministicElementSchemaService schemaService) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -462,7 +454,11 @@ public final class ProductPipelineRunSupport {
             repeatedFailureThreshold,
             this.recoveryLedger,
             this.recoveryTelemetry,
-            mappingRepairCaptureValidator);
+            mappingRepairCaptureValidator,
+            objectMapper,
+            schemaResourceLoader,
+            schemaRefResolver,
+            schemaService);
   }
 
   /** Single-stage execution seam used by Flow. */
@@ -3698,31 +3694,13 @@ public final class ProductPipelineRunSupport {
       String failureEvidence,
       String commandId,
       String commandPayloadHash) {
-    List<StageSnapshot> nextStages = new ArrayList<>();
-    for (StageSnapshot snapshot : stages) {
-      if (snapshot.stageId().equals(doc.run().currentStageId())) {
-        nextStages.add(
-            new StageSnapshot(
-                snapshot.stageId(),
-                stageStatus,
-                snapshot.outputRefs(),
-                snapshot.approvedArtifactId(),
-                snapshot.candidateReferences(),
-                snapshot.approvableReference(),
-                snapshot.candidateRevision()));
-      } else {
-        nextStages.add(snapshot);
-      }
-    }
     long expected = doc.run().runRevision();
     runStore.commit(
         expected,
-        new LogicalCommit(
-            doc.run().runId(),
-            expected,
-            nextStatus,
-            doc.run().currentStageId(),
-            nextStages,
+        LogicalCommit.statusChange(
+            doc.run(),
+            stageStatus,
+            stages,
             new StageAttempt(
                 UUID.randomUUID().toString(),
                 doc.run().currentStageId(),
@@ -3730,7 +3708,7 @@ public final class ProductPipelineRunSupport {
                 stageStatus,
                 clock.instant(),
                 clock.instant(),
-                nextStages.stream()
+                stages.stream()
                     .filter(s -> s.stageId().equals(doc.run().currentStageId()))
                     .findFirst()
                     .map(StageSnapshot::outputRefs)

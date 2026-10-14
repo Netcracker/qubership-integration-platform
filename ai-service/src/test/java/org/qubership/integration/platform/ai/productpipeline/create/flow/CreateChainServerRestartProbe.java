@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -256,7 +257,7 @@ public class CreateChainServerRestartProbe {
     @Produces @ApplicationScoped
     ProductPipelineRunSupport support(ProductPipelineRunStore runs, ProductPipelineArtifactStore artifacts,
         StageCapabilityRegistry capabilities, ProductPipelineProfileCatalog profiles) {
-      return ProductPipelineRunSupport.builder(runs, artifacts, capabilities, Clock.systemUTC())
+      return CreateChainTestOrchestrator.supportBuilder(runs, artifacts, capabilities, Clock.systemUTC())
           .profileCatalog(profiles).build();
     }
   }

@@ -493,7 +493,7 @@ class ProductPipelineApprovalTest {
     when(catalog.require(profile.profileId(), profile.profileVersion())).thenReturn(profile);
     CreateChainTestOrchestrator restarted =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(
@@ -549,7 +549,7 @@ class ProductPipelineApprovalTest {
     when(catalog.require(profile.profileId(), profile.profileVersion())).thenReturn(profile);
     CreateChainTestOrchestrator restarted =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(List.of(capability)),
@@ -639,7 +639,7 @@ class ProductPipelineApprovalTest {
       ProductPipelineProfile profile, StageCapability capability, S3Service s3Service) {
     runtime =
         new CreateChainTestOrchestrator(
-            ProductPipelineRunSupport.builder(
+            CreateChainTestOrchestrator.supportBuilder(
                     runStore,
                     artifactStore,
                     new StageCapabilityRegistry(List.of(capability)),

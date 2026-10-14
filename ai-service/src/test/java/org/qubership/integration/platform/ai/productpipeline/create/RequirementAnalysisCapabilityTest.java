@@ -216,7 +216,7 @@ class RequirementAnalysisCapabilityTest {
     var clock = java.time.Clock.systemUTC();
     var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
     var runs = new ProductPipelineRunStore(blobs, mapper, clock);
-    var support = ProductPipelineRunSupport.builder(runs, artifacts, new StageCapabilityRegistry(List.of(discovery, analysis)), clock)
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts, new StageCapabilityRegistry(List.of(discovery, analysis)), clock)
         .mappingRepairCaptureValidator(new MappingRepairCaptureValidator(artifacts, mapper,
             mock(org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader.class))).build();
     var runtime = new CreateChainTestOrchestrator(support, runs);

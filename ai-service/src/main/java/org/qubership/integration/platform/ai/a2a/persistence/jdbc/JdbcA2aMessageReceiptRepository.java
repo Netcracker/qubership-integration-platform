@@ -19,7 +19,6 @@ import org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageCla
 import org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aDispatchAcquisition;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
-import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptResult;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aPersistenceException;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aReceiptProcessingState;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aTaskCreate;
@@ -37,13 +36,6 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
       INSERT INTO a2a_message_receipts (task_id, message_id, received_at, command_fingerprint)
       VALUES (?, ?, ?, ?)
       ON CONFLICT DO NOTHING
-      """;
-
-  private static final String SELECT_TASK_RECEIPT_FINGERPRINT_SQL =
-      """
-      SELECT command_fingerprint
-      FROM a2a_message_receipts
-      WHERE task_id = ? AND message_id = ?
       """;
 
   private static final String EXISTS_SQL =
@@ -94,19 +86,6 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
       WHERE tenant_id = ? AND subject_id = ? AND message_id = ?
         AND processing_state = 'DISPATCHING'
         AND dispatch_owner_token = ?
-      """;
-
-  private static final String MARK_COMPLETED_SQL =
-      """
-      UPDATE a2a_caller_message_receipts
-      SET processing_state = 'COMPLETED',
-          last_task_revision = ?,
-          response_task_revision = ?,
-          dispatch_owner_token = NULL,
-          dispatch_lease_until = NULL,
-          updated_at = ?
-      WHERE tenant_id = ? AND subject_id = ? AND message_id = ?
-        AND processing_state IN ('CLAIMED', 'DISPATCHING')
       """;
 
   private static final String COMPLETE_OWNED_SQL =
@@ -165,37 +144,6 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
   /** Test seam: replaces the dispatch lease duration. */
   public void setDispatchLease(Duration dispatchLease) {
     this.dispatchLease = Objects.requireNonNull(dispatchLease, "dispatchLease");
-  }
-
-  @Override
-  public A2aMessageReceiptResult recordIfAbsent(
-      String taskId, String messageId, String commandFingerprint) {
-    Objects.requireNonNull(taskId, "taskId");
-    Objects.requireNonNull(messageId, "messageId");
-    Objects.requireNonNull(commandFingerprint, "commandFingerprint");
-    try (Connection connection = dataSource.getConnection();
-        PreparedStatement statement = connection.prepareStatement(INSERT_TASK_RECEIPT_SQL)) {
-      statement.setString(1, taskId);
-      statement.setString(2, messageId);
-      statement.setTimestamp(3, Timestamp.from(Instant.now()));
-      statement.setString(4, commandFingerprint);
-      int inserted = statement.executeUpdate();
-      if (inserted == 1) {
-        return new A2aMessageReceiptResult.Accepted();
-      }
-      String existing = requireTaskReceiptFingerprint(connection, taskId, messageId);
-      if (existing.equals(commandFingerprint)) {
-        return new A2aMessageReceiptResult.Duplicate();
-      }
-      return new A2aMessageReceiptResult.FingerprintConflict(existing);
-    } catch (SQLException ex) {
-      throw new A2aPersistenceException(
-          "A2A task persistence failed: unable to record message receipt for task "
-              + taskId
-              + " message "
-              + messageId,
-          ex);
-    }
   }
 
   @Override
@@ -364,12 +312,6 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
   }
 
   @Override
-  public boolean markDispatching(String tenantId, String subjectId, String messageId) {
-    return acquireDispatch(tenantId, subjectId, messageId).result()
-        == A2aDispatchAcquisition.Result.ACQUIRED;
-  }
-
-  @Override
   public A2aDispatchAcquisition acquireDispatch(
       String tenantId, String subjectId, String messageId) {
     Objects.requireNonNull(tenantId, "tenantId");
@@ -426,45 +368,6 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
     } catch (SQLException ex) {
       throw new A2aPersistenceException(
           "A2A task persistence failed: unable to renew dispatch lease for message " + messageId,
-          ex);
-    }
-  }
-
-  @Override
-  public void markCompleted(
-      String tenantId,
-      String subjectId,
-      String messageId,
-      long lastTaskRevision,
-      long responseTaskRevision) {
-    Objects.requireNonNull(tenantId, "tenantId");
-    Objects.requireNonNull(subjectId, "subjectId");
-    Objects.requireNonNull(messageId, "messageId");
-    try (Connection connection = dataSource.getConnection();
-        PreparedStatement statement = connection.prepareStatement(MARK_COMPLETED_SQL)) {
-      statement.setLong(1, lastTaskRevision);
-      statement.setLong(2, responseTaskRevision);
-      statement.setTimestamp(3, Timestamp.from(clock.instant()));
-      statement.setString(4, tenantId);
-      statement.setString(5, subjectId);
-      statement.setString(6, messageId);
-      int updated = statement.executeUpdate();
-      if (updated != 1) {
-        A2aCallerMessageReceipt existing =
-            findCallerReceipt(tenantId, subjectId, messageId)
-                .orElseThrow(
-                    () ->
-                        new A2aPersistenceException(
-                            "A2A task persistence failed: receipt missing while marking COMPLETED"));
-        if (!existing.completed()) {
-          throw new A2aPersistenceException(
-              "A2A task persistence failed: illegal receipt transition to COMPLETED from "
-                  + existing.processingState());
-        }
-      }
-    } catch (SQLException ex) {
-      throw new A2aPersistenceException(
-          "A2A task persistence failed: unable to mark receipt COMPLETED for message " + messageId,
           ex);
     }
   }
@@ -667,26 +570,6 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
                 resultSet.getString("command_kind"),
                 (Long) resultSet.getObject("precondition_revision"),
                 resultSet.getString("command_payload_json")));
-      }
-    }
-  }
-
-  private static String requireTaskReceiptFingerprint(
-      Connection connection, String taskId, String messageId) throws SQLException {
-    try (PreparedStatement statement =
-        connection.prepareStatement(SELECT_TASK_RECEIPT_FINGERPRINT_SQL)) {
-      statement.setString(1, taskId);
-      statement.setString(2, messageId);
-      try (ResultSet resultSet = statement.executeQuery()) {
-        if (!resultSet.next()) {
-          throw new A2aPersistenceException(
-              "A2A task persistence failed: message receipt conflict without row for task "
-                  + taskId
-                  + " message "
-                  + messageId);
-        }
-        String fingerprint = resultSet.getString(1);
-        return fingerprint == null ? "" : fingerprint;
       }
     }
   }

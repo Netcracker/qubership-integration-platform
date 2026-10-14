@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,7 +47,7 @@ class IdsChoiceRuntimeTest {
       calls.incrementAndGet();
       return Multi.createFrom().empty();
     });
-    var support = ProductPipelineRunSupport.builder(runs, artifacts,
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts,
         new StageCapabilityRegistry(List.of(discovery)), clock).build();
     var manifest = new RunManifest(run, null, List.of(), "product", profile.profileId(), profile.profileVersion(),
         "profile-sha", "baseline", "baseline-sha", List.of(new DependencyClosureEntry(

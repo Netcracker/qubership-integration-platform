@@ -2,8 +2,10 @@ package org.qubership.integration.platform.ai.plan.mapping.schema;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,7 +23,8 @@ public final class JsonSchemaMappingContractFactory {
       return MappingContract.unknown();
     }
     List<MappingContract.Field> fields = new ArrayList<>();
-    collectFields(schema, schema, "$", fields);
+    collectFields(schema, schema, "$", fields,
+        Collections.newSetFromMap(new IdentityHashMap<>()));
     if (fields.isEmpty()) {
       return isClosedEmptyObject(schema, schema)
           ? new MappingContract(List.of(), true)
@@ -35,7 +38,7 @@ public final class JsonSchemaMappingContractFactory {
     if (resolved == null || !resolved.isObject()) {
       return false;
     }
-    if (firstArray(resolved.get("oneOf"), resolved.get("anyOf")) != null) {
+    if (alternativeSchemas(resolved) != null) {
       return false;
     }
     JsonNode additional = resolved.get("additionalProperties");
@@ -50,35 +53,43 @@ public final class JsonSchemaMappingContractFactory {
   }
 
   private static void collectFields(
-      JsonNode root, JsonNode node, String pathPrefix, List<MappingContract.Field> out) {
+      JsonNode root, JsonNode node, String pathPrefix, List<MappingContract.Field> out,
+      Set<JsonNode> ancestors) {
     JsonNode resolved = resolveRef(root, node, new HashSet<>());
     if (resolved == null || !resolved.isObject()) {
       return;
     }
-    if (!"$".equals(pathPrefix) && allowsAdditionalProperties(resolved)) {
-      out.add(new MappingContract.Field(pathPrefix + ".*", "", false));
+    if (!ancestors.add(resolved)) {
+      throw new IllegalArgumentException("Recursive JSON Schema is unsupported at " + pathPrefix);
     }
-    JsonNode alternatives = firstArray(resolved.get("oneOf"), resolved.get("anyOf"));
-    if (alternatives != null) {
-      collectAlternativeFields(root, alternatives, pathPrefix, out);
-      return;
-    }
-    JsonNode properties = resolved.get("properties");
-    if (properties == null || !properties.isObject()) {
-      return;
-    }
-    List<String> required = requiredNames(resolved);
-    Iterator<Map.Entry<String, JsonNode>> propertyFields = properties.fields();
-    while (propertyFields.hasNext()) {
-      Map.Entry<String, JsonNode> entry = propertyFields.next();
-      String name = entry.getKey();
-      JsonNode propertySchema = resolveRef(root, entry.getValue(), new HashSet<>());
-      String path = pathPrefix + "." + name;
-      String type = schemaType(propertySchema);
-      out.add(new MappingContract.Field(path, type, required.contains(name)));
-      if ("object".equals(type)) {
-        collectFields(root, propertySchema, path, out);
+    try {
+      if (!"$".equals(pathPrefix) && allowsAdditionalProperties(resolved)) {
+        out.add(new MappingContract.Field(pathPrefix + ".*", "", false));
       }
+      JsonNode alternatives = alternativeSchemas(resolved);
+      if (alternatives != null) {
+        collectAlternativeFields(root, alternatives, pathPrefix, out, ancestors);
+        return;
+      }
+      JsonNode properties = resolved.get("properties");
+      if (properties == null || !properties.isObject()) {
+        return;
+      }
+      List<String> required = requiredNames(resolved);
+      Iterator<Map.Entry<String, JsonNode>> propertyFields = properties.fields();
+      while (propertyFields.hasNext()) {
+        Map.Entry<String, JsonNode> entry = propertyFields.next();
+        String name = entry.getKey();
+        JsonNode propertySchema = resolveRef(root, entry.getValue(), new HashSet<>());
+        String path = pathPrefix + "." + name;
+        String type = schemaType(propertySchema);
+        out.add(new MappingContract.Field(path, type, required.contains(name)));
+        if ("object".equals(type)) {
+          collectFields(root, propertySchema, path, out, ancestors);
+        }
+      }
+    } finally {
+      ancestors.remove(resolved);
     }
   }
 
@@ -88,7 +99,8 @@ public final class JsonSchemaMappingContractFactory {
   }
 
   private static void collectAlternativeFields(
-      JsonNode root, JsonNode alternatives, String pathPrefix, List<MappingContract.Field> out) {
+      JsonNode root, JsonNode alternatives, String pathPrefix, List<MappingContract.Field> out,
+      Set<JsonNode> ancestors) {
     Map<String, MappingContract.Field> union = new LinkedHashMap<>();
     Map<String, Integer> presentCount = new HashMap<>();
     Map<String, Integer> requiredCount = new HashMap<>();
@@ -96,7 +108,7 @@ public final class JsonSchemaMappingContractFactory {
     for (JsonNode variant : alternatives) {
       variants++;
       List<MappingContract.Field> variantFields = new ArrayList<>();
-      collectFields(root, variant, pathPrefix, variantFields);
+      collectFields(root, variant, pathPrefix, variantFields, ancestors);
       for (MappingContract.Field field : variantFields) {
         union.putIfAbsent(field.path(), field);
         presentCount.put(field.path(), presentCount.getOrDefault(field.path(), 0) + 1);
@@ -116,7 +128,9 @@ public final class JsonSchemaMappingContractFactory {
     }
   }
 
-  private static JsonNode firstArray(JsonNode first, JsonNode second) {
+  public static JsonNode alternativeSchemas(JsonNode node) {
+    JsonNode first = node == null ? null : node.get("oneOf");
+    JsonNode second = node == null ? null : node.get("anyOf");
     if (first != null && first.isArray() && !first.isEmpty()) {
       return first;
     }
