@@ -61,10 +61,12 @@ import type {
   ChainDifferenceRequest,
   ChainElement,
   ChainElementSearch,
+  ChainOfService,
   ChainRolesPage,
   ChainRolesPath,
   ChainRolesUpdate,
   ChainView,
+  ChainsOfSpecificationGroup,
   ContextSystemFilter,
   ContextSystemView,
   CustomResourceMode,
@@ -111,6 +113,7 @@ import type {
   McpSystemView,
   MigratedChainView,
   Named,
+  OpenedFolderItem,
   OperationDetail,
   OperationInfo,
   OperationSchemas,
@@ -288,6 +291,14 @@ export class Catalog {
   }
 
   /**
+   * The root listing plus the tree down to the opened folder: each folder on the path with its
+   * direct items, the folders beside the path and below it, and the chains directly inside the path.
+   */
+  listRootItemsOpenedAt(openedFolderId: string): Promise<OpenedFolderItem[]> {
+    return this.call("get", `/v1/folders?openedFolderId=${encodeURIComponent(openedFolderId)}`);
+  }
+
+  /**
    * The chains and folders a search condition matches, flat, plus every folder above them.
    *
    * A chain matches when any column `ChainFilterSpecificationBuilder.buildSearch` ORs together
@@ -367,6 +378,32 @@ export class Catalog {
   /** The services and specifications the chains' elements reference. */
   usedSystems(chainIds: readonly string[]): Promise<UsedSystem[]> {
     return this.call("get", `/v1/chains/used-systems?chainIds=${chainIds.join(",")}`);
+  }
+
+  /** The chains whose elements name the service, without their elements unless `mode` is not `light`. */
+  chainsOfSystem(systemId: string, mode?: string): Promise<ChainOfService[]> {
+    const query = mode === undefined ? "" : `?mode=${encodeURIComponent(mode)}`;
+    return this.call("get", `/v1/chains/systems/${systemId}${query}`);
+  }
+
+  /** The chains whose elements name the operation. */
+  chainsOfOperation(systemId: string, operationId: string): Promise<ChainOfService[]> {
+    return this.call("get", `/v1/chains/${systemId}/${operationId}`);
+  }
+
+  /** The chains whose elements name the specification. */
+  chainsOfSpecification(systemId: string, modelId: string): Promise<ChainOfService[]> {
+    return this.call("get", `/v1/chains/${systemId}/model/${modelId}`);
+  }
+
+  /** The chains whose elements name the specification group. */
+  chainsOfSpecificationGroup(systemId: string, groupId: string): Promise<ChainOfService[]> {
+    return this.call("get", `/v1/chains/${systemId}/specificationGroup/${groupId}`);
+  }
+
+  /** The chains that name the service, one row per specification group their elements name. */
+  chainsBySpecificationGroup(systemId: string): Promise<ChainsOfSpecificationGroup[]> {
+    return this.call("get", `/v1/chains/${systemId}/specificationGroup`);
   }
 
   /** The element differences between two chains, two snapshots, or a chain and a snapshot. */
@@ -1042,6 +1079,16 @@ export class Catalog {
 
   async exportSystems(ids: string[]): Promise<Buffer> {
     return await this.download(`/v1/export/system?systemIds=${ids.join(",")}`);
+  }
+
+  /**
+   * The same export by POST, as the UI's chain export sends it: multipart form fields, with
+   * `usedSystemModelIds` naming the specifications its chains use.
+   */
+  exportSystemsByPost(ids: readonly string[], usedSystemModelIds?: readonly string[]): Promise<APIResponse> {
+    const multipart: Record<string, string> = { systemIds: ids.join(",") };
+    if (usedSystemModelIds !== undefined) multipart.usedSystemModelIds = usedSystemModelIds.join(",");
+    return this.upload("post", "/v1/export/system", { multipart });
   }
 
   /**
