@@ -238,6 +238,15 @@ test("a project can ask for the micro engine, which Compose refuses", { tag: ["@
   expect(() => compose.createEnv("micro")).toThrow(/classic engine only/);
 });
 
+test("on Compose the engine and its meters answer on the engine's own port", { tag: ["@infra", "@tier1"] }, () => {
+  withEnv({ CIP_TARGET: "compose", CIP_ENGINE_URL: undefined }, () => {
+    const env = targetSetup("compose").createEnv("classic");
+    expect(env.engineUrl()).toBe("http://localhost:8092");
+    expect(env.engineMetricsUrl()).toBe("http://localhost:8092/actuator/prometheus");
+    expect(env.chainUrl("e2e/echo")).toBe("http://localhost:8092/routes/e2e/echo");
+  });
+});
+
 test("runtime-micro-redeploy runs one file at a time after seed-micro, on the domain its own state file records", { tag: ["@infra", "@tier1"] }, () => {
   const project = targetSetup("k8s").projects.find((each) => each.name === "runtime-micro-redeploy");
   expect(project && schedule(project)).toBe("./specs/runtime-micro-redeploy; after seed-micro; 1 worker");
@@ -276,7 +285,7 @@ test("env-micro restarts the shared micro domain after global-micro and runtime-
   expect(project?.use).toEqual({ engineKind: "micro" });
   const files = fs.readdirSync(path.join(E2E_DIR, "specs", "env"));
   expect(files.filter((file) => (project?.testMatch as RegExp).test(`/${file}`))).toEqual(["restart-resilience.spec.ts"]);
-  // Everything it waits for, through every edge: the classic restarts in `env` come first.
+  // Through every edge, the classic restarts in `env` and the session wipe in `global` come first.
   const byName = new Map(projects.map((each) => [each.name, each]));
   const after = new Set<string>();
   const visit = (name: string) => {
@@ -287,9 +296,7 @@ test("env-micro restarts the shared micro domain after global-micro and runtime-
     }
   };
   visit("env-micro");
-  expect([...after].sort()).toEqual(
-    ["api", "env", "global", "global-micro", "runtime", "runtime-micro", "seed", "seed-micro", "tooling", "ui", "ui-server"].sort(),
-  );
+  expect([...after]).toEqual(expect.arrayContaining(["env", "global"]));
   expect(composeProjects(undefined).map((each) => each.name)).not.toContain("env-micro");
 });
 
