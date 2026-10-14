@@ -52,6 +52,7 @@ import {
   RotateRightOutlined,
   ClearOutlined,
   EllipsisOutlined,
+  PlayCircleOutlined,
   PlusCircleOutlined,
   FileMarkdownOutlined,
   ClusterOutlined,
@@ -132,6 +133,8 @@ import {
   ColumnWidthOutlined,
   CaretUpOutlined,
   CaretDownOutlined,
+  ExperimentOutlined,
+  CompassOutlined,
 } from "@ant-design/icons";
 
 /**
@@ -221,6 +224,7 @@ export const commonIcons = {
   clear: ClearOutlined,
   ellipsis: EllipsisOutlined,
   plusCircle: PlusCircleOutlined,
+  play: PlayCircleOutlined,
   fileMarkdown: FileMarkdownOutlined,
   cluster: ClusterOutlined,
   global: GlobalOutlined,
@@ -285,6 +289,8 @@ export const commonIcons = {
   diagram: ColumnWidthOutlined,
   previousChange: CaretUpOutlined,
   nextChange: CaretDownOutlined,
+  testing: ExperimentOutlined,
+  compass: CompassOutlined,
 };
 
 export const elementIcons = {

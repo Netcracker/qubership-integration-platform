@@ -20,7 +20,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
+import org.qubership.integration.platform.camelk.model.routes.RouteType;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.util.UUID;

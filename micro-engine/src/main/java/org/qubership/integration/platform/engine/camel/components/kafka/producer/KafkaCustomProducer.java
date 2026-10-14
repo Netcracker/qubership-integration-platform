@@ -409,7 +409,8 @@ public class KafkaCustomProducer extends DefaultAsyncProducer {
             KafkaProducerMetadataCallBack metadataCallBack = new KafkaProducerMetadataCallBack(
                 key, configuration.isRecordMetadata());
 
-            DelegatingCallback delegatingCallback = new DelegatingCallback(cb, metadataCallBack);
+            // Finish metadata writes before the callback resumes routing on another thread.
+            DelegatingCallback delegatingCallback = new DelegatingCallback(metadataCallBack, cb);
 
             kafkaProducer.send(record, delegatingCallback);
         } else {

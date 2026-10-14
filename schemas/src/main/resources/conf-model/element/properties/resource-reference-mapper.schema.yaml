@@ -1,0 +1,28 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-mapper
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Reference to Mapper resource
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  exportFileExtension:
+    type: string
+    const: json
+  propertiesToExportInSeparateFile:
+    type: string
+    const: mappingDescription
+  propertiesFilename:
+    type: string
+    subtype: resourceReference
+    resourceType: json
+    title: Mapper resource reference
+  throwException:
+    type: boolean
+    title: Throw exception on transformation failure
+    description: Throw exception on transformation failure.
+    default: true
+  mappingDescription:
+    $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/mapper-description"

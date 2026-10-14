@@ -10,7 +10,22 @@ It also provides next capabilities and features:
 - Large scope of automated functions and operations.
 - Flexible orchestration of Inbound and Outbound transactions: loop, split, iterations, parallel execution, etc.
 
-This repository contains Docker compose files designed to run Qubership Integration Platform locally in development mode.
+This directory contains Docker compose files designed to run Qubership Integration Platform locally in development mode.
+
+## Service file format round trip
+
+`e2e/specs/env/service-type-roundtrip.spec.ts` exercises the service file format against the running stack. It creates
+one service of each of the five kinds, exports and re-imports them in the current format — checking both halves of the
+format, the file name and the `$schema` that states the type — then repeats the export with
+`CIP_EXPORT_LEGACY_FORMAT=true` and checks what survives the downgrade: plain services only.
+
+```bash
+cd e2e && npm test -- --project=env --no-deps --grep "service type round trip"
+```
+
+The suite brings the Compose stack up itself, so nothing has to be started first. It sets the legacy flag through a
+throwaway compose override and restores the container on every exit path, so it never edits `qip-dev.env` — which
+`qip-engine` and `qip-sessions-management` read too. See [e2e/README.md](../e2e/README.md) for how to read a failure.
 
 ## Contribution
 

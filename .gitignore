@@ -3,6 +3,7 @@ target/
 dist/
 dist-lib/
 io/
+__pycache__/
 .idea/
 *.iml
 .vscode/

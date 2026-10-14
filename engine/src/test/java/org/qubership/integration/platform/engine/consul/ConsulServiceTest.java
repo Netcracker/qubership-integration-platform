@@ -24,10 +24,19 @@ import org.qubership.integration.platform.engine.events.ConsulSessionCreatedEven
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.Duration;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeoutException;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -160,5 +169,69 @@ class ConsulServiceTest {
 
         assertNull(consulService.getActiveSessionId());
         verify(applicationEventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void destroySessionDeletesActiveSession() {
+        when(client.createSession(anyString(), anyString(), anyString()))
+                .thenReturn(FIRST_SESSION_ID);
+        consulService.createOrRenewSession();
+
+        consulService.destroySession();
+
+        verify(client).deleteSession(FIRST_SESSION_ID);
+    }
+
+    @Test
+    void destroySessionSkipsDeleteWhenNoActiveSession() {
+        consulService.destroySession();
+
+        verify(client, never()).deleteSession(anyString());
+    }
+
+    @Test
+    void destroySessionStopsWaitingWhenConsulDoesNotAnswer() {
+        when(client.createSession(anyString(), anyString(), anyString()))
+                .thenReturn(FIRST_SESSION_ID);
+        CountDownLatch consulAnswers = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            consulAnswers.await();
+            return null;
+        }).when(client).deleteSession(FIRST_SESSION_ID);
+        consulService.createOrRenewSession();
+
+        try {
+            CompletionException thrown = assertTimeoutPreemptively(Duration.ofSeconds(10),
+                    () -> assertThrows(CompletionException.class, consulService::destroySession));
+            assertInstanceOf(TimeoutException.class, thrown.getCause());
+        } finally {
+            consulAnswers.countDown();
+        }
+    }
+
+    @Test
+    void destroySessionStopsWaitingWhileRenewalHoldsTheLock() throws InterruptedException {
+        when(client.createSession(anyString(), anyString(), anyString()))
+                .thenReturn(FIRST_SESSION_ID);
+        CountDownLatch renewalStarted = new CountDownLatch(1);
+        CountDownLatch consulAnswers = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            renewalStarted.countDown();
+            consulAnswers.await();
+            return null;
+        }).when(client).renewSession(FIRST_SESSION_ID);
+        consulService.createOrRenewSession();
+        Thread renewal = new Thread(consulService::createOrRenewSession);
+        renewal.start();
+        renewalStarted.await();
+
+        try {
+            CompletionException thrown = assertTimeoutPreemptively(Duration.ofSeconds(10),
+                    () -> assertThrows(CompletionException.class, consulService::destroySession));
+            assertInstanceOf(TimeoutException.class, thrown.getCause());
+        } finally {
+            consulAnswers.countDown();
+            renewal.join();
+        }
     }
 }

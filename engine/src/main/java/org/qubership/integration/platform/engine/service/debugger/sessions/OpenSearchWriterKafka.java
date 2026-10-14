@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "qip.opensearch.kafka-client.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "cip.opensearch.kafka-client.enabled", havingValue = "true")
 public class OpenSearchWriterKafka extends OpenSearchWriter {
 
     private final OpenSearchKafkaProducer openSearchKafkaProducer;

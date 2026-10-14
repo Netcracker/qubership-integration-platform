@@ -1,6 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 import org.springframework.stereotype.Component;
 
@@ -10,18 +10,18 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.*;
 
 @Component
 public class McpTriggerPropertiesBuilder implements ElementPropertiesBuilder {
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         String type = element.getType();
         return MCP_TRIGGER_ELEMENT.equals(type);
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         return Stream.of(
                 "mcpServiceIds",
                 "name",

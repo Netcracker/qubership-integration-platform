@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 import lombok.extern.slf4j.Slf4j;
 import org.codehaus.plexus.util.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
+import org.qubership.integration.platform.runtime.catalog.events.ChainsDeletedEvent;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.UsedSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractLabel;
@@ -42,8 +43,8 @@ import org.qubership.integration.platform.runtime.catalog.service.filter.complex
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.service.migration.element.MigrationContext;
 import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.data.jpa.domain.Specification;
@@ -57,8 +58,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.OVERRIDDEN_LABEL_NAME;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.OVERRIDES_LABEL_NAME;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.OVERRIDDEN_LABEL_NAME;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.OVERRIDES_LABEL_NAME;
 
 @Slf4j
 @Service
@@ -77,10 +78,11 @@ public class ChainService extends ChainBaseService {
     private final RuntimeDeploymentService runtimeDeploymentService;
     private final ChainRuntimePropertiesService chainRuntimePropertiesService;
     private final ActionsLogService actionLogger;
-    private final ElementUtils elementUtils;
     private final ChainFilterSpecificationBuilder chainFilterSpecificationBuilder;
     private final AuditingHandler auditingHandler;
     private final ChainFinderService chainFinderService;
+    private final PropertyPlaceholderService propertyPlaceholderService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Autowired
     public ChainService(
@@ -94,12 +96,13 @@ public class ChainService extends ChainBaseService {
             @Lazy DeploymentService deploymentService,
             RuntimeDeploymentService runtimeDeploymentService,
             ActionsLogService actionLogger,
-            ElementUtils elementUtils,
             ChainRuntimePropertiesService chainRuntimePropertiesService,
             ChainFilterSpecificationBuilder chainFilterSpecificationBuilder,
             AuditingHandler auditingHandler,
             ChainFinderService chainFinderService,
-            ContextBaseService contextBaseService
+            ContextBaseService contextBaseService,
+            PropertyPlaceholderService propertyPlaceholderService,
+            ApplicationEventPublisher applicationEventPublisher
     ) {
         super(chainRepository, elementService, contextBaseService);
         this.chainRepository = chainRepository;
@@ -112,11 +115,12 @@ public class ChainService extends ChainBaseService {
         this.deploymentService = deploymentService;
         this.runtimeDeploymentService = runtimeDeploymentService;
         this.actionLogger = actionLogger;
-        this.elementUtils = elementUtils;
         this.chainRuntimePropertiesService = chainRuntimePropertiesService;
         this.chainFilterSpecificationBuilder = chainFilterSpecificationBuilder;
         this.auditingHandler = auditingHandler;
         this.chainFinderService = chainFinderService;
+        this.propertyPlaceholderService = propertyPlaceholderService;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     public Boolean exists(String chainId) {
@@ -211,6 +215,7 @@ public class ChainService extends ChainBaseService {
             chainRepository.deleteById(chainId);
 
             logChainAction(chain, LogOperation.DELETE);
+            applicationEventPublisher.publishEvent(new ChainsDeletedEvent(List.of(chainId)));
         }
 
         return optionalChain;
@@ -453,7 +458,7 @@ public class ChainService extends ChainBaseService {
         for (ChainElement element : originalElements) {
             String newId = elementIdMap.computeIfAbsent(element.getId(), key -> UUID.randomUUID().toString());
             element.setId(newId);
-            elementUtils.updateResetOnCopyProperties(element, chainId);
+            propertyPlaceholderService.updateResetOnCopyProperties(element, chainId);
             if (MigrationContext.REUSE_REFERENCE_ELEMENT_TYPE.equals(element.getType())) {
                 String reuseElementId = element.getPropertyAsString(MigrationContext.REUSE_ELEMENT_ID);
                 String newReuseElementId = elementIdMap.computeIfAbsent(reuseElementId, value -> UUID.randomUUID().toString());

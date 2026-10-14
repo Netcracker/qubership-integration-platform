@@ -17,7 +17,7 @@ export const UNSUPPORTED_CANVAS_ELEMENT_TYPES = new Set([
   "kafka",
   "rabbitmq-sender",
   "rabbitmq",
-  "mapper"
+  "mapper",
 ]);
 
 export const UNSUPPORTED_ELEMENT_COLOR = "#F08080";
@@ -108,10 +108,15 @@ export function getEffectiveParentId(
 export function buildGraphNodes(
   elements: Element[],
   libraryElements: LibraryElement[] | null,
+  direction?: ElkDirection,
 ): ChainGraphNode[] {
   return elements.flatMap((element) => [
-    getNodeFromElement(element, getLibraryElement(element, libraryElements)),
-    ...buildGraphNodes(element.children ?? [], libraryElements),
+    getNodeFromElement(
+      element,
+      getLibraryElement(element, libraryElements),
+      direction,
+    ),
+    ...buildGraphNodes(element.children ?? [], libraryElements, direction),
   ]);
 }
 
@@ -230,49 +235,26 @@ export function collectChildren(
   return result;
 }
 
+export function compareByZIndexAndArea<
+  D extends Node["data"],
+  T extends Node["type"],
+>(a: Node<D, T>, b: Node<D, T>): number {
+  const zIndexCmp = (a.zIndex ?? 0) - (b.zIndex ?? 0);
+  if (zIndexCmp !== 0) {
+    return -zIndexCmp;
+  }
+  const areaA = (a.width ?? 0) * (a.height ?? 0);
+  const areaB = (b.width ?? 0) * (b.height ?? 0);
+  return areaA - areaB;
+}
+
 export function getPossibleGraphIntersection(
   allIntersections: Node[],
   draggedChildren?: Node[],
 ): Node | undefined {
   return allIntersections
     .filter((intersectingNode) => !draggedChildren?.includes(intersectingNode))
-    .filter(
-      (intersectingNode) =>
-        intersectingNode.type === "container" ||
-        intersectingNode.type === "swimlane",
-    )
-    .sort((a, b) => {
-      const areaA = (a.width ?? 0) * (a.height ?? 0);
-      const areaB = (b.width ?? 0) * (b.height ?? 0);
-      return areaA - areaB;
-    })[0];
-}
-
-export function getIntersectionParent(
-  draggedNode: Node,
-  parentCandidate: Node,
-  libraryElements: LibraryElement[],
-): Node | undefined {
-  if (parentCandidate === undefined) return undefined;
-
-  let parentNode: Node | undefined = undefined;
-
-  const intersectDescriptor: LibraryElement | undefined = libraryElements?.find(
-    (libraryElement) =>
-      libraryElement.name === parentCandidate.data.elementType,
-  );
-  if (intersectDescriptor) {
-    parentNode =
-      Object.keys(intersectDescriptor.allowedChildren).length === 0 ||
-      Object.keys(intersectDescriptor.allowedChildren).includes(
-        <string>draggedNode.data.elementType,
-      )
-        ? parentCandidate
-        : parentNode;
-  } else if (parentCandidate.data.elementType == "container") {
-    parentNode = parentCandidate;
-  }
-  return parentNode;
+    .sort(compareByZIndexAndArea)[0];
 }
 
 export function findUpdatedElement(
@@ -305,14 +287,25 @@ export function getFakeNode(flowPosition: XYPosition): ChainGraphNode {
   } as ChainGraphNode;
 }
 
+export function applyHighlightToNode(
+  node: ChainGraphNode,
+  highlightId?: string,
+): ChainGraphNode {
+  return {
+    ...node,
+    className: highlightId?.includes(node.id) ? "highlight" : "",
+  };
+}
+
+export function clearHighlightOnNode(node: ChainGraphNode) {
+  return applyHighlightToNode(node);
+}
+
 export function applyHighlight(
   nodes: ChainGraphNode[],
   highlightId?: string,
 ): ChainGraphNode[] {
-  return nodes.map((node) => ({
-    ...node,
-    className: highlightId?.includes(node.id) ? "highlight" : "",
-  }));
+  return nodes.map((node) => applyHighlightToNode(node, highlightId));
 }
 
 export function computeNestedUnitCounts(

@@ -1,5 +1,6 @@
+import { Table } from "antd";
 import React, { useContext, useEffect, useMemo, useState } from "react";
-import { Button, Table } from "antd";
+import { Button } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import { useNavigate } from "react-router";
@@ -33,7 +34,7 @@ import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedDropdown } from "../permissions/ProtectedDropdown.tsx";
 import { Require } from "../permissions/Require.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
@@ -67,7 +68,7 @@ export const Snapshots: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
   const chainContext = useContext(ChainContext);
   const navigate = useNavigate();
-  const { isLoading, snapshots, setSnapshots } = useSnapshots(chainId);
+  const { isLoading, snapshots, setSnapshots, refresh } = useSnapshots(chainId);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredSnapshots, setFilteredSnapshots] = useState<Snapshot[]>([]);
@@ -293,6 +294,9 @@ export const Snapshots: React.FC = () => {
       render: (_, snapshot) =>
         snapshot.createdWhen ? formatTimestamp(snapshot.createdWhen) : "-",
       sorter: (a, b) => (a.createdWhen ?? 0) - (b.createdWhen ?? 0),
+      defaultSortOrder: "descend",
+      // Ascend, not unsorted, on the first header click.
+      sortDirections: ["descend", "ascend", null],
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn(
         (snapshot) => snapshot.createdWhen ?? 0,
@@ -378,19 +382,24 @@ export const Snapshots: React.FC = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<Snapshot>("snapshotsTable", columns);
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 200,
-        labels: 200,
-        createdBy: 120,
-        createdWhen: 168,
-        modifiedBy: 120,
-        modifiedWhen: 168,
-      },
-      { selectionColumnWidth: SNAPSHOTS_SELECTION_COLUMN_WIDTH },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 200,
+      labels: 200,
+      createdBy: 120,
+      createdWhen: 168,
+      modifiedBy: 120,
+      modifiedWhen: 168,
+    },
+    { selectionColumnWidth: SNAPSHOTS_SELECTION_COLUMN_WIDTH },
+    "snapshotsTable",
+  );
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -405,6 +414,7 @@ export const Snapshots: React.FC = () => {
   const chainTabToolbar = useMemo(
     () => (
       <TableToolbar
+        refresh={{ onRefresh: refresh, loading: isLoading }}
         variant="chain-tab"
         search={{
           value: searchTerm,
@@ -441,6 +451,7 @@ export const Snapshots: React.FC = () => {
                 type: "primary",
                 iconName: "plus",
                 onClick: onCreateBtnClick,
+                "data-testid": "snapshots-create",
               }}
             />
           </>
@@ -448,10 +459,12 @@ export const Snapshots: React.FC = () => {
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toolbar handlers close over latest state; omit unstable identities
-    [searchTerm, columnSettingsButton, selectedRowKeys],
+    [searchTerm, columnSettingsButton, selectedRowKeys, refresh, isLoading],
   );
 
   useRegisterChainHeaderActions(chainTabToolbar, [
+    refresh,
+    isLoading,
     searchTerm,
     selectedRowKeys,
     // columnSettingsButton is new JSX every render — omit or header re-registers every frame and breaks tab clicks.
@@ -472,6 +485,7 @@ export const Snapshots: React.FC = () => {
         locale={{ emptyText: tableEmpty("No snapshots") }}
         scroll={tableScroll(scrollX, filteredSnapshots.length)}
         components={components}
+        onChange={handleConfiguredTableChange}
       />
     </TablePageLayout>
   );

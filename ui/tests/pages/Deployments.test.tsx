@@ -135,14 +135,23 @@ jest.mock("../../src/permissions/Require.tsx", () => ({
 }));
 
 jest.mock("../../src/components/LongActionButton.tsx", () => ({
-  LongActionButton: ({ children }: { children: React.ReactNode }) => (
-    <button type="button">{children}</button>
+  LongActionButton: ({
+    icon,
+    onSubmit,
+  }: {
+    icon?: React.ReactNode;
+    onSubmit: () => void | Promise<void>;
+  }) => (
+    <button type="button" onClick={() => void onSubmit()}>
+      {icon}
+    </button>
   ),
 }));
 
 jest.mock("../../src/api/api.ts", () => ({
   api: {
     deleteDeployment: jest.fn(),
+    deleteSnapshotFromMicroDomain: jest.fn(),
     createDeployment: jest.fn(),
   },
 }));
@@ -179,9 +188,7 @@ describe("Deployments chain header toolbar", () => {
     expect(
       within(slot).getByPlaceholderText("Search deployments..."),
     ).toBeInTheDocument();
-    expect(
-      within(slot).getByTestId("protected-btn-create-deployment"),
-    ).toBeInTheDocument();
+    expect(within(slot).getByTestId("deployments-create")).toBeInTheDocument();
   });
 
   test("Create deployment invokes showModal", async () => {
@@ -196,11 +203,41 @@ describe("Deployments chain header toolbar", () => {
     renderDeployments();
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
-    fireEvent.click(
-      within(slot).getByTestId("protected-btn-create-deployment"),
-    );
+    fireEvent.click(within(slot).getByTestId("deployments-create"));
 
     expect(showModal).toHaveBeenCalledTimes(1);
+  });
+
+  test("should open a warning modal before deleting a deployment", async () => {
+    type ModalsTest = {
+      useModalsContext: () => { showModal: jest.Mock; closeModal: jest.Mock };
+    };
+    const { useModalsContext } = jest.requireMock<ModalsTest>(
+      "../../src/Modals.tsx",
+    );
+    const { showModal } = useModalsContext();
+    type ApiTest = {
+      api: { deleteDeployment: jest.Mock };
+    };
+    const { api } = jest.requireMock<ApiTest>("../../src/api/api.ts");
+    mockDeployments = [sampleDeployment()];
+
+    renderDeployments();
+
+    fireEvent.click(screen.getByTestId("icon-delete").closest("button")!);
+
+    expect(showModal).toHaveBeenCalledTimes(1);
+    expect(api.deleteDeployment).not.toHaveBeenCalled();
+
+    const modal = showModal.mock.calls[0][0].component as React.ReactElement<{
+      onDelete: () => void;
+    }>;
+    modal.props.onDelete();
+
+    await waitFor(() => {
+      expect(api.deleteDeployment).toHaveBeenCalledWith("dep-1");
+      expect(mockRemoveDeployment).toHaveBeenCalledWith(mockDeployments[0]);
+    });
   });
 
   test("table scroll includes empty y when filtered deployments exist", async () => {

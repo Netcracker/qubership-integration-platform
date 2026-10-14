@@ -55,7 +55,7 @@ public class QuartzSchedulerService {
         try {
             log.debug("Remove camel scheduler jobs: {}", jobs);
             if (!jobs.isEmpty()) {
-                getFactory().getScheduler().deleteJobs(jobs);
+                getSchedulerProxy().deleteJobs(jobs);
             }
         } catch (SchedulerException e) {
             log.error("Failed to delete scheduler jobs", e);
@@ -64,7 +64,7 @@ public class QuartzSchedulerService {
 
     public void removeSchedulerJobsFromContext(SpringCamelContext context) {
         try {
-            getFactory().getScheduler().deleteJobs(getSchedulerJobsFromContext(context));
+            getSchedulerProxy().deleteJobs(getSchedulerJobsFromContext(context));
         } catch (SchedulerException e) {
             log.error("Failed to delete scheduler jobs", e);
         }
@@ -74,7 +74,7 @@ public class QuartzSchedulerService {
         try {
             log.debug("Remove camel scheduler jobs from contexts");
             if (!contexts.isEmpty()) {
-                getFactory().getScheduler().deleteJobs(getSchedulerJobsFromContexts(contexts));
+                getSchedulerProxy().deleteJobs(getSchedulerJobsFromContexts(contexts));
             }
         } catch (SchedulerException e) {
             log.error("Failed to delete scheduler jobs", e);
@@ -125,7 +125,7 @@ public class QuartzSchedulerService {
     public void commitScheduledJobs() {
         try {
             log.debug("Commit camel scheduler jobs");
-            ((StdSchedulerProxy) getFactory().getScheduler()).commitScheduledJobs();
+            getSchedulerProxy().commitScheduledJobs();
         } catch (SchedulerException e) {
             log.error("Failed to commit scheduled jobs", e);
         }
@@ -134,7 +134,7 @@ public class QuartzSchedulerService {
     public void resetSchedulersProxy() {
         try {
             log.debug("Reset camel scheduler proxy");
-            ((StdSchedulerProxy) getFactory().getScheduler()).clearDelayedJobs();
+            getSchedulerProxy().clearDelayedJobs();
         } catch (SchedulerException e) {
             log.error("Failed to reset scheduler proxy", e);
         }
@@ -146,7 +146,7 @@ public class QuartzSchedulerService {
     public void suspendAllSchedulers() {
         try {
             log.info("Suspend camel quartz scheduler");
-            ((StdSchedulerProxy) getFactory()).suspendScheduler();
+            getSchedulerProxy().suspendScheduler();
         } catch (Exception e) {
             log.error("Failed to suspend scheduler", e);
         }
@@ -158,7 +158,7 @@ public class QuartzSchedulerService {
     public void resumeAllSchedulers() {
         try {
             log.info("Resume camel quartz scheduler");
-            ((StdSchedulerProxy) getFactory()).resumeScheduler();
+            getSchedulerProxy().resumeScheduler();
         } catch (SchedulerException e) {
             log.error("Failed to resume scheduler", e);
         }
@@ -166,5 +166,10 @@ public class QuartzSchedulerService {
 
     public SchedulerFactory getFactory() {
         return schedulerFactoryProxy;
+    }
+
+    // StdSchedulerFactory.getScheduler() is not thread-safe: parallel first calls build several schedulers.
+    public synchronized StdSchedulerProxy getSchedulerProxy() throws SchedulerException {
+        return (StdSchedulerProxy) schedulerFactoryProxy.getScheduler();
     }
 }

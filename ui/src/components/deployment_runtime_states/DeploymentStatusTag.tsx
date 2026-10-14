@@ -63,6 +63,8 @@ export const DeploymentStatusTag = React.forwardRef<
       ref={ref}
       icon={icon}
       variant="solid"
+      // The text may be an engine host, which leaves color and icon as the only status signal.
+      data-testid={`deployment-status-${status.toLowerCase()}`}
       color={color}
       style={{
         marginInlineEnd: 0,

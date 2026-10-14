@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/http-sender.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/http-sender
 id: "1d27a8e7-e2d7-460c-89ae-94678789c513"
 name: "HTTP Sender"
 type: "http-sender"

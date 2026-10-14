@@ -1,0 +1,127 @@
+name: Snapshot Flow Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/snapshot-flow-build.yaml'
+      - 'integration-build-pipeline/**'
+      - 'runtime-catalog/**'
+      - 'micro-engine/**'
+      - 'scripts/test-micro-engine-snapshots.sh'
+      - 'scripts/wait-for-module-builds.sh'
+      - 'parent/**'
+      - 'pom.xml'
+  # Two pull requests can each pass while together breaking the catalog-to-engine
+  # contract; the run on main catches that and saves the cache pull requests restore.
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/snapshot-flow-build.yaml'
+      - 'integration-build-pipeline/**'
+      - 'runtime-catalog/**'
+      - 'micro-engine/**'
+      - 'scripts/test-micro-engine-snapshots.sh'
+      - 'scripts/wait-for-module-builds.sh'
+      - 'parent/**'
+      - 'pom.xml'
+
+concurrency:
+  group: snapshot-flow-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+jobs:
+  module_builds:
+    name: Wait for module builds
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+
+      - name: Wait
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF_JSON: ${{ toJSON(github.event.pull_request.head.ref) }}
+          PR_HEAD_REPOSITORY_JSON: ${{ toJSON(github.event.pull_request.head.repo.full_name) }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_UPDATED_AT_JSON: ${{ toJSON(github.event.pull_request.updated_at) }}
+        run: bash scripts/wait-for-module-builds.sh
+
+  snapshot_flow:
+    name: Catalog to Micro Engine snapshot flow
+    needs: module_builds
+    # The wait job runs only for pull requests and is skipped on main.
+    if: ${{ !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      # Only main saves the cache: a pull request's cache is visible to that pull
+      # request alone, and a copy per pull request fills the repository quota.
+      - name: Restore the Maven repository
+        id: maven-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
+          # Until main has a snapshot-flow cache, start from the runtime-catalog one.
+          restore-keys: |
+            maven-${{ runner.os }}-snapshot-flow-
+            maven-${{ runner.os }}-runtime-catalog-
+
+      - name: Verify Docker
+        run: docker version
+
+      - name: Verify generated micro-engine snapshots
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          SNAPSHOT_BUNDLE_DIRECTORY: ${{ runner.temp }}/snapshotbundle
+          ROOT_LOG_LEVEL: WARN
+        run: |
+          bash scripts/test-micro-engine-snapshots.sh \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            '-Dquarkus.log.category."org.apache.camel.processor.errorhandler.DefaultErrorHandler".level=OFF'
+
+      - name: Save the Maven repository
+        if: ${{ github.event_name == 'push' && steps.maven-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.maven-cache.outputs.cache-primary-key }}
+
+      - name: Save snapshot test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: micro-engine-snapshot-results
+          path: |
+            ${{ runner.temp }}/snapshotbundle
+            runtime-catalog/target/surefire-reports
+            micro-engine/target/surefire-reports

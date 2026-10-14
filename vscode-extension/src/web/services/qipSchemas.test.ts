@@ -14,8 +14,25 @@ describe("qipSchemas helpers", () => {
     expect(getQipSchemaType(QIP_SCHEMA_URLS.CHAIN)).toBe("CHAIN");
   });
 
+  it("uses the CIP ids without the .schema.yaml postfix", () => {
+    const base =
+      "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model";
+    expect(QIP_SCHEMA_URLS).toEqual({
+      SPECIFICATION: `${base}/specification`,
+      SPECIFICATION_GROUP: `${base}/specification-group`,
+      SERVICE: `${base}/service`,
+      CHAIN: `${base}/chain`,
+    });
+  });
+
   it("returns null for an unknown URL", () => {
     expect(getQipSchemaType("http://example.com/unknown")).toBeNull();
+  });
+
+  it("does not recognize the legacy QIP URL", () => {
+    expect(
+      getQipSchemaType("http://qubership.org/schemas/product/qip/chain"),
+    ).toBeNull();
   });
 
   it("isQipSchema reflects recognition", () => {

@@ -64,16 +64,19 @@
   color: var(--vscode-foreground, rgb(0 0 0 / 88%));
 }
 
-/* Fixed name column so the method badge and path line up into neat columns in
-   the operation dropdown (Swagger-style). */
-.nameCol {
+/* Fixed leading columns so the value after them starts at the same x on every
+   row: the operation name before the method badge and path (Swagger-style),
+   the chain name before the trigger name. */
+.nameCol,
+.chainCol {
   flex: 0 0 200px;
   min-width: 0;
 }
 
 /* Stretch the chip to fill the column so the name reads as an aligned, centered
-   cell instead of a chip floating with a gap before the method badge. */
-.nameCol .chip {
+   cell instead of a chip floating with a gap before the next value. */
+.nameCol .chip,
+.chainCol .chip {
   width: 100%;
   text-align: center;
 }

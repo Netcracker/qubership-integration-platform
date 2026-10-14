@@ -1,10 +1,11 @@
 ---
 
-# The workflow template for automatic PR labeler.
-# It requires to have a configuration file with labels and conditions to apply them.
-# The configuration file should be placed in the .github folder and named auto-labeler-config.yaml.
-# Example file can be found there:
-# https://github.com/Netcracker/.github/blob/main/config/examples/auto-labeler-config.yaml
+# Label a pull request by the Conventional Commits type of its title.
+#
+# The drop release notes (.github/release.yml) file a PR under the first category
+# its labels match, so the PR carries one type label, taken from the title it is
+# merged under. Commit types inside the PR do not count: a `fix:` PR with one
+# `feat:` commit is still a fix.
 
 name: Automatic PR Labeler
 
@@ -14,39 +15,60 @@ on:
       - main
       - 'release/*'
       - 'feature/**'
+    # `edited` covers a retitled PR; the job skips other edits.
     types:
-      [opened, reopened, synchronize]
+      [opened, reopened, edited]
 
-permissions:
-  pull-requests: write
-  contents: read
-  issues: write
+permissions: {}
 
 jobs:
   assign-labels:
-    if: (github.event.pull_request.merged == false) && (github.event.pull_request.user.login != 'dependabot[bot]') && (github.event.pull_request.user.login != 'github-actions[bot]')
+    if: (github.event.pull_request.merged == false) && (github.event.pull_request.user.login != 'dependabot[bot]') && (github.event.pull_request.user.login != 'github-actions[bot]') && (github.event.action != 'edited' || github.event.changes.title != null)
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    env:
+      TITLE: ${{ github.event.pull_request.title }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          persist-credentials: false
+      - name: Assign the type label
+        if: ${{ github.event.pull_request.base.repo.id == github.event.pull_request.head.repo.id }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          declare -A by_type=([feat]=enhancement [fix]=bug [refactor]=refactor [docs]=documentation [build]=build)
+          managed=("${by_type[@]}")
 
-      - name: "Execute assign labels"
-        id: action-assign-labels
-        uses: mauroalderete/action-assign-labels@671a4ca2da0f900464c58b8b5540a1e07133e915 # v1.5.1
-        with:
-          pull-request-number: ${{ github.event.pull_request.number }}
-          github-token: ${{ github.token }}
-          conventional-commits: "./.github/auto-labeler-config.yaml"
-          maintain-labels-not-matched: true
-          apply-changes: ${{ github.event.pull_request.base.repo.id == github.event.pull_request.head.repo.id }}
+          wanted=" "
+          if [[ "$TITLE" =~ ^([a-z]+)(\([^\)]*\))?!?: ]]; then
+            wanted+="${by_type[${BASH_REMATCH[1]}]:-} "
+          fi
+
+          current=",$LABELS,"
+          changes=()
+          for label in "${managed[@]}"; do
+            if [[ "$wanted" == *" $label "* ]]; then
+              [[ "$current" == *",$label,"* ]] || changes+=(--add-label "$label")
+            else
+              [[ "$current" != *",$label,"* ]] || changes+=(--remove-label "$label")
+            fi
+          done
+
+          if [ "${#changes[@]}" -eq 0 ]; then
+            echo "The labels already match the title."
+          else
+            gh pr edit "$PR" "${changes[@]}"
+          fi
+
       - name: "Drop warning if PR from fork"
         if: ${{ github.event.pull_request.base.repo.id != github.event.pull_request.head.repo.id }}
-        env:
-          LABELS_NEXT: ${{ steps.action-assign-labels.outputs.labels-next }}
         run: |
           {
             echo "⚠️ Pull request from fork! ⚠️";
-            echo "Labels will not be applied to PR. Assign them manually please.";
-            echo "Labels to assign: $LABELS_NEXT";
+            echo "Labels are not applied to a fork's PR. Assign the type label for the title by hand (see automatic-pr-labeler.yaml).";
+            echo "Title: $TITLE";
           } >> "$GITHUB_STEP_SUMMARY"

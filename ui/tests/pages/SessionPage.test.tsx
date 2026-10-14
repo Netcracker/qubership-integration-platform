@@ -203,8 +203,10 @@ describe("SessionPage", () => {
     expect(
       within(slot).getByPlaceholderText("Search session elements..."),
     ).toBeInTheDocument();
-    expect(within(slot).getByTestId("icon-expandAll")).toBeInTheDocument();
-    expect(within(slot).getByTestId("icon-collapseAll")).toBeInTheDocument();
+    expect(within(slot).getByTestId("icon-columnHeight")).toBeInTheDocument();
+    expect(
+      within(slot).getByTestId("icon-verticalAlignMiddle"),
+    ).toBeInTheDocument();
     expect(within(slot).getByTestId("icon-cloudDownload")).toBeInTheDocument();
   });
 
@@ -253,13 +255,13 @@ describe("SessionPage", () => {
     expect(screen.queryByText("ChildNested")).not.toBeInTheDocument();
 
     const slot = screen.getByTestId("chain-header-slot");
-    fireEvent.click(within(slot).getByTestId("icon-expandAll"));
+    fireEvent.click(within(slot).getByTestId("icon-columnHeight"));
 
     await waitFor(() => {
       expect(screen.getByText("ChildNested")).toBeInTheDocument();
     });
 
-    fireEvent.click(within(slot).getByTestId("icon-collapseAll"));
+    fireEvent.click(within(slot).getByTestId("icon-verticalAlignMiddle"));
 
     await waitFor(() => {
       expect(screen.queryByText("ChildNested")).not.toBeInTheDocument();

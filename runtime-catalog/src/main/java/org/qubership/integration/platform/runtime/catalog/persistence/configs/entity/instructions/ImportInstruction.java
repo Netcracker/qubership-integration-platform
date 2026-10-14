@@ -70,11 +70,9 @@ public class ImportInstruction {
                     WHEN 'CHAIN' THEN ( SELECT c.name FROM catalog.chains c WHERE c.id = id )
                     WHEN 'SERVICE' THEN ( SELECT s.name FROM catalog.integration_system s WHERE s.id = id)
                 END )""")
-    @Basic(fetch = FetchType.LAZY)
     private String entityName;
 
     @Formula("( SELECT c.name FROM catalog.chains c WHERE c.id = overridden_by_id )")
-    @Basic(fetch = FetchType.LAZY)
     private String overriddenByName;
 
     public ImportInstruction patch(ImportInstruction importInstructionPatch) {

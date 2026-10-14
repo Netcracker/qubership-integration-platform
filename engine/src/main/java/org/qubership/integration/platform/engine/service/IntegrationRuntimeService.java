@@ -46,8 +46,10 @@ import org.qubership.integration.platform.engine.consul.DeploymentReadinessServi
 import org.qubership.integration.platform.engine.consul.EngineStateReporter;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
+import org.qubership.integration.platform.engine.errorhandling.RouteRegistrationException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.events.ConsulSessionCreatedEvent;
+import org.qubership.integration.platform.engine.events.ExternalLibrariesUpdatedEvent;
 import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.model.RuntimeIntegrationCache;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -108,7 +110,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final QuartzSchedulerService quartzSchedulerService;
     private final TracingConfiguration tracingConfiguration;
     private final ExternalLibraryGroovyShellFactory groovyShellFactory;
-    private final GroovyLanguageWithResettableCache groovyLanguage;
     private final MetricsStore metricsStore;
     private final ExternalLibraryService externalLibraryService;
     private final MaasService maasService;
@@ -136,7 +137,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 (CircuitBreakerDefinition) definition));
     }
 
-    @Value("${qip.camel.stream-caching.enabled}")
+    @Value("${cip.camel.stream-caching.enabled}")
     private boolean enableStreamCaching;
 
     private final int streamCachingBufferSize;
@@ -146,7 +147,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         QuartzSchedulerService quartzSchedulerService,
         TracingConfiguration tracingConfiguration,
         ExternalLibraryGroovyShellFactory groovyShellFactory,
-        GroovyLanguageWithResettableCache groovyLanguage,
         MetricsStore metricsStore,
         ExternalLibraryService externalLibraryService,
         MaasService maasService,
@@ -155,7 +155,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         EngineStateReporter engineStateReporter,
         @Qualifier("deploymentExecutor") Executor deploymentExecutor,
         CamelDebuggerPropertiesService propertiesService,
-        @Value("${qip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
+        @Value("${cip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
         Predicate<FilteringEntity> camelMessageHistoryFilter,
         DeploymentReadinessService deploymentReadinessService,
         DeploymentProcessingService deploymentProcessingService,
@@ -169,7 +169,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         this.quartzSchedulerService = quartzSchedulerService;
         this.tracingConfiguration = tracingConfiguration;
         this.groovyShellFactory = groovyShellFactory;
-        this.groovyLanguage = groovyLanguage;
         this.metricsStore = metricsStore;
         this.externalLibraryService = externalLibraryService;
         this.maasService = maasService;
@@ -198,6 +197,16 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     public void onExternalLibrariesUpdated(ConsulSessionCreatedEvent event) {
         // if consul session (re)create - force update engine state
         updateEngineState();
+    }
+
+    @EventListener
+    public void resetGroovyScriptCaches(ExternalLibrariesUpdatedEvent event) {
+        if (event.isInitialUpdate()) {
+            return;
+        }
+        // A stopped context can stay in the cache: superseded, or failed to start
+        getCache().getContexts().values().forEach(context -> GroovyLanguageWithResettableCache.of(context)
+            .ifPresent(GroovyLanguageWithResettableCache::resetScriptCache));
     }
 
     // requires completion of all deployment processes
@@ -449,12 +458,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         try {
             startContext(context);
         } catch (Exception e) {
-            quartzSchedulerService.commitScheduledJobs();
-            deploymentProcessingService.processStopContext(context, deploymentInfo, configuration);
+            attachStopFailureToStartFailure(e, context, deploymentInfo, configuration);
             throw e;
         }
 
-        contextsToStop.stream().forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
+        contextsToStop.forEach(p -> stopSupersededContext(p.getRight(), p.getLeft()));
 
         quartzSchedulerService.commitScheduledJobs();
         if (log.isDebugEnabled()) {
@@ -530,7 +538,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
 
         contextsToRemove.stream().filter(p -> p.getRight().isRunning())
-            .forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
+            .forEach(p -> stopSupersededContext(p.getRight(), p.getLeft()));
     }
 
     private List<Pair<DeploymentInfo, SpringCamelContext>> getContextsRelatedToDeployment(
@@ -596,7 +604,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
         deploymentProcessingService.processAfterContextCreated(context, deploymentInfo, deploymentConfiguration);
 
-        this.loadRoutes(context, configurationXml);
+        this.loadRoutes(context, configurationXml, GroovyLanguageWithResettableCache.bindTo(context));
         return context;
     }
 
@@ -636,7 +644,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     /**
      * Upload routes to a new context from provided configuration
      */
-    private void loadRoutes(SpringCamelContext context, String xmlConfiguration) throws Exception {
+    private void loadRoutes(
+        SpringCamelContext context,
+        String xmlConfiguration,
+        GroovyLanguageWithResettableCache groovyLanguage
+    ) throws Exception {
         if (log.isDebugEnabled()) {
             log.debug("Loading routes from: \n{}", xmlConfiguration);
         }
@@ -653,30 +665,41 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
         routesDefinition.getRoutes().forEach(RouteDefinition::markUnprepared);
 
-        compileGroovyScripts(routesDefinition);
+        compileGroovyScripts(routesDefinition, groovyLanguage);
 
         context.addRouteDefinitions(routesDefinition.getRoutes());
     }
 
-    private void compileGroovyScripts(RoutesDefinition routesDefinition) {
+    private void compileGroovyScripts(
+        RoutesDefinition routesDefinition,
+        GroovyLanguageWithResettableCache groovyLanguage
+    ) {
         for (RouteDefinition route : routesDefinition.getRoutes()) {
-            for (ProcessorDefinition<?> processor : route.getOutputs()) {
-                if (!(processor instanceof ExpressionNode)) {
-                    continue;
-                }
-                ExpressionDefinition expression = ((ExpressionNode) processor).getExpression();
-                if (!expression.getLanguage().equals("groovy")) {
-                    continue;
-                }
+            compileGroovyScripts(route, groovyLanguage);
+        }
+    }
 
-                log.debug("Compiling groovy script for processor {}", processor.getId());
-                compileGroovyScript(expression);
+    private void compileGroovyScripts(
+        ProcessorDefinition<?> parent,
+        GroovyLanguageWithResettableCache groovyLanguage
+    ) {
+        for (ProcessorDefinition<?> processor : parent.getOutputs()) {
+            if (processor instanceof ExpressionNode expressionNode) {
+                ExpressionDefinition expression = expressionNode.getExpression();
+                if (expression.getLanguage().equals(GroovyLanguageWithResettableCache.NAME)) {
+                    log.debug("Compiling groovy script for processor {}", processor.getId());
+                    compileGroovyScript(expression, groovyLanguage);
+                }
             }
+            compileGroovyScripts(processor, groovyLanguage);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private void compileGroovyScript(ExpressionDefinition expression) {
+    private void compileGroovyScript(
+        ExpressionDefinition expression,
+        GroovyLanguageWithResettableCache groovyLanguage
+    ) {
         try {
             String text = expression.getExpression();
             if (isNull(expression.getTrim()) || Boolean.parseBoolean(expression.getTrim())) {
@@ -710,8 +733,15 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         return DeploymentStatus.REMOVED;
     }
 
-    private void stopDeploymentContext(SpringCamelContext context, DeploymentInfo deploymentInfo) {
-        deploymentProcessingService.processStopContext(context, deploymentInfo, null);
+    void stopDeploymentContext(SpringCamelContext context, DeploymentInfo deploymentInfo) {
+        RuntimeException stopActionFailure = null;
+        try {
+            deploymentProcessingService.processStopContext(context, deploymentInfo, null);
+        } catch (RuntimeException e) {
+            log.error("Deployment processing actions on context stop failed for deployment {}: {}",
+                deploymentInfo.getDeploymentId(), e.getMessage(), e);
+            stopActionFailure = e;
+        }
         if (nonNull(context)) {
             quartzSchedulerService.removeSchedulerJobsFromContexts(
                 Collections.singletonList(context));
@@ -719,6 +749,33 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 log.debug("Stopping context for deployment: {}", deploymentInfo.getDeploymentId());
                 context.stop();
             }
+        }
+        if (stopActionFailure != null) {
+            throw stopActionFailure;
+        }
+    }
+
+    void stopSupersededContext(SpringCamelContext context, DeploymentInfo deploymentInfo) {
+        try {
+            stopDeploymentContext(context, deploymentInfo);
+        } catch (RouteRegistrationException e) {
+            log.error(ErrorCode.UNEXPECTED_DEPLOYMENT_ERROR,
+                    "Failed to remove control plane routes while stopping the superseded deployment {} for chain {}: {}",
+                    deploymentInfo.getDeploymentId(), deploymentInfo.getChainId(), e.getMessage(), e);
+        }
+    }
+
+    void attachStopFailureToStartFailure(
+        Exception startFailure,
+        SpringCamelContext context,
+        DeploymentInfo deploymentInfo,
+        DeploymentConfiguration configuration
+    ) {
+        quartzSchedulerService.commitScheduledJobs();
+        try {
+            deploymentProcessingService.processStopContext(context, deploymentInfo, configuration);
+        } catch (RuntimeException stopFailure) {
+            startFailure.addSuppressed(stopFailure);
         }
     }
 

@@ -9,7 +9,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.kafka.OpenSearchKafkaProducer;
 import org.qubership.integration.platform.engine.model.Session;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -41,13 +40,13 @@ class OpenSearchWriterKafkaTest {
     }
 
     @Test
-    void shouldSendKafkaQueueElementWithElementIdAsKey() {
+    void shouldSendSessionElementElasticWithElementIdAsKey() {
         SessionElementElastic element = sessionElement();
 
         writer.scheduleElementToLog(element);
 
-        KafkaQueueElement kafkaQueueElement = captureKafkaQueueElement();
-        assertKafkaQueueElement(kafkaQueueElement, element);
+        SessionElementElastic sentElement = captureSessionElementElastic();
+        assertSame(element, sentElement);
         assertNull(writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID));
     }
 
@@ -57,8 +56,8 @@ class OpenSearchWriterKafkaTest {
 
         writer.scheduleElementToLog(element, true);
 
-        KafkaQueueElement kafkaQueueElement = captureKafkaQueueElement();
-        assertKafkaQueueElement(kafkaQueueElement, element);
+        SessionElementElastic sentElement = captureSessionElementElastic();
+        assertSame(element, sentElement);
         assertSame(element, writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID));
     }
 
@@ -71,8 +70,8 @@ class OpenSearchWriterKafkaTest {
 
         writer.scheduleElementToLogAndCache(element);
 
-        KafkaQueueElement kafkaQueueElement = captureKafkaQueueElement();
-        assertKafkaQueueElement(kafkaQueueElement, element);
+        SessionElementElastic sentElement = captureSessionElementElastic();
+        assertSame(element, sentElement);
         assertSame(element, writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID));
     }
 
@@ -82,8 +81,8 @@ class OpenSearchWriterKafkaTest {
 
         writer.scheduleElementToLogAndCache(element);
 
-        KafkaQueueElement kafkaQueueElement = captureKafkaQueueElement();
-        assertKafkaQueueElement(kafkaQueueElement, element);
+        SessionElementElastic sentElement = captureSessionElementElastic();
+        assertSame(element, sentElement);
         assertEquals(ExecutionStatus.CANCELLED_OR_UNKNOWN, element.getExecutionStatus());
         assertNull(writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID));
     }
@@ -93,7 +92,7 @@ class OpenSearchWriterKafkaTest {
         SessionElementElastic element = sessionElement();
         RuntimeException exception = new RuntimeException("send failed");
         doThrow(exception).when(openSearchKafkaProducer)
-                .send(eq(ELEMENT_ID), any(KafkaQueueElement.class));
+                .send(eq(ELEMENT_ID), any(SessionElementElastic.class));
 
         RuntimeException result = assertThrows(
                 RuntimeException.class,
@@ -114,14 +113,9 @@ class OpenSearchWriterKafkaTest {
                 .build();
     }
 
-    private KafkaQueueElement captureKafkaQueueElement() {
-        ArgumentCaptor<KafkaQueueElement> queueElementCaptor = ArgumentCaptor.forClass(KafkaQueueElement.class);
-        verify(openSearchKafkaProducer).send(eq(OpenSearchWriterKafkaTest.ELEMENT_ID), queueElementCaptor.capture());
-        return queueElementCaptor.getValue();
-    }
-
-    private void assertKafkaQueueElement(KafkaQueueElement kafkaQueueElement, SessionElementElastic element) {
-        assertEquals(element.getId(), kafkaQueueElement.getId());
-        assertSame(element, kafkaQueueElement.getSource());
+    private SessionElementElastic captureSessionElementElastic() {
+        ArgumentCaptor<SessionElementElastic> elementCaptor = ArgumentCaptor.forClass(SessionElementElastic.class);
+        verify(openSearchKafkaProducer).send(eq(OpenSearchWriterKafkaTest.ELEMENT_ID), elementCaptor.capture());
+        return elementCaptor.getValue();
     }
 }

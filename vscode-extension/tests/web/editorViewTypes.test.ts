@@ -18,10 +18,10 @@ jest.mock("vscode", () => {
 
 jest.mock("../../src/web/response/file/fileExtensions", () => ({
   getExtensionsForUri: jest.fn(() => ({
-    chain: ".chain.qip.yaml",
-    service: ".service.qip.yaml",
-    contextService: ".context-service.qip.yaml",
-    mcpService: ".mcp-service.qip.yaml",
+    chain: ".chain.cip.yaml",
+    service: ".service.cip.yaml",
+    contextService: ".context-service.cip.yaml",
+    mcpService: ".mcp-service.cip.yaml",
   })),
 }));
 
@@ -33,7 +33,7 @@ describe("editorViewTypes", () => {
 
   describe("getEditorViewTypeForUri", () => {
     test("returns chain editor for chain files", () => {
-      const uri = Uri.file("/workspace/chains/chain-1.chain.qip.yaml");
+      const uri = Uri.file("/workspace/chains/chain-1.chain.cip.yaml");
 
       expect(getEditorViewTypeForUri(uri)).toBe("qip.chainFile.editor");
     });
@@ -49,7 +49,7 @@ describe("editorViewTypes", () => {
 
   describe("openDocumentInEditor", () => {
     test("opens document with the matching custom editor", async () => {
-      const uri = Uri.file("/workspace/chains/chain-1.chain.qip.yaml");
+      const uri = Uri.file("/workspace/chains/chain-1.chain.cip.yaml");
 
       await openDocumentInEditor(uri);
 

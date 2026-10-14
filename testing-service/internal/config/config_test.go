@@ -1,0 +1,116 @@
+package config
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+func TestWithDefaultsFillsAnEmptyConfig(t *testing.T) {
+	got := Config{}.WithDefaults()
+
+	assert.Equal(t, DefaultCatalogAddress, got.CatalogAddress)
+	assert.Equal(t, DefaultEngineAddress, got.EngineAddress)
+	assert.Equal(t, DefaultPollInterval, got.PollInterval)
+	assert.Equal(t, DefaultWorkerCount, got.WorkerCount)
+	assert.Equal(t, DefaultLeaseDuration, got.LeaseDuration)
+	assert.Equal(t, DefaultPaginationLimit, got.PaginationLimit)
+	assert.Equal(t, DefaultRetentionInterval, got.RetentionInterval)
+	assert.Zero(t, got.RetentionAge, "a host that named no age has not asked for anything to be deleted")
+	require.NotNil(t, got.Production)
+	assert.True(t, *got.Production)
+}
+
+// The flag hides operations rather than enabling them, so an installation that
+// names no mode is treated as a live one. Only a pointer keeps that case apart
+// from an installation that turned production mode off.
+func TestProductionModeIsOnUnlessItIsTurnedOff(t *testing.T) {
+	off, on := false, true
+
+	assert.True(t, Config{}.WithDefaults().ProductionMode(), "an unset flag means production")
+	assert.False(t, Config{Production: &off}.WithDefaults().ProductionMode(), "an explicit false survives")
+	assert.True(t, Config{Production: &on}.WithDefaults().ProductionMode())
+	assert.True(t, Config{}.ProductionMode(), "the reading holds without WithDefaults")
+}
+
+func TestRetentionIsOffUntilAnAgeIsConfigured(t *testing.T) {
+	assert.False(t, Config{}.WithDefaults().RetentionEnabled())
+	assert.False(t, Config{RetentionAge: -time.Hour}.WithDefaults().RetentionEnabled())
+	assert.True(t, Config{RetentionAge: time.Hour}.WithDefaults().RetentionEnabled())
+}
+
+func TestWithDefaultsKeepsSuppliedValues(t *testing.T) {
+	production := true
+	cfg := Config{
+		CatalogAddress:    "http://catalog.test:9000",
+		EngineAddress:     "http://engine.test:9001",
+		PollInterval:      time.Second,
+		WorkerCount:       16,
+		LeaseDuration:     5 * time.Minute,
+		PaginationLimit:   500,
+		RetentionAge:      30 * 24 * time.Hour,
+		RetentionInterval: 15 * time.Minute,
+		Production:        &production,
+	}
+
+	assert.Equal(t, cfg, cfg.WithDefaults())
+}
+
+func TestWithDefaultsTreatsNonPositiveNumbersAsUnset(t *testing.T) {
+	cfg := Config{
+		PollInterval:      -time.Second,
+		WorkerCount:       -1,
+		LeaseDuration:     -time.Minute,
+		PaginationLimit:   -20,
+		RetentionInterval: -time.Hour,
+	}
+
+	got := cfg.WithDefaults()
+
+	assert.Equal(t, DefaultPollInterval, got.PollInterval)
+	assert.Equal(t, DefaultWorkerCount, got.WorkerCount)
+	assert.Equal(t, DefaultLeaseDuration, got.LeaseDuration)
+	assert.Equal(t, DefaultPaginationLimit, got.PaginationLimit)
+	assert.Equal(t, DefaultRetentionInterval, got.RetentionInterval)
+}
+
+func TestWithDefaultsLeavesTheReceiverAlone(t *testing.T) {
+	cfg := Config{}
+
+	filled := cfg.WithDefaults()
+
+	assert.Equal(t, Config{}, cfg)
+	assert.NotEqual(t, cfg, filled)
+}
+
+type stubDB struct{}
+
+func (stubDB) GetBunDb(context.Context) (*bun.DB, error) { return nil, nil }
+
+// Everything below testingservice.New takes Deps as WithDefaults left them, so a
+// host that names no logger or no client must not reach a constructor with a nil
+// — the panic would land in a worker goroutine.
+func TestDepsWithDefaultsSubstitutesTheOptionalInfrastructure(t *testing.T) {
+	deps := Deps{DB: stubDB{}}.WithDefaults()
+
+	assert.Same(t, slog.Default(), deps.Logger)
+	assert.Same(t, http.DefaultClient, deps.HTTPClient)
+	assert.Nil(t, deps.CurrentUser, "there is no default caller; dao.CurrentUser names one")
+}
+
+func TestDepsAcceptTheDeclaredImplementations(t *testing.T) {
+	deps := Deps{
+		DB:          stubDB{},
+		Logger:      slog.Default(),
+		HTTPClient:  http.DefaultClient,
+		CurrentUser: func(context.Context) string { return "developer" },
+	}
+
+	assert.Equal(t, "developer", deps.CurrentUser(context.Background()))
+}

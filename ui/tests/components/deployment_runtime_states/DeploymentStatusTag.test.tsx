@@ -55,6 +55,13 @@ describe("DeploymentStatusTag", () => {
     expect(screen.queryByText("Deployed")).not.toBeInTheDocument();
   });
 
+  it("should name the status in its test id when the text is a host", () => {
+    render(<DeploymentStatusTag status="DEPLOYED" text="10.0.0.1" />);
+    expect(screen.getByTestId("deployment-status-deployed")).toHaveTextContent(
+      "10.0.0.1",
+    );
+  });
+
   it("applies the icon for processing status (sync-spin)", () => {
     const { container } = render(<DeploymentStatusTag status="PROCESSING" />);
     // SyncOutlined renders with data-icon="sync"

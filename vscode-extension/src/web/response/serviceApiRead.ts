@@ -52,6 +52,11 @@ export async function getService(
     }
   }
 
+  // SOAP travels over the HTTP sender, so the catalog reports it as `http`:
+  // `OperationProtocol.SOAP` is ("http", "soap") and `SystemMapper` exposes `protocol.value`.
+  // Element templates branch on this value and none of them knows `soap`.
+  const storedProtocol = (service.content?.protocol || "").toLowerCase();
+
   return {
     id: service.id,
     name: service.name,
@@ -59,7 +64,7 @@ export async function getService(
     activeEnvironmentId: service.content?.activeEnvironmentId || "",
     integrationSystemType: service.content?.integrationSystemType || "",
     type: service.content?.integrationSystemType || "",
-    protocol: (service.content?.protocol || "").toLowerCase(),
+    protocol: storedProtocol === "soap" ? "http" : storedProtocol,
     extendedProtocol: service.content?.extendedProtocol || "",
     specification: service.content?.specification || "",
     environments: service.content?.environments || [],
@@ -71,7 +76,15 @@ export async function getContextService(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<ContextSystem> {
-  let service = await fileApi.getContextService(serviceFileUri, serviceId);
+  // A chain asks for the context services its elements use, which live in their own files.
+  const ext = getExtensionsForUri(serviceFileUri);
+  const contextServiceFileUri = serviceFileUri.path.endsWith(ext.contextService)
+    ? serviceFileUri
+    : await fileApi.findFileById(serviceId, ext.contextService);
+  let service = await fileApi.getContextService(
+    contextServiceFileUri,
+    serviceId,
+  );
 
   return {
     id: service.id,

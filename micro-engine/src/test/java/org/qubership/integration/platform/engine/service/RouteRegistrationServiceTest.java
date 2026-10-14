@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.engine.service;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
@@ -62,11 +61,11 @@ class RouteRegistrationServiceTest {
         @SuppressWarnings({"rawtypes", "unchecked"})
         ArgumentCaptor<List<RouteRegistrationInfo>> privateRoutesCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
         @SuppressWarnings({"rawtypes", "unchecked"})
-        ArgumentCaptor<List<Pair<String, RouteType>>> cleanupCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<RouteRegistrationInfo>> cleanupCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
 
         verify(controlPlaneService).postPublicEngineRoutes(publicRoutesCaptor.capture(), eq(ENDPOINT));
         verify(controlPlaneService).postPrivateEngineRoutes(privateRoutesCaptor.capture(), eq(ENDPOINT));
-        verify(controlPlaneService).removeEngineRoutesByPathsAndEndpoint(cleanupCaptor.capture(), eq(ENDPOINT));
+        verify(controlPlaneService).removeEngineRoutes(cleanupCaptor.capture(), eq(ENDPOINT));
         verify(controlPlaneService, never()).postEgressGatewayRoutes(any());
 
         assertEquals(List.of(publicRoute, publicPrivateRoute), publicRoutesCaptor.getValue());
@@ -78,9 +77,10 @@ class RouteRegistrationServiceTest {
                 .map(RouteRegistrationInfo::getPath)
                 .toList());
         assertEquals(List.of(
-                Pair.of("/public", RouteType.EXTERNAL_TRIGGER),
-                Pair.of("/private", RouteType.PRIVATE_TRIGGER),
-                Pair.of("/internal", RouteType.INTERNAL_TRIGGER)
+                publicRoute.toBuilder().type(RouteType.PRIVATE_TRIGGER).build(),
+                privateRoute.toBuilder().type(RouteType.EXTERNAL_TRIGGER).build(),
+                internalRoute.toBuilder().type(RouteType.EXTERNAL_TRIGGER).build(),
+                internalRoute.toBuilder().type(RouteType.PRIVATE_TRIGGER).build()
         ), cleanupCaptor.getValue());
     }
 
@@ -108,7 +108,7 @@ class RouteRegistrationServiceTest {
         verify(controlPlaneService, times(2)).postEgressGatewayRoutes(egressRouteCaptor.capture());
         verify(controlPlaneService).postPublicEngineRoutes(List.of(), ENDPOINT);
         verify(controlPlaneService).postPrivateEngineRoutes(List.of(), ENDPOINT);
-        verify(controlPlaneService).removeEngineRoutesByPathsAndEndpoint(List.of(), ENDPOINT);
+        verify(controlPlaneService).removeEngineRoutes(List.of(), ENDPOINT);
 
         List<RouteRegistrationInfo> egressRoutes = egressRouteCaptor.getAllValues();
         assertEquals("http://sender-service/orders", egressRoutes.get(0).getPath());

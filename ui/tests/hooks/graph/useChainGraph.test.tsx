@@ -93,10 +93,33 @@ jest.mock("../../../src/misc/chain-graph-utils", () => {
   const actual = jest.requireActual<
     typeof import("../../../src/misc/chain-graph-utils")
   >("../../../src/misc/chain-graph-utils");
+  type MockedElement = {
+    id: string;
+    type: string;
+    parentElementId?: string;
+    swimlaneId?: string;
+    children?: MockedElement[];
+  };
+  // Mirrors the real helper: flattens the element tree and stamps the layout
+  // direction on every node, so the rebuild in processChanges is exercised.
+  const buildNodes = (
+    elements: MockedElement[],
+    libraryElements: unknown,
+    direction?: string,
+  ): unknown[] =>
+    elements.flatMap((element) => [
+      {
+        id: element.id,
+        type: element.type,
+        position: { x: 0, y: 0 },
+        data: { elementType: element.type, direction },
+        parentId: element.parentElementId ?? element.swimlaneId,
+      },
+      ...buildNodes(element.children ?? [], libraryElements, direction),
+    ]);
   return {
     ...actual,
     getPossibleGraphIntersection: jest.fn(),
-    getIntersectionParent: jest.fn(),
     findUpdatedElement: jest.fn(),
     collectChildren: jest.fn(() => []),
     getLeastCommonParent: jest.fn(() => undefined),
@@ -124,7 +147,7 @@ jest.mock("../../../src/misc/chain-graph-utils", () => {
       elementType: element.type,
       label: element.name,
     })),
-    buildGraphNodes: jest.fn(() => []),
+    buildGraphNodes: jest.fn(buildNodes),
     applyHighlight: jest.fn((nodes: unknown[]) => nodes),
   };
 });
@@ -137,7 +160,6 @@ jest.mock("../../../src/pages/ChainPage.tsx", () => {
 import { api } from "../../../src/api/api";
 import {
   getPossibleGraphIntersection,
-  getIntersectionParent,
   findUpdatedElement,
   getContainerIdsForEdges,
   buildGraphNodes,
@@ -202,7 +224,7 @@ const draggedNode = {
   selected: true,
 } as unknown as ChainGraphNode;
 
-const dragEvent = {} as MouseEvent;
+const dragEvent = {} as React.MouseEvent;
 
 const settle = async () => {
   await act(async () => {
@@ -335,6 +357,66 @@ describe("useChainGraph", () => {
       const { result } = await renderChainGraph(undefined, { chain });
       expect(result.current.nodes).toHaveLength(0);
     });
+
+    it("should preserve the latest selection when an in-flight auto-layout resolves", async () => {
+      let resolveSecondLayout!: (nodes: ChainGraphNode[]) => void;
+      const secondLayout = new Promise<ChainGraphNode[]>((resolve) => {
+        resolveSecondLayout = resolve;
+      });
+      let arrangeCallCount = 0;
+      let secondLayoutNodes: ChainGraphNode[] = [];
+
+      mockArrangeNodes.mockImplementation((nodes: unknown[]) => {
+        arrangeCallCount += 1;
+        if (arrangeCallCount === 2) {
+          secondLayoutNodes = (nodes as ChainGraphNode[]).map((node) => ({
+            ...node,
+            position: { x: 320, y: 160 },
+          }));
+          return secondLayout;
+        }
+        return Promise.resolve(nodes);
+      });
+
+      const chain = makeChain({
+        elements: [
+          {
+            id: "node-1",
+            type: "script",
+            name: "Node 1",
+            description: "",
+          } as unknown as Element,
+        ],
+      });
+      const { result } = await renderChainGraph(undefined, { chain });
+
+      await waitFor(() => {
+        expect(mockArrangeNodes).toHaveBeenCalledTimes(2);
+      });
+
+      act(() => {
+        result.current.onNodesChange([
+          { id: "node-1", type: "select", selected: true },
+        ]);
+      });
+      await waitFor(() => {
+        expect(result.current.nodes[0]?.selected).toBe(true);
+      });
+
+      await act(async () => {
+        resolveSecondLayout(secondLayoutNodes);
+        await secondLayout;
+      });
+
+      await waitFor(() => {
+        expect(result.current.nodes[0]).toEqual(
+          expect.objectContaining({
+            position: { x: 320, y: 160 },
+            selected: true,
+          }),
+        );
+      });
+    });
   });
 
   describe("chain guards", () => {
@@ -443,7 +525,7 @@ describe("useChainGraph", () => {
       expect(apiMock.createConnection).toHaveBeenCalled();
     });
 
-    it("skips setEdges when backend returns no createdDependencies", async () => {
+    it("should add no edge when the backend creates no dependency", async () => {
       apiMock.createConnection.mockResolvedValue({ createdDependencies: [] });
       const refresh = jest.fn();
       const { result } = await withInitialNodes(refresh);
@@ -457,6 +539,7 @@ describe("useChainGraph", () => {
         });
       });
 
+      expect(result.current.edges).toEqual([]);
       expect(refresh).not.toHaveBeenCalled();
     });
 
@@ -614,7 +697,7 @@ describe("useChainGraph", () => {
       );
     });
 
-    it("returns early when backend returns no createdElements", async () => {
+    it("should add no node when the backend creates no element", async () => {
       apiMock.createElement.mockResolvedValue({
         createdElements: [],
         updatedElements: [],
@@ -626,6 +709,7 @@ describe("useChainGraph", () => {
         await result.current.onDrop(makeDropEvent("script"));
       });
 
+      expect(result.current.nodes).toHaveLength(initialNodes.length);
       expect(refresh).not.toHaveBeenCalled();
     });
 
@@ -654,12 +738,7 @@ describe("useChainGraph", () => {
       expect(apiMock.createElement).toHaveBeenCalled();
     });
 
-    it("returns early when getNodeFromElement returns falsy", async () => {
-      const utilsMock = jest.requireMock<{
-        getNodeFromElement: jest.Mock;
-      }>("../../../src/misc/chain-graph-utils");
-      utilsMock.getNodeFromElement.mockReturnValueOnce(null);
-
+    it("should orient the created node along the current layout direction", async () => {
       apiMock.createElement.mockResolvedValue({
         createdElements: [
           {
@@ -671,14 +750,21 @@ describe("useChainGraph", () => {
         ],
         updatedElements: [],
       });
-      const refresh = jest.fn();
-      const { result } = await withInitialNodes(refresh);
+      const { result } = await withInitialNodes();
 
       await act(async () => {
         await result.current.onDrop(makeDropEvent("script"));
       });
 
-      expect(refresh).not.toHaveBeenCalled();
+      expect(buildGraphNodes).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.objectContaining({ id: "new-elem" })]),
+        expect.anything(),
+        "RIGHT",
+      );
+      expect(
+        result.current.nodes.find((node) => node.id === "new-elem")?.data
+          .direction,
+      ).toBe("RIGHT");
     });
 
     it("uses newNode.parentId for structureChanged when no parentNode", async () => {
@@ -929,7 +1015,6 @@ describe("useChainGraph", () => {
         removedDependencies: [{ id: "edge-orphan" }],
         updatedElements: [],
       });
-      (buildGraphNodes as jest.Mock).mockReturnValue([]);
       const { result } = await withInitialNodes();
 
       await act(async () => {
@@ -977,13 +1062,6 @@ describe("useChainGraph", () => {
     });
 
     it("handles updatedElements in deleteElements response", async () => {
-      const updatedNode = {
-        id: "other",
-        type: "unit",
-        position: { x: 0, y: 0 },
-        data: {},
-      } as unknown as ChainGraphNode;
-      (buildGraphNodes as jest.Mock).mockReturnValue([updatedNode]);
       apiMock.deleteElements.mockResolvedValue({
         removedElements: [{ id: "node-1" }],
         removedDependencies: [],
@@ -1001,6 +1079,10 @@ describe("useChainGraph", () => {
       });
 
       expect(buildGraphNodes).toHaveBeenCalled();
+      expect(result.current.nodes.map((node) => node.id)).toContain("other");
+      expect(
+        result.current.nodes.find((node) => node.id === "node-1"),
+      ).toBeUndefined();
     });
 
     it("reports element delete failure via notificationService", async () => {
@@ -1334,15 +1416,84 @@ describe("useChainGraph", () => {
   });
 
   describe("onNodeDragStop", () => {
+    // The drop target is whatever the dragged node intersects: the hook picks
+    // the topmost smallest one and lets the backend decide what it means.
+    const dropTarget = (target: {
+      id: string;
+      type: string;
+      width?: number;
+      height?: number;
+    }) => mockGetIntersectingNodes.mockReturnValue([target]);
+
+    it("should preserve the latest selection when a same-parent drag stops before the node ref updates", async () => {
+      dropTarget({ id: "container-1", type: "container" });
+
+      const { result } = await withInitialNodes();
+
+      await act(async () => {
+        result.current.onNodesChange([
+          { id: "node-1", type: "select", selected: false },
+          { id: "container-2", type: "select", selected: true },
+        ]);
+        await result.current.onNodeDragStop(
+          {} as React.MouseEvent,
+          draggedNode,
+        );
+      });
+
+      expect(
+        result.current.nodes.find((node) => node.id === "node-1")?.selected,
+      ).toBe(false);
+      expect(
+        result.current.nodes.find((node) => node.id === "container-2")
+          ?.selected,
+      ).toBe(true);
+      expect(apiMock.transferElement).not.toHaveBeenCalled();
+    });
+
+    it("should use dragged nodes as the authoritative transfer selection", async () => {
+      const additionallySelectedNode = {
+        id: "node-2",
+        type: "unit",
+        position: { x: 100, y: 50 },
+        data: {},
+        parentId: "container-1",
+        selected: true,
+      } as unknown as ChainGraphNode;
+
+      dropTarget({ id: "container-2", type: "container" });
+      (findUpdatedElement as jest.Mock).mockReturnValue({
+        id: "node-1",
+        parentElementId: "container-2",
+      });
+      apiMock.transferElement.mockResolvedValue({
+        updatedElements: [{ id: "node-1", parentElementId: "container-2" }],
+      });
+
+      const { result } = await withInitialNodes();
+      act(() => {
+        result.current.setNodes([...initialNodes, additionallySelectedNode]);
+      });
+      await waitFor(() => {
+        expect(result.current.nodes).toHaveLength(initialNodes.length + 1);
+      });
+
+      await act(async () => {
+        await result.current.onNodeDragStop(
+          {} as React.MouseEvent,
+          draggedNode,
+          [draggedNode],
+        );
+      });
+
+      expect(apiMock.transferElement).toHaveBeenCalledWith(
+        expect.objectContaining({ elements: ["node-1"] }),
+        "chain-1",
+      );
+    });
+
     it("calls onChainUpdate after successful transferElement", async () => {
-      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
-      (getIntersectionParent as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
+      dropTarget({ id: "container-2", type: "container" });
       (findUpdatedElement as jest.Mock).mockReturnValue({
         id: "node-1",
         parentElementId: "container-2",
@@ -1374,15 +1525,8 @@ describe("useChainGraph", () => {
       expect(mockErrorWithDetails).not.toHaveBeenCalled();
     });
 
-    it("sends swimlaneId when newParent is a swimlane", async () => {
-      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
-        id: "swimlane-1",
-        type: "swimlane",
-      });
-      (getIntersectionParent as jest.Mock).mockReturnValue({
-        id: "swimlane-1",
-        type: "swimlane",
-      });
+    it("sends swimlaneId when the target is a swimlane", async () => {
+      dropTarget({ id: "swimlane-1", type: "swimlane" });
       (findUpdatedElement as jest.Mock).mockReturnValue({
         id: "node-1",
         swimlaneId: "swimlane-1",
@@ -1414,14 +1558,7 @@ describe("useChainGraph", () => {
     });
 
     it("does not call onChainUpdate when transferElement fails", async () => {
-      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
-      (getIntersectionParent as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
+      dropTarget({ id: "container-2", type: "container" });
       apiMock.transferElement.mockRejectedValue(new Error("transfer failed"));
 
       const refresh = jest.fn();
@@ -1444,15 +1581,8 @@ describe("useChainGraph", () => {
       );
     });
 
-    it("does not call onChainUpdate when parent did not change", async () => {
-      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
-        id: "container-1",
-        type: "container",
-      });
-      (getIntersectionParent as jest.Mock).mockReturnValue({
-        id: "container-1",
-        type: "container",
-      });
+    it("does not call onChainUpdate when the target is the current parent", async () => {
+      dropTarget({ id: "container-1", type: "container" });
 
       const refresh = jest.fn();
       const { result } = await withInitialNodes(refresh);
@@ -1488,14 +1618,7 @@ describe("useChainGraph", () => {
     });
 
     it("uses leastCommonParent when provided", async () => {
-      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
-      (getIntersectionParent as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
+      dropTarget({ id: "container-2", type: "container" });
       (findUpdatedElement as jest.Mock).mockReturnValue({
         id: "node-1",
         parentElementId: "container-2",
@@ -1519,14 +1642,7 @@ describe("useChainGraph", () => {
     });
 
     it("falls back to dragged node id when nothing is selected", async () => {
-      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
-      (getIntersectionParent as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
+      dropTarget({ id: "container-2", type: "container" });
       (findUpdatedElement as jest.Mock).mockReturnValue({
         id: "node-1",
         parentElementId: "container-2",
@@ -1575,15 +1691,8 @@ describe("useChainGraph", () => {
       expect(apiMock.transferElement).not.toHaveBeenCalled();
     });
 
-    it("handles newParent with no specific type (falls back to null)", async () => {
-      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
-        id: "target",
-        type: "other",
-      });
-      (getIntersectionParent as jest.Mock).mockReturnValue({
-        id: "target",
-        type: "other",
-      });
+    it("should send the target as parentId when the target is not a swimlane", async () => {
+      dropTarget({ id: "target", type: "unit" });
       (findUpdatedElement as jest.Mock).mockReturnValue({ id: "node-1" });
       apiMock.transferElement.mockResolvedValue({ updatedElements: [] });
 
@@ -1598,12 +1707,41 @@ describe("useChainGraph", () => {
       });
 
       expect(apiMock.transferElement).toHaveBeenCalledWith(
-        expect.objectContaining({ parentId: null, swimlaneId: null }),
+        expect.objectContaining({ parentId: "target", swimlaneId: null }),
         "chain-1",
       );
     });
 
-    it("calls structureChanged() without args when no parents are affected", async () => {
+    it("should move the node out of its parent when nothing is under it", async () => {
+      mockGetIntersectingNodes.mockReturnValue([]);
+      (findUpdatedElement as jest.Mock).mockReturnValue({ id: "node-1" });
+      apiMock.transferElement.mockResolvedValue({
+        updatedElements: [{ id: "node-1" }],
+      });
+
+      const { result } = await withInitialNodes();
+
+      await act(async () => {
+        await result.current.onNodeDragStop(
+          {} as React.MouseEvent,
+          draggedNode,
+        );
+      });
+
+      expect(apiMock.transferElement).toHaveBeenCalledWith(
+        expect.objectContaining({
+          elements: ["node-1"],
+          parentId: undefined,
+          swimlaneId: null,
+        }),
+        "chain-1",
+      );
+      expect(
+        result.current.nodes.find((node) => node.id === "node-1")?.parentId,
+      ).toBeUndefined();
+    });
+
+    it("should transfer a root-level node into the container under it", async () => {
       const rootLevelNode = {
         id: "root-node",
         type: "unit",
@@ -1621,16 +1759,15 @@ describe("useChainGraph", () => {
         },
       ] as unknown as ChainGraphNode[];
 
-      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
-      (getIntersectionParent as jest.Mock).mockReturnValue({
-        id: "container-2",
-        type: "container",
-      });
+      dropTarget({ id: "container-2", type: "container" });
       (getLeastCommonParent as jest.Mock).mockReturnValue(undefined);
-      apiMock.transferElement.mockRejectedValue(new Error("fail"));
+      (findUpdatedElement as jest.Mock).mockReturnValue({
+        id: "root-node",
+        parentElementId: "container-2",
+      });
+      apiMock.transferElement.mockResolvedValue({
+        updatedElements: [{ id: "root-node", parentElementId: "container-2" }],
+      });
 
       const { result } = await renderChainGraph();
       act(() => {
@@ -1640,6 +1777,7 @@ describe("useChainGraph", () => {
         expect(result.current.nodes.length).toBe(rootNodes.length);
       });
 
+
       await act(async () => {
         await result.current.onNodeDragStop(
           dragEvent,
@@ -1648,7 +1786,16 @@ describe("useChainGraph", () => {
         );
       });
 
-      expect(apiMock.transferElement).toHaveBeenCalled();
+      expect(apiMock.transferElement).toHaveBeenCalledWith(
+        expect.objectContaining({
+          elements: ["root-node"],
+          parentId: "container-2",
+        }),
+        "chain-1",
+      );
+      expect(
+        result.current.nodes.find((node) => node.id === "root-node")?.parentId,
+      ).toBe("container-2");
     });
 
     it("skips while library is loading", async () => {

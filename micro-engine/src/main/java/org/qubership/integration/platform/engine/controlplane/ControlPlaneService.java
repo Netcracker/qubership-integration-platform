@@ -16,9 +16,7 @@
 
 package org.qubership.integration.platform.engine.controlplane;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.metadata.RouteRegistrationInfo;
-import org.qubership.integration.platform.engine.metadata.RouteType;
 
 import java.util.List;
 
@@ -34,8 +32,8 @@ public interface ControlPlaneService {
             String endpoint
     ) throws ControlPlaneException;
 
-    void removeEngineRoutesByPathsAndEndpoint(
-            List<Pair<String, RouteType>> paths,
+    void removeEngineRoutes(
+            List<RouteRegistrationInfo> routes,
             String endpoint
     ) throws ControlPlaneException;
 

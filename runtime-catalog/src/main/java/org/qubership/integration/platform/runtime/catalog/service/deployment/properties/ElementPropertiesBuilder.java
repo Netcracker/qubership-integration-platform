@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
 
 import java.util.Map;
 
 public interface ElementPropertiesBuilder {
-    boolean applicableTo(ChainElement element);
+    boolean applicableTo(Element element);
 
-    Map<String, String> build(ChainElement element);
+    Map<String, String> build(Element element);
 }

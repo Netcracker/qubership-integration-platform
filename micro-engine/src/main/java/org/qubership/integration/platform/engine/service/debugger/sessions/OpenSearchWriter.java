@@ -77,7 +77,7 @@ public abstract class OpenSearchWriter {
     @Nullable
     public SessionElementElastic getSessionElementFromCache(String sessionId, String elementId) {
         Map<String, SessionElementElastic> elements = sessionElementsCache.get(sessionId);
-        return elements != null ? elements.get(elementId) : null;
+        return elementId != null && elements != null ? elements.get(elementId) : null;
     }
 
     public Collection<SessionElementElastic> getSessionElementsFromCache(String sessionId) {

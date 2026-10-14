@@ -1,12 +1,13 @@
 import {
   createContext,
+  FocusEvent,
   ReactNode,
   useCallback,
   useEffect,
   useMemo,
   useState,
 } from "react";
-import { Flex, Form } from "antd";
+import { Form } from "antd";
 import styles from "./InlineEdit.module.css";
 
 const { useForm } = Form;
@@ -57,13 +58,22 @@ export function InlineEdit<Values>({
     });
   }, [form, values, onCancel]);
 
+  const handleBlur = useCallback(
+    (e: FocusEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        form.submit();
+      }
+    },
+    [form],
+  );
+
   const contextValue = useMemo(() => ({ toggle }), [toggle]);
 
   return (
     <InlineEditContext.Provider value={contextValue}>
       {active ? (
-        <Flex style={{ width: "100%", minWidth: 0 }} vertical={false}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div className={styles.inlineEditEditorWrap}>
+          <div onBlur={handleBlur}>
             <Form<Values>
               form={form}
               disabled={processing}
@@ -87,14 +97,12 @@ export function InlineEdit<Values>({
                   console.error(e);
                   setProcessing(false);
                 }
-                toggle();
               }}
-              onBlur={toggle}
             >
               {editor}
             </Form>
           </div>
-        </Flex>
+        </div>
       ) : (
         <button
           type="button"

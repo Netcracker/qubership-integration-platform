@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/split.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split
 id: "16cb1585-f297-4516-9b0f-4fd49bf2e896"
 name: "Split (deprecated)"
 type: "split"

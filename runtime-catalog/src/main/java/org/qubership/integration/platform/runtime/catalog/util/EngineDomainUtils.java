@@ -30,15 +30,15 @@ public class EngineDomainUtils {
     private static final String DASH_VERSION_REGEX = "(-v\\d+)?$";
     private final Pattern defaultVersionedDomainPattern;
 
-    @Value("${qip.domain.default}")
+    @Value("${cip.domain.default}")
     private String engineDefaultDomain;
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     @Getter
     private String domainLabel;
 
     @Autowired
-    public EngineDomainUtils(@Value("${qip.internal-services.engine}") String engineNamePrefix) {
+    public EngineDomainUtils(@Value("${cip.internal-services.engine}") String engineNamePrefix) {
         defaultVersionedDomainPattern = Pattern.compile("^" + engineNamePrefix + DASH_VERSION_REGEX);
     }
 

@@ -83,16 +83,20 @@ function isTransferToTheRootOfReuseSwimlane(
   );
 }
 
+// The Reuse swimlane holds Reuse elements and whatever sits inside them, so the
+// root of the parent chain decides, not the immediate parent.
 function isParentElementReuse(chain: ChainSchema, parentId?: string): boolean {
   if (!parentId) {
     return false;
   }
 
   const chainElements = chain.content.elements as ElementSchema[];
-  return (
-    (findElementById(chainElements, parentId)?.element
-      ?.type as unknown as string) === "reuse"
-  );
+  let parent = findElementById(chainElements, parentId);
+  while (parent?.parentId) {
+    parent = findElementById(chainElements, parent.parentId);
+  }
+
+  return parent !== undefined && isReuseElement(parent.element);
 }
 
 export function isTransferOutOfSwimlane(

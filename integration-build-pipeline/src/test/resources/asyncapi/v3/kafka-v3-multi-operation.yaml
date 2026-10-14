@@ -1,0 +1,32 @@
+asyncapi: 3.0.0
+info:
+  title: Kafka Multi Operation API
+  version: 1.0.0
+  description: Kafka v3 with multiple operations on one channel
+servers:
+  production:
+    host: kafka.example.com:9092
+    protocol: kafka
+channels:
+  userEvents:
+    address: user/events
+    messages:
+      UserEvent:
+        payload:
+          type: object
+          properties:
+            eventType:
+              type: string
+            userId:
+              type: string
+operations:
+  publishUserEvent:
+    action: send
+    channel:
+      $ref: '#/channels/userEvents'
+    summary: Publish user events
+  consumeUserEvent:
+    action: receive
+    channel:
+      $ref: '#/channels/userEvents'
+    summary: Consume user events

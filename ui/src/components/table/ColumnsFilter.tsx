@@ -8,6 +8,7 @@ import {
   clearColumnMetadata,
   isColumnVisibilityLocked,
 } from "./useColumnSettingsButton";
+import { resetTableSettings } from "./useTableSetting";
 import styles from "./ColumnsFilter.module.css";
 
 const COLUMN_KEYS_EXCLUDED_FROM_PICKER = new Set<string>([ACTIONS_COLUMN_KEY]);
@@ -144,6 +145,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   }, [columnsOrder, onChange, storageKey, visibleColumns]);
 
   const handleReset = () => {
+    resetTableSettings(storageKey);
     localStorage.removeItem(getColumnsOrderKey(storageKey));
     localStorage.removeItem(getColumnsVisibleKey(storageKey));
     setColumnsOrder(allColumns);

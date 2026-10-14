@@ -18,13 +18,19 @@
   <parent>
       <groupId>org.qubership.integration.platform</groupId>
       <artifactId>qip-monorepo-parent</artifactId>
-      <version>0.5.1-SNAPSHOT</version>
+      <version>1.5.1-SNAPSHOT</version>
       <relativePath>../parent</relativePath>
   </parent>
 
   <properties>
-    <revision>1.1.0</revision>
+    <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
+
+    <!-- Last released version of the in-repo library, kept equal to integration-build-pipeline's revision by
+         scripts/check-version-invariants.sh. The dependency below appends ${changelist}, so a normal build
+         resolves the development coordinate from the reactor and a release, which passes -Dchangelist=,
+         resolves the published jar. -->
+    <qip-integration-build-pipeline.version>1.5.1</qip-integration-build-pipeline.version>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -33,26 +39,21 @@
     <json.version>20231013</json.version>
     <logback-gelf.version>5.0.1</logback-gelf.version>
     <handlebars.version>4.3.1</handlebars.version>
-    <kubernetes-client-java.version>25.0.0</kubernetes-client-java.version>
+    <kubernetes-client-java.version>27.0.0</kubernetes-client-java.version>
     <atlasmap.version>2.5.2</atlasmap.version>
     <antlr4.version>4.13.2</antlr4.version>
     <google-guava.version>33.4.0-jre</google-guava.version>
-    <wire.version>4.9.7</wire.version>
     <okio.version>3.16.4</okio.version>
     <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
     <flexmark.version>0.64.8</flexmark.version>
     <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
     <graphql-java.version>21.5</graphql-java.version>
-    <swagger-parser.version>2.1.38</swagger-parser.version>
-    <swagger-core.version>2.2.43</swagger-core.version>
-    <woden-core.version>1.0M10</woden-core.version>
-    <soa-model-core.version>1.6.4</soa-model-core.version>
     <commons-validator.version>1.7</commons-validator.version>
     <plexus-utils.version>3.6.1</plexus-utils.version>
     <commons-beanutils.version>1.11.0</commons-beanutils.version>
     <jose4j.version>0.9.6</jose4j.version>
     <grpc.version>1.54.2</grpc.version>
-    <protobuf-java.version>3.25.9</protobuf-java.version>
+    <protobuf-java.version>4.33.2</protobuf-java.version>
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
     <!-- Newest versions requires commons-io 2.15! -->
@@ -192,16 +193,6 @@
         <version>${hypersistence-utils-hibernate.version}</version>
       </dependency>
       <dependency>
-        <groupId>com.squareup.wire</groupId>
-        <artifactId>wire-schema-jvm</artifactId>
-        <version>${wire.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.predic8</groupId>
-        <artifactId>soa-model-core</artifactId>
-        <version>${soa-model-core.version}</version>
-      </dependency>
-      <dependency>
         <groupId>commons-validator</groupId>
         <artifactId>commons-validator</artifactId>
         <version>${commons-validator.version}</version>
@@ -254,13 +245,6 @@
         <groupId>io.swagger.core.v3</groupId>
         <artifactId>swagger-core-jakarta</artifactId>
         <version>${swagger-core.version}</version>
-      </dependency>
-      <!-- Mapper dependencies -->
-      <!-- WSDL Support -->
-      <dependency>
-        <groupId>org.apache.woden</groupId>
-        <artifactId>woden-core</artifactId>
-        <version>${woden-core.version}</version>
       </dependency>
       <!-- GRPC -->
       <dependency>
@@ -353,6 +337,11 @@
           <artifactId>android-json</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.springdoc</groupId>
@@ -501,14 +490,6 @@
       <artifactId>hypersistence-utils-hibernate-63</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.squareup.wire</groupId>
-      <artifactId>wire-schema-jvm</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.predic8</groupId>
-      <artifactId>soa-model-core</artifactId>
-    </dependency>
-    <dependency>
       <groupId>commons-validator</groupId>
       <artifactId>commons-validator</artifactId>
     </dependency>
@@ -550,11 +531,6 @@
       <groupId>org.mapstruct</groupId>
       <artifactId>mapstruct-processor</artifactId>
     </dependency>
-    <!-- WSDL Support -->
-    <dependency>
-      <groupId>org.apache.woden</groupId>
-      <artifactId>woden-core</artifactId>
-    </dependency>
     <dependency>
       <groupId>jakarta.annotation</groupId>
       <artifactId>jakarta.annotation-api</artifactId>
@@ -581,9 +557,35 @@
       <groupId>com.graphql-java-generator</groupId>
       <artifactId>graphql-maven-plugin-logic</artifactId>
     </dependency>
+
+    <dependency>
+      <groupId>${project.parent.groupId}</groupId>
+      <artifactId>qip-integration-build-pipeline</artifactId>
+      <version>${qip-integration-build-pipeline.version}${changelist}</version>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <id>snapshot-bundle-test-sources</id>
+            <!-- Register test sources before the compile-phase Checkstyle check. -->
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.basedir}/../integration-build-pipeline/src/test-support/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>flatten-maven-plugin</artifactId>
@@ -632,7 +634,69 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <groups>!component</groups>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <!-- The Protobuf toolchain the image needs for gRPC specification import. Resolving it
+               here rather than downloading it in the Dockerfile keeps the compiler's version tied
+               to the libraries the generated code is compiled and executed against: protoc must
+               match protobuf-java, and the plugin must match grpc. Both binaries are published to
+               Maven Central for exactly this purpose. -->
+          <execution>
+            <id>copy-protobuf-toolchain</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/protobuf-toolchain/bin</outputDirectory>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>com.google.protobuf</groupId>
+                  <artifactId>protoc</artifactId>
+                  <version>${protobuf-java.version}</version>
+                  <classifier>linux-x86_64</classifier>
+                  <type>exe</type>
+                  <destFileName>protoc</destFileName>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>io.grpc</groupId>
+                  <artifactId>protoc-gen-grpc-java</artifactId>
+                  <version>${grpc.version}</version>
+                  <classifier>linux-x86_64</classifier>
+                  <type>exe</type>
+                  <destFileName>protoc-gen-grpc-java</destFileName>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+          <!-- protoc resolves an import of google/protobuf/*.proto from files on disk, and the
+               well-known types ship inside protobuf-java rather than beside the compiler. -->
+          <execution>
+            <id>unpack-well-known-types</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>unpack</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/protobuf-toolchain/include</outputDirectory>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>com.google.protobuf</groupId>
+                  <artifactId>protobuf-java</artifactId>
+                  <version>${protobuf-java.version}</version>
+                  <includes>google/protobuf/*.proto</includes>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -656,8 +720,68 @@
         <directory>${pom.basedir}/src/test/resources</directory>
       </testResource>
       <testResource>
+        <directory>${project.basedir}/../integration-build-pipeline/src/test/resources</directory>
+        <includes>
+          <include>testConfigurations/**</include>
+        </includes>
+      </testResource>
+      <testResource>
         <directory>${pom.basedir}/src/main/resources</directory>
       </testResource>
     </testResources>
   </build>
+  <profiles>
+    <profile>
+      <id>snapshotTests</id>
+      <properties>
+        <snapshot.bundle.directory>
+          ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
+        </snapshot.bundle.directory>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <groups>component</groups>
+              <includes combine.self="override">
+                <include>**/SnapshotBundleProducerIntegrationTest.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <snapshot.bundle.generate>true</snapshot.bundle.generate>
+                <snapshot.bundle.output>${snapshot.bundle.directory}</snapshot.bundle.output>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>snapshotTestsShort</id>
+      <properties>
+        <snapshot.bundle.directory>
+          ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
+        </snapshot.bundle.directory>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <groups>component</groups>
+              <includes combine.self="override">
+                <include>**/SnapshotBundleProducerIntegrationTest.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <snapshot.bundle.generate>true</snapshot.bundle.generate>
+                <snapshot.bundle.output>${snapshot.bundle.directory}</snapshot.bundle.output>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

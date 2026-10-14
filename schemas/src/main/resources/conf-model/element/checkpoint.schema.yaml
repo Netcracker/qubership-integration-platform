@@ -1,0 +1,34 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/checkpoint
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: Checkpoint
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: checkpoint
+  properties:
+    type: object
+    properties:
+      checkpointElementId:
+        type: string
+        title: Checkpoint Element Id
+      contextPath:
+        type: string
+        title: Path Template
+        readOnly: true
+      externalRoute:
+        type: boolean
+        const: false
+      httpMethodRestrict:
+        type: string
+        const: POST
+    additionalProperties: false
+required:
+  - type

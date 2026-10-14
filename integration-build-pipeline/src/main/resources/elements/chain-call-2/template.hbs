@@ -1,0 +1,3 @@
+{{#if (identifier)}}<step id="{{identifier}}">{{/if}}
+    <toD uri="cip-chain:{{property 'elementId'}}{{#if-property 'timeout' presented=''}}?timeout={{property 'timeout'}}&amp;block=true&amp;failIfNoConsumers=false{{/if-property}}"/>
+{{#if (identifier)}}</step>{{/if}}

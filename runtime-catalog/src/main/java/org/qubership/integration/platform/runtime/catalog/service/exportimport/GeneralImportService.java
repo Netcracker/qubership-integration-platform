@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainsAndInstructionsResult;
@@ -52,9 +53,17 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.ARCH_PARENT_DIR;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CHAINS_ARCH_PARENT_DIR;
+
 @Slf4j
 @Service
 public class GeneralImportService {
+
+    private static final String VARIABLES_ARCH_PARENT_DIR = "variables";
+    private static final String NOTHING_TO_IMPORT_MESSAGE =
+            "Nothing to import: the archive contains no chains, services, variables, or import instructions."
+                    + " Expected chains/<id>/, services/<id>/, variables/common-variables.yaml, or ";
 
     private final CommonVariablesService commonVariablesService;
     private final SystemExportImportService systemExportImportService;
@@ -149,8 +158,9 @@ public class GeneralImportService {
 
     public String importFileAsync(MultipartFile file, ImportRequest importRequest, Set<String> technicalLabels, boolean validateByHash) {
         File unpackedDirectory = unpackDirectory(file);
-        logImportAction(file.getOriginalFilename());
-        return importDirectoryAsync(unpackedDirectory, importRequest, technicalLabels, validateByHash);
+        String importId = UUID.randomUUID().toString();
+        logImportAction(file.getOriginalFilename(), importId);
+        return importDirectoryAsync(unpackedDirectory, importRequest, technicalLabels, validateByHash, importId);
     }
 
     public String importDirectoryAsync(
@@ -159,7 +169,17 @@ public class GeneralImportService {
             Set<String> technicalLabels,
             boolean validateByHash
     ) {
-        String importId = UUID.randomUUID().toString();
+        return importDirectoryAsync(importDirectory, importRequest, technicalLabels, validateByHash, null);
+    }
+
+    public String importDirectoryAsync(
+            File importDirectory,
+            ImportRequest importRequest,
+            Set<String> technicalLabels,
+            boolean validateByHash,
+            String nullableImportId
+    ) {
+        String importId = nullableImportId != null ? nullableImportId : UUID.randomUUID().toString();
 
         importSessionService.deleteObsoleteImportSessionStatuses();
         importSessionService.setImportProgressPercentage(importId, 0);
@@ -170,6 +190,11 @@ public class GeneralImportService {
             RequestIdContext.set(requestId);
 
             log.info("Import session {} started", importId);
+
+            if (containsNothingImportable(importDirectory)) {
+                throw new RuntimeException(
+                        NOTHING_TO_IMPORT_MESSAGE + importInstructionsService.getInstructionsFileName());
+            }
 
             ArrayList<ImportInstructionResult> importInstructionResults = new ArrayList<>();
 
@@ -196,11 +221,13 @@ public class GeneralImportService {
             importInstructionResults.addAll(importChainsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(importSystemsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(importChainsAndContextInstructionsResult.instructionResults());
+            importInstructionResults.addAll(importMcpSystemsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(variablesResult.getInstructions());
             return ImportResult.builder()
                     .chains(importChainsAndInstructionsResult.chainResults())
                     .systems(importSystemsAndInstructionsResult.importSystemResults())
                     .contextService(importChainsAndContextInstructionsResult.importSystemResults())
+                    .mcpService(importMcpSystemsAndInstructionsResult.importSystemResults())
                     .variables(variablesResult.getVariables())
                     .instructionsResult(importInstructionResults)
                     .build();
@@ -231,6 +258,15 @@ public class GeneralImportService {
         importSessionService.saveImportSession(importSession);
     }
 
+    // Each clause mirrors the reader it stands for: chains are read per directory, while plain,
+    // context and MCP services all live under the services directory.
+    private boolean containsNothingImportable(File importDirectory) {
+        return ArrayUtils.isEmpty(new File(importDirectory, CHAINS_ARCH_PARENT_DIR).listFiles(File::isDirectory))
+                && ArrayUtils.isEmpty(new File(importDirectory, ARCH_PARENT_DIR).listFiles())
+                && ArrayUtils.isEmpty(new File(importDirectory, VARIABLES_ARCH_PARENT_DIR).listFiles())
+                && !new File(importDirectory, importInstructionsService.getInstructionsFileName()).exists();
+    }
+
     private File unpackDirectory(MultipartFile file) {
         File unpackDirectory = null;
         try (InputStream is = file.getInputStream()) {
@@ -248,9 +284,10 @@ public class GeneralImportService {
         return ExportImportUtils.extractDirectoriesFromZip(is, UUID.randomUUID().toString());
     }
 
-    private void logImportAction(String archiveName) {
+    private void logImportAction(String archiveName, String importId) {
         actionsLogService.logAction(ActionLog.builder()
                 .entityType(EntityType.CHAINS)
+                .entityId(importId)
                 .entityName(archiveName)
                 .operation(LogOperation.IMPORT)
                 .build());

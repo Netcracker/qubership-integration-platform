@@ -17,13 +17,13 @@
 package org.qubership.integration.platform.runtime.catalog.testutils.mapper;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainElementImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.DependencyImportDTO;
 import org.qubership.integration.platform.runtime.catalog.util.DistinctByKey;
@@ -49,13 +49,13 @@ public class ChainElementsMapper implements ImportDTOMapper<List<ChainElement>, 
 
     @Override
     public List<ChainElement> toEntity(ElementsDTO elementsDTO) {
-        List<Pair<ChainElementImportDTO, ElementDescriptor>> sortedElementDTOS = elementsDTO.getElementImportDTOS().stream()
-                .map(elementDTO -> Pair.of(elementDTO, libraryService.getElementDescriptor(elementDTO.getType())))
+        List<Pair<ChainElementImportDTO, Optional<ElementDescriptor>>> sortedElementDTOS = elementsDTO.getElementImportDTOS().stream()
+                .map(elementDTO -> Pair.of(elementDTO, libraryService.lookupElementDescriptor(elementDTO.getType())))
                 .sorted((left, right) -> {
-                    ElementType leftType = Optional.ofNullable(left.getValue())
+                    ElementType leftType = left.getValue()
                             .map(ElementDescriptor::getType)
                             .orElse(null);
-                    ElementType rightType = Optional.ofNullable(right.getValue())
+                    ElementType rightType = right.getValue()
                             .map(ElementDescriptor::getType)
                             .orElse(null);
                     if (rightType == null || leftType == rightType) {
@@ -65,7 +65,7 @@ public class ChainElementsMapper implements ImportDTOMapper<List<ChainElement>, 
                 })
                 .toList();
         Map<String, ChainElement> elements = new HashMap<>();
-        for (Pair<ChainElementImportDTO, ElementDescriptor> dtoPair : sortedElementDTOS) {
+        for (Pair<ChainElementImportDTO, Optional<ElementDescriptor>> dtoPair : sortedElementDTOS) {
             createEntity(dtoPair, elements);
         }
         enrichWithDependencies(elements, elementsDTO.getDependencyImportDTOS());
@@ -92,9 +92,9 @@ public class ChainElementsMapper implements ImportDTOMapper<List<ChainElement>, 
         return new ElementsDTO(elementImportDTOS, dependencyImportDTOS);
     }
 
-    protected ChainElement createEntity(Pair<ChainElementImportDTO, ElementDescriptor> dtoPair, Map<String, ChainElement> elements) {
+    protected ChainElement createEntity(Pair<ChainElementImportDTO, Optional<ElementDescriptor>> dtoPair, Map<String, ChainElement> elements) {
         ChainElementImportDTO elementDTO = dtoPair.getKey();
-        ElementDescriptor descriptor = Optional.ofNullable(dtoPair.getValue())
+        ElementDescriptor descriptor = dtoPair.getValue()
                 .orElseGet(() -> {
                     if (CONTAINER_TYPE_NAME.equals(elementDTO.getType())) {
                         ElementDescriptor containerDescriptor = new ElementDescriptor();
@@ -109,7 +109,7 @@ public class ChainElementsMapper implements ImportDTOMapper<List<ChainElement>, 
         if (descriptor.isContainer()) {
             ContainerChainElement containerElement = new ContainerChainElement();
             for (ChainElementImportDTO childDTO : elementDTO.getChildren()) {
-                ElementDescriptor childDescriptor = libraryService.getElementDescriptor(childDTO.getType());
+                Optional<ElementDescriptor> childDescriptor = libraryService.lookupElementDescriptor(childDTO.getType());
                 ChainElement childEntity = createEntity(Pair.of(childDTO, childDescriptor), elements);
                 containerElement.addChildElement(childEntity);
             }

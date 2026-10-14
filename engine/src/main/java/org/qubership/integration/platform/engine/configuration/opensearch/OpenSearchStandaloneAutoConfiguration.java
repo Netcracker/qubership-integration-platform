@@ -35,25 +35,25 @@ import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearc
 
 @Slf4j
 @AutoConfiguration
-@ConditionalOnProperty(name = "qip.standalone", havingValue = "true")
+@ConditionalOnProperty(name = "cip.standalone", havingValue = "true")
 public class OpenSearchStandaloneAutoConfiguration {
 
-    @Value("${qip.opensearch.client.host:opensearch}")
+    @Value("${cip.opensearch.client.host:opensearch}")
     private String host;
 
-    @Value("${qip.opensearch.client.port:9200}")
+    @Value("${cip.opensearch.client.port:9200}")
     private Integer port;
 
-    @Value("${qip.opensearch.client.protocol:http}")
+    @Value("${cip.opensearch.client.protocol:http}")
     private String protocol;
 
-    @Value("${qip.opensearch.client.user-name:}")
+    @Value("${cip.opensearch.client.user-name:}")
     private String username;
 
-    @Value("${qip.opensearch.client.password:}")
+    @Value("${cip.opensearch.client.password:}")
     private String password;
 
-    @Value("${qip.opensearch.client.prefix:}")
+    @Value("${cip.opensearch.client.prefix:}")
     private String prefix;
 
     @Bean(TENANT_NATIVE_OPENSEARCH_CLIENT)

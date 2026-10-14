@@ -22,7 +22,7 @@ import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
 import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
-import { validateAllowedSystemProtocol } from "./serviceApiUtils";
+import { QipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -122,9 +122,9 @@ export async function updateService(
     );
     service.content.integrationSystemType = serviceRequest.type;
   }
-  if (serviceRequest.protocol !== undefined) {
-    service.content.protocol = serviceRequest.protocol.toUpperCase();
-  }
+  // No protocol here, matching the catalog's SystemRequestDTO. The UI spreads the whole service
+  // into this request, so taking it back would overwrite a stored SOAP with the `http` the read
+  // reports. Specification import sets it.
   if (serviceRequest.extendedProtocol !== undefined) {
     service.content.extendedProtocol = serviceRequest.extendedProtocol;
   }
@@ -163,7 +163,6 @@ export async function createService(
         specification: serviceRequest.specification || "",
         environments: [],
         labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
-        migrations: [],
       },
     };
 
@@ -650,9 +649,89 @@ async function deleteSourceFilesFromSpecificationSources(
   }
 }
 
+/**
+ * @public
+ * Public API re-exported via `src/web/index.ts` for use in custom actions in apps based on this extension.
+ * Intentionally not called by `apiRouter.ts`. Do not remove.
+ */
+export async function deleteSpecificationByUri(
+  specificationFileUri: Uri,
+): Promise<void> {
+  try {
+    let specificationInfo: any = null;
+    try {
+      specificationInfo =
+        await ContentParser.parseContentFromFile(specificationFileUri);
+    } catch (error) {
+      console.error(
+        `Error reading specification file ${specificationFileUri.path}:`,
+        error,
+      );
+    }
+
+    if (specificationInfo?.id) {
+      try {
+        const siblingName =
+          specificationFileUri.path.split("/").pop() || "";
+        const extensions = getExtensionsForFile(siblingName);
+        const groupId = specificationInfo.content?.parentId;
+
+        if (!groupId) {
+          throw new Error(
+            `Specification ${specificationInfo.id} does not contain a parent group id`,
+          );
+        }
+
+        const groupFileUri = await fileApi.findFileById(
+          groupId,
+          extensions.specificationGroup,
+        );
+        const groupInfo =
+          await ContentParser.parseContentFromFile(groupFileUri);
+        const serviceId = groupInfo?.content?.parentId;
+
+        if (!serviceId) {
+          throw new Error(
+            `Specification group ${groupId} does not contain a parent service id`,
+          );
+        }
+
+        const serviceFileUri = await fileApi.findFileById(
+          serviceId,
+          extensions.service,
+        );
+        await deleteSpecificationModel(
+          serviceFileUri,
+          specificationInfo.id,
+          true,
+        );
+        return;
+      } catch (error) {
+        console.error(
+          `Error deleting specification by id ${specificationInfo.id}:`,
+          error,
+        );
+      }
+    }
+
+    if (specificationInfo) {
+      await deleteSourceFilesFromSpecificationSources(
+        specificationFileUri,
+        specificationInfo,
+      );
+    }
+
+    await fileApi.deleteFile(specificationFileUri);
+  } catch (error) {
+    console.error("[deleteSpecificationByUri] Error:", error);
+    throw error;
+  }
+}
+
 export async function deleteSpecificationGroup(
   serviceFileUri: Uri,
   groupId: string,
+  silent = false,
 ): Promise<void> {
   try {
     const { groupFile, groupInfo, specificationFiles } =
@@ -693,14 +772,58 @@ export async function deleteSpecificationGroup(
     const groupFileUri = vscode.Uri.joinPath(serviceFolderUri, groupFile);
     await fileApi.deleteFile(groupFileUri);
 
-    vscode.window.showInformationMessage(
-      `Specification group "${groupInfo.name}" has been deleted successfully!`,
-    );
+    if (!silent) {
+      vscode.window.showInformationMessage(
+        `Specification group "${groupInfo.name}" has been deleted successfully!`,
+      );
+    }
   } catch (error) {
     console.error("deleteSpecificationGroup: Error:", error);
-    vscode.window.showErrorMessage(
-      `Failed to delete specification group: ${error}`,
+    if (!silent) {
+      vscode.window.showErrorMessage(
+        `Failed to delete specification group: ${error}`,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * @public
+ * Public API re-exported via `src/web/index.ts` for use in custom actions in apps based on this extension.
+ * Intentionally not called by `apiRouter.ts`. Do not remove.
+ */
+export async function deleteSpecificationGroupByUri(
+  specificationGroupFileUri: Uri,
+): Promise<void> {
+  try {
+    const groupInfo =
+      await ContentParser.parseContentFromFile(specificationGroupFileUri);
+
+    if (!groupInfo?.id) {
+      throw new Error(
+        `Specification group file ${specificationGroupFileUri.path} does not contain an id`,
+      );
+    }
+
+    const siblingName =
+      specificationGroupFileUri.path.split("/").pop() || "";
+    const extensions = getExtensionsForFile(siblingName);
+    const serviceId = groupInfo?.content?.parentId;
+
+    if (!serviceId) {
+      throw new Error(
+        `Specification group file ${specificationGroupFileUri.path} does not contain a parent service id`,
+      );
+    }
+
+    const serviceFileUri = await fileApi.findFileById(
+      serviceId,
+      extensions.service,
     );
+    await deleteSpecificationGroup(serviceFileUri, groupInfo.id, true);
+  } catch (error) {
+    console.error("deleteSpecificationGroup: Error:", error);
     throw error;
   }
 }
@@ -708,6 +831,7 @@ export async function deleteSpecificationGroup(
 export async function deleteSpecificationModel(
   serviceFileUri: Uri,
   modelId: string,
+  silent = false,
 ): Promise<void> {
   try {
     const { specificationFile, specificationInfo } =
@@ -725,13 +849,47 @@ export async function deleteSpecificationModel(
     );
     await fileApi.deleteFile(specificationFileUri);
 
-    vscode.window.showInformationMessage(
-      `Specification "${specificationInfo.name}" has been deleted successfully!`,
-    );
+    if (!silent) {
+      vscode.window.showInformationMessage(
+        `Specification "${specificationInfo.name}" has been deleted successfully!`,
+      );
+    }
   } catch (error) {
     console.error("[deleteSpecificationModel] Error:", error);
-    vscode.window.showErrorMessage(`Failed to delete specification: ${error}`);
+    if (!silent) {
+      vscode.window.showErrorMessage(
+        `Failed to delete specification: ${error}`,
+      );
+    }
     throw error;
+  }
+}
+
+export async function deleteService(serviceFileUri: Uri): Promise<void> {
+  try {
+    const fileType = await fileApi.getFileType(serviceFileUri).catch(() => QipFileType.UNKNOWN);
+    if ((fileType as unknown as QipFileType) === QipFileType.SERVICE) {
+      const groupFiles = await fileApi.getSpecificationGroupFiles(serviceFileUri).catch(() => [] as string[]);
+      for (const groupFile of groupFiles) {
+        try {
+          const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
+          const groupFileUri = vscode.Uri.joinPath(serviceFolderUri, groupFile);
+          const groupFileContent = await ContentParser.parseContentFromFile(groupFileUri).catch(() => null);
+          if (groupFileContent?.id) {
+            await deleteSpecificationGroup(serviceFileUri, groupFileContent.id, true);
+          }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    console.error("Failed to cleanup resources before deleting service", e);
+  }
+  const directoriesToRemove = await fileApi.getDirectoriesToRemove(serviceFileUri);
+  await fileApi.deleteFile(serviceFileUri);
+  for (const dirToRemove of directoriesToRemove) {
+    try {
+      await fileApi.deleteFile(dirToRemove);
+    } catch {}
   }
 }
 

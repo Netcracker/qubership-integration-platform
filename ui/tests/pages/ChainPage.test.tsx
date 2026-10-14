@@ -64,6 +64,11 @@ jest.mock("../../src/icons/IconProvider", () => ({
   ),
 }));
 
+const mockTestingAvailability = { isAvailable: false, isLoading: false };
+jest.mock("../../src/hooks/useTestingServiceAvailability", () => ({
+  useTestingServiceAvailability: () => mockTestingAvailability,
+}));
+
 const mockRequestFailed = jest.fn();
 jest.mock("../../src/hooks/useNotificationService", () => ({
   useNotificationService: () => ({
@@ -77,6 +82,8 @@ describe("ChainPage", () => {
     mockIsVsCode = false;
     mockChain = { ...baseChain, unsavedChanges: false };
     mockGetChain.mockResolvedValue(mockChain);
+    mockTestingAvailability.isAvailable = false;
+    mockTestingAvailability.isLoading = false;
   });
 
   it("shows Unsaved changes tag in web when unsavedChanges is true", () => {
@@ -92,6 +99,17 @@ describe("ChainPage", () => {
     expect(
       screen.queryByTestId("chain-unsaved-changes"),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the Testing tab when the testing service is available", () => {
+    mockTestingAvailability.isAvailable = true;
+    render(<ChainPage />);
+    expect(screen.getByText("Testing")).toBeInTheDocument();
+  });
+
+  it("hides the Testing tab when the testing service is unavailable", () => {
+    render(<ChainPage />);
+    expect(screen.queryByText("Testing")).not.toBeInTheDocument();
   });
 
   it("hides Unsaved changes tag in VS Code even when unsavedChanges is true", () => {

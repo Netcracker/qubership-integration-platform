@@ -18,20 +18,20 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.UrlValidator;
+import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentDefaultParameters;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.AsyncapiSpecification;
-import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.Server;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.EnvironmentRepository;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,8 +44,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Persists and reconciles a system's environments.
+ *
+ * <p>The transaction boundary sits on the class rather than on {@code create} and {@code update}:
+ * those methods are called both from outside the bean and from the reconcile methods in this class.
+ * A method-level annotation would not apply to the in-class calls, so declaring it once on the class
+ * keeps every public entry point transactional.
+ */
 @Slf4j
 @Service
+@Transactional
 public class EnvironmentBaseService {
 
     protected static final String SPECIFICATION_PARAMETERS_ARE_EMPTY_MESSAGE = "Server parameters are empty in input specification";
@@ -75,7 +84,6 @@ public class EnvironmentBaseService {
         return environmentRepository.save(environment);
     }
 
-    @Transactional
     public Environment update(Environment environment) {
         Environment savedEnv = environmentRepository.save(environment);
 
@@ -84,7 +92,6 @@ public class EnvironmentBaseService {
         return savedEnv;
     }
 
-    @Transactional
     public Environment create(Environment environment, IntegrationSystem system) {
         environment = save(environment);
         system.addEnvironment(environment);
@@ -94,7 +101,6 @@ public class EnvironmentBaseService {
         return environment;
     }
 
-    @Transactional
     public void setDefaultProperties(Environment environment) {
         OperationProtocol protocol = environment.getSystem().getProtocol();
         if (null != protocol && (environment.getProperties() == null || environment.getProperties().isEmpty())) {
@@ -123,22 +129,122 @@ public class EnvironmentBaseService {
     }
 
     /**
-     * Resolve environments from specification
+     * Reconciles the environments a parser declared against the owning system.
+     *
+     * <p>Maps each protocol-agnostic {@link ParsedEnvironment} a library parser produces to an
+     * {@code Environment} through {@link #createEnvironmentFromParsed}, then hands the candidates to
+     * {@link #reconcileEnvironments}.
      */
-    public void resolveEnvironments(AsyncapiSpecification importedAsyncApi,
-                                    OperationProtocol operationProtocol,
+    public void resolveEnvironments(List<ParsedEnvironment> parsedEnvironments,
                                     IntegrationSystem system,
+                                    OperationProtocol operationProtocol,
                                     Consumer<String> messageHandler) {
-        try {
-            resolveEnvironmentsForServers(
-                    importedAsyncApi.getServers(),
-                    system,
-                    operationProtocol,
-                    messageHandler);
-        } catch (Exception e) {
-            log.warn("Failed to resolve environments", e);
-            messageHandler.accept("Failed to resolve environments, " + e.getMessage());
+        List<Environment> candidates = parsedEnvironments == null
+                ? new ArrayList<>()
+                : parsedEnvironments.stream()
+                        .map(parsedEnvironment -> createEnvironmentFromParsed(parsedEnvironment, operationProtocol))
+                        .toList();
+        reconcileEnvironments(candidates, system, messageHandler);
+    }
+
+    /**
+     * Reconciles a WSDL import's environments against the owning system. Only an EXTERNAL system
+     * takes them, and only endpoints whose address is a valid URL count. The valid endpoints then go
+     * through the shared reconcile path.
+     *
+     * <p>Unlike the AMQP and HTTP protocols, WSDL environments carry no default properties. The SOAP
+     * system reports {@code "http"} as its protocol, so routing WSDL endpoints through
+     * {@link #createEnvironmentFromParsed} would stamp them with Kafka defaults; building the
+     * candidates here keeps their properties unset, as the pre-extraction WSDL path did.
+     *
+     * @param parsedEnvironments the endpoints the WSDL declares
+     * @param system the owning system; a non-EXTERNAL or {@code null} system is left untouched
+     */
+    public void resolveWsdlEnvironments(List<ParsedEnvironment> parsedEnvironments,
+                                        IntegrationSystem system,
+                                        Consumer<String> messageHandler) {
+        if (system == null || !IntegrationSystemType.EXTERNAL.equals(system.getIntegrationSystemType())) {
+            return;
         }
+        UrlValidator urlValidator = new UrlValidator();
+        List<Environment> candidates = parsedEnvironments.stream()
+                .filter(environment -> urlValidator.isValid(environment.getAddress()))
+                .map(this::createWsdlEnvironment)
+                .toList();
+        if (candidates.isEmpty()) {
+            return;
+        }
+        reconcileEnvironments(candidates, system, messageHandler);
+    }
+
+    private Environment createWsdlEnvironment(ParsedEnvironment parsedEnvironment) {
+        // No properties: a SOAP system reports "http" as its protocol, so the shared path would stamp
+        // Kafka defaults on it. An empty label list (never null) keeps the reconcile dedup comparison
+        // from tripping over CompareListUtils on a null-versus-null labels pair.
+        return Environment.builder()
+                .name(parsedEnvironment.getName())
+                .address(parsedEnvironment.getAddress())
+                .labels(new ArrayList<>())
+                .build();
+    }
+
+    /**
+     * Reconciles a Swagger import's environments against the owning system, preserving Swagger's
+     * per-protocol rules. An EXTERNAL system with no environments yet gains one per parsed
+     * environment; an INTERNAL system fills a blank address in place from the first parsed
+     * environment; both, along with IMPLEMENTED, receive the protocol's default properties. The
+     * address is already placeholder-stripped by the parser; a parsed environment with no name falls
+     * back to a spec-group-derived name.
+     *
+     * @param parsedEnvironments the servers the specification declares
+     * @param specificationGroup carries both the owning system and the fallback name
+     */
+    public void resolveSwaggerEnvironments(List<ParsedEnvironment> parsedEnvironments,
+                                           SpecificationGroup specificationGroup) {
+        if (parsedEnvironments == null || parsedEnvironments.isEmpty()) {
+            return;
+        }
+        switch (specificationGroup.getSystem().getIntegrationSystemType()) {
+            case EXTERNAL:
+                if (specificationGroup.getSystem().getEnvironments().isEmpty()) {
+                    for (ParsedEnvironment parsedEnvironment : parsedEnvironments) {
+                        Environment environment = Environment.builder()
+                                .name(swaggerEnvironmentName(parsedEnvironment, specificationGroup))
+                                .address(parsedEnvironment.getAddress())
+                                .labels(new ArrayList<>())
+                                .sourceType(EnvironmentSourceType.MANUAL)
+                                .build();
+                        create(environment, specificationGroup.getSystem());
+                        setSwaggerDefaultProperties(specificationGroup);
+                    }
+                }
+                break;
+            case INTERNAL:
+                Environment environment = setSwaggerDefaultProperties(specificationGroup);
+                if (StringUtils.isBlank(environment.getAddress())) {
+                    environment.setAddress(parsedEnvironments.get(0).getAddress());
+                    update(environment);
+                }
+                break;
+            case IMPLEMENTED:
+                setSwaggerDefaultProperties(specificationGroup);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private String swaggerEnvironmentName(ParsedEnvironment parsedEnvironment, SpecificationGroup specificationGroup) {
+        if (parsedEnvironment.getName() != null) {
+            return parsedEnvironment.getName();
+        }
+        return "Environment for " + specificationGroup.getName() + " specification group";
+    }
+
+    private Environment setSwaggerDefaultProperties(SpecificationGroup specificationGroup) {
+        Environment environment = specificationGroup.getSystem().getEnvironments().get(0);
+        setDefaultProperties(environment);
+        return environment;
     }
 
     protected void activateDefaultEnvForExternalSystem(Environment environment, IntegrationSystem system) {
@@ -177,21 +283,25 @@ public class EnvironmentBaseService {
                 .build());
     }
 
-    protected void resolveEnvironmentsForServers(Map<String, Server> specServers,
-                                               IntegrationSystem system,
-                                               OperationProtocol operationProtocol,
-                                               Consumer<String> messageHandler) throws EntityNotFoundException {
+    /**
+     * Reconciles a system's environments against the ones a specification declares.
+     *
+     * <p>An EXTERNAL system gains every declared environment that it does not already hold; an
+     * INTERNAL system keeps at most one, replacing a MANUAL placeholder that carries a blank address.
+     * When the specification declares nothing, an INTERNAL system falls back to empty protocol
+     * properties and the caller receives an explanatory message.
+     *
+     * @param candidateEnvironments the environments the specification declares, in declaration order
+     */
+    protected void reconcileEnvironments(List<Environment> candidateEnvironments,
+                                         IntegrationSystem system,
+                                         Consumer<String> messageHandler) {
         List<Environment> environments = system.getEnvironments();
 
-        if (specServers != null && !specServers.isEmpty()) {
+        if (!candidateEnvironments.isEmpty()) {
             switch (system.getIntegrationSystemType()) {
                 case EXTERNAL -> {
-                    for (Map.Entry<String, Server> serverEntry : specServers.entrySet()) {
-                        Environment newEnv = createEnvironmentFromSpecServer(
-                                serverEntry.getKey(),
-                                serverEntry.getValue(),
-                                operationProtocol);
-
+                    for (Environment newEnv : candidateEnvironments) {
                         boolean sameEnvNotExists = system.getEnvironments().stream().noneMatch(env -> env.equals(newEnv, false));
                         if (sameEnvNotExists) {
                             create(newEnv, system);
@@ -200,18 +310,11 @@ public class EnvironmentBaseService {
                 }
                 case INTERNAL -> {
                     boolean envsIsEmpty = environments.isEmpty();
-                    if (envsIsEmpty || (environments.get(0).getSourceType() == EnvironmentSourceType.MANUAL && StringUtils.isBlank(environments.get(0).getAddress()))) {
-                        Map.Entry<String, Server> serverEntry = specServers.entrySet().stream()
-                                .findFirst()
-                                .orElseThrow(() -> new EntityNotFoundException(SPECIFICATION_PARAMETERS_ARE_EMPTY_MESSAGE));
-
-                        Environment newEnv = createEnvironmentFromSpecServer(
-                                serverEntry.getKey(),
-                                serverEntry.getValue(),
-                                operationProtocol);
+                    if (envsIsEmpty || (environments.getFirst().getSourceType() == EnvironmentSourceType.MANUAL && StringUtils.isBlank(environments.getFirst().getAddress()))) {
+                        Environment newEnv = candidateEnvironments.getFirst();
 
                         if (!envsIsEmpty) {
-                            Environment oldEnvironment = environments.get(0);
+                            Environment oldEnvironment = environments.getFirst();
                             system.removeEnvironment(oldEnvironment);
                             environmentRepository.delete(oldEnvironment);
                         }
@@ -234,13 +337,12 @@ public class EnvironmentBaseService {
                 .forEach(env -> env.setProperties(parserUtils.receiveEmptyProperties(system.getProtocol())));
     }
 
-    protected Environment createEnvironmentFromSpecServer(
-            String name,
-            Server server,
+    protected Environment createEnvironmentFromParsed(
+            ParsedEnvironment parsedEnvironment,
             OperationProtocol operationProtocol) {
         return Environment.builder()
-                .name(name)
-                .address(server.getUrl())
+                .name(parsedEnvironment.getName())
+                .address(parsedEnvironment.getAddress())
                 .labels(new ArrayList<>())
                 .sourceType(EnvironmentSourceType.MANUAL)
                 .properties(parserUtils.receiveEmptyProperties(operationProtocol))

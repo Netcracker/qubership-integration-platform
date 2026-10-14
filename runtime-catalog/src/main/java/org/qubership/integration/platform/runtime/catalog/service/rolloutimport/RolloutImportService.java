@@ -107,6 +107,16 @@ public class RolloutImportService {
     private void waitForImportCompletion(String snapshotId, String importId) {
         ImportSession importSession = awaitImportSessionWithResult(importId);
         ImportResult importResult = importSession.getResult();
+        // An import that threw records the reason in the session and leaves no result behind.
+        if (importResult == null) {
+            log.error(
+                    "Catalog import failed for snapshotId={}, importId={}: {}",
+                    snapshotId,
+                    importId,
+                    importSession.getError()
+            );
+            throw new RolloutImportException(IMPORT_FAILED_ERROR.toPayload(importSession.getError()));
+        }
         if (!importResult.hasErrors()) {
             return;
         }

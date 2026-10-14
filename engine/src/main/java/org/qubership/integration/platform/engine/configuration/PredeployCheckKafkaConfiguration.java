@@ -34,13 +34,13 @@ import java.util.Map;
 @Getter
 public class PredeployCheckKafkaConfiguration {
 
-    @Value("${qip.camel.component.kafka.predeploy-check-enabled}")
+    @Value("${cip.camel.component.kafka.predeploy-check-enabled}")
     private boolean camelKafkaPredeployCheckEnabled;
 
-    @Value("${qip.local-truststore.store.path}")
+    @Value("${cip.local-truststore.store.path}")
     private String truststoreLocation;
 
-    @Value("${qip.local-truststore.store.password}")
+    @Value("${cip.local-truststore.store.password}")
     private String truststorePassword;
 
     public Map<String, Object> createValidationKafkaAdminConfig(String brokers,

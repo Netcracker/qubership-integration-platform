@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "5ad7a403-3aab-4cc4-a930-564801fc7f22"
 name: "Async API Trigger"
 content:

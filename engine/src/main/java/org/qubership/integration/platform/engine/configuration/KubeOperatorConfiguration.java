@@ -79,7 +79,7 @@ public class KubeOperatorConfiguration {
             return new KubeOperator(objectMapper, client, namespace, false);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
-            return new KubeOperator(objectMapper);
+            return new KubeOperator(objectMapper, false);
         }
     }
 
@@ -102,7 +102,7 @@ public class KubeOperatorConfiguration {
             return new KubeOperator(objectMapper, client, namespace, true);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
-            return new KubeOperator(objectMapper);
+            return new KubeOperator(objectMapper, true);
         }
     }
 }

@@ -1,0 +1,49 @@
+asyncapi: 2.6.0
+info:
+  title: Chat Application API
+  version: '1.0.0'
+
+servers:
+  production:
+    url: kafka.chat.internal:9092
+    protocol: kafka
+
+channels:
+  chat.presence:
+    publish:
+      operationId: onPresenceUpdate
+      message:
+        oneOf:
+          - headers:
+              type: object
+              properties:
+                userId:
+                  type: string
+            payload:
+              type: object
+              required: [type, userId, displayName]
+              properties:
+                type:
+                  type: string
+                  const: online
+                userId:
+                  type: string
+                displayName:
+                  type: string
+          - headers:
+              type: object
+              properties:
+                userId:
+                  type: string
+            payload:
+              type: object
+              required: [type, userId, lastSeenAt]
+              properties:
+                type:
+                  type: string
+                  const: offline
+                userId:
+                  type: string
+                lastSeenAt:
+                  type: string
+                  format: date-time

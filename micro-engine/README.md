@@ -3,10 +3,10 @@
 Engine service is a part of Qubership Integration Platform.
 
 This service:
-- Creates context for integration flows (so-called integration chains) using configuration provided by [Design-Time Catalog](https://github.com/Netcracker/qubership-integration-designtime-catalog), [Runtime Catalog](https://github.com/Netcracker/qubership-integration-runtime-catalog), and [Variables Management](https://github.com/Netcracker/qubership-integration-variables-management) services.
+- Creates context for integration flows (so-called integration chains) using configuration provided by the [Runtime Catalog](../runtime-catalog) service.
 - Manages registration of integration chains endpoints on control plane.
 - Runs integration chains.
-- Records sessions of integration chains execution. These records can be later accessed via [Sessions Management](https://github.com/Netcracker/qubership-integration-sessions-management) service.
+- Records sessions of integration chains execution. These records can be later accessed via [Sessions Management](../sessions-management) service.
 - Collects various metrics of integration chains execution.
 
 Engine service uses **Apache Camel** for defining and execution of integration logic.
@@ -20,11 +20,16 @@ It creates if not exists index in OpenSearch and sets up index rotation policy v
 
 Engine Service is a Quarkus application and requires Java 21 and Maven to build.
 [Dockerfile](Dockerfile) is provided to build a containerized application.
-It can be run locally using a [Docker compose configuration](https://github.com/Netcracker/qubership-integration-platform).
+It can be run locally using a [Docker compose configuration](../infrastructure).
 
 Since for a Quarkus application a part of configuration is applied in build-time, the Engine application should be built with different sets of profiles for production and local development:
 * prod - for production
 * development,no-m2m - for local development
+
+## Component tests
+
+See [Component tests for micro-engine snapshots](TESTING.md) for the catalog-to-runtime
+test flow, local commands, and scenario authoring.
 
 ## Configuration
 
@@ -59,6 +64,8 @@ Application parameters can be set by environment variables.
 | OPENSEARCH_INDEX_SHARDS             | 3                                                    | OpenSearch index shards count                                                                                                |
 | OPENSEARCH_ROLLOVER_MIN_INDEX_SIZE  |                                                      | Minimal index size to rollover. Uneset by default.                                                                           |
 | MONITORING_ENABLED                  | false                                                |                                                                                                                              |
+| TESTING_SERVICE_ENABLED             | false                                                | Enables endpoint mocking. Enable it only where the testing service is deployed: an unmatched call gets a 404.                |
+| TESTING_SERVICE_ADDRESS             | `http://testing-service:8080`                        | Testing service address, used when endpoint mocking is enabled.                                                              |
 
 
 Configuration can be overridden with values stored in Consul.
@@ -68,7 +75,7 @@ Application has 'development' Spring profile to run service locally with minimum
 
 ## Dependencies
 
-This service relies on [Design-Time Catalog](https://github.com/Netcracker/qubership-integration-designtime-catalog), [Runtime Catalog](https://github.com/Netcracker/qubership-integration-runtime-catalog), and [Variables Management](https://github.com/Netcracker/qubership-integration-variables-management) services.
+This service relies on the [Runtime Catalog](../runtime-catalog) service.
 It also requires:
 - Consul
 - OpenSearch
@@ -80,7 +87,7 @@ It also requires:
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues see [Security Reporting Process](../SECURITY.md).
 
-The library uses [Checkstyle](https://checkstyle.org/) via [Maven Checkstyle Plugin](https://maven.apache.org/plugins/maven-checkstyle-plugin/) to ensure code style consistency among Qubership Integration Platform's libraries and services. The rules are located in a separate [repository](https://github.com/Netcracker/qubership-integration-checkstyle).
+The library uses [Checkstyle](https://checkstyle.org/) via [Maven Checkstyle Plugin](https://maven.apache.org/plugins/maven-checkstyle-plugin/) to ensure code style consistency among Qubership Integration Platform's libraries and services. The rules are located in the [checkstyle](../checkstyle) module.
 
 Commits and pool requests should follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) strategy.
 
@@ -90,4 +97,4 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 ## Additional Resources
 
-- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment guide.
+- [Qubership Integration Platform](../README.md) — core deployment guide.

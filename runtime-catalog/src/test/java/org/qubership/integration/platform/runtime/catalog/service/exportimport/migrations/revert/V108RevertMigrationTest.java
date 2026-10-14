@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.io.readers.migrations.revert.V108RevertMigration;
 
 import static org.junit.jupiter.api.Assertions.*;
 

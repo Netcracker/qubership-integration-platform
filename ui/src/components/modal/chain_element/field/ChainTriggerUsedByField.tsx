@@ -33,6 +33,7 @@ const ChainTriggerUsedByField: React.FC<
             });
           }
         });
+        chainsUsingElement.sort((a, b) => a.name.localeCompare(b.name));
         setChains(chainsUsingElement);
       } catch (error) {
         notificationService.requestFailed(

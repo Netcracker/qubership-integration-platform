@@ -54,6 +54,9 @@ import {
   NodeState,
 } from "../components/chains/diff/ChainGraphChangeProvider.tsx";
 
+// A 4 px tolerance accommodates minor pointer jitter; equal thresholds prevent a gap between click and drag handling.
+const NODE_POINTER_MOVEMENT_THRESHOLD = 4;
+
 const readTheme = () => {
   if (typeof document === "undefined") return "light";
   const candidates: (globalThis.Element | null)[] = [
@@ -121,6 +124,7 @@ const ChainGraphViewComponent: React.FC<ChainGraphViewProps> = ({
   // True only during an image capture: temporarily disables node culling so the
   // whole graph (incl. off-screen nodes) is mounted for the snapshot.
   const [exporting, setExporting] = useState<boolean>(false);
+  const [minimapVisible, setMinimapVisible] = useState<boolean>(true);
 
   const deleteKeyCode = useMemo<KeyCode | null>(
     () => (readOnly ? null : ["Backspace", "Delete"]),
@@ -561,7 +565,7 @@ const ChainGraphViewComponent: React.FC<ChainGraphViewProps> = ({
             onNodeDragStart={readOnly ? undefined : onNodeDragStart}
             onNodeDrag={readOnly ? undefined : onNodeDrag}
             onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
-            onNodesChange={readOnly ? undefined : onNodesChange}
+            onNodesChange={onNodesChange}
             onEdgesChange={readOnly ? undefined : handleEdgesChange}
             onConnect={readOnly ? undefined : handleConnect}
             onDelete={readOnly ? undefined : handleOnDelete}
@@ -569,6 +573,8 @@ const ChainGraphViewComponent: React.FC<ChainGraphViewProps> = ({
             onDrop={readOnly ? undefined : handleDrop}
             onDragOver={readOnly ? undefined : onDragOver}
             onNodeDoubleClick={readOnly ? undefined : handleNodeDoubleClick}
+            nodeClickDistance={NODE_POINTER_MOVEMENT_THRESHOLD}
+            nodeDragThreshold={NODE_POINTER_MOVEMENT_THRESHOLD}
             zoomOnDoubleClick={false}
             deleteKeyCode={deleteKeyCode}
             proOptions={proOptions}
@@ -579,18 +585,22 @@ const ChainGraphViewComponent: React.FC<ChainGraphViewProps> = ({
           >
             <ElementFocus />
             <Background variant={BackgroundVariant.Dots} />
-            <MiniMap
-              zoomable
-              pannable
-              position="top-right"
-              nodeColor={getMinimapNodeColor}
-              nodeStrokeColor={getMinimapNodeStrokeColor}
-              nodeStrokeWidth={2}
-            />
+            {minimapVisible && (
+              <MiniMap
+                zoomable
+                pannable
+                position="top-right"
+                nodeColor={getMinimapNodeColor}
+                nodeStrokeColor={getMinimapNodeStrokeColor}
+                nodeStrokeWidth={2}
+              />
+            )}
             <ChainGraphViewControls
               {...controls}
               onExpandAllContainers={expandAllContainers}
               onCollapseAllContainers={collapseAllContainers}
+              minimapVisible={minimapVisible}
+              onToggleMinimap={() => setMinimapVisible((v) => !v)}
             />
             {menu && <ContextMenu menu={menu} closeMenu={closeMenu} />}
           </ReactFlow>

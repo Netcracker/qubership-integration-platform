@@ -17,46 +17,31 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.internal.lang3.tuple.Pair;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementExternalEntity;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 
 
 @Component
-@Slf4j
 public class ChainElementFilePropertiesSubstitutor {
 
     private final ObjectMapper objectMapper;
+    private final ElementResourceFileNameBuilder resourceFileNameBuilder;
 
-    public ChainElementFilePropertiesSubstitutor(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
+    public ChainElementFilePropertiesSubstitutor(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
+                                                 ElementResourceFileNameBuilder resourceFileNameBuilder) {
         this.objectMapper = objectMapper;
-    }
-
-    public void enrichElementWithFileProperties(ChainElement element, File chainFilesDir, @Nullable String propertiesFilename) {
-        try {
-            Objects.requireNonNull(chainFilesDir, "Chain directory file must not be null");
-
-            restoreProperties(element, chainFilesDir, propertiesFilename);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Unable to read element properties file: " + e.getMessage(), e);
-        }
+        this.resourceFileNameBuilder = resourceFileNameBuilder;
     }
 
     public Map<String, byte[]> getElementPropertiesAsSeparateFiles(ChainElementExternalEntity externalElement) {
@@ -77,104 +62,6 @@ public class ChainElementFilePropertiesSubstitutor {
         }
 
         return result;
-    }
-
-    private void restoreProperties(ChainElement element, File chainFilesDir, String propertiesFilename) throws IOException {
-        if (!SERVICE_CALL.equals(element.getType())) {
-            propertiesFilename = Optional.ofNullable(propertiesFilename)
-                    .orElse(element.getPropertyAsString(FILE_NAME_PROPERTY));
-            if (propertiesFilename == null) {
-                return;
-            }
-
-            Object propertiesFileContent = extractPropertiesFileContent(element.getProperties(), chainFilesDir, propertiesFilename);
-            if (propertiesFileContent instanceof Map<?, ?>) {
-                element.getProperties().putAll((Map<String, Object>) propertiesFileContent);
-            } else {
-                element.getProperties().put(
-                        (String) element.getProperties().get(PROPS_EXPORT_IN_SEPARATE_FILE_PROPERTY),
-                        propertiesFileContent
-                );
-            }
-            element.getProperties().remove(FILE_NAME_PROPERTY);
-            return;
-        }
-
-        Object afterPropertiesObj = element.getProperties().getOrDefault(AFTER, Collections.emptyList());
-        if (afterPropertiesObj instanceof List<?> afterPropertiesList) {
-            for (Object obj : afterPropertiesList) {
-                if (obj instanceof Map<?, ?> afterProperties) {
-                    String afterPropertiesFilename = (String) afterProperties.get(FILE_NAME_PROPERTY);
-                    if (afterPropertiesFilename == null) {
-                        continue;
-                    }
-                    addServiceCallHandlerContent(
-                            (Map<String, Object>) afterProperties,
-                            extractPropertiesFileContent((Map<String, Object>) afterProperties, chainFilesDir, afterPropertiesFilename)
-                    );
-                    afterProperties.remove(FILE_NAME_PROPERTY);
-                } else {
-                    log.error("Either the 'after' property is missing, or it is not formatted as a key-value pair " + obj.getClass().getName());
-                    throw new IllegalArgumentException("Either the 'after' property is missing, or it is not formatted as a key-value pair");
-                }
-            }
-        } else {
-            log.error(("Either the 'after' property is missing or it is not in the required format " + afterPropertiesObj.getClass().getName()));
-            throw new IllegalArgumentException("Either the 'after' property is missing or it is not in the required format");
-        }
-
-        Object beforePropertiesObj = element.getProperties().getOrDefault(BEFORE, Collections.emptyMap());
-
-        if (beforePropertiesObj instanceof Map<?, ?> beforeProperties) {
-            String beforePropertiesFilename = (String) beforeProperties.get(FILE_NAME_PROPERTY);
-            if (beforePropertiesFilename == null) {
-                return;
-            }
-
-            addServiceCallHandlerContent(
-                    (Map<String, Object>) beforeProperties,
-                    extractPropertiesFileContent((Map<String, Object>) beforeProperties, chainFilesDir, beforePropertiesFilename)
-            );
-            beforeProperties.remove(FILE_NAME_PROPERTY);
-        } else {
-            log.error(("Either the 'before' property is missing, or it is not formatted as a key-value pair " + beforePropertiesObj.getClass().getName()));
-            throw new IllegalArgumentException("Either the 'before' property is missing, or it is not formatted as a key-value pair");
-        }
-
-    }
-
-    private Object extractPropertiesFileContent(Map<String, Object> properties, File chainFilesDir, String propertiesFilename) throws IOException {
-        String fileContent = ExportImportUtils.getFileContentByName(chainFilesDir, propertiesFilename);
-        if (fileContent == null) {
-            throw new IllegalArgumentException("Could not find file with properties: " + propertiesFilename);
-        }
-
-        if (isPropertiesFileGroovy(propertiesFilename, properties) || isPropertiesFileSql(propertiesFilename, properties)) {
-            return fileContent;
-        }
-        if (isPropertiesFileJson(propertiesFilename, properties)) {
-            return objectMapper.readValue(fileContent, new TypeReference<Map<String, Object>>() {});
-        }
-
-        throw new IllegalArgumentException(
-                "The " + propertiesFilename + " properties file must have one of the following extensions: groovy, json or sql");
-    }
-
-    private void addServiceCallHandlerContent(Map<String, Object> handlerProperties, Object handlerContent) {
-        Object type = handlerProperties.get(TYPE);
-        if (SCRIPT.equals(type)) {
-            handlerProperties.put(SCRIPT, handlerContent);
-        }
-        if (String.valueOf(type).startsWith(MAPPER)) {
-            HashMap<String, Object> mapperContent = (HashMap<String, Object>) handlerContent;
-            if (MAPPER.equals(type)) {
-                handlerProperties.put(MAPPING, mapperContent.get(MAPPING));
-                handlerProperties.put(SOURCE, mapperContent.get(SOURCE));
-                handlerProperties.put(TARGET, mapperContent.get(TARGET));
-            } else {
-                handlerProperties.put(MAPPING_DESCRIPTION, mapperContent.get(MAPPING_DESCRIPTION));
-            }
-        }
     }
 
     private List<String> getPropertiesToExportInSeparateFile(ChainElementExternalEntity externalElement) {
@@ -208,7 +95,7 @@ public class ChainElementFilePropertiesSubstitutor {
             }
 
             if (propertyContent != null) {
-                String propertiesFileName = generatePropertiesFileName(externalElement, propsToExportSeparately);
+                String propertiesFileName = resourceFileNameBuilder.generatePropertiesFileName(externalElement, propsToExportSeparately);
                 properties.put(FILE_NAME_PROPERTY, propertiesFileName);
                 propsToExportSeparately.forEach(properties::remove);
 
@@ -228,11 +115,11 @@ public class ChainElementFilePropertiesSubstitutor {
             String fileName;
             String propertyContent;
             if (SCRIPT.equals(afterProperty.get(TYPE))) {
-                fileName = generateAfterScriptFileName(externalElement.getId(), afterProperty);
+                fileName = resourceFileNameBuilder.generateAfterScriptFileName(externalElement.getId(), afterProperty);
                 propertyContent = afterProperty.get(SCRIPT) != null ? afterProperty.get(SCRIPT).toString() : "";
                 afterProperty.remove(SCRIPT);
             } else if (StringUtils.startsWith((String) afterProperty.get(TYPE), MAPPER)) {
-                fileName = generateAfterMapperFileName(externalElement.getId(), afterProperty);
+                fileName = resourceFileNameBuilder.generateAfterMapperFileName(externalElement.getId(), afterProperty);
                 propertyContent = extractPropertyStringForMapper(afterProperty);
             } else {
                 continue;
@@ -246,11 +133,11 @@ public class ChainElementFilePropertiesSubstitutor {
         String fileName;
         String propertyContent;
         if (SCRIPT.equals(beforeProperty.get(TYPE))) {
-            fileName = generateBeforeScriptFileName(externalElement.getId());
+            fileName = resourceFileNameBuilder.generateBeforeScriptFileName(externalElement.getId());
             propertyContent = beforeProperty.get(SCRIPT) != null ? beforeProperty.get(SCRIPT).toString() : "";
             beforeProperty.remove(SCRIPT);
         } else if (StringUtils.startsWith((String) beforeProperty.get(TYPE), MAPPER)) {
-            fileName = generateBeforeMapperFileName(externalElement.getId());
+            fileName = resourceFileNameBuilder.generateBeforeMapperFileName(externalElement.getId());
             propertyContent = extractPropertyStringForMapper(beforeProperty);
         } else {
             return result;
@@ -260,42 +147,6 @@ public class ChainElementFilePropertiesSubstitutor {
         result.put(fileName, propertyContent.getBytes());
 
         return result;
-    }
-
-    private String generatePropertiesFileName(ChainElementExternalEntity externalElement, List<String> propsToExportInSeparateFile) {
-        String prefix;
-
-        if (externalElement.getType() != null && externalElement.getType().startsWith(MAPPER)) {
-            prefix = propsToExportInSeparateFile.size() == 1 ? propsToExportInSeparateFile.get(0) : "mapper";
-        } else {
-            prefix = propsToExportInSeparateFile.size() == 1 ? propsToExportInSeparateFile.get(0) : "properties";
-        }
-
-        String extension = Optional.ofNullable(externalElement.getProperties().get(EXPORT_FILE_EXTENSION_PROPERTY))
-                .map(Object::toString)
-                .orElse(DEFAULT_EXTENSION);
-
-        return prefix + "-" + externalElement.getId() + "." + extension;
-    }
-
-    private String generateAfterScriptFileName(String id, Map<String, Object> afterProp) {
-        return SCRIPT + DASH + getIdOrCode(afterProp) + DASH + id + "." + GROOVY_EXTENSION;
-    }
-
-    private String generateBeforeScriptFileName(String id) {
-        return SCRIPT + DASH + BEFORE + DASH + id + "." + GROOVY_EXTENSION;
-    }
-
-    private String generateAfterMapperFileName(String id, Map<String, Object> afterProp) {
-        return MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
-    }
-
-    private String generateBeforeMapperFileName(String id) {
-        return MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
-    }
-
-    private Object getIdOrCode(Map<String, Object> mapProp) {
-        return mapProp.get(ID) == null ? mapProp.get(CODE) : mapProp.get(ID);
     }
 
     private String extractPropertyStringForMapper(Map<String, Object> properties) throws JsonProcessingException {

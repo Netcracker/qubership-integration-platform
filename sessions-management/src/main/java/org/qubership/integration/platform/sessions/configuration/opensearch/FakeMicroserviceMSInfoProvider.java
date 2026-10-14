@@ -27,7 +27,7 @@ import org.springframework.beans.factory.annotation.Value;
 public class FakeMicroserviceMSInfoProvider extends DefaultMSInfoProvider {
 
     @Getter
-    @Value("${qip.internal-services.engine}")
+    @Value("${cip.internal-services.engine}")
     private String microserviceName;
 
 }

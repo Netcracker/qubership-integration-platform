@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/http-trigger
 {
   "id": "45de6b34-420c-45e5-a29c-e2d99fe2e3db",
   "name": "HTTP Trigger",

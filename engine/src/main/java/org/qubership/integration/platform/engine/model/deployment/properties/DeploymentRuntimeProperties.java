@@ -22,6 +22,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.model.logging.LogPayload;
+import org.qubership.integration.platform.engine.model.logging.SessionLogDetails;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 
 import java.util.Set;
@@ -40,6 +41,7 @@ public class DeploymentRuntimeProperties {
         .logPayload(Set.of(LogPayload.HEADERS, LogPayload.PROPERTIES))
         .dptEventsEnabled(false)
         .maskingEnabled(true)
+        .sessionLogDetails(SessionLogDetails.OFF)
         .build();
 
     @Getter(AccessLevel.PRIVATE)
@@ -50,6 +52,9 @@ public class DeploymentRuntimeProperties {
     private Set<LogPayload> logPayload;
     private boolean dptEventsEnabled;
     private boolean maskingEnabled;
+    @Getter(AccessLevel.NONE)
+    @Builder.Default
+    private SessionLogDetails sessionLogDetails = SessionLogDetails.OFF;
 
     public SessionsLoggingLevel calculateSessionLevel(Exchange exchange) {
         // At first, we are looking for specific header, that sets the logging level.
@@ -76,5 +81,9 @@ public class DeploymentRuntimeProperties {
 
     public static DeploymentRuntimeProperties getDefaultValues() {
         return DEFAULT_VALUES;
+    }
+
+    public SessionLogDetails getSessionLogDetails() {
+        return sessionLogDetails == null ? SessionLogDetails.OFF : sessionLogDetails;
     }
 }

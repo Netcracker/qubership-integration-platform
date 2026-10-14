@@ -33,6 +33,11 @@
   flex-direction: column !important;
 }
 
+.rightPanelBorder,
+.rightPanelBorder.sideMenu :global(.ant-layout-sider-children) {
+  background: var(--vscode-panel-background, #fafafa) !important;
+}
+
 .sideMenuRight {
   border-radius: 0 8px 8px 0;
 }

@@ -10,7 +10,7 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { CHAIN_DIFF_PATH, getApiResponse, listChainExportTargets } from "./response";
+import { CHAIN_DIFF_PATH, deleteChain, deleteService, getApiResponse, listChainExportTargets } from "./response";
 import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
@@ -18,7 +18,7 @@ import {
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
-  getExtensionsForUri,
+  DEFAULT_APP_NAME,
   initializeContextFromFile,
 } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
@@ -346,7 +346,7 @@ class ChainFileEditorProvider extends BaseFileEditorProvider {
 }
 
 const DIFF_EDITOR_ASSOCIATIONS_SETTING = "workbench.diffEditorAssociations";
-const CHAIN_DIFF_ASSOCIATION_GLOB = "*.chain.qip.yaml";
+const CHAIN_DIFF_ASSOCIATION_GLOB = "*.chain.cip.yaml";
 
 /**
  * Keeps `workbench.diffEditorAssociations` in sync with the
@@ -483,9 +483,10 @@ async function enrichWebview(
   activeWebviewPanels.set(panelId, panel);
 
   sendThemeToWebview(panel);
-  setTimeout(() => sendThemeToWebview(panel), 300);
+  const themeResend = setTimeout(() => sendThemeToWebview(panel), 300);
 
   panel.onDidDispose(() => {
+    clearTimeout(themeResend);
     activeWebviewPanels.delete(panelId);
   });
 
@@ -535,62 +536,6 @@ async function enrichWebview(
   });
 }
 
-async function deleteServiceWithRelatedFiles(
-  serviceFileUri: Uri,
-  serviceName: string,
-): Promise<void> {
-  const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
-  const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-  const cacheService = FileCacheService.getInstance();
-
-  try {
-    const entries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
-    const ext = getExtensionsForUri(serviceFileUri);
-
-    const filesToDelete: Uri[] = [];
-
-    for (const [fileName, fileType] of entries) {
-      if (fileType === vscode.FileType.File) {
-        if (
-          fileName.endsWith(ext.specificationGroup) ||
-          fileName.endsWith(ext.specification) ||
-          fileName.endsWith(ext.service) ||
-          fileName.endsWith(ext.contextService) ||
-          fileName.endsWith(ext.mcpService)
-        ) {
-          filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
-        }
-      } else if (
-        fileType === vscode.FileType.Directory &&
-        fileName === "resources"
-      ) {
-        filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
-      }
-    }
-
-    for (const fileUri of filesToDelete) {
-      await vscode.workspace.fs.delete(fileUri, { recursive: true });
-      cacheService.invalidateByUri(fileUri);
-    }
-
-    const isRootFolder = rootUri && serviceFolderUri.fsPath === rootUri.fsPath;
-
-    if (!isRootFolder) {
-      const remainingEntries =
-        await vscode.workspace.fs.readDirectory(serviceFolderUri);
-      if (remainingEntries.length === 0) {
-        await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
-      }
-    }
-
-    vscode.window.showInformationMessage(
-      `Service "${serviceName}" and all related files deleted successfully`,
-    );
-  } catch (error) {
-    throw error;
-  }
-}
-
 async function setupFileWatchers(context: ExtensionContext): Promise<void> {
   const cacheService = FileCacheService.getInstance();
 
@@ -614,7 +559,7 @@ async function setupFileWatchers(context: ExtensionContext): Promise<void> {
         });
       });
     } else {
-      const defaultAppNames = ["qip"];
+      const defaultAppNames = [DEFAULT_APP_NAME];
       defaultAppNames.forEach((appName) => {
         const defaultConfig = configService.buildDefaultConfig(appName);
         Object.values(defaultConfig.extensions).forEach((extension: string) => {
@@ -625,12 +570,12 @@ async function setupFileWatchers(context: ExtensionContext): Promise<void> {
     }
   } catch (error) {
     console.error(
-      "[QIP] Failed to setup file watchers from config, using qip defaults:",
+      "[QIP] Failed to setup file watchers from config, using cip defaults:",
       error,
     );
 
     const fallbackConfig =
-      ProjectConfigService.getInstance().buildDefaultConfig("qip");
+      ProjectConfigService.getInstance().buildDefaultConfig(DEFAULT_APP_NAME);
     Object.values(fallbackConfig.extensions).forEach((extension: string) => {
       const pattern = `**/*${extension}`;
       extensionsToWatch.add(pattern);
@@ -898,23 +843,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       async (item: any) => {
         if (item && item.fileUri) {
           try {
-            // Determine the correct editor based on file type
-            const fileName = item.fileUri.fsPath;
-            let editorType = "qip.chainFile.editor"; // default
-
-            const fileExtensions = getExtensionsForUri({ path: fileName });
-            if (fileName.endsWith(fileExtensions.service)) {
-              editorType = "qip.serviceFile.editor";
-            } else if (fileName.endsWith(fileExtensions.chain)) {
-              editorType = "qip.chainFile.editor";
-            }
-
-            // Open the file with custom editor
-            await vscode.commands.executeCommand(
-              "vscode.openWith",
-              item.fileUri,
-              editorType,
-            );
+            await openDocumentInEditor(item.fileUri);
           } catch (error) {
             console.error("Failed to open file with custom editor:", error);
             // Fallback to text editor if custom editor fails
@@ -954,8 +883,11 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
         );
         if (result === "Delete") {
           try {
-            await deleteServiceWithRelatedFiles(item.fileUri, item.label);
+            await deleteService(item.fileUri);
             qipProvider.refresh();
+            vscode.window.showInformationMessage(
+              `Service "${item.label}" deleted successfully`,
+            );
           } catch (error) {
             vscode.window.showErrorMessage(
               `Failed to delete service: ${error}`,
@@ -976,7 +908,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
         );
         if (result === "Delete") {
           try {
-            await vscode.workspace.fs.delete(item.fileUri);
+            await deleteChain(item.fileUri);
             qipProvider.refresh();
             vscode.window.showInformationMessage(
               `Chain "${item.label}" deleted successfully`,

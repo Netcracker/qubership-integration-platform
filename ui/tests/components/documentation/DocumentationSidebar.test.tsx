@@ -160,14 +160,15 @@ describe("DocumentationSidebar", () => {
         {
           title: "Chains",
           documentId: 0,
-          children: [
-            { title: "Child", documentId: 1, children: [] },
-          ],
+          children: [{ title: "Child", documentId: 1, children: [] }],
         },
       ],
     };
     mockLoadTOC.mockResolvedValue(tocWithDocGroup);
-    mockLoadPaths.mockResolvedValue(["01__Chains/chains.md", "01__Chains/child.md"]);
+    mockLoadPaths.mockResolvedValue([
+      "01__Chains/chains.md",
+      "01__Chains/child.md",
+    ]);
     mockPathname = "/doc/01__Chains/chains";
 
     await renderAndFlush();
@@ -199,5 +200,34 @@ describe("DocumentationSidebar", () => {
     });
 
     expect(screen.queryByText("Service Call")).not.toBeInTheDocument();
+  });
+
+  // A custom switcherIcon carries none of antd's own icon classes, so the
+  // arrow has to be turned from React. It used to point right in every state.
+  it("turns the switcher arrow down while a group is expanded", async () => {
+    mockPathname = "/doc/01__Chains/service_call";
+    await renderAndFlush();
+
+    const arrowOf = (label: string) => {
+      const switcher = Array.from(
+        document.querySelectorAll(".ant-tree-switcher"),
+      ).find((s) => s.nextElementSibling?.textContent?.includes(label));
+      return switcher?.querySelector("svg");
+    };
+
+    expect(arrowOf("Chains")).toHaveStyle({ transform: "rotate(90deg)" });
+
+    fireEvent.click(
+      Array.from(document.querySelectorAll(".ant-tree-switcher")).find((s) =>
+        s.nextElementSibling?.textContent?.includes("Chains"),
+      )!,
+    );
+    await act(async () => {
+      await flushPromises();
+    });
+
+    expect(arrowOf("Chains")?.getAttribute("style") ?? "").not.toContain(
+      "rotate",
+    );
   });
 });

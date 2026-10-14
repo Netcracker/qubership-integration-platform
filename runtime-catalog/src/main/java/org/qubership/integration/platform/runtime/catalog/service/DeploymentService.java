@@ -23,11 +23,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.camelk.model.routes.ElementRoute;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
+import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.DeploymentModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
-import org.qubership.integration.platform.runtime.catalog.model.ElementRoute;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
@@ -54,9 +57,9 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.event.Gene
 import org.qubership.integration.platform.runtime.catalog.service.deployment.DeploymentBuilderService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.*;
+import org.qubership.integration.platform.util.TriggerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -70,7 +73,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.util.TriggerUtils.*;
+import static org.qubership.integration.platform.util.TriggerUtils.*;
 
 @Slf4j
 @Service
@@ -86,15 +89,16 @@ public class DeploymentService {
     private final ActionsLogService actionLogger;
     private final DeploymentBuilderService deploymentBuilderService;
     private final TransactionHandler transactionHandler;
-    private final RoutesGetterService routesGetterService;
+    private final org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService;
+    private final IntegrationServiceCatalog integrationServiceCatalog;
 
-    @Value("${qip.chains.triggers.check.enabled}")
+    @Value("${cip.chains.triggers.check.enabled}")
     private boolean triggersCheckEnabled;
 
-    @Value("${qip.control-plane.chain-routes-registration.egress-gateway:true}")
+    @Value("${cip.control-plane.chain-routes-registration.egress-gateway:true}")
     private boolean registerOnEgress;
 
-    @Value("${qip.control-plane.chain-routes-registration.ingress-gateways:true}")
+    @Value("${cip.control-plane.chain-routes-registration.ingress-gateways:true}")
     private boolean registerOnIncomingGateways;
 
     // <id, userId, message, type, optionalFields>
@@ -132,8 +136,8 @@ public class DeploymentService {
                              ActionsLogService actionLogger,
                              DeploymentBuilderService deploymentBuilderService,
                              TransactionHandler transactionHandler,
-                             RoutesGetterService routesGetterService
-    ) {
+                             org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService,
+                             IntegrationServiceCatalog integrationServiceCatalog) {
         this.deploymentRepository = deploymentRepository;
         this.elementRepository = elementRepository;
         this.chainFinderService = chainFinderService;
@@ -142,6 +146,7 @@ public class DeploymentService {
         this.deploymentBuilderService = deploymentBuilderService;
         this.transactionHandler = transactionHandler;
         this.routesGetterService = routesGetterService;
+        this.integrationServiceCatalog = integrationServiceCatalog;
     }
 
     @Transactional
@@ -232,7 +237,11 @@ public class DeploymentService {
     }
 
     @DeploymentModification
-    public List<BulkDeploymentResponse> deploySnapshot(Snapshot snapshot, Collection<String> domains) {
+    public List<BulkDeploymentResponse> deploySnapshot(
+            Snapshot snapshot,
+            Collection<String> domains,
+            List<Deployment> excludeDeployments
+    ) {
         if (domains.size() > 1 && !checkTriggersInBulkDeploy(snapshot)) {
             Chain chain = snapshot.getChain();
             String chainId = chain.getId();
@@ -250,12 +259,16 @@ public class DeploymentService {
         }
 
         return domains.stream()
-                .map(name -> deploySnapshotToDomain(snapshot, name))
+                .map(name -> deploySnapshotToDomain(snapshot, name, excludeDeployments))
                 .toList();
     }
 
     @DeploymentModification
-    public BulkDeploymentResponse deploySnapshotToDomain(Snapshot snapshot, String domainName) {
+    public BulkDeploymentResponse deploySnapshotToDomain(
+            Snapshot snapshot,
+            String domainName,
+            List<Deployment> excludeDeployments
+    ) {
         Deployment deployment = new Deployment();
         deployment.setDomain(domainName);
 
@@ -272,7 +285,7 @@ public class DeploymentService {
                         .build());
 
         try {
-            create(deployment, chainId, snapshot);
+            create(deployment, chainFinderService.findById(chainId), snapshot, excludeDeployments);
             return responseBuilder
                     .status(BulkDeploymentStatus.CREATED)
                     .build();
@@ -285,8 +298,14 @@ public class DeploymentService {
         }
     }
 
-    @Transactional
+    @DeploymentModification
     public Pair<Boolean, List<BulkDeploymentResponse>> bulkCreate(BulkDeploymentRequest request) {
+        AtomicReference<Pair<Boolean, List<BulkDeploymentResponse>>> result = new AtomicReference<>();
+        transactionHandler.runInTransaction(() -> result.set(bulkCreateInTransaction(request)));
+        return result.get();
+    }
+
+    private Pair<Boolean, List<BulkDeploymentResponse>> bulkCreateInTransaction(BulkDeploymentRequest request) {
         final AtomicReference<Boolean> failed = new AtomicReference<>(false);
         List<BulkDeploymentResponse> statuses = new ArrayList<>();
 
@@ -321,7 +340,7 @@ public class DeploymentService {
         provideSnapshots(chains.keySet(), request.getSnapshotAction(), errorHandler)
                 .values()
                 .stream()
-                .map(snapshot -> deploySnapshot(snapshot, request.getDomains()))
+                .map(snapshot -> deploySnapshot(snapshot, request.getDomains(), null))
                 .flatMap(Collection::stream)
                 .peek(result -> failed.compareAndSet(
                         false, BulkDeploymentStatus.FAILED_DEPLOY.equals(result.getStatus())))
@@ -338,10 +357,17 @@ public class DeploymentService {
     }
 
     private List<DeploymentRoute> buildDeploymentRoutes(Deployment deployment) {
-        String snapshotId = deployment.getSnapshot().getId();
-        Specification<ChainElement> specification = (root, query, criteriaBuilder) ->
-                criteriaBuilder.equal(root.get("snapshot").get("id"), snapshotId);
-        return routesGetterService.getRoutes(specification);
+        return routesGetterService.getRoutes(new SnapshotAdapter(deployment.getSnapshot()), integrationServiceCatalog)
+            .stream()
+            .map(route -> DeploymentRoute.builder()
+                    .id(route.getId())
+                    .path(route.getPath())
+                    .type(route.getType())
+                    .variableName(route.getVariableName())
+                    .gatewayPrefix(route.getGatewayPrefix())
+                    .connectTimeout(route.getConnectTimeout())
+                    .build())
+            .toList();
     }
 
     public boolean checkRouteExists(ElementRoute route, String excludeChainId) {
@@ -351,7 +377,7 @@ public class DeploymentService {
     public List<Pair<String, Deployment>> findRouteDeployments(ElementRoute route, String excludeChainId) {
         return findElementsThatUseRoute(route, excludeChainId)
                 .flatMap(element -> {
-                    String path = getHttpTriggerPath(element);
+                    String path = getHttpTriggerPath(new ChainElementAdapter(element));
                     return element.getSnapshot().getDeployments().stream().map(deployment -> Pair.of(path, deployment));
                 })
                 .collect(Collectors.toList());
@@ -361,7 +387,7 @@ public class DeploymentService {
         return elementRepository
                 .findElementsForRouteExistenceCheck(List.of(CamelNames.HTTP_TRIGGER_COMPONENT), excludeChainId)
                 .stream()
-                .filter(element -> getHttpTriggerRoute(element).intersectsWith(route));
+                .filter(element -> ElementRouteUtils.intersects(getHttpTriggerRoute(new ChainElementAdapter(element)), route));
     }
 
     private void checkTriggers(String domain, String snapshotId, String chainId, List<Deployment> excludeDeployments) {
@@ -398,7 +424,7 @@ public class DeploymentService {
 
         Set<String> domainEqualJobIds = findSameSdsTriggerJobIds(pendingJobIds, domainJobIds);
         if (!domainEqualJobIds.isEmpty()) {
-            throw new EntityExistsException("Found similar Job Ids registered on scheduling-service (SDS) on the same domain: "
+            throw new EntityExistsException("Found similar Job Ids registered on scheduling-service (SDS) on other domains or by other chains on this domain: "
                     + domainEqualJobIds);
         }
     }
@@ -435,7 +461,8 @@ public class DeploymentService {
                     + gatewayEqualPaths);
         }
         if (!otherDomainsEqualPaths.isEmpty()) {
-            throw new EntityExistsException("Found similar triggers path registered on other domains: " + otherDomainsEqualPaths);
+            throw new EntityExistsException("Found similar triggers paths registered on other domains or by other chains on this domain: "
+                    + otherDomainsEqualPaths);
         }
     }
 
@@ -448,16 +475,16 @@ public class DeploymentService {
         List<ChainElement> triggers =
                 elementRepository.findAllBySnapshotIdAndType(snapshotId, getHttpTriggerTypeName());
 
-        return triggers.stream().noneMatch(trigger ->
+        return triggers.stream().map(ChainElementAdapter::new).noneMatch(trigger ->
                 TriggerUtils.isExternalHttpTrigger(trigger) || TriggerUtils.isPrivateHttpTrigger(trigger));
     }
 
     private List<ElementRoute> mapHttpTriggerRoutes(Collection<ChainElement> listOfObjects) {
-        return listOfObjects.stream().map(TriggerUtils::getHttpTriggerRoute).toList();
+        return listOfObjects.stream().map(ChainElementAdapter::new).map(TriggerUtils::getHttpTriggerRoute).toList();
     }
 
     private List<String> mapSdsTriggerJobIds(Collection<ChainElement> listOfObjects) {
-        return listOfObjects.stream().map(TriggerUtils::getSdsTriggerJobId).toList();
+        return listOfObjects.stream().map(ChainElementAdapter::new).map(TriggerUtils::getSdsTriggerJobId).toList();
     }
 
     private Set<String> findSameHttpTriggerPaths(List<ElementRoute> pendingRoutes, List<ElementRoute> existingRoutes, boolean checkGatewayOnly) {

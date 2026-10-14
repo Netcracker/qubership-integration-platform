@@ -1,0 +1,55 @@
+---
+id: "e2e00025-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-xslt"
+description: "Writes a stylesheet into the engine's chain_tmp directory with a file-write step, since\
+  \ nothing else can put one there, then transforms the request body with it."
+content:
+  labels: []
+  elements:
+  - id: "e2e00025-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-xslt"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00025-0000-4000-8000-000000000003"
+    name: "Keep Request"
+    type: "script"
+    properties:
+      script: "exchange.setProperty('e2e-request', exchange.getMessage().getBody(String.class));\
+        \ exchange.getMessage().setBody('<xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\"><xsl:output method=\"text\"/><xsl:template match=\"/order\">transformed <xsl:value-of select=\"@id\"/></xsl:template></xsl:stylesheet>')"
+  - id: "e2e00025-0000-4000-8000-000000000004"
+    name: "Write Stylesheet"
+    type: "file-write"
+    properties:
+      fileName: "e2e-{{RUN}}-stylesheet.xsl"
+      allowNullBody: true
+  - id: "e2e00025-0000-4000-8000-000000000005"
+    name: "Restore Request"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setBody(exchange.getProperty('e2e-request'))"
+  - id: "e2e00025-0000-4000-8000-000000000006"
+    name: "XSLT"
+    type: "xslt"
+    properties:
+      templateName: "e2e-{{RUN}}-stylesheet.xsl"
+  dependencies:
+  - from: "e2e00025-0000-4000-8000-000000000002"
+    to: "e2e00025-0000-4000-8000-000000000003"
+  - from: "e2e00025-0000-4000-8000-000000000003"
+    to: "e2e00025-0000-4000-8000-000000000004"
+  - from: "e2e00025-0000-4000-8000-000000000004"
+    to: "e2e00025-0000-4000-8000-000000000005"
+  - from: "e2e00025-0000-4000-8000-000000000005"
+    to: "e2e00025-0000-4000-8000-000000000006"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

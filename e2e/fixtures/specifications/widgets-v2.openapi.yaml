@@ -1,0 +1,16 @@
+# A second version of the same API, for the case that imports into a group that already exists.
+#
+# It differs from `widgets.openapi.yaml` in `info.version` and in carrying one operation rather
+# than three, so a spec can tell the two specifications apart by what they produced and not only
+# by their names.
+openapi: 3.0.3
+info:
+  title: E2E Widgets API
+  version: 2.0.0
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      responses:
+        "200":
+          description: every widget

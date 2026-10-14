@@ -30,6 +30,7 @@ jest.mock("../../../src/web/response/chainApiRead", () => ({
   getMainChain: jest.fn(),
   getElement: jest.fn(),
   getLibraryElementByType: jest.fn(),
+  loadElementProperties: jest.fn(),
 }));
 
 jest.mock("../../../src/web/response/chainApiUtils", () => ({

@@ -1,0 +1,100 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: "captured-logs"
+    provider: "log-capture"
+scenarios:
+  - id: "evaluates-log-properties-and-suppresses-info"
+    scope: Short
+    endpointUri: "cip-chain:ee44c80f-b71a-496f-898a-394bda8d7214"
+    body: "Original"
+    properties:
+      warningSender: "orders"
+      warningReciever: "inventory"
+      warningMessage: "Stock is running low"
+      warningRequestId: "warning-101"
+      infoSender: "audit"
+      infoReceiver: "metrics"
+      infoMessage: "Order received"
+      infoRequestId: "info-202"
+      errorSender: "payments"
+      errorReceiver: "alerts"
+      errorMessage: "Payment failed"
+      errorRequestId: "error-303"
+    expectedBody: "Original"
+    interactions:
+      - fixture: "captured-logs"
+        expectedLogs:
+          - count: 1
+            level: "WARN"
+            message: "[sender=orders          ] [receiver=inventory       ] Stock is running low"
+            mdc:
+              businessIdentifiers: "{Req-Id=warning-101}"
+          - count: 1
+            level: "ERROR"
+            message: "[sender=payments        ] [receiver=alerts          ] Payment failed"
+            mdc:
+              businessIdentifiers: "{Req-Id=error-303}"
+
+  - id: "omits-empty-sender-or-receiver"
+    scope: Short
+    endpointUri: "cip-chain:ee44c80f-b71a-496f-898a-394bda8d7214"
+    body: "Original"
+    properties:
+      warningSender: ""
+      warningReciever: "warehouse"
+      warningMessage: "Inventory check delayed"
+      warningRequestId: "warning-404"
+      infoSender: "audit"
+      infoReceiver: "metrics"
+      infoMessage: "Inventory check started"
+      infoRequestId: "info-505"
+      errorSender: "fulfillment"
+      errorReceiver: ""
+      errorMessage: "Shipment failed"
+      errorRequestId: "error-606"
+    expectedBody: "Original"
+    interactions:
+      - fixture: "captured-logs"
+        expectedLogs:
+          - count: 1
+            level: "WARN"
+            message: "[receiver=warehouse       ] Inventory check delayed"
+            mdc:
+              businessIdentifiers: "{Req-Id=warning-404}"
+          - count: 1
+            level: "ERROR"
+            message: "[sender=fulfillment     ] Shipment failed"
+            mdc:
+              businessIdentifiers: "{Req-Id=error-606}"
+
+  - id: "writes-message-only-with-numeric-request-ids"
+    scope: Short
+    endpointUri: "cip-chain:ee44c80f-b71a-496f-898a-394bda8d7214"
+    body: "Original"
+    properties:
+      warningSender: ""
+      warningReciever: ""
+      warningMessage: "Retry limit is approaching"
+      warningRequestId: 707
+      infoSender: ""
+      infoReceiver: ""
+      infoMessage: "Retry started"
+      infoRequestId: 808
+      errorSender: ""
+      errorReceiver: ""
+      errorMessage: "Retry limit reached"
+      errorRequestId: 909
+    expectedBody: "Original"
+    interactions:
+      - fixture: "captured-logs"
+        expectedLogs:
+          - count: 1
+            level: "WARN"
+            message: "Retry limit is approaching"
+            mdc:
+              businessIdentifiers: "{Req-Id=707}"
+          - count: 1
+            level: "ERROR"
+            message: "Retry limit reached"
+            mdc:
+              businessIdentifiers: "{Req-Id=909}"

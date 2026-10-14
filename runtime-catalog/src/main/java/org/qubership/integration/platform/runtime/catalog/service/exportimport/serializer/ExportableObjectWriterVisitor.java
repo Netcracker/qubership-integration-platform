@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.zip.ZipOutputStream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
 
 @Slf4j
 @Component
@@ -35,10 +35,7 @@ public class ExportableObjectWriterVisitor {
 
     private final YAMLMapper yamlMapper;
 
-    @Value("${app.prefix}")
-    private String appName;
-
-    @Value("${qip.export.legacy-format}")
+    @Value("${cip.export.legacy-format}")
     private boolean isLegacyExport;
 
     @Autowired
@@ -48,21 +45,21 @@ public class ExportableObjectWriterVisitor {
 
     public void visit(ExportedIntegrationSystem exportedIntegrationSystem, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
-                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId(), appName, isLegacyExport),
+                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId(), isLegacyExport),
                 yamlMapper.writeValueAsString(exportedIntegrationSystem.getObjectNode()));
     }
 
     public void visit(ExportedSpecificationGroup exportedSpecificationGroup, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId(), appName, isLegacyExport),
+                + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId(), isLegacyExport),
                 yamlMapper.writeValueAsString(exportedSpecificationGroup.getObjectNode()));
     }
 
     public void visit(ExportedSpecification exportedSpecification, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId(), appName, isLegacyExport),
+                + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId(), isLegacyExport),
                 yamlMapper.writeValueAsString(exportedSpecification.getObjectNode()));
     }
 
@@ -81,13 +78,13 @@ public class ExportableObjectWriterVisitor {
 
     public void visit(ExportedContextService exportedContextService, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
-                entryPath + ExportImportUtils.generateMainContextServiceFileExportName(exportedContextService.getId(), appName, isLegacyExport),
+                entryPath + ExportImportUtils.generateMainContextServiceFileExportName(exportedContextService.getId(), isLegacyExport),
                 yamlMapper.writeValueAsString(exportedContextService.getObjectNode()));
     }
 
     public void visit(ExportedMCPSystemObject exportedMCPSystemObject, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
-                entryPath + ExportImportUtils.generateMCPServiceFileExportName(exportedMCPSystemObject.getId(), appName, isLegacyExport),
+                entryPath + ExportImportUtils.generateMCPServiceFileExportName(exportedMCPSystemObject.getId(), isLegacyExport),
                 yamlMapper.writeValueAsString(exportedMCPSystemObject.getObjectNode()));
     }
 }

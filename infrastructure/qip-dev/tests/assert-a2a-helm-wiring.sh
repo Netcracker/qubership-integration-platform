@@ -61,6 +61,7 @@ assert_contains 'QUARKUS_DATASOURCE_USERNAME' 'datasource username env'
 assert_contains 'QUARKUS_DATASOURCE_PASSWORD' 'datasource password env'
 assert_contains 'name: qip-dev-postgres-auth' 'existing postgres Secret reference'
 assert_contains 'QIP_AI_A2A_ENABLED' 'A2A feature flag env'
+assert_contains 'location = /api/v1/chat {' 'chat endpoint without a trailing slash'
 assert_contains 'a2a-db-preflight' 'database-exists preflight initContainer'
 assert_contains 'SELECT 1 FROM pg_database WHERE datname = '\''ai_a2a'\''' 'preflight existence query'
 

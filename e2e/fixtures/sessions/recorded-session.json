@@ -1,0 +1,188 @@
+{
+  "started": "2026-09-08T18:14:15.425824030",
+  "finished": "2026-09-08T18:14:15.451958431",
+  "duration": 26,
+  "executionStatus": "COMPLETED_NORMALLY",
+  "syncDuration": 26,
+  "id": "d866723b-c812-4c62-81ea-0d2ac0e1428b",
+  "importedSession": false,
+  "externalSessionCipId": "call-recorded000001",
+  "chainId": "e2e00001-0000-4000-8000-000000000001",
+  "chainName": "e2e-zsess1-http-echo",
+  "domain": "default",
+  "domainType": "CLASSIC",
+  "engineAddress": "172.18.0.8",
+  "loggingLevel": "DEBUG",
+  "snapshotName": "V2",
+  "correlationId": null,
+  "parentSessionId": null,
+  "sessionElements": [
+    {
+      "started": "2026-09-08T18:14:15.430376400",
+      "finished": "2026-09-08T18:14:15.433611695",
+      "duration": 3,
+      "executionStatus": "COMPLETED_NORMALLY",
+      "syncDuration": 0,
+      "elementId": "45c3082a-3c29-4cf4-bbe0-9a65f713a4be",
+      "sessionId": "d866723b-c812-4c62-81ea-0d2ac0e1428b",
+      "chainElementId": "e2e00001-0000-4000-8000-000000000002",
+      "actualElementChainId": null,
+      "parentElement": null,
+      "previousElement": null,
+      "elementName": "HTTP Trigger",
+      "camelName": "http-trigger",
+      "bodyBefore": "{\"ping\":\"recorded\"}",
+      "bodyAfter": "{\"ping\":\"recorded\"}",
+      "headersBefore": {
+        "content-length": "19",
+        "CamelHttpUrl": "http://localhost:8092/routes/e2e-zsess1-http-echo",
+        "CamelHttpCharacterEncoding": "UTF-8",
+        "external-session-cip-id": "call-recorded000001",
+        "accept": "*/*",
+        "CamelHttpMethod": "POST",
+        "CamelServletContextPath": "/e2e-zsess1-http-echo",
+        "host": "localhost:8092",
+        "CamelHttpQuery": "",
+        "CamelHttpUri": "/routes/e2e-zsess1-http-echo",
+        "CamelHttpPath": "",
+        "Content-Type": "application/json",
+        "user-agent": "curl/8.5.0"
+      },
+      "headersAfter": {
+        "content-length": "19",
+        "CamelHttpCharacterEncoding": "UTF-8",
+        "CamelHttpMethod": "POST",
+        "CamelServletContextPath": "/e2e-zsess1-http-echo",
+        "host": "localhost:8092",
+        "CamelHttpQuery": "",
+        "external-session-cip-id": "call-recorded000001",
+        "accept": "*/*",
+        "Content-Type": "application/json",
+        "user-agent": "curl/8.5.0"
+      },
+      "propertiesBefore": {},
+      "propertiesAfter": {},
+      "contextBefore": {
+        "Tenant": "00000000-0000-0000-0000-000000000000",
+        "X-Request-Id": "1788891255424.0.8269557413617284"
+      },
+      "contextAfter": {
+        "Tenant": "00000000-0000-0000-0000-000000000000",
+        "X-Request-Id": "1788891255424.0.8269557413617284"
+      },
+      "children": [
+        {
+          "started": "2026-09-08T18:14:15.431366203",
+          "finished": "2026-09-08T18:14:15.432102461",
+          "duration": 0,
+          "executionStatus": "COMPLETED_NORMALLY",
+          "syncDuration": 0,
+          "elementId": "1d40a391-238d-407a-8641-1655fdaf2899",
+          "sessionId": "d866723b-c812-4c62-81ea-0d2ac0e1428b",
+          "chainElementId": "e2e00001-0000-4000-8000-000000000002",
+          "actualElementChainId": null,
+          "parentElement": "45c3082a-3c29-4cf4-bbe0-9a65f713a4be",
+          "previousElement": null,
+          "elementName": "Validate Request",
+          "camelName": "http-trigger",
+          "bodyBefore": "{\"ping\":\"recorded\"}",
+          "bodyAfter": "{\"ping\":\"recorded\"}",
+          "headersBefore": {
+            "content-length": "19",
+            "CamelHttpUrl": "http://localhost:8092/routes/e2e-zsess1-http-echo",
+            "CamelHttpCharacterEncoding": "UTF-8",
+            "external-session-cip-id": "call-recorded000001",
+            "accept": "*/*",
+            "CamelHttpMethod": "POST",
+            "CamelServletContextPath": "/e2e-zsess1-http-echo",
+            "host": "localhost:8092",
+            "CamelHttpQuery": "",
+            "CamelHttpUri": "/routes/e2e-zsess1-http-echo",
+            "CamelHttpPath": "",
+            "Content-Type": "application/json",
+            "user-agent": "curl/8.5.0"
+          },
+          "headersAfter": {
+            "content-length": "19",
+            "CamelHttpCharacterEncoding": "UTF-8",
+            "CamelHttpMethod": "POST",
+            "CamelServletContextPath": "/e2e-zsess1-http-echo",
+            "host": "localhost:8092",
+            "CamelHttpQuery": "",
+            "external-session-cip-id": "call-recorded000001",
+            "accept": "*/*",
+            "Content-Type": "application/json",
+            "user-agent": "curl/8.5.0"
+          },
+          "propertiesBefore": {},
+          "propertiesAfter": {},
+          "contextBefore": {
+            "Tenant": "00000000-0000-0000-0000-000000000000",
+            "X-Request-Id": "1788891255424.0.8269557413617284"
+          },
+          "contextAfter": {
+            "Tenant": "00000000-0000-0000-0000-000000000000",
+            "X-Request-Id": "1788891255424.0.8269557413617284"
+          },
+          "children": [],
+          "exceptionInfo": null
+        }
+      ],
+      "exceptionInfo": null
+    },
+    {
+      "started": "2026-09-08T18:14:15.434679323",
+      "finished": "2026-09-08T18:14:15.449178518",
+      "duration": 14,
+      "executionStatus": "COMPLETED_NORMALLY",
+      "syncDuration": 0,
+      "elementId": "a8ee98b1-ec72-4e47-8f2c-a213486d1c96",
+      "sessionId": "d866723b-c812-4c62-81ea-0d2ac0e1428b",
+      "chainElementId": "e2e00001-0000-4000-8000-000000000003",
+      "actualElementChainId": null,
+      "parentElement": null,
+      "previousElement": null,
+      "elementName": "Header Modification",
+      "camelName": "header-modification",
+      "bodyBefore": "{\"ping\":\"recorded\"}",
+      "bodyAfter": "{\"ping\":\"recorded\"}",
+      "headersBefore": {
+        "content-length": "19",
+        "CamelHttpCharacterEncoding": "UTF-8",
+        "CamelHttpMethod": "POST",
+        "CamelServletContextPath": "/e2e-zsess1-http-echo",
+        "host": "localhost:8092",
+        "CamelHttpQuery": "",
+        "external-session-cip-id": "call-recorded000001",
+        "accept": "*/*",
+        "Content-Type": "application/json",
+        "user-agent": "curl/8.5.0"
+      },
+      "headersAfter": {
+        "content-length": "19",
+        "e2e-fixture": "zsess1",
+        "CamelHttpCharacterEncoding": "UTF-8",
+        "CamelHttpMethod": "POST",
+        "CamelServletContextPath": "/e2e-zsess1-http-echo",
+        "host": "localhost:8092",
+        "CamelHttpQuery": "",
+        "external-session-cip-id": "call-recorded000001",
+        "accept": "*/*",
+        "Content-Type": "application/json",
+        "user-agent": "curl/8.5.0"
+      },
+      "propertiesBefore": {},
+      "propertiesAfter": {},
+      "contextBefore": {
+        "Tenant": "00000000-0000-0000-0000-000000000000",
+        "X-Request-Id": "1788891255424.0.8269557413617284"
+      },
+      "contextAfter": {
+        "Tenant": "00000000-0000-0000-0000-000000000000",
+        "X-Request-Id": "1788891255424.0.8269557413617284"
+      },
+      "children": [],
+      "exceptionInfo": null
+    }
+  ]
+}

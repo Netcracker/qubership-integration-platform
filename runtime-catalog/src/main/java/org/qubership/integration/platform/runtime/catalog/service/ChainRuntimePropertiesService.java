@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
+import org.qubership.integration.platform.runtime.catalog.events.ChainsDeletedEvent;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.properties.DeploymentRuntimeProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -26,8 +27,10 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.logging.properties.ChainLoggingPropertiesSet;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Collections;
 import java.util.Map;
@@ -43,18 +46,22 @@ public class ChainRuntimePropertiesService {
     private final ConsulService consulService;
     private final ActionsLogService actionLogger;
     private final ChainRepository chainRepository;
+    private final ChainFinderService chainFinderService;
 
     @Autowired
     public ChainRuntimePropertiesService(ConsulService consulService,
                                          ActionsLogService actionLogger,
-                                         ChainRepository chainRepository) {
+                                         ChainRepository chainRepository,
+                                         ChainFinderService chainFinderService) {
         this.consulService = consulService;
         this.actionLogger = actionLogger;
         this.chainRepository = chainRepository;
+        this.chainFinderService = chainFinderService;
     }
 
 
     public void saveRuntimeProperties(String chainId, DeploymentRuntimeProperties request) {
+        chainFinderService.findById(chainId);
         consulService.updateChainRuntimeConfig(chainId, request);
         logChainAction(chainId, LogOperation.CREATE_OR_UPDATE);
     }
@@ -62,6 +69,12 @@ public class ChainRuntimePropertiesService {
     public void deleteCustomRuntimeProperties(String chainId) {
         consulService.deleteChainRuntimeConfig(chainId);
         logChainAction(chainId, LogOperation.DELETE);
+    }
+
+    // Consul is not transactional: a rolled-back deletion must keep the properties of the chains it restores.
+    @TransactionalEventListener
+    public void onChainsDeleted(ChainsDeletedEvent event) {
+        event.chainIds().forEach(consulService::deleteChainRuntimeConfig);
     }
 
     // <useCustomSettings, properties>

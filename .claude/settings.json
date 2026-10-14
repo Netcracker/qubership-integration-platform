@@ -6,7 +6,46 @@
         "hooks": [
           {
             "type": "command",
-            "statusMessage": "Recording skill telemetry",
+            "statusMessage": "Recording agent telemetry",
+            "command": "ai-agent-telemetry ingest --agent=claude",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Recording agent telemetry",
+            "command": "ai-agent-telemetry ingest --agent=claude",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Recording agent telemetry",
+            "command": "ai-agent-telemetry ingest --agent=claude",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
             "timeout": 30
           }

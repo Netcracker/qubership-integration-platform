@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "f22ef645-1087-4002-a37e-f2d0eae81bf9"
 name: "GraphQL Sender"
 content:

@@ -32,11 +32,15 @@ import java.util.List;
 @AllArgsConstructor
 @Schema(description = "Paged search request for audit log")
 public class ActionLogSearchRequest {
-    @Schema(description = "Max rows to return", example = "100")
+    @Schema(description = "Max rows to return")
     private int limit = 100;
 
-    @Schema(description = "Row offset", example = "0")
+    @Schema(description = "Row offset")
     private int offset = 0;
 
     private List<ActionLogFilterRequestDTO> filters = Collections.emptyList();
+
+    @Schema(description = "Substring to find, ignoring case, in the initiator name or id, the operation,"
+            + " the request id, or the type, name, or id of the entity or its parent")
+    private String searchString;
 }

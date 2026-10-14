@@ -9,7 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
+import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -26,10 +26,10 @@ class DefaultOpenSearchKafkaProducerTest {
     private static final String KEY = "session-id";
 
     @Mock
-    private Emitter<Record<String, KafkaQueueElement>> emitter;
+    private Emitter<Record<String, SessionElementElastic>> emitter;
 
     @Mock
-    private KafkaQueueElement kafkaQueueElement;
+    private SessionElementElastic sessionElementElastic;
 
     private DefaultOpenSearchKafkaProducer producer;
 
@@ -40,30 +40,30 @@ class DefaultOpenSearchKafkaProducerTest {
     }
 
     @Test
-    void shouldSendKafkaQueueElementWithProvidedKey() {
-        producer.send(KEY, kafkaQueueElement);
+    void shouldSendSessionElementElasticWithProvidedKey() {
+        producer.send(KEY, sessionElementElastic);
 
-        ArgumentCaptor<Record<String, KafkaQueueElement>> recordCaptor = recordCaptor();
+        ArgumentCaptor<Record<String, SessionElementElastic>> recordCaptor = recordCaptor();
         verify(emitter).send(recordCaptor.capture());
 
-        Record<String, KafkaQueueElement> record = recordCaptor.getValue();
+        Record<String, SessionElementElastic> record = recordCaptor.getValue();
         assertEquals(KEY, record.key());
-        assertSame(kafkaQueueElement, record.value());
+        assertSame(sessionElementElastic, record.value());
     }
 
     @Test
     void shouldNotPropagateExceptionWhenEmitterFails() {
         RuntimeException exception = new RuntimeException("Failed to send Kafka record");
 
-        doThrow(exception).when(emitter).send((Record<String, KafkaQueueElement>) any());
+        doThrow(exception).when(emitter).send((Record<String, SessionElementElastic>) any());
 
-        assertDoesNotThrow(() -> producer.send(KEY, kafkaQueueElement));
+        assertDoesNotThrow(() -> producer.send(KEY, sessionElementElastic));
 
-        verify(emitter).send((Record<String, KafkaQueueElement>) any());
+        verify(emitter).send((Record<String, SessionElementElastic>) any());
     }
 
     @SuppressWarnings("unchecked")
-    private static ArgumentCaptor<Record<String, KafkaQueueElement>> recordCaptor() {
+    private static ArgumentCaptor<Record<String, SessionElementElastic>> recordCaptor() {
         return ArgumentCaptor.forClass(Record.class);
     }
 }

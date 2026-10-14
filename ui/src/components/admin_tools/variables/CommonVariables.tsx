@@ -98,6 +98,11 @@ export const CommonVariables = () => {
         iconName="table"
         toolbar={
           <TableToolbar
+            refresh={{
+              onRefresh: fetchVariables,
+              loading: isLoading,
+              disabled: editingKey !== null || isAddingNew,
+            }}
             variant="admin"
             search={{
               value: searchTerm,
@@ -166,6 +171,7 @@ export const CommonVariables = () => {
                   buttonProps={{
                     type: "primary",
                     iconName: "plus",
+                    "data-testid": "common-variables-add",
                     onClick: () => setIsAddingNew(true),
                   }}
                 />

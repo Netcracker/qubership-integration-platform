@@ -72,7 +72,7 @@ class TracingServiceTest {
         DeploymentInfo depInfo = mock(DeploymentInfo.class);
         when(depInfo.getChain()).thenReturn(chainInfo);
 
-        MDC.put(ContextHeaders.REQUEST_ID_HEADER, "REQ-1");
+        MDC.put(ContextHeaders.REQUEST_ID, "REQ-1");
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class);
              MockedStatic<ExchangeUtil> exchangeUtil = mockStatic(ExchangeUtil.class)) {
@@ -102,7 +102,7 @@ class TracingServiceTest {
         when(elementInfo.getName()).thenReturn("E");
         when(elementInfo.getType()).thenReturn("HTTP_SENDER");
 
-        MDC.put(ContextHeaders.REQUEST_ID_HEADER, "REQ-1");
+        MDC.put(ContextHeaders.REQUEST_ID, "REQ-1");
 
         svc.addElementTracingTags(ex, elementInfo);
 

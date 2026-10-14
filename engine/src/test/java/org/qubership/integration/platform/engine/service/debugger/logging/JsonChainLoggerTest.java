@@ -46,7 +46,7 @@ class JsonChainLoggerTest {
         factoryMock = mockStatic(ExtendedErrorLoggerFactory.class);
         factoryMock.when(() -> ExtendedErrorLoggerFactory.getLogger(any(Class.class)))
                 .thenReturn(chainLogger);
-        jsonChainLogger = new JsonChainLogger(tracingService, originatingBusinessIdProvider);
+        jsonChainLogger = new JsonChainLogger(tracingService, originatingBusinessIdProvider, new LogExchangeMarkers());
     }
 
     @AfterEach

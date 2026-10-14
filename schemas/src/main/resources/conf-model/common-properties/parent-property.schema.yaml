@@ -1,0 +1,15 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/parent-property
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Entity content with Parent
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  parentId:
+    type: string
+    title: Parent Id
+required:
+  - parentId

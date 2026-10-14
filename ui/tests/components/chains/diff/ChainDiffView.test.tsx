@@ -9,6 +9,7 @@ import type { Change } from "../../../../src/components/chains/diff/compare/type
 import type { ComparableItem } from "../../../../src/components/chains/diff/useChainDiff";
 
 const mockUseChainDiff = jest.fn();
+const mockGoToDiff = jest.fn();
 
 jest.mock("../../../../src/components/chains/diff/useChainDiff.tsx", () => ({
   useChainDiff: (...args: unknown[]) => mockUseChainDiff(...args),
@@ -50,6 +51,19 @@ jest.mock(
   () => ({
     ChainDiffTableView: jest.fn(() => <div data-testid="table-view" />),
   }),
+);
+
+jest.mock(
+  "../../../../src/components/chains/diff/ChainDiffTextView.tsx",
+  () => {
+    const React = jest.requireActual<typeof import("react")>("react");
+    return {
+      ChainDiffTextView: React.forwardRef((_props, ref) => {
+        React.useImperativeHandle(ref, () => ({ goToDiff: mockGoToDiff }));
+        return <div data-testid="text-view" />;
+      }),
+    };
+  },
 );
 
 jest.mock(
@@ -99,6 +113,7 @@ const defaultHookReturn = {
 
 describe("ChainDiffView", () => {
   beforeEach(() => {
+    mockGoToDiff.mockClear();
     mockUseChainDiff.mockReturnValue({
       ...defaultHookReturn,
       setSelectedChangeId: jest.fn(),
@@ -160,6 +175,29 @@ describe("ChainDiffView", () => {
 
     expect(screen.getByTestId("graph-view")).toBeInTheDocument();
     expect(screen.queryByTestId("table-view")).not.toBeInTheDocument();
+  });
+
+  it("should navigate Monaco diff hunks from the controls in text view", () => {
+    mockUseChainDiff.mockReturnValue({
+      ...defaultHookReturn,
+      changes,
+    });
+    render(<ChainDiffView item1={item1} item2={item2} />);
+
+    act(() => {
+      MockViewControls.mock.calls[0][0].onViewTypeChange("text");
+    });
+    const textViewControlProps =
+      MockViewControls.mock.calls[MockViewControls.mock.calls.length - 1][0];
+
+    act(() => {
+      textViewControlProps.onNextChange();
+      textViewControlProps.onPreviousChange();
+    });
+
+    expect(screen.getByTestId("text-view")).toBeInTheDocument();
+    expect(mockGoToDiff).toHaveBeenNthCalledWith(1, "next");
+    expect(mockGoToDiff).toHaveBeenNthCalledWith(2, "previous");
   });
 
   it("should pass changes and selectedChangeId from the hook to ChainDiffViewControls", () => {
@@ -285,5 +323,38 @@ describe("ChainDiffView", () => {
     render(<ChainDiffView item1={item1} item2={item2} />);
 
     expect(mockUseChainDiff).toHaveBeenCalledWith(item1, item2);
+  });
+
+  it("should preserve the selected viewType for ChainDiffViewControls across loading changes", () => {
+    mockUseChainDiff.mockReturnValue(defaultHookReturn);
+
+    const { rerender } = render(<ChainDiffView item1={item1} item2={item2} />);
+
+    const initialViewType = MockViewControls.mock.calls[0][0].viewType;
+    expect(initialViewType).toBe("graph");
+
+    const { onViewTypeChange } = MockViewControls.mock.calls[0][0];
+    act(() => {
+      onViewTypeChange("table");
+    });
+
+    expect(
+      MockViewControls.mock.calls[MockViewControls.mock.calls.length - 1][0]
+        .viewType,
+    ).toBe("table");
+    expect(screen.getByTestId("table-view")).toBeInTheDocument();
+
+    mockUseChainDiff.mockReturnValue({ ...defaultHookReturn, isLoading: true });
+    rerender(<ChainDiffView item1={item1} item2={item2} />);
+    expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
+
+    mockUseChainDiff.mockReturnValue(defaultHookReturn);
+    rerender(<ChainDiffView item1={item1} item2={item2} />);
+
+    const lastViewType =
+      MockViewControls.mock.calls[MockViewControls.mock.calls.length - 1][0]
+        .viewType;
+    expect(lastViewType).toBe("table");
+    expect(screen.getByTestId("table-view")).toBeInTheDocument();
   });
 });

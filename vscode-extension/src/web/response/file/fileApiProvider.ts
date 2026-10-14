@@ -87,6 +87,9 @@ let current: FileApi = {
   getSpecApiFiles: async () => {
     throw new Error("FileApi not configured");
   },
+  getDirectoriesToRemove: function (fileUri: Uri): Promise<Uri[]> {
+    throw new Error("FileApi not configured");
+  }
 };
 
 export function setFileApi(api: FileApi) {
@@ -165,4 +168,6 @@ export const fileApi: FileApi = {
   getFileCreatedWhen: async (fileUri: Uri): Promise<number> =>
     current.getFileCreatedWhen(fileUri),
   getSpecApiFiles: async () => current.getSpecApiFiles(),
+  getDirectoriesToRemove: async (fileUri: Uri): Promise<Uri[]> =>
+    current.getDirectoriesToRemove(fileUri),
 };

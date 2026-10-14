@@ -20,6 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.engine.ImportDomainDTO;
 
 import java.util.List;

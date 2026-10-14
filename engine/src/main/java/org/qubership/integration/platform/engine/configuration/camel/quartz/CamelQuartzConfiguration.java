@@ -48,7 +48,7 @@ public class CamelQuartzConfiguration {
 
     private final ServerConfiguration serverConfiguration;
 
-    @Value("${qip.camel.component.quartz.thread-pool-count}")
+    @Value("${cip.camel.component.quartz.thread-pool-count}")
     private String threadPoolCount;
 
     @Autowired

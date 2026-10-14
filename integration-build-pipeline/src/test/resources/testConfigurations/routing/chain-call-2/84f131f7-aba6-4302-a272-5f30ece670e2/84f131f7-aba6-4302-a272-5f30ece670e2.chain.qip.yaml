@@ -1,0 +1,26 @@
+---
+id: "84f131f7-aba6-4302-a272-5f30ece670e2"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "test-subchain"
+content:
+  labels: []
+  elements:
+  - id: "08907a24-c87c-46e4-beec-2ccfb43f08ee"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-08907a24-c87c-46e4-beec-2ccfb43f08ee.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "ec738992-9f5b-4368-92d2-0e4c461b7bb6"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "ec738992-9f5b-4368-92d2-0e4c461b7bb6"
+  dependencies:
+  - from: "ec738992-9f5b-4368-92d2-0e4c461b7bb6"
+    to: "08907a24-c87c-46e4-beec-2ccfb43f08ee"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

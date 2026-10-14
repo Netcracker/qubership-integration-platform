@@ -62,12 +62,16 @@ public class SystemController {
     @GetMapping(produces = "application/json")
     @Operation(description = "Get all services")
     public List<SystemDTO> getSystems(@RequestParam(required = false, defaultValue = "all") @Parameter(description = "Filter services by type. If \"all\" specified - nothing will be excluded from the response.") String modelType,
-                                      @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether response will include specifications") boolean withSpec) {
+                                      @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether response will include specifications") boolean withSpec,
+                                      @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether response will include chains using the service") boolean includeChainUsage) {
         List<IntegrationSystem> systems;
         if (modelType.equals("all")) {
             systems = withSpec ? systemService.getNotDeprecatedWithSpecs() : systemService.getAll();
         } else {
             systems = systemService.getNotDeprecatedAndByModelType(OperationProtocol.receiveProtocolsFromType(modelType));
+        }
+        if (includeChainUsage) {
+            systemService.enrichWithChainUsage(systems);
         }
         return systemMapper.toResponseDTOs(systems);
     }
@@ -83,14 +87,23 @@ public class SystemController {
 
     @PostMapping(value = "/search", produces = "application/json")
     @Operation(description = "Search services request")
-    public List<SystemDTO> searchSystems(@RequestBody @Parameter(description = "Service search request object") SystemSearchRequestDTO systemSearchRequestDTO) {
-        return systemMapper.toResponseDTOs(systemService.searchSystems(systemSearchRequestDTO));
+    public List<SystemDTO> searchSystems(@RequestBody @Parameter(description = "Service search request object") SystemSearchRequestDTO systemSearchRequestDTO,
+                                         @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether response will include chains using the service") boolean includeChainUsage) {
+        List<IntegrationSystem> systems = systemService.searchSystems(systemSearchRequestDTO);
+        if (includeChainUsage) {
+            systemService.enrichWithChainUsage(systems);
+        }
+        return systemMapper.toResponseDTOs(systems);
     }
 
     @PostMapping(value = "/filter", produces = "application/json")
     @Operation(description = "Filter services request")
-    public List<SystemDTO> filterSystems(@RequestBody @Parameter(description = "Service filter request object") List<FilterRequestDTO> systemFilterRequestDTOList) {
+    public List<SystemDTO> filterSystems(@RequestBody @Parameter(description = "Service filter request object") List<FilterRequestDTO> systemFilterRequestDTOList,
+                                         @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether response will include chains using the service") boolean includeChainUsage) {
         List<IntegrationSystem> systemsFilterResult = systemService.findByFilterRequest(systemFilterRequestDTOList);
+        if (includeChainUsage) {
+            systemService.enrichWithChainUsage(systemsFilterResult);
+        }
 
         return systemMapper.toResponseDTOs(systemsFilterResult)
                 .stream()

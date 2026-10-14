@@ -38,8 +38,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.zip.ZipOutputStream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.FILE_CREATION_ERROR_MESSAGE;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.NO_SPECIFICATION_SOURCE_ERROR_MESSAGE;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.FILE_CREATION_ERROR_MESSAGE;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.NO_SPECIFICATION_SOURCE_ERROR_MESSAGE;
 
 
 @Service

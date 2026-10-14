@@ -19,8 +19,10 @@ package org.qubership.integration.platform.runtime.catalog.service;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.codegen.SystemModelCodeGenerator;
+import org.qubership.integration.platform.compiler.CompilerService;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationDeleteException;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractLabel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -28,8 +30,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelLabelsRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.SystemModelCodeGenerator;
-import org.qubership.integration.platform.runtime.catalog.service.compiler.CompilerService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
@@ -128,9 +128,7 @@ public class SystemModelService extends SystemModelBaseService {
                 throw new IllegalArgumentException("Specification used by one or more chains");
             }
 
-            SystemModel specification = specificationOptional.get();
-            systemModelRepository.delete(specification);
-            logModelAction(specification, specification.getSpecificationGroup(), LogOperation.DELETE);
+            unlinkAndDelete(specificationOptional.get());
         }
 
         return specificationOptional;
@@ -182,10 +180,7 @@ public class SystemModelService extends SystemModelBaseService {
             throw new SpecificationDeleteException("Specification used by one or more chains");
         }
 
-        SpecificationGroup specificationGroup = model.getSpecificationGroup();
-        specificationGroup.removeSystemModel(model);
-        systemModelRepository.delete(model);
-        logModelAction(model, specificationGroup, LogOperation.DELETE);
+        unlinkAndDelete(model);
     }
 
     private void enrichSystemModelWithChains(SystemModel model) {

@@ -1,0 +1,98 @@
+{{- if .Values.global.qip.testingService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
+  name: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
+    spec:
+      containers:
+        - env:
+            - name: CIP_TESTING_CATALOG_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: CIP_TESTING_CATALOG_ADDRESS
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: CIP_TESTING_ENGINE_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: CIP_TESTING_ENGINE_ADDRESS
+                  name: {{ .Release.Name }}-testing-service-env
+            # Rendered whatever global.qip.production says, so this reference
+            # always resolves; a reference to a key the config map lacks would
+            # pin the pod in CreateContainerConfigError.
+            - name: PRODUCTION_MODE
+              valueFrom:
+                configMapKeyRef:
+                  key: PRODUCTION_MODE
+                  name: {{ .Release.Name }}-testing-service-env
+            # The execution and pagination settings are left to the service's own
+            # defaults: the config map does not render them, and referencing a
+            # key it lacks would pin the pod the same way.
+            - name: CIP_TESTING_POSTGRES_SCHEMA
+              valueFrom:
+                configMapKeyRef:
+                  key: CIP_TESTING_POSTGRES_SCHEMA
+                  name: {{ .Release.Name }}-testing-service-env
+            # The credentials are passed on their own rather than spliced into the
+            # DSN below. Only kubelet can expand $(VAR), and it cannot encode what
+            # it expands, so a password holding `#`, `/` or `?` would cut the URL
+            # short and leave the pod reporting an address it never read.
+            - name: CIP_TESTING_POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
+            - name: CIP_TESTING_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
+            - name: POSTGRES_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_URL
+                  name: {{ .Release.Name }}-env
+            # The service takes one DSN, and the pod composes it from the address
+            # and the schema declared above.
+            - name: CIP_TESTING_POSTGRES_DSN
+              value: "postgres://$(POSTGRES_URL)?sslmode=disable&search_path=$(CIP_TESTING_POSTGRES_SCHEMA)"
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          image: ghcr.io/netcracker/qubership-integration-testing-service:{{ .Values.image.tag }}
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            failureThreshold: 15
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            timeoutSeconds: 5
+          name: {{ .Release.Name }}-testing-service
+          ports:
+            - containerPort: 8080
+          resources: {}
+      restartPolicy: Always
+{{- end }}

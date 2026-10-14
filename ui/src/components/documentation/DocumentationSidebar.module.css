@@ -50,38 +50,35 @@
   visibility: hidden;
 }
 
-.sidebar :global(.ant-tree .ant-tree-switcher-icon) {
+/* Under showLine antd hands a custom switcher the -line-icon class, not the
+   -switcher-icon one its own stylesheet uses, so the arrow is styled through a
+   class of ours and turned from React instead. */
+.switcherIcon {
+  /* antd fills the switcher with colorBgTextHover on hover through a
+     positioned ::before, and this theme maps that token to an opaque colour,
+     so the arrow has to sit above it. */
+  position: relative;
+  z-index: 1;
   color: var(--vscode-foreground, #000);
   opacity: 0.6;
   font-size: 12px;
   transition:
-    transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1),
     opacity 0.2s ease,
     color 0.2s ease;
   display: inline-flex;
-  transform: rotate(90deg);
 }
 
-/* Rotate arrow down when expanded */
-.sidebar
-  :global(
-    .ant-tree
-      .ant-tree-treenode-switcher-open
-      > .ant-tree-switcher
-      .ant-tree-switcher-icon
-  ) {
-  transform: rotate(90deg) scaleY(-1);
-}
-
-.sidebar :global(.ant-tree .ant-tree-switcher:hover .ant-tree-switcher-icon) {
+.sidebar :global(.ant-tree .ant-tree-switcher:hover) .switcherIcon {
   opacity: 1;
 }
 
-.sidebar :global(.ant-tree .ant-tree-switcher-icon svg) {
+/* antd applies the rotation to the svg, so the transition belongs there. */
+.switcherIcon svg {
   width: 12px;
   height: 12px;
   display: block;
   margin: auto;
+  transition: transform 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
 }
 
 .sidebar :global(.ant-tree-show-line .ant-tree-indent-unit::before) {

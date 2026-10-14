@@ -3,7 +3,10 @@ package org.qubership.integration.platform.ai.schema;
 /** URI prefix and classpath mapping for embedded QIP YAML schemas under {@code qip-schemas/}. */
 public final class QipConfModelUris {
 
-  public static final String CONF_MODEL_PREFIX = "http://qubership.org/schemas/product/qip/";
+  public static final String CONF_MODEL_PREFIX =
+      "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/";
+
+  private static final String LEGACY_MODEL_PREFIX = "http://qubership.org/schemas/product/qip/";
 
   private static final String SCHEMA_SUFFIX = ".schema.yaml";
 
@@ -11,7 +14,7 @@ public final class QipConfModelUris {
 
   /** Conf-model URI for an element type (matches {@code $id} in monorepo {@code schemas/} YAML). */
   public static String elementModelUri(String elementType) {
-    return CONF_MODEL_PREFIX + "element/" + elementType + SCHEMA_SUFFIX;
+    return CONF_MODEL_PREFIX + "element/" + elementType;
   }
 
   /**
@@ -22,11 +25,13 @@ public final class QipConfModelUris {
     if (modelUriWithoutFragment == null || modelUriWithoutFragment.isBlank()) {
       throw new SchemaNotFoundException("Empty schema URI");
     }
-    if (!modelUriWithoutFragment.startsWith(CONF_MODEL_PREFIX)) {
+    String prefix = modelUriWithoutFragment.startsWith(LEGACY_MODEL_PREFIX)
+        ? LEGACY_MODEL_PREFIX : CONF_MODEL_PREFIX;
+    if (!modelUriWithoutFragment.startsWith(prefix)) {
       throw new SchemaNotFoundException(
           "Unsupported schema URI (expected conf-model prefix): " + modelUriWithoutFragment);
     }
-    String tail = modelUriWithoutFragment.substring(CONF_MODEL_PREFIX.length());
+    String tail = modelUriWithoutFragment.substring(prefix.length());
     if (tail.isBlank()) {
       throw new SchemaNotFoundException("Invalid schema URI tail: " + modelUriWithoutFragment);
     }

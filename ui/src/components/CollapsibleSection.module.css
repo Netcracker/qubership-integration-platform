@@ -1,0 +1,40 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* The chevron, the title and the count fold the section; the add button beside
+   them does not, so it is left out of this. */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+}
+
+/* The count sits in the header, so an empty section says so while still folded. */
+.badge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--vscode-badge-background, #e6eef8);
+  color: var(--vscode-badge-foreground, #0b66ff);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.empty {
+  font-weight: 600;
+}

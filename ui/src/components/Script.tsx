@@ -258,11 +258,21 @@ function configureGroovyLanguage(monaco: Monaco): void {
   );
 }
 
-export type ScriptProps = React.HTMLAttributes<HTMLElement> & {
+// `onChange` is omitted from the DOM attributes: the editor reports a string,
+// not a FormEvent, and the union of the two makes every caller cast.
+export type ScriptProps = Omit<
+  React.HTMLAttributes<HTMLElement>,
+  "onChange"
+> & {
   value: string;
   onChange?: (value: string) => void;
   mode?: "groovy" | "json";
   readOnly?: boolean;
+  /**
+   * Fills the scroll area the editor sits in. Turn it off where nothing around the editor
+   * scrolls, such as a plain modal body, and size the editor through `style` instead.
+   */
+  autoHeight?: boolean;
 };
 
 export const Script: React.FC<ScriptProps> = ({
@@ -270,6 +280,7 @@ export const Script: React.FC<ScriptProps> = ({
   onChange,
   mode = "groovy",
   readOnly = false,
+  autoHeight = true,
   ...props
 }): React.ReactNode => {
   const monacoTheme = useMonacoTheme();
@@ -287,21 +298,24 @@ export const Script: React.FC<ScriptProps> = ({
     const node = document.createElement("div");
     node.className = "monaco-editor";
     node.style.zIndex = "10000";
+    node.style.pointerEvents = "auto";
     return node;
   });
 
   useEffect(() => {
-    document.body.appendChild(overflowWidgetsDomNode);
     return () => {
       overflowWidgetsDomNode.remove();
     };
   }, [overflowWidgetsDomNode]);
 
+  const Container = autoHeight ? AutoHeight : "div";
+
   return (
-    <AutoHeight {...props}>
+    <Container {...props}>
       <Editor
         height="100%"
         className="qip-editor"
+        wrapperProps={{ "data-testid": "script-editor" }}
         value={value}
         language={mode}
         theme={monacoTheme}
@@ -309,8 +323,14 @@ export const Script: React.FC<ScriptProps> = ({
           configureGroovyLanguage(monaco);
           applyVSCodeThemeToMonaco(monaco);
         }}
-        onMount={(_editor, monaco: Monaco) => {
+        onMount={(editorInstance, monaco: Monaco) => {
           monacoRef.current = monaco;
+          // Keep Monaco overlays inside the modal focus boundary so focusing
+          // a menu does not return focus to the editor and close the menu.
+          const dialog = editorInstance
+            .getDomNode()
+            ?.closest<HTMLElement>('[role="dialog"][aria-modal="true"]');
+          (dialog ?? document.body).appendChild(overflowWidgetsDomNode);
         }}
         onChange={(value) => {
           if (!readOnly) {
@@ -361,6 +381,6 @@ export const Script: React.FC<ScriptProps> = ({
           },
         }}
       />
-    </AutoHeight>
+    </Container>
   );
 };

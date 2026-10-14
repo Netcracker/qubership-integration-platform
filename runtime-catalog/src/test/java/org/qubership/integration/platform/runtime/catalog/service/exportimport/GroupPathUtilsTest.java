@@ -2,6 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.io.readers.migrations.common.GroupPathUtils;
 
 import java.util.List;
 

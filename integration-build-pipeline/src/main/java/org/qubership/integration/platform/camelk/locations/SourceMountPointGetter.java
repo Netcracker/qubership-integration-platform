@@ -1,0 +1,34 @@
+package org.qubership.integration.platform.camelk.locations;
+
+import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.chain.model.Snapshot;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+@Component
+public class SourceMountPointGetter implements SourceLocationGetter {
+    private final NamingStrategy<ResourceBuildContext<Snapshot>> configMapNamingStrategy;
+    private final String mountDir;
+
+    @Autowired
+    public SourceMountPointGetter(
+            @Qualifier("sourceDslConfigMapNamingStrategy")
+            NamingStrategy<ResourceBuildContext<Snapshot>> configMapNamingStrategy,
+
+            @Value("${cip.cr.build.mount.path:/etc/camel/sources/}")
+            String mountDir
+    ) {
+        this.configMapNamingStrategy = configMapNamingStrategy;
+        this.mountDir = mountDir;
+    }
+
+    @Override
+    public String apply(ResourceBuildContext<Snapshot> context) {
+        String name = configMapNamingStrategy.getName(context);
+        String fileName = String.format("%s.%s", name, context.getBuildInfo().getOptions().getLanguage());
+        return (mountDir.endsWith("/") ? mountDir : (mountDir + "/")) + fileName;
+    }
+}

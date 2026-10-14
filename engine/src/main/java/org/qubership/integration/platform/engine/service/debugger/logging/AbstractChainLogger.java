@@ -28,7 +28,6 @@ import org.qubership.integration.platform.engine.util.IdentifierUtils;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Map;
 import java.util.Optional;
@@ -36,12 +35,9 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 @RequiredArgsConstructor
-public abstract class AbstractChainLogger {
+public abstract class AbstractChainLogger extends AbstractTruncatedFieldLogger {
     public static final String MDC_TRACE_ID = "trace_id";
     public static final String MDC_SNAP_ID = "span_id";
-
-    @Value("${qip.logging.fields-max-size}")
-    Integer fieldValueMaxSize;
 
     @SuppressWarnings("checkstyle:ConstantName")
     protected final ExtendedErrorLogger chainLogger = ExtendedErrorLoggerFactory.getLogger(this.getClass());
@@ -182,9 +178,10 @@ public abstract class AbstractChainLogger {
             String nodeId) {
         bodyForLogging = DebuggerUtils.chooseLogPayload(exchange, bodyForLogging, dbgProperties);
         if (dbgProperties.getRuntimeProperties(exchange).getLogLoggingLevel().isInfoLevel()) {
+            Map<String, String> beforeElementProperties = dbgProperties.getElementProperty(nodeId);
             ChainElementType type = ChainElementType.fromString(
-                    dbgProperties.getElementProperty(nodeId).get(
-                            ChainProperties.ELEMENT_TYPE));
+                    beforeElementProperties == null ? null
+                            : beforeElementProperties.get(ChainProperties.ELEMENT_TYPE));
 
             DeploymentRuntimeProperties runtimeProperties = dbgProperties.getRuntimeProperties(exchange);
             if (runtimeProperties.getLogPayload() != null) {
@@ -237,9 +234,10 @@ public abstract class AbstractChainLogger {
 
         if (dbgProperties.getRuntimeProperties(exchange).getLogLoggingLevel().isInfoLevel()
                 || failedOperation) {
+            Map<String, String> afterElementProperties = dbgProperties.getElementProperty(nodeId);
             ChainElementType type = ChainElementType.fromString(
-                    dbgProperties.getElementProperty(nodeId).get(
-                            ChainProperties.ELEMENT_TYPE));
+                    afterElementProperties == null ? null
+                            : afterElementProperties.get(ChainProperties.ELEMENT_TYPE));
 
             DeploymentRuntimeProperties runtimeProperties = dbgProperties.getRuntimeProperties(exchange);
             if (runtimeProperties.getLogPayload() != null) {
@@ -393,14 +391,6 @@ public abstract class AbstractChainLogger {
             chainLogger.error("Failed to get retry parameters.", ex);
             return new RetryParameters(0, 0, 0, false);
         }
-    }
-
-    protected String truncateValue(String value) {
-        if (fieldValueMaxSize != null && fieldValueMaxSize >= 0 && value != null) {
-            return StringUtils.abbreviate(value, fieldValueMaxSize + 3);
-        }
-
-        return value;
     }
 
     public abstract void logExchange(String message, String bodyForLogging,

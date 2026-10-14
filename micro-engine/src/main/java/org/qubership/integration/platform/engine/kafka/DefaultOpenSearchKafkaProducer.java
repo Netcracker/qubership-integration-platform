@@ -8,22 +8,22 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
+import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 
 @Slf4j
 @ApplicationScoped
 @DefaultBean
-@IfBuildProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
-@IfBuildProperty(name = "qip.opensearch.kafka-client.maas.enabled", stringValue = "false")
+@IfBuildProperty(name = "cip.opensearch.kafka-client.enabled", stringValue = "true")
+@IfBuildProperty(name = "cip.opensearch.kafka-client.maas.enabled", stringValue = "false")
 public class DefaultOpenSearchKafkaProducer implements OpenSearchKafkaProducer {
     @Inject
     @Channel("sessions")
-    Emitter<Record<String, KafkaQueueElement>> emitter;
+    Emitter<Record<String, SessionElementElastic>> emitter;
 
     @Override
-    public void send(String key, KafkaQueueElement kafkaQueueElement) {
+    public void send(String key, SessionElementElastic sessionElementElastic) {
         try {
-            emitter.send(Record.of(key, kafkaQueueElement));
+            emitter.send(Record.of(key, sessionElementElastic));
         } catch (Exception e) {
             log.error("Unable to send element to OpenSearch via Kafka", e);
         }

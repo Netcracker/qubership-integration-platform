@@ -66,6 +66,7 @@ public class HttpTriggerProcessor implements Processor {
     @Override
     public void process(Exchange exchange) throws Exception {
         saveUriContextForLogging(exchange);
+        markTestCaseRun(exchange);
         validate(exchange);
         // skip path variables parsing in case of checkpoint retry
         if (!exchange.getProperty(Properties.IS_CHECKPOINT_TRIGGER_STEP, false, Boolean.class)) {
@@ -73,6 +74,16 @@ public class HttpTriggerProcessor implements Processor {
         }
         parseResponseFilterParameters(exchange);
         removeHeaders(exchange);
+    }
+
+    // The testing service activates a trigger with the session header, and that is what tells a test case
+    // run from a live call. The header is the caller's to remove further down the chain, so the run is kept
+    // as an exchange property, which survives a chain call and a split and reaches endpoint mocking intact.
+    private void markTestCaseRun(Exchange exchange) {
+        String sessionId = getHeader(exchange, Headers.EXTERNAL_SESSION_CIP_ID);
+        if (StringUtils.isNotBlank(sessionId)) {
+            exchange.setProperty(Properties.TESTING_SESSION_ID, sessionId);
+        }
     }
 
     private void saveUriContextForLogging(Exchange exchange) {

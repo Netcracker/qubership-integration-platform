@@ -79,7 +79,7 @@ public class VariablesService {
                             NamespaceProvider namespaceProvider,
                             @Value("${kubernetes.variables-secret.label}") String kubeSecretsLabel,
                             @Value("${kubernetes.variables-secret.name}") String kubeSecretV2Name,
-                            @Value("${qip.variables.default-secret.enabled:false}") boolean defaultSecretEnabled) {
+                            @Value("${cip.variables.default-secret.enabled:false}") boolean defaultSecretEnabled) {
         this.applicationEventPublisher = applicationEventPublisher;
         this.operator = operator;
         this.namespaceProvider = namespaceProvider;
@@ -182,7 +182,7 @@ public class VariablesService {
                 }
             }
         } catch (KubeApiException e) {
-            if (operator.isDevmode()) {
+            if (operator.isDevMode()) {
                 log.debug("Can't to get secured variables from k8s");
             } else {
                 log.warn("Failed to get secured variables from k8s", e);
