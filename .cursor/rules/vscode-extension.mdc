@@ -30,8 +30,8 @@ npm run package-web         # webpack --mode production (used by vscode:prepubli
 # Tests
 npm test                    # = test:unit
 npm run test:unit           # jest -c jest.config.cjs (mocks `vscode` via tests/__mocks__)
-npm run test:unit:coverage  # jest --coverage  → coverage/
-npm run test:integration    # @vscode/test-web in headless chromium, pinned VS Code build; mounts src/web/test/workspace
+npm run test:unit:coverage  # jest --coverage → coverage/; lcov.info is what the Sonar gate reads
+npm run test:integration    # @vscode/test-web in headless chromium on the current insiders build; mounts src/web/test/workspace
 
 # Lint / types
 npm run lint                # eslint --fix src
@@ -71,12 +71,45 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
 - **Conventional Commits** required (enforced in CI on PR titles and commit messages).
 - **Apache License 2.0** — existing source files carry the NetCracker copyright header; new files do not need it.
 - `tsconfig.json`: `strict`, `module/moduleResolution: Node16`, target `ES2020`, libs `ES2020`+`WebWorker`.
-- Jest mocks the `vscode` module (`tests/__mocks__/vscode.ts`); unit tests live beside `api-services/` (`*.test.ts`) and under `tests/`. Integration tests under `src/web/test/` run in a real chromium web host and are excluded from Jest. CI
-  (`vscode-extension-build.yaml`) runs the Jest suite only; `npm run release-check` in `e2e/` runs the integration
-  suite after the Playwright one.
+- Four test levels: **1** Jest over the `tests/fake-vscode/` fake, no host; **2** mocha in `@vscode/test-web` over the
+  real `workspace.fs` (`src/web/test/suite/`); **3** the catalog importing a golden
+  (`e2e/specs/api/extension-output.spec.ts`); **4** the webview DOM, out of scope. A behavior the host cannot produce,
+  a symbolic link for one, can only be pinned at level 1.
+- Jest reads `vscode` through `tests/__mocks__/vscode.ts`, which forwards the fake in `tests/fake-vscode/`: an
+  in-memory `workspace.fs`, a `Uri` that joins paths, `workspaceFolders`, `FileType`, the five window prompts the
+  layer raises, and the tree-view types `qipExplorer.ts` builds its items from. Seed a tree with `seedWorkspace`,
+  address it with `workspaceUri` and read it back with `workspaceTree`, so a case asserts the file tree rather than the
+  calls that produced it. A seed entry carries its own `FileType`, which is the only way to reach
+  `FileType.SymbolicLink`: the level-2 host has no member that creates a link. It implements the six filesystem methods
+  the layer calls; `workspace.fs.copy`, `workspace.getConfiguration` and `window.withProgress` with `ProgressLocation`
+  are left out, so a case that needs one adds it. The prompts resolve undefined, the answer a dismissed prompt gives;
+  a case that needs an answer stubs it with `mockResolvedValueOnce`. **Reset contract:** call `resetWorkspace()` from a
+  `beforeEach`, because `clearMocks: true` clears recorded calls and not module state. `bindFileApi` in
+  `tests/fake-vscode/fileApi.ts` puts the layer's file API over the fake, as `useExtensionModules` does at level 2. A
+  suite that passes its own factory to `jest.mock("vscode", …)` overrides the mapping and loads none of this.
+- Unit tests live beside `api-services/` (`*.test.ts`) and under `tests/`. Integration tests under `src/web/test/` run
+  in a real chromium web host and are excluded from Jest. The `npm-build` job of `vscode-extension-build.yaml` runs
+  both suites, Jest with coverage and then `npm run test:integration`; `npm run release-check` in `e2e/` runs the
+  integration suite after the Playwright one.
+- Coverage is reported rather than gated by Jest: `jest.config.cjs` sets no `coverageThreshold`, and neither
+  `ui/jest.config.ts` nor `schemas/jest.config.ts` does. The `npm-build` job uploads `coverage/` and the `sonar` job
+  feeds `coverage/lcov.info` to SonarCloud with `-Dsonar.qualitygate.wait=true`, so a coverage condition is enforced
+  there and nowhere else.
 - The rule against mocking the file API in a disk-state test is about **faithfulness, not layering**. Modelling an
   unreadable file as a rejection from `parseFile` is fine — the real one logs and rethrows. Stubbing `getFileType` to
-  reject was not, because the real one catches everything and answers `UNKNOWN`.
+  reject was not, because the real one catches everything and answers `UNKNOWN`. The same rule binds the fake's
+  filesystem: every answer it gives comes from the level-2 measurements in
+  `src/web/test/suite/file-system.test.ts`. The API documentation does not lead you to expect several of the host's
+  answers: `delete` resolves for a missing path, `delete` removes a non-empty directory whole without `recursive`,
+  `readDirectory` reports the write order rather than a sorted one, and `writeFile` and `createDirectory` create every
+  missing parent. The fake reproduces each of them. The fake implements no `copy`, because the layer calls none, and
+  the suite pins only what `harness.ts` uses it for: a whole-folder copy, and `overwrite` over an existing target. A
+  `FileSystemError`'s `message` is the bare `uri.toString()`, so a message that names a path composes it.
+- `FileStat.type` is a bitmask, so a symlink to a file stats as `File | SymbolicLink`. The eight `File` comparisons in
+  `fileApiImpl.ts` and `qipExplorer.ts` mask it off (`(type & vscode.FileType.File) !== 0`) and the five `Directory`
+  comparisons compare strictly; a new comparison follows the same split, and each file carries the reason above its
+  class. Masking `Directory` would make the traversals descend into a linked directory, so a link cycle recurses
+  without bound, and would turn the public `deleteFile` from deleting the link into reading through it.
 - Node `>=22` (root monorepo `engines`).
 
 ### Integration tests
@@ -87,8 +120,17 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
 - `test:integration` runs `--headless` and opens `src/web/test/workspace/`, files exported by the catalog. The host
   keeps writes in memory; a spec that writes or deletes works on files of its own, a copy (`copyFolder` in
   `harness.ts`) or new files (`writeYaml`), and removes them in a teardown hook or a `finally`.
-- The script pins the VS Code build with `--quality insiders --commit <sha>`, the build the suite's host facts were
-  measured on. Moving the pin is a change to review like any other: rerun the suite and recheck those facts.
+- The script pins the host quality with `--quality insiders` and no `--commit`: `enabledApiProposals` carries
+  `customEditorDiffs`, which only insiders builds ship, and tracking the current build reports a proposed-API change
+  early rather than at release. `src/web/test/suite/file-system.test.ts` logs the build its measured answers came from
+  on every run (`1.142.0-insider`, `appHost web` at the time of writing), so no sha has to stand for that. Where the
+  gate turns red on a download, or on a host answer that suite measured, re-pin `--commit <sha>` to unblock it and
+  raise the host change as its own issue.
+- The chromium the host runs in is the one `@playwright/browser-chromium` installs during `npm ci`. Its host table
+  rejects an unlisted distribution, so on `ubuntu26.04` Playwright 1.60 printed
+  `Playwright does not support chromium on ubuntu26.04` and left no browser to launch; 1.64 lists it. A newer runner
+  image hits this again, and the answer is to bump `playwright`, `playwright-core` and `@playwright/browser-chromium`
+  together.
 - The test bundle carries its own copy of the extension's modules. Call `useExtensionModules` from `harness.ts`
   before calling one, such as `getApiResponse`, so that copy has a file API. The `vscode` API object is shared, so a
   stub on `vscode.window` supplies the input the extension's prompts return.
@@ -96,9 +138,12 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
   the running extension's router is not exercised. In this host the embedded UI does not use that wiring anyway:
   it detects VS Code by the `vscode-webview:` protocol, and VS Code for the Web serves the webview over HTTP, so it
   sends nothing. The webview DOM is out of scope.
-- `src/web/test/golden/` holds files the extension wrote, and the specs that write them compare the bytes. The end-to-end
-  suite imports the same files into the catalog (`e2e/specs/api/extension-output.spec.ts`), so a change to what the
-  extension writes updates the golden file in the same commit and runs that spec too.
+- `src/web/test/golden/` holds the eight files the extension wrote, and the specs that write them compare the bytes.
+  The end-to-end suite imports all but the INTERNAL service into the catalog
+  (`e2e/specs/api/extension-output.spec.ts`), so a change to what the extension writes updates the golden file in the
+  same commit and runs that spec too. On a cluster whose istiod lacks `PILOT_ENABLE_ALPHA_GATEWAY_API=true`, run that
+  spec with `E2E_PROVISION=never`: these cases only POST an archive, and provisioning otherwise refuses the whole run
+  over the egress routes the `runtime` specs need.
 - The document schemas under `schemas/src/main/resources/conf-model/` are bundled as text by a webpack
   `asset/source` rule, so a spec validates a saved file against the checked-in sources.
 

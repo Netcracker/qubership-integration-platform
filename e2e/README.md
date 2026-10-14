@@ -600,14 +600,16 @@ npm run test:integration -w @netcracker/qip-vscode-extension
 ```
 
 - The script compiles the extension, then starts VS Code for the web in headless Chromium, so it
-  needs no display. It pins the VS Code build with `--quality insiders --commit <sha>` in
-  `vscode-extension/package.json`. The first run downloads that build into the gitignored
-  `vscode-extension/.vscode-test-web/`, which needs network access; later runs reuse it. A run
-  takes about 25 seconds.
+  needs no display. It pins the host quality with `--quality insiders` in
+  `vscode-extension/package.json`, which the `customEditorDiffs` proposal forces, and no commit, so
+  every run resolves the current insiders build. The first run downloads it into the gitignored
+  `vscode-extension/.vscode-test-web/`, which needs network access; later runs reuse that download
+  until the insiders build rotates, and a rotation means a fresh download. A run takes about 25
+  seconds. Re-pin `--commit <sha>` if a download fails.
 - It opens `vscode-extension/src/web/test/workspace/` as the workspace. The test host keeps every
   write in memory, so a run leaves those files unchanged.
-- No CI workflow runs it. `vscode-extension-build.yaml` runs the extension's Jest suite only, so
-  `npm run release-check` runs the integration suite after this one.
+- `vscode-extension-build.yaml` runs it in the `npm-build` job, after the Jest suite. `npm run
+  release-check` runs it again locally, so a release check covers it without a pull request.
 
 The two suites share one contract: the catalog imports what the extension writes. The extension
 suite compares what it writes with the files in `vscode-extension/src/web/test/golden/`, and

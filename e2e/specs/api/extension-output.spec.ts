@@ -1,12 +1,13 @@
 /**
  * The catalog imports the files the VS Code extension writes.
  *
- * `vscode-extension/src/web/test/golden/` holds files the extension wrote in its own integration
- * suite, and that suite fails once the extension writes other bytes. This spec imports the same
- * bytes, so a change on either side of the contract fails one of the two suites:
+ * `vscode-extension/src/web/test/golden/` holds eight files the extension wrote in its own
+ * integration suite, and that suite fails once the extension writes other bytes. This spec imports
+ * seven of them, so a change on either side of the contract fails one of the two suites:
  *
  * - the fixture chain after an `updateChain` change, zipped with the fixture's Groovy resource
  *   from `vscode-extension/src/web/test/workspace/`;
+ * - the fixture context and MCP services after a name change;
  * - a chain from `qip.createChain`;
  * - an `EXTERNAL`, a `CONTEXT`, and an `MCP` service from `qip.createService`, one per import
  *   endpoint.
@@ -15,6 +16,12 @@
  * it. Each case imports the file and checks that the catalog's export keeps the name and the
  * description the extension wrote. Migration 101 of a chain or a service, run on a file already in
  * the current format, nests its `content` a second time, and the description is then lost.
+ *
+ * The extension round-trips the workspace's INTERNAL service too, and that golden has no case here.
+ * `specs/api/service-roundtrip.spec.ts` owns `3b2e9742-139c-4750-bb76-adaf1cc9e3f0` in this same
+ * parallel-safe project: a one-document service imported under that id would race that case's own
+ * import and export assertions, and each teardown would delete the other's subject. The extension
+ * suite checks that golden on its own.
  *
  * The golden files carry fixed ids, which the spec reads off their file names, so the cases delete
  * whatever holds an id before importing, and two suite runs against one stack would import the same
@@ -33,9 +40,13 @@ import { archiveOf, entryText, zipOf } from "../../support/zip.js";
 const EXTENSION = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../vscode-extension/src/web/test");
 const GOLDEN = path.join(EXTENSION, "golden");
 
-/** Whether the extension's test workspace holds chain `id`: the changed chain is there, and the created one is not. */
+/**
+ * Whether the extension's test workspace holds `id`, as a chain or as a service. A golden the
+ * extension wrote by changing a workspace document carries that document's id; one it wrote by
+ * creating a document carries an id no fixture has.
+ */
 function inWorkspace(id: string): boolean {
-  return fs.existsSync(path.join(EXTENSION, "workspace/chains", id));
+  return ["chains", "services"].some((kind) => fs.existsSync(path.join(EXTENSION, "workspace", kind, id)));
 }
 
 /** The id of the one golden file whose name ends in `suffix` and whose id passes `which`. */
@@ -47,9 +58,13 @@ function goldenId(suffix: string, which: (id: string) => boolean = () => true): 
 
 const CHANGED_CHAIN = goldenId(".chain.cip.yaml", inWorkspace);
 const CREATED_CHAIN = goldenId(".chain.cip.yaml", (id) => !inWorkspace(id));
-const EXTERNAL = goldenId(".service.cip.yaml");
-const CONTEXT = goldenId(".context-service.cip.yaml");
-const MCP = goldenId(".mcp-service.cip.yaml");
+const CHANGED_CONTEXT = goldenId(".context-service.cip.yaml", inWorkspace);
+const CHANGED_MCP = goldenId(".mcp-service.cip.yaml", inWorkspace);
+// Every service suffix matches a created golden and a round-tripped one, so each of these three
+// takes the negated predicate: without it `goldenId` throws on the second match.
+const EXTERNAL = goldenId(".service.cip.yaml", (id) => !inWorkspace(id));
+const CONTEXT = goldenId(".context-service.cip.yaml", (id) => !inWorkspace(id));
+const MCP = goldenId(".mcp-service.cip.yaml", (id) => !inWorkspace(id));
 
 /** Deletes what the catalog holds at `location` with `remove`, if it holds anything there. */
 async function removeIfPresent(catalog: Catalog, location: string, remove: () => Promise<void>): Promise<void> {
@@ -102,6 +117,40 @@ test("a chain the extension changed imports into the catalog, and the catalog ex
     await removeIfPresent(catalog, location, () => catalog.deleteChain(CHANGED_CHAIN)).catch(leftBehind(`chain ${CHANGED_CHAIN}`));
   }
 });
+
+/** The round-tripped service goldens, each with the endpoint that imports it. */
+const CHANGED_SERVICES = [
+  {
+    title: "a context service the extension round-tripped imports into the catalog",
+    id: CHANGED_CONTEXT,
+    archive: () => serviceArchive(CHANGED_CONTEXT, ".context-service.cip.yaml"),
+    importPath: "/v1/catalog/context-system/import",
+    location: `/v1/catalog/context-system/${CHANGED_CONTEXT}`,
+    remove: (catalog: Catalog) => catalog.deleteContextSystem(CHANGED_CONTEXT),
+  },
+  {
+    title: "an MCP service the extension round-tripped imports into the catalog",
+    id: CHANGED_MCP,
+    archive: () => serviceArchive(CHANGED_MCP, ".mcp-service.cip.yaml"),
+    importPath: "/v1/catalog/mcp-system/import",
+    location: `/v1/catalog/mcp-system/${CHANGED_MCP}`,
+    remove: (catalog: Catalog) => catalog.deleteMcpSystem(CHANGED_MCP),
+  },
+];
+
+for (const each of CHANGED_SERVICES) {
+  test(each.title, { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
+    try {
+      await removeIfPresent(catalog, each.location, () => each.remove(catalog));
+
+      const response = await catalog.importArchive(each.importPath, await each.archive());
+      expect(response.status(), await response.text()).toBe(200);
+      expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: each.id, status: "CREATED" })]);
+    } finally {
+      await removeIfPresent(catalog, each.location, () => each.remove(catalog)).catch(leftBehind(each.location));
+    }
+  });
+}
 
 interface Document {
   id: string;

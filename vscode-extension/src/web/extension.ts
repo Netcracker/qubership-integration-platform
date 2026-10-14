@@ -629,7 +629,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   });
 
   // Register QIP Explorer provider
-  const qipProvider = new QipExplorerProvider(context);
+  const qipProvider = new QipExplorerProvider();
   globalQipProvider = qipProvider;
 
   context.subscriptions.push(

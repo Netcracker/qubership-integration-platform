@@ -5,7 +5,7 @@ import { deleteElementsPropertyFiles } from "../../../src/web/response/resourceU
 
 jest.mock("../../../src/web/response/file", () => ({
   fileApi: {
-    getMainChain: jest.fn(),
+    parseFile: jest.fn(),
     getDirectoriesToRemove: jest.fn(),
     deleteFile: jest.fn(),
   },
@@ -39,7 +39,7 @@ describe("deleteChain", () => {
     toString: jest.fn().mockReturnValue("/workspace/chains/my-chain/resources"),
   } as unknown as Uri;
 
-  const mockGetMainChain = fileApi.getMainChain as jest.Mock;
+  const mockParseFile = fileApi.parseFile as jest.Mock;
   const mockGetDirectoriesToRemove = fileApi.getDirectoriesToRemove as jest.Mock;
   const mockDeleteFile = fileApi.deleteFile as jest.Mock;
   const mockDeleteElementsPropertyFiles = deleteElementsPropertyFiles as jest.Mock;
@@ -48,7 +48,7 @@ describe("deleteChain", () => {
     jest.clearAllMocks();
     mockGetDirectoriesToRemove.mockResolvedValue([resourcesUri, chainFolderUri]);
     mockDeleteFile.mockResolvedValue(undefined);
-    mockGetMainChain.mockResolvedValue({
+    mockParseFile.mockResolvedValue({
       id: "chain-1",
       content: { elements: [] },
     });
@@ -65,19 +65,19 @@ describe("deleteChain", () => {
         { id: "el-1", type: "service" } as unknown as never,
         { id: "el-2", type: "http-trigger" } as unknown as never,
       ];
-      mockGetMainChain.mockResolvedValue({
+      mockParseFile.mockResolvedValue({
         id: "chain-1",
         content: { elements },
       });
 
       await deleteChain(chainFileUri);
 
-      expect(mockGetMainChain).toHaveBeenCalledWith(chainFileUri);
+      expect(mockParseFile).toHaveBeenCalledWith(chainFileUri);
       expect(mockDeleteElementsPropertyFiles).toHaveBeenCalledWith(chainFileUri, elements);
     });
 
     it("should not call deleteElementsPropertyFiles when elements is undefined", async () => {
-      mockGetMainChain.mockResolvedValue({
+      mockParseFile.mockResolvedValue({
         id: "chain-1",
         content: {},
       } as never);
@@ -88,7 +88,7 @@ describe("deleteChain", () => {
     });
 
     it("should not call deleteElementsPropertyFiles when elements is empty", async () => {
-      mockGetMainChain.mockResolvedValue({
+      mockParseFile.mockResolvedValue({
         id: "chain-1",
         content: { elements: [] },
       } as never);
@@ -98,8 +98,8 @@ describe("deleteChain", () => {
       expect(mockDeleteElementsPropertyFiles).not.toHaveBeenCalled();
     });
 
-    it("should swallow error from getMainChain and still delete files", async () => {
-      mockGetMainChain.mockRejectedValue(new Error("read failed"));
+    it("should swallow error from parseFile and still delete files", async () => {
+      mockParseFile.mockRejectedValue(new Error("read failed"));
 
       await deleteChain(chainFileUri);
 
@@ -110,7 +110,7 @@ describe("deleteChain", () => {
 
     it("should swallow error from deleteElementsPropertyFiles and still delete files", async () => {
       const elements = [{ id: "el-1" } as unknown as never];
-      mockGetMainChain.mockResolvedValue({
+      mockParseFile.mockResolvedValue({
         id: "chain-1",
         content: { elements },
       });
@@ -124,7 +124,7 @@ describe("deleteChain", () => {
 
     it("should log cleanup error with original exception", async () => {
       const cause = new Error("ENOENT");
-      mockGetMainChain.mockRejectedValue(cause);
+      mockParseFile.mockRejectedValue(cause);
 
       await deleteChain(chainFileUri);
 
@@ -263,7 +263,7 @@ describe("deleteChain", () => {
 
   describe("overall ordering with no resources", () => {
     it("should handle chain without elements and complete all deletions", async () => {
-      mockGetMainChain.mockResolvedValue({
+      mockParseFile.mockResolvedValue({
         id: "chain-1",
         content: { elements: [] },
       } as never);

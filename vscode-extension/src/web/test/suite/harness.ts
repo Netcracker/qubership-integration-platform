@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
 import * as yaml from "yaml";
+import { getApiResponse } from "../../response";
 import { setFileApi } from "../../response/file";
 import { VSCodeFileApi } from "../../response/file/fileApiImpl";
 
@@ -50,10 +51,9 @@ export function manifest(): any {
 
 // The test bundle carries its own copy of the extension's modules, so their file API is configured
 // here the way `activate` configures the extension's copy.
-export function useExtensionModules(): vscode.ExtensionContext {
+export function useExtensionModules(): void {
   const context = { extensionUri: extension().extensionUri } as vscode.ExtensionContext;
   setFileApi(new VSCodeFileApi(context));
-  return context;
 }
 
 // Files the extension wrote, committed as the bytes it has to keep writing. The e2e suite imports
@@ -129,6 +129,17 @@ export function activeTab(): vscode.Tab | undefined {
   return vscode.window.tabGroups.activeTabGroup.activeTab;
 }
 
+export function openTabLabels(): string[] {
+  return vscode.window.tabGroups.all.flatMap((group) => group.tabs).map((tab) => tab.label);
+}
+
+// Calls the router in the test bundle's copy of the modules with a message shaped the way the webview
+// sends one. The wiring from the webview to the running extension's router (`enrichWebview`) is not
+// exercised.
+export async function callRouter(type: string, payload: unknown, documentUri: vscode.Uri): Promise<unknown> {
+  return getApiResponse({ requestId: crypto.randomUUID(), type, payload } as any, documentUri);
+}
+
 export async function waitFor<T>(
   probe: () => T | undefined | Promise<T | undefined>,
   what: string,
@@ -164,6 +175,17 @@ export async function expectCustomEditor(viewType: string, uri: vscode.Uri): Pro
   );
 }
 
+// Waits until the active tab is the webview panel titled `title`. The host prefixes a panel's view
+// type, so a `qipWebView` panel reports `mainThreadWebview-qipWebView`. Every panel the extension
+// opens carries that one view type, so the title tells them apart.
+export async function expectWebviewPanel(title: string): Promise<void> {
+  const tab = await waitFor(() => (activeTab()?.label === title ? activeTab() : undefined), `the "${title}" tab`).catch(
+    () => assert.fail(`expected the "${title}" panel, got ${activeTab()?.label}: ${describeInput(activeTab()?.input)}`),
+  );
+  assert.ok(tab.input instanceof vscode.TabInputWebview, `expected a webview, got ${describeInput(tab.input)}`);
+  assert.match(tab.input.viewType, /qipWebView$/);
+}
+
 export function describeInput(input: unknown): string {
   if (input instanceof vscode.TabInputCustom) {
     return `custom editor ${input.viewType} on ${input.uri}`;
@@ -177,10 +199,12 @@ export function describeInput(input: unknown): string {
   return String(input);
 }
 
-type WindowStubs = {
+export type WindowStubs = {
   showInputBox?: (options?: vscode.InputBoxOptions) => string | undefined;
   showQuickPick?: (items: readonly any[]) => any;
   showWarningMessage?: (message: string, ...rest: unknown[]) => string | undefined;
+  showErrorMessage?: (message: string, ...rest: unknown[]) => string | undefined;
+  showOpenDialog?: (options?: vscode.OpenDialogOptions) => vscode.Uri[] | undefined;
 };
 
 // Answers the prompts a command raises. The test bundle and the extension share one `vscode` API object.
