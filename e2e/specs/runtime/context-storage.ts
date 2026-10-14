@@ -14,5 +14,6 @@ import type { ConditionalDefect } from "../../support/known-defect.js";
  */
 export const CONTEXT_STORE_UNTRANSACTED: ConditionalDefect = {
   title: "the micro engine stores a context value outside a transaction",
+  engine: "micro",
   matches: (message) => message.includes("Transaction is not active"),
 };

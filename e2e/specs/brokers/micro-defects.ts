@@ -1,9 +1,9 @@
 /**
- * The defects the broker cases meet on the micro copy, and the engine log reading that names them.
+ * The defects the broker cases meet on the micro copy, and the selectors of the engine log lines that
+ * name them.
  *
  * Not a spec: Playwright's default `testMatch` does not collect it.
  */
-import type { Env } from "../../env/index.js";
 import type { ConditionalDefect } from "../../support/known-defect.js";
 
 const PUBSUB_UNAUTHENTICATED = "UNAUTHENTICATED: Failed computing credential metadata";
@@ -17,6 +17,7 @@ const PUBSUB_UNAUTHENTICATED = "UNAUTHENTICATED: Failed computing credential met
  */
 export const PUBSUB_EMULATOR_BYPASSED: ConditionalDefect = {
   title: "the micro engine sends pub/sub calls to Google instead of the emulator",
+  engine: "micro",
   matches: (message) => message.includes(PUBSUB_UNAUTHENTICATED),
 };
 
@@ -35,31 +36,11 @@ const NO_LINE_FOR_CHAIN = /logged 0 lines for chain /;
  */
 export const SFTP_TRIGGER_IDLE: ConditionalDefect = {
   title: "an sftp-trigger-2 on the micro engine never polls its directory",
+  engine: "micro",
   matches: (message) => NO_LINE_FOR_CHAIN.test(message),
 };
 
 /** Selects the engine log lines a run of chain `id` writes, by the chain id in their MDC block. */
 export function linesOfChain(id: string): (line: string) => boolean {
   return (line) => line.includes(`chain_id=${id}`);
-}
-
-/**
- * Runs `wait`, and adds to its failure how many engine log lines since `since` `pick` selects, and the
- * first of them. `what` names the selection in that message.
- */
-export async function withEngineLines<T>(
-  env: Env,
-  since: string,
-  what: string,
-  pick: (line: string) => boolean,
-  wait: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await wait();
-  } catch (cause) {
-    const lines = (await env.engineLogs(since)).split("\n").filter(pick);
-    const first = lines.length > 0 ? `; the first: ${lines[0]}` : "";
-    const message = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(`${message}\n\nthe engine logged ${lines.length} lines ${what} since ${since}${first}`, { cause });
-  }
 }

@@ -48,11 +48,11 @@ import {
   type Sessions,
 } from "../../support/sessions.js";
 import { readUntil } from "../../support/poll.js";
-import { logWindowStart } from "../../support/logs.js";
+import { logWindowStart, withEngineLines } from "../../support/logs.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
 import { covers } from "../../registry/covers.js";
 import type { Env } from "../../env/index.js";
-import { PUBSUB_EMULATOR_BYPASSED, pubsubAuthFailure, withEngineLines } from "./micro-defects.js";
+import { PUBSUB_EMULATOR_BYPASSED, pubsubAuthFailure } from "./micro-defects.js";
 
 /** What `readUntil` gets for the ackMode=NONE case's settle window, instead of a bare literal. */
 const ACKMODE_NONE_SETTLE_TIMEOUT = 12_000;

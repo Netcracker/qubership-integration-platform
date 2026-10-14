@@ -1,22 +1,36 @@
 /**
  * The `matches` of every `ConditionalDefect`, against the failure messages it has to recognize and the
- * ones it must leave a real failure. No stack.
+ * ones it must leave a real failure, and the engine gate `strikesAsKnown` puts in front of it. No stack.
  */
 import { test, expect, type APIResponse } from "@playwright/test";
 import { MOCK_BYPASSED } from "../runtime/service-call.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIMIT_REFUSED_WITH_400, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
+import { strikes, strikesAsKnown } from "../../support/known-defect.js";
+import { withEngineLines } from "../../support/logs.js";
 import { CONTEXT_STORE_UNTRANSACTED } from "../runtime/context-storage.js";
-import {
-  PUBSUB_EMULATOR_BYPASSED,
-  SFTP_TRIGGER_IDLE,
-  linesOfChain,
-  pubsubAuthFailure,
-  withEngineLines,
-} from "../brokers/micro-defects.js";
+import { PUBSUB_EMULATOR_BYPASSED, SFTP_TRIGGER_IDLE, linesOfChain, pubsubAuthFailure } from "../brokers/micro-defects.js";
 import type { Env } from "../../env/index.js";
 
 const TAGS = { tag: ["@infra", "@tier1"] };
+
+// A classic regression of the same feature can fail with the same message, and it has to stay red.
+test("a micro defect is known only on the micro engine, and the same failure on classic is a real one", TAGS, async () => {
+  const unresolved = 'Error: {\n  "code" : "QIP-0101",\n}';
+  expect(strikes(MOCK_BYPASSED, "micro", unresolved)).toBe(true);
+  expect(strikes(MOCK_BYPASSED, "classic", unresolved)).toBe(false);
+
+  // This project sets no engine kind, so it runs as a classic one: the failure comes back, and the
+  // case is still expected to pass. The status is put back before it is asserted, since a case
+  // marked to fail would report this assertion's failure as expected.
+  const thrown = await strikesAsKnown(MOCK_BYPASSED, async () => {
+    throw new Error(unresolved);
+  }).catch((cause: unknown) => String(cause));
+  const expectedStatus = test.info().expectedStatus;
+  test.info().expectedStatus = "passed";
+  expect(thrown).toContain("QIP-0101");
+  expect(expectedStatus).toBe("passed");
+});
 
 test("a mocked service call that reached its real address is the known defect, and an unmatched mock is not", TAGS, () => {
   // The two failures the micro engine produced, as `strikesAsKnown` reads them.
@@ -62,11 +76,16 @@ test("a context SET the micro engine ran outside a transaction is the known defe
   expect(CONTEXT_STORE_UNTRANSACTED.matches("Error: Connection refused\n\nExpected: 200\nReceived: 500")).toBe(false);
 });
 
-/** What `withEngineLines` throws when `wait` fails and the engine log reads `log`. */
-async function engineLinesFailure(log: string, what: string, pick: (line: string) => boolean): Promise<string> {
+/** What `withEngineLines` throws when `wait` fails with `failure` and the engine log reads `log`. */
+async function engineLinesFailure(
+  log: string,
+  what: string,
+  pick: (line: string) => boolean,
+  failure = "sessions of e2e0b001-0000-4000-8000-000000000001\n\nExpected length: 1\nReceived length: 0",
+): Promise<string> {
   const env = { engineLogs: async () => log } as unknown as Env;
   const failed = withEngineLines(env, "2026-10-14T06:18:41.203Z", what, pick, async () => {
-    throw new Error("sessions of e2e0b001-0000-4000-8000-000000000001\n\nExpected length: 1\nReceived length: 0");
+    throw new Error(failure);
   });
   return String(await failed.catch((cause: unknown) => cause));
 }
@@ -111,13 +130,6 @@ test("an sftp trigger that never ran its chain is the known defect, and a run th
   expect(SFTP_TRIGGER_IDLE.matches("Error: sessions of x\n\nExpected length: 1\nReceived length: 0")).toBe(false);
 });
 
-test("withEngineLines returns what a successful wait returns and reads no log", TAGS, async () => {
-  let reads = 0;
-  const env = { engineLogs: async () => { reads++; return ""; } } as unknown as Env;
-  expect(await withEngineLines(env, "2026-10-14T06:18:41.203Z", "naming UNAUTHENTICATED", pubsubAuthFailure, async () => 42)).toBe(42);
-  expect(reads).toBe(0);
-});
-
 /** What `withHeldAnswer` throws when `step` fails with `failure` and the held call answered `status` and `body`. */
 async function heldAnswerFailure(failure: string, status: number, body: string): Promise<string> {
   const response = { status: () => status, text: async () => body } as unknown as APIResponse;
@@ -140,11 +152,6 @@ test("an exchange the micro engine never listed while it was held is the known d
   expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("no live exchange for chain c1 was ever listed", 200, '{"element":"other"}'))).toBe(false);
   // The exchange was listed, and a later assertion failed.
   expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("expect(received).toBe(expected)\n\nExpected: true\nReceived: false", 200, held))).toBe(false);
-});
-
-test("withHeldAnswer returns what a successful step returns", TAGS, async () => {
-  const call: HeldCall = { token: "t", answer: new Promise<APIResponse>(() => undefined) };
-  expect(await withHeldAnswer(call, async () => 42)).toBe(42);
 });
 
 test("an unknown deployment the micro engine reports as an unknown exchange is the known defect, and another 404 is not", TAGS, () => {

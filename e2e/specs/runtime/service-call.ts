@@ -27,5 +27,6 @@ const HEALTH_ANSWERED = /'\{"status":"[A-Z_]+".*' doesn't contain '"mocked":/;
  */
 export const MOCK_BYPASSED: ConditionalDefect = {
   title: "the micro engine sends a mocked service call to the real address",
+  engine: "micro",
   matches: (message) => message.includes("QIP-0101") || EGRESS_NO_ROUTE.test(message) || HEALTH_ANSWERED.test(message),
 };

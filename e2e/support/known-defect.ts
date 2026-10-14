@@ -21,6 +21,7 @@
  */
 import { test } from "@playwright/test";
 import type { APIResponse } from "@playwright/test";
+import type { EngineKind } from "../env/index.js";
 
 /**
  * Fails the running `test.fail()` case for real, because what it saw is not the defect it pins.
@@ -66,24 +67,36 @@ export async function onlyTheKnownStatus(
 }
 
 /**
- * A defect a case meets only on some stacks, because it depends on how much data the stack holds, so
- * the case cannot carry a plain `test.fail()`: on a small stack it passes, and the annotation would
- * turn that pass red.
+ * A defect a case meets only on one engine, so the case cannot carry a plain `test.fail()`: on the
+ * other engine it passes, and the annotation would turn that pass red.
  */
 export interface ConditionalDefect {
   title: string;
+  /** The engine that meets the defect. On the other engine a failure `matches` accepts stays a real one. */
+  engine: EngineKind;
   matches(message: string): boolean;
 }
 
+/** Whether a step that failed with `message` on `engine` met `defect`. */
+export function strikes(defect: ConditionalDefect, engine: EngineKind, message: string): boolean {
+  return engine === defect.engine && defect.matches(message);
+}
+
+/** The engine the running project's chains run on, which a project sets with `use: { engineKind }`. */
+function projectEngine(): EngineKind {
+  return (test.info().project.use as { engineKind?: EngineKind }).engineKind ?? "classic";
+}
+
 /**
- * Runs `step`, and marks the running case an expected failure only when `step` throws `defect`. Any
- * other failure stays a real one, and a step that succeeds leaves the case an ordinary passing case.
+ * Runs `step`, and marks the running case an expected failure only when `step` throws `defect` on the
+ * engine that meets it. Any other failure stays a real one, and a step that succeeds leaves the case
+ * an ordinary passing case.
  */
 export async function strikesAsKnown<T>(defect: ConditionalDefect, step: () => Promise<T>): Promise<T> {
   try {
     return await step();
   } catch (cause) {
-    if (defect.matches(String(cause))) test.fail(true, defect.title);
+    if (strikes(defect, projectEngine(), String(cause))) test.fail(true, defect.title);
     throw cause;
   }
 }
