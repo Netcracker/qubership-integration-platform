@@ -38,6 +38,8 @@ public interface ChainLiteMapper {
 
     @SubclassMapping(target = ChainLiteDTO.class, source = Chain.class)
     @SubclassMapping(target = ChainLiteDTO.class, source = Snapshot.class)
+    @Mapping(target = "currentSnapshotId", ignore = true)
+    @Mapping(target = "currentSnapshotName", ignore = true)
     ChainLiteDTO asDto(AbstractEntity entity);
 
     @Mapping(target = "currentSnapshotId", source = "id")

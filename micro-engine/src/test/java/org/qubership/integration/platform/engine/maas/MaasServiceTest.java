@@ -383,7 +383,7 @@ class MaasServiceTest {
         stubRegistryWith(classifierInfo);
         stubKafkaVariables(classifierInfo);
         when(kafkaMaasClient.getTopic(any(Classifier.class))).thenReturn(Optional.of(topicAddress));
-        when(topicAddress.getBoostrapServers(SASL_SSL)).thenReturn("kafka.example.com:9093", null);
+        when(topicAddress.getBoostrapServers(SASL_SSL)).thenReturn("kafka.example.com:9093", (String) null);
         stubNoCredentials(topicAddress);
 
         assertThrows(MaasException.class, () -> service.resolveMaasParameters("content"));

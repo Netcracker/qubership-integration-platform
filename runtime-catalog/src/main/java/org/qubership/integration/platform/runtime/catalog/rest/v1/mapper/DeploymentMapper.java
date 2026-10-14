@@ -63,6 +63,9 @@ public abstract class DeploymentMapper {
 
     @Mapping(source = "snapshot.id", target = "snapshotId")
     @Mapping(source = "chain.id", target = "chainId")
+    @Mapping(target = "domainType", ignore = true)
+    @Mapping(target = "runtime", ignore = true)
+    @Mapping(target = "serviceName", ignore = true)
     public abstract DeploymentResponse asResponse(Deployment deployment);
 
     @Mapping(source = "deployment.id", target = "id")
@@ -72,6 +75,7 @@ public abstract class DeploymentMapper {
     @Mapping(source = "deployment.suspended", target = "suspended")
     @Mapping(source = "state", target = "runtime")
     @Mapping(source = "deployment.name", target = "name")
+    @Mapping(target = "domainType", ignore = true)
     public abstract DeploymentResponse asResponse(Deployment deployment, RuntimeDeployment state);
 
     public List<DeploymentResponse> asResponses(List<Deployment> deploymentEntityEngineList) {
@@ -86,6 +90,7 @@ public abstract class DeploymentMapper {
 
     @Mapping(source = "status", target = "status")
     @Mapping(source = "errorMessage", target = "error")
+    @Mapping(target = "stacktrace", ignore = true)
     public abstract RuntimeDeploymentState toDTO(EngineDeployment state);
 
     @Mapping(source = "deployment.deploymentInfo.deploymentId", target = "id")
@@ -139,6 +144,17 @@ public abstract class DeploymentMapper {
         return request.stream().map(this::asEntity).collect(Collectors.toList());
     }
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdWhen", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "deploymentRoutes", ignore = true)
+    @Mapping(target = "sessionsLoggingLevel", ignore = true)
+    @Mapping(target = "logLoggingLevel", ignore = true)
+    @Mapping(target = "logPayloadLevel", ignore = true)
+    @Mapping(target = "dptEventsEnabled", ignore = true)
+    @Mapping(target = "maskingEnabled", ignore = true)
+    @Mapping(target = "snapshot", ignore = true)
+    @Mapping(target = "chain", ignore = true)
     public abstract void merge(@MappingTarget Deployment entity, DeploymentRequest request);
 
     public abstract ChainRuntimeDeployment toChainRuntimeDeployment(EngineDeployment deployment, String host);

@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.UserMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DetailedDesignTemplate;
@@ -32,6 +33,7 @@ import java.util.List;
 )
 public interface DetailedDesignMapper {
 
+    @Mapping(target = "builtIn", ignore = true)
     DDSTemplateResponse asResponse(DetailedDesignTemplate templates);
 
     List<DDSTemplateResponse> asResponses(List<DetailedDesignTemplate> templates);

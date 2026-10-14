@@ -56,6 +56,10 @@ public interface ChainMapper {
     @Mapping(source = "reuseSwimlane.id", target = "reuseSwimlaneId")
     @Mapping(source = "overriddenByChain.name", target = "overriddenByChainName")
     @Mapping(source = "overridesChain.name", target = "overridesChainName")
+    @Mapping(target = "navigationPath", ignore = true)
+    @Mapping(target = "containsDeprecatedContainers", ignore = true)
+    @Mapping(target = "containsDeprecatedElements", ignore = true)
+    @Mapping(target = "containsUnsupportedElements", ignore = true)
     ChainDTO asDTO(Chain chain);
 
     List<ChainDTO> asDTO(List<Chain> chains);
@@ -66,6 +70,8 @@ public interface ChainMapper {
     @Mapping(source = "parentFolder.id", target = "parentId")
     @Mapping(source = "overriddenByChain.name", target = "overriddenByChainName")
     @Mapping(source = "overridesChain.name", target = "overridesChainName")
+    @Mapping(target = "itemType", ignore = true)
+    @Mapping(target = "chainRuntimeProperties", ignore = true)
     FolderItemResponse asFolderItemResponse(Chain chain);
 
     @Mapping(source = "parentFolder.id", target = "parentId")
@@ -86,6 +92,26 @@ public interface ChainMapper {
     @IterableMapping(nullValueMappingStrategy = NullValueMappingStrategy.RETURN_DEFAULT)
     Set<ChainLabel> asLabelEntities(List<ChainLabelDTO> labels);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdWhen", ignore = true)
+    @Mapping(target = "modifiedWhen", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
+    @Mapping(target = "parentFolder", ignore = true)
+    @Mapping(target = "elements", ignore = true)
+    @Mapping(target = "snapshots", ignore = true)
+    @Mapping(target = "deployments", ignore = true)
+    @Mapping(target = "validationAlerts", ignore = true)
+    @Mapping(target = "defaultSwimlane", ignore = true)
+    @Mapping(target = "reuseSwimlane", ignore = true)
+    @Mapping(target = "maskedFields", ignore = true)
+    @Mapping(target = "currentSnapshot", ignore = true)
+    @Mapping(target = "overriddenByChainId", ignore = true)
+    @Mapping(target = "overriddenByChain", ignore = true)
+    @Mapping(target = "overridesChainId", ignore = true)
+    @Mapping(target = "overridesChain", ignore = true)
+    @Mapping(target = "unsavedChanges", ignore = true)
+    @Mapping(target = "lastImportHash", ignore = true)
     Chain mapRequest(ChainRequest request);
 
     default Chain asEntity(ChainRequest request) {
@@ -95,5 +121,28 @@ public interface ChainMapper {
     }
 
     @Mapping(target = "labels", ignore = true)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdWhen", ignore = true)
+    @Mapping(target = "modifiedWhen", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
+    @Mapping(target = "parentFolder", ignore = true)
+    @Mapping(target = "elements", ignore = true)
+    @Mapping(target = "snapshots", ignore = true)
+    @Mapping(target = "deployments", ignore = true)
+    @Mapping(target = "validationAlerts", ignore = true)
+    @Mapping(target = "defaultSwimlane", ignore = true)
+    @Mapping(target = "reuseSwimlane", ignore = true)
+    @Mapping(target = "maskedFields", ignore = true)
+    @Mapping(target = "currentSnapshot", ignore = true)
+    @Mapping(target = "overriddenByChainId", ignore = true)
+    @Mapping(target = "overriddenByChain", ignore = true)
+    @Mapping(target = "overridesChainId", ignore = true)
+    @Mapping(target = "overridesChain", ignore = true)
+    @Mapping(target = "unsavedChanges", ignore = true)
+    @Mapping(target = "lastImportHash", ignore = true)
+    @Mapping(target = "ancestors", ignore = true)
+    @Mapping(target = "rootElements", ignore = true)
+    @Mapping(target = "dependencies", ignore = true)
     void mergeWithoutLabels(@MappingTarget Chain chain, ChainRequest chainRequest);
 }

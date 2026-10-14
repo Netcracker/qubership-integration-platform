@@ -39,14 +39,24 @@ public interface SystemModelMapper {
     @Mapping(target = "specificationGroupId", source = "systemModel.specificationGroup.id")
     @Mapping(target = "deprecated", source = "systemModel.deprecated")
     @Mapping(target = "systemId", source = "systemModel.specificationGroup.system.id")
+    @Mapping(target = "active", ignore = true)
     SystemModelDTO toSystemModelDTO(SystemModel systemModel);
 
     List<SystemModelDTO> toSystemModelDTOs(List<SystemModel> systemModels);
 
+    @Mapping(target = "nonTechnicalLabels", ignore = true)
+    @Mapping(target = "compiledLibrary", ignore = true)
+    @Mapping(target = "specificationGroup", ignore = true)
+    @Mapping(target = "specificationSources", ignore = true)
     void merge(SystemModelDTO systemDto, @MappingTarget SystemModel systemModel);
 
+    @Mapping(target = "compiledLibrary", ignore = true)
+    @Mapping(target = "specificationGroup", ignore = true)
+    @Mapping(target = "specificationSources", ignore = true)
     SystemModel asEntity(SystemModelDTO model);
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "specification", ignore = true)
     SystemModelLabel asLabelRequest(SystemModelLabelDTO snapshotLabel);
 
     List<SystemModelLabel> asLabelRequests(List<SystemModelLabelDTO> snapshotLabel);

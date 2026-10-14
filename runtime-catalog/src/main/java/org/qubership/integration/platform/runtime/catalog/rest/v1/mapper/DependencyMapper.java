@@ -32,6 +32,9 @@ import java.util.stream.Collectors;
 @Mapper(componentModel = "spring")
 public interface DependencyMapper {
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "elementFrom", ignore = true)
+    @Mapping(target = "elementTo", ignore = true)
     Dependency asEntity(DependencyRequest requestDTO);
 
     @Mapping(source = "elementFrom.id", target = "from")

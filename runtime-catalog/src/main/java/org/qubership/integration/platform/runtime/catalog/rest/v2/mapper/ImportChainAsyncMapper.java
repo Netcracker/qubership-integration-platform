@@ -32,6 +32,7 @@ import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 public interface ImportChainAsyncMapper {
 
     @Mapping(target = "done", expression = "java(isDone(importSession))")
+    @Mapping(target = "href", ignore = true)
     ImportAsyncStatus asImportStatus(ImportSession importSession);
 
     default boolean isDone(ImportSession importSession) {

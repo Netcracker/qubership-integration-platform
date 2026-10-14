@@ -37,6 +37,7 @@ public abstract class ServiceEnvironmentMapper {
     ObjectMapper objectMapper;
 
     @Mapping(target = "systemId", source = "system.id")
+    @Mapping(target = "notActivated", ignore = true)
     public abstract ServiceEnvironment toServiceEnvironment(Environment environment);
 
     protected Map<String, Object> jsonNodeToMap(JsonNode node) {

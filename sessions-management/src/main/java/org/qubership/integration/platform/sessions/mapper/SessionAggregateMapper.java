@@ -40,9 +40,11 @@ public abstract class SessionAggregateMapper {
     @Mapping(target = "executionStatus", source = "element.sessionExecutionStatus")
     @Mapping(target = "syncDuration", source = "element.sessionSyncDuration")
     @Mapping(target = "parentSessionId", source = "element.parentSessionId")
+    @Mapping(target = "sessionElements", ignore = true)
     protected abstract Session toPreview(SessionElementElastic element, @MappingTarget Session session);
 
     @Mapping(target = "sessionElements", source = "elements")
+    @Mapping(target = "externalSessionCipId", ignore = true)
     protected abstract Session toSession(SessionElementElastic element, List<SessionElementElastic> elements);
 
     public Session toSession(List<SessionElementElastic> elements, boolean includeElements) {

@@ -52,15 +52,49 @@ public interface SystemMapper {
     }
 
     @Mapping(source = "dto.type", target = "integrationSystemType")
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdWhen", ignore = true)
+    @Mapping(target = "modifiedWhen", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
+    @Mapping(target = "internalServiceName", ignore = true)
+    @Mapping(target = "protocol", ignore = true)
+    @Mapping(target = "environments", ignore = true)
+    @Mapping(target = "specificationGroups", ignore = true)
+    @Mapping(target = "chains", ignore = true)
     IntegrationSystem toSystem(SystemRequestDTO dto);
 
     List<SystemDTO> toResponseDTOs(List<IntegrationSystem> systems);
 
     @Mapping(target = "labels", ignore = true)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdWhen", ignore = true)
+    @Mapping(target = "modifiedWhen", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
+    @Mapping(target = "nonTechnicalLabels", ignore = true)
+    @Mapping(target = "integrationSystemType", ignore = true)
+    @Mapping(target = "internalServiceName", ignore = true)
+    @Mapping(target = "protocol", ignore = true)
+    @Mapping(target = "environments", ignore = true)
+    @Mapping(target = "specificationGroups", ignore = true)
+    @Mapping(target = "chains", ignore = true)
     void mergeWithoutLabels(SystemRequestDTO systemDto, @MappingTarget IntegrationSystem system);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "labels", ignore = true)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdWhen", ignore = true)
+    @Mapping(target = "modifiedWhen", ignore = true)
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "modifiedBy", ignore = true)
+    @Mapping(target = "nonTechnicalLabels", ignore = true)
+    @Mapping(target = "integrationSystemType", ignore = true)
+    @Mapping(target = "internalServiceName", ignore = true)
+    @Mapping(target = "protocol", ignore = true)
+    @Mapping(target = "environments", ignore = true)
+    @Mapping(target = "specificationGroups", ignore = true)
+    @Mapping(target = "chains", ignore = true)
     void patchMergeWithoutLabels(SystemRequestDTO systemDto, @MappingTarget IntegrationSystem system);
 
     @SuppressWarnings("unused")
@@ -72,6 +106,8 @@ public interface SystemMapper {
         return system.getActiveEnvironmentId();
     }
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "system", ignore = true)
     IntegrationSystemLabel asLabelRequest(SystemLabelDTO snapshotLabel);
 
     List<IntegrationSystemLabel> asLabelRequests(List<SystemLabelDTO> snapshotLabel);

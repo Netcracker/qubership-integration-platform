@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 import org.apache.commons.lang3.StringUtils;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
@@ -43,6 +44,7 @@ public abstract class DiscoveryServiceMapper {
         this.systemModelService = systemModelService;
     }
 
+    @Mapping(target = "serviceGroups", ignore = true)
     public abstract DiscoveredServiceDTO toDiscoveredServiceDTO(IntegrationSystem system);
 
     @AfterMapping
@@ -68,6 +70,8 @@ public abstract class DiscoveryServiceMapper {
         }
     }
 
+    @Mapping(target = "specificationId", ignore = true)
+    @Mapping(target = "specificationName", ignore = true)
     public abstract DiscoveredServiceGroupDTO toDiscoveredServiceGroupDTO(SpecificationGroup group);
 
     @AfterMapping
