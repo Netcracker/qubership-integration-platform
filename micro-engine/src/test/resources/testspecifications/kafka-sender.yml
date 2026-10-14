@@ -8118,6 +8118,7 @@ scenarios:
       response:
         properties:
           tlsCertificate: untrusted
+          disconnectBeforeProduce: true
           minFailedTlsHandshakes: 1
     expectedFailure:
       type: org.apache.kafka.common.errors.TimeoutException

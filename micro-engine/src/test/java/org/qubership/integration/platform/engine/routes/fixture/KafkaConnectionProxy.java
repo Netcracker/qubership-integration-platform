@@ -92,12 +92,12 @@ final class KafkaConnectionProxy implements AutoCloseable {
         }
     }
 
-    void rotateTlsCertificate(SSLContext serverContext) {
+    void rotateTlsCertificate(SSLContext serverContext, boolean closeOpenConnections) {
         List<Connection> openConnections;
         synchronized (lock) {
             assertTrue(serverTlsContext != null, "Kafka proxy TLS must be configured before rotating its certificate.");
             serverTlsContext = serverContext;
-            openConnections = List.copyOf(connections);
+            openConnections = closeOpenConnections ? List.copyOf(connections) : List.of();
         }
         openConnections.forEach(connection -> connection.close(true));
     }
