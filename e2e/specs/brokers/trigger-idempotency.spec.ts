@@ -1,20 +1,20 @@
 /**
- * The idempotency axes of `kafka-trigger-2`, `rabbitmq-trigger-2` and `pubsub-trigger`, against
- * `fixtures/brokers/<broker>-trigger-idempotency-*`.
+ * The idempotency axes of `kafka-trigger-2`, `rabbitmq-trigger-2`, `pubsub-trigger` and the amqp
+ * `async-api-trigger`, against `fixtures/brokers/<broker>-trigger-idempotency-*`.
  *
  * Each case publishes two messages with one key and reads the second session. The key is a UUID per
  * test execution: both engines write to one idempotency table (`PostgresIdempotentRepository`), and
- * the classic and micro copies of this spec run at the same time. Kafka and RabbitMQ read the key off
- * a message header; a pub/sub trigger receives its attributes as one map header, so its fixtures key
- * on the body instead, and its sessions are found by chain id (rule 19).
+ * the classic and micro copies of this spec run at the same time. Kafka and the two AMQP triggers read
+ * the key off a message header; a pub/sub trigger receives its attributes as one map header, so its
+ * fixtures key on the body instead, and its sessions are found by chain id (rule 19).
  *
  * `shared/idempotency.hbs` puts the check inside the trigger's step, so `Idempotency` follows the
  * trigger in the trace when the check is on, and `Callee Reply` is the step
  * `fixtures/brokers/idempotency-callee/` runs inside the caller's session.
  *
  * Under `throw-exception` the transports part. The Kafka consumer commits past the failed record, and
- * RabbitMQ rejects it without a requeue (`maximumRetryAttempts=1`), so the duplicate records one
- * session. The pub/sub trigger acknowledges with `ackMode: AUTO`, which nacks a failed exchange, so
+ * both AMQP triggers reject it without a requeue (`maximumRetryAttempts=1`), so the duplicate records
+ * one session. The pub/sub trigger acknowledges with `ackMode: AUTO`, which nacks a failed exchange, so
  * the emulator delivers the duplicate again and every delivery fails at the check. Measured on the
  * classic engine: 16 deliveries 100 ms apart, then a few more every 60 s, until the case seeks the
  * subscription past the message.
@@ -70,7 +70,7 @@ interface Delivery {
 }
 
 interface Broker {
-  family: "kafka-trigger-2" | "rabbitmq-trigger-2" | "pubsub-trigger";
+  family: "kafka-trigger-2" | "rabbitmq-trigger-2" | "pubsub-trigger" | "async-api-trigger";
   name: string;
   /** Whether a message whose exchange failed is delivered again. */
   redelivers: boolean;
@@ -98,6 +98,17 @@ const BROKERS: Broker[] = [
     async deliver({ sessions, chain, key, elements }) {
       const token = callToken("rabbitmq-idempotency");
       await publishAmqp(chain.broker.exchange as string, chain.broker.routingKey as string, token, { key }, { [IDEMPOTENCY_KEY_HEADER]: key });
+      return sessions.byExternalId(token, { elements });
+    },
+  },
+  {
+    // The amqp operation: its exchange is the operation path, a fanout one, so the routing key is empty.
+    family: "async-api-trigger",
+    name: "async-api",
+    redelivers: false,
+    async deliver({ sessions, chain, key, elements }) {
+      const token = callToken("async-api-idempotency");
+      await publishAmqp(chain.broker.integrationOperationPath as string, "", token, { key }, { [IDEMPOTENCY_KEY_HEADER]: key });
       return sessions.byExternalId(token, { elements });
     },
   },

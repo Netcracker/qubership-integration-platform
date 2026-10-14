@@ -1,0 +1,37 @@
+---
+id: "e2e1000e-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-async-api-trigger-idempotency-disabled"
+description: "The amqp async-api-trigger with idempotency/enabled=false, on an exchange and a queue of its own. It keys on the e2e-idempotency-key AMQP header."
+content:
+  labels: []
+  elements:
+  - id: "e2e1000e-0000-4000-8000-000000000002"
+    name: "idempotency/enabled=false"
+    type: "async-api-trigger"
+    properties:
+      systemType: "EXTERNAL"
+      integrationSystemId: "e2e0e002-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp"
+      integrationSpecificationId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0"
+      integrationOperationId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-idempotency-disabled"
+      integrationOperationPath: "e2e-{{RUN}}-async-api-trigger-idempotency-disabled"
+      integrationOperationMethod: "publish"
+      integrationOperationProtocolType: "amqp"
+      integrationOperationAsyncProperties:
+        acknowledgeMode: "AUTO"
+        queues: "e2e-{{RUN}}-async-api-trigger-idempotency-disabled"
+      idempotency:
+        enabled: false
+  - id: "e2e1000e-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e1000e-0000-4000-8000-000000000002"
+    to: "e2e1000e-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

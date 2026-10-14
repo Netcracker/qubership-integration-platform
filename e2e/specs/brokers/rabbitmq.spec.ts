@@ -23,7 +23,9 @@
  * finishes, and `elements/rabbitmq-trigger-2/template.hbs` pins `maximumRetryAttempts=1` on the
  * consumer URI, so a deterministic failure is rejected after its one attempt and lands on the
  * dead-letter queue the brokers seed declared from this element's own `deadLetterExchange`,
- * `deadLetterExchangeType`, `deadLetterQueue` and `deadLetterRoutingKey` properties.
+ * `deadLetterExchangeType`, `deadLetterQueue` and `deadLetterRoutingKey` properties. Under `NONE` the
+ * container consumes with `autoAck`, so the broker counts the delivery as acknowledged when it sends
+ * it: the failure records one session and the message is neither redelivered nor dead-lettered.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
@@ -32,8 +34,8 @@ import { callToken } from "../../support/run.js";
 import { callChain, elementNames, failedElements } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 
-/** What `waitForMessage`'s MANUAL-case absence window gets, instead of a bare literal. */
-const MANUAL_DLQ_ABSENCE_TIMEOUT = 15_000;
+/** How long the MANUAL and NONE cases watch the dead-letter queue stay empty. */
+const DLQ_ABSENCE_TIMEOUT = 15_000;
 
 // ---------------------------------------------------------------------------
 // rabbitmq-trigger-2
@@ -46,9 +48,8 @@ test(
     covers("rabbitmq-trigger-2");
     covers("rabbitmq-trigger-2", "connectionSourceType", "manual");
     covers("rabbitmq-trigger-2", "acknowledgeMode", "AUTO");
-    // No exchangeType covers() call: see the registry's own R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH
-    // reason — the template does read the property, but the brokers seed declares the exchange
-    // independently, so this case would pass identically against a fanout or topic exchange.
+    // No exchangeType covers() call: the brokers seed declares the exchange itself, so this case
+    // passes for any type. specs/api/rabbitmq-trigger-snapshot.spec.ts covers the axis on the compile.
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "rabbitmq-trigger-basic");
@@ -70,8 +71,7 @@ test(
   "a rejected message under acknowledgeMode AUTO lands on the configured dead-letter queue",
   { tag: ["@engine", "@sessions", "@tier1"] },
   async ({ sessions }) => {
-    // No deadLetterExchangeType covers() call, for the same reason the trigger's own exchangeType
-    // case has none: see R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH.
+    // No deadLetterExchangeType covers() call, for the reason the first case gives for exchangeType.
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "rabbitmq-trigger-dlq-auto");
@@ -145,10 +145,46 @@ test(
       // MANUAL delivery before the chain body runs, so the failure that follows can never reject it
       // and it never reaches the dead-letter queue.
       expect(
-        await waitForMessage(channel, queue, MANUAL_DLQ_ABSENCE_TIMEOUT),
+        await waitForMessage(channel, queue, DLQ_ABSENCE_TIMEOUT),
         `a message arrived on the MANUAL case's dead-letter queue bound to ${dlx}/${dlk}, which the ` +
           `immediate ack should have made impossible`,
       ).toBeNull();
+    } finally {
+      await channel.close();
+      await connection.close();
+    }
+  },
+);
+
+test(
+  "a failed message under acknowledgeMode NONE records one session and never reaches the dead-letter queue",
+  { tag: ["@engine", "@sessions", "@tier2"] },
+  async ({ sessions }) => {
+    covers("rabbitmq-trigger-2", "acknowledgeMode", "NONE");
+
+    const chain = brokerChain(readBrokersCorpusState(), "rabbitmq-trigger-dlq-none");
+    const dlx = chain.broker.deadLetterExchange as string;
+    const dlk = chain.broker.deadLetterRoutingKey as string;
+    const token = callToken("rabbitmq-dlq-none");
+    const before = await sessions.idsOf(chain.id);
+
+    const { connection, channel, queue } = await bindConsumerQueue(dlx, dlk);
+    try {
+      await publish(chain.broker.exchange as string, chain.broker.routingKey as string, token, { ping: "dlq-none" });
+
+      const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
+      expect(session.chainId).toBe(chain.id);
+      expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
+      expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);
+
+      // The absence window opens once the chain has failed, as in the MANUAL case.
+      expect(
+        await waitForMessage(channel, queue, DLQ_ABSENCE_TIMEOUT),
+        `a message arrived on the NONE case's dead-letter queue bound to ${dlx}/${dlk}`,
+      ).toBeNull();
+      expect((await channel.checkQueue(chain.broker.queues as string)).messageCount, "messages left on the trigger's queue").toBe(0);
+      const fresh = [...(await sessions.idsOf(chain.id))].filter((id) => !before.has(id));
+      expect(fresh, "sessions the message recorded").toEqual([session.id]);
     } finally {
       await channel.close();
       await connection.close();

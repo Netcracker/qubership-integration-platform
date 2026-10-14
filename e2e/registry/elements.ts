@@ -90,17 +90,6 @@ const R_KAFKA_CONSUMER_CONSISTENCY =
   "the two values select a NetCracker Cloud Blue-Green consumer mode " +
   "(com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode) with no counterpart on this stack";
 
-const R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH =
-  "exchangeType and deadLetterExchangeType are query: true in rabbitmq-trigger-2/description.yaml and " +
-  "reach the compiled xmlDefinition through template.hbs's {{query}} call, but the brokers seed declares " +
-  "the exchange itself, off the fixture YAML, so a runtime case cannot tell one value from another; a " +
-  "case belongs on the compile (the registry's third shape, @catalog), and none was built";
-
-const R_RABBITMQ_ACK_NONE =
-  "RabbitMqTriggerProcessor.immediateAck special-cases only AcknowledgeMode.MANUAL (the positive ack " +
-  "the MANUAL case exercises); NONE leaves acking to Spring's container, which never sends one, and no " +
-  "case covers the redelivery contract that leaves";
-
 const R_KAFKA_PLAINTEXT_ONLY =
   "the Kafka overlay serves SASL_PLAINTEXT, SSL, and SASL_SSL listeners besides PLAINTEXT (user e2e " +
   "with PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512; infrastructure/docker-compose.kafka.yml), but every " +
@@ -129,8 +118,9 @@ const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
 
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
 // `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close through
-// the kafka case's seeded chain. Its method, systemType, idempotency and acknowledgeMode
-// axes have no case.
+// the kafka case's seeded chain. Its acknowledgeMode axis has amqp cases in the same file, and its
+// idempotency axes amqp cases in `specs/brokers/trigger-idempotency.spec.ts`. Its method and
+// systemType axes have no case.
 const R_ASYNC_API_TRIGGER_METHOD_V3 =
   "the two async-api-trigger cases exercise one AsyncAPI 2.6 document each, which resolves to " +
   "subscribe (kafka) and publish (amqp, via AMQPSpecificationResolver.getMethod: a channel's " +
@@ -146,7 +136,6 @@ const R_ASYNC_API_TRIGGER_SYSTEM_TYPE =
   "EndpointHelperSource.integrationEndpoint, which kafka and amqp both resolve through, needs only " +
   "an activated environment with a non-blank address and never reads systemType, so INTERNAL and " +
   "IMPLEMENTED behave exactly like the EXTERNAL case; no case covers the other two values";
-const R_ASYNC_API_TRIGGER_UNCOVERED = "no case: the async-api-trigger cases vary only the protocol axis";
 // The `script` element has no axis row: it is covered at tier 1 by a fixture chain, and none of the
 // six axes the script specs sweep is a discriminator the schemas declare, so the extractor produces
 // no row for any of them. What those specs settled is written in their headers:
@@ -320,14 +309,14 @@ const R_NOT_OFFERED =
  */
 export const elementRegistry: RegistryEntry[] = [
   { family: "async-api-trigger", kind: "element", tier: 1, status: "covered", tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "NONE", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "MANUAL", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "AUTO", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "NONE", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "MANUAL", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "subscribe", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "publish", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "send", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_V3, tags: ENGINE },
@@ -655,19 +644,21 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "NONE", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_ACK_NONE, tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "NONE", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "MANUAL", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "maas", tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "direct", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "fanout", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "headers", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "topic", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "direct", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "fanout", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "headers", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "topic", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
+  // The two exchange type axes are covered on the compile (specs/api/rabbitmq-trigger-snapshot.spec.ts):
+  // the brokers seed declares every exchange itself, so a runtime case passes for any value.
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "direct", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "fanout", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "headers", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "topic", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "direct", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "fanout", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "headers", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "topic", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
