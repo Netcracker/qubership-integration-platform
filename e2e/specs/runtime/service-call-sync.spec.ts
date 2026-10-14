@@ -20,9 +20,9 @@
  *
  * Two values are not covered, and the registry says why. `soap`: a WSDL import creates a service
  * whose protocol is `http` (`protocol=soap` is refused, "Unsupported protocol: soap"), so the
- * element form writes `http` and a SOAP call runs the http case; a `soap` value has no branch in
- * `service-call/template.hbs`. `grpc`: the `.proto` import works and serves a library, and nothing
- * in the stack answers a gRPC call.
+ * element form writes `http` (`specs/ui/chain-graph.spec.ts`) and a SOAP call runs the http case; a
+ * `soap` value has no branch in `service-call/template.hbs`. `grpc`: the `.proto` import works and
+ * serves a library, and nothing in the stack answers a gRPC call.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";

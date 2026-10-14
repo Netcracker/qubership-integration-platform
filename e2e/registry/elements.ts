@@ -192,10 +192,12 @@ const R_RECEIVE_CORRELATION_ID =
   "switch the correlation id on, so a case would pass for true and false alike";
 
 // `service-call`'s http and graphql protocols belong to `specs/runtime/service-call-sync.spec.ts`.
-// Its soap and grpc rows are gaps somebody decided on.
+// Its soap and grpc rows are gaps somebody decided on. No product path writes soap:
+// `specs/ui/chain-graph.spec.ts` picks a WSDL service in the element form and the form saves http.
 const R_SOAP =
-  "a WSDL import creates an http service, so a SOAP call compiles as http and is covered there; " +
-  "a soap value (written by the VS Code WSDL import) has no branch in service-call/template.hbs, and no case covers it";
+  "unreachable: the catalog reports a WSDL service as http, so the element form writes http and a SOAP call " +
+  "compiles as http, which the http case covers; the VS Code extension wrote soap up to v1.2.3 (#807); " +
+  "soap has no branch in service-call/template.hbs";
 const R_GRPC =
   "no answering endpoint: the testing service mocks HTTP only and no gRPC server runs in the stack; " +
   "the .proto import itself works";

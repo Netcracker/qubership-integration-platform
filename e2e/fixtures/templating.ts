@@ -354,6 +354,7 @@ export const RECORDED_SESSION_FIXTURE = path.join(HERE, "sessions", "recorded-se
 const SPECIFICATION_MEDIA_TYPES: Record<string, string> = {
   ".yaml": "application/yaml",
   ".graphql": "application/graphql",
+  ".wsdl": "text/xml",
 };
 
 /**
