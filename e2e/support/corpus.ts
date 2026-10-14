@@ -87,6 +87,15 @@ export const DEPLOY_TIMEOUT = 60_000;
  */
 export const DEPLOY_TIMEOUT_PER_CHAIN = 1_000;
 
+/**
+ * The timeout of one import or deploy request that carries `chains` chains: the default 30 s plus
+ * 1 s per chain. On CI the corpus and its micro copy, 114 chains each and imported side by side,
+ * took 32 s per import (run 38535157816), and on DD k8s both seed deploys once ran past 30 s.
+ */
+export function corpusRequestTimeout(chains: number): number {
+  return 30_000 + chains * 1_000;
+}
+
 /** `cip.deployments.retry-delay` in the engine's `application.yml`: a parked deployment waits this long. */
 export const RETRY_DELAY = 30_000;
 
@@ -327,7 +336,7 @@ async function importCorpus(
   }
   const seeded = await importServices(catalog, services, `services-${archiveName}`);
 
-  const response = await catalog.importChains(assembled.archive, archiveName);
+  const response = await catalog.importChains(assembled.archive, archiveName, corpusRequestTimeout(chains.length));
   expect(response.status(), `the corpus import answered ${response.status()}`).toBe(200);
   const imported = (await response.json()) as { chains: Array<{ id: string; status: string }> };
 
@@ -383,7 +392,9 @@ export async function deployCorpus(catalog: Catalog, chains: readonly SeedChain[
   if (chains.length === 0) {
     throw new Error("deployCorpus was given no chains, so nothing downstream would come up");
   }
-  const { status, rows } = await catalog.bulkDeploy(chains.map((each) => each.id));
+  const { status, rows } = await catalog.bulkDeploy(chains.map((each) => each.id), {
+    timeout: corpusRequestTimeout(chains.length),
+  });
   expect(status, `the corpus deploy answered ${status}: ${JSON.stringify(rows)}`).toBe(200);
   expect(
     rows.filter((row) => row.status !== "CREATED").map((row) => `${row.chainName}: ${row.status}`),
@@ -769,7 +780,11 @@ export async function seedMicroCorpus(
   await catalog.addCommonVariables({ [placeholderVariable(run)]: placeholderValue(run) });
 
   const deployedAt = Date.now();
-  const rows = await catalog.deployChains(chains.map((each) => each.id), [corpus.domain]);
+  const rows = await catalog.deployChains(
+    chains.map((each) => each.id),
+    [corpus.domain],
+    corpusRequestTimeout(chains.length),
+  );
   expect(
     rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
     "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
