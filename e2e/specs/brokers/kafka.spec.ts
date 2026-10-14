@@ -12,12 +12,16 @@
  * way, through `sessions.byExternalId`), and a `kafkajs` consumer reads the topic to prove a real
  * message landed with the payload the call carried — the session trace alone only proves the
  * `kafka-sender-2` step ran, not that anything reached the broker.
+ *
+ * `propagateContext` is read off the record's headers: the engine strips the caller's `X-Request-Id`
+ * from the exchange when the exchange starts, and only `contextPropagationProcessor` writes it back
+ * before the send.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
 import { publishKafka as publish, consumeOneKafka as consumeOne } from "../../support/broker-clients.js";
 import { callToken } from "../../support/run.js";
-import { callChain, elementNames, failedElements } from "../../support/sessions.js";
+import { CALLER_REQUEST_ID, callChain, elementNames, failedElements, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import { readUntil } from "../../support/poll.js";
 
@@ -241,3 +245,24 @@ test(
     expect(failedElements(session)).toEqual([]);
   },
 );
+
+for (const value of [true, false]) {
+  const branch = `propagateContext=${value}`;
+  test(`${branch}: kafka-sender-2 ${value ? "sends" : "drops"} the caller's request id`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+    covers("kafka-sender-2", "propagateContext", value);
+
+    const chain = brokerChain(readBrokersCorpusState(), `kafka-sender-propagate-context-${value}`);
+    const topic = chain.broker.topics as string;
+    const body = { ping: "kafka-propagate-context", nonce: callToken("nonce") };
+
+    const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
+    expect(response.status()).toBe(200);
+    const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
+    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch]);
+    expect(failedElements(session)).toEqual([]);
+
+    const message = await consumeOne(topic, `${topic}-consumer`, (each) => each?.includes(body.nonce) ?? false);
+    expect(message, `no message arrived on ${topic} within the wait`).not.toBeNull();
+    expect(message!.headers[REQUEST_ID_HEADER]).toBe(value ? CALLER_REQUEST_ID : undefined);
+  });
+}

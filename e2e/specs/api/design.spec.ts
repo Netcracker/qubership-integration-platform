@@ -502,16 +502,21 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   "context-storage-header": {},
   "context-storage-property": {},
   "context-storage-set": {},
+  "correlation-echo": { labels: ["Echo Correlation Ids"] },
   // The file elements are drawn with the file name as written, placeholder and all.
   "file-read": { labels: ["Read local file: e2e-"] },
   "file-write": { labels: ["Write to local file: e2e-"] },
   // A generated sender chain is drawn as a call to a participant named after its URI.
-  ...Object.fromEntries(
-    [true, false].map((value) => [
+  ...Object.fromEntries([
+    ...[true, false].map((value) => [
       axisFixtureName({ family: "graphql-sender", axisPath: "propagateContext", value }),
       { labels: ["GraphQL request (query/mutation) to http://localhost:8080/routes/e2e-"] },
     ]),
-  ),
+    ...["header", "body"].map((value) => [
+      axisFixtureName({ family: "graphql-sender", axisPath: "correlationIdPosition", value }),
+      { labels: ["GraphQL request (query/mutation) to http://localhost:8080/routes/e2e-", "Echo Correlation Id"] },
+    ]),
+  ]),
   "http-echo": { labels: ["Header Modification"] },
   // `HttpSenderDesignProcessor` draws the call out to a participant named from the sender's URI.
   // `Internal service` rather than `External`: the fixture addresses a service inside the stack.
@@ -527,6 +532,10 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
     ...[true, false].map((value) => [
       axisFixtureName({ family: "http-sender", axisPath: "propagateContext", value }),
       { labels: ["GET, /orders"], participants: ["Internal service: http://e2e-http-sender.invalid:8080"] },
+    ]),
+    ...["header", "body"].map((value) => [
+      axisFixtureName({ family: "http-sender", axisPath: "correlationIdPosition", value }),
+      { labels: ["GET, /orders", "Echo Correlation Id"], participants: ["Internal service: http://e2e-http-sender.invalid:8080"] },
     ]),
   ]),
   // A generated http-trigger axis chain names its trigger after the branch, and the handlers are

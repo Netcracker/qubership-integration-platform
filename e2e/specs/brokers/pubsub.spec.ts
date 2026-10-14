@@ -25,6 +25,9 @@
  * the call that produces the message -- the same "bind before producing" rule `rabbitmq.spec.ts`
  * follows for its exchange bindings.
  *
+ * `propagateContext` is read off the pulled message's attributes: `google-pubsub` publishes every
+ * header its filter lets through as an attribute.
+ *
  * The emulator is driven over its plain REST admin/data API (documented at the top of
  * `docker-compose.pubsub.yml`), not the `@google-cloud/pubsub` client library: the emulator needs no
  * authentication and the REST surface is small enough that a client library buys nothing here.
@@ -39,6 +42,9 @@ import {
 } from "../../support/broker-clients.js";
 import { tokenized, callToken } from "../../support/run.js";
 import {
+  CALLER_REQUEST_ID,
+  HTTP_TRIGGER_STEPS,
+  REQUEST_ID_HEADER,
   SESSION_TIMEOUT,
   callChain,
   elementNames,
@@ -195,3 +201,31 @@ test(
     }
   },
 );
+
+for (const value of [true, false]) {
+  const branch = `propagateContext=${value}`;
+  test(`${branch}: pubsub-sender ${value ? "sends" : "drops"} the caller's request id`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+    covers("pubsub-sender", "propagateContext", value);
+
+    const chain = brokerChain(readBrokersCorpusState(), `pubsub-sender-propagate-context-${value}`);
+    const topic = chain.broker.destinationName as string;
+    const subscription = `${topic}-consumer`;
+    const body = { ping: "pubsub-propagate-context", nonce: callToken("nonce") };
+
+    await createPullSubscription(topic, subscription);
+    try {
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: body, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
+      await expectSent(sessions, call);
+      const session = await sessions.settled(await sessions.byExternalId(call.token, { elements: 3 }));
+      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch]);
+      expect(failedElements(session)).toEqual([]);
+
+      const message = await pullOnePubsub(subscription);
+      expect(message, `no message arrived on subscription ${subscription} within the wait`).not.toBeNull();
+      expect(message!.data).toEqual(body);
+      expect(message!.attributes[REQUEST_ID_HEADER]).toBe(value ? CALLER_REQUEST_ID : undefined);
+    } finally {
+      await deletePullSubscription(subscription);
+    }
+  });
+}

@@ -159,6 +159,14 @@ export async function expectEchoedMethod(request: APIRequestContext, url: string
     expect(headers[METHOD_HEADER]).toBe(method);
   }
 }
+
+/** `fixtures/chains/correlation-echo/` on the engine's own port. */
+export const CORRELATION_ECHO_URI = `${ENGINE_LOOPBACK}/routes/e2e-${RUN_PLACEHOLDER}-correlation-echo`;
+/** The correlation id the correlation echo answers in its `e2e-correlation-id` header. */
+export const ECHOED_HEADER_CORRELATION_ID = "e2e-correlation-in-header";
+/** The correlation id the correlation echo answers in its body's `e2eCorrelationId` field. */
+export const ECHOED_BODY_CORRELATION_ID = "e2e-correlation-in-body";
+
 /** Never resolved: only a mocked call gets an answer. */
 export const MOCKED_SENDER_URI = "http://e2e-http-sender.invalid:8080/orders";
 
@@ -293,6 +301,15 @@ export const axisFixtures: readonly AxisFixture[] = [
   // `httpMethod` is required by the schema, so it carries the library default.
   ...[true, false].map((value): AxisFixture => ({ family: "http-sender", axisPath: "propagateContext", value, properties: { ...INTERNAL_CALL, httpMethod: "GET", uri: MOCKED_SENDER_URI } })),
   ...[true, false].map((value): AxisFixture => ({ family: "graphql-sender", axisPath: "propagateContext", value, properties: { ...INTERNAL_CALL, query: "query { e2e }", uri: METHOD_ECHO_URI } })),
+  // A received correlation id is read off a mock's answer for `http-sender` and off the correlation
+  // echo's answer for `graphql-sender`; the step after the sender writes it into the body.
+  ...(["header", "body"] as const).flatMap((value): AxisFixture[] => {
+    const receive = { receiveCorrelationId: true, correlationIdName: value === "header" ? CORRELATION_ID_HEADER : CORRELATION_ID_FIELD };
+    return [
+      { family: "http-sender", axisPath: "correlationIdPosition", value, properties: { ...INTERNAL_CALL, ...receive, httpMethod: "GET", uri: MOCKED_SENDER_URI }, downstream: CORRELATION_ECHO },
+      { family: "graphql-sender", axisPath: "correlationIdPosition", value, properties: { ...INTERNAL_CALL, ...receive, query: "query { e2e }", uri: CORRELATION_ECHO_URI }, downstream: CORRELATION_ECHO },
+    ];
+  }),
   ...LOG_LEVELS.map((value): AxisFixture => ({ family: "log-record", axisPath: "logLevel", value, properties: { message: `${LOG_MESSAGE_PREFIX} \${header.${LOG_TOKEN_HEADER}}` } })),
 
   // The service-call axes. The http calls go to the orders service, which a mock answers, except the
