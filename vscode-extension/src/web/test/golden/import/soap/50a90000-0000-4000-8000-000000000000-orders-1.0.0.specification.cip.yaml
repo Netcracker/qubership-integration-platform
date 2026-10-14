@@ -204,7 +204,7 @@ content:
   specificationSources:
     - id: 50a9da7a-0000-4000-8000-000000000002
       name: orders.wsdl
-      sourceHash: 4857b901
+      sourceHash: 45e0c7db
       fileName: source-50a90000-0000-4000-8000-000000000000-orders-1.0.0/orders.wsdl
       mainSource: true
     - id: 50a9da7a-0000-4000-8000-000000000003

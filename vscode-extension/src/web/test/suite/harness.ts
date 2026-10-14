@@ -59,6 +59,8 @@ export function useExtensionModules(): void {
 // Files the extension wrote, committed as the bytes it has to keep writing. The e2e suite imports
 // them into the catalog (e2e/specs/api/extension-output.spec.ts). After a deliberate change, copy the
 // text a failing comparison reports into the file. The path is `goldenDir` in webpack.config.js.
+// The `false` keeps this context non-recursive, so the import trees under `golden/import/`, written
+// and byte-compared by the Jest cases in `tests/web/import/`, stay out of this bundle.
 const goldenSources = require.context("../golden", false, /\.cip\.yaml$/);
 
 export function golden(fileName: string): string {

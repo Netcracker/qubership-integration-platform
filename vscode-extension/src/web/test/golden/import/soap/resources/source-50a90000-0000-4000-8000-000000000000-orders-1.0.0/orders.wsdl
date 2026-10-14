@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   The SOAP import fixture. Two operations, one soap:address, and an inline schema that reaches every
-  arm of SoapSchemaGenerator.buildComplexTypeSchema: sequence (Customer), all (Metadata), choice
-  (Payment), simpleContent (Amount) and complexContent (Order). It also carries an element ref, an
-  unbounded element, two optional elements, an anonymous enumeration and a named simpleType
-  restriction, so the generated request and response schemas are worth comparing against a golden.
+  model-group arm of SoapSchemaGenerator.buildComplexTypeSchema: sequence (Customer), all
+  (Metadata), choice (Payment), simpleContent (Amount) and complexContent (Order). That function's
+  trailing fallback for a type with no model group stays white here, and
+  tests/api-services/parsers/SoapSchemaGenerator.test.ts covers it. The schema also carries an
+  element ref, an unbounded element, two optional elements, an anonymous enumeration and a named
+  simpleType restriction, so the generated request and response schemas are worth comparing against
+  a golden.
 
   The type declarations are inline rather than in orders-types.xsd because WsdlParser.collectSchemas
   only walks a wsdl:types element: a standalone .xsd document contributes no schema entry, and a

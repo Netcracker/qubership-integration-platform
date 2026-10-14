@@ -524,12 +524,12 @@ export class SoapSchemaGenerator {
 
   // A named base type resolves to a `$ref`, and `mergeObjectSchemas` needs the fields it points at:
   // merging the reference itself dropped every inherited field. A definition still being built is
-  // absent from the map, which leaves the reference in place and ends the recursion.
+  // absent from the map, so a type that extends itself keeps the reference.
   private dereferenceDefinition(
     schema: any,
     context: SchemaBuildContext,
   ): any {
-    const ref: unknown = schema?.$ref;
+    const ref: unknown = schema.$ref;
     if (typeof ref !== "string") {
       return schema;
     }
@@ -691,9 +691,10 @@ export class SoapSchemaGenerator {
         return ns || undefined;
       }
       // `Element` is exposed on Window only, and the extension host is a web worker, so an
-      // `instanceof Element` here threw `ReferenceError` for every schema it walked.
+      // `instanceof Element` here threw `ReferenceError` for every schema it walked. `Node` is not a
+      // webworker global either, so `Node.ELEMENT_NODE` cannot name the value below.
       const parent = current.parentNode as Element | null;
-      current = parent && parent.nodeType === 1 ? parent : null;
+      current = parent && parent.nodeType === 1 ? parent : null; // 1 = ELEMENT_NODE
     }
     return undefined;
   }

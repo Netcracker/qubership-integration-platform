@@ -153,6 +153,9 @@ export function buildServiceRecord(
   };
 }
 
+// One fixed OpenAPI document in the shape the webview posts, for a suite that mocks the services
+// around the import. A case that drives the import over the fake filesystem uses `serializedFile`
+// in `importHarness.ts` instead, which takes the content and is typed against `SerializedFile`.
 export function buildSerializedOpenApiFile(name = "spec.json") {
   const content = JSON.stringify({
     openapi: "3.0.0",

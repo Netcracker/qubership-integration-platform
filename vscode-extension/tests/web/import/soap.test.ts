@@ -40,18 +40,21 @@
 //   - the service file is written twice, by `ensureSystemProtocol` and then by the environment the
 //     `soap:address` produces, and only the second write is visible here: `protocol` and
 //     `extendedProtocol` uppercase, and an environment named after the `wsdl:port`
-import * as fs from "fs";
 import * as path from "path";
 import type { ExtensionContext } from "vscode";
 import * as yaml from "yaml";
-import { resetWorkspace, workspaceTree } from "../../fake-vscode";
-import { bindFileApi } from "../../fake-vscode/fileApi";
+import { workspaceTree } from "../../fake-vscode";
 import type { FrozenIds } from "../../helpers/freezeSourceIds";
-import { freezeSourceIds } from "../../helpers/freezeSourceIds";
+import {
+  errorMessagesShown,
+  expectedServiceTree,
+  fixtureFile,
+  fixtureText,
+  goldenTree,
+  resetImportWorkspace,
+} from "../../helpers/importHarness";
 import { seedServiceDocument } from "../../helpers/seedServiceDocument";
-import { FileCacheService } from "../../../src/web/services/FileCacheService";
 import { getApiResponse } from "../../../src/web/response/apiRouter";
-import type { SerializedFile } from "../../../src/web/api-services/importApiTypes";
 
 // The seeded service and the frozen prefix are this protocol's own: the three goldens are imported
 // into one catalog in parallel at level 3, so a shared source or environment id would collide.
@@ -62,57 +65,17 @@ const GROUP_NAME = "orders";
 const GROUP_ID = `${SERVICE_ID}-${GROUP_NAME}`;
 const SPECIFICATION_ID = `${GROUP_ID}-1.0.0`;
 const SERVICE_DIR = `services/${SERVICE_ID}`;
-const SOURCE_DIR = `${SERVICE_DIR}/resources/source-${SPECIFICATION_ID}`;
 
-const FIXTURE_DIR = path.join(__dirname, "../../fixtures/specifications");
 const GOLDEN_DIR = path.join(__dirname, "../../../src/web/test/golden/import/soap");
 
 const WSDL = "orders.wsdl";
 const XSD = "orders-types.xsd";
 
-function fixtureText(name: string): string {
-  return fs.readFileSync(path.join(FIXTURE_DIR, name), "utf8");
-}
-
-// What the webview posts: the file's bytes with its metadata, which the import turns back into a
-// `File`.
-function serializedFile(name: string): SerializedFile {
-  const bytes = new TextEncoder().encode(fixtureText(name));
-  return {
-    name,
-    size: bytes.byteLength,
-    type: "text/xml",
-    lastModified: 0,
-    content: bytes.buffer as ArrayBuffer,
-  };
-}
-
-// The golden directory keyed by path relative to it, which is also its path relative to the
-// service folder. A walk rather than a list of names, so a golden file nobody asserts cannot be
-// left behind.
-function goldenTree(directory = GOLDEN_DIR, prefix = ""): Record<string, string> {
-  const tree: Record<string, string> = {};
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      Object.assign(tree, goldenTree(path.join(directory, entry.name), relativePath));
-    } else {
-      tree[relativePath] = fs.readFileSync(path.join(directory, entry.name), "utf8");
-    }
-  }
-  return tree;
-}
-
 describe("the SOAP import", () => {
   let frozen: FrozenIds;
 
   beforeEach(() => {
-    resetWorkspace();
-    // The cache is a singleton over module state, which `clearMocks` does not touch, so a
-    // document this case seeds would otherwise be read back from the previous one.
-    FileCacheService.getInstance().clearAll();
-    bindFileApi();
-    frozen = freezeSourceIds(ID_PREFIX);
+    frozen = resetImportWorkspace(ID_PREFIX);
   });
 
   afterEach(() => {
@@ -128,7 +91,7 @@ describe("the SOAP import", () => {
         payload: {
           systemId: SERVICE_ID,
           name: GROUP_NAME,
-          files: [serializedFile(WSDL), serializedFile(XSD)],
+          files: [fixtureFile(WSDL, "text/xml"), fixtureFile(XSD, "text/xml")],
         },
       } as any,
       serviceFileUri,
@@ -140,18 +103,25 @@ describe("the SOAP import", () => {
       specificationGroupId: GROUP_ID,
       done: true,
     });
+    // A fully successful import shows the user nothing. The dependency resolution logs a failure it
+    // swallows, so a regression that promotes one to a dialog changes no byte on disk.
+    expect(errorMessagesShown()).toEqual([]);
 
-    const golden = goldenTree();
-    const expected: Record<string, string> = {
-      services: "<Directory>",
-      [SERVICE_DIR]: "<Directory>",
-      [`${SERVICE_DIR}/resources`]: "<Directory>",
-      [SOURCE_DIR]: "<Directory>",
-    };
-    for (const [relativePath, text] of Object.entries(golden)) {
-      expected[`${SERVICE_DIR}/${relativePath}`] = text;
-    }
-    expect(workspaceTree()).toEqual(expected);
+    // The written document, read ahead of the byte comparison: a changed operation then fails here,
+    // naming the operation, rather than inside a two-file diff.
+    const tree = workspaceTree();
+    const specification = yaml.parse(
+      tree[`${SERVICE_DIR}/${SPECIFICATION_ID}.specification.cip.yaml`],
+    );
+    expect(
+      specification.content.operations.map((operation: any) => [operation.name, operation.method]),
+    ).toEqual([
+      ["createOrder", "POST"],
+      ["getOrder", "POST"],
+    ]);
+
+    const golden = goldenTree(GOLDEN_DIR);
+    expect(tree).toEqual(expectedServiceTree(SERVICE_DIR, golden));
 
     // The two source files are copied through `file.text()` and re-encoded, so the golden copies
     // of them have to equal the fixtures: a transformation on the way would otherwise be frozen
@@ -159,15 +129,6 @@ describe("the SOAP import", () => {
     expect(golden[`resources/source-${SPECIFICATION_ID}/${WSDL}`]).toBe(fixtureText(WSDL));
     expect(golden[`resources/source-${SPECIFICATION_ID}/${XSD}`]).toBe(fixtureText(XSD));
 
-    // One structural assertion beside the bytes, so a failure names the operation that changed
-    // before it names the line that did.
-    const specification = yaml.parse(golden[`${SPECIFICATION_ID}.specification.cip.yaml`]);
-    expect(
-      specification.content.operations.map((operation: any) => [operation.name, operation.method]),
-    ).toEqual([
-      ["createOrder", "POST"],
-      ["getOrder", "POST"],
-    ]);
     expect(frozen.issued).toHaveLength(4);
   });
 });

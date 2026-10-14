@@ -611,7 +611,9 @@ npm run test:integration -w @netcracker/qip-vscode-extension
 - `vscode-extension-build.yaml` runs it in the `npm-build` job, after the Jest suite. `npm run
   release-check` runs it again locally, so a release check covers it without a pull request.
 
-The two suites share one contract: the catalog imports what the extension writes. The extension
-suite compares what it writes with the files in `vscode-extension/src/web/test/golden/`, and
-`specs/api/extension-output.spec.ts` imports those files into the catalog, so a change on either
-side fails one of the two.
+The suites share one contract: the catalog imports what the extension writes.
+`specs/api/extension-output.spec.ts` imports the files in `vscode-extension/src/web/test/golden/`
+into the catalog, and two suites write them — the eight at the top level come from this integration
+suite, and the thirteen under `golden/import/` from the Jest cases in
+`vscode-extension/tests/web/import/`, which this suite never loads. So a change on either side of
+the contract fails one of the suites, and a golden is regenerated in the suite that writes it.

@@ -17,19 +17,23 @@
 //     the document at level 3.
 import type { Uri } from "vscode";
 import { seedWorkspace, workspaceUri } from "../fake-vscode";
+import type { ApiSpecificationType } from "../../src/web/api-services/importApiTypes";
+import { IntegrationSystemType } from "../../src/web/api-services/servicesTypes";
 
 const SERVICE_SCHEMA =
   "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service";
 
 export type ServiceSeed = {
   id: string;
-  name?: string;
   // Absent by default. Set it only to reach a protocol-dependent branch, such as the gRPC
-  // environment fallback, which fires once `system.protocol` is `grpc`.
-  protocol?: string;
+  // environment fallback, which fires once `system.protocol` lowercases to `grpc`.
+  protocol?: ApiSpecificationType;
   // `IMPLEMENTED` is the only value `ALLOWED_PROTOCOL_MAP` restricts, so it is what reaches
-  // `Specification type is not allowed for … system`.
-  integrationSystemType?: "INTERNAL" | "EXTERNAL" | "IMPLEMENTED";
+  // `Specification type is not allowed for … system`. The two others refuse nothing: `EXTERNAL`
+  // carries every protocol, and `CONTEXT` is absent from the map.
+  integrationSystemType?:
+    | IntegrationSystemType.INTERNAL
+    | IntegrationSystemType.IMPLEMENTED;
 };
 
 export function serviceFilePath(id: string): string {
@@ -37,14 +41,14 @@ export function serviceFilePath(id: string): string {
 }
 
 export function seedServiceDocument(seed: ServiceSeed): Uri {
-  const name = seed.name ?? `import-${seed.id.slice(0, 8)}`;
+  const name = `import-${seed.id.slice(0, 8)}`;
   const lines = [
     "---",
     `id: "${seed.id}"`,
     `$schema: "${SERVICE_SCHEMA}"`,
     `name: "${name}"`,
     "content:",
-    `  integrationSystemType: "${seed.integrationSystemType ?? "INTERNAL"}"`,
+    `  integrationSystemType: "${seed.integrationSystemType ?? IntegrationSystemType.INTERNAL}"`,
   ];
   if (seed.protocol !== undefined) {
     lines.push(`  protocol: "${seed.protocol}"`);
