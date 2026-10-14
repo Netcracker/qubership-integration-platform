@@ -7,10 +7,13 @@
  * `testMatch: /.*\.setup\.ts$/` on the `seed-micro` project, for the reason `seed.setup.ts` gives.
  */
 import { test } from "../../support/fixtures.js";
-import { MICRO_READY_TIMEOUT, seedMicroCorpus } from "../../support/corpus.js";
+import { corpusChainNames, corpusRequestTimeout, MICRO_READY_TIMEOUT, seedMicroCorpus } from "../../support/corpus.js";
 
-/** The route poll, plus the import, the logging properties, and the deploy before it. */
-const SEED_MICRO_TIMEOUT = MICRO_READY_TIMEOUT + 120_000;
+/**
+ * The import and the deploy, each a request sized on the corpus, then the route poll, plus a minute
+ * for the services and the logging properties.
+ */
+const SEED_MICRO_TIMEOUT = 2 * corpusRequestTimeout(corpusChainNames().length) + MICRO_READY_TIMEOUT + 60_000;
 
 test(
   "the micro copy of the corpus is imported, deployed to a micro domain, and answering",

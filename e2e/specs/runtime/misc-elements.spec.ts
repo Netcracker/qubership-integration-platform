@@ -184,15 +184,7 @@ test.describe("context-storage", () => {
 
   /** The seeded `context-storage-<what>` chain. */
   function contextChain(what: "set" | "get" | "header" | "property" | "delete" | "correlation"): SeedChain {
-    const corpus = readCorpusState();
-    return {
-      set: () => seedChain(corpus, "context-storage-set"),
-      get: () => seedChain(corpus, "context-storage-get"),
-      header: () => seedChain(corpus, "context-storage-header"),
-      property: () => seedChain(corpus, "context-storage-property"),
-      delete: () => seedChain(corpus, "context-storage-delete"),
-      correlation: () => seedChain(corpus, "context-storage-correlation"),
-    }[what]();
+    return seedChain(readCorpusState(), `context-storage-${what}`);
   }
 
   /** Asserts a SET answered 200. The answer names no cause, so a failure carries what the trace recorded. */
