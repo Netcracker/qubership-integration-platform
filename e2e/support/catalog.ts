@@ -216,8 +216,11 @@ export class Catalog {
   }
 
   /** The raw response, for a spec asserting a status or a failure body. */
-  raw(method: string, path: string, data?: unknown): Promise<APIResponse> {
-    return this.send(method, path, data === undefined ? {} : { data: data as object });
+  raw(method: string, path: string, data?: unknown, timeout?: number): Promise<APIResponse> {
+    return this.send(method, path, {
+      ...(data === undefined ? {} : { data: data as object }),
+      ...(timeout === undefined ? {} : { timeout }),
+    });
   }
 
   /**
@@ -652,13 +655,14 @@ export class Catalog {
    */
   async bulkDeploy(
     chainIds: string[],
-    options: { domains?: string[]; snapshotAction?: BulkSnapshotAction } = {},
+    options: { domains?: string[]; snapshotAction?: BulkSnapshotAction; timeout?: number } = {},
   ): Promise<{ status: number; rows: BulkDeploymentRow[] }> {
-    const response = await this.raw("post", "/v1/catalog/chains/deployments/bulk", {
+    const body = {
       chainIds,
       domains: options.domains ?? [DEFAULT_DOMAIN],
       snapshotAction: options.snapshotAction ?? "CREATE_NEW",
-    });
+    };
+    const response = await this.raw("post", "/v1/catalog/chains/deployments/bulk", body, options.timeout);
     if (response.status() !== 200 && response.status() !== 207) {
       await fail(response, "POST", `${this.base}/v1/catalog/chains/deployments/bulk`);
     }
@@ -720,8 +724,10 @@ export class Catalog {
    * writes no row to `catalog.deployments`, so the answer is the only record of it, and an unknown
    * chain id is dropped from it with no error: a caller compares the rows with the ids it sent.
    */
-  deployChains(chainIds: string[], domains: string[]): Promise<BulkDeploymentRow[]> {
-    return this.call("post", "/v1/cr/deploy-chains", { chainIds, domains });
+  async deployChains(chainIds: string[], domains: string[], timeout?: number): Promise<BulkDeploymentRow[]> {
+    const response = await this.raw("post", "/v1/cr/deploy-chains", { chainIds, domains }, timeout);
+    if (!response.ok()) await fail(response, "POST", `${this.base}/v1/cr/deploy-chains`);
+    return (await response.json()) as BulkDeploymentRow[];
   }
 
   /** Deletes a micro domain: its Integration, Service, ConfigMaps, and HTTPRoutes. */
@@ -1071,10 +1077,14 @@ export class Catalog {
     return this.send("get", `/v1/export/specifications?${parameters}`);
   }
 
-  /** `path` is the import endpoint, because services and chains do not share one. */
-  async importArchive(path: string, archive: Buffer, name = "fixture.zip"): Promise<APIResponse> {
+  /**
+   * `path` is the import endpoint, because services and chains do not share one. `timeout`
+   * replaces the request's default of 30 s.
+   */
+  async importArchive(path: string, archive: Buffer, name = "fixture.zip", timeout?: number): Promise<APIResponse> {
     return await this.send("post", path, {
       multipart: { file: { name, mimeType: "application/zip", buffer: archive } },
+      ...(timeout === undefined ? {} : { timeout }),
     });
   }
 
@@ -1085,8 +1095,8 @@ export class Catalog {
    * `chains` array for an archive whose entries sit at the zip root, which is the quiet way an
    * import that imported nothing reports success.
    */
-  importChains(archive: Buffer, name = "chains.zip"): Promise<APIResponse> {
-    return this.importArchive("/v1/catalog/import", archive, name);
+  importChains(archive: Buffer, name = "chains.zip", timeout?: number): Promise<APIResponse> {
+    return this.importArchive("/v1/catalog/import", archive, name, timeout);
   }
 
   /** What an import would write. Reads the archive and touches nothing. */
