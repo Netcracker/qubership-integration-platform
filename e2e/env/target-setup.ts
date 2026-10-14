@@ -68,9 +68,15 @@ function brokerProjects(restartAfter: string[] = ["brokers"]): SuiteProject[] {
       // setup project that runs zero tests reports success and satisfies its dependents.
       // `suite-teardown` runs `brokers.teardown.ts` after `global` as well as after the broker
       // projects; `playwright.config.ts` says why.
+      //
+      // After `seed`, because both deploy to the classic engine, and the engine reports the state of
+      // a batch of deployments only once the whole batch has loaded. Run beside `seed`, the broker
+      // chains waited for the corpus batch and ran out of their deploy budget. The edge also gates,
+      // so a red `seed` skips every broker project.
       name: "brokers-seed",
       testDir: "./specs/brokers-seed",
       testMatch: /.*\.setup\.ts$/,
+      dependencies: ["seed"],
       teardown: "suite-teardown",
     },
     {
@@ -140,8 +146,9 @@ function microBrokerProjects(): SuiteProject[] {
   return [
     {
       // The micro copy of `fixtures/brokers/`, on a micro domain of its own, declared the way
-      // `brokers-seed` and `seed-micro` are. Its teardown reads the catalog and the state file only,
-      // since `suite-teardown` runs with a classic `env`.
+      // `seed-micro` is. It needs no edge to `seed-micro`, because each domain runs its own pod.
+      // Its teardown reads the catalog and the state file only, since `suite-teardown` runs with a
+      // classic `env`.
       name: "brokers-micro-seed",
       testDir: "./specs/brokers-micro-seed",
       testMatch: /.*\.setup\.ts$/,

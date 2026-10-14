@@ -120,7 +120,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `runtime-micro-redeploy` | not declared | `specs/runtime-micro-redeploy/`, one file at a time: micro cases that deploy their own chains to a micro domain of their own |
 | `global-micro` | not declared | `live-exchanges.spec.ts` and `runtime-deployments.spec.ts` of `specs/global/` against the micro engine, one worker after `global` |
 | `env-micro` | not declared | `restart-resilience.spec.ts` of `specs/env/` against the micro engine, whose pod the engine restart deletes, one worker after `global-micro` and `runtime-micro` |
-| `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | the same |
+| `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0`; `brokers-seed` runs after `seed`, since both deploy to the classic engine | the same |
 | `brokers-micro-seed` | not declared | unless `E2E_BROKERS=0`, a second copy of `fixtures/brokers/` with addresses of its own, deployed to a micro domain named `e2e-<run>-brokers-micro` |
 | `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts` and the cases tagged `@classic-only` |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, the proxy's `/e2e/` locations, and a micro domain that a broken chain takes down |
