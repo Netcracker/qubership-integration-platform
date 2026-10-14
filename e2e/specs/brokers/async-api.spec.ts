@@ -12,8 +12,10 @@
  *
  * **AsyncAPI 2.6 gives subscribe/publish; AsyncAPI 3.0 gives send/receive.** AsyncAPI 3.0 replaced
  * the `publish`/`subscribe` channel keywords with a `send`/`receive` action
- * (`AsyncApiV3Normalizer.java`), so `service-call-async-amqp` comes from a v3 document and the other
- * three services from v2 documents. Each document sits under its service's `resources/`.
+ * (`AsyncApiV3Normalizer.java`), so `service-call-async-amqp` and `async-api-v3-amqp` come from v3
+ * documents and the other three services from v2 documents. Each document sits under its service's
+ * `resources/`; `specs/api/specifications.spec.ts` imports the `async-api-v3-amqp` one and checks
+ * that the import gives the operations the fixture holds.
  *
  * **For an AMQP specification, the operation's `name` is the channel name.**
  * `AsyncapiSpecificationParser.separate` overrides `operationId` with the channel name for the `amqp`
@@ -96,6 +98,22 @@ test(
     await publishAmqp(chain.broker.integrationOperationPath as string, "", token, { ping: "async-api-amqp" });
 
     const session = await sessions.byExternalId(token, { elements: 2 });
+    expect(session.chainId).toBe(chain.id);
+    expect(elementNames(session)).toEqual(["AsyncAPI Trigger", "Header Modification"]);
+    expect(failedElements(session)).toEqual([]);
+  },
+);
+
+test(
+  "an AMQP message on an AsyncAPI 3.0 receive operation finds the session an async-api-trigger recorded",
+  { tag: ["@engine", "@catalog", "@sessions", "@tier2"] },
+  async ({ sessions }) => {
+    // No covers() for integrationOperationMethod: see R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE.
+    const chain = brokerChain(readBrokersCorpusState(), "async-api-trigger-receive");
+    const token = callToken("async-api-receive");
+    await publishAmqp(chain.broker.integrationOperationPath as string, "", token, { ping: "async-api-receive" });
+
+    const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
     expect(session.chainId).toBe(chain.id);
     expect(elementNames(session)).toEqual(["AsyncAPI Trigger", "Header Modification"]);
     expect(failedElements(session)).toEqual([]);
