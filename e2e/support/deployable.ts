@@ -344,7 +344,7 @@ export interface TokenedDomain {
 
 /**
  * Names the domain `tokenized(run, what)`, so the run-token sweep deletes one a run left behind.
- * Nothing is created until `deployToDomain`.
+ * Nothing is created until `dispatchToDomain` or `deployToDomain`.
  */
 export function tokenedDomain(run: string, what: string, record?: string): TokenedDomain {
   const domain = tokenized(run, what);
@@ -353,12 +353,12 @@ export function tokenedDomain(run: string, what: string, record?: string): Token
 
 /**
  * Deploys `chains` to the domain in one batch, creating the domain when it does not exist and
- * otherwise replacing what it runs, and returns once every route answers. Each call takes new
- * snapshots, so the domain's pod rolls and the engine loads the chains again.
+ * otherwise replacing what it runs, and returns once the catalog has accepted every chain. Each
+ * call takes new snapshots, so the domain's pod rolls and the engine loads the chains again.
  *
  * The domain is recorded before the deploy, as `seedMicroCorpus` records its own.
  */
-export async function deployToDomain(
+export async function dispatchToDomain(
   catalog: Catalog,
   target: TokenedDomain,
   chains: readonly DeployedChain[],
@@ -369,6 +369,15 @@ export async function deployToDomain(
     rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
     "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
   ).toEqual(chains.map((each) => `${each.id} CREATED`).sort());
+}
+
+/** `dispatchToDomain`, then waits until every route answers. */
+export async function deployToDomain(
+  catalog: Catalog,
+  target: TokenedDomain,
+  chains: readonly DeployedChain[],
+): Promise<void> {
+  await dispatchToDomain(catalog, target, chains);
   await waitForRoutes(
     target.env,
     chains,

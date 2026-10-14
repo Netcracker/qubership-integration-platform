@@ -33,7 +33,7 @@ import { projectCorpus } from "../../support/corpus.js";
 import { MICRO_FIXTURES } from "../../fixtures/templating.js";
 import { BROKER_PROJECTS, K8S_PROJECTS, MICRO_BROKER_PROJECTS } from "./projects.js";
 import type { Catalog } from "../../support/catalog.js";
-import { deleteDomain, deployToDomain, tokenedDomain } from "../../support/deployable.js";
+import { deleteDomain, deployToDomain, dispatchToDomain, tokenedDomain } from "../../support/deployable.js";
 
 const ON_K8S = {
   CIP_TARGET: "k8s",
@@ -167,6 +167,19 @@ test("a tokened domain is recorded where its project's env reads it, until it is
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a dispatch to a tokened domain returns once the catalog accepts every chain, without waiting for a route", { tag: ["@infra", "@tier1"] }, async () => {
+  const target = tokenedDomain("run4", "broken-chain");
+  const accepting = {
+    deployChains: async (ids: string[]) => ids.map((chainId) => ({ chainId, status: "CREATED" })),
+  } as unknown as Catalog;
+  // Nothing answers on this route, so a route poll would run out its timeout.
+  const routed = [{ id: "c1", name: "e2e-run4-x", contextPath: "e2e-run4-x" }];
+  await dispatchToDomain(accepting, target, routed);
+
+  const dropping = { deployChains: async () => [] } as unknown as Catalog;
+  await expect(dispatchToDomain(dropping, target, routed)).rejects.toThrow("every chain needs one CREATED row");
 });
 
 /** A `kubectl` that answers the listed argument strings and fails every other call. */

@@ -122,7 +122,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | the same |
 | `brokers-micro-seed` | not declared | unless `E2E_BROKERS=0`, a second copy of `fixtures/brokers/` with addresses of its own, deployed to a micro domain named `e2e-<run>-brokers-micro` |
 | `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts` and the cases tagged `@classic-only` |
-| `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, and the proxy's `/e2e/` locations |
+| `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, the proxy's `/e2e/` locations, and a micro domain that a broken chain takes down |
 
 That is fifteen projects on Compose and twenty-three on Kubernetes, three fewer on Compose and five fewer on
 Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project and spec file the target
@@ -580,7 +580,8 @@ specs/
   runtime-micro-redeploy/
                 k8s only: micro cases that deploy and redeploy, each file in a micro domain of its
                 own, one file at a time
-  k8s/          k8s only: custom resources, gateway routes, discovery, and the /e2e/ locations
+  k8s/          k8s only: custom resources, gateway routes, discovery, the /e2e/ locations, and a
+                micro domain that a broken chain takes down
 pages/      page objects for the UI and the shared TableView; selectors by role, test id, then title
 ```
 
