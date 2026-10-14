@@ -16,7 +16,7 @@
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
 import { publishKafka as publish, consumeOneKafka as consumeOne } from "../../support/broker-clients.js";
-import { tokenized, callToken } from "../../support/run.js";
+import { callToken } from "../../support/run.js";
 import { callChain, elementNames, failedElements } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import { readUntil } from "../../support/poll.js";
@@ -172,7 +172,7 @@ test(
 test(
   "an HTTP call drives kafka-sender-2, and the payload lands on the topic",
   { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ request, env, sessions, run }) => {
+  async ({ request, env, sessions }) => {
     covers("kafka-sender-2");
     covers("kafka-sender-2", "connectionSourceType", "manual");
     covers("kafka-sender-2", "securityProtocol", "PLAINTEXT");
@@ -196,7 +196,7 @@ test(
     // topic retains what it holds and `consumeOne` subscribes `fromBeginning`, so a consumer that
     // starts this late still reads the message, and the wait gets the full window instead of one
     // `sessions.byExternalId` poll already ate into.
-    const message = await consumeOne(topic, tokenized(run, "kafka-sender-basic-consumer"));
+    const message = await consumeOne(topic, `${topic}-consumer`);
     expect(message, `no message arrived on ${topic} within the wait`).not.toBeNull();
     expect(JSON.parse(message!.value ?? "null")).toEqual(body);
   },

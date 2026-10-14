@@ -7,6 +7,9 @@
  * the config declared before the target seam existed, so moving a project behind a target cannot
  * drop it from a Compose run.
  */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 import { suiteProjects } from "../../playwright.config.js";
 import {
@@ -20,8 +23,10 @@ import {
 import { brokersEnabled, stateFileName, target } from "../../env/target.js";
 import { targetSetup, type SuiteProject } from "../../env/target-setup.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
-import { MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../../env/k8s.js";
+import { BROKERS_MICRO_CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../../env/k8s.js";
 import { BROKER_PROJECTS } from "./projects.js";
+
+const E2E_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /**
  * The projects the config declared on 2026-09-24, before the target seam, with brokers on, and with
@@ -240,4 +245,19 @@ test("runtime-micro-redeploy runs one file at a time after seed-micro, on the do
   // Never the shared domain's file: a deploy there would roll the pod under every runtime-micro case.
   expect(project?.use).toEqual({ engineKind: "micro", microDomainState: MICRO_REDEPLOY_STATE_FILE });
   expect(MICRO_REDEPLOY_STATE_FILE).not.toBe(MICRO_CORPUS_STATE_FILE);
+});
+
+test("brokers-micro-seed deploys to the domain its own state file records, and suite-teardown removes it", { tag: ["@infra", "@tier1"] }, () => {
+  const project = withEnv({ E2E_BROKERS: undefined }, () => targetSetup("k8s")).projects.find(
+    (each) => each.name === "brokers-micro-seed",
+  );
+  expect(project && schedule(project)).toBe("./specs/brokers-micro-seed /.*\\.setup\\.ts$/; teardown suite-teardown");
+  expect(project?.use).toEqual({ engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE });
+  expect([MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE]).not.toContain(BROKERS_MICRO_CORPUS_STATE_FILE);
+  // The setup project collects its seed, and `suite-teardown` the teardown file beside it.
+  const dir = path.join(E2E_DIR, "specs", "brokers-micro-seed");
+  expect(fs.readdirSync(dir).filter((file) => (project?.testMatch as RegExp).test(file))).toEqual(["brokers-micro.setup.ts"]);
+  expect(fs.existsSync(path.join(dir, "brokers-micro.teardown.ts"))).toBe(true);
+  // Compose declares no micro engine, so it declares no micro broker seed either.
+  expect(composeProjects(undefined).map((each) => each.name)).not.toContain("brokers-micro-seed");
 });

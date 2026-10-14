@@ -1,5 +1,6 @@
 /**
- * The micro copy of the corpus beside the classic one, with no stack.
+ * The micro copy of the corpus beside the classic one, with no stack, and the same for the broker
+ * corpus, whose two copies also share the brokers.
  *
  * Both copies are imported into one catalog, so they must not share a chain id, an element id, or a
  * trigger path. The micro copy loads into one Integration, and one chain that fails to load stops
@@ -7,6 +8,7 @@
  * resolve inside it.
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
@@ -16,6 +18,7 @@ import {
   corpusFixtureNames,
   ENGINE_LOOPBACK,
   httpTriggerPaths,
+  isMicroAddress,
   MICRO_FIXTURES,
   MICRO_PATH_PREFIX,
   microCopy,
@@ -36,6 +39,14 @@ import {
   serviceTrees,
   type FixtureElement,
 } from "../../support/corpus.js";
+import {
+  brokerChain,
+  brokerCorpusOf,
+  brokerTrees,
+  kafkaGroupsIn,
+  microBrokerTrees,
+  sftpRootsOf,
+} from "../../support/brokers.js";
 import { UUID, UUID_TEXT } from "../../support/absent.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
@@ -333,4 +344,88 @@ test("every HTTP trigger the corpus seeds, in both copies, is internal", { tag: 
   expect(classic.length).toBeGreaterThanOrEqual(MICRO_FIXTURES.length);
   expect(external(classic)).toEqual([]);
   expect(external(await microCorpusTrees(EXAMPLE_RUN_TOKEN))).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// The micro copy of the broker corpus
+// ---------------------------------------------------------------------------
+
+/** Every broker address a copy consumes from or sends to, by kind. */
+function brokerAddresses(trees: Array<[string, RenderedTree]>): Record<string, string[]> {
+  const documents = trees.map(([name, tree]) => readFixtureDocument(name, tree).document);
+  const corpus = brokerCorpusOf(EXAMPLE_RUN_TOKEN, trees);
+  const { queues, senderExchanges } = corpus.rabbitmqTopology;
+  const { subscriptions, senderTopics } = corpus.pubsubTopology;
+  return {
+    "kafka topics": corpus.kafkaTopics,
+    "kafka groups": kafkaGroupsIn(documents),
+    "rabbitmq queues": queues.flatMap((each) => [each.queue, ...(each.deadLetterQueue ? [each.deadLetterQueue] : [])]),
+    "rabbitmq exchanges": [
+      ...senderExchanges,
+      ...queues.flatMap((each) => [each.exchange, ...(each.deadLetterExchange ? [each.deadLetterExchange] : [])]),
+    ],
+    "pubsub topics and subscriptions": [
+      ...subscriptions.flatMap((each) => [each.topic, each.subscription]),
+      ...senderTopics.map((each) => each.topic),
+    ],
+    "sftp trees": sftpRootsOf(corpus.chains),
+  };
+}
+
+// Both copies run at once on one set of brokers: a shared topic, exchange, or subscription would
+// deliver one message to both engines, and a shared group would split a topic's partitions between them.
+test("the broker copies share no chain id, element id, trigger path, or broker address", { tag: ["@infra", "@tier1"] }, () => {
+  const classicTrees = brokerTrees(EXAMPLE_RUN_TOKEN);
+  const microTrees = microBrokerTrees(EXAMPLE_RUN_TOKEN);
+  const classic = read(classicTrees);
+  const micro = read(microTrees);
+  const shared = (a: string[], b: string[]) => a.filter((each) => b.includes(each));
+
+  expect(micro.chainIds).toHaveLength(classicTrees.length);
+  expect([...micro.chainIds, ...micro.elementIds].filter((id) => !UUID.test(id))).toEqual([]);
+  expect(shared(classic.chainIds, micro.chainIds)).toEqual([]);
+  expect(shared(classic.elementIds, micro.elementIds)).toEqual([]);
+  expect(shared(classic.triggerPaths, micro.triggerPaths)).toEqual([]);
+
+  const microAddresses = brokerAddresses(microTrees);
+  for (const [kind, names] of Object.entries(brokerAddresses(classicTrees))) {
+    expect(names.length, kind).toBeGreaterThan(0);
+    expect(microAddresses[kind], kind).toHaveLength(names.length);
+    expect(shared(names, microAddresses[kind]), kind).toEqual([]);
+  }
+});
+
+// Both teardowns run side by side in `suite-teardown`, and each deletes the run's consumer groups of
+// its own copy only, the groups a spec opens on a copy's topic included.
+test("every broker address of the micro copy, and a name a spec builds from one, belongs to the micro copy", { tag: ["@infra", "@tier1"] }, () => {
+  const classic = Object.values(brokerAddresses(brokerTrees(EXAMPLE_RUN_TOKEN))).flat();
+  const micro = Object.values(brokerAddresses(microBrokerTrees(EXAMPLE_RUN_TOKEN))).flat();
+  expect(micro.filter((name) => !isMicroAddress(name) || !name.includes(EXAMPLE_RUN_TOKEN))).toEqual([]);
+  expect(micro.map((name) => `${name}-consumer`).filter((name) => !isMicroAddress(name))).toEqual([]);
+  expect(classic.filter((name) => isMicroAddress(name) || !name.includes(EXAMPLE_RUN_TOKEN))).toEqual([]);
+  expect(classic.map((name) => `${name}-consumer`).filter((name) => isMicroAddress(name))).toEqual([]);
+});
+
+test("brokerChain returns the micro copy on a micro project, from the state file the project names", { tag: ["@infra", "@tier1"] }, () => {
+  const classic = brokerCorpusOf(EXAMPLE_RUN_TOKEN, brokerTrees(EXAMPLE_RUN_TOKEN));
+  const micro = { ...brokerCorpusOf(EXAMPLE_RUN_TOKEN, microBrokerTrees(EXAMPLE_RUN_TOKEN)), domain: "e2e-example-brokers-micro" };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-brokers-micro-state-"));
+  const file = path.join(dir, "brokers-micro.json");
+  fs.writeFileSync(file, JSON.stringify(micro));
+  try {
+    const fixture = "kafka-sender-basic";
+    const of = (corpus: typeof classic) => corpus.chains.find((each) => each.fixture === fixture)!.id;
+    expect(brokerChain(classic, fixture, {}).id).toBe(of(classic));
+    expect(brokerChain(classic, fixture, { engineKind: "classic", microDomainState: file }).id).toBe(of(classic));
+    const chain = brokerChain(classic, fixture, { engineKind: "micro", microDomainState: file });
+    expect(chain.id).toBe(of(micro));
+    expect(chain.id).not.toBe(of(classic));
+    expect(isMicroAddress(chain.broker.topics as string)).toBe(true);
+    expect(() => brokerChain(classic, "no-such-fixture", { engineKind: "micro", microDomainState: file })).toThrow(/micro copy/);
+    expect(() => brokerChain(classic, fixture, { engineKind: "micro", microDomainState: path.join(dir, "absent.json") })).toThrow(
+      /brokers-micro-seed did not run/,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

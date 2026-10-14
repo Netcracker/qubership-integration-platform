@@ -362,6 +362,14 @@ each fixture needs before deploying, since nothing on either side of a broker ch
 own. What it imported is written to `.e2e-brokers-corpus.json` (`.e2e-k8s-brokers-corpus.json` on
 `k8s`) and read back with `readBrokersCorpusState`.
 
+On `k8s`, `brokers-micro-seed` deploys a micro copy of the same fixtures to a micro domain of its
+own. `microCopy` appends `-micro` to every topic, group, queue, exchange, and subscription, and moves
+the SFTP tree to `/upload/<run>-micro`, because both copies run at once on one set of brokers.
+`brokerChain` returns the copy the project's `engineKind` runs, as `seedChain` does. A name a broker
+spec mints itself, such as a verification consumer group or a pull subscription, is built from the
+chain's own address (`${topic}-consumer`), never from the run token alone, so the two copies never
+share it.
+
 A Kafka consumer group turns `Stable` before its consumer looks up the offset, so a trigger left at
 `autoOffsetReset: latest` can skip a message published right after the group settles (CI run
 38443020207). A spec whose Kafka trigger reads a topic the spec itself creates sets `earliest`; the
