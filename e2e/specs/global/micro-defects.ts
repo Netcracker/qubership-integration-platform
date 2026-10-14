@@ -18,6 +18,7 @@ const HELD_ANSWER = /the held call answered 200 \{"element":"long-running","held
  */
 export const LIVE_EXCHANGE_UNLISTED: ConditionalDefect = {
   title: "the micro engine lists no live exchange while a call is in flight",
+  engine: "micro",
   matches: (message) => NOTHING_LISTED.test(message) && HELD_ANSWER.test(message),
 };
 
@@ -28,6 +29,7 @@ export const LIVE_EXCHANGE_UNLISTED: ConditionalDefect = {
  */
 export const KILL_NOT_FOUND_UNSPECIFIC: ConditionalDefect = {
   title: "the micro engine reports an unknown deployment as an unknown exchange",
+  engine: "micro",
   matches: (message) => message.includes("No live exchange found for deployment id no-such-deployment"),
 };
 
@@ -38,5 +40,6 @@ export const KILL_NOT_FOUND_UNSPECIFIC: ConditionalDefect = {
  */
 export const LIMIT_REFUSED_WITH_400: ConditionalDefect = {
   title: "the micro engine answers limit=0 with 400 where the classic engine answers 500",
+  engine: "micro",
   matches: (message) => message.includes('"title":"Constraint Violation","status":400'),
 };

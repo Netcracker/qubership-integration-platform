@@ -29,11 +29,11 @@ import { withSftp } from "../../support/broker-clients.js";
 import { callToken } from "../../support/run.js";
 import { callChain, element, elementNames, failedElements } from "../../support/sessions.js";
 import { readUntil } from "../../support/poll.js";
-import { logWindowStart } from "../../support/logs.js";
+import { logWindowStart, withEngineLines } from "../../support/logs.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
 import { covers } from "../../registry/covers.js";
 import type { Env } from "../../env/index.js";
-import { SFTP_TRIGGER_IDLE, linesOfChain, withEngineLines } from "./micro-defects.js";
+import { SFTP_TRIGGER_IDLE, linesOfChain } from "./micro-defects.js";
 
 /** What `readUntil` gets for the idempotent case's settle window, instead of a bare literal. */
 const IDEMPOTENT_SETTLE_TIMEOUT = 12_000;
