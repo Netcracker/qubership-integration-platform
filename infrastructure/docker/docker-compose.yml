@@ -1,8 +1,10 @@
+name: infrastructure
+
 services:
   ###### QIP
   qip-runtime-catalog:
     build:
-      context: ../runtime-catalog
+      context: ../../runtime-catalog
       dockerfile: Dockerfile
     container_name: qip-runtime-catalog
     read_only: true
@@ -45,7 +47,7 @@ services:
 
   qip-engine:
     build:
-      context: ../engine
+      context: ../../engine
       dockerfile: Dockerfile
     container_name: qip-engine
     read_only: true
@@ -107,7 +109,7 @@ services:
 
   qip-sessions-management:
     build:
-      context: ../sessions-management
+      context: ../../sessions-management
       dockerfile: Dockerfile
     container_name: qip-sessions-management
     read_only: true
@@ -152,7 +154,7 @@ services:
 
   qip-testing-service:
     build:
-      context: ../testing-service
+      context: ../../testing-service
       dockerfile: Dockerfile
     container_name: qip-testing-service
     read_only: true
@@ -199,7 +201,7 @@ services:
   #    ###### AI Assistant (optional, activated by `--profile ai`)
   #    qip-ai-assistant:
   #        build:
-  #          context: ../ai-assistant
+  #          context: ../../ai-assistant
   #          dockerfile: Dockerfile
   #        container_name: qip-ai-assistant
   #        profiles: [ai]

@@ -26,7 +26,7 @@
  * **What the platform publishes.** Spring's default for `management.endpoint.health.show-details`
  * is `never`, and under it the document carries no `components` map at all — so a per-component
  * assertion reads an empty object and passes whatever the stack is doing.
- * `infrastructure/qip-dev.env` therefore sets `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always`,
+ * `infrastructure/docker/qip-dev.env` therefore sets `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always`,
  * which is what makes the map, and the per-component paths under it, exist to be read.
  *
  * Measured on the stack that variable configures, the map is smaller than the dependency list
@@ -91,7 +91,7 @@ for (const role of ACTUATOR_SERVICES) {
     expect(
       components,
       `${role} publishes no components: the container is older than ` +
-        `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS in infrastructure/qip-dev.env, and recreating it ` +
+        `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS in infrastructure/docker/qip-dev.env, and recreating it ` +
         `is what picks the variable up`,
     ).not.toEqual([]);
 
@@ -146,7 +146,7 @@ test("the testing service answers its own /health", { tag: [COMPONENT_TAG["testi
  * and not only its type, because an installation that names no
  * mode is a **production** one — `Config.ProductionMode` reads an unset flag as `true` — so `false`
  * is a positive statement about `PRODUCTION_MODE: "false"` on `qip-testing-service` in
- * `infrastructure/docker-compose.yml` rather than the default it would fall back to.
+ * `infrastructure/docker/docker-compose.yml` rather than the default it would fall back to.
  */
 test("the testing service reports the installation mode", { tag: [COMPONENT_TAG["testing-service"], "@tier1"] }, async ({ testingService }) => {
   const response = await testingService.raw("get", "/api/v1/mode");

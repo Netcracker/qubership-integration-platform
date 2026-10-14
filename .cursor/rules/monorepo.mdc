@@ -55,10 +55,10 @@ Node `>=22` required (see `engines` in root `package.json`).
 #### Local stack
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml up -d --build
 ```
 
-See the `infrastructure` instruction and `infrastructure/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`, `.sftp.yml`).
+See the `infrastructure` instruction and `infrastructure/docker/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`, `.sftp.yml`).
 
 ### Build order between workspaces
 

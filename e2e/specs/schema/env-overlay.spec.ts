@@ -30,7 +30,7 @@ for (const name of overlayNames()) {
     expect(definition.services).toContain(definition.primary);
     // The overlay file has to exist beside the base compose file, or `ensureOverlay` would fail on a
     // Compose error that names no overlay and no broker — a worse message than this one.
-    const file = path.join(repoRoot(), "infrastructure", definition.file);
+    const file = path.join(repoRoot(), "infrastructure", "docker", definition.file);
     expect(fs.existsSync(file), `${file} does not exist`).toBe(true);
 
     // `definition.services` and `definition.primary` are checked against the YAML they claim to

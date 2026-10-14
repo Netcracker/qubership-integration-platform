@@ -295,7 +295,7 @@ async function deletePubsubTopology(topology: PubsubTopology): Promise<void> {
  *
  * Every SFTP fixture's `connectUrl` nests under `/upload/{{RUN}}/<fixture>` (`fixtures/brokers/sftp-*`),
  * so one recursive delete of `/upload/<run>` is the whole run's residue: `atmoz/sftp` carries no
- * named volume in `infrastructure/docker-compose.sftp.yml`, so a healthy, left-running container
+ * named volume in `infrastructure/docker/docker-compose.sftp.yml`, so a healthy, left-running container
  * keeps every run's files until something removes them. A run whose corpus never wrote under the
  * directory still connects and finds `exists()` answers `false`; the connect is unconditional, so a
  * fixture set that never brought the `sftp` overlay up at all fails here instead of finding nothing.
