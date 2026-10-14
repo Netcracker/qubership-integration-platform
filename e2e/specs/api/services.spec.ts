@@ -7,7 +7,7 @@
  * is also why the assertions are filtered to ids the case created — `GET /v1/systems`
  * is one global list on a shared stack, and its length belongs to nobody.
  *
- * Ten shapes are pinned because each one is measured rather than obvious, and each one bites:
+ * Eleven shapes are pinned because each one is measured rather than obvious, and each one bites:
  *
  * - `PUT /v1/systems/{id}` **replaces**. `SystemMapper.mergeWithoutLabels` carries no
  *   null-ignoring strategy, so a request that omits `description` clears it and one that omits
@@ -27,6 +27,9 @@
  *   same `FilterRequestDTO`.
  * - `POST /v1/systems/search` matches an exact id or name, or a name or description containing the
  *   condition, ignoring case. `POST /v1/systems/filter` on `NAME` reads the name alone.
+ * - `POST /v1/catalog/context-system/search` reads the name alone. The MCP filter matches its
+ *   `searchString` against six fields, the instructions among them, and a row must also match every
+ *   clause in `filters`.
  * - `GET /v1/systems/usage` refuses a request without `type` with **400**, and resolves the service
  *   name from the id an element carries whether or not a specification stands behind it.
  * - The service and MCP previews answer `UPDATE` for an id the catalog holds and `CREATE` for one it
@@ -249,7 +252,9 @@ test("a context service round-trips, and its PUT merges where the service PUT re
 
     const found = await catalog.searchContextSystems(name);
     expect(found.map((each) => each.id)).toContain(created.id);
-    expect((await catalog.listContextSystems()).filter((each) => each.id === created.id)).toHaveLength(1);
+    expect((await catalog.listContextSystems()).filter((each) => each.id === created.id)).toEqual([
+      expect.objectContaining({ name: `${name}-renamed`, description: "patched" }),
+    ]);
 
     expect((await catalog.raw("delete", `/v1/catalog/context-system/${created.id}`)).status()).toBe(204);
     expect((await catalog.raw("get", `/v1/catalog/context-system/${created.id}`)).status()).toBe(404);
@@ -297,6 +302,44 @@ test("a context service is filtered, exported by either verb, and previewed back
   }
 });
 
+test("the context search matches the name alone and leaves out a name the condition misses", { tag: ["@catalog", "@tier2"] }, async ({ catalog, run }) => {
+  const marker = tokenized(run, "ctx-search-marked");
+  const named = await catalog.createContextSystem(`${marker}-by-name`);
+  const described = await catalog.createContextSystem(tokenized(run, "ctx-search-described"), `mentions ${marker}`);
+  try {
+    expect((await catalog.searchContextSystems(marker)).map((each) => each.id)).toEqual([named.id]);
+    expect(
+      (await catalog.searchContextSystems(`${marker}-absent`)).filter((each) => each.id === named.id || each.id === described.id),
+    ).toEqual([]);
+  } finally {
+    for (const context of [named, described]) await catalog.deleteContextSystem(context.id).catch(() => {});
+  }
+});
+
+test("the MCP filter matches the search string on any field and every clause on its own field", { tag: ["@catalog", "@tier2"] }, async ({ catalog, run }) => {
+  const marker = tokenized(run, "mcp-filter-marked");
+  const instructed = await catalog.createMcpSystem({
+    name: tokenized(run, "mcp-filter-instructed"),
+    identifier: tokenized(run, "mcp-filter-instructed"),
+    instructions: `mentions ${marker}`,
+  });
+  const named = await catalog.createMcpSystem({ name: `${marker}-by-name`, identifier: `${marker}-by-name` });
+  const ours = (rows: Array<{ id: string }>) =>
+    rows.map((each) => each.id).filter((id) => id === instructed.id || id === named.id).sort();
+  try {
+    expect(ours(await catalog.filterMcpSystems(marker)), "the search string reads the instructions too").toEqual(
+      [instructed.id, named.id].sort(),
+    );
+    expect(ours(await catalog.filterMcpSystems(`${marker}-absent`))).toEqual([]);
+
+    const byName = [{ column: "NAME", condition: "CONTAINS", value: marker }];
+    expect(ours(await catalog.filterMcpSystems("", byName)), "a clause reads its own field alone").toEqual([named.id]);
+    expect(ours(await catalog.filterMcpSystems(tokenized(run, "mcp-filter-instructed"), byName)), "the search and the clauses must both match").toEqual([]);
+  } finally {
+    for (const mcp of [instructed, named]) await catalog.deleteMcpSystem(mcp.id).catch(() => {});
+  }
+});
+
 test("an MCP service round-trips", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
   const name = tokenized(run, "mcp");
   const created = await catalog.createMcpSystem({
@@ -325,6 +368,9 @@ test("an MCP service round-trips", { tag: ["@catalog", "@tier1"] }, async ({ cat
 
     const filtered = await catalog.filterMcpSystems(name);
     expect(filtered.map((each) => each.id)).toContain(created.id);
+    expect((await catalog.listMcpSystems()).filter((each) => each.id === created.id)).toEqual([
+      expect.objectContaining({ name: `${name}-renamed`, identifier: name }),
+    ]);
 
     expect((await catalog.raw("delete", `/v1/catalog/mcp-system/${created.id}`)).status()).toBe(204);
     expect((await catalog.raw("get", `/v1/catalog/mcp-system/${created.id}`)).status()).toBe(404);

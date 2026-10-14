@@ -8,7 +8,7 @@
  * to reach a **nested folder** and the chains under that, which is the shape a worker folder
  * actually holds once the specs above it start making sub-folders of their own.
  *
- * Five measured shapes the cases pin:
+ * Six measured shapes the cases pin:
  *
  * - `DELETE /v1/folders/{id}` answers **204**, where the chain delete answers 200.
  * - `PUT /v1/folders/{id}` with no `parentId` leaves the folder where it is. The chain update does
@@ -20,6 +20,10 @@
  *   chains beneath a matched folder; the filter reads chains only.
  * - A folder row in either answer lists every child the folder holds, matched or not, so a case
  *   reads the flat list and never a folder's `items`.
+ * - `GET /v1/folders?openedFolderId=…` adds the tree down to that folder to the root listing: each
+ *   folder on the path with its direct items, the folders beside the path and below the opened one,
+ *   and the chains directly inside the path. A listed folder whose content the answer leaves out
+ *   carries no `items` key; an empty one carries `[]`.
  *
  * Every case builds its own sub-tree under the worker's folder, because both listings above are
  * recursive and a case reading the worker folder would read its neighbors' work.
@@ -168,4 +172,35 @@ test("the folder filter reads chains only, and answers the folders above the cha
   expect(rowsOf(found)).toEqual(
     [`CHAIN:${markedChain.id}`, `FOLDER:${tree.id}`, `FOLDER:${folder.id}`].sort(),
   );
+});
+
+test("the root listing opened at a nested folder carries the path down to it and the folder's own content", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
+  const outer = await catalog.createFolder(tokenized(run, "opened-outer"), folder.id);
+  const sibling = await catalog.createFolder(tokenized(run, "opened-sibling"), outer.id);
+  const opened = await catalog.createFolder(tokenized(run, "opened"), outer.id);
+  const below = await catalog.createFolder(tokenized(run, "opened-below"), opened.id);
+  const outerChain = await catalog.createChain(tokenized(run, "opened-outer-chain"), outer.id);
+  const openedChain = await catalog.createChain(tokenized(run, "opened-chain"), opened.id);
+  const belowChain = await catalog.createChain(tokenized(run, "opened-below-chain"), below.id);
+
+  const listing = await catalog.listRootItemsOpenedAt(opened.id);
+  const ours = [folder.id, outer.id, sibling.id, opened.id, below.id, outerChain.id, openedChain.id, belowChain.id];
+  const rows = new Map(listing.filter((item) => ours.includes(item.id)).map((item) => [item.id, item]));
+  const itemsOf = (id: string) => rows.get(id)?.items?.map((item) => item.id).sort();
+
+  // One row per entity: the worker folder is a root row, replaced by the copy that carries its items.
+  expect(listing.filter((item) => ours.includes(item.id)).map((item) => item.id).sort()).toEqual(
+    [folder.id, outer.id, sibling.id, opened.id, below.id, outerChain.id, openedChain.id].sort(),
+  );
+  expect(itemsOf(folder.id)).toContain(outer.id);
+  expect(itemsOf(outer.id)).toEqual([sibling.id, opened.id, outerChain.id].sort());
+  expect(itemsOf(opened.id)).toEqual([below.id, openedChain.id].sort());
+  expect(itemsOf(sibling.id), "an empty folder beside the path carries an empty list").toEqual([]);
+  expect(rows.get(below.id)?.items, "a folder below the opened one is listed without its content").toBeUndefined();
+  expect(rows.get(openedChain.id)).toMatchObject({ itemType: "CHAIN", parentId: opened.id });
+
+  // Without the parameter the answer is the root level alone.
+  const root = (await catalog.listRootItems()).map((item) => item.id);
+  expect(root).toContain(folder.id);
+  expect(root).not.toContain(opened.id);
 });
