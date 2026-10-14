@@ -620,6 +620,7 @@ export class SpecificationProcessorService {
       case ".wsdl":
         return ApiSpecificationType.SOAP;
       case ".graphql":
+      case ".graphqls":
       case ".gql":
         return ApiSpecificationType.GRAPHQL;
       case ".proto":

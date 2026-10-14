@@ -160,13 +160,14 @@ describe("a refused specification import", () => {
       ]);
     });
 
-    test("when a .zip is posted, which the file picker offers", async () => {
-      // The picker's `SUPPORTED_EXTENSIONS` in
-      // `ui/src/components/services/modals/ImportSpecificationsModal.tsx` lists `".zip"`, and
-      // `ProtocolDetectorService.extractArchives` is a pass-through whose two branches are
-      // identical. The extension table in `detectProtocolByExtension` knows only `.wsdl`,
-      // `.graphql`, `.gql` and `.proto`, so the product invites a file the import refuses. That
-      // divergence is a reported defect candidate, not a behavior this case asks to change.
+    test("when a .zip is posted, which no picker in this context offers", async () => {
+      // The extension unpacks no archive: `ProtocolDetectorService.extractArchives` passes every
+      // file through, where the backend's `MultipartFileUtils.extractArchives` reads a zip's
+      // entries. So the import refuses one, and the picker's `SUPPORTED_EXTENSIONS` in
+      // `ui/src/components/services/modals/ImportSpecificationsModal.tsx` drops `".zip"` where the
+      // api is the extension's, which is what keeps the product from inviting this file. The case
+      // stays because the webview is not the only sender: `getApiResponse` takes the message from
+      // anything that can post one, including the node library's `QipExtensionAPI`.
       const serviceFileUri = seedServiceDocument({ id: SERVICE_ID });
       const seeded = workspaceTree();
 

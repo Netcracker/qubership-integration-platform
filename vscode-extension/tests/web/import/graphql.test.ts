@@ -47,7 +47,9 @@ import {
   fixtureFile,
   fixtureText,
   goldenTree,
+  postImportGroup,
   resetImportWorkspace,
+  serializedFile,
 } from "../../helpers/importHarness";
 import { seedServiceDocument } from "../../helpers/seedServiceDocument";
 import { getApiResponse } from "../../../src/web/response/apiRouter";
@@ -130,5 +132,45 @@ describe("the GraphQL import", () => {
     expect(golden[`resources/source-${SPECIFICATION_ID}/${SCHEMA}`]).toBe(fixtureText(SCHEMA));
 
     expect(frozen.issued).toHaveLength(2);
+  });
+
+  // `.graphqls` is the other SDL extension. The picker has always offered it and the catalog has
+  // always accepted it — `ProtocolExtractionService` reads `graphql` and `graphqls` alike — while
+  // the extension's two tables, `detectProtocolByExtension` for the protocol and
+  // `detectTypeByExtension` for the specification type, knew neither. The file therefore took
+  // `Unsupported specification format: unable to detect protocol`, since an SDL document parses as
+  // neither JSON nor YAML and nothing else detects it.
+  //
+  // No second golden: the bytes are the ones above, apart from the file name and the `sourceHash`
+  // of a source whose text is identical. The operations are what proves the file reached
+  // `GraphQLSpecificationParser` rather than a fallback.
+  test("imports a .graphqls schema, the other SDL extension", async () => {
+    const serviceFileUri = seedServiceDocument({ id: SERVICE_ID });
+
+    const result = await postImportGroup(serviceFileUri, {
+      systemId: SERVICE_ID,
+      name: GROUP_NAME,
+      files: [serializedFile("orders.graphqls", fixtureText(SCHEMA))],
+    });
+
+    expect(result).toEqual({
+      id: `${ID_PREFIX}-0000-4000-8000-000000000001`,
+      specificationGroupId: GROUP_ID,
+      done: true,
+    });
+    expect(errorMessagesShown()).toEqual([]);
+
+    const tree = workspaceTree();
+    const specification = yaml.parse(
+      tree[`${SERVICE_DIR}/${SPECIFICATION_ID}.specification.cip.yaml`],
+    );
+    expect(specification.content.operations.map((operation: any) => operation.name)).toEqual([
+      "orders",
+      "order",
+      "createOrder",
+    ]);
+    expect(Object.keys(tree)).toContain(
+      `${SERVICE_DIR}/resources/source-${SPECIFICATION_ID}/orders.graphqls`,
+    );
   });
 });
