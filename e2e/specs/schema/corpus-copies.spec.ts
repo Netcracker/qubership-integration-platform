@@ -36,7 +36,6 @@ import {
   serviceTrees,
   type FixtureElement,
 } from "../../support/corpus.js";
-import { CLASSIC_ONLY_RUNTIME_FILES } from "../../env/target-setup.js";
 import { UUID, UUID_TEXT } from "../../support/absent.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
@@ -93,6 +92,7 @@ function fixturesReadBy(source: string): string[] {
     ...[...source.matchAll(/triggerOf\(\s*"([^"]+)"\s*\)/g)].map((match) => match[1]),
   ];
   if (/seedChain\(\s*[^,]+,\s*MASKED_FIXTURE\s*\)/.test(source)) read.push("masking");
+  if (/seedChain\(\s*[^,]+,\s*PLACEHOLDER_FIXTURE\s*\)/.test(source)) read.push(PLACEHOLDER_FIXTURE);
   if (/axisFixtureName\(/.test(source)) {
     const families = new Set([...source.matchAll(/family: "([^"]+)"/g)].map((match) => match[1]));
     read.push(
@@ -179,18 +179,13 @@ function withoutClassicOnly(source: string): string {
 }
 
 test("the micro copy holds exactly the fixtures the runtime-micro files read, and the ones those call", { tag: ["@infra", "@tier1"] }, async () => {
-  const files = fs
-    .readdirSync(RUNTIME_DIR)
-    .filter((file) => file.endsWith(".spec.ts") && !CLASSIC_ONLY_RUNTIME_FILES.includes(file));
+  const files = fs.readdirSync(RUNTIME_DIR).filter((file) => file.endsWith(".spec.ts"));
   const read = [
     ...new Set(
       files.flatMap((file) => fixturesReadBy(withoutClassicOnly(fs.readFileSync(path.join(RUNTIME_DIR, file), "utf-8")))),
     ),
   ];
   expect([...MICRO_FIXTURES].sort()).toEqual([...read, ...(await loopbackCallees(read))].sort());
-  // A classic-only file that no longer exists would keep its fixtures out of the comparison above.
-  const missing = CLASSIC_ONLY_RUNTIME_FILES.filter((file) => !fs.existsSync(path.join(RUNTIME_DIR, file)));
-  expect(missing, "classic-only runtime files that are not in specs/runtime/").toEqual([]);
 
   // A tagged test's reads are left out, and the reads around it are kept.
   const source = [
@@ -335,7 +330,7 @@ test("every HTTP trigger the corpus seeds, in both copies, is internal", { tag: 
         .map((element) => `${name}: ${String(element.name)}`);
     });
   const classic = await fixtureTrees(names, EXAMPLE_RUN_TOKEN);
-  expect(classic.length).toBeGreaterThan(MICRO_FIXTURES.length);
+  expect(classic.length).toBeGreaterThanOrEqual(MICRO_FIXTURES.length);
   expect(external(classic)).toEqual([]);
   expect(external(await microCorpusTrees(EXAMPLE_RUN_TOKEN))).toEqual([]);
 });

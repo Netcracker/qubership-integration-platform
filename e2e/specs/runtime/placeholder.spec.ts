@@ -15,6 +15,7 @@
  *
  * The last two build their own chains in the worker folder. The seed refuses any chain that does
  * not go live, and changing the seeded variable would race the first case in a parallel project.
+ * Both are classic-only: a deploy into the shared micro domain rolls its pod.
  *
  * Common variables only. Secured variables never reach the engine on Compose: its
  * `pollSecuredVariables()` reads them through `KubeOperator`, which returns nothing in dev mode,
@@ -95,7 +96,7 @@ test("a placeholder in an element property resolves to the variable's value at d
   expect(element(session, "Resolve Placeholder")?.headersAfter?.["e2e-placeholder"]).toBe(value);
 });
 
-test("a variable changed under a live chain is served only after a redeploy", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ request, env, catalog, folder, run }) => {
+test("a variable changed under a live chain is served only after a redeploy", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "a deploy into the shared micro domain rolls its pod under every runtime-micro case; the micro redeploy runs in a domain of its own, in the runtime-micro-redeploy project" } }, async ({ request, env, catalog, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
 
   const variable = tokenized(run, "placeholder-live");
