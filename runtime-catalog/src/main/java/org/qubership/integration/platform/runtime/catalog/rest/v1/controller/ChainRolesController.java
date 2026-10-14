@@ -41,6 +41,7 @@ import java.util.List;
 @RequestMapping(value = {
     "/v1/catalog/chains/roles",
     "/v1/catalog/chains/access-control",
+    "/api/v1/cip/catalog/chains/roles",
     "/api/v1/cip/catalog/chains/access-control"
 }, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
