@@ -9,7 +9,7 @@ server:
 
 cloud:
   microservice:
-    name: ${MICROSERVICE_NAME:cip-runtime-catalog}
+    name: ${MICROSERVICE_NAME:cip-engine}
     bg_version: ${DEPLOYMENT_VERSION:v1}
     namespace: ${NAMESPACE}
     origin_namespace: ${ORIGIN_NAMESPACE}
