@@ -24,9 +24,8 @@
  * The end of the file holds `TokenedDomain`, the micro domain a spec file deploys such chains to.
  */
 import fs from "node:fs";
-import { expect } from "@playwright/test";
 import type { Catalog, LoggingProperties } from "./catalog.js";
-import { MICRO_READY_TIMEOUT, waitForRoutes, type DeployedChain, type SeedChain } from "./corpus.js";
+import { deployToMicroDomain, MICRO_READY_TIMEOUT, waitForRoutes, type DeployedChain, type SeedChain } from "./corpus.js";
 import { noteChain } from "./diagnostics.js";
 import { tokenized } from "./run.js";
 import { writeStateFile } from "./state-file.js";
@@ -364,11 +363,7 @@ export async function dispatchToDomain(
   chains: readonly DeployedChain[],
 ): Promise<void> {
   if (target.record) writeStateFile(target.record, { run: target.run, domain: target.domain });
-  const rows = await catalog.deployChains(chains.map((each) => each.id), [target.domain]);
-  expect(
-    rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
-    "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
-  ).toEqual(chains.map((each) => `${each.id} CREATED`).sort());
+  await deployToMicroDomain(catalog, target.domain, chains);
 }
 
 /** `dispatchToDomain`, then waits until every route answers. */

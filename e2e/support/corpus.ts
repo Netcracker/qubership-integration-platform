@@ -30,7 +30,7 @@
  *    `DEPLOYED` indefinitely, and even a healthy one serves seconds after the status flips. So the
  *    status poll is followed by a poll of the routes themselves.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIResponse } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,6 +42,7 @@ import {
   chainFixtureNames,
   corpusFixtureNames,
   corpusFixtures,
+  elementsOf,
   microCopy,
   readFixtureDocument,
   renderFixture,
@@ -52,7 +53,8 @@ import {
   type RenderedTree,
 } from "../fixtures/templating.js";
 import { axisFixtureName, axisFixtures, renderAxisFixtures } from "../fixtures/axis-generator.js";
-import type { EngineKind, Env } from "../env/index.js";
+import type { Env } from "../env/index.js";
+import type { SuiteWorkerOptions } from "../env/target-setup.js";
 import { MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../env/k8s.js";
 import { noteChain } from "./diagnostics.js";
 import { keepEntities } from "./fixtures.js";
@@ -159,6 +161,13 @@ export async function deleteService(catalog: Catalog, kind: DocumentKind, id: st
   else await catalog.deleteSystem(id);
 }
 
+/** The raw answer of `deleteService`'s delete, for a caller that reads a 404 as a service never imported. */
+export function deleteServiceRaw(catalog: Catalog, kind: DocumentKind, id: string): Promise<APIResponse> {
+  if (kind === "context-service") return catalog.raw("delete", `/v1/catalog/context-system/${id}`);
+  if (kind === "mcp-service") return catalog.raw("delete", `/v1/catalog/mcp-system/${id}`);
+  return catalog.raw("delete", `/v1/systems/${id}`);
+}
+
 export interface SeededCorpus {
   run: string;
   chains: SeedChain[];
@@ -215,25 +224,6 @@ export function placeholderValue(run: string): string {
   return `resolved-${run}`;
 }
 
-/** A fixture document's element, as much of its shape as `flatten` and its callers read. */
-export interface FixtureElement {
-  id?: unknown;
-  name?: unknown;
-  type?: unknown;
-  properties?: Record<string, unknown>;
-  children?: FixtureElement[];
-}
-
-/** Every element of a fixture document, parents before their children. */
-export function flatten(elements: readonly FixtureElement[]): FixtureElement[] {
-  const flat: FixtureElement[] = [];
-  for (const element of elements) {
-    flat.push(element);
-    if (element.children) flat.push(...flatten(element.children));
-  }
-  return flat;
-}
-
 /**
  * Reads the fixture document for what a spec needs to address the chain it becomes.
  *
@@ -247,8 +237,7 @@ export function flatten(elements: readonly FixtureElement[]): FixtureElement[] {
  * can introduce, and the map it corrupts is what a mock and a trace assertion are keyed on.
  */
 function describe(fixture: string, document: Record<string, unknown>): SeedChain {
-  const content = (document.content ?? {}) as { elements?: FixtureElement[] };
-  const elements = flatten(content.elements ?? []);
+  const elements = elementsOf(document);
   const trigger = elements.find((each) => each.type === "http-trigger");
   const contextPath = (trigger?.properties?.contextPath ?? trigger?.properties?.integrationOperationPath ?? "") as string;
 
@@ -333,7 +322,7 @@ async function importCorpus(
   }
   const seeded = await importServices(catalog, services, `services-${archiveName}`);
 
-  const response = await catalog.importChains(assembled.archive, archiveName, corpusRequestTimeout(chains.length));
+  const response = await catalog.importChains(assembled.archive, archiveName, { timeout: corpusRequestTimeout(chains.length) });
   expect(response.status(), `the corpus import answered ${response.status()}`).toBe(200);
   const imported = (await response.json()) as { chains: Array<{ id: string; status: string }> };
 
@@ -397,6 +386,17 @@ export async function deployCorpus(catalog: Catalog, chains: readonly SeedChain[
     rows.filter((row) => row.status !== "CREATED").map((row) => `${row.chainName}: ${row.status}`),
     "a chain the batch could not deploy",
   ).toEqual([]);
+}
+
+/** Deploys `chains` to the micro domain `domain` in one call, and returns once the catalog has accepted every one. */
+export async function deployToMicroDomain(catalog: Catalog, domain: string, chains: readonly DeployedChain[]): Promise<void> {
+  const rows = await catalog.deployChains(chains.map((each) => each.id), [domain], {
+    timeout: corpusRequestTimeout(chains.length),
+  });
+  expect(
+    rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
+    "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
+  ).toEqual(chains.map((each) => `${each.id} CREATED`).sort());
 }
 
 /** Polls until every seeded chain is keyed in the runtime view, failing with the set difference. */
@@ -536,10 +536,7 @@ export function discardCorpusStateOf(runs: readonly string[]): void {
 }
 
 /** The worker options of the current project, which a project sets with `use`. */
-export interface ProjectUse {
-  engineKind?: EngineKind;
-  microDomainState?: string;
-}
+export type ProjectUse = Partial<SuiteWorkerOptions>;
 
 /** The current project's `use`, which the corpus readers default to. */
 export function projectUse(): ProjectUse {
@@ -786,15 +783,7 @@ export async function seedMicroCorpus(
   await catalog.addCommonVariables({ [placeholderVariable(run)]: placeholderValue(run) });
 
   const deployedAt = Date.now();
-  const rows = await catalog.deployChains(
-    chains.map((each) => each.id),
-    [corpus.domain],
-    corpusRequestTimeout(chains.length),
-  );
-  expect(
-    rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
-    "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
-  ).toEqual(chains.map((each) => `${each.id} CREATED`).sort());
+  await deployToMicroDomain(catalog, corpus.domain, chains);
 
   await waitForRoutes(
     env,
@@ -825,8 +814,9 @@ export function readMicroCorpusState(file: string = MICRO_CORPUS_STATE_FILE): Mi
 
 /**
  * Deletes the micro copy's logging properties, its chains, the services they call, the placeholder
- * variable, and then its domain. `E2E_KEEP=1` leaves all five. Deleting the variable `seed` also wrote is harmless: a
- * deployed chain keeps the value it resolved, and the second delete of a name is a no-op.
+ * variable, and then its domain. `E2E_KEEP=1` leaves all five. Deleting the variable `seed` also
+ * wrote is harmless: a deployed chain keeps the value it resolved, and the second delete of a name
+ * is a no-op.
  *
  * A chain whose logging properties survived is kept, for the reason `teardownCorpus` keeps one. The
  * domain goes last, with `DELETE /v1/cr/{name}`, and the state file only once nothing failed.

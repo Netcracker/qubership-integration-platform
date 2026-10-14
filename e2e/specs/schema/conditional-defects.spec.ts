@@ -3,12 +3,11 @@
  * ones it must leave a real failure, and the engine gate `strikesAsKnown` puts in front of it. No stack.
  */
 import { test, expect, type APIResponse } from "@playwright/test";
-import { MOCK_BYPASSED } from "../runtime/service-call.js";
+import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "../runtime/micro-defects.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIMIT_REFUSED_WITH_400, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
 import { withEngineLines } from "../../support/logs.js";
-import { CONTEXT_STORE_UNTRANSACTED } from "../runtime/context-storage.js";
 import { PUBSUB_EMULATOR_BYPASSED, SFTP_TRIGGER_IDLE, linesOfChain, pubsubAuthFailure } from "../brokers/micro-defects.js";
 import { ignoredCompileFailure, SCRIPT_COMPILE_IGNORED } from "../runtime-micro-redeploy/micro-defects.js";
 import type { Env } from "../../env/index.js";

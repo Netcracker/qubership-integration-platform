@@ -64,8 +64,7 @@ import {
 } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
-import { MOCK_BYPASSED } from "./service-call.js";
-import { CONTEXT_STORE_UNTRANSACTED } from "./context-storage.js";
+import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "./micro-defects.js";
 import { waitForFirstRecording, withBuilt } from "../../support/cleanup.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";

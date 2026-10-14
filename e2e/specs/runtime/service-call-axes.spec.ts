@@ -23,9 +23,7 @@
  * kafka, amqp and the four async methods belong to the broker specs under `specs/brokers/`.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { readCorpusState, seedChain } from "../../support/corpus.js";
 import {
-  axisFixtureName,
   CORRELATION_ECHO,
   CORRELATION_ID_FIELD,
   CORRELATION_ID_HEADER,
@@ -35,11 +33,12 @@ import {
   ORDER_ID,
   ORDERS_SERVICE,
 } from "../../fixtures/axis-generator.js";
-import { readServiceFixture } from "../../fixtures/templating.js";
+import { escapeRegExp, readServiceFixture } from "../../fixtures/templating.js";
 import { callToken, tokenized } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, element, elementNames, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER, type ExecutionStatus } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
-import { MOCK_BYPASSED, MOCKED_BODY } from "./service-call.js";
+import { MOCK_BYPASSED } from "./micro-defects.js";
+import { axisChain, MOCKED_BODY } from "./service-call.js";
 import { noChainRequestId, type RequestMatcher } from "../../support/testing-service.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
 import type { Env } from "../../env/index.js";
@@ -50,13 +49,6 @@ const BEFORE_STEP = "Prepare request";
 const AFTER_STEP = "Handle response 201";
 const AUTHORIZATION_STEP = "Authorization";
 const INCOMING_AUTHORIZATION = "Bearer e2e-incoming";
-
-/** The seeded chain of one axis value, and the id of its service call, which a mock is keyed on. */
-function axisChain(axisPath: string, value: SchemaValue) {
-  const chain = seedChain(readCorpusState(), axisFixtureName({ family: "service-call", axisPath, value }));
-  const branch = `${axisPath}=${value}`;
-  return { chain, branch, callerId: chain.elements[branch] };
-}
 
 interface MockedCase {
   axisPath: string;
@@ -128,17 +120,12 @@ for (const each of MOCKED_CASES) {
   });
 }
 
-/** `RegExp` source matching `text` literally. */
-function literally(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 // The template tells EXTERNAL from the rest (`service-call/template.hbs:234-243`): EXTERNAL goes to the
 // egress gateway's route for the element, anything else to the environment's address. The mock
 // answers either, so the URI the producer was handed is read off the request step.
 const SYSTEM_TYPES = [
   // INTERNAL declares no row: IMPLEMENTED compiles the same address, so this case cannot tell them apart.
-  { value: "INTERNAL", declares: false, uri: () => new RegExp(`^${literally(readServiceFixture(ORDERS_SERVICE).address)}/orders/${ORDER_ID}$`) },
+  { value: "INTERNAL", declares: false, uri: () => new RegExp(`^${escapeRegExp(readServiceFixture(ORDERS_SERVICE).address)}/orders/${ORDER_ID}$`) },
   { value: "EXTERNAL", declares: true, uri: (callerId: string) => new RegExp(`^http://[^/]+/system/${callerId}/[0-9a-f]{40}/orders/${ORDER_ID}$`) },
 ] as const;
 
