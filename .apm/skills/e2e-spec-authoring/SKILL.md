@@ -330,10 +330,17 @@ Three steps happen in an order that is not negotiable:
 did not scope by chain or by a window it opened leaves out the `*-scheduler-basic` ones, as
 `specs/global/sessions-destructive.spec.ts` does in its search filter.
 
+A chain that calls a service is seeded too. `fixtures/services/` holds one directory per service,
+with its specification group, its specification and the specification's source below it, and
+both seeds import every one through `POST /v1/import/system` before their chains, the micro seed
+its micro copy. A chain names an operation by the fixed IDs the service fixture carries:
+`serviceCallTo` in `fixtures/axis-generator.ts` reads them for a generated chain, and
+`specs/schema/fixtures.spec.ts` checks the IDs a hand-written chain spells out.
+
 A runtime case deploys a chain of its own, in the worker folder, only when the corpus cannot hold
-it: the chain needs IDs a seed cannot carry (a service, a specification, an operation), it would
-carry a reference the export cannot resolve (`contextServiceId`), the seed would refuse it because
-it does not go live, a shared chain would race the change the case makes, or the case undeploys it.
+it: it would carry a reference the export cannot resolve (`contextServiceId`), the seed would refuse
+it because it does not go live, a shared chain would race the change the case makes, or the case
+undeploys it.
 Such a case builds through the builders in `support/deployable.ts` and holds what it created in
 `withBuilt` from `support/cleanup.ts`, which undeploys the chains and deletes what they use outside
 the worker folder. A describe that builds its chains once in `beforeAll` hands them to `release` in

@@ -611,30 +611,6 @@ export async function sweepRunToken(
       );
     });
   }
-  // Specification groups before their system, so a group that outlives one is still named.
-  for (const group of of("specification-group")) {
-    await remove(
-      `specification-group ${group.name}`,
-      group,
-      catalog.deleteSpecificationGroup(group.id),
-    );
-  }
-  // The system takes its environments with it; nothing else does.
-  for (const system of of("service")) {
-    await remove(`service ${system.name}`, system, catalog.deleteSystem(system.id));
-    // The environments went exactly as far as the system did.
-    if (gone.has(system)) {
-      for (const environment of of("environment")) {
-        if (environment.scope === system.id) gone.add(environment);
-      }
-    }
-  }
-  for (const context of of("context-system")) {
-    await remove(`context-system ${context.name}`, context, catalog.deleteContextSystem(context.id));
-  }
-  for (const mcp of of("mcp-system")) {
-    await remove(`mcp-system ${mcp.name}`, mcp, catalog.deleteMcpSystem(mcp.id));
-  }
   // Before the chains, because a chain's logging properties are a Consul key the chain delete does
   // not reach: once the chain is gone the key is addressed by an id nothing can list. A failure
   // here is what keeps that chain for the next sweep to try again.
@@ -688,6 +664,32 @@ export async function sweepRunToken(
       if (await catalog.holds(`/v1/chains/${chain.id}`)) throw cause;
     });
     await remove(`chain ${chain.name}`, chain, drop);
+  }
+  // After the chains, since the catalog refuses to delete a service a chain still calls: a seeded
+  // chain calls a seeded service. Specification groups before their system, so a group that
+  // outlives one is still named.
+  for (const group of of("specification-group")) {
+    await remove(
+      `specification-group ${group.name}`,
+      group,
+      catalog.deleteSpecificationGroup(group.id),
+    );
+  }
+  // The system takes its environments with it; nothing else does.
+  for (const system of of("service")) {
+    await remove(`service ${system.name}`, system, catalog.deleteSystem(system.id));
+    // The environments went exactly as far as the system did.
+    if (gone.has(system)) {
+      for (const environment of of("environment")) {
+        if (environment.scope === system.id) gone.add(environment);
+      }
+    }
+  }
+  for (const context of of("context-system")) {
+    await remove(`context-system ${context.name}`, context, catalog.deleteContextSystem(context.id));
+  }
+  for (const mcp of of("mcp-system")) {
+    await remove(`mcp-system ${mcp.name}`, mcp, catalog.deleteMcpSystem(mcp.id));
   }
   const templates = of("design-template");
   if (templates.length) {

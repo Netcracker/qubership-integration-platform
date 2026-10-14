@@ -30,6 +30,7 @@ import {
   ENGINE_LOOPBACK,
   RUN_PLACEHOLDER,
   readFixtureDocument,
+  readServiceFixture,
   renderFixtureTree,
   substitute,
   type RenderedTree,
@@ -170,6 +171,51 @@ export const LOG_MESSAGE_PREFIX = "e2e-log";
 export const HTTP_METHODS = ["POST", "GET", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] as const;
 export const LOG_LEVELS = ["Error", "Warning", "Info"] as const;
 
+/** The service fixture a mock answers for: `POST /orders/{orderId}` on an address that never resolves. */
+export const ORDERS_SERVICE = "service-call-orders";
+/** The `orderId` every call to the orders service fills its path with. */
+export const ORDER_ID = "e2e-order";
+/** The query parameter the http protocol case sends. */
+export const ORDER_CHANNEL = "e2e";
+export const GRAPHQL_QUERY = "query Widget($id: ID!) { widget(id: $id) { id name } }";
+export const GRAPHQL_VARIABLES = { id: "e2e-widget" };
+
+/**
+ * The properties of a `service-call` on `operation` of a service fixture: what
+ * `SystemOperationField.tsx` writes on choosing the operation, and the library defaults of the two
+ * properties the schema requires.
+ */
+export function serviceCallTo(service: string, operation: string): Record<string, unknown> {
+  const fixture = readServiceFixture(service);
+  const found = fixture.operations.find((each) => each.name === operation);
+  if (!found) throw new Error(`service fixture ${service} has no operation ${operation}`);
+  return {
+    systemType: fixture.type,
+    integrationSystemId: fixture.id,
+    integrationSpecificationGroupId: found.groupId,
+    integrationSpecificationId: found.specificationId,
+    integrationOperationId: found.id,
+    integrationOperationPath: found.path,
+    integrationOperationMethod: found.method,
+    integrationOperationProtocolType: fixture.protocol.toLowerCase(),
+    retryCount: 0,
+    retryDelay: 5000,
+  };
+}
+
+const ORDERS_CALL = { ...serviceCallTo(ORDERS_SERVICE, "e2eServiceCall"), integrationOperationPathParameters: { orderId: ORDER_ID } };
+
+/** A 201 validation: `required` names a field the mock's body has, or one it lacks. */
+function responseValidation(required: string): Record<string, unknown> {
+  return {
+    afterValidation: [
+      { type: "responseValidation", code: "201", contentType: "application/json", schema: JSON.stringify({ type: "object", required: [required] }) },
+    ],
+  };
+}
+
+const RESPONSE_201 = { code: "201", wildcard: false };
+
 /** The axis values the seed deploys a chain for. A spec that covers a value adds its entry. */
 export const axisFixtures: readonly AxisFixture[] = [
   // The http-trigger handler axes.
@@ -248,6 +294,65 @@ export const axisFixtures: readonly AxisFixture[] = [
   ...[true, false].map((value): AxisFixture => ({ family: "http-sender", axisPath: "propagateContext", value, properties: { ...INTERNAL_CALL, httpMethod: "GET", uri: MOCKED_SENDER_URI } })),
   ...[true, false].map((value): AxisFixture => ({ family: "graphql-sender", axisPath: "propagateContext", value, properties: { ...INTERNAL_CALL, query: "query { e2e }", uri: METHOD_ECHO_URI } })),
   ...LOG_LEVELS.map((value): AxisFixture => ({ family: "log-record", axisPath: "logLevel", value, properties: { message: `${LOG_MESSAGE_PREFIX} \${header.${LOG_TOKEN_HEADER}}` } })),
+
+  // The service-call axes. The http calls go to the orders service, which a mock answers, except the
+  // method ones, which reach the method echo; graphql reaches the http echo.
+  { family: "service-call", axisPath: "handleValidationAction", value: "default", properties: { ...ORDERS_CALL, ...responseValidation("id") } },
+  { family: "service-call", axisPath: "handleValidationAction", value: "script", properties: { ...ORDERS_CALL, handlerContainer: scriptHandler("validation-script"), ...responseValidation("id") } },
+  { family: "service-call", axisPath: "handleValidationAction", value: "mapper-2", properties: { ...ORDERS_CALL, handlerContainer: mapperHandler("validation-mapper"), ...responseValidation("id") } },
+  { family: "service-call", axisPath: "afterValidation/items/type", value: "responseValidation", properties: { ...ORDERS_CALL, ...responseValidation("mocked") } },
+  { family: "service-call", axisPath: "before/type", value: "none", properties: ORDERS_CALL },
+  { family: "service-call", axisPath: "before/type", value: "script", properties: { ...ORDERS_CALL, before: scriptHandler("before-script") } },
+  { family: "service-call", axisPath: "before/type", value: "mapper-2", properties: { ...ORDERS_CALL, before: mapperHandler("before-mapper") } },
+  { family: "service-call", axisPath: "after/items/type", value: "none", properties: { ...ORDERS_CALL, after: [{ ...RESPONSE_201 }] } },
+  { family: "service-call", axisPath: "after/items/type", value: "script", properties: { ...ORDERS_CALL, after: [{ ...RESPONSE_201, ...scriptHandler("after-script") }] } },
+  { family: "service-call", axisPath: "after/items/type", value: "mapper-2", properties: { ...ORDERS_CALL, after: [{ ...RESPONSE_201, ...mapperHandler("after-mapper") }] } },
+  ...["inherit", "none"].map((value): AxisFixture => ({ family: "service-call", axisPath: "authorizationConfiguration/type", value, properties: ORDERS_CALL })),
+  { family: "service-call", axisPath: "authorizationConfiguration/type", value: "basic", properties: { ...ORDERS_CALL, authorizationConfiguration: { data: { username: "e2e-user", password: "e2e-password" } } } },
+  { family: "service-call", axisPath: "authorizationConfiguration/type", value: "bearer", properties: { ...ORDERS_CALL, authorizationConfiguration: { data: { token: "e2e-token" } } } },
+  ...[true, false].map((value): AxisFixture => ({ family: "service-call", axisPath: "propagateContext", value, properties: ORDERS_CALL })),
+  { family: "service-call", axisPath: "systemType", value: "INTERNAL", properties: ORDERS_CALL },
+  // The value is the type of the service the element calls, so EXTERNAL calls a service of its own.
+  {
+    family: "service-call",
+    axisPath: "systemType",
+    value: "EXTERNAL",
+    properties: { ...serviceCallTo("service-call-orders-external", "e2eServiceCall"), integrationOperationPathParameters: { orderId: ORDER_ID } },
+  },
+  {
+    family: "service-call",
+    axisPath: "correlationIdPosition",
+    value: "header",
+    properties: { ...ORDERS_CALL, receiveCorrelationId: true, correlationIdName: CORRELATION_ID_HEADER },
+    downstream: CORRELATION_ECHO,
+  },
+  {
+    family: "service-call",
+    axisPath: "correlationIdPosition",
+    value: "body",
+    properties: { ...ORDERS_CALL, receiveCorrelationId: true, correlationIdName: CORRELATION_ID_FIELD },
+    downstream: CORRELATION_ECHO,
+  },
+  // The service call sends the method of the operation it names, so each method has an operation.
+  ...HTTP_METHODS.map((value): AxisFixture => ({ family: "service-call", axisPath: "integrationOperationMethod", value, properties: serviceCallTo("service-call-methods", `echo${value}`) })),
+  {
+    family: "service-call",
+    axisPath: "integrationOperationProtocolType",
+    value: "http",
+    properties: { ...ORDERS_CALL, integrationOperationQueryParameters: { channel: ORDER_CHANNEL } },
+  },
+  {
+    family: "service-call",
+    axisPath: "integrationOperationProtocolType",
+    value: "graphql",
+    // `before` as the element form writes it; `fixtures/chains/service-call-graphql-no-before/` sends none.
+    properties: {
+      ...serviceCallTo("service-call-widgets", "widget"),
+      integrationGqlQuery: GRAPHQL_QUERY,
+      integrationGqlVariablesJSON: JSON.stringify(GRAPHQL_VARIABLES),
+      before: { type: "none" },
+    },
+  },
 ];
 
 /**

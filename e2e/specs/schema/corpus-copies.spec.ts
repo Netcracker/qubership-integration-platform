@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
+import yaml from "js-yaml";
 import {
   CHAIN_FIXTURE_DIR,
   corpusFixtureNames,
@@ -19,16 +20,20 @@ import {
   MICRO_PATH_PREFIX,
   microCopy,
   readFixtureDocument,
+  readServiceFixture,
   SCRIPT_FIXTURE_DIR,
   type RenderedTree,
+  type ServiceFixture,
 } from "../../fixtures/templating.js";
 import { axisFixtureName, axisFixtures, METHOD_ECHO_URI } from "../../fixtures/axis-generator.js";
 import {
   fixtureTrees,
   flatten,
   microCorpusTrees,
+  microServiceTrees,
   PLACEHOLDER_FIXTURE,
   placeholderVariable,
+  serviceTrees,
   type FixtureElement,
 } from "../../support/corpus.js";
 import { CLASSIC_ONLY_RUNTIME_FILES } from "../../env/target-setup.js";
@@ -54,7 +59,8 @@ interface Copy {
   loopbacks: string[];
 }
 
-function read(trees: Array<[string, RenderedTree]>): Copy {
+/** What the copy's chains hold; `known` are the services their loopback calls are read through. */
+function read(trees: Array<[string, RenderedTree]>, known: readonly ServiceFixture[] = []): Copy {
   const copy: Copy = { chainIds: [], elementIds: [], paths: [], triggerPaths: [], references: [], variables: [], loopbacks: [] };
   for (const [name, tree] of trees) {
     const { id, document } = readFixtureDocument(name, tree);
@@ -68,31 +74,84 @@ function read(trees: Array<[string, RenderedTree]>): Copy {
       copy.variables.push(...[...properties.matchAll(/#\{([^}]+)\}/g)].map((match) => match[1]));
     }
     copy.triggerPaths.push(...httpTriggerPaths(document));
-    for (const text of tree.values()) {
-      copy.references.push(...(text.match(ANY_UUID) ?? []));
-      copy.loopbacks.push(...[...text.matchAll(LOOPBACK_ROUTE)].map((match) => match[1]));
-    }
+    for (const text of tree.values()) copy.references.push(...(text.match(ANY_UUID) ?? []));
+    copy.loopbacks.push(...loopbacksOf(tree, known));
   }
   return copy;
 }
 
 /**
  * The fixtures a runtime file reads through `seedChain`: each literal name, the constant
- * `MASKED_FIXTURE`, and, for a file that builds an `http-trigger` name with `axisFixtureName`,
- * every generated `http-trigger` axis fixture. The two files that do so iterate over every value
- * of the axes they cover, and the generator declares no other `http-trigger` axis.
+ * `MASKED_FIXTURE`, and, for a file that builds a name with `axisFixtureName`, every generated axis
+ * fixture of each family it names in a `family: "…"` literal. The files that do so iterate over
+ * every value the generator declares for the axes they cover; together they read every axis of
+ * those families.
  */
 function fixturesReadBy(source: string): string[] {
   const read = [...source.matchAll(/seedChain\(\s*[^,]+,\s*"([^"]+)"\s*\)/g)].map((match) => match[1]);
   if (/seedChain\(\s*[^,]+,\s*MASKED_FIXTURE\s*\)/.test(source)) read.push("masking");
-  if (/axisFixtureName\(/.test(source) && source.includes('family: "http-trigger"')) {
+  if (/axisFixtureName\(/.test(source)) {
+    const families = new Set([...source.matchAll(/family: "([^"]+)"/g)].map((match) => match[1]));
     read.push(
       ...axisFixtures
-        .filter((each) => each.family === "http-trigger" && !each.handWritten)
+        .filter((each) => families.has(each.family) && !each.handWritten)
         .map(axisFixtureName),
     );
   }
   return read;
+}
+
+/** The URL each operation of a service is called on: the address, with the path for http. */
+function operationUrls(service: ServiceFixture): Map<string, string> {
+  return new Map(
+    service.operations.map((operation) => [
+      operation.id,
+      service.protocol === "HTTP" ? `${service.address}${operation.path}` : service.address,
+    ]),
+  );
+}
+
+/** The `contextPath` each `ENGINE_LOOPBACK` call of a chain addresses, in its own URIs or through a service operation it calls. */
+function loopbacksOf(tree: RenderedTree, services: readonly ServiceFixture[]): string[] {
+  const text = [...tree.values()].join("\n");
+  const urls = services.flatMap((service) =>
+    [...operationUrls(service)].filter(([operation]) => text.includes(operation)).map(([, url]) => url),
+  );
+  return [text, ...urls].flatMap((each) => [...each.matchAll(LOOPBACK_ROUTE)].map((match) => match[1]));
+}
+
+/** The service fixtures, in the classic copy or in the micro one, as a chain calls them. */
+function services(trees: Array<[string, RenderedTree]>): ServiceFixture[] {
+  return trees.map(([name, tree]) => readServiceFixture(name, tree));
+}
+
+/** Every chain fixture of the classic corpus: the tracked ones and the generated axis chains. */
+function corpusChainNames(): string[] {
+  return [
+    ...corpusFixtureNames([CHAIN_FIXTURE_DIR, SCRIPT_FIXTURE_DIR]),
+    ...axisFixtures.filter((each) => !each.handWritten).map(axisFixtureName),
+  ];
+}
+
+/** The fixtures `names` reach through loopback calls, transitively, and not in `names`. */
+async function loopbackCallees(names: readonly string[]): Promise<string[]> {
+  const trees = new Map(await fixtureTrees(corpusChainNames(), EXAMPLE_RUN_TOKEN));
+  const byPath = new Map<string, string>();
+  for (const [name, tree] of trees) {
+    for (const contextPath of httpTriggerPaths(readFixtureDocument(name, tree).document)) byPath.set(contextPath, name);
+  }
+  const known = services(serviceTrees(EXAMPLE_RUN_TOKEN));
+  const reached = new Set(names);
+  const pending = [...names];
+  while (pending.length > 0) {
+    for (const contextPath of loopbacksOf(trees.get(pending.pop()!)!, known)) {
+      const callee = byPath.get(contextPath);
+      if (callee === undefined || reached.has(callee)) continue;
+      reached.add(callee);
+      pending.push(callee);
+    }
+  }
+  return [...reached].filter((each) => !names.includes(each));
 }
 
 /** `source` without its `@classic-only` tests, each cut from its declaration line to its closing `});`. */
@@ -111,14 +170,16 @@ function withoutClassicOnly(source: string): string {
   return kept.join("\n");
 }
 
-test("the micro copy holds exactly the fixtures the runtime-micro files read", { tag: ["@infra", "@tier1"] }, () => {
+test("the micro copy holds exactly the fixtures the runtime-micro files read, and the ones those call", { tag: ["@infra", "@tier1"] }, async () => {
   const files = fs
     .readdirSync(RUNTIME_DIR)
     .filter((file) => file.endsWith(".spec.ts") && !CLASSIC_ONLY_RUNTIME_FILES.includes(file));
-  const read = new Set(
-    files.flatMap((file) => fixturesReadBy(withoutClassicOnly(fs.readFileSync(path.join(RUNTIME_DIR, file), "utf-8")))),
-  );
-  expect([...MICRO_FIXTURES].sort()).toEqual([...read].sort());
+  const read = [
+    ...new Set(
+      files.flatMap((file) => fixturesReadBy(withoutClassicOnly(fs.readFileSync(path.join(RUNTIME_DIR, file), "utf-8")))),
+    ),
+  ];
+  expect([...MICRO_FIXTURES].sort()).toEqual([...read, ...(await loopbackCallees(read))].sort());
   // A classic-only file that no longer exists would keep its fixtures out of the comparison above.
   const missing = CLASSIC_ONLY_RUNTIME_FILES.filter((file) => !fs.existsSync(path.join(RUNTIME_DIR, file)));
   expect(missing, "classic-only runtime files that are not in specs/runtime/").toEqual([]);
@@ -146,7 +207,27 @@ test("the micro copy holds exactly the fixtures the runtime-micro files read", {
   expect(fixturesReadBy(withoutClassicOnly(source))).toEqual(["kept-a", "kept-b", "kept-c"]);
 });
 
-test("the copies share no chain id, element id, or path", { tag: ["@infra", "@tier1"] }, async () => {
+// The import reads a specification's source by the file name the specification records, under the
+// service's directory or its `resources/`, and builds a GraphQL library from that source.
+test("every specification source a service names is a file of the service, in both copies", { tag: ["@infra", "@tier1"] }, () => {
+  for (const trees of [serviceTrees(EXAMPLE_RUN_TOKEN), microServiceTrees(EXAMPLE_RUN_TOKEN)]) {
+    for (const [name, tree] of trees) {
+      const files = [...readFixtureDocument(name, tree).companions]
+        .filter(([rel]) => rel.endsWith(".specification.cip.yaml"))
+        .flatMap(([, source]) => (yaml.load(source) as { content: { specificationSources: Array<{ fileName: string }> } }).content.specificationSources)
+        .map((each) => each.fileName);
+      expect(files.length, name).toBeGreaterThan(0);
+      expect(files.filter((file) => !tree.has(file) && !tree.has(`resources/${file}`)), name).toEqual([]);
+    }
+  }
+});
+
+/** Every UUID written anywhere in the trees. */
+function uuidsOf(trees: Array<[string, RenderedTree]>): string[] {
+  return trees.flatMap(([, tree]) => [...tree.values()].flatMap((text) => text.match(ANY_UUID) ?? []));
+}
+
+test("the copies share no chain id, element id, path, or service id", { tag: ["@infra", "@tier1"] }, async () => {
   const classic = read(await fixtureTrees(MICRO_FIXTURES, EXAMPLE_RUN_TOKEN));
   const micro = read(await microCorpusTrees(EXAMPLE_RUN_TOKEN));
   const shared = (a: string[], b: string[]) => a.filter((each) => b.includes(each));
@@ -155,6 +236,9 @@ test("the copies share no chain id, element id, or path", { tag: ["@infra", "@ti
   expect(shared(classic.chainIds, micro.chainIds)).toEqual([]);
   expect(shared(classic.elementIds, micro.elementIds)).toEqual([]);
   expect(shared(classic.paths, micro.paths)).toEqual([]);
+  const classicServices = uuidsOf(serviceTrees(EXAMPLE_RUN_TOKEN));
+  expect(classicServices.length).toBeGreaterThan(0);
+  expect(shared(classicServices, uuidsOf(microServiceTrees(EXAMPLE_RUN_TOKEN)))).toEqual([]);
 });
 
 test("every remapped chain and element id is a UUID, the same on every render", { tag: ["@infra", "@tier1"] }, async () => {
@@ -165,9 +249,9 @@ test("every remapped chain and element id is a UUID, the same on every render", 
   expect(second.elementIds).toEqual(first.elementIds);
 });
 
-test("every reference in the micro copy names a chain or an element of the micro copy", { tag: ["@infra", "@tier1"] }, async () => {
+test("every reference in the micro copy names a chain, an element, or a service of the micro copy", { tag: ["@infra", "@tier1"] }, async () => {
   const micro = read(await microCorpusTrees(EXAMPLE_RUN_TOKEN));
-  const known = new Set([...micro.chainIds, ...micro.elementIds]);
+  const known = new Set([...micro.chainIds, ...micro.elementIds, ...uuidsOf(microServiceTrees(EXAMPLE_RUN_TOKEN))]);
   expect([...new Set(micro.references)].filter((id) => !known.has(id))).toEqual([]);
 });
 
@@ -196,15 +280,21 @@ test("the micro copy reads no common variable but the one seed-micro writes", { 
   expect(read(await microCopies([PLACEHOLDER_FIXTURE])).variables).toEqual([written]);
 });
 
-// The method echo and every fixture that calls it, whether the micro copy holds them yet or not.
+// The two echoes and every fixture that calls one, directly or through a service, whether the micro
+// copy holds them yet or not.
 const LOOPBACK_FIXTURES = [
   "method-echo",
-  ...axisFixtures.filter((each) => each.properties?.uri === METHOD_ECHO_URI).map(axisFixtureName),
+  "http-echo",
+  "service-call-graphql-no-before",
+  ...axisFixtures.filter((each) => each.properties?.uri === METHOD_ECHO_URI || each.family === "service-call").map(axisFixtureName),
 ];
 
 test("a loopback call in the micro copy addresses the micro copy of its callee", { tag: ["@infra", "@tier1"] }, async () => {
-  const classic = read(await fixtureTrees(LOOPBACK_FIXTURES, EXAMPLE_RUN_TOKEN));
-  const micro = read([...(await microCorpusTrees(EXAMPLE_RUN_TOKEN)), ...(await microCopies(LOOPBACK_FIXTURES))]);
+  const classic = read(await fixtureTrees(LOOPBACK_FIXTURES, EXAMPLE_RUN_TOKEN), services(serviceTrees(EXAMPLE_RUN_TOKEN)));
+  const micro = read(
+    [...(await microCorpusTrees(EXAMPLE_RUN_TOKEN)), ...(await microCopies(LOOPBACK_FIXTURES))],
+    services(microServiceTrees(EXAMPLE_RUN_TOKEN)),
+  );
   expect(classic.loopbacks.length).toBeGreaterThan(0);
   expect(classic.loopbacks.filter((each) => !classic.triggerPaths.includes(each))).toEqual([]);
   expect(micro.loopbacks.length).toBeGreaterThanOrEqual(classic.loopbacks.length);
@@ -214,10 +304,7 @@ test("a loopback call in the micro copy addresses the micro copy of its callee",
 // The suite calls a corpus chain on the engine's own port, so the corpus writes no gateway route
 // and keeps every trigger internal.
 test("every HTTP trigger the corpus seeds, in both copies, is internal", { tag: ["@infra", "@tier1"] }, async () => {
-  const names = [
-    ...corpusFixtureNames([CHAIN_FIXTURE_DIR, SCRIPT_FIXTURE_DIR]),
-    ...axisFixtures.filter((each) => !each.handWritten).map(axisFixtureName),
-  ];
+  const names = corpusChainNames();
   const external = (trees: Array<[string, RenderedTree]>) =>
     trees.flatMap(([name, tree]) => {
       const { document } = readFixtureDocument(name, tree);

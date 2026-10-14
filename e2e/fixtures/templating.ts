@@ -63,6 +63,15 @@ export const SCRIPT_FIXTURE_DIR = path.join(HERE, "script");
  */
 export const BROKERS_FIXTURE_DIR = path.join(HERE, "brokers");
 
+/**
+ * `e2e/fixtures/services/` — one directory per service a corpus chain calls, with its specification
+ * group, its specification and the specification's source under the directory.
+ *
+ * Outside `CORPUS_FIXTURE_DIRS`, because every name there is read as a chain: both seeds import every
+ * service here through the service import before they import their chains.
+ */
+export const SERVICE_FIXTURE_DIR = path.join(HERE, "services");
+
 /** Every directory the seed's corpus is assembled from. A fixture name is unique across them. */
 export const CORPUS_FIXTURE_DIRS: readonly string[] = [
   CHAIN_FIXTURE_DIR,
@@ -77,6 +86,7 @@ export const CORPUS_FIXTURE_DIRS: readonly string[] = [
  * rest are always there, and a fixture that does not validate breaks the seed minutes into a run.
  * `BROKERS_FIXTURE_DIR` is outside `CORPUS_FIXTURE_DIRS` because the shared corpus never imports
  * it, but it is tracked and rendered the same way every other fixture is, so it validates here too.
+ * `SERVICE_FIXTURE_DIR` is outside it too, and its fixtures are imported by both seeds.
  *
  * The corpus half is derived from `CORPUS_FIXTURE_DIRS` rather than spelled out again: a second
  * literal list is a directory somebody adds to one of them, and the validation it silently drops
@@ -85,6 +95,7 @@ export const CORPUS_FIXTURE_DIRS: readonly string[] = [
 export const TRACKED_FIXTURE_DIRS: readonly string[] = [
   ...CORPUS_FIXTURE_DIRS.filter((dir) => dir !== AXIS_FIXTURE_DIR),
   BROKERS_FIXTURE_DIR,
+  SERVICE_FIXTURE_DIR,
 ];
 
 /**
@@ -153,6 +164,7 @@ export const MICRO_FIXTURES: readonly string[] = [
   "loop",
   "mapper",
   "masking",
+  "method-echo",
   "reuse",
   "scheduler-basic",
   "script",
@@ -169,6 +181,36 @@ export const MICRO_FIXTURES: readonly string[] = [
   "script-libraries-nio.yaml",
   "script-libraries-sql.yaml",
   "script-libraries-xml.yaml",
+  "service-call-after-items-type-mapper-2",
+  "service-call-after-items-type-none",
+  "service-call-after-items-type-script",
+  "service-call-afterValidation-items-type-responseValidation",
+  "service-call-authorizationConfiguration-type-basic",
+  "service-call-authorizationConfiguration-type-bearer",
+  "service-call-authorizationConfiguration-type-inherit",
+  "service-call-authorizationConfiguration-type-none",
+  "service-call-before-type-mapper-2",
+  "service-call-before-type-none",
+  "service-call-before-type-script",
+  "service-call-correlationIdPosition-body",
+  "service-call-correlationIdPosition-header",
+  "service-call-graphql-no-before",
+  "service-call-handleValidationAction-default",
+  "service-call-handleValidationAction-mapper-2",
+  "service-call-handleValidationAction-script",
+  "service-call-integrationOperationMethod-DELETE",
+  "service-call-integrationOperationMethod-GET",
+  "service-call-integrationOperationMethod-HEAD",
+  "service-call-integrationOperationMethod-OPTIONS",
+  "service-call-integrationOperationMethod-PATCH",
+  "service-call-integrationOperationMethod-POST",
+  "service-call-integrationOperationMethod-PUT",
+  "service-call-integrationOperationProtocolType-graphql",
+  "service-call-integrationOperationProtocolType-http",
+  "service-call-propagateContext-false",
+  "service-call-propagateContext-true",
+  "service-call-systemType-EXTERNAL",
+  "service-call-systemType-INTERNAL",
   "split",
   "split-async",
   "try-catch-finally",
@@ -186,8 +228,11 @@ export const MICRO_PATH_PREFIX = "micro/";
 /** The engine's own port as the engine sees it, not the one `Env.chainUrl` publishes. */
 export const ENGINE_LOOPBACK = "http://localhost:8080";
 
-/** A loopback call to a chain route, before the route's `contextPath`. */
-const LOOPBACK_ROUTES = `${ENGINE_LOOPBACK}/routes/`;
+/**
+ * The chain routes on the engine's own port, followed by a `contextPath` or ending a service
+ * address that an operation path completes.
+ */
+const LOOPBACK_ROUTES = new RegExp(`${ENGINE_LOOPBACK.replaceAll(".", "\\.")}/routes(?=[/"]|$)`, "gm");
 
 const UUID_PATTERN = new RegExp(`\\b${UUID_TEXT}\\b`, "gi");
 
@@ -221,17 +266,19 @@ export function httpTriggerPaths(document: Record<string, unknown>): string[] {
  * follows at once: dependencies, the `elementId`-style properties, and the ids inside checkpoint
  * `contextPath` values. Only an `http-trigger` path gets `MICRO_PATH_PREFIX`; a checkpoint path is
  * unique already, because it carries the remapped ids. A loopback call (`ENGINE_LOOPBACK`) gets the
- * prefix too: inside a micro pod `localhost` is the copy's own domain, which serves the callee's
- * micro copy under the prefixed path.
+ * prefix too, in a chain or in a service address: inside a micro pod `localhost` is the copy's own
+ * domain, which serves the callee's micro copy under the prefixed path. A service fixture is copied
+ * the same way, so the copy's chains call the copy's services.
  */
 export function microCopy(name: string, tree: RenderedTree): RenderedTree {
   const copy: RenderedTree = new Map();
   for (const [rel, content] of tree) {
+    // A path carries ids too: a specification names its source file by the specification's id.
     copy.set(
-      rel,
+      rel.replace(UUID_PATTERN, (id) => microId(id)),
       content
         .replace(UUID_PATTERN, (id) => microId(id))
-        .replaceAll(LOOPBACK_ROUTES, `${LOOPBACK_ROUTES}${MICRO_PATH_PREFIX}`),
+        .replace(LOOPBACK_ROUTES, `${ENGINE_LOOPBACK}/routes/${MICRO_PATH_PREFIX.replace(/\/$/, "")}`),
     );
   }
 
@@ -431,6 +478,61 @@ export function readFixtureDocument(name: string, tree: RenderedTree): FixtureDo
 
   const companions = new Map([...tree].filter(([rel]) => rel !== documents[0]));
   return { kind, id, document, source, companions };
+}
+
+/** One operation of a service fixture, with the ids a `service-call` element references it by. */
+export interface ServiceFixtureOperation {
+  groupId: string;
+  specificationId: string;
+  id: string;
+  name: string;
+  method: string;
+  path: string;
+}
+
+/** A service fixture as a chain calls it: its type, its protocol, its active address, and its operations. */
+export interface ServiceFixture {
+  id: string;
+  type: string;
+  protocol: string;
+  address: string;
+  operations: ServiceFixtureOperation[];
+}
+
+/**
+ * Reads a service fixture. The service document is the one top-level YAML of the tree; its
+ * specifications sit under the fixture directory, where the importer finds them by name.
+ */
+export function readServiceFixture(
+  name: string,
+  tree: RenderedTree = renderFixture(SERVICE_FIXTURE_DIR, name, RUN_PLACEHOLDER),
+): ServiceFixture {
+  const { id, document, companions } = readFixtureDocument(name, tree);
+  const content = document.content as {
+    activeEnvironmentId: string;
+    integrationSystemType: string;
+    protocol: string;
+    environments: Array<{ id: string; address: string }>;
+  };
+  const address = content.environments.find((each) => each.id === content.activeEnvironmentId)!.address;
+
+  const operations = [...companions]
+    .filter(([rel]) => rel.endsWith(".specification.cip.yaml"))
+    .flatMap(([, source]) => {
+      const specification = yaml.load(source) as {
+        id: string;
+        content: { parentId: string; operations: Array<{ id: string; name: string; method: string; path: string }> };
+      };
+      return specification.content.operations.map((operation) => ({
+        groupId: specification.content.parentId,
+        specificationId: specification.id,
+        id: operation.id,
+        name: operation.name,
+        method: operation.method,
+        path: operation.path,
+      }));
+    });
+  return { id, type: content.integrationSystemType, protocol: content.protocol, address, operations };
 }
 
 /**

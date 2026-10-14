@@ -39,12 +39,15 @@ import {
   assembleCorpus,
   assembleTrees,
   CHAIN_FIXTURE_DIR,
+  chainFixtureNames,
   corpusFixtureNames,
   corpusFixtures,
   MICRO_FIXTURES,
   microCopy,
+  readFixtureDocument,
   renderFixture,
   SCRIPT_FIXTURE_DIR,
+  SERVICE_FIXTURE_DIR,
   type FixtureDocument,
   type RenderedTree,
 } from "../fixtures/templating.js";
@@ -122,9 +125,17 @@ export interface SeedChain extends DeployedChain {
   elements: Record<string, string>;
 }
 
+/** One imported service fixture, which the corpus chains call. */
+export interface SeededService {
+  fixture: string;
+  id: string;
+  name: string;
+}
+
 export interface SeededCorpus {
   run: string;
   chains: SeedChain[];
+  services: SeededService[];
 }
 
 /**
@@ -239,21 +250,54 @@ function describe(fixture: string, document: Record<string, unknown>): SeedChain
   };
 }
 
+/** Every service fixture rendered with `run`, by name. */
+export function serviceTrees(run: string): Array<[string, RenderedTree]> {
+  return chainFixtureNames(SERVICE_FIXTURE_DIR).map((name) => [name, renderFixture(SERVICE_FIXTURE_DIR, name, run)]);
+}
+
+/** Imports the services through the service import, and asserts it created each of them. */
+async function importServices(
+  catalog: Catalog,
+  trees: ReadonlyArray<readonly [string, RenderedTree]>,
+  archiveName: string,
+): Promise<SeededService[]> {
+  const assembled = await assembleTrees(trees);
+  const services = assembled.documents.map((each, index) => ({
+    fixture: trees[index][0],
+    id: each.id,
+    name: String(each.document.name),
+  }));
+  const response = await catalog.importArchive("/v1/import/system", assembled.archive, archiveName);
+  expect(response.status(), `the service import answered ${response.status()}: ${await response.text()}`).toBe(200);
+  const rows = (await response.json()) as Array<{ id: string; status: string }>;
+  expect(
+    rows.map((row) => `${row.id} ${row.status}`).sort(),
+    `the delete before the import is what makes every row CREATED: ${JSON.stringify(rows)}`,
+  ).toEqual(services.map((each) => `${each.id} CREATED`).sort());
+  return services;
+}
+
 /**
- * Deletes the chains an assembled corpus declares, imports it, and asserts the import created each
- * of them.
+ * Deletes the chains an assembled corpus declares and the services they call, imports the services
+ * and then the chains, and asserts the imports created each of them.
  */
 async function importCorpus(
   catalog: Catalog,
   assembled: { archive: Buffer; documents: FixtureDocument[] },
   fixtures: readonly string[],
+  services: ReadonlyArray<readonly [string, RenderedTree]>,
   archiveName: string,
-): Promise<SeedChain[]> {
+): Promise<{ chains: SeedChain[]; services: SeededService[] }> {
   const chains = assembled.documents.map((each, index) => describe(fixtures[index], each.document));
 
   // Rule 5 of the spec rules, applied to the seed: the ids are fixed, so an import over yesterday's
   // corpus is an update and every assertion below would hold without anything having been created.
+  // The chains go first, since they call the services.
   for (const chain of chains) await catalog.deleteChain(chain.id).catch(() => {});
+  for (const [name, tree] of services) {
+    await catalog.deleteSystem(readFixtureDocument(name, tree).id).catch(() => {});
+  }
+  const seeded = await importServices(catalog, services, `services-${archiveName}`);
 
   const response = await catalog.importChains(assembled.archive, archiveName);
   expect(response.status(), `the corpus import answered ${response.status()}`).toBe(200);
@@ -267,7 +311,7 @@ async function importCorpus(
     imported.chains.filter((each) => each.status !== "CREATED"),
     "the delete before the import is what makes every row CREATED",
   ).toEqual([]);
-  return chains;
+  return { chains, services: seeded };
 }
 
 /**
@@ -283,7 +327,13 @@ export async function seedCorpus(
   run: string,
   fixtures: readonly string[] = corpusFixtureNames(),
 ): Promise<SeededCorpus> {
-  const chains = await importCorpus(catalog, await assembleCorpus(fixtures, run), fixtures, `seed-${run}.zip`);
+  const { chains, services } = await importCorpus(
+    catalog,
+    await assembleCorpus(fixtures, run),
+    fixtures,
+    serviceTrees(run),
+    `seed-${run}.zip`,
+  );
 
   for (const chain of chains) await catalog.saveLoggingProperties(chain.id, SEED_LOGGING);
 
@@ -297,7 +347,7 @@ export async function seedCorpus(
   await waitForDeployed(catalog, chains);
   await waitForRoutes(env, chains);
 
-  return { run, chains };
+  return { run, chains, services };
 }
 
 /** Deploys the whole corpus in one bulk call, which moves Consul's `deployments-update` key once. */
@@ -524,6 +574,15 @@ async function deleteSeedChains(
   }
 }
 
+/** Deletes the services the corpus chains call, after the chains, and adds a line to `failures` for each one left. */
+async function deleteSeedServices(catalog: Catalog, services: readonly SeededService[], failures: string[]): Promise<void> {
+  for (const service of services) {
+    await catalog.deleteSystem(service.id).catch((cause: unknown) => {
+      failures.push(`the service ${service.name} (${service.id}) was not deleted: ${String(cause)}`);
+    });
+  }
+}
+
 /**
  * Undeploys and deletes the corpus. `E2E_KEEP=1` leaves it and says where it is.
  *
@@ -543,11 +602,13 @@ export async function teardownCorpus(catalog: Catalog, corpus: SeededCorpus): Pr
   if (keepEntities()) {
     console.log(`[keep] ${corpus.chains.length} seed chains left behind for run ${corpus.run}`);
     for (const chain of corpus.chains) console.log(`[keep]   chain ${chain.name} (${chain.id})`);
+    for (const service of corpus.services) console.log(`[keep]   service ${service.name} (${service.id})`);
     return;
   }
 
   const failures: string[] = [];
   await deleteSeedChains(catalog, corpus.chains, failures, { undeployFirst: true });
+  await deleteSeedServices(catalog, corpus.services, failures);
 
   await catalog.deleteCommonVariables([placeholderVariable(corpus.run)]).catch((cause: unknown) => {
     failures.push(`the variable ${placeholderVariable(corpus.run)} was not deleted: ${String(cause)}`);
@@ -608,6 +669,11 @@ export async function microCorpusTrees(run: string): Promise<Array<[string, Rend
   return (await fixtureTrees(MICRO_FIXTURES, run)).map(([name, tree]) => [name, microCopy(name, tree)]);
 }
 
+/** Every service fixture rendered with `run` and turned into the micro copy, which the micro chains call. */
+export function microServiceTrees(run: string): Array<[string, RenderedTree]> {
+  return serviceTrees(run).map(([name, tree]) => [name, microCopy(name, tree)]);
+}
+
 /**
  * Imports the micro copy, raises its logging, deploys it to the run's micro domain, and returns once
  * every route answers through the proxy.
@@ -622,8 +688,14 @@ export async function seedMicroCorpus(
 ): Promise<{ corpus: MicroCorpus; readyMs: number }> {
   const trees = await microCorpusTrees(run);
   const fixtures = trees.map(([name]) => name);
-  const chains = await importCorpus(catalog, await assembleTrees(trees), fixtures, `seed-micro-${run}.zip`);
-  const corpus: MicroCorpus = { run, domain: microDomainName(run), chains };
+  const { chains, services } = await importCorpus(
+    catalog,
+    await assembleTrees(trees),
+    fixtures,
+    microServiceTrees(run),
+    `seed-micro-${run}.zip`,
+  );
+  const corpus: MicroCorpus = { run, domain: microDomainName(run), chains, services };
   writeMicroCorpusState(corpus);
 
   for (const chain of chains) await catalog.saveLoggingProperties(chain.id, SEED_LOGGING);
@@ -669,8 +741,8 @@ export function readMicroCorpusState(): MicroCorpus {
 }
 
 /**
- * Deletes the micro copy's logging properties, its chains, the placeholder variable, and then its
- * domain. `E2E_KEEP=1` leaves all four. Deleting the variable `seed` also wrote is harmless: a
+ * Deletes the micro copy's logging properties, its chains, the services they call, the placeholder
+ * variable, and then its domain. `E2E_KEEP=1` leaves all five. Deleting the variable `seed` also wrote is harmless: a
  * deployed chain keeps the value it resolved, and the second delete of a name is a no-op.
  *
  * A chain whose logging properties survived is kept, for the reason `teardownCorpus` keeps one. The
@@ -687,6 +759,7 @@ export async function teardownMicroCorpus(catalog: Catalog, corpus: MicroCorpus)
 
   const failures: string[] = [];
   await deleteSeedChains(catalog, corpus.chains, failures, { undeployFirst: false });
+  await deleteSeedServices(catalog, corpus.services, failures);
   await catalog.deleteCommonVariables([placeholderVariable(corpus.run)]).catch((cause: unknown) => {
     failures.push(`the variable ${placeholderVariable(corpus.run)} was not deleted: ${String(cause)}`);
   });

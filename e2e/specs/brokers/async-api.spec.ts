@@ -5,26 +5,27 @@
  * Neither element carries ids a seeded chain can hold: `async-api-trigger` and `service-call` both
  * reference a service, a specification group, a specification and an operation, all of which exist
  * only once a specification is imported. So every case here builds its own service, imports an
- * AsyncAPI document into it, and deploys a chain in the worker folder — hand-rolled rather than
- * reusing `specs/runtime/service-call.ts`'s `serviceCallChain`, for a measured reason below.
+ * AsyncAPI document into it, and deploys a chain in the worker folder, with no environment created
+ * before the import, for a measured reason below.
  *
- * **`serviceCallChain` pre-creates and activates its own environment before the import, and that
- * breaks kafka and amqp.** Measured: every kafka/amqp `service-call` case built through it left its
- * chain at "no runtime state at all" past the 60 s deploy budget, serially and not only under
- * parallel workers, while the identical shape built by hand here deploys in seconds. The difference
- * is `EnvironmentBaseService.setDefaultProperties`, which stamps `KAFKA_ENVIRONMENT_PARAMETERS` or
- * `RABBIT_ENVIRONMENT_PARAMETERS` (`EnvironmentDefaultParameters.java`) onto an environment only when
+ * **An environment created and activated before the import breaks kafka and amqp.** The http
+ * service-call cases once built their services that way. Measured: every kafka/amqp `service-call`
+ * case built so left its chain at "no runtime state at all" past the 60 s deploy budget, serially
+ * and not only under parallel workers, while the identical shape built by hand here deploys in
+ * seconds. The difference is `EnvironmentBaseService.setDefaultProperties`, which stamps
+ * `KAFKA_ENVIRONMENT_PARAMETERS` or `RABBIT_ENVIRONMENT_PARAMETERS`
+ * (`EnvironmentDefaultParameters.java`) onto an environment only when
  * `environment.getSystem().getProtocol()` is already known — and a service's protocol is set from
  * the import's own `protocol` query param (`SpecificationGroupService.java`), which has not run yet
- * when `serviceCallChain` creates its environment first. The environment `reconcileEnvironments`
- * then finds during the import keeps a non-blank, already-present address untouched for both
- * `INTERNAL` and `EXTERNAL` systems, so the pre-created environment's `properties` stay unset
- * forever and `OperationElementPropertiesBuilder.buildProtocolSpecificProperties` has nothing to
- * read at deploy time. The fix here is the same one `async-api-trigger` already needs: build the
- * system `EXTERNAL` with **no** environment of its own, and let the import create and activate one,
- * at a point where the system's protocol is already set. `serviceCallChain` is untouched, since http
- * and graphql resolve their address through `EndpointHelperSource.integrationAddress`, which needs
- * no environment properties at all.
+ * when the environment is created first. The environment `reconcileEnvironments` then finds during
+ * the import keeps a non-blank, already-present address untouched for both `INTERNAL` and
+ * `EXTERNAL` systems, so the pre-created environment's `properties` stay unset forever and
+ * `OperationElementPropertiesBuilder.buildProtocolSpecificProperties` has nothing to read at deploy
+ * time. The fix here is the same one `async-api-trigger` already needs: build the system `EXTERNAL`
+ * with **no** environment of its own, and let the import create and activate one, at a point where
+ * the system's protocol is already set. The http and graphql service fixtures carry their
+ * environment, since http and graphql resolve their address through
+ * `EndpointHelperSource.integrationAddress`, which needs no environment properties at all.
  *
  * **AsyncAPI 2.6 gives subscribe/publish; AsyncAPI 3.0 gives send/receive.** AsyncAPI 3.0 replaced
  * the `publish`/`subscribe` channel keywords with a `send`/`receive` action
@@ -108,9 +109,9 @@ export interface ServiceCallAsyncChain {
 
 /**
  * An HTTP-triggered `service-call` into one operation of a fresh, `EXTERNAL` service, built and
- * deployed by hand — see the header for why this does not go through `serviceCallChain`. The system
- * carries no environment of its own; the import creates and activates one once the system's protocol
- * is set, which is what `serviceCallChain`'s pre-created environment misses for kafka and amqp.
+ * deployed by hand. The system carries no environment of its own; the import creates and activates
+ * one once the system's protocol is set, which is what a pre-created environment misses for kafka
+ * and amqp (see the header).
  */
 async function serviceCallAsyncChain(
   catalog: Catalog,
