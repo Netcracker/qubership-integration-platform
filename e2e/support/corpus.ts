@@ -630,6 +630,9 @@ export async function seedMicroCorpus(
   // The build compiles the masked fields into the Integration, so the field exists before the deploy.
   const masked = chains.find((each) => each.fixture === MASKED_FIXTURE);
   if (masked) await catalog.createMaskedField(masked.id, MASKED_FIELD);
+  // The micro engine substitutes placeholders once, when the domain loads its routes. `seed` writes
+  // the same variable, and runs in parallel, so this seed cannot rely on it.
+  await catalog.addCommonVariables({ [placeholderVariable(run)]: placeholderValue(run) });
 
   const deployedAt = Date.now();
   const rows = await catalog.deployChains(chains.map((each) => each.id), [corpus.domain]);
@@ -666,8 +669,9 @@ export function readMicroCorpusState(): MicroCorpus {
 }
 
 /**
- * Deletes the micro copy's logging properties, then its chains, then its domain. `E2E_KEEP=1`
- * leaves all three.
+ * Deletes the micro copy's logging properties, its chains, the placeholder variable, and then its
+ * domain. `E2E_KEEP=1` leaves all four. Deleting the variable `seed` also wrote is harmless: a
+ * deployed chain keeps the value it resolved, and the second delete of a name is a no-op.
  *
  * A chain whose logging properties survived is kept, for the reason `teardownCorpus` keeps one. The
  * domain goes last, with `DELETE /v1/cr/{name}`, and the state file only once nothing failed.
@@ -683,6 +687,9 @@ export async function teardownMicroCorpus(catalog: Catalog, corpus: MicroCorpus)
 
   const failures: string[] = [];
   await deleteSeedChains(catalog, corpus.chains, failures, { undeployFirst: false });
+  await catalog.deleteCommonVariables([placeholderVariable(corpus.run)]).catch((cause: unknown) => {
+    failures.push(`the variable ${placeholderVariable(corpus.run)} was not deleted: ${String(cause)}`);
+  });
   await catalog.deleteCustomResource(corpus.domain).catch((cause: unknown) => {
     failures.push(`the micro domain ${corpus.domain} was not deleted: ${String(cause)}`);
   });

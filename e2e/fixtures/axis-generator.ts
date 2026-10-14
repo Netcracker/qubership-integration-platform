@@ -27,6 +27,7 @@ import {
 import {
   AXIS_FIXTURE_DIR,
   CHAIN_FIXTURE_DIR,
+  ENGINE_LOOPBACK,
   RUN_PLACEHOLDER,
   readFixtureDocument,
   renderFixtureTree,
@@ -134,8 +135,6 @@ export const PASSED_STEP: ChainStep = {
   properties: { script: "exchange.getMessage().setBody('{\"called\":\"downstream\"}')" },
 };
 
-/** The engine's own port as the engine sees it, not the one `Env.chainUrl` publishes. */
-export const ENGINE_LOOPBACK = "http://localhost:8080";
 /** `fixtures/chains/method-echo/` on the engine's own port. */
 export const METHOD_ECHO_URI = `${ENGINE_LOOPBACK}/routes/e2e-${RUN_PLACEHOLDER}-method-echo`;
 /** The response header the method echo answers the received method in. */

@@ -183,6 +183,12 @@ export const MICRO_FIXTURES: readonly string[] = [
  */
 export const MICRO_PATH_PREFIX = "micro/";
 
+/** The engine's own port as the engine sees it, not the one `Env.chainUrl` publishes. */
+export const ENGINE_LOOPBACK = "http://localhost:8080";
+
+/** A loopback call to a chain route, before the route's `contextPath`. */
+const LOOPBACK_ROUTES = `${ENGINE_LOOPBACK}/routes/`;
+
 const UUID_PATTERN = new RegExp(`\\b${UUID_TEXT}\\b`, "gi");
 
 /** The id a chain or an element takes in the micro copy, derived from its id in the fixture. */
@@ -214,11 +220,20 @@ export function httpTriggerPaths(document: Record<string, unknown>): string[] {
  * Every UUID in the tree is replaced with `microId` of itself, as text, so each reference kind
  * follows at once: dependencies, the `elementId`-style properties, and the ids inside checkpoint
  * `contextPath` values. Only an `http-trigger` path gets `MICRO_PATH_PREFIX`; a checkpoint path is
- * unique already, because it carries the remapped ids.
+ * unique already, because it carries the remapped ids. A loopback call (`ENGINE_LOOPBACK`) gets the
+ * prefix too: inside a micro pod `localhost` is the copy's own domain, which serves the callee's
+ * micro copy under the prefixed path.
  */
 export function microCopy(name: string, tree: RenderedTree): RenderedTree {
   const copy: RenderedTree = new Map();
-  for (const [rel, content] of tree) copy.set(rel, content.replace(UUID_PATTERN, (id) => microId(id)));
+  for (const [rel, content] of tree) {
+    copy.set(
+      rel,
+      content
+        .replace(UUID_PATTERN, (id) => microId(id))
+        .replaceAll(LOOPBACK_ROUTES, `${LOOPBACK_ROUTES}${MICRO_PATH_PREFIX}`),
+    );
+  }
 
   const { document } = readFixtureDocument(name, copy);
   const file = [...copy.keys()].find((rel) => !rel.includes("/") && rel.endsWith(".yaml"))!;
