@@ -131,19 +131,6 @@ function brokersAbsent(): Absence[] {
   return brokerProjects().map(({ name }) => ({ name, reason: "E2E_BROKERS=0" }));
 }
 
-/**
- * The `specs/runtime/` files `runtime-micro` leaves out. Each deploys chains of its own through the
- * classic deployment API, calls the classic engine directly, or starts chains through the testing
- * service, whose engine address is the classic engine's.
- */
-export const CLASSIC_ONLY_RUNTIME_FILES: readonly string[] = [
-  "checkpoint-retry.spec.ts",
-  "mcp-tool-lifecycle.spec.ts",
-  "placeholder.spec.ts",
-  "script-external-library.spec.ts",
-  "script-failures.spec.ts",
-];
-
 function k8sProjects(): SuiteProject[] {
   return [
     {
@@ -174,7 +161,6 @@ function k8sProjects(): SuiteProject[] {
       // micro domain or reading its session.
       name: "runtime-micro",
       testDir: "./specs/runtime",
-      testIgnore: CLASSIC_ONLY_RUNTIME_FILES.map((file) => `**/${file}`),
       // A case that cannot apply to the micro engine carries `@classic-only` and says why.
       grepInvert: /@classic-only/,
       fullyParallel: true,
@@ -198,13 +184,7 @@ function k8sSetup(): TargetSetup {
       header: collectK8sHeader,
     },
     projects: [...k8sProjects(), ...(brokers ? brokerProjects() : [])],
-    absent: [
-      ...(brokers ? [] : brokersAbsent()),
-      ...CLASSIC_ONLY_RUNTIME_FILES.map((file) => ({
-        name: `runtime-micro: specs/runtime/${file}`,
-        reason: "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service",
-      })),
-    ],
+    absent: brokers ? [] : brokersAbsent(),
   };
 }
 

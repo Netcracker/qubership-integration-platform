@@ -270,10 +270,9 @@ right now, so a controller added to a service fails a run.
     replaced under a deployed chain, a deployment parked for a retry, or a chain that fails to load
     and so takes its micro domain down, carries the `@classic-only` tag and the annotation
     `{ type: "classic-only", description: "<reason>" }` on its declaration line; the micro projects
-    leave it out through `grepInvert: /@classic-only/`. The files still listed in
-    `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`, which `runtime-micro` ignores and the
-    report header lists, deploy their own chains or call the classic engine directly; each leaves
-    the list once its chains are seeded on both engines.
+    leave it out through `grepInvert: /@classic-only/`. A case that deploys a chain of its own is
+    one of them, since a deploy into the shared micro domain rolls the pod under every
+    `runtime-micro` case; every other case reads a chain both seeds deploy.
     `specs/schema/target-rules.spec.ts` checks this rule, that the tag and the annotation come
     together, and the `support/kube.ts` half of rule 4.
 

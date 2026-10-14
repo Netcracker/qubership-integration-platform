@@ -115,7 +115,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `runtime` | `specs/runtime/` against the classic engine | the same |
 | `suite-teardown` | the teardowns of `seed-micro` and `brokers-seed`, after `global` | the same |
 | `seed-micro` | not declared | a second copy of the corpus, deployed to a micro domain named `e2e-<run>-micro` |
-| `runtime-micro` | not declared | `specs/runtime/` against the micro engine, minus the classic-only files |
+| `runtime-micro` | not declared | `specs/runtime/` against the micro engine, minus the cases tagged `@classic-only` |
 | `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | the same |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, and the proxy's `/e2e/` locations |
 
@@ -146,9 +146,9 @@ logging properties and records no sessions, so seed it again:
 CIP_TARGET=k8s E2E_KEEP=1 npx playwright test --project=seed
 ```
 
-**The classic-only runtime files.** `runtime-micro` leaves out the files of `specs/runtime/` listed
-in `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`. Each deploys chains of its own through the
-classic deployment API or calls the classic engine directly.
+**The classic-only runtime cases.** `runtime-micro` runs every file of `specs/runtime/` and leaves
+out the cases tagged `@classic-only`. Each such case carries an annotation saying why the micro engine
+cannot run it, for example that it deploys a chain into the shared micro domain, whose pod then rolls.
 
 **Parity findings.** A case that passes under `runtime` and fails under `runtime-micro` is a
 finding, pinned with `strikesAsKnown` and a `ConditionalDefect` (rule 13 of the `e2e-spec-authoring`
@@ -315,8 +315,7 @@ Kubernetes run:
 
 ```text
 - Target: k8s
-- Not run on this target: runtime-micro: specs/runtime/placeholder.spec.ts (classic-only: it deploys
-  its own chains, …), …
+- Not run on this target: brokers-seed (E2E_BROKERS=0), brokers (E2E_BROKERS=0), …
 - Run token: `fk9dz2`
 - Commit: `3f1c2a9b7d10` on `main`
 - Started: 2026-09-24T09:12:40.118Z

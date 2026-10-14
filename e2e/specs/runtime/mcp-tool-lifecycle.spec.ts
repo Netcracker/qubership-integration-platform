@@ -82,7 +82,7 @@ async function servingV1(catalog: Catalog, request: APIRequestContext, url: stri
   return mcp;
 }
 
-test("mcp-trigger: a tool answers its chain from the moment tools/list offers it", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ request, env, catalog, folder, run }) => {
+test("mcp-trigger: a tool answers its chain from the moment tools/list offers it", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   await withBuilt(catalog, async (built) => {
     const chain = await mcpChain(catalog, run, folder.id, built, "mcp-offered", answering("v1"));
@@ -98,7 +98,7 @@ test("mcp-trigger: a tool answers its chain from the moment tools/list offers it
   });
 });
 
-test("mcp-trigger: a redeploy switches the tool to the new version with no failed call", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ request, env, catalog, folder, run }) => {
+test("mcp-trigger: a redeploy switches the tool to the new version with no failed call", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   await withBuilt(catalog, async (built) => {
     const chain = await mcpChain(catalog, run, folder.id, built, "mcp-redeploy", answering("v1"));
@@ -119,7 +119,7 @@ test("mcp-trigger: a redeploy switches the tool to the new version with no faile
   });
 });
 
-test("mcp-trigger: a deployment whose script does not compile offers no tool", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ request, env, catalog, folder, run }) => {
+test("mcp-trigger: a deployment whose script does not compile offers no tool", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   await withBuilt(catalog, async (built) => {
     const chain = await mcpChain(catalog, run, folder.id, built, "mcp-broken", DOES_NOT_COMPILE);
@@ -130,7 +130,7 @@ test("mcp-trigger: a deployment whose script does not compile offers no tool", {
   });
 });
 
-test("mcp-trigger: a redeploy whose script does not compile keeps the tool of the running deployment", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ request, env, catalog, folder, run }) => {
+test("mcp-trigger: a redeploy whose script does not compile keeps the tool of the running deployment", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   await withBuilt(catalog, async (built) => {
     const chain = await mcpChain(catalog, run, folder.id, built, "mcp-breaks", answering("v1"));
@@ -143,7 +143,7 @@ test("mcp-trigger: a redeploy whose script does not compile keeps the tool of th
   });
 });
 
-test("mcp-trigger: a redeploy whose context fails to start keeps the tool of the running deployment", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ request, env, catalog, folder, run }) => {
+test("mcp-trigger: a redeploy whose context fails to start keeps the tool of the running deployment", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   await withBuilt(catalog, async (built) => {
     const chain = await mcpChain(catalog, run, folder.id, built, "mcp-no-start", answering("v1"));
