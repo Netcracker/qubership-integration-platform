@@ -90,11 +90,14 @@ export const K8S_OVERRIDES_FILE = path.resolve(HERE, "..", ".e2e-k8s-overrides.j
 /** Where `seed-micro` records the micro copy of the corpus and the domain it deployed it to. */
 export const MICRO_CORPUS_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-corpus.json");
 
-/** The micro domain `seed-micro` recorded in `file`. */
+/** The micro domain a micro seed project recorded in `file`. */
 export function recordedMicroDomain(file: string = MICRO_CORPUS_STATE_FILE): string {
   const domain = readStateFile<{ domain?: string }>(file)?.domain;
   if (!domain) {
-    throw new Error(`No micro domain is recorded in ${file}: the seed-micro project deploys one.`);
+    throw new Error(
+      `No micro domain is recorded in ${file}: the seed project that writes it ` +
+        `(seed-micro for the shared domain) did not run.`,
+    );
   }
   return domain;
 }
@@ -296,8 +299,10 @@ export async function k8sProcessEnvelope(role: ServiceRole): Promise<ProcessEnve
 
 export interface K8sEnvOptions {
   engineKind: EngineKind;
-  /** The micro domain a micro chain is addressed on; `recordedMicroDomain` by default. */
+  /** The micro domain a micro chain is addressed on; by default the one `microDomainState` records. */
   microDomain?: () => string;
+  /** The state file the micro domain is read from; `MICRO_CORPUS_STATE_FILE` by default. */
+  microDomainState?: string;
   /** The `kubectl` the overlay methods run; the real one by default. */
   kubectl?: Kubectl;
   /** The host probe the overlay methods poll; `hostReady` by default. */
@@ -316,7 +321,7 @@ export class K8sEnv implements Env {
 
   constructor(options: K8sEnvOptions) {
     this.engineKind = options.engineKind;
-    this.microDomain = options.microDomain ?? (() => recordedMicroDomain());
+    this.microDomain = options.microDomain ?? (() => recordedMicroDomain(options.microDomainState));
     this.kubectl = options.kubectl ?? kubectl;
     this.overlayReady = options.overlayReady ?? hostReady;
   }

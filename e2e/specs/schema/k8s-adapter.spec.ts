@@ -1,8 +1,8 @@
 /**
  * The Kubernetes adapter's logic that needs no cluster: the cluster kind read from the context, the
- * addresses per role and per engine kind, the prerequisite checks against a stubbed `kubectl`, the
- * Helm arguments, the micro-engine build profile, the `kubectl top` parser, the broker overlay methods, and the `env` patches a
- * restart sends.
+ * addresses per role and per engine kind, the micro state file a project names, the prerequisite
+ * checks against a stubbed `kubectl`, the Helm arguments, the micro-engine build profile, the
+ * `kubectl top` parser, the broker overlay methods, and the `env` patches a restart sends.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -28,6 +28,8 @@ import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
 import { targetSetup } from "../../env/target-setup.js";
 import type { Overlay, ServiceRole } from "../../env/index.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
+import { projectCorpus } from "../../support/corpus.js";
+import { MICRO_FIXTURES } from "../../fixtures/templating.js";
 
 const ON_K8S = {
   CIP_TARGET: "k8s",
@@ -97,6 +99,33 @@ test("each role answers on its fixed host port, and a chain on the engine kind t
     expect(() => unseeded.chainUrl("x")).toThrow(/seed-micro/);
     expect(() => unseeded.engineUrl()).toThrow(/seed-micro/);
   });
+});
+
+test("a micro project reads its domain and its corpus copy from the state file it names", { tag: ["@infra", "@tier1"] }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-micro-state-"));
+  try {
+    const state = path.join(dir, "own-micro-corpus.json");
+    const chains = [{ fixture: "http-echo", id: "c1" }, { fixture: "choice", id: "c2" }];
+    fs.writeFileSync(state, JSON.stringify({ run: "run2", domain: "e2e-run2-own", chains, services: [] }));
+    const ownEngine = "http://localhost:30080/e2e/svc/qip-engine-e2e-run2-own-v1";
+
+    withEnv(ON_K8S, () => {
+      expect(new K8sEnv({ engineKind: "micro", microDomainState: state }).engineUrl()).toBe(ownEngine);
+      expect(targetSetup("k8s").createEnv("micro", state).engineUrl()).toBe(ownEngine);
+    });
+
+    const micro = projectCorpus({ engineKind: "micro", microDomainState: state });
+    expect(micro.chains).toEqual(chains);
+    expect(micro.fixtures).toEqual([...MICRO_FIXTURES].sort());
+    // A chain with no HTTP route; a spec that lists the corpus meets it on both engines.
+    expect(micro.fixtures).toContain("scheduler-basic");
+
+    const missing = path.join(dir, "absent.json");
+    expect(() => projectCorpus({ engineKind: "micro", microDomainState: missing })).toThrow(missing);
+    expect(() => new K8sEnv({ engineKind: "micro", microDomainState: missing }).engineUrl()).toThrow(missing);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 /** A `kubectl` that answers the listed argument strings and fails every other call. */

@@ -56,6 +56,7 @@ import { Sessions } from "./sessions.js";
 import { Engine } from "./engine.js";
 import type { EngineKind, Env } from "../env/index.js";
 import { targetSetup } from "../env/target-setup.js";
+import { MICRO_CORPUS_STATE_FILE } from "../env/k8s.js";
 import { RESOURCES_FILE, stopResourceSampler } from "../env/resources.js";
 import { recordingRequest } from "../registry/reached.js";
 
@@ -95,6 +96,8 @@ interface WorkerFixtures {
    * Worker-scoped, because the worker-scoped `env` depends on it.
    */
   engineKind: EngineKind;
+  /** The state file naming the micro domain and the micro copy this project reads, set with `use`. */
+  microDomainState: string;
   /**
    * The thing that runs the platform, behind the `Env` seam.
    *
@@ -169,9 +172,11 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
   engineKind: ["classic", { option: true, scope: "worker" }],
 
+  microDomainState: [MICRO_CORPUS_STATE_FILE, { option: true, scope: "worker" }],
+
   env: [
-    async ({ engineKind }, use) => {
-      await use(targetSetup().createEnv(engineKind));
+    async ({ engineKind, microDomainState }, use) => {
+      await use(targetSetup().createEnv(engineKind, microDomainState));
     },
     { scope: "worker" },
   ],

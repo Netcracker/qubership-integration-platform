@@ -526,6 +526,39 @@ export function discardCorpusStateOf(runs: readonly string[]): void {
   }
 }
 
+/** The worker options of the current project, which a project sets with `use`. */
+export interface ProjectUse {
+  engineKind?: EngineKind;
+  microDomainState?: string;
+}
+
+function projectUse(): ProjectUse {
+  return test.info().project.use as ProjectUse;
+}
+
+/** The micro copy a micro project reads, or `undefined` on classic, the default engine kind. */
+function microCopyOf(use: ProjectUse): MicroCorpus | undefined {
+  return use.engineKind === "micro" ? readMicroCorpusState(use.microDomainState) : undefined;
+}
+
+/** The corpus copy a project's engine runs, and the fixture names that copy has to hold. */
+export interface ProjectCorpus {
+  chains: SeedChain[];
+  /** Sorted, to compare with the sorted `fixture` names of `chains`. */
+  fixtures: string[];
+}
+
+/**
+ * The classic corpus, or on a micro project the micro copy its `microDomainState` names, so a spec
+ * that lists the corpus reads the engine kind nowhere else.
+ */
+export function projectCorpus(use: ProjectUse = projectUse()): ProjectCorpus {
+  const micro = microCopyOf(use);
+  return micro
+    ? { chains: micro.chains, fixtures: [...MICRO_FIXTURES].sort() }
+    : { chains: readCorpusState().chains, fixtures: corpusFixtureNames().sort() };
+}
+
 /**
  * One seeded chain by the fixture directory it came from.
  *
@@ -534,13 +567,11 @@ export function discardCorpusStateOf(runs: readonly string[]): void {
  * anything for that to happen.
  */
 export function seedChain(corpus: SeededCorpus, fixture: string): SeedChain {
-  // The option a project sets with `use: { engineKind }`; a project that sets none runs classic.
-  const engineKind = (test.info().project.use as { engineKind?: EngineKind }).engineKind;
-  const copy = engineKind === "micro" ? readMicroCorpusState() : corpus;
-  const found = copy.chains.find((each) => each.fixture === fixture);
+  const micro = microCopyOf(projectUse());
+  const found = (micro ?? corpus).chains.find((each) => each.fixture === fixture);
   if (!found) {
     throw new Error(
-      engineKind === "micro"
+      micro
         ? `the micro copy holds no chain from fixture ${fixture}: add it to MICRO_FIXTURES`
         : `the seeded corpus holds no chain from fixture ${fixture}`,
     );
@@ -756,13 +787,13 @@ function writeMicroCorpusState(corpus: MicroCorpus): void {
   writeStateFile(MICRO_CORPUS_STATE_FILE, corpus);
 }
 
-/** The micro copy, or a failure naming `seed-micro` rather than the spec that asked. */
-export function readMicroCorpusState(): MicroCorpus {
-  const corpus = readStateFile<MicroCorpus>(MICRO_CORPUS_STATE_FILE);
+/** The micro copy `file` records, or a failure naming its seed rather than the spec that asked. */
+export function readMicroCorpusState(file: string = MICRO_CORPUS_STATE_FILE): MicroCorpus {
+  const corpus = readStateFile<MicroCorpus>(file);
   if (!corpus) {
     throw new Error(
-      `no readable micro corpus at ${MICRO_CORPUS_STATE_FILE}: the seed-micro project did not run, ` +
-        `ran no tests, or was killed partway through writing the file`,
+      `no readable micro corpus at ${file}: the seed project that writes it (seed-micro for the ` +
+        `shared domain) did not run, ran no tests, or was killed partway through writing the file`,
     );
   }
   return corpus;
