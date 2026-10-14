@@ -38,7 +38,7 @@ export const MethodBadge: React.FC<MethodBadgeProps> = (
 
   return (
     <Tag
-      className="qip-method-tag"
+      className="cip-method-tag"
       style={{
         ...methodTagStyle(displayMethod),
         ...(props.minWidth && { minWidth: props.minWidth }),

@@ -83,7 +83,7 @@
    bottom margins of its nested RJSF field wrappers would otherwise stack into a
    tall dead gap below it. Drop them so the editor fills the form area down to
    the bottom. */
-.parameters-form :global(.ant-form-item:has(.qip-auto-height)) {
+.parameters-form :global(.ant-form-item:has(.cip-auto-height)) {
   margin-bottom: 0;
 }
 

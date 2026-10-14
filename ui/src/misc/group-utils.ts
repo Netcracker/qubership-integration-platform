@@ -1,5 +1,5 @@
 // Validation pattern and parsing for chain group paths (mirrors the
-// `metaInfo.group` pattern from the QIP schemas).
+// `metaInfo.group` pattern from the CIP schemas).
 // Forbidden characters in a segment: / : * ? " < > | , ; \
 
 // A single path segment (one folder name).

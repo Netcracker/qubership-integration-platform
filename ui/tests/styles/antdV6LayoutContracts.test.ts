@@ -54,7 +54,7 @@ describe("Ant Design 6 global style contracts", () => {
 
   it("allows Monaco wrappers to shrink inside flex layouts", () => {
     const css = readStyle("index.css");
-    const declarations = declarationsFor(css, ".qip-editor");
+    const declarations = declarationsFor(css, ".cip-editor");
 
     expect(declarations).toContain("min-height: 0");
     expect(declarations).toContain("min-width: 0");

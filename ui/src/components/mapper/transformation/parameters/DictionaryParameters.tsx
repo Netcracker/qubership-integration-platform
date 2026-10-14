@@ -38,7 +38,7 @@ import {
 import { useTableConfiguration } from "../../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../../table/tableScroll.ts";
 
-const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
+const MAPPER_DICTIONARY_LANGUAGE_ID = "cip-mapper-dictionary";
 
 const MAPPER_DICTIONARY_LANGUAGE_CONFIGURATION: languages.LanguageConfiguration =
   {};
@@ -338,7 +338,7 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
 
   return (
     <Editor
-      className="qip-editor"
+      className="cip-editor"
       wrapperProps={{ "data-testid": "mapper-dictionary-editor" }}
       theme={monacoTheme}
       value={text}

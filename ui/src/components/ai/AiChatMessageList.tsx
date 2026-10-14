@@ -57,7 +57,7 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
     {visibleMessages.length === 0 ? (
       <div className="ai-empty-state">
         <Typography.Text type="secondary">
-          Ask a question about QIP, chains, services, or elements.
+          Ask a question about CIP, chains, services, or elements.
         </Typography.Text>
       </div>
     ) : (

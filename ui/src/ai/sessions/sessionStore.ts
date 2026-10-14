@@ -7,7 +7,7 @@ import {
 import { ChatMessage } from "../modelProviders/types.ts";
 import { v4 as uuidv4 } from "uuid";
 
-const STORAGE_KEY = "qip_ai_chat_sessions";
+const STORAGE_KEY = "cip_ai_chat_sessions";
 const STORAGE_DEBOUNCE_MS = 500;
 
 class ChatSessionStore {

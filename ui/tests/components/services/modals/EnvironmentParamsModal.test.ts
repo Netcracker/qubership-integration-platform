@@ -246,7 +246,7 @@ describe("EnvironmentParamsModal", () => {
     fireEvent.focus(textArea);
     fireEvent.change(textArea, {
       target: {
-        value: "bootstrap.servers=broker:9092;\ninvalid line\nclient.id=qip",
+        value: "bootstrap.servers=broker:9092;\ninvalid line\nclient.id=cip",
       },
     });
     fireEvent.blur(textArea);
@@ -257,7 +257,7 @@ describe("EnvironmentParamsModal", () => {
       expect.objectContaining({
         properties: {
           "bootstrap.servers": "broker:9092",
-          "client.id": "qip",
+          "client.id": "cip",
         },
       }),
     );

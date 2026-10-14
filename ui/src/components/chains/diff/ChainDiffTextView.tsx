@@ -130,7 +130,7 @@ export const ChainDiffTextView = forwardRef<
   return (
     <div className={styles.fill}>
       <DiffEditor
-        className="qip-editor"
+        className="cip-editor"
         height="calc(90vh - 14rem)"
         wrapperProps={{ "data-testid": "chain-diff-editor" }}
         originalLanguage={"yaml"}

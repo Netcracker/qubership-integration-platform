@@ -84,7 +84,7 @@ function emitConfigChange(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      console.warn("[QIP UI Config] Config change listener failed:", error);
+      console.warn("[CIP UI Config] Config change listener failed:", error);
     }
   }
 }
@@ -191,7 +191,7 @@ export function configure(config: Partial<AppConfig>): void {
   }
 
   if (overrides.length > 0) {
-    console.log("[QIP UI Config] Configuration overrides applied:", overrides);
+    console.log("[CIP UI Config] Configuration overrides applied:", overrides);
   }
 
   if (overrides.length > 0) {
@@ -244,7 +244,7 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
       }
     } catch (error) {
       console.warn(
-        "[QIP UI Config] Failed to parse VITE_CSS_VARIABLES:",
+        "[CIP UI Config] Failed to parse VITE_CSS_VARIABLES:",
         error,
       );
     }
@@ -261,7 +261,7 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
       }
     } catch (error) {
       console.warn(
-        "[QIP UI Config] Failed to parse VITE_ADDITIONAL_CSS:",
+        "[CIP UI Config] Failed to parse VITE_ADDITIONAL_CSS:",
         error,
       );
     }
