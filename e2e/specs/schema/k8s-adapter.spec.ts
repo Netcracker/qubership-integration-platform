@@ -9,7 +9,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
-import { K8sEnv, recordedMicroDomain, withoutColors, type Kubectl } from "../../env/k8s.js";
+import { K8sEnv, recordedMicroDomain, type Kubectl } from "../../env/k8s.js";
+import { withoutColors } from "../../support/colors.js";
 import { readingOfTop } from "../../env/k8s-observer.js";
 import {
   restartStamp,
@@ -606,7 +607,7 @@ test("the k8s target declares its own projects and the broker projects, and leav
     { name: "runtime-micro-redeploy", dependencies: ["seed-micro"], teardown: undefined, engineKind: "micro" },
     { name: "global-micro", dependencies: ["global", "seed-micro"], teardown: undefined, engineKind: "micro" },
     { name: "env-micro", dependencies: ["global-micro", "runtime-micro"], teardown: undefined, engineKind: "micro" },
-    { name: "brokers-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: undefined },
+    { name: "brokers-seed", dependencies: ["seed"], teardown: "suite-teardown", engineKind: undefined },
     { name: "brokers", dependencies: ["brokers-seed"], teardown: undefined, engineKind: undefined },
     { name: "brokers-restart", dependencies: ["brokers", "brokers-micro"], teardown: undefined, engineKind: undefined },
     { name: "brokers-micro-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: "micro" },

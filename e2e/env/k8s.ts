@@ -31,6 +31,7 @@ import { capture, httpStatus, pollUntil } from "./host.js";
 import { awaitOverlayReady, hostReady, OVERLAY_READY_TIMEOUT } from "./overlays.js";
 import { forgetOverride, recordOverride } from "./overrides.js";
 import { UUID } from "../support/absent.js";
+import { withoutColors } from "../support/colors.js";
 import { readStateFile } from "../support/state-file.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -121,11 +122,6 @@ export function healthUrl(role: ServiceRole): string {
 
 /** Runs `kubectl` with the given arguments and returns stdout; a non-zero exit throws. */
 export type Kubectl = (args: string[]) => Promise<string>;
-
-/** `text` without its ANSI color codes. */
-export function withoutColors(text: string): string {
-  return text.replace(/\u001b\[[0-9;]*m/g, "");
-}
 
 /** Runs `kubectl` and returns its standard output; a non-zero exit throws with its stderr. */
 export function kubectl(args: string[]): Promise<string> {

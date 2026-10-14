@@ -176,10 +176,22 @@ test("an unknown deployment the micro engine reports as an unknown exchange is t
   expect(KILL_NOT_FOUND_UNSPECIFIC.matches("Error: the engine answered Not Found\n\nexpect(received).toContain(expected) // indexOf")).toBe(false);
 });
 
+/** What `strikesAsKnown` reads when the live-exchanges case's status assertion fails in a worker. */
+function statusFailure(answer: string, status: number): string {
+  try {
+    expect(status, `the engine answered ${answer}`).toBe(400);
+  } catch (cause) {
+    return String(cause);
+  }
+  throw new Error(`status ${status} passed an assertion on 400`);
+}
+
 test("limit=0 answered with the classic engine's 500 is the known defect, and another status is not", TAGS, () => {
-  const classic = `Error: the engine answered {"errorMessage":"getLiveExchanges.limit: must be greater than 0"}\n\nExpected: 400\nReceived: 500`;
-  expect(LIMIT_REFUSED_WITH_500.matches(classic)).toBe(true);
-  expect(LIMIT_REFUSED_WITH_500.matches("Error: the engine answered no healthy upstream\n\nExpected: 400\nReceived: 503")).toBe(false);
-  expect(LIMIT_REFUSED_WITH_500.matches("Error: the engine answered NullPointerException\n\nExpected: 400\nReceived: 500")).toBe(false);
+  const classic = statusFailure('{"errorMessage":"getLiveExchanges.limit: must be greater than 0"}', 500);
+  // Playwright colors matcher output in a worker, and the case met the defect with this text.
+  expect(classic).toContain("\u001b[");
+  expect(strikes(LIMIT_REFUSED_WITH_500, "classic", classic)).toBe(true);
+  expect(strikes(LIMIT_REFUSED_WITH_500, "classic", statusFailure("no healthy upstream", 503))).toBe(false);
+  expect(strikes(LIMIT_REFUSED_WITH_500, "classic", statusFailure("NullPointerException", 500))).toBe(false);
   expect(strikes(LIMIT_REFUSED_WITH_500, "micro", classic)).toBe(false);
 });
