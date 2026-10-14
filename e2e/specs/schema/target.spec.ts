@@ -88,7 +88,8 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   global: "./specs/global; after api, runtime, env, ui; teardown suite-teardown; 1 worker",
   "suite-teardown":
     "./specs /\\/(seed-micro|brokers-seed|brokers-micro-seed)\\/[^/]*\\.teardown\\.ts$/",
-  "brokers-seed": "./specs/brokers-seed /.*\\.setup\\.ts$/; teardown suite-teardown",
+  // Both seeds deploy to the classic engine, which reports a batch's state once the whole batch loads.
+  "brokers-seed": "./specs/brokers-seed /.*\\.setup\\.ts$/; after seed; teardown suite-teardown",
   brokers: "./specs/brokers except /broker-restart\\.spec\\.ts$/; after brokers-seed; parallel",
   "brokers-restart": "./specs/brokers /broker-restart\\.spec\\.ts$/; after brokers; 1 worker",
 };
