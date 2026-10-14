@@ -16,7 +16,7 @@ import {
   type OperationClaim,
   type RegistryEntry,
 } from "../../registry/elements.js";
-import { BROKER_PROJECTS, K8S_PROJECTS } from "./projects.js";
+import { BROKER_PROJECTS, K8S_PROJECTS, MICRO_BROKER_PROJECTS } from "./projects.js";
 
 const COMMON_PROJECTS = ["schema", "api", "seed", "seed-teardown", "tooling", "runtime", "env", "global", "suite-teardown"];
 
@@ -40,7 +40,12 @@ function runOn(
   target: "compose" | "k8s" | undefined,
   covers: string[],
   reached: string[],
-  projects = [...COMMON_PROJECTS, ...(target === "k8s" ? K8S_PROJECTS : []), ...BROKER_PROJECTS],
+  projects = [
+    ...COMMON_PROJECTS,
+    ...(target === "k8s" ? K8S_PROJECTS : []),
+    ...BROKER_PROJECTS,
+    ...(target === "k8s" ? MICRO_BROKER_PROJECTS : []),
+  ],
 ): JsonReport {
   return {
     config: {

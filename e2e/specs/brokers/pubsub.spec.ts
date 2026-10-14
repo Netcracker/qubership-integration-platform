@@ -38,12 +38,40 @@ import {
   pullOnePubsub,
 } from "../../support/broker-clients.js";
 import { tokenized, callToken } from "../../support/run.js";
-import { callChain, elementNames, failedElements } from "../../support/sessions.js";
+import {
+  SESSION_TIMEOUT,
+  callChain,
+  elementNames,
+  failedElements,
+  trace,
+  type ChainCall,
+  type Sessions,
+} from "../../support/sessions.js";
 import { readUntil } from "../../support/poll.js";
+import { logWindowStart } from "../../support/logs.js";
+import { strikesAsKnown } from "../../support/known-defect.js";
 import { covers } from "../../registry/covers.js";
+import type { Env } from "../../env/index.js";
+import { PUBSUB_EMULATOR_BYPASSED, pubsubAuthFailure, withEngineLines } from "./micro-defects.js";
 
 /** What `readUntil` gets for the ackMode=NONE case's settle window, instead of a bare literal. */
 const ACKMODE_NONE_SETTLE_TIMEOUT = 12_000;
+
+/** Runs a trigger case's wait; a failure carries the subscriber's authentication failures. */
+async function delivered<T>(env: Env, since: string, wait: () => Promise<T>): Promise<T> {
+  return strikesAsKnown(PUBSUB_EMULATOR_BYPASSED, () => withEngineLines(env, since, "naming UNAUTHENTICATED", pubsubAuthFailure, wait));
+}
+
+/** Asserts a sender call answered 200; a failure carries the exceptions its session recorded. */
+async function expectSent(sessions: Sessions, call: ChainCall): Promise<void> {
+  // A failed step can still read IN_PROGRESS, with no exception, after its session has completed.
+  const causes = async () =>
+    trace(await sessions.byExternalId(call.token, { elements: 3 })).map((step) => step.exceptionInfo?.message).filter(Boolean);
+  const cause = call.response.status() === 200
+    ? ""
+    : (await readUntil(causes, (found) => found.length > 0, SESSION_TIMEOUT, 1_000)).join("; ");
+  await strikesAsKnown(PUBSUB_EMULATOR_BYPASSED, async () => expect(call.response.status(), cause).toBe(200));
+}
 
 // ---------------------------------------------------------------------------
 // pubsub-trigger
@@ -52,7 +80,7 @@ const ACKMODE_NONE_SETTLE_TIMEOUT = 12_000;
 test(
   "a pub/sub message with no correlation header fires pubsub-trigger, found by chain id",
   { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ sessions }) => {
+  async ({ env, sessions }) => {
     covers("pubsub-trigger");
     covers("pubsub-trigger", "ackMode", "AUTO");
 
@@ -60,10 +88,11 @@ test(
     const chain = brokerChain(corpus, "pubsub-trigger-basic");
     const topic = chain.broker.destinationName as string;
     const before = await sessions.idsOf(chain.id);
+    const since = logWindowStart();
 
     await publishPubsub(topic, { ping: "pubsub", token: callToken("pubsub-trigger") });
 
-    const session = await sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id));
+    const session = await delivered(env, since, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
     expect(elementNames(session)).toEqual(["PubSub Trigger", "Header Modification"]);
     expect(failedElements(session)).toEqual([]);
   },
@@ -72,7 +101,7 @@ test(
 test(
   "ackMode NONE still records a session: the route never reads the acknowledger header",
   { tag: ["@engine", "@sessions", "@tier2"] },
-  async ({ sessions }) => {
+  async ({ env, sessions }) => {
     // No `covers()` call: see the registry's own `R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE` reason.
     // This case still runs to prove the trigger keeps recording under `ackMode: NONE` rather than
     // failing outright, which is worth having even though it cannot tell the value apart from AUTO.
@@ -81,6 +110,7 @@ test(
     const chain = brokerChain(corpus, "pubsub-trigger-ackmode-none");
     const topic = chain.broker.destinationName as string;
     const before = await sessions.idsOf(chain.id);
+    const since = logWindowStart();
 
     await publishPubsub(topic, { ping: "pubsub-ackmode-none" });
 
@@ -100,7 +130,7 @@ test(
       1_000,
     );
     const fresh = [...settled].filter((id) => !before.has(id));
-    expect(fresh.length, "exactly one session for the one message published").toBe(1);
+    await delivered(env, since, async () => expect(fresh.length, "exactly one session for the one message published").toBe(1));
     expect(failedElements(await sessions.session(fresh[0]))).toEqual([]);
   },
 );
@@ -124,10 +154,10 @@ test(
 
     await createPullSubscription(topic, subscription);
     try {
-      const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
-      expect(response.status()).toBe(200);
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
+      await expectSent(sessions, call);
 
-      const session = await sessions.byExternalId(token, { elements: 3 });
+      const session = await sessions.byExternalId(call.token, { elements: 3 });
       expect(session.chainId).toBe(chain.id);
       expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "PubSub Sender"]);
       expect(failedElements(session)).toEqual([]);
@@ -155,10 +185,10 @@ test(
 
     await createPullSubscription(topic, subscription);
     try {
-      const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
-      expect(response.status()).toBe(200);
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
+      await expectSent(sessions, call);
 
-      const session = await sessions.byExternalId(token, { elements: 3 });
+      const session = await sessions.byExternalId(call.token, { elements: 3 });
       expect(session.chainId).toBe(chain.id);
       expect(failedElements(session)).toEqual([]);
 

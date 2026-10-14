@@ -62,7 +62,7 @@ then test the dev server. A preview an interrupted run left on 4200 is stopped f
 `.e2e-ui-server.json` still records it; when the runner that started it is still alive, the setup
 fails naming its pid instead.
 
-`schema`, `api`, `tooling`, `runtime`, `brokers`, and `brokers-restart` run with no browser
+`schema`, `api`, `tooling`, `runtime`, `brokers`, `brokers-micro`, and `brokers-restart` run with no browser
 installed. `env` and `global` depend on `ui`, so `--project=env` and `--project=global` build the
 bundle and launch Chromium too. Set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment
 downloads a browser you do not want.
@@ -119,9 +119,10 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `runtime-micro-redeploy` | not declared | `specs/runtime-micro-redeploy/`, one file at a time: micro cases that deploy their own chains to a micro domain of their own |
 | `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0` | the same |
 | `brokers-micro-seed` | not declared | unless `E2E_BROKERS=0`, a second copy of `fixtures/brokers/` with addresses of its own, deployed to a micro domain named `e2e-<run>-brokers-micro` |
+| `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts`, `missing-target.spec.ts`, `async-api.spec.ts`, and the cases tagged `@classic-only` |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, and the proxy's `/e2e/` locations |
 
-That is fifteen projects on Compose and twenty on Kubernetes, three fewer on Compose and four fewer on
+That is fifteen projects on Compose and twenty-one on Kubernetes, three fewer on Compose and five fewer on
 Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project and spec file the target
 leaves out, with the reason.
 
@@ -184,6 +185,7 @@ npm test -- --project=runtime         # the seeded chains, called and asserted
 npm test -- --project=env             # the specs that restart a service, one worker
 npm test -- --project=global          # the reads no worker can scope, one worker, last
 npm test -- --project=brokers         # kafka, rabbitmq, pub/sub and sftp
+npm test -- --project=brokers-micro   # the same on the micro engine, k8s only
 npm test -- --project=brokers-restart # the one spec that restarts a broker mid-run
 npm test -- --project=ui              # the browser layer, against the bundle it serves on 4200
 npm test -- --grep @engine --no-deps  # one backend component's cases, no browser
@@ -292,7 +294,7 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_SWEEP`               | unset                                | `never` stops a run from collecting a previous run's residue at its start.           |
 | `E2E_RUN`                 | minted per run                       | The token entities are named after. Pass one to pin it; the shape is validated.      |
 | `E2E_ELEMENT_SCHEMA_DIR`  | the tracked schemas                  | Points the coverage checks at another element-schema tree, which is how they are proved to still go red. |
-| `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, and `brokers-micro-seed` on `k8s`, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
+| `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, and `brokers-micro-seed` and `brokers-micro` on `k8s`, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
 | `CIP_COMPOSE_FILE`        | `infrastructure/docker/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
@@ -477,10 +479,11 @@ check always reaches the real Google endpoint rather than the emulator. So
 `specs/brokers/missing-target.spec.ts` covers a missing Kafka topic and a missing RabbitMQ queue and
 exchange, and a missing pub/sub topic is an uncovered gap.
 
-`brokers-restart` holds `broker-restart.spec.ts` alone and runs one worker after `brokers`, because
-restarting a broker container disturbs every broker spec in flight.
+`brokers-restart` holds `broker-restart.spec.ts` alone and runs one worker after `brokers`, and on
+`k8s` after `brokers-micro` too, because restarting a broker container disturbs every broker spec in
+flight. A red `brokers-micro` case therefore skips the restart cases.
 
-`E2E_BROKERS=0` drops the three broker projects for a faster local run. A release run keeps them.
+`E2E_BROKERS=0` drops the broker projects for a faster local run. A release run keeps them.
 `npm run reconcile` refuses a run narrowed that way rather than reporting every broker registry row
 as having lost its test.
 

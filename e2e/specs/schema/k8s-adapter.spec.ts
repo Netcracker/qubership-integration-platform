@@ -30,7 +30,7 @@ import type { Overlay, ServiceRole } from "../../env/index.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
 import { projectCorpus } from "../../support/corpus.js";
 import { MICRO_FIXTURES } from "../../fixtures/templating.js";
-import { K8S_PROJECTS } from "./projects.js";
+import { BROKER_PROJECTS, K8S_PROJECTS, MICRO_BROKER_PROJECTS } from "./projects.js";
 import type { Catalog } from "../../support/catalog.js";
 import { deleteDomain, deployToDomain, tokenedDomain } from "../../support/deployable.js";
 
@@ -517,8 +517,9 @@ test("the k8s target declares its own projects and the broker projects, and leav
     { name: "runtime-micro-redeploy", dependencies: ["seed-micro"], teardown: undefined, engineKind: "micro" },
     { name: "brokers-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: undefined },
     { name: "brokers", dependencies: ["brokers-seed"], teardown: undefined, engineKind: undefined },
-    { name: "brokers-restart", dependencies: ["brokers"], teardown: undefined, engineKind: undefined },
+    { name: "brokers-restart", dependencies: ["brokers", "brokers-micro"], teardown: undefined, engineKind: undefined },
     { name: "brokers-micro-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: "micro" },
+    { name: "brokers-micro", dependencies: ["brokers-seed", "brokers-micro-seed"], teardown: undefined, engineKind: "micro" },
   ]);
   expect(setup.absent).toEqual([]);
   // Only a tagged case stays classic: runtime-micro runs every file of specs/runtime/.
@@ -530,12 +531,9 @@ test("the k8s target declares its own projects and the broker projects, and leav
 test("E2E_BROKERS=0 drops the broker projects on k8s and names them as absent", { tag: ["@infra", "@tier1"] }, () => {
   const setup = withEnv({ E2E_BROKERS: "0" }, () => targetSetup("k8s"));
   expect(setup.projects.map((each) => each.name)).toEqual(K8S_PROJECTS);
-  expect(setup.absent).toEqual([
-    { name: "brokers-seed", reason: "E2E_BROKERS=0" },
-    { name: "brokers", reason: "E2E_BROKERS=0" },
-    { name: "brokers-restart", reason: "E2E_BROKERS=0" },
-    { name: "brokers-micro-seed", reason: "E2E_BROKERS=0" },
-  ]);
+  expect(setup.absent).toEqual(
+    [...BROKER_PROJECTS, ...MICRO_BROKER_PROJECTS].map((name) => ({ name, reason: "E2E_BROKERS=0" })),
+  );
 });
 
 /** The engine container's `env` as the chart renders it: a ConfigMap reference and a plain value. */
