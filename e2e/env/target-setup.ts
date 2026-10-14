@@ -26,6 +26,7 @@ import { collectStackHeader, type Absence, type StackFacts } from "../support/re
 /** The worker-scoped options a project can set, which `support/fixtures.ts` declares. */
 export interface SuiteWorkerOptions {
   engineKind: EngineKind;
+  microDomainState: string;
 }
 
 /** A project of the suite. Named, unlike Playwright's own type, because every dependency names one. */
@@ -45,7 +46,8 @@ export interface StackObserver {
 
 export interface TargetSetup {
   name: Target;
-  createEnv(engineKind: EngineKind): Env;
+  /** A project's environment; a micro one addresses the domain `microDomainState` records. */
+  createEnv(engineKind: EngineKind, microDomainState?: string): Env;
   provision(mode: ProvisionMode): Promise<ProvisionReport>;
   observer: StackObserver;
   /** Projects this target adds to the common ones. */
@@ -174,7 +176,7 @@ function k8sSetup(): TargetSetup {
   const brokers = brokersEnabled();
   return {
     name: "k8s",
-    createEnv: (engineKind) => new K8sEnv({ engineKind }),
+    createEnv: (engineKind, microDomainState) => new K8sEnv({ engineKind, microDomainState }),
     provision: provisionK8s,
     observer: {
       baseline: k8sBaseline,
