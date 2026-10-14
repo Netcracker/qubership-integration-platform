@@ -4,7 +4,8 @@
  */
 import { test, expect, type APIResponse } from "@playwright/test";
 import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "../runtime/micro-defects.js";
-import { KILL_NOT_FOUND_UNSPECIFIC, LIMIT_REFUSED_WITH_400, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
+import { LIMIT_REFUSED_WITH_500 } from "../global/classic-defects.js";
+import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
 import { withEngineLines } from "../../support/logs.js";
@@ -175,9 +176,10 @@ test("an unknown deployment the micro engine reports as an unknown exchange is t
   expect(KILL_NOT_FOUND_UNSPECIFIC.matches("Error: the engine answered Not Found\n\nexpect(received).toContain(expected) // indexOf")).toBe(false);
 });
 
-test("limit=0 refused with the micro engine's 400 is the known divergence, and another status is not", TAGS, () => {
-  const micro = `Error: the engine answered {"title":"Constraint Violation","status":400,"violations":[{"field":"getLiveExchanges.limit","message":"must be greater than 0"}]}\n\nExpected: 500\nReceived: 400`;
-  expect(LIMIT_REFUSED_WITH_400.matches(micro)).toBe(true);
-  expect(LIMIT_REFUSED_WITH_400.matches("Error: the engine answered no healthy upstream\n\nExpected: 500\nReceived: 503")).toBe(false);
-  expect(LIMIT_REFUSED_WITH_400.matches("Error: the engine answered \n\nExpected: 500\nReceived: 200")).toBe(false);
+test("limit=0 answered with the classic engine's 500 is the known defect, and another status is not", TAGS, () => {
+  const classic = `Error: the engine answered {"errorMessage":"getLiveExchanges.limit: must be greater than 0"}\n\nExpected: 400\nReceived: 500`;
+  expect(LIMIT_REFUSED_WITH_500.matches(classic)).toBe(true);
+  expect(LIMIT_REFUSED_WITH_500.matches("Error: the engine answered no healthy upstream\n\nExpected: 400\nReceived: 503")).toBe(false);
+  expect(LIMIT_REFUSED_WITH_500.matches("Error: the engine answered NullPointerException\n\nExpected: 400\nReceived: 500")).toBe(false);
+  expect(strikes(LIMIT_REFUSED_WITH_500, "micro", classic)).toBe(false);
 });

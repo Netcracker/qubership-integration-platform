@@ -32,14 +32,3 @@ export const KILL_NOT_FOUND_UNSPECIFIC: ConditionalDefect = {
   engine: "micro",
   matches: (message) => message.includes("No live exchange found for deployment id no-such-deployment"),
 };
-
-/**
- * The two engines answer `limit=0` with different statuses. The micro engine maps the constraint
- * violation to 400, as the catalog does, and the classic engine has no handler and answers 500, which
- * the case pins. No issue is filed yet.
- */
-export const LIMIT_REFUSED_WITH_400: ConditionalDefect = {
-  title: "the micro engine answers limit=0 with 400 where the classic engine answers 500",
-  engine: "micro",
-  matches: (message) => message.includes('"title":"Constraint Violation","status":400'),
-};
