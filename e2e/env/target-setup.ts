@@ -142,8 +142,6 @@ export const CLASSIC_ONLY_RUNTIME_FILES: readonly string[] = [
   "placeholder.spec.ts",
   "script-external-library.spec.ts",
   "script-failures.spec.ts",
-  "testing-service-cases.spec.ts",
-  "testing-service-runs.spec.ts",
 ];
 
 function k8sProjects(): SuiteProject[] {

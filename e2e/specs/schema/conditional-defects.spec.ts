@@ -19,12 +19,21 @@ test("a mocked service call that reached its real address is the known defect, a
     "expect(received).toBe(expected) // Object.is equality",
   ].join("\n");
   const egress = "Error: no healthy upstream\n\nexpect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 503";
+  // A test case run of `http-out`, whose rule read the real endpoint's answer.
+  const health = [
+    `Error: the case run's outbound call was not mocked: '{"status":"UP","groups":["liveness","readiness"],"components":{"ping":{"status":"UP"}}}' doesn't contain '"mocked":"e2e-s7rodt-runs-mocked"'`,
+    "",
+    "expect(received).toEqual(expected) // deep equality",
+  ].join("\n");
   expect(MOCK_BYPASSED.matches(unresolved)).toBe(true);
   expect(MOCK_BYPASSED.matches(egress)).toBe(true);
+  expect(MOCK_BYPASSED.matches(health)).toBe(true);
 
   // The testing service answers a request no mock matched with 404.
   expect(MOCK_BYPASSED.matches("Error: no mock matched: the element sent another path, query or body. \n\nExpected: 201\nReceived: 404")).toBe(false);
   expect(MOCK_BYPASSED.matches("Error: expect(received).toBe(expected)\n\nExpected: 201\nReceived: 500")).toBe(false);
+  // The mock answered, with another body than the rule expects.
+  expect(MOCK_BYPASSED.matches(`Error: the case run's outbound call was not mocked: '{"mocked":"other"}' doesn't contain '"mocked":"e2e-s7rodt-runs-mocked"'`)).toBe(false);
 });
 
 test("a context SET the micro engine ran outside a transaction is the known defect, and another failure is not", TAGS, () => {
