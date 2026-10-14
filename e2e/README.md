@@ -572,8 +572,8 @@ and `global`. The broker projects are not dependencies of `global`: its teardown
 broker corpus until `global` has finished, without one failing broker case skipping it.
 `runtime-micro` has no directory of its own; it runs `specs/runtime/` again.
 
-The seed imports every fixture under `fixtures/chains/`, `fixtures/axes/`, and `fixtures/script/`
-as one archive, raises each chain's session logging so there is a trace to read, deploys them in one
+The seed imports the services under `fixtures/services/` that the corpus chains call, then every
+fixture under `fixtures/chains/`, `fixtures/axes/`, and `fixtures/script/` as one archive, raises each chain's session logging so there is a trace to read, deploys them in one
 batch, and waits until the routes answer. What it deployed lands in `.e2e-corpus.json`, and the
 projects that depend on it read the chains from there. `fixtures/axes/` is gitignored and rewritten
 on every seed.

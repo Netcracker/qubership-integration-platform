@@ -5,8 +5,8 @@
  * point — a fixture that does not validate breaks the seed project minutes into a run, and this
  * spec catches it in under a second.
  *
- * Both tracked directories, not just `fixtures/chains/`: the seed imports `fixtures/script/` too,
- * so a fixture there costs the same run if it is wrong. The generated `fixtures/axes/` is left out
+ * Every tracked directory, not just `fixtures/chains/`: the seed imports `fixtures/script/` and
+ * `fixtures/services/` too, so a fixture there costs the same run if it is wrong. The generated `fixtures/axes/` is left out
  * because it is absent in a fresh clone, and the generator validates what it writes.
  */
 import fs from "node:fs";
@@ -17,15 +17,18 @@ import JSZip from "jszip";
 import { QIP_MODEL_DIR } from "../../registry/discriminators.js";
 import {
   SCRIPT_FIXTURE_DIR,
+  SERVICE_FIXTURE_DIR,
   TRACKED_FIXTURE_DIRS,
   assembleArchive,
   assembleFixture,
   assertSubstituted,
   chainFixtureNames,
   readFixtureDocument,
+  readServiceFixture,
   renderFixture,
   substitute,
 } from "../../fixtures/templating.js";
+import { flatten, type FixtureElement as ChainElement } from "../../support/corpus.js";
 import { EXPORTED_CHAIN_SCHEMA, schemaValidator, validateDocument } from "../../fixtures/validate.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
@@ -91,6 +94,11 @@ for (const { dir, name } of fixtures) {
     const tree = renderFixture(dir, name, RUN);
     const fixture = readFixtureDocument(name, tree);
     expect(validateDocument(fixture.document)).toEqual([]);
+    // A service's specification group and specifications travel beside it, each with a schema of its own.
+    for (const [rel, source] of fixture.companions) {
+      if (!rel.endsWith(".cip.yaml")) continue;
+      expect(validateDocument(yaml.load(source)), rel).toEqual([]);
+    }
   });
 
   test(`fixture ${name} assembles into the archive layout the importer reads`, { tag: ["@infra", "@tier1"] }, async () => {
@@ -99,9 +107,10 @@ for (const { dir, name } of fixtures) {
     const zip = await JSZip.loadAsync(await assembleFixture(name, RUN, dir));
 
     const entries = Object.values(zip.files).filter((f) => !f.dir).map((f) => f.name).sort();
+    const parent = `${fixture.kind}s/${fixture.id}`;
     const expected = [
-      `chains/${fixture.id}/${fixture.id}.chain.cip.yaml`,
-      ...[...fixture.companions.keys()].map((rel) => `chains/${fixture.id}/${rel}`),
+      `${parent}/${fixture.id}.${fixture.kind}.cip.yaml`,
+      ...[...fixture.companions.keys()].map((rel) => `${parent}/${rel}`),
     ].sort();
     expect(entries).toEqual(expected);
   });
@@ -129,6 +138,45 @@ test("no two scripts in one chain under fixtures/script/ carry the same text", {
     scripts += byText.size;
   }
   expect(scripts, "no fixture under fixtures/script/ carries a script").toBeGreaterThan(0);
+});
+
+test("every service call in a tracked chain names an operation of a service fixture", { tag: ["@infra", "@tier1"] }, () => {
+  // A seeded service call compiles against the service the seed imports, so an id that names none
+  // imports cleanly and fails the deploy minutes into a run.
+  const operations = new Map(
+    chainFixtureNames(SERVICE_FIXTURE_DIR).flatMap((service) => {
+      const fixture = readServiceFixture(service, renderFixture(SERVICE_FIXTURE_DIR, service, RUN));
+      return fixture.operations.map((operation) => [operation.id, { ...operation, systemId: fixture.id }] as const);
+    }),
+  );
+  let calls = 0;
+  for (const { dir, name } of fixtures.filter(({ dir }) => dir !== SERVICE_FIXTURE_DIR)) {
+    const { document } = readFixtureDocument(name, renderFixture(dir, name, RUN));
+    const elements = flatten(((document.content as { elements?: ChainElement[] })?.elements) ?? []);
+    for (const element of elements.filter((each) => each.type === "service-call")) {
+      const properties = element.properties ?? {};
+      const operation = operations.get(String(properties.integrationOperationId));
+      expect(operation, `${name}/${String(element.name)} calls no operation of a service fixture`).toBeDefined();
+      expect(
+        {
+          integrationSystemId: properties.integrationSystemId,
+          integrationSpecificationGroupId: properties.integrationSpecificationGroupId,
+          integrationSpecificationId: properties.integrationSpecificationId,
+          integrationOperationPath: properties.integrationOperationPath,
+          integrationOperationMethod: properties.integrationOperationMethod,
+        },
+        `${name}/${String(element.name)}`,
+      ).toEqual({
+        integrationSystemId: operation!.systemId,
+        integrationSpecificationGroupId: operation!.groupId,
+        integrationSpecificationId: operation!.specificationId,
+        integrationOperationPath: operation!.path,
+        integrationOperationMethod: operation!.method,
+      });
+      calls++;
+    }
+  }
+  expect(calls, "no tracked chain carries a service call").toBeGreaterThan(0);
 });
 
 test("EXPORTED_CHAIN_SCHEMA is the chain schema's $id and the validator resolves it", { tag: ["@infra", "@tier1"] }, () => {
