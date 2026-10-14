@@ -7,7 +7,6 @@ export async function initializeConfiguration(): Promise<void> {
   const config = getConfig();
   console.log("[QIP UI Config] initializeConfiguration called, config:", {
     apiGateway: config.apiGateway,
-    appName: config.appName,
     isRestApi: api instanceof RestApi,
   });
 
