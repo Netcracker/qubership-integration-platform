@@ -10,6 +10,7 @@ import { strikes, strikesAsKnown } from "../../support/known-defect.js";
 import { withEngineLines } from "../../support/logs.js";
 import { CONTEXT_STORE_UNTRANSACTED } from "../runtime/context-storage.js";
 import { PUBSUB_EMULATOR_BYPASSED, SFTP_TRIGGER_IDLE, linesOfChain, pubsubAuthFailure } from "../brokers/micro-defects.js";
+import { ignoredCompileFailure, SCRIPT_COMPILE_IGNORED } from "../runtime-micro-redeploy/micro-defects.js";
 import type { Env } from "../../env/index.js";
 
 const TAGS = { tag: ["@infra", "@tier1"] };
@@ -152,6 +153,21 @@ test("an exchange the micro engine never listed while it was held is the known d
   expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("no live exchange for chain c1 was ever listed", 200, '{"element":"other"}'))).toBe(false);
   // The exchange was listed, and a later assertion failed.
   expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("expect(received).toBe(expected)\n\nExpected: true\nReceived: false", 200, held))).toBe(false);
+});
+
+test("a script deployment the micro engine reported DEPLOYED after ignoring its compile failure is the known defect, and another reading is not", TAGS, async () => {
+  const ignored =
+    "x{5}[2026-10-14T11:00:47.051] [WARN ] [class=org.apache.camel.support.EventHelper] Error notifying event Route added: route2. " +
+    "This exception will be ignored.: java.lang.RuntimeException: Failed to compile groovy script.";
+  const deployed = (log: string) =>
+    engineLinesFailure(log, "ignoring the compile failure", ignoredCompileFailure, "the deployment of e2e-x settled at DEPLOYED: \n\nexpect(received).toEqual(expected) // deep equality");
+  expect(SCRIPT_COMPILE_IGNORED.matches(await deployed(ignored))).toBe(true);
+
+  // DEPLOYED with no compile failure in the log: the script compiled, so the case is wrong, not the engine.
+  expect(SCRIPT_COMPILE_IGNORED.matches(await deployed(""))).toBe(false);
+  // The engine failed the deployment, with another message than the case expects.
+  const failed = await engineLinesFailure(ignored, "ignoring the compile failure", ignoredCompileFailure, "the deployment of e2e-x settled at FAILED: Connection refused\n\nexpect(received).toEqual(expected)");
+  expect(SCRIPT_COMPILE_IGNORED.matches(failed)).toBe(false);
 });
 
 test("an unknown deployment the micro engine reports as an unknown exchange is the known defect, and another 404 is not", TAGS, () => {
