@@ -31,7 +31,7 @@ Success means:
 | `ConfigApiProvider` | `src/web/services/ConfigApiProvider.ts` | Backs the public `QipExtensionAPI` (`loadConfigFromPath`, `registerConfig`, `unregisterConfig`, `getConfig`) that `activate()` returns |
 | App detection | `src/web/response/file/fileExtensions.ts` | Works out the app from a file suffix such as `.chain.<app>.yaml`, and serves `getExtensionsForFile`, `getExtensionsForUri`, `getDefaultExtensions`, `getExtensionsFromConfig`, and `initializeContextFromFile` |
 | Watchers | `setupFileWatchers` in `src/web/extension.ts` | One file watcher per configured extension, plus a `.config.qip.yaml` watcher that offers a window reload |
-| Webview prop | `getAppExtensionProps` in `src/web/response/apiRouter.ts` | Sends `appName: "qip"`, which `AppExtensionProps` in the UI no longer declares |
+| Webview prop | `getExtensionConfiguration` in `src/web/response/apiRouter.ts` | Sends `appName: "qip"`, which `AppExtensionProps` in the UI no longer declares |
 | Config files | `configs/default.config.cip.yaml`, `.config.qip.yaml.example` | Embedded defaults and an example workspace file; `package.json` ships `configs` in `files` |
 
 ## Design
