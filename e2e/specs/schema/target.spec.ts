@@ -265,7 +265,35 @@ test("global-micro runs the engine files of specs/global on the shared micro dom
   expect(composeProjects(undefined).map((each) => each.name)).not.toContain("global-micro");
 });
 
-test("brokers-micro-seed deploys to the domain its own state file records, and suite-teardown removes it", { tag: ["@infra", "@tier1"] }, () => {
+test("env-micro restarts the shared micro domain after global-micro and runtime-micro, so after every classic restart", { tag: ["@infra", "@tier1"] }, () => {
+  const projects = withEnv({ E2E_BROKERS: "0" }, () => suiteProjects(targetSetup("k8s")));
+  const project = projects.find((each) => each.name === "env-micro");
+  expect(project && schedule(project)).toBe(
+    "./specs/env /restart-resilience\\.spec\\.ts$/; after global-micro, runtime-micro; 1 worker",
+  );
+  expect(project?.grepInvert).toEqual(/@classic-only/);
+  // The shared domain's state file, the default, and the micro copy seed-micro deployed to it.
+  expect(project?.use).toEqual({ engineKind: "micro" });
+  const files = fs.readdirSync(path.join(E2E_DIR, "specs", "env"));
+  expect(files.filter((file) => (project?.testMatch as RegExp).test(`/${file}`))).toEqual(["restart-resilience.spec.ts"]);
+  // Everything it waits for, through every edge: the classic restarts in `env` come first.
+  const byName = new Map(projects.map((each) => [each.name, each]));
+  const after = new Set<string>();
+  const visit = (name: string) => {
+    for (const dependency of byName.get(name)?.dependencies ?? []) {
+      if (after.has(dependency)) continue;
+      after.add(dependency);
+      visit(dependency);
+    }
+  };
+  visit("env-micro");
+  expect([...after].sort()).toEqual(
+    ["api", "env", "global", "global-micro", "runtime", "runtime-micro", "seed", "seed-micro", "tooling", "ui", "ui-server"].sort(),
+  );
+  expect(composeProjects(undefined).map((each) => each.name)).not.toContain("env-micro");
+});
+
+test("brokers-micro-seed deploys to the domain its own state file records, and suite-teardown removes it",{ tag: ["@infra", "@tier1"] }, () => {
   const project = withEnv({ E2E_BROKERS: undefined }, () => targetSetup("k8s")).projects.find(
     (each) => each.name === "brokers-micro-seed",
   );

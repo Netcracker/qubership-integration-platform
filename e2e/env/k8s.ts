@@ -111,6 +111,12 @@ export function recordedMicroDomain(file: string = MICRO_CORPUS_STATE_FILE): str
 /** The container camel-k gives the engine in a micro domain's pod. */
 const MICRO_CONTAINER = "integration";
 
+/** The label camel-k puts on each pod of an Integration, which the catalog names `microServiceOf(domain)`. */
+const MICRO_POD_LABEL = "camel.apache.org/integration";
+
+/** How long the pod that replaces a deleted micro pod gets to answer on its readiness endpoint. */
+const MICRO_RESTART_TIMEOUT = 180_000;
+
 /** What answers when a role is up: the actuator for the JVM services, `/health` for the Go one. */
 export function healthUrl(role: ServiceRole): string {
   return `${serviceUrl(role)}${role === "testing-service" ? "/health" : "/actuator/health"}`;
@@ -245,17 +251,22 @@ async function actuatorGauge(role: ServiceRole, metric: string): Promise<number 
   return body.measurements?.find((each) => each.statistic === "VALUE")?.value ?? null;
 }
 
-/** The one pod labelled `app=<app>` that is not being deleted. */
-async function livePodOf(app: string, run: Kubectl = kubectl): Promise<PodView> {
+/** The pods matching label `selector` that are not being deleted. */
+async function livePodsOf(selector: string, run: Kubectl): Promise<PodView[]> {
   const pods = JSON.parse(
-    await run(["get", "pods", "-n", NAMESPACE, "-l", `app=${app}`, "-o", "json"]),
+    await run(["get", "pods", "-n", NAMESPACE, "-l", selector, "-o", "json"]),
   ) as { items: PodView[] };
   // A Recreate rollout leaves the old pod terminating for a while beside nothing, or beside the new
   // one once it is scheduled; the live one is the one not being deleted.
-  const live = pods.items.filter((pod) => pod.metadata.deletionTimestamp === undefined);
+  return pods.items.filter((pod) => pod.metadata.deletionTimestamp === undefined);
+}
+
+/** The one pod labelled `selector` that is not being deleted. */
+async function livePodOf(selector: string, run: Kubectl = kubectl): Promise<PodView> {
+  const live = await livePodsOf(selector, run);
   if (live.length !== 1) {
     throw new Error(
-      `expected one live pod of ${app} in ${NAMESPACE}, found ` +
+      `expected one live pod labelled ${selector} in ${NAMESPACE}, found ` +
         `${live.map((pod) => pod.metadata.name).join(", ") || "none"}`,
     );
   }
@@ -264,7 +275,7 @@ async function livePodOf(app: string, run: Kubectl = kubectl): Promise<PodView> 
 
 /** The one pod of a role that is not being deleted. */
 function livePod(role: ServiceRole): Promise<PodView> {
-  return livePodOf(deploymentOf(role));
+  return livePodOf(`app=${deploymentOf(role)}`);
 }
 
 /**
@@ -275,7 +286,7 @@ async function overlayContainer(
   overlay: Overlay,
   run: Kubectl,
 ): Promise<{ restartCount: number; ready: boolean }> {
-  const status = (await livePodOf(overlay, run)).status.containerStatuses?.find(
+  const status = (await livePodOf(`app=${overlay}`, run)).status.containerStatuses?.find(
     (each) => each.name === overlay,
   );
   if (!status) throw new Error(`the ${overlay} pod in ${NAMESPACE} reports no container ${overlay}`);
@@ -313,6 +324,8 @@ export interface K8sEnvOptions {
   kubectl?: Kubectl;
   /** The host probe the overlay methods poll; `hostReady` by default. */
   overlayReady?: (overlay: Overlay) => () => Promise<string | null>;
+  /** The status probe a micro engine restart polls; `httpStatus` by default. */
+  httpStatus?: (url: string) => Promise<number>;
 }
 
 export class K8sEnv implements Env {
@@ -324,12 +337,14 @@ export class K8sEnv implements Env {
   private readonly microDomain: () => string;
   private readonly kubectl: Kubectl;
   private readonly overlayReady: (overlay: Overlay) => () => Promise<string | null>;
+  private readonly httpStatus: (url: string) => Promise<number>;
 
   constructor(options: K8sEnvOptions) {
     this.engineKind = options.engineKind;
     this.microDomain = options.microDomain ?? (() => recordedMicroDomain(options.microDomainState));
     this.kubectl = options.kubectl ?? kubectl;
     this.overlayReady = options.overlayReady ?? hostReady;
+    this.httpStatus = options.httpStatus ?? httpStatus;
   }
 
   url(service: ServiceRole): string {
@@ -402,7 +417,39 @@ export class K8sEnv implements Env {
   }
 
   async restart(service: ServiceRole): Promise<void> {
+    if (service === "engine" && this.engineKind === "micro") return this.restartMicroPod();
     await restoreDeclared(service);
+  }
+
+  /** The selector of the micro domain's pods. */
+  private microPods(): string {
+    return `${MICRO_POD_LABEL}=${microServiceOf(this.microDomain())}`;
+  }
+
+  /**
+   * Deletes the micro domain's pod, then waits until the pod that replaces it answers on its
+   * readiness endpoint. The Helm manifest declares no micro Deployment, so `restoreDeclared` has
+   * nothing to restore for it.
+   */
+  private async restartMicroPod(): Promise<void> {
+    const selector = this.microPods();
+    const old = (await livePodOf(selector, this.kubectl)).metadata.name;
+    await this.kubectl(["delete", "pod", old, "-n", NAMESPACE, "--wait=false"]);
+    const ready = `${this.engineUrl()}/q/health/ready`;
+    await pollUntil(
+      MICRO_RESTART_TIMEOUT,
+      2_000,
+      async () => {
+        const pods = (await livePodsOf(selector, this.kubectl)).filter((pod) => pod.metadata.name !== old);
+        if (pods.length !== 1) return `${pods.length} pods replace ${old}`;
+        const engine = pods[0].status.containerStatuses?.find((each) => each.name === MICRO_CONTAINER);
+        if (!engine?.ready) return `container ${MICRO_CONTAINER} of ${pods[0].metadata.name} is not Ready`;
+        // Checked after the pod: until the deleted pod leaves the Service, it can still answer here.
+        const status = await this.httpStatus(ready);
+        return status === 200 ? null : `${ready} answered ${status || "nothing"}`;
+      },
+      (last) => `micro pod ${old} was deleted and no pod replaced it within ${MICRO_RESTART_TIMEOUT}ms (${last})`,
+    );
   }
 
   /** Nothing to reload: nginx reaches each Service by its ClusterIP, which a pod restart keeps. */
@@ -413,7 +460,11 @@ export class K8sEnv implements Env {
   }
 
   async address(service: ServiceRole): Promise<string> {
-    return (await livePod(service)).status.podIP ?? "";
+    const pod =
+      service === "engine" && this.engineKind === "micro"
+        ? await livePodOf(this.microPods(), this.kubectl)
+        : await livePod(service);
+    return pod.status.podIP ?? "";
   }
 
   async resourcePeaks(): Promise<ResourcePeak[]> {

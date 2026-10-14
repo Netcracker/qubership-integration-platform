@@ -17,6 +17,9 @@
  * the one that loses some of them. The corpus set is checked against the fixture directories on
  * disk first, so the claim cannot quietly shrink to the chains that survived.
  *
+ * `env-micro` runs this file against the micro copy of the corpus, where `env.restart("engine")`
+ * deletes the micro domain's pod and waits for its replacement.
+ *
  * The restart goes through `env.restart`, which recreates the container, waits for its health
  * check, and reloads the proxy — nginx resolves `proxy_pass http://engine:8080` once, at config
  * load, so a recreated backend otherwise strands every `/api/` address for the rest of the run.
@@ -27,15 +30,14 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import {
+  projectCorpus,
   readCorpusState,
   seedChain,
   waitForRoutes,
   type SeedChain,
-  type SeededCorpus,
 } from "../../support/corpus.js";
 import { callChain } from "../../support/sessions.js";
 import { sleep } from "../../support/poll.js";
-import { corpusFixtureNames } from "../../fixtures/templating.js";
 import type { Catalog } from "../../support/catalog.js";
 import type { Env, ServiceRole } from "../../env/index.js";
 import { RESTART_TIMEOUT } from "./constants.js";
@@ -130,15 +132,15 @@ async function expectEngineApiSurface(env: Env, why: string): Promise<void> {
   expect(ENGINE_ANSWERS, `${why} — the engine's /api/ surface answered ${answer}`).toContain(answer);
 }
 
-/** The corpus, with the set it holds asserted against the fixtures on disk. */
-function corpusOfEveryFixture(): SeededCorpus {
-  const corpus = readCorpusState();
+/** The project's corpus chains, with the set they hold asserted against the fixtures it names. */
+function corpusOfEveryFixture(): SeedChain[] {
+  const { chains, fixtures } = projectCorpus();
   expect(
-    corpus.chains.map((each) => each.fixture).sort(),
+    chains.map((each) => each.fixture).sort(),
     "the corpus holds fewer chains than there are fixtures, so 'every chain answers again' would " +
       "be a claim about whatever survived",
-  ).toEqual(corpusFixtureNames());
-  return corpus;
+  ).toEqual(fixtures);
+  return chains;
 }
 
 // The catalog restart reads the deployments the engine restart left, and a failed engine restart
@@ -147,8 +149,7 @@ test.describe.configure({ mode: "serial" });
 
 test("every seed chain answers again after the engine restarts, with nothing redeployed", { tag: ["@engine", "@infra", "@tier1"] }, async ({ catalog, env, request }) => {
   test.setTimeout(RESTART_TIMEOUT);
-  const corpus = corpusOfEveryFixture();
-  const chains = corpus.chains;
+  const chains = corpusOfEveryFixture();
 
   // What the engine reports it is running, and that every route serves *now*: a route missing after
   // the restart is then the restart's doing rather than damage an earlier project left.
@@ -186,7 +187,7 @@ test("every seed chain answers again after the engine restarts, with nothing red
 
   // A route answering 405 is a listener rather than a working chain, so one chain is driven end to
   // end: the trigger, the element after it, and the body that comes back.
-  const echo = seedChain(corpus, "http-echo");
+  const echo = seedChain(readCorpusState(), "http-echo");
   const { response } = await callChain(request, env.chainUrl(echo.contextPath), {
     data: { ping: "after-engine-restart" },
   });
@@ -204,10 +205,9 @@ test("every seed chain answers again after the engine restarts, with nothing red
 
 test("the catalog restarts without disturbing what is deployed, and the engine keeps answering", { tag: ["@catalog", "@engine", "@infra", "@tier1"] }, async ({ catalog, env }) => {
   test.setTimeout(RESTART_TIMEOUT);
-  const corpus = corpusOfEveryFixture();
-  const chains = corpus.chains;
+  const chains = corpusOfEveryFixture();
   const before = await deploymentRows(catalog, chains);
-  const echo = seedChain(corpus, "http-echo");
+  const echo = seedChain(readCorpusState(), "http-echo");
   const url = env.chainUrl(echo.contextPath);
 
   // Driven *during* the downtime rather than after it. The engine holds its routes in memory, and

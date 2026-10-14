@@ -2,7 +2,8 @@
  * The Kubernetes adapter's logic that needs no cluster: the cluster kind read from the context, the
  * addresses per role and per engine kind, the micro state file a project names, the prerequisite
  * checks against a stubbed `kubectl`, the Helm arguments, the micro-engine build profile, the
- * `kubectl top` parser, the broker overlay methods, and the `env` patches a restart sends.
+ * `kubectl top` parser, the broker overlay methods, the micro engine's address and restart, and the
+ * `env` patches a restart sends.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -502,6 +503,65 @@ test("removeOverlay leaves the Helm-owned brokers alone", { tag: ["@infra", "@ti
   expect(calls).toEqual([]);
 });
 
+/** The pods of a micro domain as `kubectl get pods -o json` lists them, each `[name, deleted, integration Ready]`. */
+function microPods(...pods: [string, boolean, boolean][]): string {
+  return JSON.stringify({
+    items: pods.map(([name, deleted, ready]) => ({
+      metadata: { name, ...(deleted ? { deletionTimestamp: "2026-10-14T00:00:00Z" } : {}) },
+      status: {
+        podIP: `ip-of-${name}`,
+        containerStatuses: [
+          { name: "istio-proxy", restartCount: 0, ready: true },
+          { name: "integration", restartCount: 0, ready },
+        ],
+      },
+    })),
+  });
+}
+
+const MICRO_SELECTOR = "camel.apache.org/integration=qip-engine-e2e-run1-micro-v1";
+
+test("on a micro env the engine address is the micro domain's live pod", { tag: ["@infra", "@tier1"] }, async () => {
+  const { calls, run } = recordingKubectl([microPods(["old", true, false], ["live", false, true])]);
+  const env = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro", kubectl: run });
+  expect(await env.address("engine")).toBe("ip-of-live");
+  expect(calls).toEqual([`get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`]);
+});
+
+test("on a micro env the engine restart deletes the domain's pod and waits for a Ready replacement to answer", { tag: ["@infra", "@tier1"] }, async () => {
+  // The deleted pod is listed live at first; the replacement is then not Ready, then Ready while its
+  // engine still answers 503.
+  const { calls, run } = recordingKubectl([
+    microPods(["old", false, true]),
+    microPods(["old", false, true]),
+    microPods(["old", true, true], ["new", false, false]),
+    microPods(["new", false, true]),
+  ]);
+  const statuses = [503, 200];
+  const probed: string[] = [];
+  const env = new K8sEnv({
+    engineKind: "micro",
+    microDomain: () => "e2e-run1-micro",
+    kubectl: run,
+    httpStatus: async (url) => {
+      probed.push(url);
+      return statuses.shift() ?? 0;
+    },
+  });
+  await env.restart("engine");
+  expect(calls).toEqual([
+    `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
+    "delete pod old -n qip-e2e --wait=false",
+    `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
+    `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
+    `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
+    `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
+  ]);
+  // Probed only once the replacement's engine container is Ready, and until it answers 200.
+  expect(probed).toHaveLength(2);
+  for (const url of probed) expect(url).toMatch(/\/e2e\/svc\/qip-engine-e2e-run1-micro-v1\/q\/health\/ready$/);
+});
+
 test("the k8s target declares its own projects and the broker projects, and leaves nothing out", { tag: ["@infra", "@tier1"] }, () => {
   const setup = withEnv({ E2E_BROKERS: undefined }, () => targetSetup("k8s"));
   expect(
@@ -517,6 +577,7 @@ test("the k8s target declares its own projects and the broker projects, and leav
     { name: "runtime-micro", dependencies: ["seed-micro", "tooling"], teardown: undefined, engineKind: "micro" },
     { name: "runtime-micro-redeploy", dependencies: ["seed-micro"], teardown: undefined, engineKind: "micro" },
     { name: "global-micro", dependencies: ["global", "seed-micro"], teardown: undefined, engineKind: "micro" },
+    { name: "env-micro", dependencies: ["global-micro", "runtime-micro"], teardown: undefined, engineKind: "micro" },
     { name: "brokers-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: undefined },
     { name: "brokers", dependencies: ["brokers-seed"], teardown: undefined, engineKind: undefined },
     { name: "brokers-restart", dependencies: ["brokers", "brokers-micro"], teardown: undefined, engineKind: undefined },

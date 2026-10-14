@@ -64,7 +64,10 @@ export interface Env {
   engineLogs(since: string): Promise<string>;
   /** Restart a service with extra settings applied, and wait until it is serving again. */
   restartWith(service: ServiceRole, settings: Record<string, string>): Promise<void>;
-  /** Restart a service with its committed settings, undoing a restartWith. */
+  /**
+   * Restart a service with its committed settings, undoing a restartWith. On a micro environment
+   * `engine` is the micro domain's pod, which is deleted and replaced.
+   */
   restart(service: ServiceRole): Promise<void>;
   /** Settings a service currently runs with, so a spec can refuse to start from a dirty state. */
   settings(service: ServiceRole): Promise<Record<string, string>>;
@@ -90,7 +93,8 @@ export interface Env {
   processEnvelope(service: ServiceRole): Promise<ProcessEnvelope>;
   /**
    * The IP address of the service's running process: the container's on Compose, the live pod's on
-   * Kubernetes. The engine registers in Consul under this address.
+   * Kubernetes, and on a micro environment the micro domain's pod for `engine`. The engine
+   * registers in Consul under this address.
    */
   address(service: ServiceRole): Promise<string>;
   /**
