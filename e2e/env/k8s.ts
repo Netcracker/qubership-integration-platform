@@ -87,6 +87,9 @@ export const K8S_OVERRIDES_FILE = path.resolve(HERE, "..", ".e2e-k8s-overrides.j
 /** Where `seed-micro` records the micro copy of the corpus and the domain it deployed it to. */
 export const MICRO_CORPUS_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-corpus.json");
 
+/** Where `runtime-micro-redeploy` records the micro domain its current spec file deployed to. */
+export const MICRO_REDEPLOY_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-redeploy.json");
+
 /** The micro domain a micro seed project recorded in `file`. */
 export function recordedMicroDomain(file: string = MICRO_CORPUS_STATE_FILE): string {
   const domain = readStateFile<{ domain?: string }>(file)?.domain;

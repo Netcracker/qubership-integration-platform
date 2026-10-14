@@ -30,6 +30,9 @@ import type { Overlay, ServiceRole } from "../../env/index.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
 import { projectCorpus } from "../../support/corpus.js";
 import { MICRO_FIXTURES } from "../../fixtures/templating.js";
+import { K8S_PROJECTS } from "./projects.js";
+import type { Catalog } from "../../support/catalog.js";
+import { deleteDomain, deployToDomain, tokenedDomain } from "../../support/deployable.js";
 
 const ON_K8S = {
   CIP_TARGET: "k8s",
@@ -123,6 +126,42 @@ test("a micro project reads its domain and its corpus copy from the state file i
     const missing = path.join(dir, "absent.json");
     expect(() => projectCorpus({ engineKind: "micro", microDomainState: missing })).toThrow(missing);
     expect(() => new K8sEnv({ engineKind: "micro", microDomainState: missing }).engineUrl()).toThrow(missing);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a tokened domain is recorded where its project's env reads it, until it is deleted", { tag: ["@infra", "@tier1"] }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-tokened-domain-"));
+  try {
+    const record = path.join(dir, "redeploy.json");
+    const target = tokenedDomain("run3", "placeholder-redeploy", record);
+    expect(target.domain).toBe("e2e-run3-placeholder-redeploy");
+    const calls: string[] = [];
+    const catalog = {
+      deployChains: async (ids: string[], domains: string[]) => {
+        calls.push(`deployChains ${ids.join(",")} ${domains.join(",")}`);
+        return ids.map((chainId) => ({ chainId, status: "CREATED" }));
+      },
+      deleteCustomResource: async (name: string) => {
+        calls.push(`deleteCustomResource ${name}`);
+      },
+    } as unknown as Catalog;
+
+    // A chain with no route, so the route poll has nothing to call.
+    await deployToDomain(catalog, target, [{ id: "c1", name: "e2e-run3-x", contextPath: "" }]);
+    withEnv(ON_K8S, () => {
+      const engine = "http://localhost:30080/e2e/svc/qip-engine-e2e-run3-placeholder-redeploy-v1";
+      expect(target.env.engineUrl()).toBe(engine);
+      expect(targetSetup("k8s").createEnv("micro", record).engineUrl()).toBe(engine);
+    });
+
+    await deleteDomain(catalog, target);
+    expect(fs.existsSync(record)).toBe(false);
+    expect(calls).toEqual([
+      "deployChains c1 e2e-run3-placeholder-redeploy",
+      "deleteCustomResource e2e-run3-placeholder-redeploy",
+    ]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -475,6 +514,7 @@ test("the k8s target declares its own projects and the broker projects, and leav
     { name: "k8s", dependencies: ["seed"], teardown: undefined, engineKind: undefined },
     { name: "seed-micro", dependencies: undefined, teardown: "suite-teardown", engineKind: "micro" },
     { name: "runtime-micro", dependencies: ["seed-micro", "tooling"], teardown: undefined, engineKind: "micro" },
+    { name: "runtime-micro-redeploy", dependencies: ["seed-micro"], teardown: undefined, engineKind: "micro" },
     { name: "brokers-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: undefined },
     { name: "brokers", dependencies: ["brokers-seed"], teardown: undefined, engineKind: undefined },
     { name: "brokers-restart", dependencies: ["brokers"], teardown: undefined, engineKind: undefined },
@@ -488,7 +528,7 @@ test("the k8s target declares its own projects and the broker projects, and leav
 
 test("E2E_BROKERS=0 drops the broker projects on k8s and names them as absent", { tag: ["@infra", "@tier1"] }, () => {
   const setup = withEnv({ E2E_BROKERS: "0" }, () => targetSetup("k8s"));
-  expect(setup.projects.map((each) => each.name)).toEqual(["k8s", "seed-micro", "runtime-micro"]);
+  expect(setup.projects.map((each) => each.name)).toEqual(K8S_PROJECTS);
   expect(setup.absent).toEqual([
     { name: "brokers-seed", reason: "E2E_BROKERS=0" },
     { name: "brokers", reason: "E2E_BROKERS=0" },

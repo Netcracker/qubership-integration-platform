@@ -272,7 +272,11 @@ right now, so a controller added to a service fails a run.
     `{ type: "classic-only", description: "<reason>" }` on its declaration line; the micro projects
     leave it out through `grepInvert: /@classic-only/`. A case that deploys a chain of its own is
     one of them, since a deploy into the shared micro domain rolls the pod under every
-    `runtime-micro` case; every other case reads a chain both seeds deploy.
+    `runtime-micro` case; every other case reads a chain both seeds deploy. The micro case of such a
+    deploy goes in `specs/runtime-micro-redeploy/`, whose project runs one file at a time: the file
+    deploys its chains in `beforeAll` to a micro domain of its own through `tokenedDomain` and
+    `deployToDomain` in `support/deployable.ts`, deletes it in `afterAll`, and calls the chains
+    through the `env` the helper returns.
     `specs/schema/target-rules.spec.ts` checks this rule, that the tag and the annotation come
     together, and the `support/kube.ts` half of rule 4.
 

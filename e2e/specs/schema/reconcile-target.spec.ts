@@ -16,10 +16,9 @@ import {
   type OperationClaim,
   type RegistryEntry,
 } from "../../registry/elements.js";
-import { BROKER_PROJECTS } from "./projects.js";
+import { BROKER_PROJECTS, K8S_PROJECTS } from "./projects.js";
 
 const COMMON_PROJECTS = ["schema", "api", "seed", "seed-teardown", "tooling", "runtime", "env", "global", "suite-teardown"];
-const K8S_PROJECTS = ["k8s", "seed-micro", "runtime-micro"];
 
 const bothRow: RegistryEntry = { family: "condition", kind: "element", tier: 1, status: "covered", tags: ["@engine"] };
 const composeRow: RegistryEntry = {

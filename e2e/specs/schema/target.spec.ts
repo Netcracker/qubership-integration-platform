@@ -20,6 +20,7 @@ import {
 import { brokersEnabled, stateFileName, target } from "../../env/target.js";
 import { targetSetup, type SuiteProject } from "../../env/target-setup.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
+import { MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../../env/k8s.js";
 import { BROKER_PROJECTS } from "./projects.js";
 
 /**
@@ -230,4 +231,13 @@ test("a project can ask for the micro engine, which Compose refuses", { tag: ["@
   const compose = targetSetup("compose");
   expect(compose.createEnv("classic").name).toBe("compose");
   expect(() => compose.createEnv("micro")).toThrow(/classic engine only/);
+});
+
+test("runtime-micro-redeploy runs one file at a time after seed-micro, on the domain its own state file records", { tag: ["@infra", "@tier1"] }, () => {
+  const project = targetSetup("k8s").projects.find((each) => each.name === "runtime-micro-redeploy");
+  expect(project && schedule(project)).toBe("./specs/runtime-micro-redeploy; after seed-micro; 1 worker");
+  expect(project?.grepInvert).toEqual(/@classic-only/);
+  // Never the shared domain's file: a deploy there would roll the pod under every runtime-micro case.
+  expect(project?.use).toEqual({ engineKind: "micro", microDomainState: MICRO_REDEPLOY_STATE_FILE });
+  expect(MICRO_REDEPLOY_STATE_FILE).not.toBe(MICRO_CORPUS_STATE_FILE);
 });

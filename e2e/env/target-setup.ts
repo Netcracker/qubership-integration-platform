@@ -15,7 +15,7 @@ import type {
 import { ComposeEnv } from "./compose.js";
 import type { EngineKind, Env, ProcessEnvelope } from "./index.js";
 import type { ProvisionMode, ProvisionReport } from "./provision.js";
-import { K8sEnv } from "./k8s.js";
+import { K8sEnv, MICRO_REDEPLOY_STATE_FILE } from "./k8s.js";
 import { collectK8sHeader, k8sBaseline, topSample } from "./k8s-observer.js";
 import { provisionCompose } from "./provision/compose.js";
 import { provisionK8s } from "./provision/k8s.js";
@@ -168,6 +168,19 @@ function k8sProjects(): SuiteProject[] {
       fullyParallel: true,
       dependencies: ["seed-micro", "tooling"],
       use: { engineKind: "micro" },
+    },
+    {
+      // Micro cases that deploy and redeploy chains of their own. Each file deploys to a micro
+      // domain of its own and deletes it afterwards, and every deploy rolls that domain's pod, so
+      // `workers: 1` keeps one such domain alive at a time. After `seed-micro`, so its first JVM
+      // start never overlaps the shared domain's. The domain a file deployed is recorded in its own
+      // state file, which the `env` fixture reads, so a failed case attaches that pod's log.
+      name: "runtime-micro-redeploy",
+      testDir: "./specs/runtime-micro-redeploy",
+      grepInvert: /@classic-only/,
+      workers: 1,
+      dependencies: ["seed-micro"],
+      use: { engineKind: "micro", microDomainState: MICRO_REDEPLOY_STATE_FILE },
     },
   ];
 }
