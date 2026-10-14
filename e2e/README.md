@@ -64,9 +64,9 @@ fails naming its pid instead.
 
 `schema`, `api`, `tooling`, `runtime`, `runtime-micro`, `runtime-micro-redeploy`, `k8s`, `brokers`,
 `brokers-micro`, and `brokers-restart` run with no browser installed. `env`, `global`,
-`global-micro`, and `env-micro` depend on `ui`, directly or through `global`, so
-`--project=env` and `--project=global` build the bundle and launch Chromium too. Set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment
-downloads a browser you do not want.
+`global-micro`, and `env-micro` depend on `ui`, directly or through `global`, so `--project=env`
+and `--project=global` build the bundle and launch Chromium too. Set
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment downloads a browser you do not want.
 
 The default Compose run also starts the four broker overlays and binds their host ports: `9092`
 (Kafka), `5672` and `15672` (RabbitMQ), `8085` (the pub/sub emulator), and `2222` (SFTP), and
@@ -143,7 +143,8 @@ its broker overlays before a Kubernetes run, and run `helm uninstall qip -n qip-
 Compose run. Each target keeps its own state files. The Kubernetes ones start with `.e2e-k8s-`
 (`.e2e-k8s-corpus.json`, `.e2e-k8s-brokers-corpus.json`, `.e2e-k8s-runs.json`,
 `.e2e-k8s-overrides.json`, `.e2e-k8s-micro-corpus.json`, `.e2e-k8s-micro-redeploy.json`,
-`.e2e-k8s-brokers-micro-corpus.json`, `.e2e-k8s-resources.json`, `.e2e-k8s-samples.jsonl`), so a sweep or a settings revert never reaches the other target.
+`.e2e-k8s-brokers-micro-corpus.json`, `.e2e-k8s-resources.json`, `.e2e-k8s-samples.jsonl`), so a
+sweep or a settings revert never reaches the other target.
 `.e2e-ui-server.json` is shared, because the UI bundle is the same on both.
 
 The chart's Consul keeps no volume. When its pod restarts, a corpus kept with `E2E_KEEP=1` loses its
@@ -342,9 +343,9 @@ Kubernetes run:
 Wall time 768.4 s: 935 passed, 0 failed, 0 flaky, 0 skipped.
 ```
 
-"Not run on this target" is the `absent` list: a project this target leaves out, with the reason. A case that did not run is not a case that passed, so read the passed, failed, and
-skipped counts off the last line. `test-results/report.json` holds the same run in machine-readable
-form.
+"Not run on this target" is the `absent` list: a project this target leaves out, with the reason.
+A case that did not run is not a case that passed, so read the passed, failed, and skipped counts
+off the last line. `test-results/report.json` holds the same run in machine-readable form.
 
 ### Reading a failure
 
@@ -458,10 +459,11 @@ alone, skips provisioning and prints `[provision] skipped: schema needs no stack
 
 Four optional Compose overlays sit beside the base stack: `docker-compose.kafka.yml` (a single
 KRaft `kafka`; the file's `akhq` UI is not started), `docker-compose.rabbitmq.yml`,
-`docker-compose.pubsub.yml`, and `docker-compose.sftp.yml`. The `brokers-seed` project brings up the ones its fixtures need, under the
-base stack's project name so the containers share its network, then imports and deploys
-`fixtures/brokers/`. A running overlay is left alone, and a broker that fails to start fails the run
-at setup, naming the overlay. There is no compose command to run by hand.
+`docker-compose.pubsub.yml`, and `docker-compose.sftp.yml`. The `brokers-seed` project brings up
+the ones its fixtures need, under the base stack's project name so the containers share its
+network, then imports and deploys `fixtures/brokers/`. A running overlay is left alone, and a broker
+that fails to start fails the run at setup, naming the overlay. There is no compose command to run
+by hand.
 
 The broker fixtures are a corpus of their own, outside the shared one, because the engine's
 pre-deploy connectivity checks would stall the whole corpus whenever a broker is down. The seed
@@ -603,11 +605,11 @@ broker corpus until `global` has finished, without one failing broker case skipp
 each runs files of its classic counterpart against the micro engine.
 
 The seed imports the services under `fixtures/services/` that the corpus chains call, context and
-MCP services included, then every
-fixture under `fixtures/chains/`, `fixtures/axes/`, and `fixtures/script/` as one archive, raises each chain's session logging so there is a trace to read, deploys them in one
-batch, and waits until the routes answer. What it deployed lands in `.e2e-corpus.json`, and the
-projects that depend on it read the chains from there. `fixtures/axes/` is gitignored and rewritten
-on every seed.
+MCP services included, then every fixture under `fixtures/chains/`, `fixtures/axes/`, and
+`fixtures/script/` as one archive, raises each chain's session logging so there is a trace to read,
+deploys them in one batch, and waits until the routes answer. What it deployed lands in
+`.e2e-corpus.json`, and the projects that depend on it read the chains from there.
+`fixtures/axes/` is gitignored and rewritten on every seed.
 
 ## Coverage registries
 
