@@ -15,8 +15,8 @@ kafka:
   enabled: false
   nodePort:
   loadBalancerPort:
-  # PEM server certificate and unencrypted key; with the key set, the TLS and
-  # AUTHTLS listeners are added. Pass them with --set-file.
+  # PEM server certificate and unencrypted key; with the key set, the TLS,
+  # AUTHTLS, and TLS13 listeners are added. Pass them with --set-file.
   tls:
     serverCert:
     serverKey:

@@ -60,12 +60,12 @@ spec:
             - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: CONTROLLER
             - name: KAFKA_LISTENERS
-              value: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9092,AUTH://0.0.0.0:29094{{ if $tls }},TLS://0.0.0.0:29095,AUTHTLS://0.0.0.0:29096{{ end }}
+              value: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9092,AUTH://0.0.0.0:29094{{ if $tls }},TLS://0.0.0.0:29095,AUTHTLS://0.0.0.0:29096,TLS13://0.0.0.0:29097{{ end }}
             # EXTERNAL is for clients on the host, through the kafka-host Service.
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: INTERNAL://kafka:29092,EXTERNAL://localhost:{{ $hostPort }},AUTH://kafka:29094{{ if $tls }},TLS://kafka:29095,AUTHTLS://kafka:29096{{ end }}
+              value: INTERNAL://kafka:29092,EXTERNAL://localhost:{{ $hostPort }},AUTH://kafka:29094{{ if $tls }},TLS://kafka:29095,AUTHTLS://kafka:29096,TLS13://kafka:29097{{ end }}
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-              value: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,AUTH:SASL_PLAINTEXT{{ if $tls }},TLS:SSL,AUTHTLS:SASL_SSL{{ end }}
+              value: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,AUTH:SASL_PLAINTEXT{{ if $tls }},TLS:SSL,AUTHTLS:SASL_SSL,TLS13:SSL{{ end }}
             - name: KAFKA_INTER_BROKER_LISTENER_NAME
               value: INTERNAL
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
@@ -85,12 +85,15 @@ spec:
               value: org.apache.kafka.common.security.scram.ScramLoginModule required;
             {{- end }}
             {{- if $tls }}
-            {{- range $listener := list "TLS" "AUTHTLS" }}
+            {{- range $listener := list "TLS" "AUTHTLS" "TLS13" }}
             - name: KAFKA_LISTENER_NAME_{{ $listener }}_SSL_KEYSTORE_TYPE
               value: PEM
             - name: KAFKA_LISTENER_NAME_{{ $listener }}_SSL_KEYSTORE_LOCATION
               value: /etc/kafka/secrets/kafka-keystore.pem
             {{- end }}
+            # TLS13 refuses a client restricted to TLSv1.2, which TLS accepts.
+            - name: KAFKA_LISTENER_NAME_TLS13_SSL_ENABLED_PROTOCOLS
+              value: TLSv1.3
             {{- end }}
           ports:
             - containerPort: 29092
@@ -100,6 +103,7 @@ spec:
             {{- if $tls }}
             - containerPort: 29095
             - containerPort: 29096
+            - containerPort: 29097
             {{- end }}
           readinessProbe:
             tcpSocket:

@@ -25,6 +25,7 @@ connect to `kafka`; a client on the host connects to `localhost:9092`.
 | `AUTH` | 29094 | `SASL_PLAINTEXT` | user `e2e`, password `e2e-secret` |
 | `TLS` | 29095 | `SSL` | clients that trust `kafka-ssl/client/ca.crt` |
 | `AUTHTLS` | 29096 | `SASL_SSL` | both of the above |
+| `TLS13` | 29097 | `SSL`, TLSv1.3 only | as `TLS`; a client restricted to TLSv1.2 is refused |
 
 `AUTH` and `AUTHTLS` accept the `PLAIN`, `SCRAM-SHA-256`, and `SCRAM-SHA-512` mechanisms. The SCRAM credentials are
 written when the container formats its storage, so they survive a restart and disappear with the container.
