@@ -74,18 +74,19 @@ test("the session logging level decides whether a call leaves a trace", { tag: [
   await catalog.saveLoggingProperties(off.id, logging("OFF"));
   await catalog.saveLoggingProperties(error.id, logging("ERROR"));
 
-  // The ERROR chain at ERROR, proven before anything is read off the three chains: a failed call
-  // records the failed step alone, where DEBUG records the trigger's steps as well. Each call
-  // carries its own token, so a call the change did not reach yet only costs an interval.
+  // The ERROR chain at ERROR, proven before anything is read off the three chains, by the level the
+  // session records. Its element list cannot gate: a DEBUG session can be read while only its
+  // failed step is indexed (CI run 38677650288). Each call carries its own token, so a call the
+  // change did not reach yet only costs an interval.
   await expect
     .poll(
       async () => {
         const failed = await callChain(request, env.chainUrl(error.contextPath), { headers: { [FAIL_HEADER]: "yes" }, data: {} });
-        return elementNames(await sessions.byExternalId(failed.token, { elements: 1 }));
+        return (await sessions.byExternalId(failed.token, { elements: 1 })).loggingLevel;
       },
-      { timeout: DEPLOY_TIMEOUT, message: "the ERROR chain still records a failed call's trigger steps" },
+      { timeout: DEPLOY_TIMEOUT, message: "the ERROR chain still records a failed call at another level" },
     )
-    .toEqual([PROBE_ELEMENT]);
+    .toBe("ERROR");
 
   // OFF: nothing is queryable, and that holds for a call that failed as much as for one that did
   // not. The failing half is what separates OFF from ERROR, which are otherwise indistinguishable.
@@ -118,6 +119,7 @@ test("the session logging level decides whether a call leaves a trace", { tag: [
   expect(failed.response.status()).toBe(500);
   const failedSession = await sessions.byExternalId(failed.token, { elements: 1 });
   expect(failedSession.executionStatus).toBe("COMPLETED_WITH_ERRORS");
+  expect(failedSession.loggingLevel).toBe("ERROR");
   expect(elementNames(failedSession)).toEqual([PROBE_ELEMENT]);
 
   // DEBUG with BODY in logPayload: every step, and the body with it.
