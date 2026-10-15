@@ -1,6 +1,6 @@
-import { QIP_SCHEMA_URLS } from "./qipSchemas";
+import { CIP_SCHEMA_URLS } from "./cipSchemas";
 
-export class QipSpecificationGenerator {
+export class CipSpecificationGenerator {
   // OpenAPI 3.0/3.1 path-item methods. `trace` matches the backend
   // (`PathItem.readOperations()`). `query` is omitted on purpose: it is a
   // 3.2-only method that the backend drops via swagger-parser 2.1.x.
@@ -25,7 +25,7 @@ export class QipSpecificationGenerator {
     extraContent: Record<string, any> = {},
   ) {
     return {
-      $schema: QIP_SCHEMA_URLS.SPECIFICATION,
+      $schema: CIP_SCHEMA_URLS.SPECIFICATION,
       id: specId,
       name,
       content: {
@@ -62,7 +62,7 @@ export class QipSpecificationGenerator {
   /**
    * Creates CIP specification from OpenAPI 3.0 or Swagger 2.0
    */
-  static createQipSpecificationFromOpenApi(
+  static createCipSpecificationFromOpenApi(
     openApiSpec: any,
     fileName: string,
     specificationId: string,
@@ -92,14 +92,14 @@ export class QipSpecificationGenerator {
         for (const [method, operation] of Object.entries(pathItemObj)) {
           if (this.HTTP_METHODS.includes(method.toLowerCase())) {
             const operationObj = operation as any;
-            const qipOperation = this.createQipOperation(
+            const cipOperation = this.createCipOperation(
               operationObj,
               method.toUpperCase(),
               path,
               processedSpec,
               specificationId,
             );
-            operations.push(qipOperation);
+            operations.push(cipOperation);
           }
         }
       }
@@ -118,7 +118,7 @@ export class QipSpecificationGenerator {
   /**
    * Creates CIP operation from OpenAPI operation
    */
-  private static createQipOperation(
+  private static createCipOperation(
     operation: any,
     method: string,
     path: string,

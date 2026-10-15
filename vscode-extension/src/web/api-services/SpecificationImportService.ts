@@ -26,7 +26,7 @@ import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from "./parsers/ContentParser";
 import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
-import { QIP_SCHEMA_URLS } from "../services/qipSchemas";
+import { CIP_SCHEMA_URLS } from "../services/cipSchemas";
 import { SpecificationValidator } from "./SpecificationValidator";
 import { ApiSpecificationType } from "./importApiTypes";
 import { normalizePath } from "./pathUtils";
@@ -393,9 +393,9 @@ export class SpecificationImportService {
         const specFileUri = Uri.joinPath(baseFolder, specFileName);
 
         // Create CIP specification using operations from SpecificationProcessorService
-        const qipSpecification = {
+        const cipSpecification = {
           id: specification.id,
-          $schema: QIP_SCHEMA_URLS.SPECIFICATION,
+          $schema: CIP_SCHEMA_URLS.SPECIFICATION,
           name: specification.name,
           content: {
             deprecated: specification.deprecated,
@@ -421,7 +421,7 @@ export class SpecificationImportService {
         };
 
         // Disable anchors to avoid "Excessive alias count" error when parsing large specifications
-        const yamlContent = yaml.stringify(qipSpecification, {
+        const yamlContent = yaml.stringify(cipSpecification, {
           aliasDuplicateObjects: false,
         });
         const bytes = new TextEncoder().encode(yamlContent);

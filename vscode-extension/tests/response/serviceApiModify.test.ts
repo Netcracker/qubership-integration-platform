@@ -13,7 +13,7 @@ jest.mock("../../src/web/response/serviceApiRead", () => ({
   getService: jest.fn(),
   getContextService: jest.fn(),
 }));
-jest.mock("../../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
+jest.mock("../../src/web/extension", () => ({ refreshCipExplorer: jest.fn() }));
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },

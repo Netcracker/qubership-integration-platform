@@ -4,13 +4,13 @@ import * as vscode from "vscode";
 import * as yaml from "yaml";
 import * as path from "path";
 import { LibraryData } from "@netcracker/qip-ui";
-import { QipFileType } from "../serviceApiUtils";
+import { CipFileType } from "../serviceApiUtils";
 import { FileFilter } from "../fileFilteringUtils";
 import { FILE_EXTENSIONS, extractFilename } from "./fileExtensions";
 import {
   CONF_MODEL_BASE_URL,
-  QIP_SCHEMA_URLS,
-} from "../../services/qipSchemas";
+  CIP_SCHEMA_URLS,
+} from "../../services/cipSchemas";
 import { Chain as ChainSchema } from "@netcracker/qip-schemas";
 import { ContentParser } from "../../api-services/parsers/ContentParser";
 import { ServiceNormalizer } from "../../api-services/ServiceNormalizer";
@@ -599,7 +599,7 @@ export class VSCodeFileApi implements FileApi {
         `${chainId}${FILE_EXTENSIONS.chain}`,
       );
       const chain = {
-        $schema: QIP_SCHEMA_URLS.CHAIN,
+        $schema: CIP_SCHEMA_URLS.CHAIN,
         id: chainId,
         name: chainName,
         content: {},
@@ -737,7 +737,7 @@ export class VSCodeFileApi implements FileApi {
                 },
               }
             : {
-                $schema: QIP_SCHEMA_URLS.SERVICE,
+                $schema: CIP_SCHEMA_URLS.SERVICE,
                 id: serviceId,
                 name: serviceName.trim(),
                 content: {
@@ -786,24 +786,24 @@ export class VSCodeFileApi implements FileApi {
       if (stat.type === vscode.FileType.File) {
         const name = extractFilename(fileUri);
         if (name.endsWith(extensions.mcpService)) {
-          return QipFileType.MCP_SERVICE;
+          return CipFileType.MCP_SERVICE;
         }
         if (name.endsWith(extensions.contextService)) {
-          return QipFileType.CONTEXT_SERVICE;
+          return CipFileType.CONTEXT_SERVICE;
         }
         if (name.endsWith(extensions.specificationGroup)) {
-          return QipFileType.SPECIFICATION_GROUP;
+          return CipFileType.SPECIFICATION_GROUP;
         }
         if (name.endsWith(extensions.specification)) {
-          return QipFileType.SPECIFICATION;
+          return CipFileType.SPECIFICATION;
         }
         if (name.endsWith(extensions.service)) {
-          return QipFileType.SERVICE;
+          return CipFileType.SERVICE;
         }
         if (name.endsWith(extensions.chain)) {
-          return QipFileType.CHAIN;
+          return CipFileType.CHAIN;
         }
-        return QipFileType.UNKNOWN;
+        return CipFileType.UNKNOWN;
       }
 
       // Directory: infer by contents
@@ -815,20 +815,20 @@ export class VSCodeFileApi implements FileApi {
       );
 
       if (hasServiceFile) {
-        return QipFileType.SERVICE;
+        return CipFileType.SERVICE;
       }
       if (hasChainFile) {
-        return QipFileType.CHAIN;
+        return CipFileType.CHAIN;
       }
       if (this.hasFileWithExtension(entries, extensions.mcpService)) {
-        return QipFileType.MCP_SERVICE;
+        return CipFileType.MCP_SERVICE;
       }
       if (this.hasFileWithExtension(entries, extensions.contextService)) {
-        return QipFileType.CONTEXT_SERVICE;
+        return CipFileType.CONTEXT_SERVICE;
       }
-      return QipFileType.FOLDER;
+      return CipFileType.FOLDER;
     } catch (e) {
-      return QipFileType.UNKNOWN;
+      return CipFileType.UNKNOWN;
     }
   }
 
@@ -839,17 +839,17 @@ export class VSCodeFileApi implements FileApi {
 
   async getDirectoriesToRemove(fileUri: Uri): Promise<Uri[]> {
     const fileType = await this.getFileType(fileUri);
-    const qipFileType = fileType as unknown as QipFileType;
+    const cipFileType = fileType as unknown as CipFileType;
     if (
-      qipFileType === QipFileType.CHAIN ||
-      qipFileType === QipFileType.SERVICE ||
-      qipFileType === QipFileType.CONTEXT_SERVICE ||
-      qipFileType === QipFileType.MCP_SERVICE
+      cipFileType === CipFileType.CHAIN ||
+      cipFileType === CipFileType.SERVICE ||
+      cipFileType === CipFileType.CONTEXT_SERVICE ||
+      cipFileType === CipFileType.MCP_SERVICE
     ) {
       const directory = await this.getParentDirectoryUri(fileUri);
       const haveResourceFolder =
-        qipFileType === QipFileType.CHAIN ||
-        qipFileType === QipFileType.SERVICE;
+        cipFileType === CipFileType.CHAIN ||
+        cipFileType === CipFileType.SERVICE;
       return directory.fsPath === this.getRootDirectory().fsPath
         ? []
         : [

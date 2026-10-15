@@ -69,7 +69,7 @@ import {
   handleImportSpecification,
   handleImportSpecificationGroup,
   handleReadSpecificationFileContent,
-  QipFileType,
+  CipFileType,
 } from "./serviceApiUtils";
 import {
   AppExtensionProps,
@@ -539,15 +539,15 @@ export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
     const fileType = await fileApi.getFileType(fileUri);
 
     switch (fileType) {
-      case QipFileType.CONTEXT_SERVICE:
+      case CipFileType.CONTEXT_SERVICE:
         return await getContextServiceUri(fileUri);
-      case QipFileType.MCP_SERVICE:
+      case CipFileType.MCP_SERVICE:
         return await getMcpServiceUri(fileUri);
-      case QipFileType.SERVICE:
+      case CipFileType.SERVICE:
         return await getServiceUri(fileUri);
-      case QipFileType.CHAIN:
+      case CipFileType.CHAIN:
         return await getChainUri(fileUri);
-      case QipFileType.UNKNOWN:
+      case CipFileType.UNKNOWN:
       default:
         return "/services";
     }

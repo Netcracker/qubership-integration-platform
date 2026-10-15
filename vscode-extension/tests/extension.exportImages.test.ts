@@ -106,8 +106,8 @@ jest.mock("../src/web/response/file/fileApiImpl", () => ({
   })),
 }));
 
-jest.mock("../src/web/qipExplorer", () => ({
-  QipExplorerProvider: jest.fn().mockImplementation(() => ({
+jest.mock("../src/web/cipExplorer", () => ({
+  CipExplorerProvider: jest.fn().mockImplementation(() => ({
     refresh: jest.fn(),
     getTreeItem: jest.fn(),
     getChildren: jest.fn(),

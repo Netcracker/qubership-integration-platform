@@ -17,7 +17,7 @@ import {
 } from "./response/apiRouter";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
-import { QipExplorerProvider } from "./qipExplorer";
+import { CipExplorerProvider } from "./cipExplorer";
 import {
   VSCodeMessage,
   VSCodeResponse,
@@ -43,7 +43,7 @@ type VSCodeMessageWrapper = {
   data: VSCodeMessage<any>;
 };
 
-let globalQipProvider: QipExplorerProvider | null = null;
+let globalCipProvider: CipExplorerProvider | null = null;
 const activeWebviewPanels = new Map<string, WebviewPanel>();
 let currentExtensionVersion = "unknown";
 
@@ -202,9 +202,9 @@ function broadcastThemeToAllWebviews() {
   });
 }
 
-export function refreshQipExplorer() {
-  if (globalQipProvider) {
-    globalQipProvider.refresh();
+export function refreshCipExplorer() {
+  if (globalCipProvider) {
+    globalCipProvider.refresh();
   }
 }
 
@@ -513,12 +513,12 @@ export function activate(context: ExtensionContext): void {
 
   setupFileWatchers(context);
 
-  // Register QIP Explorer provider
-  const qipProvider = new QipExplorerProvider(context);
-  globalQipProvider = qipProvider;
+  // Register CIP Explorer provider
+  const cipProvider = new CipExplorerProvider(context);
+  globalCipProvider = cipProvider;
 
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("cip-main", qipProvider),
+    vscode.window.registerTreeDataProvider("cip-main", cipProvider),
   );
 
   const editorParams = {
@@ -641,7 +641,7 @@ export function activate(context: ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("cip.createChain", async () => {
       const result = await fileApiImpl.createEmptyChain();
-      qipProvider.refresh();
+      cipProvider.refresh();
       if (result) {
         openWebviewForElement(context, result.folderUri, "chain");
       }
@@ -651,7 +651,7 @@ export function activate(context: ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("cip.createChainParent", async () => {
       const result = await fileApiImpl.createEmptyChain(true);
-      qipProvider.refresh();
+      cipProvider.refresh();
       if (result) {
         openWebviewForElement(context, result.folderUri, "chain");
       }
@@ -661,7 +661,7 @@ export function activate(context: ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("cip.createService", async () => {
       const result = await fileApiImpl.createEmptyService();
-      qipProvider.refresh();
+      cipProvider.refresh();
       if (result) {
         const serviceFileUri = vscode.Uri.joinPath(
           result.folderUri,
@@ -675,7 +675,7 @@ export function activate(context: ExtensionContext): void {
   // Register refresh command
   context.subscriptions.push(
     vscode.commands.registerCommand("cip.refreshExplorer", () => {
-      qipProvider.refresh();
+      cipProvider.refresh();
     }),
   );
 
@@ -769,7 +769,7 @@ export function activate(context: ExtensionContext): void {
         if (result === "Delete") {
           try {
             await deleteService(item.fileUri);
-            qipProvider.refresh();
+            cipProvider.refresh();
             vscode.window.showInformationMessage(
               `Service "${item.label}" deleted successfully`,
             );
@@ -794,7 +794,7 @@ export function activate(context: ExtensionContext): void {
         if (result === "Delete") {
           try {
             await deleteChain(item.fileUri);
-            qipProvider.refresh();
+            cipProvider.refresh();
             vscode.window.showInformationMessage(
               `Chain "${item.label}" deleted successfully`,
             );

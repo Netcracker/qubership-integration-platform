@@ -1,4 +1,4 @@
-import {QipSpecificationGenerator} from "../../services/QipSpecificationGenerator";
+import {CipSpecificationGenerator} from "../../services/CipSpecificationGenerator";
 import {ContentParser} from "./ContentParser";
 import {OpenApiData} from "./parserTypes";
 
@@ -40,7 +40,7 @@ export class OpenApiSpecificationParser {
    * backend (SwaggerSpecificationParser) so offline imports stay byte-compatible
    * with the online import. 3.2-only constructs (the QUERY method, `$self`,
    * extended mediaType keys) degrade gracefully: the QUERY method is dropped
-   * because it is absent from `QipSpecificationGenerator.HTTP_METHODS`.
+   * because it is absent from `CipSpecificationGenerator.HTTP_METHODS`.
    */
   private static normalizeUnsupportedOpenApiVersion(
     spec: any,
@@ -100,19 +100,19 @@ export class OpenApiSpecificationParser {
   }
 
   /**
-   * Create operations from OpenAPI data using QipSpecificationGenerator
+   * Create operations from OpenAPI data using CipSpecificationGenerator
    */
   static createOperationsFromOpenApi(
     openApiData: OpenApiData,
     specificationId: string,
   ): any[] {
-    // Create full CIP specification using QipSpecificationGenerator
-    const qipSpec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    // Create full CIP specification using CipSpecificationGenerator
+    const cipSpec = CipSpecificationGenerator.createCipSpecificationFromOpenApi(
       openApiData,
       "specification",
       specificationId,
     );
-    const operations = qipSpec.content?.operations || [];
+    const operations = cipSpec.content?.operations || [];
 
     return operations.map((operation: any) => ({
       ...operation,

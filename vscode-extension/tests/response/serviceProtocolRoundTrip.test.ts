@@ -10,7 +10,7 @@ jest.mock("yaml", () => ({ stringify: jest.fn(), parse: jest.fn() }));
 jest.mock("../../src/web/response/file/fileApiProvider", () =>
   stubFileApi({ getMainService: jest.fn(), findFileById: jest.fn() }),
 );
-jest.mock("../../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
+jest.mock("../../src/web/extension", () => ({ refreshCipExplorer: jest.fn() }));
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },

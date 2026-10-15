@@ -149,7 +149,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:f1ec85d5c54596712059c47759b18bdb9948366f48d0c5ce39841c297be42f17
+  content_hash: sha256:4b17a56c56281f487a4b395347f6d7711f1b8f71ec4c1539e832840e10e724ad
 - kind: project-relative
   target: claude
   value: .claude/rules/english-developer-style.md
@@ -176,7 +176,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
+  content_hash: sha256:7a159be366966c58eabab3ec06c1fabd0be98c31eb653d7856378e969b83de30
 - kind: project-relative
   target: claude
   value: .claude/rules/monorepo.md
@@ -221,7 +221,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:19fdfdc27c5301233ae25983b21976246d2298f523e191ac0559bb9cb8e59f8f
+  content_hash: sha256:ec7cdaeae2da98b2ad41410ebc959a781436c9bd87ac1f9cfc97e284fd784b04
 - kind: project-relative
   target: claude
   value: .claude/rules/sonar-triage.md
@@ -284,7 +284,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:0dbfb185d9fa2c01180a382a20e3091754187f34d2450848092bdfc152f9e2f4
+  content_hash: sha256:a678e0b28c435458944d20c83cec2e353e2f46fd1d91a84e8a9b116438883d10
 - kind: project-relative
   target: claude
   value: .claude/skills/apm-authoring
@@ -725,7 +725,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:f959e6755649b065327f851ce530baeb2da611a394871ba6152cdb3a4fc7574f
+  content_hash: sha256:2b5e48c70c607089179d9790cac43aab5084da2eb1e13b5b5a371111cae09df5
 - kind: project-relative
   target: cursor
   value: .cursor/rules/english-developer-style.mdc
@@ -752,7 +752,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:e5cb84edf324e260668f4fa95e299cfdff96b9998402f491973286c6a6fddf38
+  content_hash: sha256:00a7aca22b6425d49ae95707d9dd14eba664d71d8db27b7f266f4c86d2b237b0
 - kind: project-relative
   target: cursor
   value: .cursor/rules/monorepo.mdc
@@ -797,7 +797,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:b220ea14779526d9b8e6086786fca35fb0b72678cd34a4e3d2daacfa921009cf
+  content_hash: sha256:3734ba316cc936d327aa1ff5ec4ccf38c1d075a9d3f23e2d55d1412325f1da2c
 - kind: project-relative
   target: cursor
   value: .cursor/rules/sonar-triage.mdc
@@ -860,7 +860,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:797de96a6dc9eece7d2310cbce2c50fd1a55c8e88cf0aaf5c1e425b73b8bc972
+  content_hash: sha256:965153fe138d672ca571b74201169df32a916f634403b66d2481178bc929592a
 - kind: project-relative
   target: legacy
   value: .agents/skills/ci-fix
@@ -1311,21 +1311,21 @@ local_deployed_file_hashes:
   .claude/rules/ci-fix.md: sha256:4de31150e369c45093fbfe099209e95118d30f19e3a8c23fd91d0b1cd332f559
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
   .claude/rules/e2e.md: sha256:e075f7c7ec85f5e63d9ba7d2401b7b7352f6fd9d9a42c81088036804360aef33
-  .claude/rules/engine.md: sha256:f1ec85d5c54596712059c47759b18bdb9948366f48d0c5ce39841c297be42f17
+  .claude/rules/engine.md: sha256:4b17a56c56281f487a4b395347f6d7711f1b8f71ec4c1539e832840e10e724ad
   .claude/rules/infrastructure.md: sha256:efb728a4036c2fc362571fb9b3c2f13e5ef92a7c2d16c91b63be7f93b6c43950
-  .claude/rules/micro-engine.md: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
+  .claude/rules/micro-engine.md: sha256:7a159be366966c58eabab3ec06c1fabd0be98c31eb653d7856378e969b83de30
   .claude/rules/monorepo.md: sha256:9e393f942810b4fc4d0f623aca67a2d0f2183e0f58ee1cd038eb73d643eb481d
   .claude/rules/qip-working-agreements.md: sha256:72257161852f5f17451a59e3f6c816f49cdbdf8da37b39b3b82840e2fd30b799
   .claude/rules/runtime-catalog.md: sha256:51b1cd89ae4eb9bb56a4bf3b973ea861c88165e2e63371685bf70fbd866fff10
   .claude/rules/schemas.md: sha256:70fc96efc39c4a3deb2c018e8a57584f64071e18b3c53c150717b8fbaf4a20ec
-  .claude/rules/sessions-management.md: sha256:19fdfdc27c5301233ae25983b21976246d2298f523e191ac0559bb9cb8e59f8f
+  .claude/rules/sessions-management.md: sha256:ec7cdaeae2da98b2ad41410ebc959a781436c9bd87ac1f9cfc97e284fd784b04
   .claude/rules/sonar-triage.md: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
   .claude/rules/testing-service.md: sha256:f27a1d4dab815db5d47f82162ffa49788f4827798a1ac6b7f98c28b8f67cffe1
   .claude/rules/ui-api-and-utilities.md: sha256:71aa40132c92c5861e02877fac639503defe750689e9b5019420180c9dda9a94
   .claude/rules/ui-component-patterns.md: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
   .claude/rules/ui-core-development.md: sha256:c42c9e14a47aa880f644e2bcdb76e08c284cb4e2b336143fb364393d3640d9c3
   .claude/rules/ui-theme-and-vscode-webview.md: sha256:b9c3fb0eb8853ff8fc98a27ac8ccbdb9f6755fd235addba7d44a5855b5b43a17
-  .claude/rules/vscode-extension.md: sha256:0dbfb185d9fa2c01180a382a20e3091754187f34d2450848092bdfc152f9e2f4
+  .claude/rules/vscode-extension.md: sha256:a678e0b28c435458944d20c83cec2e353e2f46fd1d91a84e8a9b116438883d10
   .claude/skills/ci-fix/SKILL.md: sha256:02914caedcfbb0bf49fe6868a293850c856d1db2c2c248242a89fb00aad8a7bb
   .claude/skills/docs-authoring/SKILL.md: sha256:8623ceb1e549764d9593b8fadc194f9279c7cb108d328d0d3af36ed5dabe7d57
   .claude/skills/e2e-spec-authoring/SKILL.md: sha256:0e4af4672ba633e3714b49cbe481ac8150596a28d1a9fa7484d207ef240c1dfd
@@ -1350,18 +1350,18 @@ local_deployed_file_hashes:
   .cursor/rules/ci-fix.mdc: sha256:35cf16a1ad4a3ff02b5531f2ae3d6c4347de83155ab29cbde7800d81fe13664f
   .cursor/rules/docs-authoring.mdc: sha256:04274aa51cc097ea37ababc82b6fe050cbfb15dc4fff8bc37b81e50f2568f52c
   .cursor/rules/e2e.mdc: sha256:cb2945ce68ab518794c944e66ba3f170a82425f0bbb5808e77016def46bed9cf
-  .cursor/rules/engine.mdc: sha256:f959e6755649b065327f851ce530baeb2da611a394871ba6152cdb3a4fc7574f
+  .cursor/rules/engine.mdc: sha256:2b5e48c70c607089179d9790cac43aab5084da2eb1e13b5b5a371111cae09df5
   .cursor/rules/infrastructure.mdc: sha256:3ad74ec858c9e0c5c43b22eedcd6e7404e8acbf962090f19f787031770bfb08e
-  .cursor/rules/micro-engine.mdc: sha256:e5cb84edf324e260668f4fa95e299cfdff96b9998402f491973286c6a6fddf38
+  .cursor/rules/micro-engine.mdc: sha256:00a7aca22b6425d49ae95707d9dd14eba664d71d8db27b7f266f4c86d2b237b0
   .cursor/rules/monorepo.mdc: sha256:b338024786a301a3788fec92cd5e247f9cd723b70d6beee34bbb22d11117b94e
   .cursor/rules/qip-working-agreements.mdc: sha256:f4f9c8835673f5ed8a17fc3c591dc8ae5aea3982220ff0e82262d9ac1aa41c11
   .cursor/rules/runtime-catalog.mdc: sha256:e88f910aa6d81047f0ae00a13bfffdd34f0be190d29ce1183af04b4bc18a16c7
   .cursor/rules/schemas.mdc: sha256:e0c80c275441415a4774f5ebbc9ede1e22a191776682097eb8a34f51a0a686aa
-  .cursor/rules/sessions-management.mdc: sha256:b220ea14779526d9b8e6086786fca35fb0b72678cd34a4e3d2daacfa921009cf
+  .cursor/rules/sessions-management.mdc: sha256:3734ba316cc936d327aa1ff5ec4ccf38c1d075a9d3f23e2d55d1412325f1da2c
   .cursor/rules/sonar-triage.mdc: sha256:9418a601f82ff328ff99463908f96385acb0bc0ff47b6725309e77b61918034f
   .cursor/rules/testing-service.mdc: sha256:3863d98f65d7b591c877fa99551ce9b8a16eb1ab1cbd0bb8bfd43fb3bb86bd4d
   .cursor/rules/ui-api-and-utilities.mdc: sha256:e1b232abf03edbf1951c220f12f596196290d597c22b9f621a773ccdeccc229d
   .cursor/rules/ui-component-patterns.mdc: sha256:76a996d7be248cf8d24fd46010eee39d9dc92bf8bd094eabf5e364412824c867
   .cursor/rules/ui-core-development.mdc: sha256:93c3440760f98198a68415de3658347c254dd4be05ed3cd7e096cd3eb3347e2a
   .cursor/rules/ui-theme-and-vscode-webview.mdc: sha256:f6506e72aa9b23b96b2c2f14a1d91088bae05128551d59a9b776b2c97302bae5
-  .cursor/rules/vscode-extension.mdc: sha256:797de96a6dc9eece7d2310cbce2c50fd1a55c8e88cf0aaf5c1e425b73b8bc972
+  .cursor/rules/vscode-extension.mdc: sha256:965153fe138d672ca571b74201169df32a916f634403b66d2481178bc929592a

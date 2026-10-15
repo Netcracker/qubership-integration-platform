@@ -6,7 +6,7 @@ import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
 import { LabelUtils } from "./LabelUtils";
 import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
-import { QIP_SCHEMA_URLS } from "../services/qipSchemas";
+import { CIP_SCHEMA_URLS } from "../services/cipSchemas";
 import { ContentParser } from "./parsers/ContentParser";
 
 /**
@@ -109,7 +109,7 @@ export class SpecificationGroupService {
 
       const yamlData = {
         id: specificationGroup.id,
-        $schema: QIP_SCHEMA_URLS.SPECIFICATION_GROUP,
+        $schema: CIP_SCHEMA_URLS.SPECIFICATION_GROUP,
         name: specificationGroup.name,
         content: {
           synchronization: specificationGroup.synchronization || false,

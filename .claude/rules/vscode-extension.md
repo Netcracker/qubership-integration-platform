@@ -64,7 +64,7 @@ there only.
 
 ### Project Structure
 
-Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions are the `FILE_EXTENSIONS` constant in `src/web/response/file/fileExtensions.ts`, and schema URLs come from `src/web/services/qipSchemas.ts`.
+Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions are the `FILE_EXTENSIONS` constant in `src/web/response/file/fileExtensions.ts`, and schema URLs come from `src/web/services/cipSchemas.ts`.
 
 ### Conventions
 

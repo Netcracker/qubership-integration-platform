@@ -1,6 +1,6 @@
 jest.mock("vscode", () => ({ Uri: class Uri {} }), { virtual: true });
 
-import { QipSpecificationGenerator } from "./QipSpecificationGenerator";
+import { CipSpecificationGenerator } from "./CipSpecificationGenerator";
 
 const OPENAPI_30 = {
   openapi: "3.0.0",
@@ -133,9 +133,9 @@ const SWAGGER_20 = {
   },
 };
 
-describe("QipSpecificationGenerator", () => {
+describe("CipSpecificationGenerator", () => {
   it("builds operations from a rich OpenAPI 3.0 document", () => {
-    const spec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    const spec = CipSpecificationGenerator.createCipSpecificationFromOpenApi(
       OPENAPI_30,
       "spec",
       "spec-1",
@@ -164,7 +164,7 @@ describe("QipSpecificationGenerator", () => {
   });
 
   it("converts Swagger 2.0 to OpenAPI 3.0 and resolves definitions", () => {
-    const spec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    const spec = CipSpecificationGenerator.createCipSpecificationFromOpenApi(
       SWAGGER_20,
       "spec",
       "spec-2",
@@ -179,7 +179,7 @@ describe("QipSpecificationGenerator", () => {
   });
 
   it("converts Swagger 2.0 form-data parameters and generates a missing operationId", () => {
-    const spec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    const spec = CipSpecificationGenerator.createCipSpecificationFromOpenApi(
       {
         swagger: "2.0",
         info: { title: "Forms", version: "1.0.0" },
@@ -218,7 +218,7 @@ describe("QipSpecificationGenerator", () => {
   });
 
   it("expands root-level allOf and additionalProperties and a typed parameter without a schema", () => {
-    const spec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    const spec = CipSpecificationGenerator.createCipSpecificationFromOpenApi(
       {
         openapi: "3.0.0",
         info: { title: "Edge", version: "1.0.0" },
@@ -258,7 +258,7 @@ describe("QipSpecificationGenerator", () => {
 
   it("rejects content that is neither OpenAPI 3.x nor Swagger 2.0", () => {
     expect(() =>
-      QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+      CipSpecificationGenerator.createCipSpecificationFromOpenApi(
         { info: { version: "1.0.0" } },
         "spec",
         "spec-3",

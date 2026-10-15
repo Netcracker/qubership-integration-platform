@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import * as yaml from "yaml";
 import Ajv from "ajv";
 import { getApiResponse } from "../../response";
-import { QipExplorerItem, QipExplorerProvider } from "../../qipExplorer";
+import { CipExplorerItem, CipExplorerProvider } from "../../cipExplorer";
 import {
   FIXTURES,
   SCHEMA,
@@ -151,11 +151,11 @@ suite("Explorer tree", function () {
   const project = "nested/team-a/project-x";
   const chainId = "5d0f3c1e-8c1a-4c2e-9a53-0b1f7a6e2d41";
   const serviceId = "a4c7e2b9-3f60-4d8e-b1a2-6e9d0c5f7b38";
-  let explorer: QipExplorerProvider;
+  let explorer: CipExplorerProvider;
 
   suiteSetup(async () => {
     await activateExtension();
-    explorer = new QipExplorerProvider(useExtensionModules());
+    explorer = new CipExplorerProvider(useExtensionModules());
 
     const chain = await readYaml(workspaceUri(FIXTURES.chain));
     await writeYaml(`${project}/chains/${chainId}/${chainId}.chain.cip.yaml`, {
@@ -173,7 +173,7 @@ suite("Explorer tree", function () {
 
   suiteTeardown(() => vscode.workspace.fs.delete(workspaceUri("nested"), { recursive: true }));
 
-  async function category(label: string): Promise<QipExplorerItem[]> {
+  async function category(label: string): Promise<CipExplorerItem[]> {
     const root = await explorer.getChildren();
     const item = root.find((candidate) => candidate.label === label);
     assert.ok(item, `no ${label} category among ${JSON.stringify(root.map((each) => each.label))}`);

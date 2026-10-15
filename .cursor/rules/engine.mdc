@@ -102,7 +102,7 @@ This service is part of the **Qubership Integration Platform (QIP)** — a micro
 | **Runtime Catalog** | REST (`POST /v1/catalog/domains/{domain}/deployments/update`) | Fetch chain deployment descriptors and configuration updates |
 | **Runtime Catalog** | REST (`GET /v1/models/{id}/dto/jar`) | Download compiled external library JARs |
 | **Consul** | REST (`/v1/kv/*`, `/v1/session/*`, `/v1/txn`) | Configuration (prefix `config/{NAMESPACE}/`), deployment state coordination, distributed sessions |
-| **OpenSearch** | HTTP | Record session execution data (element-level traces) in index `qip-elements-{namespace}` |
+| **OpenSearch** | HTTP | Record session execution data (element-level traces) in index `cip-elements-{namespace}` |
 | **PostgreSQL** | JDBC | 3 databases: `engine_checkpoints_db` (sessions/checkpoints), `engine_qrtz_db` (Quartz scheduler), `engine` (main) |
 | **Control Plane** | REST | Register public/private engine routes, egress gateway routes |
 | **Kafka** (optional) | Camel component | Integration chains + optional session data streaming |

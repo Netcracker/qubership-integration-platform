@@ -3,37 +3,37 @@ import { FILE_EXTENSIONS } from "./response/file/fileExtensions";
 import { readDirectory } from "./response/file/fileApiImpl";
 import { ContentParser } from "./api-services/parsers/ContentParser";
 
-export interface QipExplorerItem {
+export interface CipExplorerItem {
   id: string;
   label: string;
   description?: string;
   iconPath?: vscode.ThemeIcon;
   contextValue: string;
   collapsibleState: vscode.TreeItemCollapsibleState;
-  children?: QipExplorerItem[];
+  children?: CipExplorerItem[];
   fileUri?: vscode.Uri;
   type: "category" | "service" | "chain" | "element";
 }
 
-let globalQipExplorerProvider: QipExplorerProvider | null = null;
+let globalCipExplorerProvider: CipExplorerProvider | null = null;
 
-export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerItem> {
+export class CipExplorerProvider implements vscode.TreeDataProvider<CipExplorerItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<
-    QipExplorerItem | undefined | null | void
-  > = new vscode.EventEmitter<QipExplorerItem | undefined | null | void>();
+    CipExplorerItem | undefined | null | void
+  > = new vscode.EventEmitter<CipExplorerItem | undefined | null | void>();
   readonly onDidChangeTreeData: vscode.Event<
-    QipExplorerItem | undefined | null | void
+    CipExplorerItem | undefined | null | void
   > = this._onDidChangeTreeData.event;
 
   constructor(private context: vscode.ExtensionContext) {
-    globalQipExplorerProvider = this;
+    globalCipExplorerProvider = this;
   }
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
   }
 
-  getTreeItem(element: QipExplorerItem): vscode.TreeItem {
+  getTreeItem(element: CipExplorerItem): vscode.TreeItem {
     const treeItem = new vscode.TreeItem(
       element.label,
       element.collapsibleState,
@@ -55,7 +55,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     return treeItem;
   }
 
-  async getChildren(element?: QipExplorerItem): Promise<QipExplorerItem[]> {
+  async getChildren(element?: CipExplorerItem): Promise<CipExplorerItem[]> {
     if (!element) {
       return this.getRootItems();
     }
@@ -77,7 +77,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     }
   }
 
-  private getRootItems(): QipExplorerItem[] {
+  private getRootItems(): CipExplorerItem[] {
     return [
       {
         id: "chains-category",
@@ -98,7 +98,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     ];
   }
 
-  private async getChains(): Promise<QipExplorerItem[]> {
+  private async getChains(): Promise<CipExplorerItem[]> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
       console.log("CIP Explorer: No workspace folders found");
@@ -108,7 +108,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
       `CIP Explorer: Found ${workspaceFolders.length} workspace folders`,
     );
 
-    const chains: QipExplorerItem[] = [];
+    const chains: CipExplorerItem[] = [];
 
     for (const folder of workspaceFolders) {
       try {
@@ -127,7 +127,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
 
   private async findChainFilesRecursively(
     folderUri: vscode.Uri,
-    chains: QipExplorerItem[],
+    chains: CipExplorerItem[],
   ): Promise<void> {
     try {
       const entries = await readDirectory(folderUri);
@@ -149,7 +149,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
               const displayName = chainData.name || chainData.id;
               const label = `${displayName}-${chainData.id}`;
 
-              const chainItem: QipExplorerItem = {
+              const chainItem: CipExplorerItem = {
                 id: chainData.id,
                 label: label,
                 description: `${elementsCount} elements, ${connectionsCount} connections`,
@@ -176,7 +176,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     }
   }
 
-  private async getServices(): Promise<QipExplorerItem[]> {
+  private async getServices(): Promise<CipExplorerItem[]> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
       console.log("CIP Explorer: No workspace folders found for services");
@@ -186,7 +186,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
       `CIP Explorer: Searching for services in ${workspaceFolders.length} workspace folders`,
     );
 
-    const services: QipExplorerItem[] = [];
+    const services: CipExplorerItem[] = [];
 
     for (const folder of workspaceFolders) {
       try {
@@ -205,7 +205,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
 
   private async findServiceFilesRecursively(
     folderUri: vscode.Uri,
-    services: QipExplorerItem[],
+    services: CipExplorerItem[],
   ): Promise<void> {
     try {
       const entries = await readDirectory(folderUri);
@@ -261,7 +261,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                   break;
               }
 
-              const serviceItem: QipExplorerItem = {
+              const serviceItem: CipExplorerItem = {
                 id: serviceData.id,
                 label: label,
                 description: `${serviceType} service`,
@@ -289,14 +289,14 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
   }
 
   private async getChainChildren(
-    chainElement: QipExplorerItem,
-  ): Promise<QipExplorerItem[]> {
+    chainElement: CipExplorerItem,
+  ): Promise<CipExplorerItem[]> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
       return [];
     }
 
-    const children: QipExplorerItem[] = [];
+    const children: CipExplorerItem[] = [];
 
     for (const folder of workspaceFolders) {
       try {
@@ -309,7 +309,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
 
         if (chainData && chainData.content && chainData.content.elements) {
           for (const element of chainData.content.elements) {
-            const elementItem: QipExplorerItem = {
+            const elementItem: CipExplorerItem = {
               id: element.id,
               label: element.name || element.id,
               description: `${element.type} element`,

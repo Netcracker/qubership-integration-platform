@@ -18,11 +18,11 @@ import vscode, { ExtensionContext, Uri } from "vscode";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 import { FILE_EXTENSIONS } from "./file/fileExtensions";
 import { fileApi } from "./file/fileApiProvider";
-import { refreshQipExplorer } from "../extension";
+import { refreshCipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
-import { QIP_SCHEMA_URLS } from "../services/qipSchemas";
+import { CIP_SCHEMA_URLS } from "../services/cipSchemas";
 import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
-import { QipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
+import { CipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -150,7 +150,7 @@ export async function createService(
     const serviceId = crypto.randomUUID();
 
     const service = {
-      $schema: QIP_SCHEMA_URLS.SERVICE,
+      $schema: CIP_SCHEMA_URLS.SERVICE,
       id: serviceId,
       name: serviceRequest.name,
       content: {
@@ -862,8 +862,8 @@ export async function deleteSpecificationModel(
 
 export async function deleteService(serviceFileUri: Uri): Promise<void> {
   try {
-    const fileType = await fileApi.getFileType(serviceFileUri).catch(() => QipFileType.UNKNOWN);
-    if ((fileType as unknown as QipFileType) === QipFileType.SERVICE) {
+    const fileType = await fileApi.getFileType(serviceFileUri).catch(() => CipFileType.UNKNOWN);
+    if ((fileType as unknown as CipFileType) === CipFileType.SERVICE) {
       const groupFiles = await fileApi.getSpecificationGroupFiles(serviceFileUri).catch(() => [] as string[]);
       for (const groupFile of groupFiles) {
         try {
@@ -968,7 +968,7 @@ export async function createEmptyService() {
       serviceRequest,
     );
 
-    refreshQipExplorer();
+    refreshCipExplorer();
 
     vscode.window.showInformationMessage(
       `Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${service.id}`,
