@@ -125,7 +125,7 @@ describe("DesignTemplates Component", () => {
     // Selecting a non-built-in row enables the delete action.
     fireEvent.click(within(row!).getByRole("checkbox"));
 
-    const deleteButton = screen.getByTestId("Delete selected templates");
+    const deleteButton = screen.getByTestId("design-templates-delete");
     await waitFor(() => expect(deleteButton).not.toBeDisabled());
     fireEvent.click(deleteButton);
 
