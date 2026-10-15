@@ -104,7 +104,8 @@ rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
 **On Compose, provisioning does not start the broker overlays.** `Env.ensureOverlay(overlay)` brings
 one up, composed with the base file under the same project name, when the `brokers-seed` project
 needs it, and leaves a healthy overlay alone. On `k8s` the release installs the brokers as `qip-dev`
-subcharts unless `E2E_BROKERS=0`, `ensureOverlay` waits for their rollout and host port, and
+subcharts unless `E2E_BROKERS=0`, `ensureOverlay` waits for their rollout and host port when
+`brokers-seed` or `brokers-micro-seed` calls it, and
 `removeOverlay` does nothing. `Env.restartOverlay(overlay)` restarts the overlay's own broker
 container without recreating it, and only `broker-restart.spec.ts` calls it. A spec reaches all
 three through the `env` fixture, never by calling `docker` or `kubectl`.

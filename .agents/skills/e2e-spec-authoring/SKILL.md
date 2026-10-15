@@ -22,7 +22,11 @@ reaches the corpus through a project declaring `seed` needs no edge of its own.
 
 `dependencies` also gates a project on the success of the ones it names. That is why `global` names
 no broker project: one failing broker case would skip every `global` case. Where only the order
-matters, name a shared `teardown` project instead. A project gets one `teardown`, so the seeds
+matters, name a shared `teardown` project instead. Where a project must run after `env` or
+`global`, the edge goes from that project to `global`, as `brokers-restart` does, so a red `global`
+case skips it rather than a red case of it skipping `global`. A gate in the other direction is
+accepted only on purpose and named in the project's comment: `brokers-seed` waits for `seed`, and on
+`k8s` `env-micro` waits for `brokers-restart` (`env/target-setup.ts`). A project gets one `teardown`, so the seeds
 `global` does not depend on (`seed-micro`, `brokers-seed`, `brokers-micro-seed`) share one:
 `suite-teardown` collects their `*.teardown.ts` files, and they and `global` all name it. It then
 runs after `global` without gating either side. It runs on both targets and in any selection that
@@ -91,7 +95,9 @@ trace, walked through `children[]`. A branch can answer the same status as the d
 keeps the failure's status, and only the trace shows which handler ran. Children of a parallel
 branch arrive in completion order, so compare them as a set. Find the session by a per-call token,
 because `GET /v1/sessions/external-id/{id}` returns one session and the run token matches any
-spec's. The exception is a call that must not carry the correlation header, because the testing
+spec's. `byExternalId` waits for the number of steps, not for each step's status, so a case that
+asserts step statuses or `failedElements()` reads the session through `Sessions.settled` first; a
+message the broker can deliver more than once is read with `Sessions.earliestOf`. The exception is a call that must not carry the correlation header, because the testing
 service would mock it, or cannot, like an MCP tool call. Such a case finds the session through
 `Sessions.onlyOf` in `support/sessions.ts`, by chain id and a filter that leaves out every session the
 case did not cause (read `Sessions.idsOf` before the call), or by a marker the call carries in its
@@ -221,12 +227,19 @@ right now, so a controller added to a service fails a run.
     - It is for a divergence a spec can reproduce on demand. Where no create path manufactures the
       offending state, such as an element of a type the library does not offer, the spec asserts the
       healthy contract and prints the query that finds the offender instead.
-    - A defect that only one engine meets would turn a plain `test.fail()` red on the other. Wrap
-      the step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
-      `support/known-defect.ts`, which names the engine that meets the defect: the case becomes an
-      expected failure only when the step throws that defect on that engine, and the defect's
-      `matches` gets a case in `specs/schema/conditional-defects.spec.ts`. On the other engine the
-      same message stays a real failure, because a regression of the same feature can produce it.
+    - A defect that only one engine meets would turn a plain `test.fail()` red on the other, and a
+      race would turn it red on the runs it misses. Wrap the step that meets it in `strikesAsKnown`
+      with a `ConditionalDefect` from `support/known-defect.ts`, which names the engine that meets
+      the defect, or `engine: "any"` for a race or a catalog or sessions defect either engine meets:
+      the case becomes an expected failure only when the step throws that defect on that engine,
+      and the defect's `matches` gets a case in `specs/schema/conditional-defects.spec.ts`. On the
+      other engine the same message stays a real failure, because a regression of the same feature
+      can produce it. A defect lives in `specs/<project>/<component>-defects.ts`, which Playwright
+      does not collect. `matches` reads the message without color codes. It keys on an assertion
+      message the case writes itself (`RESULT_AT_100`, `WIPE_ANSWERED`), and that assertion comes
+      last, so the rest of the case still runs when the defect strikes. Reconcile reads the calls a
+      struck case made, but not its `covers()`. A fixed defect leaves the case passing rather than
+      red, so the pin is removed by hand.
 14. **A `specs/schema/` spec imports `test` and `expect` from `@playwright/test`, never from
     `support/fixtures.js`.** That module installs `auto: true` fixtures which create a folder over
     HTTP and shell out to `docker logs`, so one wrong import turns the `schema` project into one that
@@ -302,11 +315,15 @@ exist for that shape, and each is invisible from inside the file that carries it
 - **Process envelope**, `specs/env/process-envelope.spec.ts`. Every service is still the process the
   run started, its Metaspace is inside a stated share of its ceiling, and its peak memory and CPU are
   inside stated bands, sampled over the run.
-- **Negative configuration**, `specs/brokers/missing-target.spec.ts` and
-  `specs/brokers/broker-restart.spec.ts`. Every other fixture is correct by construction, so these
-  assert the pre-deploy refusal of a missing Kafka topic, RabbitMQ queue, and exchange, and the
-  platform's reconnect after a broker restart. The missing-target cases are `@classic-only`: the
-  micro engine runs no pre-deploy check, so a micro domain reports such a chain `DEPLOYED`.
+- **Negative configuration**, `specs/brokers/missing-target.spec.ts`,
+  `specs/brokers/broker-restart.spec.ts`, and the negative cases of
+  `specs/brokers/kafka-security.spec.ts`. Every other fixture is correct by construction, so these
+  assert the pre-deploy refusal of a missing Kafka topic, RabbitMQ queue, and exchange, the
+  platform's reconnect after a broker restart, and the refusal of a wrong Kafka password and of a
+  TLSv1.2 client on a TLSv1.3-only listener. The missing-target and kafka-security negatives are
+  `@classic-only`: the micro engine runs no pre-deploy check, so a micro domain reports such a chain
+  `DEPLOYED`. A negative broker fixture whose client logs on every retry stays spec-owned
+  (`SPEC_OWNED_FIXTURES`) rather than seeded, so its log lines end with its case.
 
 ## The shared corpus
 

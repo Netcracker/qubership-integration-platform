@@ -37,6 +37,14 @@ and no assertion.
    is fine: `@xyflow/react` gives each node `data-testid="rf__node-<element id>"` and each edge the
    name `Edge from <id> to <id>`.
 
+Three more selector rules, each met by a case under `specs/ui/`:
+
+- A multiple Select is closed with Escape. Tab picks the active option again, which clears it.
+- After a save, antd can keep the hidden loading icon in a button, whose name then reads
+  `loading Apply`, so the locator matches `/Apply$/` (`pages/ChainTabsPage.ts`).
+- An entity a UI case creates carries a `callToken` beside the run token, in its name or its route,
+  so `--repeat-each` runs on one run token do not collide on it.
+
 A Monaco editor is located by the id its mount site passes through `@monaco-editor/react`'s
 `wrapperProps`, always ending in `-editor` (`script-editor`, `snapshot-xml-editor`,
 `session-body-before-editor`). That id is attached at mount, about 1.3 s before the editor can be
