@@ -10,9 +10,9 @@
 import { test, expect } from "../../support/page-guard.js";
 import { ChainTabsPage } from "../../pages/ChainTabsPage.js";
 import { TableView } from "../../pages/TableView.js";
-import { ENGINE_CASE_TIMEOUT, SEED_LOGGING, waitForDeployed, waitForRoutes } from "../../support/corpus.js";
-import { createStepsChain } from "../../support/deployable.js";
-import { waitForRecording, withBuilt } from "../../support/cleanup.js";
+import { ENGINE_CASE_TIMEOUT, SEED_LOGGING } from "../../support/corpus.js";
+import { createStepsChain, markStep } from "../../support/deployable.js";
+import { deployAndRecord, withBuilt } from "../../support/cleanup.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS, trace } from "../../support/sessions.js";
 import { callToken } from "../../support/run.js";
 
@@ -34,7 +34,7 @@ test("a field added on the masking tab is masked in the session of the next depl
         // A call token in the route keeps repeats of the case apart.
         what: callToken("ui-masking"),
         parentId: folder.id,
-        steps: [{ name: "Mark", type: "header-modification", properties: { headerModificationToAdd: { "e2e-ui": "masking" }, headerModificationToRemove: [] } }],
+        steps: [markStep("masking")],
         logging: SEED_LOGGING,
       },
       built.chains,
@@ -59,10 +59,7 @@ test("a field added on the masking tab is masked in the session of the next depl
     await expect(table.rows.getByRole("button", { name: MASKED_FIELD, exact: true })).toBeVisible();
 
     // Masked fields reach the engine inside the deployment, so the deploy follows the edit.
-    await catalog.deploy(chain.id, (await catalog.createSnapshot(chain.id)).id);
-    await waitForDeployed(catalog, [chain]);
-    await waitForRoutes(env, [chain]);
-    await waitForRecording(env, sessions, chain);
+    await deployAndRecord(catalog, env, sessions, chain);
 
     const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { [MASKED_FIELD]: SECRET, note: "visible" } });
     expect(call.response.status()).toBe(200);

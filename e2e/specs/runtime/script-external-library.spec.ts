@@ -67,12 +67,7 @@
  * once at application start, so no cached script can outlive a library change.
  */
 import { test, expect } from "../../support/fixtures.js";
-import {
-  ENGINE_CASE_TIMEOUT,
-  SEED_LOGGING,
-  waitForDeployed,
-  waitForRoutes,
-} from "../../support/corpus.js";
+import { ENGINE_CASE_TIMEOUT, SEED_LOGGING } from "../../support/corpus.js";
 import { readSpecificationFixture } from "../../fixtures/templating.js";
 import { createScriptChain, SCRIPT_CHAIN_STEPS } from "../../support/deployable.js";
 import { logWindowStart } from "../../support/logs.js";
@@ -80,7 +75,7 @@ import { readUntil } from "../../support/poll.js";
 import { tokenized } from "../../support/run.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
-import { waitForRecording, withBuilt } from "../../support/cleanup.js";
+import { deployAndRecord, withBuilt } from "../../support/cleanup.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
 
@@ -210,11 +205,7 @@ test("a DTO library replaced under a deployed script is seen without a redeploy"
       },
       built.chains,
     );
-    const snapshot = await catalog.createSnapshot(chain.id);
-    await catalog.deploy(chain.id, snapshot.id);
-    await waitForDeployed(catalog, [chain]);
-    await waitForRoutes(env, [chain]);
-    await waitForRecording(env, sessions, chain);
+    await deployAndRecord(catalog, env, sessions, chain);
 
     const before = await widgetFields(request, env.chainUrl(chain.contextPath));
     expect(before.status).toBe(200);

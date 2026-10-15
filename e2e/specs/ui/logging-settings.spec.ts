@@ -8,7 +8,7 @@
  * The catalog answers `GET .../properties/logging` from a cache it refills from Consul every second,
  * so every read of `custom` here polls.
  */
-import type { Locator, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { test, expect } from "../../support/page-guard.js";
 import { ChainTabsPage } from "../../pages/ChainTabsPage.js";
 import type { Catalog, LoggingProperties } from "../../support/catalog.js";
@@ -31,14 +31,9 @@ function sorted(properties: LoggingProperties | undefined): LoggingProperties | 
   return properties && { ...properties, logPayload: [...properties.logPayload].sort() };
 }
 
-/** A select by its form label, which antd names with a trailing colon. */
-function select(page: Page, label: string): Locator {
-  return page.getByRole("combobox", { name: new RegExp(`^${label} :$`) });
-}
-
 /** Picks `option` in the select labelled `label`; antd renders a visible option by its title. */
-async function choose(page: Page, label: string, option: string): Promise<void> {
-  await select(page, label).click();
+async function choose(page: Page, tabs: ChainTabsPage, label: string, option: string): Promise<void> {
+  await tabs.field("combobox", label).click();
   await page.getByTitle(option, { exact: true }).click();
 }
 
@@ -55,7 +50,7 @@ test("a logging override is saved from the form and dropped again by unchecking 
   const chain = await catalog.createChain(tokenized(run, "ui-logging"), folder.id);
   const tabs = new ChainTabsPage(page);
   const override = page.getByRole("checkbox", { name: "Override default properties" });
-  const sessionLevel = select(page, "Session level");
+  const sessionLevel = tabs.field("combobox", "Session level");
 
   try {
     const initial = await catalog.getLoggingProperties(chain.id);
@@ -70,8 +65,8 @@ test("a logging override is saved from the form and dropped again by unchecking 
 
     await override.check();
     await expect(sessionLevel).toBeEnabled();
-    await choose(page, "Session level", "Debug");
-    await choose(page, "Log level", "Warning");
+    await choose(page, tabs, "Session level", "Debug");
+    await choose(page, tabs, "Log level", "Warning");
     await apply(page, tabs, "POST");
 
     // The fields the case did not touch keep the defaults the form was filled with.

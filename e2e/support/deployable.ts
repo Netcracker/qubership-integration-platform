@@ -210,6 +210,11 @@ export interface ChainStep {
   keepName?: boolean;
 }
 
+/** A header-modification step named `Mark` that adds `e2e-ui: <value>`, for a chain whose case reads only its trace. */
+export function markStep(value: string): ChainStep {
+  return { name: "Mark", type: "header-modification", properties: { headerModificationToAdd: { "e2e-ui": value }, headerModificationToRemove: [] } };
+}
+
 export interface StepsChainOptions {
   /** Names the chain and its route, off the run token. */
   what: string;

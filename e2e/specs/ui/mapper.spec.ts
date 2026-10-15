@@ -9,9 +9,9 @@
  */
 import { test, expect } from "../../support/page-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
-import { ENGINE_CASE_TIMEOUT, SEED_LOGGING, waitForDeployed, waitForRoutes } from "../../support/corpus.js";
+import { ENGINE_CASE_TIMEOUT, SEED_LOGGING } from "../../support/corpus.js";
 import { createStepsChain } from "../../support/deployable.js";
-import { waitForRecording, withBuilt } from "../../support/cleanup.js";
+import { deployAndRecord, withBuilt } from "../../support/cleanup.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS } from "../../support/sessions.js";
 import { callToken } from "../../support/run.js";
 
@@ -66,10 +66,7 @@ test("a header mapped in the mapper's text view is saved and copied by the deplo
       }),
     ]);
 
-    await catalog.deploy(chain.id, (await catalog.createSnapshot(chain.id)).id);
-    await waitForDeployed(catalog, [chain]);
-    await waitForRoutes(env, [chain]);
-    await waitForRecording(env, sessions, chain);
+    await deployAndRecord(catalog, env, sessions, chain);
 
     const value = callToken("ui-mapper");
     const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "mapper" }, headers: { [SOURCE_HEADER]: value } });
