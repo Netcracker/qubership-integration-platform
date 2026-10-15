@@ -115,21 +115,22 @@ const suite: SuiteProject[] = [
     name: "env",
     testDir: "./specs/env",
     workers: 1,
-    // `brokers`/`brokers-restart` are deliberately not named here, though this project recreates the
-    // engine and the catalog (`specs/env/restart-resilience.spec.ts`, `service-type-roundtrip.spec.ts`)
-    // in the same shared worker pool a broker spec runs in, and a 30 s recreate mid-flight could in
-    // principle drop a broker consumer those specs have attached — reasoned, never measured. An
-    // earlier pass named them anyway, and that traded away more than it bought: Playwright's
-    // `dependencies` is one mechanism for two different things, ordering a project after another and
-    // gating it on that other project's success, and there is no way to ask for only the first —
-    // naming a `teardown` project in `dependencies` orders after it the same way but is refused
-    // outright ("Project env must not depend on a teardown project", `common/index.js:721`, checked
-    // against this config directly). So naming `brokers`/`brokers-restart` meant one failing broker
-    // case anywhere silently skipped this project's every case, the opposite of `support/brokers.ts`'s
-    // own design ("a broker outage fails one project rather than every one of them"). Between a
-    // reasoned, unmeasured race and a mechanical, certain one, `qip-working-agreements.md` is why the
-    // certain one loses: a hazard nobody has hit is not a reason to keep code that reliably breaks a
-    // whole project on someone else's flake.
+    // No broker project is named here, though this project recreates the engine and the catalog
+    // (`specs/env/restart-resilience.spec.ts`, `service-type-roundtrip.spec.ts`), and a recreate
+    // drops the broker consumers the engine holds. Playwright's `dependencies` is one mechanism for
+    // two different things, ordering a project after another and gating it on that other project's
+    // success, and there is no way to ask for only the first: naming a `teardown` project in
+    // `dependencies` is refused outright ("Project env must not depend on a teardown project",
+    // `common/index.js:721`). So naming a broker project here would let one failing broker case skip
+    // this project's every case, the opposite of `support/brokers.ts`'s own design ("a broker outage
+    // fails one project rather than every one of them").
+    //
+    // The overlap that was measured is ordered from the other side. In CI run 38651497943
+    // `brokers-restart` ran beside this project, and the engine restart replaced the Kafka consumer
+    // the restart case waited on, so `brokers-restart` now depends on `global`, and through it on this
+    // project (`env/target-setup.ts`). `brokers` and `brokers-micro` restart nothing, and their
+    // overlap with this project stays reasoned, never measured: only Playwright's scheduling, which
+    // starts a project once every project of a lower dependency depth has finished, keeps them apart.
     //
     // `ui` is named, unlike the broker projects: a restart here mid-scenario fails a browser case
     // for a reason that has nothing to do with the UI. The cost is the one described above: a red
@@ -180,7 +181,8 @@ const suite: SuiteProject[] = [
     // deployment cache. The project still runs last, for the same reason `env` does rather than
     // because its subject belongs at the end.
     //
-    // `brokers` and `brokers-restart` are deliberately not named here, for the reason given at `env`.
+    // No broker project is named here, for the reason given at `env`; `brokers-restart` runs after this
+    // project instead.
     //
     // `ui` is named, unlike `brokers`: the specs here delete every session in OpenSearch and prune
     // snapshots, both of which the browser scenarios read. The same gating cost applies.

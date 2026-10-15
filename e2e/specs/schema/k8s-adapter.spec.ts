@@ -606,10 +606,10 @@ test("the k8s target declares its own projects and the broker projects, and leav
     { name: "runtime-micro", dependencies: ["seed-micro", "tooling"], teardown: undefined, engineKind: "micro" },
     { name: "runtime-micro-redeploy", dependencies: ["seed-micro"], teardown: undefined, engineKind: "micro" },
     { name: "global-micro", dependencies: ["global", "seed-micro"], teardown: undefined, engineKind: "micro" },
-    { name: "env-micro", dependencies: ["global-micro", "runtime-micro"], teardown: undefined, engineKind: "micro" },
+    { name: "env-micro", dependencies: ["global-micro", "runtime-micro", "brokers-restart"], teardown: undefined, engineKind: "micro" },
     { name: "brokers-seed", dependencies: ["seed"], teardown: "suite-teardown", engineKind: undefined },
     { name: "brokers", dependencies: ["brokers-seed"], teardown: undefined, engineKind: undefined },
-    { name: "brokers-restart", dependencies: ["brokers", "brokers-micro"], teardown: undefined, engineKind: undefined },
+    { name: "brokers-restart", dependencies: ["brokers", "brokers-micro", "global"], teardown: undefined, engineKind: undefined },
     { name: "brokers-micro-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: "micro" },
     { name: "brokers-micro", dependencies: ["brokers-seed", "brokers-micro-seed"], teardown: undefined, engineKind: "micro" },
   ]);
