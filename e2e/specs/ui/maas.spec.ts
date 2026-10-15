@@ -6,8 +6,8 @@
  * download. `specs/api/maas.spec.ts` covers the file the catalog builds from the parameters.
  *
  * No case presses Create: it calls the MaaS agent, which this stack does not run. The Namespace
- * field gates Export but is not sent with it: the file names the namespace as the placeholder `${ENV_NAMESPACE}`, which the deployer
- * resolves in the target namespace.
+ * field gates Export but is not sent with it: the file names the namespace as the placeholder
+ * `${ENV_NAMESPACE}`, which the deployer resolves in the target namespace.
  */
 import { readFile } from "node:fs/promises";
 import type { Download, Page } from "@playwright/test";

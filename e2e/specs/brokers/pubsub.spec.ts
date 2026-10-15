@@ -122,9 +122,9 @@ test(
     // afford to wait -- a 25 s wait produced none, and this case's own observable (one session, no
     // failed elements) is identical to the AUTO case's, so it cannot stand as proof the axis value
     // took effect. A failing chain would differ: AUTO nacks it and the emulator delivers it again
-    // (trigger-idempotency.spec.ts). `readUntil` still spends the whole window rather than exiting on the first
-    // (always true) reading, so this is a genuine bounded wait for "nothing more happened", not a
-    // `toPass` that a first, too-early poll would satisfy.
+    // (trigger-idempotency.spec.ts). `readUntil` still spends the whole window rather than exiting on
+    // the first (always true) reading, so this is a genuine bounded wait for "nothing more happened",
+    // not a `toPass` that a first, too-early poll would satisfy.
     const settled = await readUntil(
       () => sessions.idsOf(chain.id),
       (ids) => [...ids].filter((id) => !before.has(id)).length > 1,
