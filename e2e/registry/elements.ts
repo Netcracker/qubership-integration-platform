@@ -105,6 +105,9 @@ const R_KAFKA_OAUTHBEARER =
 const R_KAFKA_TLSV11_DISABLED =
   "measured on both engines: the JDK disables TLSv1.1 (jdk.tls.disabledAlgorithms), so a TLSv1.1 " +
   "client fails with SSLHandshakeException \"No appropriate protocol\" before the broker answers";
+const R_KAFKA_TLSV13_INDISTINGUISHABLE =
+  "the TLS13 listener accepts the TLS default as well, and no listener accepts TLSv1.2 while it refuses " +
+  "TLSv1.3, so a case cannot tell TLSv1.3 apart from TLS; the TLSv1.3 cases still run, without a covers() call";
 const R_KAFKA_OFFSET_RESET_NONE =
   "measured: with a fresh consumer group and no backlog, autoOffsetReset=none reads a message the " +
   "same way earliest and latest do — the exception it alone can raise needs a record already on the " +
@@ -122,9 +125,11 @@ const R_KAFKA_SERIALIZER_INDISTINGUISHABLE =
   "to prove the element does not throw, but carries no covers() call";
 
 const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
-  "measured: the embedded google-cloud-pubsub client's lease auto-extension suppresses any " +
-  "observable redelivery within a bounded test window, so a case sees the same one session, no " +
-  "failed elements AUTO's case already shows; the case still runs, without a covers() call";
+  "measured on a chain that completes: the embedded google-cloud-pubsub client's lease auto-extension " +
+  "suppresses any observable redelivery within a bounded test window, so a case sees the same one " +
+  "session, no failed elements AUTO's case already shows; the case still runs, without a covers() call. " +
+  "A failing chain would tell the two apart, since AUTO nacks it and the emulator delivers it again " +
+  "(trigger-idempotency.spec.ts), but no case runs NONE on a failing chain";
 
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
 // `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close through
@@ -319,6 +324,11 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
+  // MANUAL and NONE each differ from the AUTO default: a failed message is not dead-lettered. They do
+  // not differ from each other on a failing chain, since MANUAL acks the delivery before the chain
+  // runs and NONE consumes without acks, so both leave one session, an empty queue, and an empty
+  // dead-letter queue. Only the consumer's ack_required flag in the RabbitMQ management API tells
+  // them apart, and the chart exposes no management port.
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "NONE", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "MANUAL", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
@@ -508,7 +518,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLS", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_TLSV11_DISABLED, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.2", tier: 2, status: "covered", tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.3", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.3", tier: 2, status: NOT_COVERED, reason: R_KAFKA_TLSV13_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.ByteArraySerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.ByteBufferSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.BytesSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
@@ -595,7 +605,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLS", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_TLSV11_DISABLED, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.2", tier: 2, status: "covered", tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.3", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.3", tier: 2, status: NOT_COVERED, reason: R_KAFKA_TLSV13_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.ByteArrayDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.ByteBufferDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.BytesDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
@@ -651,6 +661,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_CONTEXT_ALWAYS_SENT, tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  // MANUAL and NONE leave the same state on a failing chain; see the async-api-trigger rows.
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "NONE", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "MANUAL", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
