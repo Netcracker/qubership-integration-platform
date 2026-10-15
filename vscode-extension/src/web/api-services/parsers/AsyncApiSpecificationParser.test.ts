@@ -146,6 +146,16 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
       );
     });
 
+    it("keeps a declared operation on the reply channel, else the last reply", async () => {
+      const operations = await operationsFor("v3/kafka-v3-reply-slot.yaml");
+      const nameOf = (address: string) =>
+        operations.find((o) => o.path === address && o.method === "receive")
+          .name;
+
+      expect(nameOf("order/reply")).toBe("receiveOrderReply");
+      expect(nameOf("shared/reply")).toBe("sendRefundRequestReply");
+    });
+
     it("AMQP v3: emits binding specification with exchangeName", async () => {
       const operations = await operationsFor(
         "v3/amqp-v3-exchange-bindings.yaml",
