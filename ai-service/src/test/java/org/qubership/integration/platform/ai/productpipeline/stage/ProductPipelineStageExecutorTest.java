@@ -223,10 +223,14 @@ class ProductPipelineStageExecutorTest {
     var clean = new ArrayList<Boolean>();
     var execution = capability("execution-cap", context -> {
       clean.add(StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context)));
+      var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback(
+          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION, "Invalid property.",
+          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM,
+          false, List.of(), "", clean.size() > 1);
       return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "Invalid property.", new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+          "Invalid property.", RecoveryCause.captureFailure(feedback,
               List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Invalid property.", true,
-                  MappingValidationDetails.empty(), "call-1", "/properties")), "", clean.size() > 1))));
+                  MappingValidationDetails.empty(), "call-1", "/properties")), null))));
     });
     var profile = analysisThenPlanningThenExecutionProfile();
     var runtime = newRuntime(2, new RecoveryAttemptLedger(), profile, analysisCandidate(), planningAlwaysCandidate(), execution);
@@ -240,6 +244,11 @@ class ProductPipelineStageExecutorTest {
     }
     assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
     assertEquals(List.of(false, false, true), clean);
+    var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(),
+        RecoveryEvidence.class);
+    assertTrue(evidence.captureFailure().feedback().noProgress());
+    assertFalse(evidence.captureFailure().feedback().outerAllowed());
+    assertEquals("call-1", evidence.findings().getFirst().nodeId());
     assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
   }

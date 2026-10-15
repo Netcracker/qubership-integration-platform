@@ -222,7 +222,9 @@ final class RequirementRevisionAdmission {
           var originalIntent = old.elementIntent();
           var newIntent = fact.elementIntent();
           var intent = originalIntent == null ? newIntent : originalIntent;
-          if (originalIntent != null && newIntent != null && Objects.equals(originalIntent.elementRef(), newIntent.elementRef())) {
+          if (originalIntent != null && newIntent != null && Objects.equals(originalIntent.elementRef(), newIntent.elementRef())
+              && Objects.equals(originalIntent.elementType(), newIntent.elementType())
+              && originalIntent.placement() == newIntent.placement()) {
             var properties = new LinkedHashMap<String, org.qubership.integration.platform.ai.plan.model.PlanProperty>();
             originalIntent.requestedProperties().forEach(property -> properties.put(property.key(), property));
             newIntent.requestedProperties().forEach(property -> properties.putIfAbsent(property.key(), property));
@@ -291,6 +293,36 @@ final class RequirementRevisionAdmission {
       }
     }
     return values;
+  }
+
+  record RetainedAdditions(List<FactInput> facts, ObjectNode values) {}
+
+  static RetainedAdditions retainedAdditions(DraftInput base, DraftInput candidate, List<Issue> findings) {
+    var issues = new ArrayList<>(RequirementCaptureEditor.initialize(candidate).issues());
+    issues.addAll(findings);
+    var distinct = issues.stream().distinct().toList();
+    var facts = RequirementCaptureEditor.factsToPreserve(candidate, distinct);
+    var values = valuesToPreserve(candidate, distinct);
+    if (base == null) return new RetainedAdditions(facts, values);
+    var merged = accumulate(base.facts(), facts);
+    var additions = merged.stream().filter(fact -> !base.facts().contains(fact)).toList();
+    return new RetainedAdditions(additions, addedValues(tree(base), values));
+  }
+
+  private static ObjectNode addedValues(JsonNode base, ObjectNode candidate) {
+    var additions = MAPPER.createObjectNode();
+    candidate.fields().forEachRemaining(field -> {
+      var old = base.path(field.getKey());
+      var value = field.getValue();
+      if (old.isMissingNode() || old.isNull()) additions.set(field.getKey(), value);
+      else if (old.isObject() && value.isObject()) additions.set(field.getKey(), addedValues(old, (ObjectNode) value));
+      else if (old.isArray() && value.isArray()) {
+        var added = MAPPER.createArrayNode();
+        value.forEach(item -> { if (!contains(old, item)) added.add(item); });
+        if (!added.isEmpty()) additions.set(field.getKey(), added);
+      }
+    });
+    return additions;
   }
 
   static ObjectNode accumulateValues(JsonNode original, ObjectNode candidate) {

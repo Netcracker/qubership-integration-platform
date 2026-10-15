@@ -21,6 +21,27 @@ class RecoveryContextProjectorTest {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   @Test
+  void nativeCaptureEvidenceSurvivesSerializationAndRecoveryProjection() throws Exception {
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback(
+        org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION, "Invalid amendment",
+        org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM,
+        false, List.of(new org.qubership.integration.platform.ai.compiler.capture.CaptureFieldHint(
+            "httpMethod", "capability.httpMethod", "GET")), "[]", true);
+    var base = new Reference(Kind.REQUIREMENT_DRAFT, "accepted", "base-hash");
+    var rejected = new Reference(Kind.REQUIREMENT_CAPTURE_ATTEMPT, "rejected", "candidate-hash");
+    var consequence = new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+        "AUTHOR_AMENDMENT_REQUIRED", "Retain GET", true);
+    var capture = new org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence(
+        feedback, base, rejected, List.of(consequence));
+    var evidence = new RecoveryEvidence(1, "failure", "CONTRACT_SHAPE", "requirement-discovery", "requirement-discovery",
+        null, null, List.of(rejected), List.of(), null, List.of(), List.of(), List.of(base), List.of("source"), false, capture);
+    var restored = MAPPER.readValue(MAPPER.writeValueAsBytes(evidence), RecoveryEvidence.class);
+    assertEquals(capture, restored.captureFailure());
+    var json = MAPPER.readTree(RecoveryContextProjector.project(new RecoveryContext(restored, null, null, "en"), MAPPER));
+    assertEquals(MAPPER.valueToTree(capture), json.at("/evidence/captureFailure"));
+  }
+
+  @Test
   void projectionKeepsEverySourceMessageInOrderWithoutSerializingInputTimestamps() throws Exception {
     var inputs = List.of(
         new org.qubership.integration.platform.ai.productpipeline.artifact.UserInput("first", "conversation-source",

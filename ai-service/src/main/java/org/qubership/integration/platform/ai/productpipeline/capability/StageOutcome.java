@@ -1,6 +1,11 @@
 package org.qubership.integration.platform.ai.productpipeline.capability;
 
 import java.util.List;
+import java.util.Optional;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 
 /** Typed terminal result of one stage capability invocation. */
 public record StageOutcome(
@@ -29,6 +34,27 @@ public record StageOutcome(
   public static StageOutcome of(
       StageOutcomeClass outcomeClass, String message, RecoveryCause recoveryCause) {
     return new StageOutcome(outcomeClass, List.of(), message, null, recoveryCause);
+  }
+
+  public static Optional<StageOutcome> captureFailure(Throwable failure) {
+    for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+      if (cause instanceof CaptureNoProgressException stopped) {
+        var feedback = stopped.evidence() != null ? stopped.evidence().feedback()
+            : new CaptureAttemptFeedback(
+            CaptureFailureKind.VALIDATION,
+            cause.getMessage(),
+            CaptureFailureClass.IDENTICAL_SPAM,
+            false, List.of(), "", true);
+        return Optional.of(of(StageOutcomeClass.CONTRACT_FAILURE, cause.getMessage(),
+            RecoveryCause.captureFailure(feedback, List.of(), stopped.evidence())));
+      }
+    }
+    return Optional.empty();
+  }
+
+  public static StageOutcome invocationFailure(Throwable failure) {
+    var capture = captureFailure(failure);
+    return capture.orElseGet(() -> technicalFailure(failure));
   }
 
   public static StageOutcome technicalFailure(Throwable failure) {

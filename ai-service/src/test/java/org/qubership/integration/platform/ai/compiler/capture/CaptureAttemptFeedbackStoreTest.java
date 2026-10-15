@@ -55,8 +55,16 @@ class CaptureAttemptFeedbackStoreTest {
     first.beginProposal("chat", "skill", "capture", java.util.Map.of("value", "A"));
     first.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
         CaptureFailureClass.CORRECTABLE, true, "Invalid A");
+    var captured = first.lastPatchFailure("chat", "skill").orElseThrow();
+    assertEquals(CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK, captured.evidenceReference().kind());
+    first.recordPlanValidationFailure("chat", "Invalid A");
+    assertEquals(captured.evidenceReference(), first.lastPatchFailure("chat", "skill").orElseThrow().evidenceReference());
+    var saved = artifacts.get(sessions.active("chat"), captured.evidenceReference()).orElseThrow();
+    assertEquals("A", artifacts.payload(saved, CaptureAttemptFeedbackStore.Observation.class)
+        .proposal().arguments().path("value").asText());
     var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
     assertTrue(restored.lastPatchFailure("chat", "skill").isPresent());
+    assertEquals(captured.evidenceReference(), restored.lastPatchFailure("chat", "skill").orElseThrow().evidenceReference());
     restored.clearPatch("chat", "skill");
     assertTrue(restored.lastPatchFailure("chat", "skill").isEmpty());
     restored.beginScope("chat", "skill", java.util.Map.of("base", "v1"));

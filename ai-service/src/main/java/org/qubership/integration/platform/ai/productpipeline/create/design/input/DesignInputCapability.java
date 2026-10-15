@@ -260,11 +260,10 @@ public class DesignInputCapability implements StageCapability {
       return StageOutcome.of(
           StageOutcomeClass.CONTRACT_FAILURE,
           message,
-          new RecoveryCause(
-              RecoveryCauseCode.CONTRACT_SHAPE,
-              List.of(new PlanValidationFinding("CONTRACT_SHAPE", message, true)),
-              "", captureFeedback.lastPlanFailure(captureConversationId)
-                  .map(org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback::noProgress).orElse(false)));
+          captureFeedback.lastPlanFailure(captureConversationId)
+              .map(feedback -> RecoveryCause.captureFailure(feedback, List.of(), null))
+              .orElseGet(() -> new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+                  List.of(new PlanValidationFinding("CONTRACT_SHAPE", message, true)), "")));
     }
     IdsDocument ids = idsRenderer.render(revision, contract, brief);
     // The stage carries no approval policy of its own: the topology is approved together with the

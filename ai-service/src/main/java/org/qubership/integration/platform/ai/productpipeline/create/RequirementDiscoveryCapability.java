@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -422,7 +423,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
                           .items(
                               SkillActivitySupport.error(skillId),
                               new CapabilitySignal.Completed(
-                                  StageOutcome.technicalFailure(error)));
+                                  StageOutcome.invocationFailure(error)));
                     }));
   }
 
@@ -453,13 +454,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
     RequirementDraft draft = draftStore.get(conversationId).orElse(captured.get());
     var preservation = draftStore.validateCurrent(conversationId);
-    if (!preservation.isEmpty()) {
-      var findings = preservation.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
-          MappingValidationDetails.empty(), issue.entityId(), CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
-      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "Retain validated requirements from rejected attempts before continuing.",
-          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
-    }
     Optional<RequirementRejection> rejection = captureFeedback == null ? Optional.empty()
         : captureFeedback.lastRequirementRejection(conversationId);
     if (rejection.isPresent() && rejection.get().issues().stream()
@@ -470,11 +464,25 @@ public class RequirementDiscoveryCapability implements StageCapability {
               MappingValidationDetails.empty(),
               issue.entityId() == null || issue.entityId().isBlank() ? "requirement-draft" : issue.entityId(),
               CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
-      var cause = new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "", rejection.get().feedback().noProgress());
+      var consequences = preservation.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+          MappingValidationDetails.empty(), issue.entityId(), CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+      var rejected = draftStore.rejectedCaptureRevision(conversationId);
+      var evidence = new CaptureFailureEvidence(
+          rejection.get().feedback(), rejected.flatMap(revision -> revision.inputs().stream()
+              .filter(ref -> ref.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT).findFirst()).orElse(null),
+          rejected.map(revision -> revision.reference()).orElse(null), consequences);
+      var cause = RecoveryCause.captureFailure(rejection.get().feedback(), findings, evidence);
       draftStore.recordCaptureRejection(conversationId, cause.formattedFindings());
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
           "The generated requirement draft was rejected. Repair the reported fields and preserve the requirements.",
           cause));
+    }
+    if (!preservation.isEmpty()) {
+      var findings = preservation.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+          MappingValidationDetails.empty(), issue.entityId(), CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Retain validated requirements from rejected attempts before continuing.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
     }
     RequirementDraft repairDraft = mappingRepairDraft(context);
     if (repairDraft != null && !preservesMappingRepair(context, repairDraft, draft)) {

@@ -27,6 +27,32 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
 class RequirementDraftStoreLifecycleTest {
 
   @Test
+  void rejectedCandidateProtectionRetriesItsFailedWriteAndRestoresOnlyPersistedAdditions() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = org.mockito.Mockito.spy(new InMemoryArtifactBlobStore());
+    var failOnce = new java.util.concurrent.atomic.AtomicBoolean(true);
+    org.mockito.Mockito.doAnswer(invocation -> {
+      byte[] content = invocation.getArgument(1);
+      if (mapper.readTree(content).path("kind").asText().equals("REQUIREMENT_CAPTURE_PROTECTION")
+          && failOnce.getAndSet(false)) throw new IllegalStateException("protection write unavailable");
+      return invocation.callRealMethod();
+    }).when(blobs).put(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    var store = runtime(blobs).store();
+    store.beginTurn("chat", "Create tasks.");
+    var fact = new RequirementCaptureInput.FactInput("goal", List.of(), RequirementCaptureInput.FactKind.GOAL,
+        RequirementCaptureInput.Polarity.POSITIVE, "Create tasks.");
+    var candidate = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(fact), List.of(), List.of(), new RequirementCaptureInput.DraftSettings(null, null));
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+        () -> store.rememberRejectedCapture("chat", candidate, List.of()));
+    assertTrue(store.rejectedCaptureFacts("chat").isEmpty());
+    store.rememberRejectedCapture("chat", candidate, List.of());
+    var restored = runtime(blobs).store();
+    restored.beginTurn("chat", "Create tasks.");
+    assertEquals(List.of(fact), restored.rejectedCaptureFacts("chat"));
+  }
+
+  @Test
   void failedProtectionWriteCanRetryWithoutLosingItsFacts() throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = org.mockito.Mockito.spy(new InMemoryArtifactBlobStore());
