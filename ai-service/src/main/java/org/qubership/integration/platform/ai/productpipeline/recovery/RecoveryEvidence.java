@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.recovery;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 
 /** Durable, lossless recovery evidence for one failure observation. */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -21,7 +22,18 @@ public record RecoveryEvidence(
     List<String> documentRecordRefs,
     List<Reference> producerInputs,
     List<String> authorInputIds,
-    boolean cleanRebuild) {
+    boolean cleanRebuild,
+    CaptureFailureEvidence captureFailure) {
+
+  public RecoveryEvidence(int schemaVersion, String failureId, String observedCauseCode,
+      String observingStageId, String producerStageId, Reference approvedBriefRef,
+      Reference approvedSemanticRef, List<Reference> rejectedArtifactRefs, List<SemanticFinding> findings,
+      TechnicalFailureRecord technicalFailure, List<Reference> priorAttemptRefs, List<String> documentRecordRefs,
+      List<Reference> producerInputs, List<String> authorInputIds, boolean cleanRebuild) {
+    this(schemaVersion, failureId, observedCauseCode, observingStageId, producerStageId, approvedBriefRef,
+        approvedSemanticRef, rejectedArtifactRefs, findings, technicalFailure, priorAttemptRefs, documentRecordRefs,
+        producerInputs, authorInputIds, cleanRebuild, null);
+  }
 
   public RecoveryEvidence {
     producerInputs = producerInputs == null ? List.of() : List.copyOf(producerInputs);

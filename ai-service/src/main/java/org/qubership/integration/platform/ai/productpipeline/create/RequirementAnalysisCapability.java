@@ -484,7 +484,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                           .items(
                               SkillActivitySupport.error(SKILL_ID),
                               new CapabilitySignal.Completed(
-                                  StageOutcome.technicalFailure(error)));
+                                  StageOutcome.invocationFailure(error)));
                     }));
   }
 
@@ -533,7 +533,8 @@ public class RequirementAnalysisCapability implements StageCapability {
           }
           if (lastFailure.get().kind() == CaptureFailureKind.VALIDATION) {
             return new CapabilitySignal.Completed(
-                StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, summary));
+                StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, summary,
+                    RecoveryCause.captureFailure(lastFailure.get(), List.of(), null)));
           }
         }
       }

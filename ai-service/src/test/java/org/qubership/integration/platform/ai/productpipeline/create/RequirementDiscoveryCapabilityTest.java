@@ -50,6 +50,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactIn
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.AmendmentInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
@@ -375,6 +376,59 @@ class RequirementDiscoveryCapabilityTest {
         new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
         feedback, null, folders);
     return new CaptureHarness(store, feedback, tools);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void nativeRejectionPrecedesPreservationConsequencesAndKeepsCandidateReferences(boolean repeated) {
+    var h = captureHarness(null);
+    var base = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+        "Caller", "POST /tasks", "Create tasks", null, null)), List.of()),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Create tasks.")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/tasks", null, null, null)),
+        List.of(), new DraftSettings(null, null));
+    var changes = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(new FactInput("retain-id", List.of(), FactKind.CONSTRAINT, Polarity.POSITIVE, "Preserve request IDs.")),
+        List.of(), List.of(), List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
+            "/tasks", null, null, null)), List.of(), List.of(), List.of(), List.of(), null,
+        List.of(new AmendmentInput("/capabilities/entry/httpMethod", "obsolete-source", "Use GET")));
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.tools().captureRequirementDraft(base);
+      h.tools().updateRequirementDraft(changes);
+      if (repeated) h.tools().updateRequirementDraft(changes);
+      return Multi.createFrom().empty();
+    });
+    capability.captureFeedback = h.feedback();
+    var outcome = discoveryOutcome(capability);
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    var cause = outcome.recoveryCause();
+    assertEquals("INVALID_AUTHOR_AMENDMENT", cause.findings().getFirst().code());
+    assertEquals(repeated, cause.noProgress());
+    assertFalse(cause.captureFailure().consequentialFindings().isEmpty());
+    assertEquals(h.store().latestRevision("conv-rejected").orElseThrow().reference(), cause.captureFailure().acceptedBase());
+    assertEquals(org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT,
+        cause.captureFailure().rejectedCandidate().kind());
+    assertEquals(base, h.store().get("conv-rejected").orElseThrow().authoredDraft());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"network", "direct", "wrapped"})
+  void asynchronousCaptureStopRetainsItsContractClassification(String kind) {
+    var stopped = new org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException("Repeated candidate");
+    Throwable error = switch (kind) {
+      case "network" -> new java.net.UnknownHostException("example.invalid");
+      case "wrapped" -> new java.util.concurrent.CompletionException(stopped);
+      default -> stopped;
+    };
+    var capability = new RequirementDiscoveryCapability(null, new RequirementDraftStore(),
+        (chat, text) -> Multi.createFrom().failure(error), null);
+    var outcome = discoveryOutcome(capability);
+    assertEquals(kind.equals("network") ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE
+        : StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    if (!kind.equals("network")) {
+      assertTrue(outcome.recoveryCause().noProgress());
+      assertFalse(outcome.recoveryCause().captureFailure().feedback().outerAllowed());
+    }
   }
 
   private record CaptureHarness(RequirementDraftStore store,

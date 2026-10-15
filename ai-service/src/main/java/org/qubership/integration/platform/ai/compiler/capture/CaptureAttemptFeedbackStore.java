@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue;
@@ -139,7 +140,8 @@ public class CaptureAttemptFeedbackStore {
     var duplicate = observe(conversationId, previous.channel(), new CaptureAttemptFeedback(
         feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true));
     cache(conversationId, capability, previous.channel(), duplicate);
-    throw new CaptureNoProgressException("REPAIR_NO_PROGRESS: The same proposal was rejected under the current inputs. " + duplicate.summary());
+    throw new CaptureNoProgressException("REPAIR_NO_PROGRESS: The same proposal was rejected under the current inputs. " + duplicate.summary(),
+        new CaptureFailureEvidence(duplicate, null, duplicate.evidenceReference(), List.of()));
   }
 
   private static String scopeKey(String conversationId, String capabilityId) {
@@ -149,7 +151,11 @@ public class CaptureAttemptFeedbackStore {
   private List<Observation> history(String conversationId) {
     if (artifacts == null) { return observations.getOrDefault(historyOwner(conversationId), List.of()); }
     return sessions.current(historyOwner(conversationId)).map(link -> artifacts.history(link.compilationId(), Kind.CAPTURE_ATTEMPT_FEEDBACK)
-        .stream().map(revision -> artifacts.payload(revision, Observation.class)).toList()).orElse(List.of());
+        .stream().map(revision -> {
+          var observation = artifacts.payload(revision, Observation.class);
+          return new Observation(observation.channel(), observation.capabilityId(), observation.proposal(),
+              observation.feedback() == null ? null : observation.feedback().withEvidenceReference(revision.reference()));
+        }).toList()).orElse(List.of());
   }
 
   private CaptureAttemptFeedback observe(String conversationId, String channel, CaptureAttemptFeedback feedback) {
@@ -163,8 +169,9 @@ public class CaptureAttemptFeedbackStore {
     String capability = proposal == null ? channelCapability : proposal.capabilityId();
     var observation = new Observation(channel, capability, proposal, feedback);
     if (artifacts != null) {
-      artifacts.append(new AppendCommand(sessions.active(historyOwner(conversationId)), Kind.CAPTURE_ATTEMPT_FEEDBACK,
+      var saved = artifacts.append(new AppendCommand(sessions.active(historyOwner(conversationId)), Kind.CAPTURE_ATTEMPT_FEEDBACK,
           "1", "capture-feedback", "1", observation, List.of(), null));
+      feedback = feedback.withEvidenceReference(saved.reference());
     } else {
       var updated = new java.util.ArrayList<>(history(conversationId));
       updated.add(observation);
@@ -180,7 +187,7 @@ public class CaptureAttemptFeedbackStore {
         .projectValues(relevant, json, org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET)
         .toString();
     return new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
-        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress());
+        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference());
   }
 
   public String repairHistory(String conversationId, String capabilityId) {

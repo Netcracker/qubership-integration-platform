@@ -67,7 +67,7 @@ public final class RecoveryContextProjector {
         evidence.findings(),
         redactedTechnicalFailure(evidence.technicalFailure()),
         evidence.priorAttemptRefs(),
-        evidence.documentRecordRefs(), evidence.producerInputs(), evidence.authorInputIds(), evidence.cleanRebuild());
+        evidence.documentRecordRefs(), evidence.producerInputs(), evidence.authorInputIds(), evidence.cleanRebuild(), evidence.captureFailure());
   }
 
   private static TechnicalFailureRecord redactedTechnicalFailure(TechnicalFailureRecord record) {
@@ -119,6 +119,9 @@ public final class RecoveryContextProjector {
     node.set("findings", mapper.valueToTree(evidence.findings()));
     if (evidence.technicalFailure() != null) {
       node.set("technicalFailure", mapper.valueToTree(evidence.technicalFailure()));
+    }
+    if (evidence.captureFailure() != null) {
+      node.set("captureFailure", mapper.valueToTree(evidence.captureFailure()));
     }
     node.set("priorAttemptRefs", mapper.valueToTree(evidence.priorAttemptRefs()));
     node.set("documentRecordRefs", mapper.valueToTree(evidence.documentRecordRefs()));

@@ -106,24 +106,14 @@ public class RequirementCaptureTools {
         RequirementDraft previous = store.get(conversationId).orElse(null);
         if (previous != null && previous.authoredDraft() != null) {
           if (Objects.equals(previous.authoredDraft(), draft)) {
-            return publish(conversationId, draft, previous, null);
+            return publish(conversationId, draft, previous, null, List.of());
           }
           return view(previous, false, false, List.of(new Issue(
               "DRAFT_ALREADY_EXISTS", "/draft", null,
               "Read the accepted draft and use updateRequirementDraft for changes.")));
         }
         EditResult edit = RequirementCaptureEditor.initialize(draft);
-        if (!edit.accepted()) {
-          List<Issue> issues = new ArrayList<>(edit.issues());
-          issues.addAll(validateElementEvidence(conversationId, draft, previous));
-          store.rememberRejectedCapture(conversationId, draft, issues);
-          return view(previous, false, false, issues);
-        }
-        Issue folderIssue = ambiguousFolder(draft, previous, "/draft/settings/targetFolderPath");
-        if (folderIssue != null) {
-          return view(previous, false, false, List.of(folderIssue));
-        }
-        return publish(conversationId, draft, previous, null);
+        return publish(conversationId, draft, previous, null, edit.issues());
       }
     });
   }
@@ -152,21 +142,7 @@ public class RequirementCaptureTools {
         RequirementDraft previous = store.get(conversationId).orElse(null);
         EditResult edit = RequirementCaptureEditor.apply(
             previous == null ? null : previous.authoredDraft(), changes);
-        if (!edit.accepted()) {
-          if (edit.candidate() != null && edit.issues().stream()
-              .noneMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
-            var issues = new ArrayList<>(edit.issues());
-            issues.addAll(validateElementEvidence(conversationId, edit.candidate(), previous));
-            store.rememberRejectedCapture(conversationId, edit.candidate(), issues);
-          }
-          return view(previous, false, false, edit.issues());
-        }
-        Issue folderIssue =
-            ambiguousFolder(edit.draft(), previous, "/changes/settings/targetFolderPath");
-        if (folderIssue != null) {
-          return view(previous, false, false, List.of(folderIssue));
-        }
-        return publish(conversationId, edit.draft(), previous, changes);
+        return publish(conversationId, edit.accepted() ? edit.draft() : edit.candidate(), previous, changes, edit.issues());
       }
     });
   }
@@ -306,24 +282,25 @@ public class RequirementCaptureTools {
   }
 
   private RequirementCaptureResult publish(
-      String conversationId, DraftInput input, RequirementDraft previous, DraftUpdate changes) {
+      String conversationId, DraftInput input, RequirementDraft previous, DraftUpdate changes, List<Issue> editIssues) {
+    if (input == null) return reject(conversationId, null, previous, editIssues);
+    Issue folderIssue = input.settings() == null ? null : ambiguousFolder(input, previous,
+        previous == null ? "/draft/settings/targetFolderPath" : "/changes/settings/targetFolderPath");
+    if (folderIssue != null && editIssues.isEmpty()) return view(previous, false, false, List.of(folderIssue));
     var expectedBase = store.latestRevision(conversationId).map(value -> value.reference()).orElse(null);
-    List<Issue> preferenceIssues = RequirementPreferenceEvidence.validate(
-        input, previous, store.currentAuthorText(conversationId).orElse(null),
-        previous == null || previous.authoredDraft() == null ? "/draft" : "/changes");
-    preferenceIssues = new ArrayList<>(preferenceIssues);
-    preferenceIssues.addAll(validateElementEvidence(conversationId, input, previous));
-    if (!preferenceIssues.isEmpty()) {
-      store.rememberRejectedCapture(conversationId, input, preferenceIssues);
-      return view(previous, false, false, preferenceIssues);
+    var issues = new ArrayList<>(editIssues);
+    if (folderIssue != null) issues.add(folderIssue);
+    if (input.settings() != null) {
+      issues.addAll(RequirementPreferenceEvidence.validate(input, previous,
+          store.currentAuthorText(conversationId).orElse(null), previous == null ? "/draft" : "/changes"));
     }
-    RequirementTargetResolver.Resolution targetResolution = targetResolver == null
-        ? new RequirementTargetResolver.Resolution(Map.of(), List.of())
-        : targetResolver.resolve(input);
-    if (!targetResolution.issues().isEmpty()) {
-      store.rememberRejectedCapture(conversationId, input, targetResolution.issues());
-      return view(previous, false, false, targetResolution.issues());
-    }
+    issues.addAll(validateElementEvidence(conversationId, input, previous));
+    RequirementTargetResolver.Resolution targetResolution = targetResolver != null && input.flow() != null
+        && input.flow().interactions() != null && input.flow().interactions().stream().allMatch(Objects::nonNull)
+        && input.capabilities() != null && input.capabilities().stream().allMatch(Objects::nonNull)
+        ? targetResolver.resolve(input) : new RequirementTargetResolver.Resolution(Map.of(), List.of());
+    issues.addAll(targetResolution.issues());
+    if (!issues.isEmpty()) return reject(conversationId, input, previous, issues.stream().distinct().toList());
     List<CatalogBindingHint> bindings =
         legacyBindingAdapter.canonicalBindings(input, previous, conversationId);
     RequirementDraft draft = RequirementCaptureProjection.toDraft(
@@ -333,9 +310,7 @@ public class RequirementCaptureTools {
     var admissionIssues = store.admitCapture(conversationId, expectedBase, draft, changes,
         mappingRepairPaths(conversationId));
     if (!admissionIssues.isEmpty()) {
-      store.rememberRejectedCapture(conversationId, input, admissionIssues);
-      return view(previous, false, false, withPreservedFacts(admissionIssues,
-          previous, store.rejectedCaptureFacts(conversationId)));
+      return reject(conversationId, input, previous, admissionIssues);
     }
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
@@ -343,6 +318,15 @@ public class RequirementCaptureTools {
     ProductCapabilityCaptureContext.offerDraft(draft);
     return view(draft, true, !Objects.equals(expectedBase,
         store.latestRevision(conversationId).map(value -> value.reference()).orElse(null)), List.of());
+  }
+
+  private RequirementCaptureResult reject(String conversationId, DraftInput input,
+      RequirementDraft previous, List<Issue> findings) {
+    var issues = findings.stream().distinct().toList();
+    if (input != null && issues.stream().noneMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
+      store.rememberRejectedCapture(conversationId, input, issues);
+    }
+    return view(previous, false, false, withPreservedFacts(issues, previous, store.rejectedCaptureFacts(conversationId)));
   }
 
   private List<Issue> validateElementEvidence(String conversationId, DraftInput input, RequirementDraft previous) {

@@ -515,10 +515,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
    * better message instead of reaching here.
    */
   private static StageOutcome outcomeOf(Throwable failure) {
-    if (failure instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException) {
-      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, failure.getMessage(),
-          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(), "", true));
-    }
+    var capture = StageOutcome.captureFailure(failure);
+    if (capture.isPresent()) return capture.get();
     if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(failure)) {
       return StageOutcome.technicalFailure(failure);
     }
@@ -1060,7 +1058,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       recovery = new ProducerOwnedRecovery.Route(
           catalogHasBeenWritten(doc.run().runId()) ? ProducerOwnedRecovery.Action.PARK
               : ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, defect.owner());
-      RecoveryCause draftCause = new RecoveryCause(cause.causeCode(), defect.findings(), cause.requestedFact());
+      RecoveryCause draftCause = new RecoveryCause(cause.causeCode(), defect.findings(), cause.requestedFact(), cause.noProgress(), cause.captureFailure());
       putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
           ProductPipelineRunSupport.recoveryCauseJson(draftCause));
       putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR,
@@ -1396,7 +1394,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             priorAttemptRefs, List.of(),
             invocation == null ? List.of() : invocation.inputs(),
             authorInputs(doc).stream().map(UserInput::inputId).toList(),
-            isCurrentCleanRebuild(runId, stage.stageId()));
+            isCurrentCleanRebuild(runId, stage.stageId()), cause.captureFailure());
     RequirementBrief approvedBrief =
         approvedBriefRevision == null
             ? null
@@ -2292,7 +2290,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         findings,
         evidence.technicalFailure(),
         evidence.priorAttemptRefs(), evidence.documentRecordRefs(), evidence.producerInputs(),
-        evidence.authorInputIds(), evidence.cleanRebuild());
+        evidence.authorInputIds(), evidence.cleanRebuild(), evidence.captureFailure());
   }
 
   private static List<Reference> rejectedArtifactRefs(List<Reference> refs) {
@@ -2348,7 +2346,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return new RecoveryCause(
         typed.causeCode(),
         List.of(new PlanValidationFinding("FAILURE_SIGNATURE", signature, true)),
-        "");
+        "", typed.noProgress(), typed.captureFailure());
   }
 
   /**
@@ -2438,7 +2436,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         evidence.observingStageId(), fault.provenance().stageId(), evidence.approvedBriefRef(),
         evidence.approvedSemanticRef(), evidence.rejectedArtifactRefs(), evidence.findings(), evidence.technicalFailure(),
         evidence.priorAttemptRefs(), evidence.documentRecordRefs(), producerInputs,
-        evidence.authorInputIds(), evidence.cleanRebuild());
+        evidence.authorInputIds(), evidence.cleanRebuild(), evidence.captureFailure());
   }
 
   private List<RepairHistory.Attempt> repairHistory(String runId, String producer) {

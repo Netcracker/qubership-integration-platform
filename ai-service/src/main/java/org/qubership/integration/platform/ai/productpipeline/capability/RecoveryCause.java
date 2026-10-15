@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 
 /**
@@ -13,7 +14,11 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValida
  */
 public record RecoveryCause(
     RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact,
-    boolean noProgress) {
+    boolean noProgress, CaptureFailureEvidence captureFailure) {
+
+  public RecoveryCause(RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact, boolean noProgress) {
+    this(causeCode, findings, requestedFact, noProgress, null);
+  }
 
   public RecoveryCause(RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact) {
     this(causeCode, findings, requestedFact, false);
@@ -23,6 +28,16 @@ public record RecoveryCause(
     causeCode = causeCode == null ? RecoveryCauseCode.VALIDATION_BLOCKER : causeCode;
     findings = findings == null ? List.of() : List.copyOf(findings);
     requestedFact = requestedFact == null ? "" : requestedFact;
+  }
+
+  public static RecoveryCause captureFailure(
+      CaptureAttemptFeedback feedback,
+      List<PlanValidationFinding> nativeFindings, CaptureFailureEvidence evidence) {
+    var findings = nativeFindings.isEmpty()
+        ? List.of(new PlanValidationFinding("CAPTURE_" + feedback.kind(), feedback.summary(), true))
+        : nativeFindings;
+    return new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "", feedback.noProgress(),
+        evidence == null ? new CaptureFailureEvidence(feedback, null, feedback.evidenceReference(), List.of()) : evidence);
   }
 
   public static RecoveryCause of(RecoveryCauseCode causeCode) {

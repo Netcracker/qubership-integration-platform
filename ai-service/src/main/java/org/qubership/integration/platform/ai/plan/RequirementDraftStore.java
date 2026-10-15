@@ -268,6 +268,7 @@ public class RequirementDraftStore {
         throw new IllegalArgumentException("Derived requirements must retain the admitted source facts and flow.");
       }
     }
+    var previousAuthored = get(conversationId).map(RequirementDraft::authoredDraft).orElse(null);
     lastCaptureRejection.remove(conversationId);
     String compilationId = sessions.active(conversationId);
     String revisesArtifactId =
@@ -295,6 +296,7 @@ public class RequirementDraftStore {
             draft,
             inputs,
             revisesArtifactId));
+    if (!Objects.equals(previousAuthored, draft.authoredDraft())) clearRejectedCaptureFacts(conversationId);
     if (source != null && conversations != null) {
       conversations.archive().consume(conversationId, source.generation(),
           source.activeTurns().stream().map(turn -> turn.id()).toList(), saved.artifactId());
@@ -541,7 +543,7 @@ public class RequirementDraftStore {
     if (!sameAuthorTurn) {
       CaptureFactProtection scope = factProtection(conversationId, List.of());
       latestFactProtection(conversationId)
-          .filter(previous -> previous.sameSource(scope))
+          .filter(previous -> previous.sameSource(scope) && Objects.equals(previous.baseIdentity(), scope.baseIdentity()))
           .ifPresent(previous -> {
             rejectedCaptureFacts.put(conversationId, previous.facts());
             if (previous.values() != null) rejectedCaptureValues.put(conversationId, previous.values());
@@ -593,14 +595,16 @@ public class RequirementDraftStore {
 
   void rememberRejectedCapture(String conversationId, RequirementCaptureInput.DraftInput input,
       List<RequirementCaptureEditor.Issue> issues) {
+    var base = get(conversationId).map(RequirementDraft::authoredDraft).orElse(null);
+    var retained = RequirementRevisionAdmission.retainedAdditions(base, input, issues);
     var facts = RequirementRevisionAdmission.accumulate(rejectedCaptureFacts(conversationId),
-        RequirementCaptureEditor.factsToPreserve(input, issues));
+        retained.facts());
     var values = RequirementRevisionAdmission.accumulateValues(rejectedCaptureValues.get(conversationId),
-        RequirementRevisionAdmission.valuesToPreserve(input, issues));
+        retained.values());
     if (!facts.equals(rejectedCaptureFacts(conversationId)) || !values.equals(rejectedCaptureValues.get(conversationId))) {
+      saveFactProtection(conversationId, facts, values);
       rejectedCaptureFacts.put(conversationId, facts);
       rejectedCaptureValues.put(conversationId, values);
-      saveFactProtection(conversationId, facts);
     }
   }
 
@@ -631,7 +635,9 @@ public class RequirementDraftStore {
     String inputId = source == null ? null
         : org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(source);
     return new CaptureFactProtection(inputId == null ? null : source.generation(), inputId,
-        inputId == null ? currentAuthorText.get(conversationId) : null, facts, rejectedCaptureValues.get(conversationId));
+        inputId == null ? currentAuthorText.get(conversationId) : null, facts, rejectedCaptureValues.get(conversationId),
+        get(conversationId).map(RequirementDraft::authoredDraft)
+            .map(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal::digest).orElse(null));
   }
 
   private Optional<CaptureFactProtection> latestFactProtection(String conversationId) {
@@ -641,18 +647,26 @@ public class RequirementDraftStore {
   }
 
   private void saveFactProtection(String conversationId, List<RequirementCaptureInput.FactInput> facts) {
+    saveFactProtection(conversationId, facts, rejectedCaptureValues.get(conversationId));
+  }
+
+  private void saveFactProtection(String conversationId, List<RequirementCaptureInput.FactInput> facts,
+      com.fasterxml.jackson.databind.JsonNode values) {
+    var scope = factProtection(conversationId, facts);
+    var protection = new CaptureFactProtection(scope.sourceGeneration(), scope.sourceTurnId(), scope.authorText(),
+        facts, values, scope.baseIdentity());
     String compilationId = sessions.active(conversationId);
     var previous = artifacts.latest(compilationId, Kind.REQUIREMENT_CAPTURE_PROTECTION);
     artifacts.append(new AppendCommand(compilationId, Kind.REQUIREMENT_CAPTURE_PROTECTION, "1",
-        "requirement-capture-protection", "1", factProtection(conversationId, facts), List.of(),
+        "requirement-capture-protection", "1", protection, List.of(),
         previous.map(Revision::artifactId).orElse(null)));
   }
 
   public record CaptureFactProtection(String sourceGeneration, String sourceTurnId, String authorText,
-      List<RequirementCaptureInput.FactInput> facts, com.fasterxml.jackson.databind.JsonNode values) {
+      List<RequirementCaptureInput.FactInput> facts, com.fasterxml.jackson.databind.JsonNode values, String baseIdentity) {
     public CaptureFactProtection(String sourceGeneration, String sourceTurnId, String authorText,
         List<RequirementCaptureInput.FactInput> facts) {
-      this(sourceGeneration, sourceTurnId, authorText, facts, null);
+      this(sourceGeneration, sourceTurnId, authorText, facts, null, null);
     }
 
     public CaptureFactProtection {
@@ -725,7 +739,6 @@ public class RequirementDraftStore {
       return Optional.empty();
     }
     var source = factProtection(conversationId, List.of());
-    var base = latestRevision(conversationId).map(Revision::reference).orElse(null);
     String digest = org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(arguments);
     return sessions.current(conversationId).stream()
         .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
@@ -733,7 +746,7 @@ public class RequirementDraftStore {
         .filter(attempt -> !attempt.accepted() && toolName.equals(attempt.toolName()))
         .filter(attempt -> new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
             attempt.authorText(), List.of()).sameSource(source))
-        .filter(attempt -> Objects.equals(attempt.acceptedDraftReference(), base))
+        .filter(attempt -> sameAcceptedBase(conversationId, attempt.acceptedDraftReference()))
         .filter(attempt -> Objects.equals(attempt.repairAuthority(), repairAuthority(conversationId)))
         .filter(attempt -> digest.equals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(attempt.arguments())))
         .findFirst();
@@ -763,8 +776,30 @@ public class RequirementDraftStore {
     return latestCaptureAttempt(conversationId).filter(attempt -> !attempt.accepted())
         .filter(attempt -> new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
             attempt.authorText(), List.of()).sameSource(source))
-        .filter(attempt -> Objects.equals(attempt.acceptedDraftReference(),
-            latestRevision(conversationId).map(Revision::reference).orElse(null)));
+        .filter(attempt -> sameAcceptedBase(conversationId, attempt.acceptedDraftReference()));
+  }
+
+  private boolean sameAcceptedBase(String conversationId, Reference reference) {
+    var current = latestRevision(conversationId).orElse(null);
+    if (Objects.equals(reference, current == null ? null : current.reference())) return true;
+    if (reference == null || current == null) return false;
+    var authored = artifacts.payload(current, RequirementDraft.class).authoredDraft();
+    return authored != null && artifacts.get(current.compilationId(), reference)
+        .map(revision -> artifacts.payload(revision, RequirementDraft.class).authoredDraft())
+        .filter(authored::equals).isPresent();
+  }
+
+  public Optional<Revision> rejectedCaptureRevision(String conversationId) {
+    var source = factProtection(conversationId, List.of());
+    return sessions.current(conversationId).stream()
+        .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
+        .filter(revision -> {
+          var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
+          return !attempt.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())
+              && new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of())
+                  .sameSource(source)
+              && sameAcceptedBase(conversationId, attempt.acceptedDraftReference());
+        }).reduce((first, last) -> last);
   }
 
   private void saveCaptureAttempt(String conversationId, RequirementCaptureAttempt attempt) {

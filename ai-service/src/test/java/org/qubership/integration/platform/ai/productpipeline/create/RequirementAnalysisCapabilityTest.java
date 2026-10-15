@@ -82,6 +82,39 @@ import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 
 class RequirementAnalysisCapabilityTest {
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"feedback", "direct", "wrapped", "network"})
+  void captureStopSurvivesAnalysisCompletionAndAsyncFailure(String mode) {
+    var feedback = new CaptureAttemptFeedbackStore();
+    var knowledge = knowledgeWithMandatoryObjects();
+    var capability = new RequirementAnalysisCapability(knowledge, knowledge,
+        new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(), new CaptureSession(),
+        feedback, null, null, (conversationId, message) -> {
+          feedback.beginScope(conversationId, "requirement-analysis", Map.of("approved", "unchanged"));
+          feedback.beginProposal(conversationId, "requirement-analysis", "captureRequirementBrief", Map.of("candidate", "invalid"));
+          feedback.recordPlanValidationFailure(conversationId, "Invalid mapping");
+          try {
+            feedback.beginProposal(conversationId, "requirement-analysis", "captureRequirementBrief", Map.of("candidate", "invalid"));
+          } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException stop) {
+            return switch (mode) {
+              case "feedback" -> Multi.createFrom().empty();
+              case "wrapped" -> Multi.createFrom().failure(new java.util.concurrent.CompletionException(stop));
+              case "network" -> Multi.createFrom().failure(new java.net.UnknownHostException("example.invalid"));
+              default -> Multi.createFrom().failure(stop);
+            };
+          }
+          throw new AssertionError("Identical proposal was accepted");
+        }, null);
+    var outcome = runWithUserText(capability, RequirementFactFixtures.greetingsApprovedDraft(),
+        "analysis-stop-" + mode, "Create the approved chain.").outcome();
+    assertEquals(mode.equals("network") ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE
+        : StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    if (!mode.equals("network")) {
+      assertTrue(outcome.recoveryCause().noProgress());
+      assertFalse(outcome.recoveryCause().captureFailure().feedback().outerAllowed());
+    }
+  }
+
   @Test
   void greetingsBriefPreservesEverySourceFactIdExactlyOnce() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.compiler.capture;
 
 import java.util.List;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 
 /**
@@ -20,7 +21,18 @@ public record CaptureAttemptFeedback(
     boolean outerAllowed,
     List<CaptureFieldHint> fieldHints,
     String repairHistoryJson,
-    boolean noProgress) {
+    boolean noProgress, Reference evidenceReference) {
+
+  public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
+      CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,
+      String repairHistoryJson, boolean noProgress) {
+    this(kind, summary, failureClass, outerAllowed, fieldHints, repairHistoryJson, noProgress, null);
+  }
+
+  public CaptureAttemptFeedback withEvidenceReference(Reference reference) {
+    return new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, fieldHints,
+        repairHistoryJson, noProgress, reference);
+  }
 
   public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
       CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,

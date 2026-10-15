@@ -23,6 +23,86 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementRevisionAdmissionTest {
 
+  @ParameterizedTest
+  @ValueSource(strings = {"method", "operation", "fact-text", "fact-kind", "element-property", "element-type", "folder", "ids-choice"})
+  void rejectedReplacementCannotInvalidateAcceptedStateAcrossRetryAndReload(String field) throws Exception {
+    for (boolean earlyRejection : List.of(false, true)) {
+      var h = new Harness();
+      try (var ignored = ToolSession.open(h.chat)) {
+        h.begin("Create tasks at /tasks in Tasks. Proceed without IDS.");
+        var initial = httpDraft(List.of(fact("goal", "Create tasks.")));
+        if (field.startsWith("element-")) {
+          var intent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+              "entry", null, null, null,
+              List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("contextPath", "/tasks")), List.of());
+          initial = httpDraft(List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL,
+              Polarity.POSITIVE, "Create tasks. HTTP trigger contextPath /tasks", null, null, intent)));
+        }
+        var base = new DraftInput(initial.flow(), initial.facts(), initial.capabilities(), List.of(),
+            new DraftSettings(false, null, "Tasks"));
+        assertTrue(h.capture(base).accepted());
+        var accepted = h.store.latestRevision(h.chat).orElseThrow().reference();
+        var json = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(new DraftUpdate(
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(), List.of(), List.of(), List.of(), List.of(), null));
+        String path;
+        switch (field) {
+          case "method" -> {
+            var value = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(base.capabilities().getFirst());
+            value.put("httpMethod", "GET");
+            json.withArray("setCapabilities").add(value);
+            path = "/capabilities/entry/httpMethod";
+          }
+          case "operation" -> {
+            var value = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(base.flow().interactions().getFirst());
+            value.put("operation", "Changed operation");
+            json.withArray("updateInteractions").add(value);
+            path = "/interactions/entry/operation";
+          }
+          case "element-property", "element-type" -> {
+            var value = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(base.facts().getFirst());
+            if (field.equals("element-type")) {
+              ((com.fasterxml.jackson.databind.node.ObjectNode) value.path("elementIntent")).put("elementType", "kafka-sender");
+              ((com.fasterxml.jackson.databind.node.ObjectNode) value.at("/elementIntent/requestedProperties/0"))
+                  .put("key", "brokers").put("value", "localhost:9092");
+            } else {
+              ((com.fasterxml.jackson.databind.node.ObjectNode) value.at("/elementIntent/requestedProperties/0")).put("value", "/changed");
+            }
+            json.withArray("updateFacts").add(value);
+            path = "/facts/goal/elementIntent";
+          }
+          case "fact-text", "fact-kind" -> {
+            var value = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(base.facts().getFirst());
+            String key = field.equals("fact-text") ? "text" : "kind";
+            value.put(key, key.equals("text") ? "Changed goal." : "BEHAVIOR");
+            json.withArray("updateFacts").add(value);
+            path = "/facts/goal/" + key;
+          }
+          default -> {
+            var value = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(base.settings());
+            if (field.equals("folder")) value.put("targetFolderPath", "Changed Folder");
+            else value.put("idsRequested", true);
+            json.set("settings", value);
+            path = "/settings/" + (field.equals("folder") ? "targetFolderPath" : "idsRequested");
+          }
+        }
+        if (earlyRejection) json.withArray("addFacts").add(h.mapper.valueToTree(base.facts().getFirst()));
+        else json.withArray("amendments").add(h.mapper.valueToTree(new AmendmentInput(path, "consumed-source", "Create tasks.")));
+        assertFalse(h.update(h.mapper.treeToValue(json, DraftUpdate.class)).accepted());
+        assertEquals(accepted, h.store.latestRevision(h.chat).orElseThrow().reference());
+        for (boolean reload : List.of(false, true)) {
+          if (reload) h.restartStore();
+          h.store.beginTurn(h.chat, "Automatic correction.");
+          assertTrue(h.store.validateCurrent(h.chat).isEmpty(), field + ": " + h.store.validateCurrent(h.chat));
+          assertTrue(h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+              List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null)).accepted());
+          assertEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
+          assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
+        }
+      }
+    }
+  }
+
   @Test
   void roleAnswerNamesMissingAmendmentChildrenAndAcceptsTheExistingNullParent() throws Exception {
     var h = new Harness();
@@ -549,9 +629,18 @@ class RequirementRevisionAdmissionTest {
       h.begin("Create tasks. Proceed without IDS.");
       assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
       var source = h.begin("Also preserve the request ID.");
+      var rejected = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(fact("retain-id", "Preserve request IDs.")), List.of(fact("goal", "Drop tasks.")),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+      assertFalse(h.update(rejected).accepted());
       h.store.put(h.chat, h.store.get(h.chat).orElseThrow().withImportIntent(true));
       assertEquals(source.turnId(), h.archive.pendingInputs(h.chat).getFirst().id());
       assertTrue(h.store.latestRevision(h.chat).orElseThrow().inputs().isEmpty());
+      assertTrue(h.update(rejected).issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code())),
+          "A binding-only refresh must not grant another identical proposal");
+      h.restartStore();
+      h.store.beginTurn(h.chat, "Automatic correction.");
+      assertFalse(h.store.validateCurrent(h.chat).isEmpty(), "Binding refresh must retain verified pending additions");
       assertTrue(h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(fact("retain-id", "Preserve request IDs.")), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null)).accepted());
