@@ -25,11 +25,8 @@ import { publishAmqp, publishKafka, publishPubsub, seekPubsubToNow } from "../..
 import { branchName, IDEMPOTENCY_KEY_HEADER } from "../../fixtures/axis-generator.js";
 import { callToken } from "../../support/run.js";
 import { element, elementNames, type RecordedSession, type Sessions } from "../../support/sessions.js";
-import { logWindowStart } from "../../support/logs.js";
 import { readUntil } from "../../support/poll.js";
 import { coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes } from "../../support/idempotency.js";
-import type { Env } from "../../env/index.js";
-import { pubsubDelivered } from "./micro-defects.js";
 
 const DOWNSTREAM_STEP = "Header Modification";
 /** How long a `throw-exception` case watches for the duplicate to be delivered again. */
@@ -39,7 +36,6 @@ const MODES = idempotencyModes(DOWNSTREAM_STEP);
 
 interface Delivery {
   sessions: Sessions;
-  env: Env;
   chain: BrokerChain;
   key: string;
   /** The steps the session has to carry before it is read. */
@@ -86,10 +82,9 @@ const BROKERS: Broker[] = [
   {
     family: "pubsub-trigger",
     name: "pubsub",
-    async deliver({ sessions, env, chain, key, elements, before }) {
-      const since = logWindowStart();
+    async deliver({ sessions, chain, key, elements, before }) {
       await publishPubsub(chain.broker.destinationName as string, { key });
-      return pubsubDelivered(env, since, () => sessions.earliestOf(chain.id, elements, (each) => !before.has(each.id)));
+      return sessions.earliestOf(chain.id, elements, (each) => !before.has(each.id));
     },
     // The fixtures name the subscription after the topic (`pubsubTopologyIn`).
     release: (chain) => seekPubsubToNow(chain.broker.destinationName as string),
@@ -99,19 +94,19 @@ const BROKERS: Broker[] = [
 for (const broker of BROKERS) {
   for (const mode of MODES) {
     const branch = branchName(mode);
-    test(`${broker.family} ${branch}: a repeated key ${mode.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ env, sessions }) => {
+    test(`${broker.family} ${branch}: a repeated key ${mode.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ sessions }) => {
       coversIdempotency(broker.family, mode);
       const chain = brokerChain(readBrokersCorpusState(), `${broker.name}-trigger-idempotency-${mode.fixture}`);
       const key = randomUUID();
       const first = firstSteps(mode, DOWNSTREAM_STEP);
 
-      const firstSession = await broker.deliver({ sessions, env, chain, key, elements: first.length, before: await sessions.idsOf(chain.id) });
+      const firstSession = await broker.deliver({ sessions, chain, key, elements: first.length, before: await sessions.idsOf(chain.id) });
       expect(firstSession.chainId).toBe(chain.id);
       expect(elementNames(firstSession)).toEqual(first);
 
       const before = await sessions.idsOf(chain.id);
       try {
-        const second = await broker.deliver({ sessions, env, chain, key, elements: mode.steps.length + 1, before });
+        const second = await broker.deliver({ sessions, chain, key, elements: mode.steps.length + 1, before });
         const settled = await sessions.settled(second);
         expect(settled.executionStatus).toBe(mode.executionStatus);
         expect(elementNames(settled)).toEqual([branch, ...mode.steps]);
