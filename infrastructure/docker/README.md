@@ -25,15 +25,15 @@ cd e2e && npm test -- --project=env --no-deps --grep "service type round trip"
 
 The suite brings the Compose stack up itself, so nothing has to be started first. It sets the legacy flag through a
 throwaway compose override and restores the container on every exit path, so it never edits `qip-dev.env` — which
-`qip-engine` and `qip-sessions-management` read too. See [e2e/README.md](../e2e/README.md) for how to read a failure.
+`qip-engine` and `qip-sessions-management` read too. See [e2e/README.md](../../e2e/README.md) for how to read a failure.
 
 ## Contribution
 
-For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues
-see [Security Reporting Process](../SECURITY.md).
+For the details on contribution, see [Contribution Guide](../../CONTRIBUTING.md). For details on reporting of security issues
+see [Security Reporting Process](../../SECURITY.md).
 
 Commits and pool requests should follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) strategy.
 
 ## Licensing
 
-This software is licensed under Apache License Version 2.0. License text is located in [LICENSE](../LICENSE) file.
+This software is licensed under Apache License Version 2.0. License text is located in [LICENSE](../../LICENSE) file.
