@@ -1,8 +1,8 @@
 import type { Locator, Page } from "@playwright/test";
 
-export type ChainTab = "snapshots" | "deployments" | "sessions";
+export type ChainTab = "snapshots" | "deployments" | "sessions" | "logging-settings" | "masking" | "properties";
 
-/** The chain page's table tabs at `/chains/:chainId/<tab>`, and the header they share. */
+/** The chain page's tabs at `/chains/:chainId/<tab>`, and the header they share. */
 export class ChainTabsPage {
   readonly page: Page;
   /** The header's tag for the catalog's `unsavedChanges` flag. */
@@ -12,6 +12,11 @@ export class ChainTabsPage {
   /** The deployment dialog the Deployments toolbar opens. */
   readonly deploymentDialog: Locator;
   readonly sessionSearch: Locator;
+  /**
+   * The header's submit button of the Logging and Properties forms. Not an exact name: after a save
+   * antd can leave the hidden loading icon in the button, which then reads `loading Apply`.
+   */
+  readonly apply: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -20,10 +25,16 @@ export class ChainTabsPage {
     this.createDeployment = page.getByTestId("deployments-create");
     this.deploymentDialog = page.getByRole("dialog", { name: "Deployment" });
     this.sessionSearch = page.getByRole("textbox", { name: "Search sessions..." });
+    this.apply = page.getByRole("button", { name: /Apply$/ });
   }
 
   async goto(chainId: string, tab: ChainTab): Promise<void> {
     await this.page.goto(`/chains/${chainId}/${tab}`);
+  }
+
+  /** A tab of the chain page by its label, such as `Graph` or `Properties`. */
+  tab(label: string): Locator {
+    return this.page.getByRole("tab", { name: label, exact: true });
   }
 
   /**

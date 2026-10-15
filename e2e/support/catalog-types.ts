@@ -65,6 +65,7 @@ export interface FolderView extends Named {
 export interface ChainView extends Named {
   parentId?: string;
   description?: string;
+  labels?: Array<{ name: string; technical?: boolean }>;
   unsavedChanges?: boolean;
   currentSnapshot?: SnapshotView;
   /** Whether an element of a type `PATCH /v1/chains/{id}/migrate` replaces is on the chain. */
