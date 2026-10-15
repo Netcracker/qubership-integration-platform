@@ -2,7 +2,6 @@ import {
   createVscodeMock,
   stubFileApi,
   stubLabelUtils,
-  stubProjectConfigService,
   buildSystem,
   buildSerializedOpenApiFile,
 } from "../helpers/mocks";
@@ -26,10 +25,6 @@ jest.mock("../../src/web/response/file/fileApiProvider", () =>
   stubFileApi({ getFileType: jest.fn().mockResolvedValue("SERVICE") }),
 );
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
-jest.mock("../../src/web/services/ProjectConfigService", () =>
-  stubProjectConfigService(),
-);
-
 jest.mock("../../src/web/api-services/SystemService", () => ({
   SystemService: jest.fn().mockImplementation(() => ({
     getSystemById: mockGetSystemById,

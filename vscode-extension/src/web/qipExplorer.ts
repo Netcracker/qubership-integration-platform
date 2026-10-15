@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { getExtensionsForFile } from "./response/file/fileExtensions";
+import { FILE_EXTENSIONS } from "./response/file/fileExtensions";
 import { readDirectory } from "./response/file/fileApiImpl";
 import { ContentParser } from "./api-services/parsers/ContentParser";
 
@@ -132,7 +132,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     try {
       const entries = await readDirectory(folderUri);
 
-      const ext = getExtensionsForFile();
+      const ext = FILE_EXTENSIONS;
       for (const [name, type] of entries) {
         if (type === vscode.FileType.File && name.endsWith(ext.chain)) {
           try {
@@ -210,7 +210,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     try {
       const entries = await readDirectory(folderUri);
 
-      const ext = getExtensionsForFile();
+      const ext = FILE_EXTENSIONS;
       for (const [name, type] of entries) {
         if (
           type === vscode.FileType.File &&

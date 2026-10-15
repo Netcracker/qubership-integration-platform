@@ -1,6 +1,5 @@
 import {
   createVscodeMock,
-  stubProjectConfigService,
   buildMockContext,
 } from "./helpers/mocks";
 
@@ -72,23 +71,6 @@ jest.mock("../src/web/response/file/fileApiImpl", () => ({
     createEmptyContextService: jest.fn(),
   })),
 }));
-jest.mock("../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn().mockReturnValue({
-    chain: ".qip-chain.yaml",
-    service: ".qip-service.yaml",
-    contextService: ".qip-context-service.yaml",
-    mcpService: ".qip-mcp-service.yaml",
-    specificationGroup: ".qip-sg.yaml",
-    specification: ".qip-spec.yaml",
-  }),
-  getExtensionsForFile: jest.fn().mockReturnValue({
-    chain: ".qip-chain.yaml",
-    service: ".qip-service.yaml",
-  }),
-  setCurrentFileContext: jest.fn(),
-  extractFilename: jest.fn(),
-  initializeContextFromFile: jest.fn(),
-}));
 jest.mock("../src/web/qipExplorer", () => ({
   QipExplorerProvider: jest.fn().mockImplementation(() => ({
     refresh: jest.fn(),
@@ -101,12 +83,6 @@ jest.mock("../src/web/services/FileCacheService", () => ({
   FileCacheService: {
     getInstance: jest.fn().mockReturnValue({ invalidateByUri: jest.fn() }),
   },
-}));
-jest.mock("../src/web/services/ProjectConfigService", () =>
-  stubProjectConfigService(),
-);
-jest.mock("../src/web/services/ConfigApiProvider", () => ({
-  ConfigApiProvider: { getInstance: jest.fn().mockReturnValue({}) },
 }));
 jest.mock("../src/web/response/navigationUtils", () => ({
   getAndClearNavigationStateValue: jest.fn(),
@@ -253,6 +229,21 @@ describe("extension.ts", () => {
       expect(mockWebview.asWebviewUri).toHaveBeenCalledWith(
         expect.objectContaining({ path: "cip-ui.css" }),
       );
+    });
+  });
+
+  describe("file watchers", () => {
+    test("watches every *.cip.yaml file with a single watcher", () => {
+      const vscode = require("vscode");
+      vscode.workspace.createFileSystemWatcher.mockClear();
+
+      activate(buildMockContext());
+
+      expect(
+        vscode.workspace.createFileSystemWatcher.mock.calls.map(
+          (call: unknown[]) => call[0],
+        ),
+      ).toEqual(["**/*.cip.yaml"]);
     });
   });
 

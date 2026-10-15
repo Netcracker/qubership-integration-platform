@@ -9,7 +9,6 @@
   "files": [
     "dist",
     "!dist/web/test",
-    "configs",
     "vscode.proposed.customEditorDiffs.d.ts"
   ],
   "engines": {
@@ -28,7 +27,7 @@
     "qip.createChainParent",
     "qip.createService",
     "qip.openInTextEditor",
-    "qip.exportImages",
+    "cip.exportImages",
     "qip.exportImagesFromExplorer"
   ],
   "browser": "./dist/web/extension.js",
@@ -86,7 +85,7 @@
         "title": "Open in Text Editor"
       },
       {
-        "command": "qip.exportImages",
+        "command": "cip.exportImages",
         "title": "QIP Export Chain Images"
       },
       {

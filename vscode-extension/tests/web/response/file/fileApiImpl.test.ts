@@ -72,28 +72,6 @@ jest.mock("vscode", () => {
   };
 }, { virtual: true });
 
-jest.mock("../../../../src/web/services/ProjectConfigService", () => ({
-  ProjectConfigService: {
-    getConfig: jest.fn().mockReturnValue({
-      extensions: {
-        chain: ".chain.cip.yaml",
-        service: ".service.cip.yaml",
-        contextService: ".context-service.cip.yaml",
-        mcpService: ".mcp-service.cip.yaml",
-        specificationGroup: ".specification-group.cip.yaml",
-        specification: ".specification.cip.yaml",
-      },
-      schemaUrls: {},
-      cache: { ttl: 60000 },
-    }),
-    getInstance: jest.fn().mockReturnValue({
-      setContext: jest.fn(),
-      loadWorkspaceConfig: jest.fn().mockResolvedValue(undefined),
-    }),
-  },
-  CONFIG_FILENAME: "qip-config.yaml",
-}));
-
 jest.mock("../../../../src/web/services/FileCacheService", () => ({
   FileCacheService: {
     getInstance: jest.fn().mockReturnValue({

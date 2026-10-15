@@ -10,5 +10,3 @@ export {
   isQipSchema,
   getSchemaUrl,
 } from "./qipSchemas";
-export { ConfigApiProvider, ConfigApi } from "./ConfigApiProvider";
-export { ProjectConfig } from "./ProjectConfigService";

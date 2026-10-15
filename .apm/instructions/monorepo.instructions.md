@@ -65,7 +65,7 @@ See the `infrastructure` instruction and `infrastructure/docker/README.md` for s
 `@netcracker/qip-ui` imports `@netcracker/qip-schemas` as a workspace dep, and `@netcracker/qip-vscode-extension` embeds the qip-ui library bundle. So the build order matters:
 
 1. `npm -w @netcracker/qip-schemas run build` — writes `schemas/dist/index.mjs` (the runtime `schemasByType` map). Without this, qip-ui's vite build can't resolve `@netcracker/qip-schemas`.
-2. `npm -w @netcracker/qip-ui run build:lib` — writes `ui/dist-lib/index.es.js` + `qip-ui.css` (external library bundle; the one the vscode-extension webview actually loads). `build:lib:bundled` additionally writes `index.bundled.es.js` with React embedded (avoids the esm.sh `<importmap>` fallback in the extension); `build:lib:all` is the full chain — external + bundled + types + `scripts/fix-preload.mjs` (works as of 2026-05-25).
+2. `npm -w @netcracker/qip-ui run build:lib` — writes `ui/dist-lib/index.es.js` + `cip-ui.css` (external library bundle; the one the vscode-extension webview actually loads). `build:lib:bundled` additionally writes `index.bundled.es.js` with React embedded (avoids the esm.sh `<importmap>` fallback in the extension); `build:lib:all` is the full chain — external + bundled + types + `scripts/fix-preload.mjs` (works as of 2026-05-25).
 3. `npm -w @netcracker/qip-vscode-extension run compile-web` — webpack + copy-webpack-plugin pulls `ui/dist-lib` into `vscode-extension/dist/web/qip-ui/`.
 
 Shortcut: `npm -w @netcracker/qip-vscode-extension run build` runs all three steps (1 → 2 → 3) in order.

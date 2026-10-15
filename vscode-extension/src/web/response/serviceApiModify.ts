@@ -16,11 +16,11 @@ import {
 } from "./serviceApiRead";
 import vscode, { ExtensionContext, Uri } from "vscode";
 import { ContentParser } from "../api-services/parsers/ContentParser";
-import { getExtensionsForFile } from "./file/fileExtensions";
+import { FILE_EXTENSIONS } from "./file/fileExtensions";
 import { fileApi } from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
-import { ProjectConfigService } from "../services/ProjectConfigService";
+import { QIP_SCHEMA_URLS } from "../services/qipSchemas";
 import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { QipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
 
@@ -148,10 +148,9 @@ export async function createService(
 ): Promise<IntegrationSystem> {
   try {
     const serviceId = crypto.randomUUID();
-    const config = ProjectConfigService.getConfig();
 
     const service = {
-      $schema: config.schemaUrls.service,
+      $schema: QIP_SCHEMA_URLS.SERVICE,
       id: serviceId,
       name: serviceRequest.name,
       content: {
@@ -167,7 +166,7 @@ export async function createService(
     };
 
     const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
-    const ext = getExtensionsForFile();
+    const ext = FILE_EXTENSIONS;
     const serviceFileUri = vscode.Uri.joinPath(
       serviceFolderUri,
       `${serviceId}${ext.service}`,
@@ -671,9 +670,7 @@ export async function deleteSpecificationByUri(
 
     if (specificationInfo?.id) {
       try {
-        const siblingName =
-          specificationFileUri.path.split("/").pop() || "";
-        const extensions = getExtensionsForFile(siblingName);
+        const extensions = FILE_EXTENSIONS;
         const groupId = specificationInfo.content?.parentId;
 
         if (!groupId) {
@@ -806,9 +803,7 @@ export async function deleteSpecificationGroupByUri(
       );
     }
 
-    const siblingName =
-      specificationGroupFileUri.path.split("/").pop() || "";
-    const extensions = getExtensionsForFile(siblingName);
+    const extensions = FILE_EXTENSIONS;
     const serviceId = groupInfo?.content?.parentId;
 
     if (!serviceId) {

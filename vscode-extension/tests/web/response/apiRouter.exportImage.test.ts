@@ -46,10 +46,6 @@ jest.mock("../../../src/web/response/file", () => ({
   },
 }));
 
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn(() => ({ chain: "**/*.chain.cip.yaml" })),
-}));
-
 const writeFile = fileApi.writeFile as jest.Mock;
 const findFiles = fileApi.findFiles as jest.Mock;
 const parseFile = fileApi.parseFile as jest.Mock;

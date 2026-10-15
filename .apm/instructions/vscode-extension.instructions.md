@@ -48,7 +48,7 @@ The webpack config fails fast if `ui/dist-lib/index.bundled.es.js` or `schemas/a
 Two webpack outputs (`webpack.config.js` exports an array):
 
 1. **Web extension** — entry `src/web/extension.ts` → `dist/web/extension.js` (`target: webworker`, single chunk; `vscode` external; `assert`/`process` polyfilled). Also bundles the integration test entry `src/web/test/suite/index.ts`.
-2. **Node library** — entry `src/web/index.ts` → `dist/node/index.js` (`commonjs2`), exposing the response/services/api-services modules and `QipExtensionAPI` for programmatic embedding.
+2. **Node library** — entry `src/web/index.ts` → `dist/node/index.js` (`commonjs2`), exposing the response/services/api-services modules for programmatic embedding.
 
 **Webview embedding:** `copy-webpack-plugin` copies `qip-ui/dist-lib/**` (excluding `types/` and `.d.ts`) into `dist/web/qip-ui/`, and `qip-schemas/assets` into `dist/web/qip-schemas/assets`. At runtime `getWebviewContent` (in `extension.ts`) generates the webview HTML, preferring `index.bundled.es.js` (React embedded); it falls back to `index.es.js` + an esm.sh `<importmap>` for React if the bundled file is absent.
 
@@ -64,7 +64,7 @@ there only.
 
 ### Project Structure
 
-Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions and schema URLs are configurable per app via a `.config.qip.yaml` (see `.config.qip.yaml.example`; defaults to the `cip` app from `configs/default.config.cip.yaml`).
+Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions are the `FILE_EXTENSIONS` constant in `src/web/response/file/fileExtensions.ts`, and schema URLs come from `src/web/services/qipSchemas.ts`.
 
 ### Conventions
 

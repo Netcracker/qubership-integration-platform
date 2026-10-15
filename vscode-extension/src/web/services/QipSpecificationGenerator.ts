@@ -1,4 +1,4 @@
-import { ProjectConfigService } from "./ProjectConfigService";
+import { QIP_SCHEMA_URLS } from "./qipSchemas";
 
 export class QipSpecificationGenerator {
   // OpenAPI 3.0/3.1 path-item methods. `trace` matches the backend
@@ -24,9 +24,8 @@ export class QipSpecificationGenerator {
     sourceData: any,
     extraContent: Record<string, any> = {},
   ) {
-    const config = ProjectConfigService.getConfig();
     return {
-      $schema: config.schemaUrls.specification,
+      $schema: QIP_SCHEMA_URLS.SPECIFICATION,
       id: specId,
       name,
       content: {

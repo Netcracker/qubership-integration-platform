@@ -31,12 +31,20 @@ jest.mock(
     workspace: {
       workspaceFolders: [{ uri: createMockUri("/workspace") }],
       fs: {
-        // The embedded config is read from disk; the workspace has no .config.qip.yaml.
+        // Records every read, so a test can show that a file was never read.
         readFile: async (uri: any) => {
           read.push(uri.path);
+          if (uri.path === "/workspace/.config.qip.yaml") {
+            return new TextEncoder().encode(
+              "version: '1.0'\nconfigs:\n  cip:\n    extensions:\n      chain: .chain.custom.yaml\n",
+            );
+          }
           return nodeFs.readFileSync(uri.path);
         },
-        stat: async () => {
+        stat: async (uri: any) => {
+          if (uri.path === "/workspace/.config.qip.yaml") {
+            return { type: 1 };
+          }
           throw new Error("not found");
         },
         createDirectory: async () => undefined,
@@ -60,17 +68,14 @@ import * as yaml from "yaml";
 import { ExtensionContext } from "vscode";
 import { setFileApi } from "../../../../src/web/response/file/fileApiProvider";
 import { VSCodeFileApi } from "../../../../src/web/response/file/fileApiImpl";
-import { ProjectConfigService } from "../../../../src/web/services/ProjectConfigService";
 
 const SCHEMA =
   "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model";
 const EXTENSION_ROOT = nodePath.resolve(__dirname, "../../../..");
 
-describe("new files under the embedded default config", () => {
+describe("new files", () => {
   let api: VSCodeFileApi;
-  let configService: ProjectConfigService;
-
-  beforeEach(async () => {
+  beforeEach(() => {
     written.clear();
     read.length = 0;
     const context = {
@@ -78,34 +83,17 @@ describe("new files under the embedded default config", () => {
     } as unknown as ExtensionContext;
     api = new VSCodeFileApi(context);
     setFileApi(api);
-    configService = ProjectConfigService.getInstance();
-    configService.clearCache();
-    configService.setContext(context);
-    await configService.setCurrentContext(
-      configService.getCurrentAppName(),
-      createMockUri("/workspace"),
-    );
   });
 
-  it("defaults to the cip app the shipped config declares", () => {
-    const shippedPath = nodePath.join(
-      EXTENSION_ROOT,
-      "configs/default.config.cip.yaml",
-    );
-    const shipped = yaml.parse(nodeFs.readFileSync(shippedPath, "utf8"));
+  it("ignores a workspace .config.qip.yaml", async () => {
+    mockShowInputBox.mockResolvedValueOnce("new-chain");
 
-    expect(read).toContain(shippedPath);
-    expect(Object.keys(shipped.configs)).toEqual(["cip"]);
-    expect(configService.getCurrentAppName()).toBe("cip");
-    expect(configService.getAllConfigs().map((c) => c.appName)).toEqual([
-      "cip",
+    const result = await api.createEmptyChain();
+
+    expect(read).not.toContain("/workspace/.config.qip.yaml");
+    expect([...written.keys()]).toEqual([
+      `/workspace/${result!.chainId}/${result!.chainId}.chain.cip.yaml`,
     ]);
-    expect(configService.getCurrentConfig()).toEqual(
-      expect.objectContaining({
-        extensions: shipped.configs.cip.extensions,
-        schemaUrls: shipped.configs.cip.schemaUrls,
-      }),
-    );
   });
 
   function onlyWrittenFile(): { path: string; document: any } {

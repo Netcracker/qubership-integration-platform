@@ -1,6 +1,5 @@
 import {
   createVscodeMock,
-  stubProjectConfigService,
   buildMockContext,
 } from "./helpers/mocks";
 
@@ -107,24 +106,6 @@ jest.mock("../src/web/response/file/fileApiImpl", () => ({
   })),
 }));
 
-jest.mock("../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn().mockReturnValue({
-    chain: ".qip-chain.yaml",
-    service: ".qip-service.yaml",
-    contextService: ".qip-context-service.yaml",
-    mcpService: ".qip-mcp-service.yaml",
-    specificationGroup: ".qip-sg.yaml",
-    specification: ".qip-spec.yaml",
-  }),
-  getExtensionsForFile: jest.fn().mockReturnValue({
-    chain: ".qip-chain.yaml",
-    service: ".qip-service.yaml",
-  }),
-  setCurrentFileContext: jest.fn(),
-  extractFilename: jest.fn(),
-  initializeContextFromFile: jest.fn(),
-}));
-
 jest.mock("../src/web/qipExplorer", () => ({
   QipExplorerProvider: jest.fn().mockImplementation(() => ({
     refresh: jest.fn(),
@@ -141,14 +122,6 @@ jest.mock("../src/web/services/FileCacheService", () => ({
   },
 }));
 
-jest.mock("../src/web/services/ProjectConfigService", () =>
-  stubProjectConfigService(),
-);
-
-jest.mock("../src/web/services/ConfigApiProvider", () => ({
-  ConfigApiProvider: { getInstance: jest.fn().mockReturnValue({}) },
-}));
-
 jest.mock("../src/web/response/navigationUtils", () => ({
   getAndClearNavigationStateValue: jest.fn(),
   getNavigationStateValue: jest.fn(),
@@ -159,9 +132,9 @@ jest.mock("../src/web/response/navigationUtils", () => ({
 import { activate } from "../src/web/extension";
 
 function getExportImagesCommand() {
-  const command = registeredCommands.get("qip.exportImages");
+  const command = registeredCommands.get("cip.exportImages");
   if (!command) {
-    throw new Error("qip.exportImages command was not registered");
+    throw new Error("cip.exportImages command was not registered");
   }
   return command;
 }
@@ -190,21 +163,21 @@ describe("extension export image commands", () => {
     activate(buildMockContext());
   });
 
-  test("qip.exportImages shows error when outputDir is missing", async () => {
+  test("cip.exportImages shows error when outputDir is missing", async () => {
     await getExportImagesCommand()("file:///workspace/chains/chain-1.chain.cip.yaml");
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith("outputDir is required");
     expect(mockCreateWebviewPanel).not.toHaveBeenCalled();
   });
 
-  test("qip.exportImages shows error when no chain files are provided", async () => {
+  test("cip.exportImages shows error when no chain files are provided", async () => {
     await getExportImagesCommand()(undefined, { outputDir: "/tmp/export" });
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith("No chain files to export");
     expect(mockCreateWebviewPanel).not.toHaveBeenCalled();
   });
 
-  test("qip.exportImages opens export webview for explicit file paths", async () => {
+  test("cip.exportImages opens export webview for explicit file paths", async () => {
     await getExportImagesCommand()(undefined, {
       outputDir: "/tmp/export",
       filePaths: ["file:///workspace/chains/chain-1.chain.cip.yaml"],
@@ -235,7 +208,7 @@ describe("extension export image commands", () => {
     );
   });
 
-  test("qip.exportImages uses filePath argument when filePaths are omitted", async () => {
+  test("cip.exportImages uses filePath argument when filePaths are omitted", async () => {
     await getExportImagesCommand()(
       "file:///workspace/chains/chain-1.chain.cip.yaml",
       { outputDir: "/tmp/export" },
@@ -245,7 +218,7 @@ describe("extension export image commands", () => {
     expect(mockSetPendingExportImagesRequest).toHaveBeenCalled();
   });
 
-  test("qip.exportImages resolves relative file paths", async () => {
+  test("cip.exportImages resolves relative file paths", async () => {
     await getExportImagesCommand()(undefined, {
       outputDir: "/tmp/export",
       filePaths: ["/workspace/chains/chain-1.chain.cip.yaml"],
@@ -255,7 +228,7 @@ describe("extension export image commands", () => {
     expect(mockSetPendingExportImagesRequest).toHaveBeenCalled();
   });
 
-  test("qip.exportImages accepts Uri filePath argument", async () => {
+  test("cip.exportImages accepts Uri filePath argument", async () => {
     const fileUri = {
       toString: () => "file:///workspace/chains/chain-1.chain.cip.yaml",
     };
@@ -266,7 +239,7 @@ describe("extension export image commands", () => {
     expect(mockSetPendingExportImagesRequest).toHaveBeenCalled();
   });
 
-  test("qip.exportImages shows error when file path is empty", async () => {
+  test("cip.exportImages shows error when file path is empty", async () => {
     await getExportImagesCommand()(undefined, {
       outputDir: "/tmp/export",
       filePaths: [""],
@@ -277,7 +250,7 @@ describe("extension export image commands", () => {
     );
   });
 
-  test("qip.exportImages shows error when chain id cannot be resolved", async () => {
+  test("cip.exportImages shows error when chain id cannot be resolved", async () => {
     mockParseFile.mockResolvedValueOnce({ name: "no-id" });
 
     await getExportImagesCommand()(undefined, {
@@ -290,7 +263,7 @@ describe("extension export image commands", () => {
     );
   });
 
-  test("qip.exportImages shows error when handler throws", async () => {
+  test("cip.exportImages shows error when handler throws", async () => {
     mockParseFile.mockRejectedValueOnce(new Error("parse failed"));
 
     await getExportImagesCommand()(undefined, {
@@ -325,7 +298,7 @@ describe("extension export image commands", () => {
     expect(mockExecuteCommand).not.toHaveBeenCalled();
   });
 
-  test("qip.exportImagesFromExplorer delegates to qip.exportImages with discovered targets", async () => {
+  test("qip.exportImagesFromExplorer delegates to cip.exportImages with discovered targets", async () => {
     mockShowOpenDialog.mockResolvedValue([
       { toString: () => "file:///tmp/export" },
     ]);
@@ -333,7 +306,7 @@ describe("extension export image commands", () => {
     await getExportImagesFromExplorerCommand()();
 
     expect(mockExecuteCommand).toHaveBeenCalledWith(
-      "qip.exportImages",
+      "cip.exportImages",
       undefined,
       {
         outputDir: "file:///tmp/export",

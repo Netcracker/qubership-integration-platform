@@ -17,10 +17,6 @@ import {
 } from "./response/apiRouter";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
-import {
-  DEFAULT_APP_NAME,
-  initializeContextFromFile,
-} from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
 import {
   VSCodeMessage,
@@ -29,12 +25,6 @@ import {
 } from "@netcracker/qip-ui";
 import type { ExportImagesCommandConfig } from "./exportImageTypes";
 import { FileCacheService } from "./services/FileCacheService";
-import {
-  ProjectConfigService,
-  CONFIG_FILENAME,
-  ProjectConfig,
-} from "./services/ProjectConfigService";
-import { ConfigApiProvider } from "./services/ConfigApiProvider";
 import {
   getAndClearNavigationStateValue,
   initNavigationState,
@@ -52,32 +42,6 @@ type VSCodeMessageWrapper = {
   command: string;
   data: VSCodeMessage<any>;
 };
-
-export interface QipExtensionAPI {
-  loadConfigFromPath(configUri: Uri): Promise<void>;
-
-  registerConfig(
-    appName: string,
-    configData: {
-      extensions?: {
-        chain?: string;
-        service?: string;
-        specificationGroup?: string;
-        specification?: string;
-      };
-      schemaUrls?: {
-        service?: string;
-        chain?: string;
-        specification?: string;
-        specificationGroup?: string;
-      };
-    },
-  ): void;
-
-  unregisterConfig(appName: string): void;
-
-  getConfig(appName: string): ProjectConfig | undefined;
-}
 
 let globalQipProvider: QipExplorerProvider | null = null;
 const activeWebviewPanels = new Map<string, WebviewPanel>();
@@ -469,14 +433,6 @@ async function enrichWebview(
     throw new Error("Invalid parameters for enrichWebview");
   }
 
-  if (fileUri) {
-    try {
-      await initializeContextFromFile(fileUri);
-    } catch (error) {
-      console.error("Failed to initialize context from file:", error);
-    }
-  }
-
   panel.webview.html = await getWebviewContent(context, panel.webview);
 
   const panelId = crypto.randomUUID();
@@ -536,84 +492,18 @@ async function enrichWebview(
   });
 }
 
-async function setupFileWatchers(context: ExtensionContext): Promise<void> {
+function setupFileWatchers(context: ExtensionContext): void {
   const cacheService = FileCacheService.getInstance();
+  const watcher = vscode.workspace.createFileSystemWatcher("**/*.cip.yaml");
 
-  const extensionsToWatch = new Set<string>();
+  watcher.onDidChange((uri) => cacheService.invalidateByUri(uri));
+  watcher.onDidDelete((uri) => cacheService.invalidateByUri(uri));
+  watcher.onDidCreate((uri) => cacheService.invalidateByUri(uri));
 
-  try {
-    const configService = ProjectConfigService.getInstance();
-    const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-
-    if (workspaceUri) {
-      await configService.loadWorkspaceConfig(workspaceUri);
-    }
-
-    const allConfigs = configService.getAllConfigs();
-
-    if (allConfigs.length > 0) {
-      allConfigs.forEach((config) => {
-        Object.values(config.extensions).forEach((extension: string) => {
-          const pattern = `**/*${extension}`;
-          extensionsToWatch.add(pattern);
-        });
-      });
-    } else {
-      const defaultAppNames = [DEFAULT_APP_NAME];
-      defaultAppNames.forEach((appName) => {
-        const defaultConfig = configService.buildDefaultConfig(appName);
-        Object.values(defaultConfig.extensions).forEach((extension: string) => {
-          const pattern = `**/*${extension}`;
-          extensionsToWatch.add(pattern);
-        });
-      });
-    }
-  } catch (error) {
-    console.error(
-      "[QIP] Failed to setup file watchers from config, using cip defaults:",
-      error,
-    );
-
-    const fallbackConfig =
-      ProjectConfigService.getInstance().buildDefaultConfig(DEFAULT_APP_NAME);
-    Object.values(fallbackConfig.extensions).forEach((extension: string) => {
-      const pattern = `**/*${extension}`;
-      extensionsToWatch.add(pattern);
-    });
-  }
-
-  extensionsToWatch.forEach((pattern) => {
-    const watcher = vscode.workspace.createFileSystemWatcher(pattern);
-
-    watcher.onDidChange((uri) => cacheService.invalidateByUri(uri));
-    watcher.onDidDelete((uri) => cacheService.invalidateByUri(uri));
-    watcher.onDidCreate((uri) => cacheService.invalidateByUri(uri));
-
-    context.subscriptions.push(watcher);
-    console.log(`[QIP] File watcher created for pattern: ${pattern}`);
-  });
-
-  console.log(`[QIP] Total file watchers created: ${extensionsToWatch.size}`);
-
-  const configWatcher = vscode.workspace.createFileSystemWatcher(
-    `**/${CONFIG_FILENAME}`,
-  );
-  configWatcher.onDidChange(() => {
-    vscode.window
-      .showInformationMessage(
-        "QIP config changed. Reload window to apply new file extensions.",
-        "Reload",
-      )
-      .then((selection) => {
-        if (selection === "Reload") {
-          vscode.commands.executeCommand("workbench.action.reloadWindow");
-        }
-      });
-  });
-  context.subscriptions.push(configWatcher);
+  context.subscriptions.push(watcher);
 }
 
-export function activate(context: ExtensionContext): QipExtensionAPI {
+export function activate(context: ExtensionContext): void {
   const fileApiImpl = new VSCodeFileApi(context);
   setFileApi(fileApiImpl);
 
@@ -621,12 +511,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   currentExtensionVersion = context.extension.packageJSON.version ?? "unknown";
 
-  const projectConfigService = ProjectConfigService.getInstance();
-  projectConfigService.setContext(context);
-
-  setupFileWatchers(context).catch((error) => {
-    console.error("[QIP] Failed to setup file watchers:", error);
-  });
+  setupFileWatchers(context);
 
   // Register QIP Explorer provider
   const qipProvider = new QipExplorerProvider(context);
@@ -700,7 +585,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "qip.exportImages",
+      "cip.exportImages",
       async (filePath?: string | Uri, config?: ExportImagesCommandConfig) => {
         try {
           await exportImagesHandler(context, filePath, config);
@@ -738,7 +623,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
           return;
         }
 
-        await vscode.commands.executeCommand("qip.exportImages", undefined, {
+        await vscode.commands.executeCommand("cip.exportImages", undefined, {
           outputDir,
           filePaths: targets.flatMap((target) =>
             target.filePath ? [target.filePath] : [],
@@ -945,8 +830,6 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       },
     ),
   );
-
-  return ConfigApiProvider.getInstance();
 }
 
 // This method is called when your extension is deactivated

@@ -16,15 +16,6 @@ jest.mock("vscode", () => {
   };
 });
 
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn(() => ({
-    chain: ".chain.cip.yaml",
-    service: ".service.cip.yaml",
-    contextService: ".context-service.cip.yaml",
-    mcpService: ".mcp-service.cip.yaml",
-  })),
-}));
-
 describe("editorViewTypes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -40,6 +31,14 @@ describe("editorViewTypes", () => {
 
     test("throws when no editor matches the file extension", () => {
       const uri = Uri.file("/workspace/readme.txt");
+
+      expect(() => getEditorViewTypeForUri(uri)).toThrow(
+        "Unable to find an editor for document",
+      );
+    });
+
+    test("throws for a legacy .qip.yaml chain file", () => {
+      const uri = Uri.file("/workspace/chains/chain-1.chain.qip.yaml");
 
       expect(() => getEditorViewTypeForUri(uri)).toThrow(
         "Unable to find an editor for document",
