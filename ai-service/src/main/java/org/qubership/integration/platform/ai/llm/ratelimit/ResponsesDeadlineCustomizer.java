@@ -59,11 +59,15 @@ public class ResponsesDeadlineCustomizer {
     var builder = new JaxRsHttpClientBuilder();
     builder.connectTimeout(timeout);
     builder.readTimeout(timeout);
-    TlsConfiguration.from(tlsRegistry, named.tlsConfigurationName()).ifPresent(builder::tlsConfiguration);
+    resolveTls(named.tlsConfigurationName()).ifPresent(builder::tlsConfiguration);
     builder.addClientProvider(deadlineFilter(timeout));
     openRouterProvider.filter(provider -> !provider.isBlank())
         .ifPresent(provider -> builder.addClientProvider(providerFilter(provider, mapper)));
     return builder;
+  }
+
+  private Optional<TlsConfiguration> resolveTls(Optional<String> tlsConfigurationName) {
+    return TlsConfiguration.from(tlsRegistry, tlsConfigurationName).or(tlsRegistry::getDefault);
   }
 
   static ClientRequestFilter providerFilter(String provider, ObjectMapper mapper) {
