@@ -91,7 +91,8 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   // Both seeds deploy to the classic engine, which reports a batch's state once the whole batch loads.
   "brokers-seed": "./specs/brokers-seed /.*\\.setup\\.ts$/; after seed; teardown suite-teardown",
   brokers: "./specs/brokers except /broker-restart\\.spec\\.ts$/; after brokers-seed; parallel",
-  "brokers-restart": "./specs/brokers /broker-restart\\.spec\\.ts$/; after brokers; 1 worker",
+  // After `global`, and so after `env`, whose engine restart drops the consumer a broker restart case waits on.
+  "brokers-restart": "./specs/brokers /broker-restart\\.spec\\.ts$/; after brokers, global; 1 worker",
 };
 
 function schedule(project: SuiteProject): string {
@@ -331,9 +332,38 @@ test("brokers-micro runs the broker specs on the micro copy after both broker se
   for (const pattern of project?.testIgnore as RegExp[]) {
     expect(files.filter((file) => pattern.test(file))).toHaveLength(1);
   }
-  expect(projects.find((each) => each.name === "brokers-restart")?.dependencies).toEqual(["brokers", "brokers-micro"]);
-  // Compose has no micro engine, so brokers-restart there waits for brokers alone.
+  expect(projects.find((each) => each.name === "brokers-restart")?.dependencies).toEqual(["brokers", "brokers-micro", "global"]);
+  // Compose has no micro engine, so brokers-restart there waits for brokers and global alone.
   const compose = composeProjects(undefined);
   expect(compose.map((each) => each.name)).not.toContain("brokers-micro");
-  expect(compose.find((each) => each.name === "brokers-restart")?.dependencies).toEqual(["brokers"]);
+  expect(compose.find((each) => each.name === "brokers-restart")?.dependencies).toEqual(["brokers", "global"]);
+});
+
+/** Every project `name` waits for, through every edge. */
+function waitsFor(projects: readonly SuiteProject[], name: string): Set<string> {
+  const byName = new Map(projects.map((each) => [each.name, each]));
+  const after = new Set<string>();
+  const visit = (from: string) => {
+    for (const dependency of byName.get(from)?.dependencies ?? []) {
+      if (after.has(dependency)) continue;
+      after.add(dependency);
+      visit(dependency);
+    }
+  };
+  visit(name);
+  return after;
+}
+
+test("brokers-restart runs after every service restart, and no restart project waits for a broker case but env-micro", { tag: ["@infra", "@tier1"] }, () => {
+  const k8s = withEnv({ E2E_BROKERS: undefined }, () => suiteProjects(targetSetup("k8s")));
+  const brokerProjects = ["brokers-seed", "brokers", "brokers-micro-seed", "brokers-micro", "brokers-restart"];
+  for (const projects of [k8s, composeProjects(undefined)]) {
+    expect([...waitsFor(projects, "brokers-restart")]).toEqual(expect.arrayContaining(["env", "global"]));
+    // A red broker case would skip every case of a project that waits for it.
+    for (const name of ["env", "global"]) {
+      expect([...waitsFor(projects, name)].filter((each) => brokerProjects.includes(each)), name).toEqual([]);
+    }
+  }
+  // env-micro restarts the catalog, which the restart cases' fixtures call.
+  expect(k8s.find((each) => each.name === "env-micro")?.dependencies).toEqual(["global-micro", "runtime-micro", "brokers-restart"]);
 });

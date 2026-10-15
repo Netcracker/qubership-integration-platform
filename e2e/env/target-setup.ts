@@ -56,7 +56,7 @@ export interface TargetSetup {
   absent: Absence[];
 }
 
-/** The broker projects of both targets; `brokers-restart` runs after `restartAfter`. */
+/** The broker projects of both targets; `brokers-restart` runs after `restartAfter` and `global`. */
 function brokerProjects(restartAfter: string[] = ["brokers"]): SuiteProject[] {
   return [
     {
@@ -102,11 +102,19 @@ function brokerProjects(restartAfter: string[] = ["brokers"]): SuiteProject[] {
       // measured reason `env`'s own comment gives: the latter only serializes within one file and
       // says nothing about files run alongside it. On `k8s` it also runs after `brokers-micro`, so a
       // red micro parity case there skips the classic restart cases.
+      //
+      // After `global` as well, so it never overlaps the restarts in `env`: in CI run 38651497943 the
+      // two ran side by side, the engine restart replaced the consumer of `kafka-trigger-basic`, and
+      // the restart case gave up 13 s before the new engine consumed its message. It waits for
+      // `global` rather than `env`, because after `env` alone it would run beside the session wipe in
+      // `global`. The edge points this way because `env` and `global` must not wait for a broker
+      // project: one red broker case would skip both. The cost is the reverse, so a red `global`
+      // case skips the restart cases. On `k8s`, `env-micro` waits for this project too.
       name: "brokers-restart",
       testDir: "./specs/brokers",
       testMatch: /broker-restart\.spec\.ts$/,
       workers: 1,
-      dependencies: restartAfter,
+      dependencies: [...restartAfter, "global"],
     },
   ];
 }
@@ -170,7 +178,7 @@ function microBrokerProjects(): SuiteProject[] {
   ];
 }
 
-function k8sProjects(): SuiteProject[] {
+function k8sProjects(brokers: boolean): SuiteProject[] {
   return [
     {
       // What exists only on a cluster: the custom resources, the gateway routes, discovery, and
@@ -236,14 +244,15 @@ function k8sProjects(): SuiteProject[] {
       // The engine and catalog restarts of `specs/env/`, against the shared micro domain, whose pod
       // the engine restart deletes. After `global-micro`, which runs after `global` and so after
       // `env`, so no micro JVM start overlaps the classic restarts, and after `runtime-micro`, whose
-      // cases call the pod this project deletes. The cost: a red `global` or `runtime-micro` case
-      // skips this project.
+      // cases call the pod this project deletes. With the brokers on, after `brokers-restart` too,
+      // which would otherwise run beside this project's catalog restart. The cost: a red `global`,
+      // `runtime-micro`, or broker case skips this project.
       name: "env-micro",
       testDir: "./specs/env",
       testMatch: /restart-resilience\.spec\.ts$/,
       grepInvert: /@classic-only/,
       workers: 1,
-      dependencies: ["global-micro", "runtime-micro"],
+      dependencies: ["global-micro", "runtime-micro", ...(brokers ? ["brokers-restart"] : [])],
       use: { engineKind: "micro" },
     },
   ];
@@ -264,7 +273,7 @@ function k8sSetup(): TargetSetup {
       header: collectK8sHeader,
     },
     projects: [
-      ...k8sProjects(),
+      ...k8sProjects(brokers),
       ...(brokers ? [...brokerProjects(["brokers", "brokers-micro"]), ...microBrokerProjects()] : []),
     ],
     absent: brokers ? [] : brokersAbsent([...brokerProjects(), ...microBrokerProjects()]),

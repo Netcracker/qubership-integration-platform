@@ -119,8 +119,8 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `runtime-micro` | not declared | `specs/runtime/` against the micro engine, minus the cases tagged `@classic-only` |
 | `runtime-micro-redeploy` | not declared | `specs/runtime-micro-redeploy/`, one file at a time: micro cases that deploy their own chains to a micro domain of their own |
 | `global-micro` | not declared | `live-exchanges.spec.ts` and `runtime-deployments.spec.ts` of `specs/global/` against the micro engine, one worker after `global` |
-| `env-micro` | not declared | `restart-resilience.spec.ts` of `specs/env/` against the micro engine, whose pod the engine restart deletes, one worker after `global-micro` and `runtime-micro` |
-| `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0`; `brokers-seed` runs after `seed`, since both deploy to the classic engine | the same |
+| `env-micro` | not declared | `restart-resilience.spec.ts` of `specs/env/` against the micro engine, whose pod the engine restart deletes, one worker after `global-micro` and `runtime-micro`, and after `brokers-restart` unless `E2E_BROKERS=0` |
+| `brokers-seed`, `brokers`, `brokers-restart` | yes, unless `E2E_BROKERS=0`; `brokers-seed` runs after `seed`, since both deploy to the classic engine, and `brokers-restart` after `global` | the same |
 | `brokers-micro-seed` | not declared | unless `E2E_BROKERS=0`, a second copy of `fixtures/brokers/` with addresses of its own, deployed to a micro domain named `e2e-<run>-brokers-micro` |
 | `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts` and the cases tagged `@classic-only` |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, the proxy's `/e2e/` locations, and a micro domain that a broken chain takes down |
@@ -193,7 +193,7 @@ npm test -- --project=env             # the specs that restart a service, one wo
 npm test -- --project=global          # the reads no worker can scope, one worker, last
 npm test -- --project=brokers         # kafka, rabbitmq, pub/sub and sftp
 npm test -- --project=brokers-micro   # the same on the micro engine, k8s only
-npm test -- --project=brokers-restart # the one spec that restarts a broker mid-run
+npm test -- --project=brokers-restart # the one spec that restarts a broker mid-run, after global
 npm test -- --project=ui              # the browser layer, against the bundle it serves on 4200
 npm test -- --grep @engine --no-deps  # one backend component's cases, no browser
 npm run report                        # open the HTML report of the last run
@@ -492,7 +492,11 @@ engine runs no pre-deploy check, so a micro domain reports such a chain `DEPLOYE
 
 `brokers-restart` holds `broker-restart.spec.ts` alone and runs one worker after `brokers`, and on
 `k8s` after `brokers-micro` too, because restarting a broker container disturbs every broker spec in
-flight. A red `brokers-micro` case therefore skips the restart cases.
+flight. A red `brokers-micro` case therefore skips the restart cases. It also runs after `global`,
+and so after `env`, whose engine restart replaces the consumer a restart case waits on: in CI run
+38651497943 the two overlapped and the Kafka case timed out. `env` and `global` wait for no broker
+project, so the edge points from `brokers-restart`, and a red `global` case skips the restart cases.
+On `k8s`, `env-micro` runs after `brokers-restart`, since it restarts the catalog.
 
 `E2E_BROKERS=0` drops the broker projects for a faster local run. A release run keeps them.
 `npm run reconcile` refuses a run narrowed that way rather than reporting every broker registry row
@@ -599,8 +603,9 @@ finishes in seconds, so a broken registry costs nothing to discover. `env` resta
 disturbs every spec in flight, so it runs after `api`, `runtime`, and `ui`. `global` runs one worker
 after `api`, `runtime`, `env`, and `ui`, because its reads cover every worker's data and four of its
 endpoints change state the others read. Both are `dependencies`, so a failed `ui` case skips `env`
-and `global`. The broker projects are not dependencies of `global`: its teardown ordering holds the
-broker corpus until `global` has finished, without one failing broker case skipping it.
+and `global`. The broker projects are not dependencies of `env` or `global`: the teardown ordering
+holds the broker corpus until `global` has finished, and `brokers-restart` depends on `global`, so a
+failing broker case skips neither.
 `runtime-micro`, `brokers-micro`, `global-micro`, and `env-micro` have no directory of their own;
 each runs files of its classic counterpart against the micro engine.
 
