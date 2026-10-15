@@ -306,11 +306,11 @@ test("the context search matches the name alone and leaves out a name the condit
   const marker = tokenized(run, "ctx-search-marked");
   const named = await catalog.createContextSystem(`${marker}-by-name`);
   const described = await catalog.createContextSystem(tokenized(run, "ctx-search-described"), `mentions ${marker}`);
+  // The marker is unique per run, so a repeat of this case on the same run token creates rows it matches too.
+  const ours = (rows: Array<{ id: string }>) => rows.map((each) => each.id).filter((id) => id === named.id || id === described.id);
   try {
-    expect((await catalog.searchContextSystems(marker)).map((each) => each.id)).toEqual([named.id]);
-    expect(
-      (await catalog.searchContextSystems(`${marker}-absent`)).filter((each) => each.id === named.id || each.id === described.id),
-    ).toEqual([]);
+    expect(ours(await catalog.searchContextSystems(marker))).toEqual([named.id]);
+    expect(ours(await catalog.searchContextSystems(`${marker}-absent`))).toEqual([]);
   } finally {
     for (const context of [named, described]) await catalog.deleteContextSystem(context.id).catch(() => {});
   }

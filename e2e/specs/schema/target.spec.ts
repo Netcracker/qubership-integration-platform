@@ -288,17 +288,7 @@ test("env-micro restarts the shared micro domain after global-micro and runtime-
   const files = fs.readdirSync(path.join(E2E_DIR, "specs", "env"));
   expect(files.filter((file) => (project?.testMatch as RegExp).test(`/${file}`))).toEqual(["restart-resilience.spec.ts"]);
   // Through every edge, the classic restarts in `env` and the session wipe in `global` come first.
-  const byName = new Map(projects.map((each) => [each.name, each]));
-  const after = new Set<string>();
-  const visit = (name: string) => {
-    for (const dependency of byName.get(name)?.dependencies ?? []) {
-      if (after.has(dependency)) continue;
-      after.add(dependency);
-      visit(dependency);
-    }
-  };
-  visit("env-micro");
-  expect([...after]).toEqual(expect.arrayContaining(["env", "global"]));
+  expect([...waitsFor(projects, "env-micro")]).toEqual(expect.arrayContaining(["env", "global"]));
   expect(composeProjects(undefined).map((each) => each.name)).not.toContain("env-micro");
 });
 

@@ -8,8 +8,7 @@
  * the key off a message header; a pub/sub trigger receives its attributes as one map header, so its
  * fixtures key on the body instead, and its sessions are found by chain id (rule 19).
  *
- * `shared/idempotency.hbs` puts the check inside the trigger's step, so `Idempotency` follows the
- * trigger in the trace when the check is on, and `Callee Reply` is the step
+ * `support/idempotency.ts` holds the modes; `Callee Reply` is the step
  * `fixtures/brokers/idempotency-callee/` runs inside the caller's session.
  *
  * Under `throw-exception` the transports part. The Kafka consumer commits past the failed record, and
@@ -25,38 +24,18 @@ import { brokerChain, readBrokersCorpusState, type BrokerChain } from "../../sup
 import { publishAmqp, publishKafka, publishPubsub, seekPubsubToNow } from "../../support/broker-clients.js";
 import { IDEMPOTENCY_KEY_HEADER } from "../../fixtures/axis-generator.js";
 import { callToken } from "../../support/run.js";
-import { element, elementNames, type ExecutionStatus, type RecordedSession, type Sessions } from "../../support/sessions.js";
+import { element, elementNames, type RecordedSession, type Sessions } from "../../support/sessions.js";
 import { logWindowStart } from "../../support/logs.js";
 import { readUntil } from "../../support/poll.js";
-import { covers } from "../../registry/covers.js";
+import { branchOf, coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes } from "../../support/idempotency.js";
 import type { Env } from "../../env/index.js";
 import { pubsubDelivered } from "./micro-defects.js";
 
-const IDEMPOTENCY_STEP = "Idempotency";
 const DOWNSTREAM_STEP = "Header Modification";
 /** How long a `throw-exception` case watches for the duplicate to be delivered again. */
 const REDELIVERY_WINDOW = 10_000;
 
-interface Mode {
-  axisPath: "idempotency/enabled" | "idempotency/actionOnDuplicate";
-  value: boolean | string;
-  /** The fixture name's suffix. */
-  fixture: string;
-  /** What the second message does, for the title. */
-  outcome: string;
-  executionStatus: ExecutionStatus;
-  /** The second session's steps after the trigger. */
-  steps: string[];
-  /** The exception the `Idempotency` step records. */
-  failure?: string;
-}
-
-const MODES: Mode[] = [
-  { axisPath: "idempotency/enabled", value: false, fixture: "disabled", outcome: "runs the chain again", executionStatus: "COMPLETED_NORMALLY", steps: [DOWNSTREAM_STEP] },
-  { axisPath: "idempotency/actionOnDuplicate", value: "ignore", fixture: "ignore", outcome: "stops at the check", executionStatus: "COMPLETED_NORMALLY", steps: [IDEMPOTENCY_STEP] },
-  { axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", fixture: "throw-exception", outcome: "fails at the check", executionStatus: "COMPLETED_WITH_ERRORS", steps: [IDEMPOTENCY_STEP], failure: "Duplicated idempotency key" },
-  { axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", fixture: "execute-subchain", outcome: "runs the sub-chain instead", executionStatus: "COMPLETED_NORMALLY", steps: [IDEMPOTENCY_STEP, "Callee Reply"] },
-];
+const MODES = idempotencyModes(DOWNSTREAM_STEP);
 
 interface Delivery {
   sessions: Sessions;
@@ -72,50 +51,41 @@ interface Delivery {
 interface Broker {
   family: "kafka-trigger-2" | "rabbitmq-trigger-2" | "pubsub-trigger" | "async-api-trigger";
   name: string;
-  /** Whether a message whose exchange failed is delivered again. */
-  redelivers: boolean;
   /** Publishes one message carrying `key` and returns the session it recorded. */
   deliver(delivery: Delivery): Promise<RecordedSession>;
-  /** Stops the deliveries a failed message left behind. */
+  /** Stops the deliveries a failed message left behind, on a broker that delivers it again. */
   release?(chain: BrokerChain): Promise<void>;
+}
+
+/** A trigger that reads the correlation header: publishes with a call token and finds the session by it. */
+function correlated(publish: (chain: BrokerChain, token: string, key: string) => Promise<void>): Broker["deliver"] {
+  return async ({ sessions, chain, key, elements }) => {
+    const token = callToken("idempotency");
+    await publish(chain, token, key);
+    return sessions.byExternalId(token, { elements });
+  };
 }
 
 const BROKERS: Broker[] = [
   {
     family: "kafka-trigger-2",
     name: "kafka",
-    redelivers: false,
-    async deliver({ sessions, chain, key, elements }) {
-      const token = callToken("kafka-idempotency");
-      await publishKafka(chain.broker.topics as string, token, JSON.stringify({ key }), { headers: { [IDEMPOTENCY_KEY_HEADER]: key } });
-      return sessions.byExternalId(token, { elements });
-    },
+    deliver: correlated((chain, token, key) => publishKafka(chain.broker.topics as string, token, JSON.stringify({ key }), { headers: { [IDEMPOTENCY_KEY_HEADER]: key } })),
   },
   {
     family: "rabbitmq-trigger-2",
     name: "rabbitmq",
-    redelivers: false,
-    async deliver({ sessions, chain, key, elements }) {
-      const token = callToken("rabbitmq-idempotency");
-      await publishAmqp(chain.broker.exchange as string, chain.broker.routingKey as string, token, { key }, { [IDEMPOTENCY_KEY_HEADER]: key });
-      return sessions.byExternalId(token, { elements });
-    },
+    deliver: correlated((chain, token, key) => publishAmqp(chain.broker.exchange as string, chain.broker.routingKey as string, token, { key }, { [IDEMPOTENCY_KEY_HEADER]: key })),
   },
   {
     // The amqp operation: its exchange is the operation path, a fanout one, so the routing key is empty.
     family: "async-api-trigger",
     name: "async-api",
-    redelivers: false,
-    async deliver({ sessions, chain, key, elements }) {
-      const token = callToken("async-api-idempotency");
-      await publishAmqp(chain.broker.integrationOperationPath as string, "", token, { key }, { [IDEMPOTENCY_KEY_HEADER]: key });
-      return sessions.byExternalId(token, { elements });
-    },
+    deliver: correlated((chain, token, key) => publishAmqp(chain.broker.integrationOperationPath as string, "", token, { key }, { [IDEMPOTENCY_KEY_HEADER]: key })),
   },
   {
     family: "pubsub-trigger",
     name: "pubsub",
-    redelivers: true,
     async deliver({ sessions, env, chain, key, elements, before }) {
       const since = logWindowStart();
       await publishPubsub(chain.broker.destinationName as string, { key });
@@ -128,15 +98,12 @@ const BROKERS: Broker[] = [
 
 for (const broker of BROKERS) {
   for (const mode of MODES) {
-    const branch = `${mode.axisPath}=${mode.value}`;
+    const branch = branchOf(mode);
     test(`${broker.family} ${branch}: a repeated key ${mode.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ env, sessions }) => {
-      covers(broker.family, mode.axisPath, mode.value);
-      // Every actionOnDuplicate chain enables the check.
-      if (mode.axisPath === "idempotency/actionOnDuplicate") covers(broker.family, "idempotency/enabled", true);
+      coversIdempotency(broker.family, mode);
       const chain = brokerChain(readBrokersCorpusState(), `${broker.name}-trigger-idempotency-${mode.fixture}`);
       const key = randomUUID();
-      const enabled = mode.value !== false;
-      const first = [branch, ...(enabled ? [IDEMPOTENCY_STEP] : []), DOWNSTREAM_STEP];
+      const first = firstSteps(mode, DOWNSTREAM_STEP);
 
       const firstSession = await broker.deliver({ sessions, env, chain, key, elements: first.length, before: await sessions.idsOf(chain.id) });
       expect(firstSession.chainId).toBe(chain.id);
@@ -157,7 +124,7 @@ for (const broker of BROKERS) {
           REDELIVERY_WINDOW,
           1_000,
         );
-        if (broker.redelivers) expect(fresh.length, "deliveries of the duplicate").toBeGreaterThan(1);
+        if (broker.release) expect(fresh.length, "deliveries of the duplicate").toBeGreaterThan(1);
         else expect(fresh.map((each) => each.id), "deliveries of the duplicate").toEqual([second.id]);
         for (const each of fresh) expect(["COMPLETED_WITH_ERRORS", "IN_PROGRESS"]).toContain(each.executionStatus);
       } finally {

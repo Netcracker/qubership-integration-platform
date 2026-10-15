@@ -249,6 +249,8 @@ test("deleting every deployment of a chain at once stops its route", { tag: ["@c
     parentId: folder.id,
     marker: "undeploy-all",
   });
+  // One row is all a classic chain can hold: a second snapshot replaces the first, and both targets
+  // serve one classic domain.
   await deployChain(catalog, chain);
   await deploymentRowOf(catalog, chain);
   expect((await callDeployedChain(request, env, chain)).marker).toBe("undeploy-all");
