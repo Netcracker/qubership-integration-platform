@@ -1,12 +1,15 @@
-import {
+import type {
+  ContextSystem,
   Environment,
   EnvironmentRequest,
+  EnvironmentSourceType,
   IntegrationSystem,
-  IntegrationSystemType,
+  MCPSystem,
   Specification,
   SpecificationGroup,
   SystemRequest,
-} from "../api-services/servicesTypes";
+} from "@netcracker/qip-ui";
+import { IntegrationSystemType } from "../api-services/servicesTypes";
 import * as yaml from "yaml";
 import {
   getContextService,
@@ -21,7 +24,6 @@ import { fileApi } from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
-import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { QipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
 
 export async function updateContextService(
@@ -111,10 +113,6 @@ export async function updateService(
   if (serviceRequest.labels !== undefined) {
     service.content.labels = LabelUtils.fromEntityLabels(serviceRequest.labels);
   }
-  if (serviceRequest.integrationSystemType !== undefined) {
-    service.content.integrationSystemType =
-      serviceRequest.integrationSystemType;
-  }
   if (serviceRequest.type !== undefined) {
     validateAllowedSystemProtocol(
       serviceRequest.type,
@@ -158,9 +156,8 @@ export async function createService(
         description: serviceRequest.description || "",
         activeEnvironmentId: "",
         integrationSystemType: serviceRequest.type || "EXTERNAL",
-        protocol: serviceRequest.protocol?.toUpperCase() || undefined,
-        extendedProtocol: serviceRequest.extendedProtocol || "",
-        specification: serviceRequest.specification || "",
+        extendedProtocol: "",
+        specification: "",
         environments: [],
         labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
       },
@@ -179,12 +176,11 @@ export async function createService(
       name: service.name,
       description: service.content.description || "",
       activeEnvironmentId: service.content.activeEnvironmentId || "",
-      integrationSystemType:
-        service.content.integrationSystemType || "EXTERNAL",
-      protocol: service.content.protocol || "",
+      type: service.content.integrationSystemType,
+      internalServiceName: "",
+      protocol: "",
       extendedProtocol: service.content.extendedProtocol || "",
       specification: service.content.specification || "",
-      environments: service.content.environments || [],
       labels: LabelUtils.toEntityLabels(service.content.labels || []),
     };
   } catch (error) {
@@ -226,9 +222,6 @@ export async function updateEnvironment(
 
   if (environmentRequest.name !== undefined) {
     environment.name = environmentRequest.name;
-  }
-  if (environmentRequest.description !== undefined) {
-    environment.description = environmentRequest.description;
   }
   if (environmentRequest.address !== undefined) {
     environment.address = environmentRequest.address;
@@ -273,9 +266,10 @@ export async function createEnvironment(
   const environment = {
     id: environmentId,
     name: environmentRequest.name,
-    description: environmentRequest.description || "",
+    description: "",
     address: environmentRequest.address,
-    sourceType: environmentRequest.sourceType || "MANUAL",
+    sourceType:
+      environmentRequest.sourceType || ("MANUAL" as EnvironmentSourceType),
     properties: environmentRequest.properties || {},
     labels: LabelUtils.fromEntityLabels(environmentRequest.labels || []),
   };
@@ -285,6 +279,7 @@ export async function createEnvironment(
 
   return {
     ...environment,
+    systemId: serviceId,
     labels: LabelUtils.toEntityLabels(environment.labels),
   };
 }
@@ -341,9 +336,6 @@ export async function updateApiSpecificationGroup(
 
     if (groupRequest.name !== undefined) {
       groupInfo.name = groupRequest.name;
-    }
-    if (groupRequest.description !== undefined) {
-      groupInfo.description = groupRequest.description;
     }
     if ((groupRequest as any).labels !== undefined) {
       if (!groupInfo.content) {
@@ -405,18 +397,6 @@ export async function updateSpecificationModel(
         specificationInfo.content = {};
       }
       specificationInfo.content.version = modelRequest.version;
-    }
-    if (modelRequest.format !== undefined) {
-      if (!specificationInfo.content) {
-        specificationInfo.content = {};
-      }
-      specificationInfo.content.format = modelRequest.format;
-    }
-    if (modelRequest.content !== undefined) {
-      if (!specificationInfo.content) {
-        specificationInfo.content = {};
-      }
-      specificationInfo.content.content = modelRequest.content;
     }
     if (modelRequest.deprecated !== undefined) {
       if (!specificationInfo.content) {
@@ -962,8 +942,6 @@ export async function createEmptyService() {
       name: serviceName.trim(),
       description: serviceDescription?.trim() || "",
       type: serviceType.value,
-      protocol: "",
-      extendedProtocol: "",
       labels: [],
     };
 

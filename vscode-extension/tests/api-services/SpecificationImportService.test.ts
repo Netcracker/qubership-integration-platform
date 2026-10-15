@@ -104,7 +104,7 @@ describe("SpecificationImportService – validateAllowedSystemProtocol in runImp
 
   test("calls validateAllowedSystemProtocol with system type and detected protocol", async () => {
     mockGetSystemById.mockResolvedValue(
-      buildSystem({ integrationSystemType: IntegrationSystemType.IMPLEMENTED }),
+      buildSystem({ type: IntegrationSystemType.IMPLEMENTED }),
     );
     mockCreateSpecificationGroup.mockResolvedValue({
       id: "grp-1",
@@ -128,7 +128,7 @@ describe("SpecificationImportService – validateAllowedSystemProtocol in runImp
   test("returns warningMessage (graceful failure) when validation throws", async () => {
     mockGetSystemById.mockResolvedValue(
       buildSystem({
-        integrationSystemType: IntegrationSystemType.IMPLEMENTED,
+        type: IntegrationSystemType.IMPLEMENTED,
         protocol: "GRPC",
       }),
     );

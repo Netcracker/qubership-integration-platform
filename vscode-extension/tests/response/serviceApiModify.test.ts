@@ -42,10 +42,8 @@ jest.mock("../../src/web/response/serviceApiUtils", () => {
   };
 });
 
-import {
-  IntegrationSystemType,
-  IntegrationSystem,
-} from "../../src/web/api-services/servicesTypes";
+import type { IntegrationSystem } from "@netcracker/qip-ui";
+import { IntegrationSystemType } from "../../src/web/api-services/servicesTypes";
 import { ApiSpecificationType } from "../../src/web/api-services/importApiTypes";
 import { updateService } from "../../src/web/response/serviceApiModify";
 import {

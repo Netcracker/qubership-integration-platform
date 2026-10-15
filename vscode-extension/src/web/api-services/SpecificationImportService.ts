@@ -6,13 +6,13 @@ import {
   ImportSpecificationGroupRequest,
   SerializedFile,
 } from "./importApiTypes";
-import {
-  SpecificationGroup,
-  IntegrationSystem,
-  IntegrationSystemType,
+import type {
   Environment,
+  IntegrationSystem,
   Specification,
-} from "./servicesTypes";
+  SpecificationGroup,
+} from "@netcracker/qip-ui";
+import { IntegrationSystemType } from "./servicesTypes";
 import { ImportProgressTracker } from "./importProgressTracker";
 import { SpecificationGroupService } from "./SpecificationGroupService";
 import {
@@ -29,7 +29,7 @@ import { ProjectConfigService } from "../services/ProjectConfigService";
 import { SpecificationValidator } from "./SpecificationValidator";
 import { ApiSpecificationType } from "./importApiTypes";
 import { normalizePath } from "./pathUtils";
-import type { EnvironmentRequest } from "./servicesTypes";
+import type { EnvironmentServiceRequest } from "./servicesTypes";
 import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
 import { ProtocolDetectorService } from "../services/ProtocolDetectorService";
 import { validateAllowedSystemProtocol } from "../response";
@@ -162,10 +162,7 @@ export class SpecificationImportService {
         window.showErrorMessage(errorMessage);
         throw new Error(errorMessage);
       }
-      validateAllowedSystemProtocol(
-        params.system.integrationSystemType,
-        importingProtocol,
-      );
+      validateAllowedSystemProtocol(params.system.type, importingProtocol);
       const systemProtocol = this.convertToApiSpecificationType(
         params.system.protocol,
       );
@@ -623,7 +620,7 @@ export class SpecificationImportService {
         return;
       }
 
-      const systemType = system.integrationSystemType || system.type;
+      const systemType = system.type;
       const existingEnvironments =
         await this.environmentService.getEnvironmentsForSystem(systemId);
       const existingAddresses =
@@ -804,7 +801,7 @@ export class SpecificationImportService {
     candidate: EnvironmentCandidate,
     normalizedAddress: string,
     index: number,
-  ): EnvironmentRequest {
+  ): EnvironmentServiceRequest {
     return {
       name: this.buildEnvironmentName(
         specificationGroupName,

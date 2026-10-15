@@ -1,6 +1,6 @@
 import { Uri } from "vscode";
 import * as vscode from "vscode";
-import { IntegrationSystem, SpecificationGroup } from "./servicesTypes";
+import type { IntegrationSystem, SpecificationGroup } from "@netcracker/qip-ui";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
@@ -36,8 +36,7 @@ export class SpecificationGroupService {
       return {
         id: parsed.id,
         name: parsed.name,
-        description: parsed.description || "",
-        parentId: parsed.content?.parentId || parsed.parentId,
+        systemId: parsed.content?.parentId || parsed.parentId,
         specifications: [],
         synchronization:
           parsed.content?.synchronization || parsed.synchronization || false,
