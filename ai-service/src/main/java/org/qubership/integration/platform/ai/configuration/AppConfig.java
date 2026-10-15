@@ -248,6 +248,8 @@ public interface AppConfig {
   }
 
   interface CatalogConfig {
+    Optional<String> token();
+
     @WithName("log-response-body")
     @WithDefault("true")
     boolean logResponseBody();
