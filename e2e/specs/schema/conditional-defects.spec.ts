@@ -7,6 +7,7 @@ import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "../runtime/micro-defe
 import { LIMIT_REFUSED_WITH_500 } from "../global/classic-defects.js";
 import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "../k8s/catalog-defects.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
+import { WIPE_ABORTED_ON_CONFLICT, WIPE_ANSWERED } from "../global/sessions-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
 import { withEngineLines } from "../../support/logs.js";
@@ -217,4 +218,34 @@ test("an empty discovery result at progress 100 is the known defect on either en
   expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "classic", refused)).toBe(false);
   // Another assertion that received nothing is not the discovery result.
   expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "classic", "Error: expect(received).toBeDefined()\n\nReceived: undefined")).toBe(false);
+});
+
+/** What `strikesAsKnown` reads when the bare session delete answers `status` with `body`. */
+function wipeFailure(status: number, body: string): string {
+  try {
+    expect(status, `${WIPE_ANSWERED} ${body}`).toBe(200);
+  } catch (cause) {
+    return String(cause);
+  }
+  throw new Error(`status ${status} passed an assertion on 200`);
+}
+
+test("a bare session delete aborted on a version conflict is the known defect on either engine, and another refusal is not", TAGS, () => {
+  // The start of the body sessions-management answered in CI run 38651497943.
+  const conflict =
+    '{"serviceName":"Session Management","errorMessage":"Unable to perform delete from OpenSearch","stacktrace":"' +
+    "org.opensearch.client.transport.httpclient5.ResponseException: method [POST], host [http://qip-opensearch:9200], " +
+    "URI [/qip_qip-elements-qip-e2e-session-elements/_delete_by_query?refresh=true], status line [HTTP/1.1 409 Conflict]\\n" +
+    '{\\"total\\":4123,\\"deleted\\":4121,\\"version_conflicts\\":2,\\"failures\\":[{\\"cause\\":{\\"type\\":\\"version_conflict_engine_exception\\"';
+  const aborted = wipeFailure(400, conflict);
+  expect(strikes(WIPE_ABORTED_ON_CONFLICT, "classic", aborted)).toBe(true);
+  expect(strikes(WIPE_ABORTED_ON_CONFLICT, "micro", aborted)).toBe(true);
+
+  // OpenSearch refused the delete for another reason, which sessions-management answers with the same 400.
+  const missing = conflict.replace("version_conflict_engine_exception", "index_not_found_exception");
+  expect(strikes(WIPE_ABORTED_ON_CONFLICT, "classic", wipeFailure(400, missing))).toBe(false);
+  expect(strikes(WIPE_ABORTED_ON_CONFLICT, "classic", wipeFailure(503, "no healthy upstream"))).toBe(false);
+  expect(strikes(WIPE_ABORTED_ON_CONFLICT, "classic", wipeFailure(500, conflict))).toBe(false);
+  // A conflict another assertion reports is not the bare delete's.
+  expect(strikes(WIPE_ABORTED_ON_CONFLICT, "classic", aborted.replace(WIPE_ANSWERED, "the chain delete answered"))).toBe(false);
 });
