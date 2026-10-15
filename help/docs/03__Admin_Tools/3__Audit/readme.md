@@ -104,6 +104,7 @@ Accessed via **Admin Tools → Audit**, the interface features a customizable ta
 
 At the top of the table the following options are available:
 - **Search audit log** - search box, provides ability to find respective data in the table.
+- ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter audit logs by **Action Time**, **Initiator**, **Operation**, **Entity Type**, **Entity Name**, **Parent Name**, **Entity Id**, **Parent Id**, and **Request Id**.
 - ![setting](img/setting.svg) - Column settings.
 - ![redo](img/redo.svg) - Refresh.
 - ![cloud-download](img/cloud-download.svg) - Export Action Logs.
