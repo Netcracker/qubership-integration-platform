@@ -95,7 +95,7 @@ import { activate } from "../src/web/extension";
 
 function activateAndGetProvider() {
   activate(buildMockContext());
-  return capturedEditorProviders["qip.chainFile.editor"];
+  return capturedEditorProviders["cip.chainFile.editor"];
 }
 
 const validDocument = { uri: { path: "/test.yaml", fsPath: "/test.yaml" } };
@@ -265,7 +265,7 @@ describe("extension.ts", () => {
       const update = jest.fn().mockResolvedValue(undefined);
       vscode.workspace.getConfiguration.mockImplementation(
         (section?: string) => {
-          if (section === "qipExtension") {
+          if (section === "cipExtension") {
             return {
               get: jest.fn((_key: string, defaultVal: any) =>
                 _key === "useDefaultDiffView"
@@ -363,7 +363,7 @@ describe("extension.ts", () => {
       expect(update).not.toHaveBeenCalled();
 
       state.useDefaultDiffView = true;
-      fireConfigurationChange("qipExtension.useDefaultDiffView");
+      fireConfigurationChange("cipExtension.useDefaultDiffView");
       await flushAsync();
 
       expect(update).toHaveBeenCalledWith(

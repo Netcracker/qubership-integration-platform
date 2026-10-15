@@ -81,7 +81,7 @@ suite("Chain file round trip", function () {
 
   test("a change made through the extension's API saves a valid chain with only that change", async () => {
     await vscode.commands.executeCommand("vscode.open", chainUri());
-    await expectCustomEditor("qip.chainFile.editor", chainUri());
+    await expectCustomEditor("cip.chainFile.editor", chainUri());
 
     await callRouter(
       "updateChain",
@@ -124,7 +124,7 @@ suite("Chain file round trip", function () {
     // Earlier suites open the fixture too; a write on open would already have reformatted it.
     assert.notStrictEqual(before, yaml.stringify(yaml.parse(before)), "the fixture lost the catalog's formatting");
     await vscode.commands.executeCommand("vscode.open", chainUri());
-    await expectCustomEditor("qip.chainFile.editor", chainUri());
+    await expectCustomEditor("cip.chainFile.editor", chainUri());
     // The editor resolves after its tab appears, so a write on open can land later.
     await holdsFor(async () => assert.strictEqual(await readText(chainUri()), before), 2000);
   });
@@ -194,8 +194,8 @@ suite("Explorer tree", function () {
     assert.deepStrictEqual(
       root.map((item) => [item.label, item.contextValue]),
       [
-        ["Chains", "qip-chains-category"],
-        ["Services", "qip-services-category"],
+        ["Chains", "cip-chains-category"],
+        ["Services", "cip-services-category"],
       ],
     );
   });
@@ -211,7 +211,7 @@ suite("Explorer tree", function () {
     assert.ok(nested, "the nested chain is missing");
     assert.strictEqual(nested.label, `vsc-nested-chain-${chainId}`);
     assert.strictEqual(nested.description, "2 elements, 1 connections");
-    assert.strictEqual(nested.contextValue, "qip-chain");
+    assert.strictEqual(nested.contextValue, "cip-chain");
     assert.deepStrictEqual(
       (await explorer.getChildren(nested)).map((item) => [item.label, item.description]),
       [
@@ -232,16 +232,16 @@ suite("Explorer tree", function () {
     assert.ok(nested, "the nested service is missing");
     assert.strictEqual(nested.label, `vsc-nested-context-${serviceId}`);
     assert.strictEqual(nested.description, "CONTEXT service");
-    assert.strictEqual(nested.contextValue, "qip-service");
+    assert.strictEqual(nested.contextValue, "cip-service");
   });
 
   test("a nested item opens its file in the matching editor", async () => {
     const nested = (await category("Chains")).find((item) => item.id === chainId)!;
     const command = explorer.getTreeItem(nested).command;
-    assert.strictEqual(command?.command, "qip.revealInExplorer");
+    assert.strictEqual(command?.command, "cip.revealInExplorer");
     try {
       await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
-      await expectCustomEditor("qip.chainFile.editor", nested.fileUri!);
+      await expectCustomEditor("cip.chainFile.editor", nested.fileUri!);
     } finally {
       await closeAllEditors();
     }

@@ -27,10 +27,10 @@ import {
 } from "./harness";
 
 const EDITORS = [
-  { viewType: "qip.chainFile.editor", fixture: FIXTURES.chain },
-  { viewType: "qip.serviceFile.editor", fixture: FIXTURES.service },
-  { viewType: "qip.contextServiceFile.editor", fixture: FIXTURES.contextService },
-  { viewType: "qip.mcpServiceFile.editor", fixture: FIXTURES.mcpService },
+  { viewType: "cip.chainFile.editor", fixture: FIXTURES.chain },
+  { viewType: "cip.serviceFile.editor", fixture: FIXTURES.service },
+  { viewType: "cip.contextServiceFile.editor", fixture: FIXTURES.contextService },
+  { viewType: "cip.mcpServiceFile.editor", fixture: FIXTURES.mcpService },
 ];
 
 // The ids the golden files carry in place of the one a create command generates.
@@ -89,7 +89,7 @@ suite("Custom editors", function () {
         assert.fail(`expected the "chain diff" tab, got ${activeTab()?.label}: ${describeInput(activeTab()?.input)}`),
       );
       assert.ok(!(tab.input instanceof vscode.TabInputTextDiff), "expected the chain editor, got a text diff");
-      assert.strictEqual((tab.input as { viewType?: string }).viewType, "qip.chainFile.editor");
+      assert.strictEqual((tab.input as { viewType?: string }).viewType, "cip.chainFile.editor");
     } finally {
       await closeAllEditors();
       await vscode.workspace.fs.delete(workspaceUri(copy));
@@ -103,10 +103,10 @@ suite("Create commands", function () {
   suiteSetup(activateExtension);
   teardown(closeAllEditors);
 
-  test("qip.createChain writes a chain named by the prompt into a folder named by its id", async () => {
+  test("cip.createChain writes a chain named by the prompt into a folder named by its id", async () => {
     const folder = await newRootDirectory(() =>
       withPrompts({ showInputBox: () => "vsc-created-chain" }, () =>
-        vscode.commands.executeCommand("qip.createChain"),
+        vscode.commands.executeCommand("cip.createChain"),
       ),
     );
     try {
@@ -132,7 +132,7 @@ suite("Create commands", function () {
   ];
 
   for (const { pick, suffix, schema } of SERVICE_TYPES) {
-    test(`qip.createService writes a ${pick} service as *${suffix}`, async () => {
+    test(`cip.createService writes a ${pick} service as *${suffix}`, async () => {
       const answers: Record<string, string> = {
         "Enter new service name": `vsc-created-${pick.toLowerCase()}`,
         "Enter MCP service identifier": "vscCreatedMcp",
@@ -144,7 +144,7 @@ suite("Create commands", function () {
             showInputBox: (options) => answers[options?.prompt ?? ""],
             showQuickPick: (items) => items.find((item) => item.value === pick),
           },
-          () => vscode.commands.executeCommand("qip.createService"),
+          () => vscode.commands.executeCommand("cip.createService"),
         ),
       );
       try {
@@ -172,14 +172,14 @@ suite("Create commands", function () {
     });
   }
 
-  test("qip.createService writes nothing when the name prompt is dismissed", async () => {
+  test("cip.createService writes nothing when the name prompt is dismissed", async () => {
     const before = await listTree(workspaceRoot());
     await withPrompts(
       {
         showInputBox: () => undefined,
         showQuickPick: (items) => items.find((item) => item.value === "INTERNAL"),
       },
-      () => vscode.commands.executeCommand("qip.createService"),
+      () => vscode.commands.executeCommand("cip.createService"),
     );
     assert.deepStrictEqual(await listTree(workspaceRoot()), before);
   });
@@ -193,10 +193,10 @@ suite("Delete commands", function () {
 
   // Each case deletes its own copy, so the fixtures stay intact for the suites that follow.
   const CASES = [
-    { command: "qip.deleteChain", fixture: FIXTURES.chain, copy: "chains/delete-chain" },
-    { command: "qip.deleteService", fixture: FIXTURES.service, copy: "services/delete-service" },
-    { command: "qip.deleteService", fixture: FIXTURES.contextService, copy: "services/delete-context" },
-    { command: "qip.deleteService", fixture: FIXTURES.mcpService, copy: "services/delete-mcp" },
+    { command: "cip.deleteChain", fixture: FIXTURES.chain, copy: "chains/delete-chain" },
+    { command: "cip.deleteService", fixture: FIXTURES.service, copy: "services/delete-service" },
+    { command: "cip.deleteService", fixture: FIXTURES.contextService, copy: "services/delete-context" },
+    { command: "cip.deleteService", fixture: FIXTURES.mcpService, copy: "services/delete-mcp" },
   ];
 
   for (const { command, fixture, copy } of CASES) {
@@ -234,13 +234,13 @@ suite("Delete commands", function () {
     });
   }
 
-  test("qip.deleteChain deletes nothing when the confirmation is dismissed", async () => {
+  test("cip.deleteChain deletes nothing when the confirmation is dismissed", async () => {
     const copy = "chains/keep-me";
     await copyFolder(folderOf(FIXTURES.chain), copy);
     try {
       const before = await listTree(workspaceUri(copy));
       await withPrompts({ showWarningMessage: () => undefined }, () =>
-        vscode.commands.executeCommand("qip.deleteChain", {
+        vscode.commands.executeCommand("cip.deleteChain", {
           fileUri: workspaceUri(`${copy}/${fileNameOf(FIXTURES.chain)}`),
           label: "keep-me",
         }),
@@ -259,9 +259,9 @@ suite("Open commands", function () {
   teardown(closeAllEditors);
 
   for (const fixture of [FIXTURES.chain, FIXTURES.service]) {
-    test(`qip.openInTextEditor opens ${suffixOf(fixture)} as text`, async () => {
+    test(`cip.openInTextEditor opens ${suffixOf(fixture)} as text`, async () => {
       const uri = workspaceUri(fixture);
-      await vscode.commands.executeCommand("qip.openInTextEditor", { fileUri: uri });
+      await vscode.commands.executeCommand("cip.openInTextEditor", { fileUri: uri });
       const input = await waitFor(() => activeTab()?.input, "the text tab");
       assert.ok(input instanceof vscode.TabInputText, `expected a text editor, got ${describeInput(input)}`);
       assert.strictEqual(input.uri.toString(), uri.toString());
@@ -270,8 +270,8 @@ suite("Open commands", function () {
   }
 
   for (const { viewType, fixture } of EDITORS) {
-    test(`qip.revealInExplorer opens ${suffixOf(fixture)} in ${viewType}`, async () => {
-      await vscode.commands.executeCommand("qip.revealInExplorer", { fileUri: workspaceUri(fixture) });
+    test(`cip.revealInExplorer opens ${suffixOf(fixture)} in ${viewType}`, async () => {
+      await vscode.commands.executeCommand("cip.revealInExplorer", { fileUri: workspaceUri(fixture) });
       await expectCustomEditor(viewType, workspaceUri(fixture));
     });
   }

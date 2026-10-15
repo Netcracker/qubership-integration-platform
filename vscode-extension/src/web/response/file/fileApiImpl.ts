@@ -324,7 +324,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid chain file content");
     } catch (e) {
       console.error(
-        `Chain file ${fileUri} can't be parsed from QIP Extension API`,
+        `Chain file ${fileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -437,7 +437,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid service file content");
     } catch (e) {
       console.error(
-        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        `Service file ${serviceFileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -454,7 +454,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid service file content or service ID mismatch");
     } catch (e) {
       console.error(
-        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        `Service file ${serviceFileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -474,7 +474,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid service file content or service ID mismatch");
     } catch (e) {
       console.error(
-        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        `Service file ${serviceFileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -491,7 +491,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid service file content or service ID mismatch");
     } catch (e) {
       console.error(
-        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        `Service file ${serviceFileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;

@@ -1,7 +1,7 @@
 {
   "name": "@netcracker/qip-vscode-extension",
   "publisher": "qubership",
-  "displayName": "QIP VS Code Extension",
+  "displayName": "CIP VS Code Extension",
   "description": "Qubership Integration Platform - Visual Studio Code Extension",
   "version": "1.5.2",
   "main": "dist/node/index.js",
@@ -22,83 +22,83 @@
     "Other"
   ],
   "activationEvents": [
-    "qip.open",
-    "qip.createChain",
-    "qip.createChainParent",
-    "qip.createService",
-    "qip.openInTextEditor",
+    "cip.open",
+    "cip.createChain",
+    "cip.createChainParent",
+    "cip.createService",
+    "cip.openInTextEditor",
     "cip.exportImages",
-    "qip.exportImagesFromExplorer"
+    "cip.exportImagesFromExplorer"
   ],
   "browser": "./dist/web/extension.js",
   "contributes": {
     "configurationDefaults": {
       "workbench.diffEditorAssociations": {
-        "*.chain.cip.yaml": "qip.chainFile.editor"
+        "*.chain.cip.yaml": "cip.chainFile.editor"
       }
     },
     "configuration": {
       "title": "Qubership Integration Platform Extension",
       "properties": {
-        "qipExtension.useDefaultDiffView": {
+        "cipExtension.useDefaultDiffView": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Open integration chain diffs in the built-in text diff editor instead of the QIP visual diff. Toggling this updates the `workbench.diffEditorAssociations` entry for `*.chain.cip.yaml` in your user settings."
+          "markdownDescription": "Open integration chain diffs in the built-in text diff editor instead of the CIP visual diff. Toggling this updates the `workbench.diffEditorAssociations` entry for `*.chain.cip.yaml` in your user settings."
         }
       }
     },
     "commands": [
       {
-        "command": "qip.open",
-        "title": "QIP Modify currently opened chain"
+        "command": "cip.open",
+        "title": "CIP Modify currently opened chain"
       },
       {
-        "command": "qip.createChain",
-        "title": "QIP Create a chain in the current directory"
+        "command": "cip.createChain",
+        "title": "CIP Create a chain in the current directory"
       },
       {
-        "command": "qip.createChainParent",
-        "title": "QIP Create a chain in the parent directory"
+        "command": "cip.createChainParent",
+        "title": "CIP Create a chain in the parent directory"
       },
       {
-        "command": "qip.createService",
-        "title": "QIP Create service"
+        "command": "cip.createService",
+        "title": "CIP Create service"
       },
       {
-        "command": "qip.refreshExplorer",
-        "title": "Refresh QIP Explorer"
+        "command": "cip.refreshExplorer",
+        "title": "Refresh CIP Explorer"
       },
       {
-        "command": "qip.revealInExplorer",
+        "command": "cip.revealInExplorer",
         "title": "Open File"
       },
       {
-        "command": "qip.deleteService",
+        "command": "cip.deleteService",
         "title": "Delete Service"
       },
       {
-        "command": "qip.deleteChain",
+        "command": "cip.deleteChain",
         "title": "Delete Chain"
       },
       {
-        "command": "qip.openInTextEditor",
+        "command": "cip.openInTextEditor",
         "title": "Open in Text Editor"
       },
       {
         "command": "cip.exportImages",
-        "title": "QIP Export Chain Images"
+        "title": "CIP Export Chain Images"
       },
       {
-        "command": "qip.exportImagesFromExplorer",
+        "command": "cip.exportImagesFromExplorer",
         "title": "Export All Chain Graphs as PNG",
-        "category": "QIP"
+        "category": "CIP"
       }
     ],
     "views": {
       "explorer": [
         {
-          "id": "qip-main",
-          "name": "QIP",
+          "id": "cip-main",
+          "name": "CIP",
           "when": "true",
           "icon": ""
         }
@@ -106,8 +106,8 @@
     },
     "customEditors": [
       {
-        "viewType": "qip.chainFile.editor",
-        "displayName": "QIP Chain File Visual Editor",
+        "viewType": "cip.chainFile.editor",
+        "displayName": "CIP Chain File Visual Editor",
         "selector": [
           {
             "filenamePattern": "*.chain.cip.yaml"
@@ -119,8 +119,8 @@
         }
       },
       {
-        "viewType": "qip.serviceFile.editor",
-        "displayName": "QIP Service File Visual Editor",
+        "viewType": "cip.serviceFile.editor",
+        "displayName": "CIP Service File Visual Editor",
         "selector": [
           {
             "filenamePattern": "*.service.cip.yaml"
@@ -128,8 +128,8 @@
         ]
       },
       {
-        "viewType": "qip.contextServiceFile.editor",
-        "displayName": "QIP Context Service File Visual Editor",
+        "viewType": "cip.contextServiceFile.editor",
+        "displayName": "CIP Context Service File Visual Editor",
         "selector": [
           {
             "filenamePattern": "*.context-service.cip.yaml"
@@ -137,8 +137,8 @@
         ]
       },
       {
-        "viewType": "qip.mcpServiceFile.editor",
-        "displayName": "QIP MCP Service File Visual Editor",
+        "viewType": "cip.mcpServiceFile.editor",
+        "displayName": "CIP MCP Service File Visual Editor",
         "selector": [
           {
             "filenamePattern": "*.mcp-service.cip.yaml"
@@ -149,40 +149,40 @@
     "menus": {
       "view/title": [
         {
-          "command": "qip.refreshExplorer",
-          "when": "view == qip-main",
+          "command": "cip.refreshExplorer",
+          "when": "view == cip-main",
           "group": "navigation"
         },
         {
-          "command": "qip.exportImagesFromExplorer",
-          "when": "view == qip-main",
+          "command": "cip.exportImagesFromExplorer",
+          "when": "view == cip-main",
           "group": "overflow"
         }
       ],
       "view/item/context": [
         {
-          "command": "qip.createService",
-          "when": "view == qip-main && viewItem == qip-services-category",
+          "command": "cip.createService",
+          "when": "view == cip-main && viewItem == cip-services-category",
           "group": "inline"
         },
         {
-          "command": "qip.createChain",
-          "when": "view == qip-main && viewItem == qip-chains-category",
+          "command": "cip.createChain",
+          "when": "view == cip-main && viewItem == cip-chains-category",
           "group": "inline"
         },
         {
-          "command": "qip.openInTextEditor",
-          "when": "viewItem == qip-service || viewItem == qip-chain",
+          "command": "cip.openInTextEditor",
+          "when": "viewItem == cip-service || viewItem == cip-chain",
           "group": "1_modification"
         },
         {
-          "command": "qip.deleteService",
-          "when": "viewItem == qip-service",
+          "command": "cip.deleteService",
+          "when": "viewItem == cip-service",
           "group": "1_modification"
         },
         {
-          "command": "qip.deleteChain",
-          "when": "viewItem == qip-chain",
+          "command": "cip.deleteChain",
+          "when": "viewItem == cip-chain",
           "group": "1_modification"
         }
       ]

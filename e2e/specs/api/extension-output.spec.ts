@@ -7,8 +7,8 @@
  *
  * - the fixture chain after an `updateChain` change, zipped with the fixture's Groovy resource
  *   from `vscode-extension/src/web/test/workspace/`;
- * - a chain from `qip.createChain`;
- * - an `EXTERNAL`, a `CONTEXT`, and an `MCP` service from `qip.createService`, one per import
+ * - a chain from `cip.createChain`;
+ * - an `EXTERNAL`, a `CONTEXT`, and an `MCP` service from `cip.createService`, one per import
  *   endpoint.
  *
  * Only the changed chain imports as written. The catalog refuses the created chain and all three

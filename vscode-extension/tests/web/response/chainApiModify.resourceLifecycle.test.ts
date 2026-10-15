@@ -76,7 +76,7 @@ let fileUri: Uri;
 
 beforeEach(async () => {
   directory = await fs.mkdtemp(
-    path.join(os.tmpdir(), "qip-resource-lifecycle-"),
+    path.join(os.tmpdir(), "cip-resource-lifecycle-"),
   );
   fileUri = Uri.file(path.join(directory, `${chainId}.chain.cip.yaml`));
   setFileApi(

@@ -5,7 +5,7 @@ globs: vscode-extension/**
 
 ### Project Overview
 
-QIP VS Code Extension (`@netcracker/qip-vscode-extension`, v1.0.6) — an **offline, web-based** VS Code
+CIP VS Code Extension (`@netcracker/qip-vscode-extension`, v1.0.6) — an **offline, web-based** VS Code
 extension for visually editing QIP chains and services stored as local `*.cip.yaml` files. It embeds
 `@netcracker/qip-ui` (`^1.0.0`) as a webview bundle and validates against `@netcracker/qip-schemas`. Built as
 a **web extension** (runs in the `webworker` extension host — no Node runtime, no network). Stack: TypeScript
@@ -53,13 +53,13 @@ Two webpack outputs (`webpack.config.js` exports an array):
 **Webview embedding:** `copy-webpack-plugin` copies `qip-ui/dist-lib/**` (excluding `types/` and `.d.ts`) into `dist/web/qip-ui/`, and `qip-schemas/assets` into `dist/web/qip-schemas/assets`. At runtime `getWebviewContent` (in `extension.ts`) generates the webview HTML, preferring `index.bundled.es.js` (React embedded); it falls back to `index.es.js` + an esm.sh `<importmap>` for React if the bundled file is absent.
 
 **Custom editors & commands:** `package.json` registers four custom text editors, one per file pattern:
-`qip.chainFile.editor` (`*.chain.cip.yaml`), `qip.serviceFile.editor` (`*.service.cip.yaml`),
-`qip.contextServiceFile.editor` (`*.context-service.cip.yaml`), and `qip.mcpServiceFile.editor`
-(`*.mcp-service.cip.yaml`). A `*.qip.yaml` file does not open in them. It also registers a `qip-main` explorer
-tree view and eleven commands (`qip.open`, `qip.createChain`, `qip.createService`, delete/reveal, etc.). The chain editor additionally supports an inline diff
+`cip.chainFile.editor` (`*.chain.cip.yaml`), `cip.serviceFile.editor` (`*.service.cip.yaml`),
+`cip.contextServiceFile.editor` (`*.context-service.cip.yaml`), and `cip.mcpServiceFile.editor`
+(`*.mcp-service.cip.yaml`). A `*.qip.yaml` file does not open in them. It also registers a `cip-main` explorer
+tree view and eleven commands (`cip.open`, `cip.createChain`, `cip.createService`, delete/reveal, etc.). The chain editor additionally supports an inline diff
 view (proposed `customEditorDiffs` API).
 `editorViewTypes.ts:getEditorViewTypeForUri` resolves a URI to its view type for `openDocumentInEditor`, which
-`qip.revealInExplorer` and the `navigateInNewTab` handler in `extension.ts` call. A new editor type needs an entry
+`cip.revealInExplorer` and the `navigateInNewTab` handler in `extension.ts` call. A new editor type needs an entry
 there only.
 
 ### Project Structure

@@ -392,7 +392,7 @@ export class SpecificationImportService {
         const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${FILE_EXTENSIONS.specification}`;
         const specFileUri = Uri.joinPath(baseFolder, specFileName);
 
-        // Create QIP specification using operations from SpecificationProcessorService
+        // Create CIP specification using operations from SpecificationProcessorService
         const qipSpecification = {
           id: specification.id,
           $schema: QIP_SCHEMA_URLS.SPECIFICATION,

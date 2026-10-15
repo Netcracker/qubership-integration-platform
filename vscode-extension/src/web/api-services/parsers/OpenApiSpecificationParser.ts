@@ -106,7 +106,7 @@ export class OpenApiSpecificationParser {
     openApiData: OpenApiData,
     specificationId: string,
   ): any[] {
-    // Create full QIP specification using QipSpecificationGenerator
+    // Create full CIP specification using QipSpecificationGenerator
     const qipSpec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
       openApiData,
       "specification",

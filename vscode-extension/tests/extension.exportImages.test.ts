@@ -140,9 +140,9 @@ function getExportImagesCommand() {
 }
 
 function getExportImagesFromExplorerCommand() {
-  const command = registeredCommands.get("qip.exportImagesFromExplorer");
+  const command = registeredCommands.get("cip.exportImagesFromExplorer");
   if (!command) {
-    throw new Error("qip.exportImagesFromExplorer command was not registered");
+    throw new Error("cip.exportImagesFromExplorer command was not registered");
   }
   return command;
 }
@@ -201,8 +201,8 @@ describe("extension export image commands", () => {
     );
     expect(mockStartExportImagesProgress).toHaveBeenCalledWith(mockPanel);
     expect(mockCreateWebviewPanel).toHaveBeenCalledWith(
-      "qipWebView",
-      "QIP Export Images",
+      "cipWebView",
+      "CIP Export Images",
       expect.anything(),
       expect.objectContaining({ enableScripts: true }),
     );
@@ -246,7 +246,7 @@ describe("extension export image commands", () => {
     });
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith(
-      "Failed to export QIP chain images: Error: Export file path is required",
+      "Failed to export CIP chain images: Error: Export file path is required",
     );
   });
 
@@ -272,11 +272,11 @@ describe("extension export image commands", () => {
     });
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith(
-      "Failed to export QIP chain images: Error: parse failed",
+      "Failed to export CIP chain images: Error: parse failed",
     );
   });
 
-  test("qip.exportImagesFromExplorer returns when folder dialog is cancelled", async () => {
+  test("cip.exportImagesFromExplorer returns when folder dialog is cancelled", async () => {
     mockShowOpenDialog.mockResolvedValue(undefined);
 
     await getExportImagesFromExplorerCommand()();
@@ -284,7 +284,7 @@ describe("extension export image commands", () => {
     expect(mockExecuteCommand).not.toHaveBeenCalled();
   });
 
-  test("qip.exportImagesFromExplorer shows info when workspace has no chains", async () => {
+  test("cip.exportImagesFromExplorer shows info when workspace has no chains", async () => {
     mockShowOpenDialog.mockResolvedValue([
       { toString: () => "file:///tmp/export" },
     ]);
@@ -298,7 +298,7 @@ describe("extension export image commands", () => {
     expect(mockExecuteCommand).not.toHaveBeenCalled();
   });
 
-  test("qip.exportImagesFromExplorer delegates to cip.exportImages with discovered targets", async () => {
+  test("cip.exportImagesFromExplorer delegates to cip.exportImages with discovered targets", async () => {
     mockShowOpenDialog.mockResolvedValue([
       { toString: () => "file:///tmp/export" },
     ]);
@@ -315,7 +315,7 @@ describe("extension export image commands", () => {
     );
   });
 
-  test("qip.exportImagesFromExplorer shows error when discovery fails", async () => {
+  test("cip.exportImagesFromExplorer shows error when discovery fails", async () => {
     mockShowOpenDialog.mockResolvedValue([
       { toString: () => "file:///tmp/export" },
     ]);
@@ -324,7 +324,7 @@ describe("extension export image commands", () => {
     await getExportImagesFromExplorerCommand()();
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith(
-      "QIP export from explorer failed: Error: scan failed",
+      "CIP export from explorer failed: Error: scan failed",
     );
   });
 });

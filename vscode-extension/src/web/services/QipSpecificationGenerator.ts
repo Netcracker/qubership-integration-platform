@@ -60,7 +60,7 @@ export class QipSpecificationGenerator {
   }
 
   /**
-   * Creates QIP specification from OpenAPI 3.0 or Swagger 2.0
+   * Creates CIP specification from OpenAPI 3.0 or Swagger 2.0
    */
   static createQipSpecificationFromOpenApi(
     openApiSpec: any,
@@ -116,7 +116,7 @@ export class QipSpecificationGenerator {
   }
 
   /**
-   * Creates QIP operation from OpenAPI operation
+   * Creates CIP operation from OpenAPI operation
    */
   private static createQipOperation(
     operation: any,

@@ -17,7 +17,7 @@ export class SpecificationValidator {
   }
 
   /**
-   * Gets QIP specification type
+   * Gets CIP specification type
    */
   static async getQipSpecificationType(
     file: File,
