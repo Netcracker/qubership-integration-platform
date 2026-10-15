@@ -4,6 +4,7 @@
  * still missing. The addresses they probe come from `env/containers.ts`.
  */
 import net from "node:net";
+import amqp from "amqplib";
 import { Kafka, logLevel } from "kafkajs";
 import type { Overlay } from "./index.js";
 import { kafkaHostBrokers, pubsubHostUrl, rabbitmqHostUrl, sftpHostAddress } from "./containers.js";
@@ -102,19 +103,38 @@ export function kafkaReady(brokers: string[]): () => Promise<string | null> {
 }
 
 /**
+ * An AMQP connection handshake, not a bare TCP connect.
+ *
+ * Measured on kind (CI run 38735160150): after a RabbitMQ restart, the Docker port mapping accepted
+ * a TCP connect on the NodePort before the Service had a ready endpoint, then closed the socket. A
+ * TCP probe passed, and the spec's own `amqp.connect` failed with `Socket closed abruptly during
+ * opening handshake`.
+ */
+export function amqpReady(url: string): () => Promise<string | null> {
+  return async () => {
+    try {
+      const connection = await amqp.connect(url, { timeout: 2_000 });
+      await connection.close();
+      return null;
+    } catch (cause) {
+      return `${new URL(url).host} did not complete an AMQP handshake (${String(cause)})`;
+    }
+  };
+}
+
+/**
  * The probe of `overlay` at its host address, read when the probe runs, so a `CIP_*` override set
- * later still applies. RabbitMQ gets a bare TCP connect; the Compose adapter uses the container's
- * health check for it instead.
+ * later still applies. Kafka and RabbitMQ get a protocol probe, because a TCP connect to either
+ * succeeds before the broker serves. The Compose adapter reads RabbitMQ's container health check
+ * instead.
  */
 export function hostReady(overlay: Overlay): () => Promise<string | null> {
   return () => {
     switch (overlay) {
       case "kafka":
         return kafkaReady([kafkaHostBrokers()])();
-      case "rabbitmq": {
-        const url = new URL(rabbitmqHostUrl());
-        return tcpReady(url.hostname, Number(url.port))();
-      }
+      case "rabbitmq":
+        return amqpReady(rabbitmqHostUrl())();
       case "pubsub":
         return httpReady(`${pubsubHostUrl()}/v1/projects/e2e-overlay-ready-probe/topics`)();
       case "sftp": {
