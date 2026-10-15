@@ -203,6 +203,9 @@ export const SEED_LOGGING: LoggingProperties = {
 export const MASKED_FIXTURE = "masking";
 export const MASKED_FIELD = "cardNumber";
 
+/** `CamelConstants.MASKING_TEMPLATE` (`CamelConstants.java:40`), copied literally. */
+export const MASKING_MARKER = "******";
+
 /**
  * The one fixture whose element property is a `#{variable}` placeholder, and the common variable
  * it names.

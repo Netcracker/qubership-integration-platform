@@ -8,7 +8,6 @@
  * The catalog answers `GET .../properties/logging` from a cache it refills from Consul every second,
  * so every read of `custom` here polls.
  */
-import type { Page } from "@playwright/test";
 import { test, expect } from "../../support/page-guard.js";
 import { ChainTabsPage } from "../../pages/ChainTabsPage.js";
 import type { Catalog, LoggingProperties } from "../../support/catalog.js";
@@ -32,14 +31,14 @@ function sorted(properties: LoggingProperties | undefined): LoggingProperties | 
 }
 
 /** Picks `option` in the select labelled `label`; antd renders a visible option by its title. */
-async function choose(page: Page, tabs: ChainTabsPage, label: string, option: string): Promise<void> {
+async function choose(tabs: ChainTabsPage, label: string, option: string): Promise<void> {
   await tabs.field("combobox", label).click();
-  await page.getByTitle(option, { exact: true }).click();
+  await tabs.page.getByTitle(option, { exact: true }).click();
 }
 
 /** Clicks Apply and returns once the page has the answer, so the next change starts from the saved form. */
-async function apply(page: Page, tabs: ChainTabsPage, method: "POST" | "DELETE"): Promise<void> {
-  const answered = page.waitForResponse(
+async function apply(tabs: ChainTabsPage, method: "POST" | "DELETE"): Promise<void> {
+  const answered = tabs.page.waitForResponse(
     (response) => response.request().method() === method && response.url().endsWith("/properties/logging"),
   );
   await tabs.apply.click();
@@ -65,9 +64,9 @@ test("a logging override is saved from the form and dropped again by unchecking 
 
     await override.check();
     await expect(sessionLevel).toBeEnabled();
-    await choose(page, tabs, "Session level", "Debug");
-    await choose(page, tabs, "Log level", "Warning");
-    await apply(page, tabs, "POST");
+    await choose(tabs, "Session level", "Debug");
+    await choose(tabs, "Log level", "Warning");
+    await apply(tabs, "POST");
 
     // The fields the case did not touch keep the defaults the form was filled with.
     expect(sorted(await settledCustom(catalog, chain.id, true))).toEqual(
@@ -77,7 +76,7 @@ test("a logging override is saved from the form and dropped again by unchecking 
 
     await override.uncheck();
     await expect(sessionLevel).toBeDisabled();
-    await apply(page, tabs, "DELETE");
+    await apply(tabs, "DELETE");
 
     expect(await settledCustom(catalog, chain.id, false)).toBeUndefined();
     await expect(page.getByText(defaultSource, { exact: true })).toBeVisible();

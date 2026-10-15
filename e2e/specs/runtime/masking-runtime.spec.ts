@@ -16,11 +16,8 @@
  * neighbors are untouched.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MASKED_FIELD, MASKED_FIXTURE, readCorpusState, seedChain } from "../../support/corpus.js";
+import { MASKED_FIELD, MASKED_FIXTURE, MASKING_MARKER, readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain, elementNames, trace } from "../../support/sessions.js";
-
-/** `CamelConstants.MASKING_TEMPLATE` (`CamelConstants.java:40`), copied literally. */
-const MASKING_MARKER = "******";
 
 /** A value no other fixture sends, so finding it anywhere is unambiguous. */
 const SECRET = "4111111111111111";
