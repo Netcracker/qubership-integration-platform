@@ -755,7 +755,6 @@ export class VSCodeFileApi implements FileApi {
                   description: serviceDescription?.trim() || "",
                   activeEnvironmentId: "",
                   integrationSystemType: serviceType.value,
-                  protocol: "",
                   extendedProtocol: "",
                   specification: "",
                   environments: [],
