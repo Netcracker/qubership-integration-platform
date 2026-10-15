@@ -20,12 +20,12 @@
  *
  * The three negative cases deploy spec-owned chains through `withOwnFixture` and are `@classic-only`.
  * A wrong password is refused by the classic engine's pre-deploy check, which parks the deployment
- * at `PROCESSING`; the micro engine runs no such check, so on a micro domain of its own the chain
- * deployed, the pod stayed up, and the consumer logged `Failed authentication` with `invalid
- * credentials with SASL mechanism SCRAM-SHA-512` again and again. The refused sender deploys on both
- * engines and failed the same way on both, but its producer retries the handshake for as long as
- * the chain is deployed, so it cannot sit in the broker corpus, and a deploy into the shared micro
- * domain would roll its pod (skill rule 20). The refused trigger's consumer retries the same way.
+ * at `PROCESSING`. Since #1086 the micro engine lists the topics with the chain's credentials when
+ * its pod starts, so the wrong password stops the whole micro domain from starting (read from
+ * `KafkaTopicCheck`, not measured). The refused sender deploys on both engines and failed the same
+ * way on both, but its producer retries the handshake for as long as the chain is deployed, so it
+ * cannot sit in the broker corpus, and a deploy into the shared micro domain would roll its pod
+ * (skill rule 20). The refused trigger's consumer retries the same way.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { BROKERS_FIXTURE_DIR, BROKERS_LOGGING, brokerChain, deleteKafkaTopics, ensureKafkaTopics, readBrokersCorpusState } from "../../support/brokers.js";
@@ -106,7 +106,7 @@ function predeployCause(log: string, chainId: string): string | undefined {
   return at < 0 ? undefined : lines[at + 1];
 }
 
-test("a wrong password: the classic engine parks kafka-trigger-2 and logs the refused credentials", { tag: ["@engine", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine runs no pre-deploy check, so a micro domain deploys the chain and its consumer retries the login" } }, async ({ env, catalog, run }) => {
+test("a wrong password: the classic engine parks kafka-trigger-2 and logs the refused credentials", { tag: ["@engine", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine checks the credentials when its pod starts, so a micro domain holding this chain never starts" } }, async ({ env, catalog, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   const since = logWindowStart();
 

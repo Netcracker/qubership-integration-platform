@@ -322,8 +322,9 @@ exist for that shape, and each is invisible from inside the file that carries it
   assert the pre-deploy refusal of a missing Kafka topic, RabbitMQ queue, and exchange, the
   platform's reconnect after a broker restart, and the refusal of a wrong Kafka password and of a
   TLSv1.2 client on a TLSv1.3-only listener. The missing-target and kafka-security negatives are
-  `@classic-only`: the micro engine runs no pre-deploy check, so a micro domain reports such a chain
-  `DEPLOYED`. A negative broker fixture whose client logs on every retry stays spec-owned
+  `@classic-only`: the micro engine runs its checks when its pod starts, and a failed one stops the
+  pod, so such a chain keeps its whole micro domain from starting rather than being refused on its
+  own. A negative broker fixture whose client logs on every retry stays spec-owned
   (`SPEC_OWNED_FIXTURES`) rather than seeded, so its log lines end with its case.
 
 ## The shared corpus

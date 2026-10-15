@@ -6,8 +6,10 @@
  * `infrastructure/docker/docker-compose.yml`) is what makes any of this deployable at all:
  * `PubSubConnectionCheckAction` builds its own admin client from `serviceAccountKey` with no
  * emulator endpoint, so against the emulator it always reaches real googleapis and fails
- * `UNAUTHENTICATED`. `serviceAccountKey` stays schema-required regardless, so every fixture carries
- * a syntactically valid but fake service-account key the emulator never authenticates.
+ * `UNAUTHENTICATED`. A micro domain does not read that setting and runs its own check, which
+ * reaches the emulator through the component. `serviceAccountKey` stays schema-required regardless,
+ * so every fixture carries a syntactically valid but fake service-account key the emulator never
+ * authenticates.
  *
  * `pubsub-trigger` carries no correlation-header path at all: `CustomCamelMessageReceiver` sets
  * `GooglePubsubConstants.ATTRIBUTES` as **one** header holding the whole attributes map, never
@@ -54,10 +56,7 @@ import {
   type Sessions,
 } from "../../support/sessions.js";
 import { readUntil } from "../../support/poll.js";
-import { logWindowStart } from "../../support/logs.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
 import { covers } from "../../registry/covers.js";
-import { PUBSUB_EMULATOR_BYPASSED, pubsubDelivered } from "./micro-defects.js";
 
 /** What `readUntil` gets for the ackMode=NONE case's settle window, instead of a bare literal. */
 const ACKMODE_NONE_SETTLE_TIMEOUT = 12_000;
@@ -70,7 +69,7 @@ async function expectSent(sessions: Sessions, call: ChainCall): Promise<void> {
   const cause = call.response.status() === 200
     ? ""
     : (await readUntil(causes, (found) => found.length > 0, SESSION_TIMEOUT, 1_000)).join("; ");
-  await strikesAsKnown(PUBSUB_EMULATOR_BYPASSED, async () => expect(call.response.status(), cause).toBe(200));
+  expect(call.response.status(), cause).toBe(200);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +79,7 @@ async function expectSent(sessions: Sessions, call: ChainCall): Promise<void> {
 test(
   "a pub/sub message with no correlation header fires pubsub-trigger, found by chain id",
   { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ env, sessions }) => {
+  async ({ sessions }) => {
     covers("pubsub-trigger");
     covers("pubsub-trigger", "ackMode", "AUTO");
 
@@ -88,11 +87,10 @@ test(
     const chain = brokerChain(corpus, "pubsub-trigger-basic");
     const topic = chain.broker.destinationName as string;
     const before = await sessions.idsOf(chain.id);
-    const since = logWindowStart();
 
     await publishPubsub(topic, { ping: "pubsub", token: callToken("pubsub-trigger") });
 
-    const session = await pubsubDelivered(env, since, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
+    const session = await sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id));
     expect(elementNames(session)).toEqual(["PubSub Trigger", "Header Modification"]);
     expect(failedElements(session)).toEqual([]);
   },
@@ -101,7 +99,7 @@ test(
 test(
   "ackMode NONE still records a session: the route never reads the acknowledger header",
   { tag: ["@engine", "@sessions", "@tier2"] },
-  async ({ env, sessions }) => {
+  async ({ sessions }) => {
     // No `covers()` call: see the registry's own `R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE` reason.
     // This case still runs to prove the trigger keeps recording under `ackMode: NONE` rather than
     // failing outright, which is worth having even though its chain completes, and on a completing
@@ -111,7 +109,6 @@ test(
     const chain = brokerChain(corpus, "pubsub-trigger-ackmode-none");
     const topic = chain.broker.destinationName as string;
     const before = await sessions.idsOf(chain.id);
-    const since = logWindowStart();
 
     await publishPubsub(topic, { ping: "pubsub-ackmode-none" });
 
@@ -132,7 +129,7 @@ test(
       1_000,
     );
     const fresh = [...settled].filter((id) => !before.has(id));
-    await pubsubDelivered(env, since, async () => expect(fresh.length, "exactly one session for the one message published").toBe(1));
+    expect(fresh.length, "exactly one session for the one message published").toBe(1);
     expect(failedElements(await sessions.session(fresh[0]))).toEqual([]);
   },
 );

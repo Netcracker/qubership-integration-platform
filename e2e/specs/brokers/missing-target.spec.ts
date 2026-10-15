@@ -24,9 +24,10 @@
  * reads the engine log: what a caller can see is the deployment's status, and for the one fixture
  * that carries an HTTP trigger, whether its route answers at all.
  *
- * Every case is `@classic-only`. The micro engine runs no pre-deploy check and parks no deployment
- * for a retry, so on a micro domain the catalog reports each of these chains `DEPLOYED`, the pod
- * stays up, and the exchange chain's route answers (measured on a micro domain of its own).
+ * Every case is `@classic-only`. Since #1086 the micro engine runs the same checks when its pod
+ * starts, before any route does, and a failed check stops the pod: a missing target keeps the whole
+ * micro domain from starting instead of parking one deployment. A micro case would need a domain of
+ * its own and an assertion on a pod that never becomes ready, and `Env` has no member for that.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { BROKERS_FIXTURE_DIR } from "../../support/brokers.js";
@@ -35,7 +36,7 @@ import { deploymentRows, routeStatus, withOwnFixture } from "../../support/spec-
 
 test(
   "a kafka-trigger-2 chain pointed at a topic nobody declared never reaches DEPLOYED",
-  { tag: ["@engine", "@catalog", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine runs no pre-deploy check, so a micro domain reports the chain DEPLOYED" } },
+  { tag: ["@engine", "@catalog", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine checks the target when its pod starts, so a micro domain holding this chain never starts" } },
   async ({ catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 
@@ -52,7 +53,7 @@ test(
 
 test(
   "a rabbitmq-trigger-2 chain pointed at a queue nobody declared never reaches DEPLOYED",
-  { tag: ["@engine", "@catalog", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine runs no pre-deploy check, so a micro domain reports the chain DEPLOYED" } },
+  { tag: ["@engine", "@catalog", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine checks the target when its pod starts, so a micro domain holding this chain never starts" } },
   async ({ catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 
@@ -69,7 +70,7 @@ test(
 
 test(
   "a rabbitmq-sender-2 chain pointed at an exchange nobody declared never reaches DEPLOYED",
-  { tag: ["@engine", "@catalog", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine runs no pre-deploy check, so a micro domain reports the chain DEPLOYED" } },
+  { tag: ["@engine", "@catalog", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine checks the target when its pod starts, so a micro domain holding this chain never starts" } },
   async ({ env, catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 

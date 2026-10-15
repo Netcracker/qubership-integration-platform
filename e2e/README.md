@@ -512,8 +512,11 @@ The engine runs with `CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED=false` in
 `infrastructure/docker/docker-compose.yml` and in `e2e/k8s/values.e2e.yaml`, because the pub/sub pre-deploy
 check always reaches the real Google endpoint rather than the emulator. So
 `specs/brokers/missing-target.spec.ts` covers a missing Kafka topic and a missing RabbitMQ queue and
-exchange, and a missing pub/sub topic is an uncovered gap. Its cases are `@classic-only`: the micro
-engine runs no pre-deploy check, so a micro domain reports such a chain `DEPLOYED`.
+exchange, and a missing pub/sub topic is an uncovered gap. Its cases are `@classic-only`. The micro
+engine runs its checks, the pub/sub one included, when its pod starts (#1086), and a failed check
+stops the pod, so a missing target keeps the whole micro domain from starting instead of parking one
+chain. `brokers-micro-seed` therefore creates every topic, queue, exchange, and subscription before
+the deploy, as `brokers-seed` does.
 
 `brokers-restart` holds `broker-restart.spec.ts` alone and runs one worker after `brokers`, and on
 `k8s` after `brokers-micro` too, because restarting a broker container disturbs every broker spec in

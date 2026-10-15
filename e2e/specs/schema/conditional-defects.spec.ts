@@ -13,7 +13,7 @@ import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
 import { STRUCK_ANNOTATION } from "../../registry/elements.js";
 import { linesOfChain, withEngineLines } from "../../support/logs.js";
-import { PUBSUB_EMULATOR_BYPASSED, SFTP_TRIGGER_IDLE, pubsubAuthFailure } from "../brokers/micro-defects.js";
+import { SFTP_TRIGGER_IDLE } from "../brokers/micro-defects.js";
 import { ignoredCompileFailure, SCRIPT_COMPILE_IGNORED } from "../runtime-micro-redeploy/micro-defects.js";
 import type { Env } from "../../env/index.js";
 
@@ -117,36 +117,16 @@ async function engineLinesFailure(
   return String(await failed.catch((cause: unknown) => cause));
 }
 
-const SUBSCRIBER_LOG = [
+/** Engine lines that carry no chain id. */
+const UNRELATED_LOG = [
   "x{5}[2026-10-14T06:18:42.251] [ERROR] [request_id=               ] terminated streaming with exception: com.google.api.gax.rpc.UnauthenticatedException: com.google.api.gax.rpc.UnauthenticatedException: io.grpc.StatusRuntimeException: UNAUTHENTICATED: Failed computing credential metadata",
   "\tat com.google.api.gax.rpc.ApiExceptionFactory.createException(ApiExceptionFactory.java:116)",
   "Caused by: io.grpc.StatusRuntimeException: UNAUTHENTICATED: Failed computing credential metadata",
 ].join("\n");
 
-test("a pub/sub call the micro engine sent to Google is the known defect, and another pub/sub failure is not", TAGS, async () => {
-  // A sender step's recorded exception, as `expectSent` in pubsub.spec.ts reports it.
-  const sender = [
-    "Error: com.google.api.gax.rpc.UnauthenticatedException: io.grpc.StatusRuntimeException: UNAUTHENTICATED: Failed computing credential metadata",
-    "",
-    "expect(received).toBe(expected) // Object.is equality",
-    "",
-    "Expected: 200",
-    "Received: 500",
-  ].join("\n");
-  expect(PUBSUB_EMULATOR_BYPASSED.matches(sender)).toBe(true);
-  // A trigger case that found no session, with the subscriber's failures the micro pod logged.
-  const trigger = await engineLinesFailure(SUBSCRIBER_LOG, "naming UNAUTHENTICATED", pubsubAuthFailure);
-  expect(trigger).toContain("the engine logged 2 lines naming UNAUTHENTICATED");
-  expect(PUBSUB_EMULATOR_BYPASSED.matches(trigger)).toBe(true);
-
-  // No session, and a subscriber that logged no authentication failure.
-  expect(PUBSUB_EMULATOR_BYPASSED.matches(await engineLinesFailure("", "naming UNAUTHENTICATED", pubsubAuthFailure))).toBe(false);
-  expect(PUBSUB_EMULATOR_BYPASSED.matches("Error: expect(received).toBe(expected)\n\nExpected: 200\nReceived: 500")).toBe(false);
-});
-
 test("an sftp trigger that never ran its chain is the known defect, and a run that recorded no session is not", TAGS, async () => {
   const chain = "e2e0b001-0000-4000-8000-000000000001";
-  const idle = await engineLinesFailure(SUBSCRIBER_LOG, `for chain ${chain}`, linesOfChain(chain));
+  const idle = await engineLinesFailure(UNRELATED_LOG, `for chain ${chain}`, linesOfChain(chain));
   expect(idle).toContain(`the engine logged 0 lines for chain ${chain}`);
   expect(SFTP_TRIGGER_IDLE.matches(idle)).toBe(true);
 
