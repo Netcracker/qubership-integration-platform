@@ -242,6 +242,34 @@ test("undeploy is asserted by the route rather than by the catalog's record of i
     .toBe(0);
 });
 
+test("deleting every deployment of a chain at once stops its route", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, folder, run, request }) => {
+  const chain = await tokenizedChain(catalog, run, {
+    prefix: "deploy",
+    what: "undeploy-all",
+    parentId: folder.id,
+    marker: "undeploy-all",
+  });
+  // One row is all a classic chain can hold: a second snapshot replaces the first, and both targets
+  // serve one classic domain.
+  await deployChain(catalog, chain);
+  await deploymentRowOf(catalog, chain);
+  expect((await callDeployedChain(request, env, chain)).marker).toBe("undeploy-all");
+  // A GET on the live route is a 405, so the 404 below is the route gone rather than the verb refused.
+  const url = env.chainUrl(chain.contextPath);
+  expect((await request.get(url)).status()).toBe(405);
+
+  const deleted = await catalog.raw("delete", `/v1/catalog/chains/${chain.id}/deployments`);
+  expect(deleted.status()).toBe(204);
+  expect(await catalog.listDeployments(chain.id), "the catalog drops every row at once").toEqual([]);
+
+  await expect
+    .poll(async () => (await request.get(url)).status(), {
+      timeout: DEPLOY_TIMEOUT,
+      message: `the route for ${chain.name} still answers after every deployment was deleted`,
+    })
+    .toBe(404);
+});
+
 test("a redeploy swaps the response and the route never goes missing", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, folder, run, request }) => {
   const chain = await tokenizedChain(catalog, run, {
     prefix: "deploy",

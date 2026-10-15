@@ -1,9 +1,10 @@
 /**
  * Reconciliation per target: a registry row that names a target is read only against a run on it.
  *
- * The broker projects exist only on Compose, and the `k8s` and `seed-micro` projects only on
- * Kubernetes, so each target's run leaves rows unproven that the other run proves. The report
- * records its target in `config.metadata`, and these cases build one report per target.
+ * The `k8s` and `seed-micro` projects exist only on Kubernetes, so a Compose run leaves rows
+ * unproven that a cluster run proves. The report records its target in `config.metadata`, and
+ * these cases build one report per target. The Compose-only element row below is made up: no
+ * element row names a target since the brokers run on both.
  */
 import { test, expect } from "@playwright/test";
 import {
@@ -15,14 +16,13 @@ import {
   type OperationClaim,
   type RegistryEntry,
 } from "../../registry/elements.js";
-import { BROKER_PROJECTS } from "./projects.js";
+import { BROKER_PROJECTS, K8S_PROJECTS, MICRO_BROKER_PROJECTS } from "./projects.js";
 
-const COMMON_PROJECTS = ["schema", "api", "seed", "seed-teardown", "tooling", "runtime", "env", "global"];
-const K8S_PROJECTS = ["k8s", "seed-micro", "seed-micro-teardown", "runtime-micro"];
+const COMMON_PROJECTS = ["schema", "api", "seed", "seed-teardown", "tooling", "runtime", "env", "global", "suite-teardown"];
 
 const bothRow: RegistryEntry = { family: "condition", kind: "element", tier: 1, status: "covered", tags: ["@engine"] };
-const brokerRow: RegistryEntry = {
-  family: "kafka-trigger-2",
+const composeRow: RegistryEntry = {
+  family: "compose-only-element",
   kind: "element",
   tier: 1,
   status: "covered",
@@ -40,7 +40,12 @@ function runOn(
   target: "compose" | "k8s" | undefined,
   covers: string[],
   reached: string[],
-  projects = target === "k8s" ? [...COMMON_PROJECTS, ...K8S_PROJECTS] : [...COMMON_PROJECTS, ...BROKER_PROJECTS],
+  projects = [
+    ...COMMON_PROJECTS,
+    ...(target === "k8s" ? K8S_PROJECTS : []),
+    ...BROKER_PROJECTS,
+    ...(target === "k8s" ? MICRO_BROKER_PROJECTS : []),
+  ],
 ): JsonReport {
   return {
     config: {
@@ -77,20 +82,22 @@ test("a report names its target, and a report with none is a Compose run", { tag
   expect(reportTarget(runOn(undefined, [], []))).toBe("compose");
 });
 
-test("the broker projects missing from a k8s run do not narrow it, and from a Compose run they do", { tag: ["@infra", "@tier1"] }, () => {
+test("the broker projects missing from a run narrow it on either target", { tag: ["@infra", "@tier1"] }, () => {
   expect(runFilters(runOn("k8s", [], []))).toEqual([]);
+  expect(runFilters(runOn("compose", [], []))).toEqual([]);
+  expect(runFilters(runOn("k8s", [], [], [...COMMON_PROJECTS, ...K8S_PROJECTS]))).toEqual(["E2E_BROKERS=0"]);
   expect(runFilters(runOn("compose", [], [], COMMON_PROJECTS))).toEqual(["E2E_BROKERS=0"]);
 });
 
-test("a broker-only row does not fail a k8s run, and fails a Compose run that does not prove it", { tag: ["@infra", "@tier1"] }, () => {
+test("a Compose-only row does not fail a k8s run, and fails a Compose run that does not prove it", { tag: ["@infra", "@tier1"] }, () => {
   const k8sRun = runOn("k8s", ["condition"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
-  expect(reconcile(k8sRun, [bothRow, brokerRow], operations)).toEqual([]);
+  expect(reconcile(k8sRun, [bothRow, composeRow], operations)).toEqual([]);
 
   const composeRun = runOn("compose", ["condition"], ["catalog GET /v1/chains"]);
-  expect(reconcile(composeRun, [bothRow, brokerRow], operations)).toEqual([
-    "kafka-trigger-2: marked covered, but no passing test declares it",
+  expect(reconcile(composeRun, [bothRow, composeRow], operations)).toEqual([
+    "compose-only-element: marked covered, but no passing test declares it",
   ]);
-  expect(reconcile(runOn("compose", ["condition", "kafka-trigger-2"], ["catalog GET /v1/chains"]), [bothRow, brokerRow], operations)).toEqual([]);
+  expect(reconcile(runOn("compose", ["condition", "compose-only-element"], ["catalog GET /v1/chains"]), [bothRow, composeRow], operations)).toEqual([]);
 });
 
 test("a k8s-only row does not fail a Compose run, and fails a k8s run that does not reach it", { tag: ["@infra", "@tier1"] }, () => {
@@ -101,12 +108,12 @@ test("a k8s-only row does not fail a Compose run, and fails a k8s run that does 
 });
 
 test("a row proven on the other target's run is reported, not taken as proof", { tag: ["@infra", "@tier1"] }, () => {
-  const k8sRun = runOn("k8s", ["condition", "kafka-trigger-2"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
-  expect(reconcile(k8sRun, [bothRow, brokerRow], operations)).toEqual([
-    "specs/runtime/condition.spec.ts › a spec declares kafka-trigger-2, a row of the compose target, in a run on k8s",
+  const k8sRun = runOn("k8s", ["condition", "compose-only-element"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+  expect(reconcile(k8sRun, [bothRow, composeRow], operations)).toEqual([
+    "specs/runtime/condition.spec.ts › a spec declares compose-only-element, a row of the compose target, in a run on k8s",
   ]);
 
-  const composeRun = runOn("compose", ["condition", "kafka-trigger-2"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+  const composeRun = runOn("compose", ["condition", "compose-only-element"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
   expect(reconcileOperations(composeRun, operations)).toEqual([
     "catalog POST /v1/cr was reached on compose, but its row names the k8s target",
   ]);

@@ -230,7 +230,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       render(<AccessControl />);
 
       await waitFor(() => {
-        const redeployBtn = screen.getByTestId("Redeploy");
+        const redeployBtn = screen.getByTestId("access-control-redeploy");
         expect(redeployBtn).toBeDisabled();
       });
     });
@@ -262,7 +262,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       });
 
       await waitFor(() => {
-        const redeployBtn = screen.getByTestId("Redeploy");
+        const redeployBtn = screen.getByTestId("access-control-redeploy");
         // Should be disabled because selected row has no unsaved changes
         expect(redeployBtn).toBeDisabled();
       });
@@ -446,7 +446,9 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
         }
 
         // Redeploy button should be disabled because selected row has no unsaved changes
-        const redeployBtn = await screen.findByTestId("Redeploy");
+        const redeployBtn = await screen.findByTestId(
+          "access-control-redeploy",
+        );
         expect(redeployBtn).toBeDisabled();
       });
     });
@@ -485,7 +487,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       fireEvent.click(selectAll);
 
       await waitFor(() => {
-        const redeployBtn = screen.getByTestId("Redeploy");
+        const redeployBtn = screen.getByTestId("access-control-redeploy");
         expect(redeployBtn).not.toBeDisabled();
       });
     });
@@ -523,7 +525,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       });
 
       await waitFor(() => {
-        const redeployBtn = screen.getByTestId("Redeploy");
+        const redeployBtn = screen.getByTestId("access-control-redeploy");
         expect(redeployBtn).toBeEnabled();
         fireEvent.click(redeployBtn);
       });
@@ -569,7 +571,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       });
 
       await waitFor(() => {
-        const redeployBtn = screen.getByTestId("Redeploy");
+        const redeployBtn = screen.getByTestId("access-control-redeploy");
         expect(redeployBtn).toBeEnabled();
         fireEvent.click(redeployBtn);
       });

@@ -95,6 +95,9 @@ services:
       start_period: 30s
     volumes:
       - ./kafka-ssl/client:/app/cert/defaultsslcertificate
+    # The engine writes the truststore it builds from kafka-ssl/client here, and the root filesystem is read-only.
+    tmpfs:
+      - /app/truststore
     networks:
       default:
         aliases:

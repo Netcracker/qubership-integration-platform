@@ -35,13 +35,23 @@ spec:
               name: init-db-script
             - mountPath: /var/lib/postgresql/data
               name: postgres-storage
+          # Checks over TCP: during initdb the entrypoint runs a temporary server that listens only on the Unix socket.
+          startupProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -h
+                - 127.0.0.1
+            periodSeconds: 1
+            failureThreshold: 60
           livenessProbe:
             exec:
               command:
                 - pg_isready
                 - -U
                 - postgres
-            initialDelaySeconds: 15
             periodSeconds: 10
           readinessProbe:
             exec:
@@ -49,7 +59,6 @@ spec:
                 - pg_isready
                 - -U
                 - postgres
-            initialDelaySeconds: 15
             periodSeconds: 10
       volumes:
         - name: init-db-script

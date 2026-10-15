@@ -27,8 +27,10 @@ import {
 import {
   AXIS_FIXTURE_DIR,
   CHAIN_FIXTURE_DIR,
+  ENGINE_LOOPBACK,
   RUN_PLACEHOLDER,
   readFixtureDocument,
+  readServiceFixture,
   renderFixtureTree,
   substitute,
   type RenderedTree,
@@ -134,8 +136,6 @@ export const PASSED_STEP: ChainStep = {
   properties: { script: "exchange.getMessage().setBody('{\"called\":\"downstream\"}')" },
 };
 
-/** The engine's own port as the engine sees it, not the one `Env.chainUrl` publishes. */
-export const ENGINE_LOOPBACK = "http://localhost:8080";
 /** `fixtures/chains/method-echo/` on the engine's own port. */
 export const METHOD_ECHO_URI = `${ENGINE_LOOPBACK}/routes/e2e-${RUN_PLACEHOLDER}-method-echo`;
 /** The response header the method echo answers the received method in. */
@@ -159,6 +159,14 @@ export async function expectEchoedMethod(request: APIRequestContext, url: string
     expect(headers[METHOD_HEADER]).toBe(method);
   }
 }
+
+/** `fixtures/chains/correlation-echo/` on the engine's own port. */
+export const CORRELATION_ECHO_URI = `${ENGINE_LOOPBACK}/routes/e2e-${RUN_PLACEHOLDER}-correlation-echo`;
+/** The correlation id the correlation echo answers in its `e2e-correlation-id` header. */
+export const ECHOED_HEADER_CORRELATION_ID = "e2e-correlation-in-header";
+/** The correlation id the correlation echo answers in its body's `e2eCorrelationId` field. */
+export const ECHOED_BODY_CORRELATION_ID = "e2e-correlation-in-body";
+
 /** Never resolved: only a mocked call gets an answer. */
 export const MOCKED_SENDER_URI = "http://e2e-http-sender.invalid:8080/orders";
 
@@ -170,6 +178,51 @@ export const LOG_MESSAGE_PREFIX = "e2e-log";
 
 export const HTTP_METHODS = ["POST", "GET", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] as const;
 export const LOG_LEVELS = ["Error", "Warning", "Info"] as const;
+
+/** The service fixture a mock answers for: `POST /orders/{orderId}` on an address that never resolves. */
+export const ORDERS_SERVICE = "service-call-orders";
+/** The `orderId` every call to the orders service fills its path with. */
+export const ORDER_ID = "e2e-order";
+/** The query parameter the http protocol case sends. */
+export const ORDER_CHANNEL = "e2e";
+export const GRAPHQL_QUERY = "query Widget($id: ID!) { widget(id: $id) { id name } }";
+export const GRAPHQL_VARIABLES = { id: "e2e-widget" };
+
+/**
+ * The properties of a `service-call` on `operation` of a service fixture: what
+ * `SystemOperationField.tsx` writes on choosing the operation, and the library defaults of the two
+ * properties the schema requires.
+ */
+export function serviceCallTo(service: string, operation: string): Record<string, unknown> {
+  const fixture = readServiceFixture(service);
+  const found = fixture.operations.find((each) => each.name === operation);
+  if (!found) throw new Error(`service fixture ${service} has no operation ${operation}`);
+  return {
+    systemType: fixture.type,
+    integrationSystemId: fixture.id,
+    integrationSpecificationGroupId: found.groupId,
+    integrationSpecificationId: found.specificationId,
+    integrationOperationId: found.id,
+    integrationOperationPath: found.path,
+    integrationOperationMethod: found.method,
+    integrationOperationProtocolType: fixture.protocol.toLowerCase(),
+    retryCount: 0,
+    retryDelay: 5000,
+  };
+}
+
+const ORDERS_CALL = { ...serviceCallTo(ORDERS_SERVICE, "e2eServiceCall"), integrationOperationPathParameters: { orderId: ORDER_ID } };
+
+/** A 201 validation: `required` names a field the mock's body has, or one it lacks. */
+function responseValidation(required: string): Record<string, unknown> {
+  return {
+    afterValidation: [
+      { type: "responseValidation", code: "201", contentType: "application/json", schema: JSON.stringify({ type: "object", required: [required] }) },
+    ],
+  };
+}
+
+const RESPONSE_201 = { code: "201", wildcard: false };
 
 /** The axis values the seed deploys a chain for. A spec that covers a value adds its entry. */
 export const axisFixtures: readonly AxisFixture[] = [
@@ -237,6 +290,15 @@ export const axisFixtures: readonly AxisFixture[] = [
     downstream: PASSED_STEP,
   },
 
+  // The mcp-trigger idempotency axes: the trigger under test is not an HTTP trigger, so the chains are hand-written.
+  { family: "mcp-trigger", axisPath: "idempotency/enabled", value: false, handWritten: "mcp-trigger-idempotency-disabled" },
+  ...(["ignore", "throw-exception", "execute-subchain"] as const).map((value): AxisFixture => ({
+    family: "mcp-trigger",
+    axisPath: "idempotency/actionOnDuplicate",
+    value,
+    handWritten: `mcp-trigger-idempotency-${value}`,
+  })),
+
   // The breaker's window type: the configuration is a child of `circuit-breaker-2`, so both chains
   // are hand-written.
   { family: "circuit-breaker-configuration-2", axisPath: "slidingWindowType", value: "COUNT_BASED", handWritten: "circuit-breaker-count-based" },
@@ -248,7 +310,75 @@ export const axisFixtures: readonly AxisFixture[] = [
   // `httpMethod` is required by the schema, so it carries the library default.
   ...[true, false].map((value): AxisFixture => ({ family: "http-sender", axisPath: "propagateContext", value, properties: { ...INTERNAL_CALL, httpMethod: "GET", uri: MOCKED_SENDER_URI } })),
   ...[true, false].map((value): AxisFixture => ({ family: "graphql-sender", axisPath: "propagateContext", value, properties: { ...INTERNAL_CALL, query: "query { e2e }", uri: METHOD_ECHO_URI } })),
+  // A received correlation id is read off a mock's answer for `http-sender` and off the correlation
+  // echo's answer for `graphql-sender`; the step after the sender writes it into the body.
+  ...(["header", "body"] as const).flatMap((value): AxisFixture[] => {
+    const receive = { receiveCorrelationId: true, correlationIdName: value === "header" ? CORRELATION_ID_HEADER : CORRELATION_ID_FIELD };
+    return [
+      { family: "http-sender", axisPath: "correlationIdPosition", value, properties: { ...INTERNAL_CALL, ...receive, httpMethod: "GET", uri: MOCKED_SENDER_URI }, downstream: CORRELATION_ECHO },
+      { family: "graphql-sender", axisPath: "correlationIdPosition", value, properties: { ...INTERNAL_CALL, ...receive, query: "query { e2e }", uri: CORRELATION_ECHO_URI }, downstream: CORRELATION_ECHO },
+    ];
+  }),
   ...LOG_LEVELS.map((value): AxisFixture => ({ family: "log-record", axisPath: "logLevel", value, properties: { message: `${LOG_MESSAGE_PREFIX} \${header.${LOG_TOKEN_HEADER}}` } })),
+
+  // The service-call axes. The http calls go to the orders service, which a mock answers, except the
+  // method ones, which reach the method echo; graphql reaches the http echo.
+  { family: "service-call", axisPath: "handleValidationAction", value: "default", properties: { ...ORDERS_CALL, ...responseValidation("id") } },
+  { family: "service-call", axisPath: "handleValidationAction", value: "script", properties: { ...ORDERS_CALL, handlerContainer: scriptHandler("validation-script"), ...responseValidation("id") } },
+  { family: "service-call", axisPath: "handleValidationAction", value: "mapper-2", properties: { ...ORDERS_CALL, handlerContainer: mapperHandler("validation-mapper"), ...responseValidation("id") } },
+  { family: "service-call", axisPath: "afterValidation/items/type", value: "responseValidation", properties: { ...ORDERS_CALL, ...responseValidation("mocked") } },
+  { family: "service-call", axisPath: "before/type", value: "none", properties: ORDERS_CALL },
+  { family: "service-call", axisPath: "before/type", value: "script", properties: { ...ORDERS_CALL, before: scriptHandler("before-script") } },
+  { family: "service-call", axisPath: "before/type", value: "mapper-2", properties: { ...ORDERS_CALL, before: mapperHandler("before-mapper") } },
+  { family: "service-call", axisPath: "after/items/type", value: "none", properties: { ...ORDERS_CALL, after: [{ ...RESPONSE_201 }] } },
+  { family: "service-call", axisPath: "after/items/type", value: "script", properties: { ...ORDERS_CALL, after: [{ ...RESPONSE_201, ...scriptHandler("after-script") }] } },
+  { family: "service-call", axisPath: "after/items/type", value: "mapper-2", properties: { ...ORDERS_CALL, after: [{ ...RESPONSE_201, ...mapperHandler("after-mapper") }] } },
+  ...["inherit", "none"].map((value): AxisFixture => ({ family: "service-call", axisPath: "authorizationConfiguration/type", value, properties: ORDERS_CALL })),
+  { family: "service-call", axisPath: "authorizationConfiguration/type", value: "basic", properties: { ...ORDERS_CALL, authorizationConfiguration: { data: { username: "e2e-user", password: "e2e-password" } } } },
+  { family: "service-call", axisPath: "authorizationConfiguration/type", value: "bearer", properties: { ...ORDERS_CALL, authorizationConfiguration: { data: { token: "e2e-token" } } } },
+  ...[true, false].map((value): AxisFixture => ({ family: "service-call", axisPath: "propagateContext", value, properties: ORDERS_CALL })),
+  { family: "service-call", axisPath: "systemType", value: "INTERNAL", properties: ORDERS_CALL },
+  // The value is the type of the service the element calls, so EXTERNAL calls a service of its own.
+  {
+    family: "service-call",
+    axisPath: "systemType",
+    value: "EXTERNAL",
+    properties: { ...serviceCallTo("service-call-orders-external", "e2eServiceCall"), integrationOperationPathParameters: { orderId: ORDER_ID } },
+  },
+  {
+    family: "service-call",
+    axisPath: "correlationIdPosition",
+    value: "header",
+    properties: { ...ORDERS_CALL, receiveCorrelationId: true, correlationIdName: CORRELATION_ID_HEADER },
+    downstream: CORRELATION_ECHO,
+  },
+  {
+    family: "service-call",
+    axisPath: "correlationIdPosition",
+    value: "body",
+    properties: { ...ORDERS_CALL, receiveCorrelationId: true, correlationIdName: CORRELATION_ID_FIELD },
+    downstream: CORRELATION_ECHO,
+  },
+  // The service call sends the method of the operation it names, so each method has an operation.
+  ...HTTP_METHODS.map((value): AxisFixture => ({ family: "service-call", axisPath: "integrationOperationMethod", value, properties: serviceCallTo("service-call-methods", `echo${value}`) })),
+  {
+    family: "service-call",
+    axisPath: "integrationOperationProtocolType",
+    value: "http",
+    properties: { ...ORDERS_CALL, integrationOperationQueryParameters: { channel: ORDER_CHANNEL } },
+  },
+  {
+    family: "service-call",
+    axisPath: "integrationOperationProtocolType",
+    value: "graphql",
+    // `before` as the element form writes it; `fixtures/chains/service-call-graphql-no-before/` sends none.
+    properties: {
+      ...serviceCallTo("service-call-widgets", "widget"),
+      integrationGqlQuery: GRAPHQL_QUERY,
+      integrationGqlVariablesJSON: JSON.stringify(GRAPHQL_VARIABLES),
+      before: { type: "none" },
+    },
+  },
 ];
 
 /**
@@ -329,6 +459,11 @@ function assertDeclared(fixture: AxisFixture, schemas: Map<string, unknown>): vo
   }
 }
 
+/** The name of the element under test, `<axisPath>=<value>`: the `elementName` a session trace reports. */
+export function branchName({ axisPath, value }: { axisPath: string; value: SchemaValue }): string {
+  return `${axisPath}=${String(value)}`;
+}
+
 /**
  * The chain document for one generated axis value, with `{{RUN}}` still in it.
  *
@@ -342,7 +477,7 @@ export function generateAxisChain(
   assertDeclared(fixture, schemas);
 
   const name = axisFixtureName(fixture);
-  const branch = `${fixture.axisPath}=${String(fixture.value)}`;
+  const branch = branchName(fixture);
   const trigger = {
     id: stableId(name, "trigger"),
     name: fixture.family === "http-trigger" ? branch : "HTTP Trigger",

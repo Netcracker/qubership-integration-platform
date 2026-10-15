@@ -40,6 +40,13 @@ export interface Env {
    */
   chainUrl(contextPath: string): string;
   /**
+   * Base URL of the engine this environment's chains run on: the `engine` role's own port for
+   * `classic`, the micro domain's Service through the proxy's `/e2e/svc/` location for `micro`.
+   */
+  engineUrl(): string;
+  /** Where that engine serves its Prometheus meters: `/actuator/prometheus` classic, `/metrics` micro. */
+  engineMetricsUrl(): string;
+  /**
    * A page of the UI, as a link a person opens.
    *
    * The proxy on 8080, never port 4200: the UI reaches the services through nginx, so a page opened
@@ -55,9 +62,18 @@ export interface Env {
    * the micro domain's pod for `micro`. What a failed case attaches.
    */
   engineLogs(since: string): Promise<string>;
+  /**
+   * What a failed case attaches about the engine beside `engineLogs`. For `micro`: the domain pod's
+   * log from its start and its last lines, the previous container's log after a restart, the pod's
+   * description with its events, and the Integration with its status. Empty for `classic`.
+   */
+  engineEvidence(): Promise<Evidence[]>;
   /** Restart a service with extra settings applied, and wait until it is serving again. */
   restartWith(service: ServiceRole, settings: Record<string, string>): Promise<void>;
-  /** Restart a service with its committed settings, undoing a restartWith. */
+  /**
+   * Restart a service with its committed settings, undoing a restartWith. On a micro environment
+   * `engine` is the micro domain's pod, which is deleted and replaced.
+   */
   restart(service: ServiceRole): Promise<void>;
   /** Settings a service currently runs with, so a spec can refuse to start from a dirty state. */
   settings(service: ServiceRole): Promise<Record<string, string>>;
@@ -83,7 +99,8 @@ export interface Env {
   processEnvelope(service: ServiceRole): Promise<ProcessEnvelope>;
   /**
    * The IP address of the service's running process: the container's on Compose, the live pod's on
-   * Kubernetes. The engine registers in Consul under this address.
+   * Kubernetes, and on a micro environment the micro domain's pod for `engine`. The engine
+   * registers in Consul under this address.
    */
   address(service: ServiceRole): Promise<string>;
   /**
@@ -95,15 +112,17 @@ export interface Env {
    */
   resourcePeaks(): Promise<ResourcePeak[]>;
   /**
-   * Start an optional Compose overlay by name, composed with the base stack under one project, and
-   * wait until it is serving. A spec never names `docker`, so this is the one seam through which the
-   * `brokers` project brings up the broker it needs.
+   * Brings up an optional broker by name and waits until it is serving on its host port. A spec
+   * never names `docker` or `kubectl`, so this is the one seam through which `brokers-seed` and
+   * `brokers-micro-seed` bring up the brokers their fixtures need.
    *
-   * Left alone when it is already up: the same rule provisioning follows for the base stack applies
-   * here, and `docker compose up -d` with no `--force-recreate` already does that on its own. An
-   * unknown overlay name fails immediately, before anything is started, naming every overlay the
-   * adapter knows — a broker fixture deployed against an overlay that never came up would otherwise
-   * sit at `PROCESSING` and retry silently until the seed's own poll times out.
+   * On Compose it starts the overlay's compose file together with the base stack under one project,
+   * and leaves a running broker alone: the same rule provisioning follows for the base stack, and
+   * `docker compose up -d` with no `--force-recreate` already does that on its own. An unknown
+   * overlay name fails immediately, before anything is started, naming every overlay the adapter
+   * knows — a broker fixture deployed against an overlay that never came up would otherwise sit at
+   * `PROCESSING` and retry silently until the seed's own poll times out. On Kubernetes the Helm
+   * release already runs the broker, so it waits for the broker's rollout.
    */
   ensureOverlay(overlay: Overlay): Promise<void>;
   /**
@@ -116,11 +135,16 @@ export interface Env {
    * for the platform's own services and it replaces the container — a broker restart is meant to
    * disturb the connection, not the broker's identity or the topics and queues already declared on
    * it.
+   *
+   * On Kubernetes it kills the broker's PID 1, and the kubelet restarts the container in place; it
+   * then polls until the container's `restartCount` grows and the container is Ready. That works
+   * for Kafka and RabbitMQ only: the pub/sub emulator's PID 1 ignores SIGTERM.
    */
   restartOverlay(overlay: Overlay): Promise<void>;
   /**
-   * Stops and removes the overlay's containers. `brokers-seed-teardown` calls it once the broker
-   * corpus is gone, so the brokers do not outlive the run that started them.
+   * Stops and removes the overlay's containers on Compose. `brokers.teardown.ts` calls it once the
+   * broker corpus is gone, so the brokers do not outlive the run that started them. On Kubernetes it
+   * does nothing, because the brokers belong to the Helm release.
    */
   removeOverlay(overlay: Overlay): Promise<void>;
   /**
@@ -134,13 +158,22 @@ export interface Env {
   domainFacts(): DomainFacts;
 }
 
+/** A named text a failed case attaches to its report. */
+export interface Evidence {
+  name: string;
+  body: string;
+}
+
 /** How the catalog reports the classic domains on a target. */
 export interface DomainFacts {
   /** Whether `GET /v1/catalog/domains/{d}/engines` lists the pods of a classic domain. */
   listsEnginePods: boolean;
 }
 
-/** An optional Compose overlay the `brokers` project can bring up beside the base stack. */
+/**
+ * An optional broker the `brokers` project brings up beside the platform: a Compose overlay, or a
+ * broker sub-chart of the Helm release on Kubernetes.
+ */
 export type Overlay = "kafka" | "rabbitmq" | "pubsub" | "sftp";
 
 /** Committed Metaspace and the ceiling it is committed against, in bytes. */

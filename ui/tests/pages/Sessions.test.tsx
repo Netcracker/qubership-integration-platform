@@ -461,9 +461,7 @@ describe("Sessions", () => {
     fireEvent.click(within(row).getByRole("checkbox"));
 
     // Click delete
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     // Confirm
     expect(capturedConfirmOnOk).toBeDefined();
@@ -487,9 +485,7 @@ describe("Sessions", () => {
     fireEvent.click(headerCheckbox);
 
     // Click delete
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     expect(capturedConfirmOnOk).toBeDefined();
     await act(async () => {
@@ -503,9 +499,7 @@ describe("Sessions", () => {
   test("delete does nothing when no rows selected", async () => {
     await renderWithSessions([baseSession({ id: "n1" })]);
 
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     expect(capturedConfirmOnOk).toBeUndefined();
     expect(mockDeleteSessions).not.toHaveBeenCalled();
@@ -521,9 +515,7 @@ describe("Sessions", () => {
 
     const row = screen.getByRole("row", { name: /f1/i });
     fireEvent.click(within(row).getByRole("checkbox"));
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     await act(async () => {
       await capturedConfirmOnOk!();
@@ -863,9 +855,11 @@ describe("Sessions", () => {
     fireEvent.click(screen.getByTestId("protected-btn-"));
 
     await waitFor(() => {
-      expect(
-        mockRetrySessionFromCheckpointForMicroDomain,
-      ).toHaveBeenCalledWith("micro-dom", "chain-1", "retry-micro");
+      expect(mockRetrySessionFromCheckpointForMicroDomain).toHaveBeenCalledWith(
+        "micro-dom",
+        "chain-1",
+        "retry-micro",
+      );
     });
     expect(mockRetrySessionFromCheckpoint).not.toHaveBeenCalled();
   });

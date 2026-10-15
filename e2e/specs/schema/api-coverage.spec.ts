@@ -23,6 +23,7 @@ import {
   validateOperationRegistry,
   type OperationEntry,
 } from "../../registry/operations.js";
+import { operationPathOf } from "../../registry/reached.js";
 
 const registryKeys = new Set(operationRegistry.map(entryKey));
 
@@ -246,6 +247,17 @@ test("a literal template wins over a parameter that would also match", { tag: ["
   expect(
     matchOperationPath("sessions-management", "GET", "/v1/sessions/export", [...routing].reverse()),
   ).toBe("sessions-management GET /v1/sessions/export");
+});
+
+test("a call through the proxy's /e2e/svc/ location matches the row of the path behind it", { tag: ["@infra", "@tier1"] }, () => {
+  // How the `Engine` transport reaches a micro domain, which has no host port.
+  const proxied = "http://localhost:30080/e2e/svc/qip-engine-e2e-run1-micro-v1/v1/engine/live-exchanges";
+  expect(operationPathOf(proxied)).toBe("/v1/engine/live-exchanges");
+  expect(matchOperationPath("engine", "GET", operationPathOf(proxied))).toBe("engine GET /v1/engine/live-exchanges");
+  expect(operationPathOf("http://localhost:30092/v1/engine/live-exchanges")).toBe("/v1/engine/live-exchanges");
+  // Only a whole leading segment pair is the proxy's; a bare `/e2e/svc/x` stays as it is.
+  expect(operationPathOf("/e2e/svc/x")).toBe("/e2e/svc/x");
+  expect(operationPathOf("/api/e2e/svc/x/v1/engine/live-exchanges")).toBe("/api/e2e/svc/x/v1/engine/live-exchanges");
 });
 
 test("a path outside the registry matches nothing rather than the nearest row", { tag: ["@infra", "@tier1"] }, () => {

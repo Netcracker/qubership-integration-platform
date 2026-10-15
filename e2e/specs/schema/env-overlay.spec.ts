@@ -2,7 +2,7 @@
  * The optional-overlay table `Env.ensureOverlay` reads, and the failure a spec sees for a name that
  * is not in it.
  *
- * No stack: `overlayDefinition` and `overlayNames` are plain lookups over a static table, so this
+ * No stack: `overlayDefinition` and `OVERLAY_NAMES` are plain lookups over a static table, so this
  * proves the naming and the error text without a broker or even Docker running. `ensureOverlay`
  * itself calls `overlayDefinition` before it runs a single Compose command — see `env/compose.ts` —
  * so this is also what stands behind that ordering: a bad overlay name fails immediately rather than
@@ -10,16 +10,22 @@
  */
 import path from "node:path";
 import fs from "node:fs";
+import http from "node:http";
+import net, { type AddressInfo } from "node:net";
 import yaml from "js-yaml";
 import { test, expect } from "@playwright/test";
-import { overlayDefinition, overlayNames } from "../../env/compose.js";
+import { overlayDefinition } from "../../env/compose.js";
+import { BROKER_PORT, OVERLAY_NAMES } from "../../env/containers.js";
+import { hostReady, httpReady, tcpReady } from "../../env/overlays.js";
 import { repoRoot } from "../../env/host.js";
+import type { Overlay } from "../../env/index.js";
+import { withEnv } from "../../support/with-env.js";
 
 test("the adapter knows exactly the four broker overlays the suite starts", { tag: ["@infra", "@tier1"] }, async () => {
-  expect(overlayNames()).toEqual(["kafka", "pubsub", "rabbitmq", "sftp"]);
+  expect(OVERLAY_NAMES).toEqual(["kafka", "pubsub", "rabbitmq", "sftp"]);
 });
 
-for (const name of overlayNames()) {
+for (const name of OVERLAY_NAMES) {
   test(`overlay ${name} resolves to its own compose file and at least one service`, { tag: ["@infra", "@tier1"] }, async () => {
     const definition = overlayDefinition(name);
     expect(definition.name).toBe(name);
@@ -57,4 +63,82 @@ test("an unknown overlay name fails immediately, naming every overlay the adapte
 
 test("the same failure holds for an empty name", { tag: ["@infra", "@tier1"] }, async () => {
   expect(() => overlayDefinition("")).toThrow(/no overlay named ""/);
+});
+
+test("the broker port table names exactly the overlays the adapter knows", { tag: ["@infra", "@tier1"] }, async () => {
+  expect(Object.keys(BROKER_PORT).sort()).toEqual(OVERLAY_NAMES);
+});
+
+test("the broker port table matches the ports Compose publishes and kind maps", { tag: ["@infra", "@tier1"] }, async () => {
+  const bootstrap = fs.readFileSync(path.join(repoRoot(), "e2e/k8s/bootstrap-cluster.sh"), "utf-8");
+  for (const name of OVERLAY_NAMES) {
+    const definition = overlayDefinition(name);
+    const file = path.join(repoRoot(), "infrastructure", definition.file);
+    const parsed = yaml.load(fs.readFileSync(file, "utf-8")) as { services: Record<string, { ports?: string[] }> };
+    const published = (parsed.services[definition.primary].ports ?? []).map((each) => Number(each.split(":")[0]));
+    const port = BROKER_PORT[name];
+    expect(published, `the host ports ${definition.file} publishes`).toContain(port.compose);
+    expect(bootstrap, `the kind port mapping for ${name}`).toContain(
+      `{ containerPort: ${port.k8s}, hostPort: ${port.k8s} }`,
+    );
+  }
+});
+
+/** Runs `body` against an HTTP server on a free local port, and closes the server before returning. */
+async function withLocalServer<T>(body: (port: number) => Promise<T>): Promise<T> {
+  const server = http.createServer((_, response) => response.end("ok"));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    return await body(port);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+test("the TCP and HTTP probes report a listener as ready and a closed port as not", { tag: ["@infra", "@tier1"] }, async () => {
+  const port = await withLocalServer(async (port) => {
+    expect(await tcpReady("127.0.0.1", port)()).toBeNull();
+    expect(await httpReady(`http://127.0.0.1:${port}/`)()).toBeNull();
+    return port;
+  });
+  expect(await tcpReady("127.0.0.1", port)()).toMatch(/refused a connection/);
+  expect(await httpReady(`http://127.0.0.1:${port}/`)()).toMatch(/did not answer/);
+});
+
+test("each host probe reads its broker's host address, CIP_* overrides included", { tag: ["@infra", "@tier1"] }, async () => {
+  // Created before the overrides are set, so each probe has to read its address when it runs.
+  const probes = Object.fromEntries(OVERLAY_NAMES.map((overlay) => [overlay, hostReady(overlay)]));
+  const { port, probe } = await withLocalServer(async (port) => {
+    const overrides = {
+      CIP_KAFKA_URL: `127.0.0.1:${port}`,
+      CIP_RABBITMQ_URL: `amqp://guest:guest@127.0.0.1:${port}`,
+      CIP_PUBSUB_URL: `http://127.0.0.1:${port}`,
+      CIP_SFTP_HOST: "127.0.0.1",
+      CIP_SFTP_PORT: String(port),
+    };
+    const probe = (overlay: Overlay) => withEnv(overrides, () => probes[overlay]());
+    expect(await probe("pubsub")).toBeNull();
+    expect(await probe("sftp")).toBeNull();
+    return { port, probe };
+  });
+  expect(await probe("kafka")).toContain(`127.0.0.1:${port} did not answer a metadata request`);
+  expect(await probe("rabbitmq")).toContain(`127.0.0.1:${port} did not complete an AMQP handshake`);
+  expect(await probe("pubsub")).toContain(`http://127.0.0.1:${port}/v1/projects/`);
+  expect(await probe("sftp")).toContain(`127.0.0.1:${port} refused a connection`);
+});
+
+test("the RabbitMQ probe reports a port that accepts and then closes a connection as not ready", { tag: ["@infra", "@tier1"] }, async () => {
+  // The kind port mapping does this while the NodePort has no ready endpoint (CI run 38735160150).
+  const server = net.createServer((socket) => socket.destroy());
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    expect(await tcpReady("127.0.0.1", port)()).toBeNull();
+    const probe = hostReady("rabbitmq");
+    expect(await withEnv({ CIP_RABBITMQ_URL: `amqp://guest:guest@127.0.0.1:${port}` }, () => probe()))
+      .toMatch(/did not complete an AMQP handshake .*Socket closed abruptly during opening handshake/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

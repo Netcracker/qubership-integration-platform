@@ -4,8 +4,9 @@ Companion to `SKILL.md`, gates 2 and 4. Read it when the issue concerns micro-en
 domain, the Helm chart, Istio, or the Gateway API, or when the fix touches `engine` and its
 `micro-engine` twin. Compose cannot run a micro domain; only the cluster can.
 
-Setting the cluster up (Gateway API, Istio, camel-k, metrics-server, the NodePorts) is in
-`e2e/k8s/README.md`. Changing a cluster needs the user's permission, because the auto-mode
+Set the cluster up first with `e2e/k8s/bootstrap-cluster.sh`, which installs the Gateway API,
+Istio, camel-k, and metrics-server; `e2e/k8s/README.md` describes each step and the NodePorts.
+Any change to a cluster, the script included, needs the user's permission, because the auto-mode
 classifier blocks workload and route changes; ask once at gate 0 when the issue needs the
 cluster. Turning on Docker Desktop's Kubernetes restarts Docker and stops the Compose stack.
 

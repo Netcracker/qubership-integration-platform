@@ -388,3 +388,53 @@ test("a specification exports as its own bytes and a group as an archive", { tag
     await catalog.deleteSystem(service.id).catch(() => {});
   }
 });
+
+test("a service export by POST holds only the named services, and only the specifications usedSystemModelIds names", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
+  const service = await catalog.createSystem(tokenized(run, "svc-export-used"), "EXTERNAL");
+  // Not named in the request, so nothing of it may reach the archive.
+  const bystander = await catalog.createSystem(tokenized(run, "svc-export-bystander"), "EXTERNAL");
+  const groupName = tokenized(run, "svc-export-used-group");
+  const groupId = `${service.id}-${groupName}`;
+  const used = `${groupId}-1.0.0`;
+  const unused = `${groupId}-2.0.0`;
+  const root = `services/${service.id}`;
+  try {
+    await catalog.awaitSpecificationImport(
+      await catalog.importSpecificationGroup(service.id, groupName, readSpecificationFixture("widgets.openapi.yaml")),
+    );
+    await catalog.awaitSpecificationImport(
+      await catalog.importSpecification(groupId, readSpecificationFixture("widgets-v2.openapi.yaml")),
+    );
+
+    // Without the filter the archive carries both versions, so the filter is what drops one below.
+    const whole = await catalog.exportSystemsByPost([service.id]);
+    expect(whole.status()).toBe(200);
+    expect(await entryNames(Buffer.from(await whole.body()))).toEqual(
+      [
+        `${root}/${service.id}.service.cip.yaml`,
+        `${root}/${groupId}.specification-group.cip.yaml`,
+        `${root}/${used}.specification.cip.yaml`,
+        `${root}/${unused}.specification.cip.yaml`,
+        `${root}/resources/source-${used}/widgets.openapi.yaml`,
+        `${root}/resources/source-${unused}/widgets-v2.openapi.yaml`,
+      ].sort(),
+    );
+
+    const filtered = await catalog.exportSystemsByPost([service.id], [used]);
+    expect(filtered.status()).toBe(200);
+    expect(await entryNames(Buffer.from(await filtered.body()))).toEqual(
+      [
+        `${root}/${service.id}.service.cip.yaml`,
+        `${root}/${groupId}.specification-group.cip.yaml`,
+        `${root}/${used}.specification.cip.yaml`,
+        `${root}/resources/source-${used}/widgets.openapi.yaml`,
+      ].sort(),
+    );
+
+    // The filter shapes the archive and writes nothing: the catalog still holds both versions.
+    expect((await catalog.listModels(groupId)).map((each) => each.id).sort()).toEqual([used, unused].sort());
+  } finally {
+    await catalog.deleteSystem(service.id).catch(() => {});
+    await catalog.deleteSystem(bystander.id).catch(() => {});
+  }
+});

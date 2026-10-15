@@ -2,13 +2,14 @@
 
 `CIP_TARGET=k8s` runs the suite against a local cluster. The suite owns namespace `qip-e2e`: it
 builds the images from the checkout, installs `infrastructure/qip-dev` there with
-`e2e/k8s/values.e2e.yaml`, and waits until every service answers. You install the cluster and what
-runs cluster-wide, once, as this page describes. A run checks for each piece in the order below and
-fails on the first one missing, naming the section here that installs it.
+`e2e/k8s/values.e2e.yaml`, and waits until every service answers. You prepare the cluster and what
+runs cluster-wide once, with the bootstrap script or by hand, as this page describes. A run checks
+for each piece in the order below and fails on the first one missing, naming the section here that
+installs it.
 
 Besides Docker and Maven, which a Compose run needs too, the host needs `kubectl` and `helm` on the
-`PATH`, `istioctl` for the Istio install below, and the `kind` or `k3d` CLI on those clusters: the
-suite loads its images into the node with them.
+`PATH`, `istioctl` 1.31 or later for the Istio install below, and the `kind` or `k3d` CLI on those
+clusters: the suite loads its images into the node with them.
 
 ```bash
 cd e2e
@@ -16,6 +17,19 @@ npm run test:k8s
 ```
 
 ## Cluster
+
+`e2e/k8s/bootstrap-cluster.sh` prepares a cluster for the suite. Run it from any directory:
+
+```bash
+e2e/k8s/bootstrap-cluster.sh
+```
+
+On the `docker-desktop` context, or on any `k3d-<name>` or `kind-<name>` context, it uses the
+current cluster. On any other context, or with no kubeconfig at all, it creates the kind cluster
+`kind-qip` from `kindest/node:v1.37.0` with the nine ports below mapped, and kind switches the
+current context to it. Then it installs the Gateway API CRDs, Istio, the camel-k operator, and,
+except on k3d, metrics-server, which the sections below install by hand. A second run on a cluster
+the script has prepared restarts nothing.
 
 The suite reads the cluster kind from the current kube-context and supports three:
 
@@ -34,6 +48,12 @@ Every host-side address is a fixed port:
 | 30092 | the classic engine |
 | 30093 | sessions-management |
 | 30095 | the testing service |
+| 30992 | Kafka, its `EXTERNAL` listener |
+| 30672 | RabbitMQ, AMQP |
+| 30085 | the Pub/Sub emulator |
+| 30022 | the SFTP server |
+
+The last four answer only when the run installs the brokers, which `E2E_BROKERS=0` turns off.
 
 **Docker Desktop.** Enable Kubernetes in the settings. The kind-based cluster (node
 `desktop-control-plane`) pulls host images through Docker Desktop's registry mirror, so an image the
@@ -41,30 +61,24 @@ suite builds with `docker build` runs with no loading step. It publishes a LoadB
 port on the host and a NodePort not at all, so on this context the suite sets each service's
 `loadBalancerPort` in the chart, which adds a LoadBalancer Service on the same fixed port.
 
-**kind.** Map the NodePorts when you create the cluster:
+**kind.** The script maps the nine ports when it creates `kind-qip`. A kind cluster created another
+way needs the same `extraPortMappings` on its control-plane node, each `containerPort` equal to its
+`hostPort`. kind fixes the mappings at creation, so a `kind-qip` created before the broker ports
+were added has to be deleted and created again:
 
 ```bash
-cat > kind-qip.yaml <<'EOF'
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-  - role: control-plane
-    extraPortMappings:
-      - { containerPort: 30080, hostPort: 30080 }
-      - { containerPort: 30091, hostPort: 30091 }
-      - { containerPort: 30092, hostPort: 30092 }
-      - { containerPort: 30093, hostPort: 30093 }
-      - { containerPort: 30095, hostPort: 30095 }
-EOF
-kind create cluster --name qip --config kind-qip.yaml
+kind delete cluster --name qip
+e2e/k8s/bootstrap-cluster.sh
 ```
 
-**k3d.**
+**k3d.** The script does not create a k3d cluster. Create one with the ports mapped:
 
 ```bash
 k3d cluster create qip \
   -p "30080:30080@server:0" -p "30091:30091@server:0" -p "30092:30092@server:0" \
-  -p "30093:30093@server:0" -p "30095:30095@server:0"
+  -p "30093:30093@server:0" -p "30095:30095@server:0" \
+  -p "30992:30992@server:0" -p "30672:30672@server:0" -p "30085:30085@server:0" \
+  -p "30022:30022@server:0"
 ```
 
 The UI bundle is served by `vite preview` on port 4200 of your machine, and the proxy reaches it
@@ -74,31 +88,29 @@ every `/api/` route keeps working.
 
 ## Gateway API
 
-Install the **experimental** channel. With `PILOT_ENABLE_ALPHA_GATEWAY_API=true`, istiod watches
-`UDPRoute` v1alpha2, which the standard channel does not serve, and istiod then never becomes ready.
+Install the standard channel:
 
 ```bash
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.2/experimental-install.yaml
-```
-
-If the standard channel is already installed, delete its `safe-upgrades.gateway.networking.k8s.io`
-ValidatingAdmissionPolicy first. It refuses to install the experimental CRDs over the standard ones:
-
-```bash
-kubectl delete validatingadmissionpolicybinding safe-upgrades.gateway.networking.k8s.io --ignore-not-found
-kubectl delete validatingadmissionpolicy safe-upgrades.gateway.networking.k8s.io
+kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml
 ```
 
 ## Istio
 
+From the repository root:
+
 ```bash
-istioctl install --set profile=demo \
-  --set values.pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=true
+istioctl install -f infrastructure/qip-dev/istio.yaml
 ```
 
-The chart's egress routes use `backendRefs` with `kind: Hostname`, which istiod programs only with
-`PILOT_ENABLE_ALPHA_GATEWAY_API` set. The suite labels `qip-e2e` with `istio-injection=enabled`
-before it installs the chart, so every pod starts with a sidecar.
+The file takes the `minimal` profile and lowers the requests to 10m CPU and 100Mi for istiod and to
+10m CPU and 40Mi for each sidecar and gateway pod, because the `minimal` defaults, 500m for istiod
+and 100m per sidecar, reserve CPU that a 4-CPU node needs for the run's own pods. On a cluster with
+the `demo` profile, the same command replaces it and removes the `istio-ingressgateway` and
+`istio-egressgateway` that `demo` installs and nothing in the chart uses.
+
+The chart's egress routes use `backendRefs` with `kind: Hostname`, which istiod 1.31.1 programs
+with no feature flag set; this page is verified on Istio 1.31 only. The suite labels `qip-e2e` with
+`istio-injection=enabled` before it installs the chart, so every pod starts with a sidecar.
 
 ## camel-k
 
@@ -106,7 +118,7 @@ The micro engine runs as a camel-k Integration, which the operator turns into a 
 
 ```bash
 helm repo add camel-k https://apache.github.io/camel-k/charts/
-helm install camel-k camel-k/camel-k -n camel-k --create-namespace --set-string operator.global=true
+helm install camel-k camel-k/camel-k --version 2.11.0 -n camel-k --create-namespace --set-string operator.global=true
 ```
 
 `--set-string` matters. The chart compares the value with the string `"true"`
@@ -123,7 +135,8 @@ helm upgrade camel-k camel-k/camel-k -n camel-k --version <chart version> --set-
 ## metrics-server
 
 The resource sampler reads `kubectl top pod --containers`, which needs the metrics API. k3d ships
-metrics-server with k3s; on Docker Desktop and kind, install it:
+metrics-server with k3s, so the bootstrap script skips this step there. On Docker Desktop and kind,
+install it:
 
 ```bash
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml
@@ -132,7 +145,9 @@ kubectl -n kube-system patch deployment metrics-server --type=json \
 ```
 
 The kubelets of Docker Desktop and kind serve self-signed certificates. Without
-`--kubelet-insecure-tls`, metrics-server never scrapes a node and `kubectl top` fails.
+`--kubelet-insecure-tls`, metrics-server never scrapes a node and `kubectl top` fails. Applying
+`components.yaml` again removes the flag, so the bootstrap script applies it only when metrics-server
+is missing or runs another version.
 
 ## What a run does in `qip-e2e`
 
@@ -151,7 +166,13 @@ The kubelets of Docker Desktop and kind serve self-signed certificates. Without
 4. Runs `helm upgrade --install qip infrastructure/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`
    with the tags, the micro image, the host ports, and the cluster's values. Helm leaves a Deployment whose tag did
    not change alone. The catalog reads the micro image once, at startup, so its pod carries the
-   micro tag as an annotation and restarts when that tag changes.
+   micro tag as an annotation and restarts when that tag changes. The same command installs the
+   brokers: `<broker>.enabled` for each of the four, their host ports, the Kafka TLS files from
+   `infrastructure/kafka-ssl/server/` through `--set-file`, the CA from
+   `infrastructure/kafka-ssl/client/ca.crt` as `qip-engine.trustedCerts`, and the
+   `qip-runtime-catalog.microDomainResources` and `microDomainEmptyDirs` values that mount it into
+   a micro domain. Only the `enabled` switches follow `E2E_BROKERS`, so changing it between runs
+   restarts no engine, catalog, or micro domain.
 5. Waits for each rollout, then for `/actuator/health` of each JVM service, `/health` of the testing
    service, and a catalog route through the proxy.
 
@@ -165,3 +186,18 @@ let the next run install it again:
 ```bash
 kubectl delete namespace qip-e2e
 ```
+
+## A failed micro case
+
+A micro domain is the camel-k Integration `qip-engine-<domain>-v1`, and its pod is deleted with the
+domain. So a failed case on a micro project reads the pod while it still exists and attaches its
+log, its description with the events, and the Integration with its status, as
+[Reading a failure](../README.md#reading-a-failure) lists. The run then keeps its micro domains,
+which the CI cluster dump reads after the suite, and which you read the same way:
+
+```bash
+kubectl logs -n qip-e2e deploy/qip-engine-<domain>-v1 -c integration
+kubectl get integrations.camel.apache.org -n qip-e2e -o yaml
+```
+
+The next run's sweep deletes them.

@@ -67,12 +67,7 @@
  * once at application start, so no cached script can outlive a library change.
  */
 import { test, expect } from "../../support/fixtures.js";
-import {
-  ENGINE_CASE_TIMEOUT,
-  SEED_LOGGING,
-  waitForDeployed,
-  waitForRoutes,
-} from "../../support/corpus.js";
+import { ENGINE_CASE_TIMEOUT, SEED_LOGGING } from "../../support/corpus.js";
 import { readSpecificationFixture } from "../../fixtures/templating.js";
 import { createScriptChain, SCRIPT_CHAIN_STEPS } from "../../support/deployable.js";
 import { logWindowStart } from "../../support/logs.js";
@@ -80,7 +75,7 @@ import { readUntil } from "../../support/poll.js";
 import { tokenized } from "../../support/run.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
-import { waitForRecording, withBuilt } from "../../support/cleanup.js";
+import { deployAndRecord, withBuilt } from "../../support/cleanup.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
 
@@ -145,7 +140,7 @@ function readWidgetScript(fqcn: string): string {
 async function waitForLibrary(env: Env, since: string, modelId: string): Promise<void> {
   const saved = `Saved library: /tmp/cip-engine-libraries/${modelId}.jar`;
   const log = await readUntil(
-    () => env.logs("engine", since),
+    () => env.engineLogs(since),
     (read) => read.includes(saved),
     LIBRARY_TIMEOUT,
     1_000,
@@ -170,7 +165,7 @@ async function widgetFields(
   };
 }
 
-test("a DTO library replaced under a deployed script is seen without a redeploy", { tag: ["@engine", "@catalog", "@sessions", "@tier1"] }, async ({ request, env, catalog, sessions, folder, run }) => {
+test("a DTO library replaced under a deployed script is seen without a redeploy", { tag: ["@engine", "@catalog", "@sessions", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine loads its libraries once, when the Integration starts" } }, async ({ request, env, catalog, sessions, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   covers("script");
 
@@ -210,11 +205,7 @@ test("a DTO library replaced under a deployed script is seen without a redeploy"
       },
       built.chains,
     );
-    const snapshot = await catalog.createSnapshot(chain.id);
-    await catalog.deploy(chain.id, snapshot.id);
-    await waitForDeployed(catalog, [chain]);
-    await waitForRoutes(env, [chain]);
-    await waitForRecording(env, sessions, chain);
+    await deployAndRecord(catalog, env, sessions, chain);
 
     const before = await widgetFields(request, env.chainUrl(chain.contextPath));
     expect(before.status).toBe(200);
@@ -249,7 +240,7 @@ test("a DTO library replaced under a deployed script is seen without a redeploy"
     const after = await widgetFields(request, env.chainUrl(chain.contextPath));
     expect(after.className, "the lever changed the library, not the class name").toBe(fqcn);
 
-    const log = await env.logs("engine", since);
+    const log = await env.engineLogs(since);
     // The positive half, tied to this case's own library rather than to the window alone. The reset
     // line names nothing, so a concurrent GraphQL import elsewhere would satisfy a bare `toContain`
     // — the model id is what makes the line this case's, and the reset has to come after it.

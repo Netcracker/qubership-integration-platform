@@ -256,6 +256,7 @@ export const DesignTemplates: React.FC = () => {
                     placement: "bottom",
                   }}
                   buttonProps={{
+                    "data-testid": "design-templates-delete",
                     disabled: !isDeleteEnabled(),
                     iconName: "delete",
                     onClick: () => {
@@ -286,6 +287,7 @@ export const DesignTemplates: React.FC = () => {
                     placement: "bottom",
                   }}
                   buttonProps={{
+                    "data-testid": "design-templates-create",
                     type: "primary",
                     iconName: "plus",
                     onClick: handleCreate,

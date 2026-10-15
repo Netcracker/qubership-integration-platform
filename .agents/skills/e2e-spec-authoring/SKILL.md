@@ -22,9 +22,16 @@ reaches the corpus through a project declaring `seed` needs no edge of its own.
 
 `dependencies` also gates a project on the success of the ones it names. That is why `global` names
 no broker project: one failing broker case would skip every `global` case. Where only the order
-matters, name a shared `teardown` project instead. `global` declares `brokers-seed-teardown` (Compose)
-or `seed-micro-teardown` (k8s) as its `teardown`, which holds that teardown back until `global` has
-run without gating either side.
+matters, name a shared `teardown` project instead. Where a project must run after `env` or
+`global`, the edge goes from that project to `global`, as `brokers-restart` does, so a red `global`
+case skips it rather than a red case of it skipping `global`. A gate in the other direction is
+accepted only on purpose and named in the project's comment: `brokers-seed` waits for `seed`, and on
+`k8s` `env-micro` waits for `brokers-restart` (`env/target-setup.ts`). A project gets one
+`teardown`, so the seeds `global` does not depend on (`seed-micro`, `brokers-seed`,
+`brokers-micro-seed`) share one: `suite-teardown` collects their `*.teardown.ts` files, and they and
+`global` all name it. It then runs after `global` without gating either side. It runs on both targets and in any selection that
+names one of them, so a teardown file it collects returns early unless its seed wrote the state
+file in this run.
 
 `seed` declares `teardown: "seed-teardown"`, which names **another project**. Setup and teardown
 behind one project's `testMatch` would make the teardown an ordinary test of the setup project,
@@ -88,11 +95,14 @@ trace, walked through `children[]`. A branch can answer the same status as the d
 keeps the failure's status, and only the trace shows which handler ran. Children of a parallel
 branch arrive in completion order, so compare them as a set. Find the session by a per-call token,
 because `GET /v1/sessions/external-id/{id}` returns one session and the run token matches any
-spec's. The exception is a call that must not carry the correlation header, because the testing
-service would mock it, or cannot, like an MCP tool call. Such a case finds the session through
-`Sessions.onlyOf` in `support/sessions.ts`, by chain id and a filter that leaves out every session the
-case did not cause (read `Sessions.idsOf` before the call), or by a marker the call carries in its
-body, so the case still reruns against a kept corpus.
+spec's. `byExternalId` waits for the number of steps, not for each step's status, so a case that
+asserts step statuses or `failedElements()` reads the session through `Sessions.settled` first; a
+message the broker can deliver more than once is read with `Sessions.earliestOf`. The exception is
+a call that must not carry the correlation header, because the testing service would mock it, or
+cannot, like an MCP tool call. Such a case finds the session through `Sessions.onlyOf` in
+`support/sessions.ts`, by chain id and a filter that leaves out every session the case did not
+cause (read `Sessions.idsOf` before the call), or by a marker the call carries in its body, so the
+case still reruns against a kept corpus.
 
 A row reads what a passing test proves, which gives three shapes besides `covered`:
 
@@ -169,7 +179,9 @@ right now, so a controller added to a service fails a run.
    lives in `env/compose.ts` and `env/k8s.ts`. Without that seam the suite cannot run on a cluster,
    and the micro engine exists only there. Two `specs/schema/` files construct an `Env` directly, and
    neither reaches a stack: `report.spec.ts` builds a `ComposeEnv` to read a URL off, and
-   `k8s-adapter.spec.ts` builds `K8sEnv` instances to unit-test the adapter. `specs/k8s/` is the
+   `k8s-adapter.spec.ts` builds `K8sEnv` instances to unit-test the adapter. `tokenedDomain` in
+   `support/deployable.ts` builds the `K8sEnv` of a micro domain that a spec creates for itself
+   (rule 20). `specs/k8s/` is the
    exception to the first half: its specs run on the Kubernetes target alone and read Integrations,
    ConfigMaps, HTTPRoutes, and Services through `support/kube.ts`, a `kubectl` reader that no spec
    outside `specs/k8s/` imports.
@@ -216,10 +228,19 @@ right now, so a controller added to a service fails a run.
     - It is for a divergence a spec can reproduce on demand. Where no create path manufactures the
       offending state, such as an element of a type the library does not offer, the spec asserts the
       healthy contract and prints the query that finds the offender instead.
-    - A defect that only a stack holding enough data meets would turn a plain `test.fail()` red on a
-      small stack. Wrap the step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
-      `support/known-defect.ts`: the case becomes an expected failure only when the step throws that
-      defect, and the defect's `matches` gets a case in `specs/schema/conditional-defects.spec.ts`.
+    - A defect that only one engine meets would turn a plain `test.fail()` red on the other, and a
+      race would turn it red on the runs it misses. Wrap the step that meets it in `strikesAsKnown`
+      with a `ConditionalDefect` from `support/known-defect.ts`, which names the engine that meets
+      the defect, or `engine: "any"` for a race or a catalog or sessions defect either engine meets:
+      the case becomes an expected failure only when the step throws that defect on that engine,
+      and the defect's `matches` gets a case in `specs/schema/conditional-defects.spec.ts`. On the
+      other engine the same message stays a real failure, because a regression of the same feature
+      can produce it. A defect lives in `specs/<project>/<component>-defects.ts`, which Playwright
+      does not collect. `matches` reads the message without color codes. It keys on an assertion
+      message the case writes itself (`RESULT_AT_100`, `WIPE_ANSWERED`), and that assertion comes
+      last, so the rest of the case still runs when the defect strikes. Reconcile reads the calls a
+      struck case made, but not its `covers()`. A fixed defect leaves the case passing rather than
+      red, so the pin is removed by hand.
 14. **A `specs/schema/` spec imports `test` and `expect` from `@playwright/test`, never from
     `support/fixtures.js`.** That module installs `auto: true` fixtures which create a folder over
     HTTP and shell out to `docker logs`, so one wrong import turns the `schema` project into one that
@@ -257,17 +278,29 @@ right now, so a controller added to a service fails a run.
     `sftp-trigger-2`, and `quartz-scheduler` correlate through `POST /v1/sessions/chains/{chainId}`
     filtered on the window the spec opened, then `GET /v1/sessions/{sessionId}` for the element
     trace.
-20. **A runtime spec reads `engineKind` in one place only.** `specs/runtime/` runs twice on `k8s`,
-    as `runtime` against the classic engine and as `runtime-micro` against the micro engine, and
-    `seedChain` returns the copy of the corpus that matches the project's `engineKind`. Only
-    `engine-identity.spec.ts` reads `engineKind`, because its subject is the engine kind. A
-    difference between the two engines is a finding, and only the run on one engine meets it: pin
-    it with `strikesAsKnown` and a `ConditionalDefect` (rule 13), name its issue, and never loosen
-    the assertion for one engine. A runtime file
-    that deploys its own chains, calls the classic engine directly, or goes through the testing
-    service is classic-only: it goes in `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`, which
-    `runtime-micro` ignores and the report header lists.
-    `specs/schema/target-rules.spec.ts` checks this rule and the `support/kube.ts` half of rule 4.
+20. **A spec reads `engineKind` in one place only.** On `k8s` a micro project runs the files of a
+    classic one against the micro engine: `runtime-micro` runs `specs/runtime/`, `brokers-micro`
+    runs `specs/brokers/`, `global-micro` runs the two engine files of `specs/global/`, and
+    `env-micro` runs `specs/env/restart-resilience.spec.ts`. A spec reads its corpus through
+    `seedChain` or `projectCorpus` in `support/corpus.ts`, or `brokerChain` in
+    `support/brokers.ts`, which return the copy the project's engine runs, and never branches on
+    `engineKind`. Only `engine-identity.spec.ts` reads it, because its subject is the engine kind. A
+    micro project names the state file that records its domain through `use: { microDomainState }`.
+    A difference between the two engines is a finding, and only the run on one engine meets it: pin
+    it with `strikesAsKnown` and a `ConditionalDefect` that names that engine (rule 13), name its
+    issue, and never loosen the assertion for one engine. A case the micro engine cannot run by
+    design, such as a library replaced under a deployed chain, a deployment parked for a retry, or a
+    chain that fails to load and so takes its micro domain down, carries the `@classic-only` tag and
+    the annotation `{ type: "classic-only", description: "<reason>" }` on its declaration line; the
+    micro projects leave it out through `grepInvert: /@classic-only/`. A case that deploys a chain
+    of its own is one of them, since a deploy into the shared micro domain rolls the pod under every
+    `runtime-micro` case; every other case reads a chain both seeds deploy. The micro case of such a
+    deploy goes in `specs/runtime-micro-redeploy/`, whose project runs one file at a time: the file
+    deploys its chains in `beforeAll` to a micro domain of its own through `tokenedDomain` and
+    `deployToDomain` in `support/deployable.ts` (`dispatchToDomain` for a chain that is not meant
+    to serve), deletes it in `afterAll`, and calls the chains through the `env` the helper returns.
+    `specs/schema/target-rules.spec.ts` checks this rule, that the tag and the annotation come
+    together, and the `support/kube.ts` half of rule 4.
 
 ## Assertions that catch a reported success
 
@@ -278,14 +311,21 @@ exist for that shape, and each is invisible from inside the file that carries it
 - **Creation-path equivalence**, `specs/api/creation-path-equivalence.spec.ts`. A chain built through
   the API and the same chain restored from its own export are deployed, driven with one request, and
   their session traces compared. Every fixture spells out its full property set, which makes every
-  other spec blind to a schema-default defect.
+  other spec blind to a schema-default defect. Its micro half is in `specs/runtime-micro-redeploy/`;
+  both drive and compare through `support/equivalence.ts`.
 - **Process envelope**, `specs/env/process-envelope.spec.ts`. Every service is still the process the
   run started, its Metaspace is inside a stated share of its ceiling, and its peak memory and CPU are
   inside stated bands, sampled over the run.
-- **Negative configuration**, `specs/brokers/missing-target.spec.ts` and
-  `specs/brokers/broker-restart.spec.ts`. Every other fixture is correct by construction, so these
-  assert the pre-deploy refusal of a missing Kafka topic, RabbitMQ queue, and exchange, and the
-  platform's reconnect after a broker restart.
+- **Negative configuration**, `specs/brokers/missing-target.spec.ts`,
+  `specs/brokers/broker-restart.spec.ts`, and the negative cases of
+  `specs/brokers/kafka-security.spec.ts`. Every other fixture is correct by construction, so these
+  assert the pre-deploy refusal of a missing Kafka topic, RabbitMQ queue, and exchange, the
+  platform's reconnect after a broker restart, and the refusal of a wrong Kafka password and of a
+  TLSv1.2 client on a TLSv1.3-only listener. The missing-target and kafka-security negatives are
+  `@classic-only`: the micro engine runs its checks when its pod starts, and a failed one stops the
+  pod, so such a chain keeps its whole micro domain from starting rather than being refused on its
+  own. A negative broker fixture whose client logs on every retry stays spec-owned
+  (`SPEC_OWNED_FIXTURES`) rather than seeded, so its log lines end with its case.
 
 ## The shared corpus
 
@@ -302,6 +342,15 @@ an import over a live id is an update and the two would fight over the same chai
 `support/corpus.ts` is the one assembler, and every seed project calls it: a chain deployed alone
 pays the engine's deployment pickup on its own, about 2 s each against 0.49 s inside a batch.
 
+On `k8s`, `seed-micro` deploys a micro copy of every corpus chain to a micro domain of the run, so a
+fixture added to the corpus runs on both engines. `microCopy` in `fixtures/templating.ts` remaps the
+copy's IDs and trigger paths. A chain that calls back into the engine calls `ENGINE_LOOPBACK`
+(`http://localhost:8080/routes/…`), in its own URI or as a service's address, and `microCopy`
+rewrites that call to the callee's micro copy. The micro engine resolves `#{…}` once, when the domain
+loads, so a corpus chain reads no common variable except the one both seeds write
+(`placeholderVariable`). `specs/schema/corpus-copies.spec.ts` checks the loopback rewrite and the
+variables.
+
 Three steps happen in an order that is not negotiable:
 
 - **Delete before importing.** The fixture documents carry fixed IDs, so an import over the last
@@ -314,12 +363,27 @@ Three steps happen in an order that is not negotiable:
 - **Gate on the route, not on the status.** `DEPLOYED` means the catalog accepted and dispatched
   the deployment. A chain whose listener never connects reports `DEPLOYED` indefinitely, and a
   healthy one serves seconds after the status flips, so the seed follows the status poll with a
-  poll of the routes themselves.
+  poll of the routes themselves. A chain with no HTTP trigger, such as `scheduler-basic`, has no
+  route to poll, and `waitForRoutes` skips it: on the classic engine the status poll alone gates
+  it, and on the micro engine the other routes of the same Integration do.
+
+`scheduler-basic` fires every 3 s on both engines for the whole run. A case that reads sessions it
+did not scope by chain or by a window it opened leaves out the `*-scheduler-basic` ones, as
+`specs/global/sessions-destructive.spec.ts` does in its search filter.
+
+A chain that calls a service is seeded too. `fixtures/services/` holds one directory per service,
+with its specification group, its specification and the specification's source below it, and
+both seeds import every one through `POST /v1/import/system` before their chains, the micro seed
+its micro copy. A context service or an MCP service a chain names sits there too, and goes
+through the import of its own kind (`SERVICE_IMPORTS` in `support/corpus.ts`). A chain names an
+operation by the fixed IDs the service fixture carries: `serviceCallTo` in
+`fixtures/axis-generator.ts` reads them for a generated chain, and `specs/schema/fixtures.spec.ts`
+checks the IDs a hand-written chain spells out.
 
 A runtime case deploys a chain of its own, in the worker folder, only when the corpus cannot hold
-it: the chain needs IDs a seed cannot carry (a service, a specification, an operation), it would
-carry a reference the export cannot resolve (`contextServiceId`), the seed would refuse it because
-it does not go live, a shared chain would race the change the case makes, or the case undeploys it.
+it: it would carry a reference the export cannot resolve (`contextServiceId`), the seed would refuse
+it because it does not go live, a shared chain would race the change the case makes, or the case
+undeploys it.
 Such a case builds through the builders in `support/deployable.ts` and holds what it created in
 `withBuilt` from `support/cleanup.ts`, which undeploys the chains and deletes what they use outside
 the worker folder. A describe that builds its chains once in `beforeAll` hands them to `release` in
@@ -330,18 +394,35 @@ gate sends warm-up calls until one records, and fails once more of them are lost
 `UNRECORDED_WARM_UP_LIMIT` allows.
 
 `fixtures/brokers/` is a second corpus, outside `CORPUS_FIXTURE_DIRS`, imported and deployed by the
-`brokers-seed` project rather than `seed`, because the engine's pre-deploy connectivity checks would
-stall the whole shared corpus whenever a broker is down. `support/brokers.ts` is its assembler, and
-it also creates the run-token topics, queues, exchanges, dead-letter bindings, and pub/sub topology
-each fixture needs before deploying, since nothing on either side of a broker chain declares its
-own. What it imported is written to `.e2e-brokers-corpus.json` and read back with
-`readBrokersCorpusState`.
+`brokers-seed` project rather than `seed`, because the classic engine's pre-deploy connectivity
+checks would stall the whole shared corpus whenever a broker is down. `support/brokers.ts` is its
+assembler, and it also creates the run-token topics, queues, exchanges, dead-letter bindings, and
+pub/sub topology each fixture needs before deploying, since nothing on either side of a broker chain
+declares its own. What it imported is written to `.e2e-brokers-corpus.json` (`.e2e-k8s-brokers-corpus.json` on
+`k8s`) and read back with `readBrokersCorpusState`.
+
+On `k8s`, `brokers-micro-seed` deploys a micro copy of the same fixtures to a micro domain of its
+own. `microCopy` appends `-micro` to every topic, group, queue, exchange, and subscription, and moves
+the SFTP tree to `/upload/<run>-micro`, because both copies run at once on one set of brokers.
+`brokerChain` returns the copy the project's `engineKind` runs, as `seedChain` does. A name a broker
+spec mints itself, such as a verification consumer group or a pull subscription, is built from the
+chain's own address (`${topic}-consumer`), never from the run token alone, so the two copies never
+share it.
+
+A Kafka consumer group turns `Stable` before its consumer looks up the offset, so a trigger left at
+`autoOffsetReset: latest` can skip a message published right after the group settles (CI run
+38443020207). A spec whose Kafka trigger reads a topic the spec itself creates sets `earliest`; the
+seeded Kafka triggers keep `latest`, because that value is the axis they cover.
 
 `fixtures/specifications/` holds the API documents a spec imports as a service specification
 (OpenAPI, GraphQL, AsyncAPI), read with `readSpecificationFixture`. The seed never touches them: a
-spec imports the one it needs into a group it created and deletes it again. An AsyncAPI document for
-a broker spec lives here too, never under `fixtures/brokers/`, whose every top-level entry
-`corpusFixtureNames` reads as a chain.
+spec imports the one it needs into a group it created and deletes it again. A broker chain that
+names an AsyncAPI operation (`async-api-trigger`, a kafka or amqp `service-call`) is seeded like any
+other broker chain: its service sits under `fixtures/broker-services/`, never under
+`fixtures/brokers/`, whose every top-level entry `corpusFixtureNames` reads as a chain, and each
+broker seed imports its own copy of the services before its chains. The operation's topic or
+exchange is the element's `integrationOperationPath`, so the seed creates it and `microCopy` renames
+it.
 
 ## Residue from a previous run
 

@@ -1,0 +1,134 @@
+{{- if .Values.enabled }}
+{{- $tls := .Values.tls.serverKey }}
+{{- $hostPort := .Values.loadBalancerPort | default .Values.nodePort | default 9092 }}
+# The listener layout of infrastructure/docker-compose.kafka.yml. Listener names avoid "SSL" and "SASL_":
+# cp-kafka's configure script would then demand JKS files.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kafka
+  name: kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: kafka
+    spec:
+      # The kafka Service would add KAFKA_PORT, which cp-kafka's configure script rejects.
+      enableServiceLinks: false
+      containers:
+        - name: kafka
+          image: confluentinc/cp-kafka:7.5.0
+          # The image's own steps, plus a storage format that adds the SCRAM users, after which the format in
+          # `ensure` finds the storage formatted; with TLS, also the PEM keystore (key, then certificate).
+          # `exec` keeps Java PID 1.
+          command:
+            - bash
+            - -c
+            - >-
+              {{- if $tls }}
+              cat /etc/kafka/tls/kafka.key /etc/kafka/tls/kafka.crt > /etc/kafka/secrets/kafka-keystore.pem &&
+              {{- end }}
+              /etc/confluent/docker/configure &&
+              kafka-storage format --ignore-formatted -t "$CLUSTER_ID" -c /etc/kafka/kafka.properties
+              --add-scram "SCRAM-SHA-256=[name=e2e,password=e2e-secret]"
+              --add-scram "SCRAM-SHA-512=[name=e2e,password=e2e-secret]" &&
+              /etc/confluent/docker/ensure &&
+              exec /etc/confluent/docker/launch
+          env:
+            - name: CLUSTER_ID
+              value: cWlwLWxvY2FsLWthZmthMQ
+            - name: KAFKA_HEAP_OPTS
+              value: -Xms512m -Xmx512m
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: broker,controller
+            # localhost rather than kafka: the kafka Service has no endpoints until this pod is Ready, and the
+            # readiness port, 29092, opens only after the quorum forms.
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: 1@localhost:29093
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_LISTENERS
+              value: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:9092,AUTH://0.0.0.0:29094{{ if $tls }},TLS://0.0.0.0:29095,AUTHTLS://0.0.0.0:29096,TLS13://0.0.0.0:29097{{ end }}
+            # EXTERNAL is for clients on the host, through the kafka-host Service.
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: INTERNAL://kafka:29092,EXTERNAL://localhost:{{ $hostPort }},AUTH://kafka:29094{{ if $tls }},TLS://kafka:29095,AUTHTLS://kafka:29096,TLS13://kafka:29097{{ end }}
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,AUTH:SASL_PLAINTEXT{{ if $tls }},TLS:SSL,AUTHTLS:SASL_SSL,TLS13:SSL{{ end }}
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: INTERNAL
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            # As in production: a topic exists only once someone creates it, never because a client asked for it.
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "false"
+            # User e2e, password e2e-secret, for every mechanism.
+            {{- range $listener := ternary (list "AUTH" "AUTHTLS") (list "AUTH") (not (empty $tls)) }}
+            - name: KAFKA_LISTENER_NAME_{{ $listener }}_SASL_ENABLED_MECHANISMS
+              value: PLAIN,SCRAM-SHA-256,SCRAM-SHA-512
+            - name: KAFKA_LISTENER_NAME_{{ $listener }}_PLAIN_SASL_JAAS_CONFIG
+              value: org.apache.kafka.common.security.plain.PlainLoginModule required user_e2e="e2e-secret";
+            - name: KAFKA_LISTENER_NAME_{{ $listener }}_SCRAM___SHA___256_SASL_JAAS_CONFIG
+              value: org.apache.kafka.common.security.scram.ScramLoginModule required;
+            - name: KAFKA_LISTENER_NAME_{{ $listener }}_SCRAM___SHA___512_SASL_JAAS_CONFIG
+              value: org.apache.kafka.common.security.scram.ScramLoginModule required;
+            {{- end }}
+            {{- if $tls }}
+            {{- range $listener := list "TLS" "AUTHTLS" "TLS13" }}
+            - name: KAFKA_LISTENER_NAME_{{ $listener }}_SSL_KEYSTORE_TYPE
+              value: PEM
+            - name: KAFKA_LISTENER_NAME_{{ $listener }}_SSL_KEYSTORE_LOCATION
+              value: /etc/kafka/secrets/kafka-keystore.pem
+            {{- end }}
+            # TLS13 refuses a client restricted to TLSv1.2, which TLS accepts.
+            - name: KAFKA_LISTENER_NAME_TLS13_SSL_ENABLED_PROTOCOLS
+              value: TLSv1.3
+            {{- end }}
+          ports:
+            - containerPort: 29092
+            - containerPort: 29093
+            - containerPort: 9092
+            - containerPort: 29094
+            {{- if $tls }}
+            - containerPort: 29095
+            - containerPort: 29096
+            - containerPort: 29097
+            {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: 29092
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 768Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /var/lib/kafka/data
+              name: data
+            {{- if $tls }}
+            - mountPath: /etc/kafka/tls
+              name: tls
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: data
+          emptyDir: {}
+        {{- if $tls }}
+        - name: tls
+          secret:
+            secretName: kafka-tls
+        {{- end }}
+{{- end }}

@@ -12,6 +12,10 @@
  * never sees `FAILED` on the second one — it times out — and the two are asserted apart here: the
  * status, and for the retriable one the retry itself.
  *
+ * Those statuses are the classic engine's. On micro the action throws from a Camel event notifier,
+ * which logs the exception and ignores it, so an unparseable script deploys;
+ * `specs/runtime-micro-redeploy/script-failures.spec.ts` pins that.
+ *
  * Getting an unresolved class is harder than it looks and the fixture says so: Groovy resolves a
  * dotted expression dynamically, so `org.qubership.nothing.Missing.class` in the body compiles and
  * deploys. It takes an `import`, which is resolved at compile time.
@@ -102,11 +106,11 @@ function occurrences(log: string, needle: string): number {
   return log.split(needle).length - 1;
 }
 
-test("a script that does not compile fails the deployment", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ env, catalog, run }) => {
+test("a script that does not compile fails the deployment", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys a chain of its own, and on a micro engine each deploy rolls the shared domain; the micro case is in runtime-micro-redeploy" } }, async ({ env, catalog, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   covers("script");
 
-  await withOwnFixture(catalog, run, "script-failures-syntax.yaml", SCRIPT_FIXTURE_DIR, async (chain) => {
+  await withOwnFixture(catalog, run, "script-failures-syntax.yaml", { dir: SCRIPT_FIXTURE_DIR }, async (chain) => {
     await expect
       .poll(async () => await deploymentRows(catalog, chain.id), {
         timeout: DEPLOY_TIMEOUT,
@@ -120,13 +124,13 @@ test("a script that does not compile fails the deployment", { tag: ["@engine", "
   });
 });
 
-test("a script naming a class the engine cannot resolve parks the deployment and keeps retrying", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ env, catalog, run }) => {
+test("a script naming a class the engine cannot resolve parks the deployment and keeps retrying", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine does not retry a parked deployment, and the case deploys a chain of its own" } }, async ({ env, catalog, run }) => {
   test.setTimeout(RETRY_CASE_TIMEOUT);
 
   // Opened before the import, so every compile attempt counted below is this case's.
   const since = logWindowStart();
 
-  await withOwnFixture(catalog, run, "script-failures-unresolved.yaml", SCRIPT_FIXTURE_DIR, async (chain) => {
+  await withOwnFixture(catalog, run, "script-failures-unresolved.yaml", { dir: SCRIPT_FIXTURE_DIR }, async (chain) => {
     // `PROCESSING`, not `FAILED`, and the message is the one the syntax error carries too — which is
     // why the status is what separates them.
     await expect
@@ -144,14 +148,14 @@ test("a script naming a class the engine cannot resolve parks the deployment and
     // deploy and cannot be.
     const retryMark = `Deployment marked for retry ${await deploymentIdOf(catalog, chain.id)}`;
     await expect
-      .poll(async () => occurrences(await env.logs("engine", since), retryMark), {
+      .poll(async () => occurrences(await env.engineLogs(since), retryMark), {
         timeout: RETRY_DELAY * 2 + DEPLOY_TIMEOUT,
         intervals: [2_000],
         message: "the parked deployment was compiled once and never retried",
       })
       .toBeGreaterThanOrEqual(COMPILE_ATTEMPTS);
 
-    const log = await env.logs("engine", since);
+    const log = await env.engineLogs(since);
     // The exception type is what makes the retry a contract rather than an accident of scheduling,
     // and the class is what it failed on. The class name is this fixture's own, so the window is
     // scope enough for both.
@@ -166,10 +170,10 @@ test("a script naming a class the engine cannot resolve parks the deployment and
   });
 });
 
-test("a syntax error inside a container fails the deployment too", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ env, catalog, run }) => {
+test("a syntax error inside a container fails the deployment too", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys a chain of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ env, catalog, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-  await withOwnFixture(catalog, run, "script-failures-nested-syntax.yaml", SCRIPT_FIXTURE_DIR, async (chain) => {
+  await withOwnFixture(catalog, run, "script-failures-nested-syntax.yaml", { dir: SCRIPT_FIXTURE_DIR }, async (chain) => {
     // The chain carries no top-level script at all, so a `FAILED` here is the nested one having
     // been compiled: the catalog emits the Try branch's script as its own route.
     await expect

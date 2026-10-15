@@ -3,30 +3,26 @@
 ## Istio
 
 `global.qip.controlPlane.meshType: Istio` (the default in `values.yaml`) makes the platform generate
-Gateway API and Istio resources. Install Istio and the Gateway API CRDs, and label the target
-namespace for sidecar injection, before you install the chart:
+Gateway API and Istio resources. Install Istio 1.31 or later and the Gateway API CRDs, and label
+the target namespace for sidecar injection, before you install the chart. From this directory:
 
 ```sh
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.2/experimental-install.yaml
-istioctl install --set profile=demo \
-  --set values.pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=true
+kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml
+istioctl install -f istio.yaml
 kubectl create namespace qip
 kubectl label namespace qip istio-injection=enabled
 ```
 
-Install the Gateway API CRDs from the **experimental** channel. With
-`PILOT_ENABLE_ALPHA_GATEWAY_API=true`, istiod watches `UDPRoute` v1alpha2, which the standard channel
-does not serve, and istiod then never becomes ready. If the standard channel is already installed,
-delete its `safe-upgrades.gateway.networking.k8s.io` ValidatingAdmissionPolicy and its binding
-first, because the policy refuses the experimental CRDs; `e2e/k8s/README.md` gives the commands.
+`istio.yaml` installs Istio's `minimal` profile with resource requests small enough for a
+single-node local cluster. A cluster installed earlier from the experimental Gateway API channel
+with `PILOT_ENABLE_ALPHA_GATEWAY_API=true` keeps working and needs no reinstall.
 
 Sidecars are injected when a pod is created, so a namespace labeled after `helm install` leaves the
 running pods without one. Run `kubectl rollout restart deployment -n qip` to recreate them if you get
 the order wrong.
 
-Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` only honors when
-`PILOT_ENABLE_ALPHA_GATEWAY_API` is set. Without it the egress `HTTPRoute` is accepted but never
-programmed, and outgoing calls fail with no route.
+Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` 1.31.1 programs with no
+feature flag set.
 
 `CIP_ISTIO_HOST_RESOURCES_ENABLED` (default `true`) controls whether `runtime-catalog` and
 `engine` generate the `ServiceEntry` and `DestinationRule` those routes depend on. Turn it off
@@ -92,6 +88,31 @@ catalog. Both services still run with `-XX:+ExitOnOutOfMemoryError`.
 `qip-runtime-catalog.serviceAliases` lists extra ClusterIP Service names for the catalog's port
 8080, for a caller that addresses the catalog by another name.
 
+`qip-engine.trustedCerts` maps a file name to a PEM certificate. The chart puts the map in Secret
+`<release>-engine-certs` and mounts it at `/app/cert/defaultsslcertificate`, where the engine's
+`development` profile reads the certificates it trusts. From this directory:
+
+```sh
+helm install ... --set-file 'qip-engine.trustedCerts.ca\.crt=../kafka-ssl/client/ca.crt'
+```
+
+`qip-runtime-catalog.microDomainResources` and `qip-runtime-catalog.microDomainEmptyDirs` become
+`MICRO_DOMAIN_RESOURCES` and `MICRO_DOMAIN_EMPTY_DIRS`: the camel-k mount resources and emptyDir
+volumes of every micro domain. These two give a micro domain the same certificates, and an emptyDir
+for the truststore it builds from them, because its root file system is read-only:
+
+```sh
+helm install ... \
+  --set 'qip-runtime-catalog.microDomainResources={secret:<release>-engine-certs@/app/cert/defaultsslcertificate}' \
+  --set 'qip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}'
+```
+
+The chart refuses to render a mount of `<release>-engine-certs` while `qip-engine.trustedCerts` is
+empty, because a micro pod that mounts a missing Secret stays in `ContainerCreating`.
+
+`qip-runtime-catalog.microDomainMetrics` (default `false`) sets `CIP_METRICS_ENABLED` in every micro
+domain, which then serves the chain meters on `/metrics`. It creates no ServiceMonitor.
+
 The proxy takes `global.qip.ui.loadBalancerPort` and `global.qip.ui.podAnnotations`, with the same
 meaning as above, and `global.qip.ui.e2eLocations` (default `false`) adds two nginx locations for
 the end-to-end suite:
@@ -109,6 +130,61 @@ through unchanged. Leave the locations off for anything but the suite.
 `Recreate` everywhere, JVM sizes above the chart defaults, the environment variables the specs read,
 and the `/e2e/` proxy locations. The suite sets the image tags, the micro-engine image, the NodePorts, and the
 LoadBalancer ports on the command line; `e2e/k8s/README.md` describes the install it makes.
+
+## Brokers
+
+The chart can install the brokers of the Compose overlay files, for chains that use them. Each is off
+by default and runs as one pod with no sidecar and no persistent volume, so its data lasts as long as the pod.
+
+```sh
+helm install ... --set kafka.enabled=true,rabbitmq.enabled=true,pubsub.enabled=true,sftp.enabled=true
+```
+
+Each broker gets a ClusterIP Service under its Compose service name, so a chain addresses it the same
+way on both targets, and a Service for clients on the host, `<name>-host`. That one is a NodePort
+Service, with the port from `<name>.nodePort` if you set one. Set `<name>.loadBalancerPort` instead
+on Docker Desktop, where it becomes a LoadBalancer Service on that port.
+
+| Broker | Value key | In the cluster | Host Service | Credentials |
+| --- | --- | --- | --- | --- |
+| Kafka (`confluentinc/cp-kafka:7.5.0`) | `kafka` | `kafka:29092`, see the listeners below | `kafka-host`, to port 9092 | SASL user `e2e`, password `e2e-secret` |
+| RabbitMQ (`rabbitmq:4.3.6-management-alpine`) | `rabbitmq` | `rabbitmq:5672`, management on 15672 | `rabbitmq-host`, to port 5672 | `guest` / `guest` |
+| Pub/Sub emulator (`google/cloud-sdk:587.0.0-emulators`) | `pubsub` | `pubsub:8085`, project `test-project` | `pubsub-host`, to port 8085 | none |
+| SFTP (`atmoz/sftp:alpine`) | `sftp` | `sftp-server:22` | `sftp-host`, to port 22 | `e2e` / `e2epass`, writable directory `/upload` |
+
+Kafka has the listener layout of `docker-compose.kafka.yml`:
+
+| Listener | Port | Protocol | Advertised as |
+| --- | --- | --- | --- |
+| `INTERNAL` | 29092 | PLAINTEXT | `kafka:29092` |
+| `EXTERNAL` | 9092 | PLAINTEXT | `localhost:<loadBalancerPort, nodePort, or 9092>` |
+| `AUTH` | 29094 | SASL_PLAINTEXT | `kafka:29094` |
+| `TLS` | 29095 | SSL | `kafka:29095` |
+| `AUTHTLS` | 29096 | SASL_SSL | `kafka:29096` |
+| `TLS13` | 29097 | SSL, TLSv1.3 only | `kafka:29097` |
+
+`AUTH` and `AUTHTLS` accept PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512. `TLS`, `AUTHTLS`, and `TLS13`
+exist only when you pass the server certificate and its unencrypted key; the CA that signed them is
+`../kafka-ssl/client/ca.crt`, which the engines trust through the values in "Values for the platform
+services". From this directory:
+
+```sh
+helm install ... --set kafka.enabled=true \
+  --set-file kafka.tls.serverCert=../kafka-ssl/server/kafka.crt,kafka.tls.serverKey=../kafka-ssl/server/kafka.key
+```
+
+Both engines run the `development` profile, which points the Pub/Sub components at the emulator on
+`pubsub:8085`. Add `CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED=false` to `qip-engine.extraEnv`, as
+`docker-compose.yml` does: the predeploy check ignores the emulator and calls Google's API.
+
+Without a host port, forward one from your machine. Kafka advertises `localhost:9092` on `EXTERNAL` then:
+
+```sh
+kubectl port-forward -n qip deploy/kafka 9092
+kubectl port-forward -n qip deploy/rabbitmq 5672 15672
+kubectl port-forward -n qip deploy/pubsub 8085
+kubectl port-forward -n qip deploy/sftp 2222:22
+```
 
 ## UI
 

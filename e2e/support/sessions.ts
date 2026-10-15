@@ -40,6 +40,7 @@
  */
 import { expect, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { callToken } from "./run.js";
+import { readUntil } from "./poll.js";
 import { noteSession, noteSessionLookup } from "./diagnostics.js";
 import { noteReached } from "../registry/reached.js";
 import { serviceUrl } from "../env/containers.js";
@@ -643,16 +644,54 @@ export class Sessions {
    * For a session no correlation header finds: a call the testing service would mock, a checkpoint
    * retry, or an MCP tool call. The filter is what keeps an earlier session of the chain out.
    */
-  async onlyOf(
+  onlyOf(
     chainId: string,
     elements: number,
     filter: (session: RecordedSession) => boolean,
   ): Promise<RecordedSession> {
+    return this.settledOf(chainId, elements, filter, (kept) => {
+      expect(kept, `sessions of ${chainId}`).toHaveLength(1);
+      return kept[0];
+    });
+  }
+
+  /**
+   * The session read again until no step reads `IN_PROGRESS`. A step can settle after its session:
+   * CI run 38538504420 read a Service Call step `IN_PROGRESS` beside a finished Request attempt.
+   */
+  settled(session: RecordedSession): Promise<RecordedSession> {
+    return readUntil(
+      () => this.session(session.id),
+      (read) => trace(read).every((each) => each.executionStatus !== "IN_PROGRESS"),
+      SESSION_TIMEOUT,
+    );
+  }
+
+  /**
+   * The earliest settled session of `chainId` that `filter` keeps, with its trace, for a message the
+   * broker can deliver more than once.
+   */
+  earliestOf(
+    chainId: string,
+    elements: number,
+    filter: (session: RecordedSession) => boolean,
+  ): Promise<RecordedSession> {
+    return this.settledOf(chainId, elements, filter, (kept) => {
+      expect(kept.length, `sessions of ${chainId}`).toBeGreaterThan(0);
+      return kept.reduce((one, other) => (one.started <= other.started ? one : other));
+    });
+  }
+
+  /** The session `pick` chooses among those of `chainId` that `filter` keeps, read until it settles with its trace. */
+  private async settledOf(
+    chainId: string,
+    elements: number,
+    filter: (session: RecordedSession) => boolean,
+    pick: (kept: RecordedSession[]) => RecordedSession,
+  ): Promise<RecordedSession> {
     let found: RecordedSession | undefined;
     await expect(async () => {
-      const kept = (await this.search({}, { chainId })).sessions.filter(filter);
-      expect(kept, `sessions of ${chainId}`).toHaveLength(1);
-      found = await this.session(kept[0].id);
+      found = await this.session(pick((await this.search({}, { chainId })).sessions.filter(filter)).id);
       expect(hasTrace(found) ? trace(found).length : 0).toBeGreaterThanOrEqual(elements);
       expect(found.executionStatus).not.toBe("IN_PROGRESS");
     }).toPass({ timeout: SESSION_TIMEOUT });

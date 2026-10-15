@@ -10,8 +10,8 @@
  * The overlay is a single `atmoz/sftp` server (`infrastructure/docker-compose.sftp.yml`), chrooted
  * so the one writable subtree is `/upload`. Every fixture's `connectUrl` addresses the
  * container-internal listener (`sftp-server:22`); this spec's own `ssh2-sftp-client` calls address
- * the host-mapped one (`SFTP_HOST_CONFIG`, `localhost:2222`) -- the same "two addresses for one
- * broker" split Kafka and RabbitMQ carry.
+ * the host-mapped one (`SFTP_HOST_CONFIG`, port `BROKER_PORT.sftp` in `env/containers.ts`) -- the
+ * same "two addresses for one broker" split Kafka and RabbitMQ carry.
  *
  * `idempotent`/`idempotentKey` are plain properties, not `if`-branched ones, so
  * `registry/discriminators.ts` extracts no axis for them and neither carries a registry row -- a
@@ -29,7 +29,11 @@ import { withSftp } from "../../support/broker-clients.js";
 import { callToken } from "../../support/run.js";
 import { callChain, element, elementNames, failedElements } from "../../support/sessions.js";
 import { readUntil } from "../../support/poll.js";
+import { linesOfChain, logWindowStart, withEngineLines } from "../../support/logs.js";
+import { strikesAsKnown } from "../../support/known-defect.js";
 import { covers } from "../../registry/covers.js";
+import type { Env } from "../../env/index.js";
+import { SFTP_TRIGGER_IDLE } from "./micro-defects.js";
 
 /** What `readUntil` gets for the idempotent case's settle window, instead of a bare literal. */
 const IDEMPOTENT_SETTLE_TIMEOUT = 12_000;
@@ -46,6 +50,11 @@ async function dropFile(remotePath: string, content: string): Promise<void> {
     await client.mkdir(remotePath.slice(0, remotePath.lastIndexOf("/")), true);
     await client.put(Buffer.from(content, "utf-8"), remotePath);
   });
+}
+
+/** Waits for the session a dropped file causes; a failure says how many engine lines the chain wrote. */
+async function pickedUp<T>(env: Env, since: string, chain: BrokerChain, wait: () => Promise<T>): Promise<T> {
+  return strikesAsKnown(SFTP_TRIGGER_IDLE, () => withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), wait));
 }
 
 /** Reads `remotePath` back as text, for the upload case's own assertion. */
@@ -66,16 +75,17 @@ async function readFile(remotePath: string): Promise<string> {
 test(
   "a file dropped onto the polled directory fires sftp-trigger-2, found by chain id",
   { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ sessions }) => {
+  async ({ env, sessions }) => {
     covers("sftp-trigger-2");
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "sftp-trigger-basic");
     const before = await sessions.idsOf(chain.id);
+    const since = logWindowStart();
 
     await dropFile(`${sftpDir(chain)}/e2e-${corpus.run}-basic.txt`, "sftp trigger basic");
 
-    const session = await sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id));
+    const session = await pickedUp(env, since, chain, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
     expect(elementNames(session)).toEqual(["SFTP Trigger", "Header Modification"]);
     expect(failedElements(session)).toEqual([]);
   },
@@ -84,14 +94,15 @@ test(
 test(
   "idempotentKey pinned to one literal rejects a second file under the shared key",
   { tag: ["@engine", "@sessions", "@tier2"] },
-  async ({ sessions }) => {
+  async ({ env, sessions }) => {
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "sftp-trigger-idempotent");
     const dir = sftpDir(chain);
     const before = await sessions.idsOf(chain.id);
+    const since = logWindowStart();
 
     await dropFile(`${dir}/e2e-${corpus.run}-first.txt`, "first");
-    const first = await sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id));
+    const first = await pickedUp(env, since, chain, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
     expect(failedElements(first)).toEqual([]);
 
     // The contract this case pins: every file matched by antInclude resolves to the same

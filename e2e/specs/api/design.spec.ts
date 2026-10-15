@@ -44,7 +44,8 @@ import type { Catalog, SequenceDiagram } from "../../support/catalog.js";
 import { readCorpusState } from "../../support/corpus.js";
 import { tokenized } from "../../support/run.js";
 import { ABSENT_UUID } from "../../support/absent.js";
-import { axisFixtureName, axisFixtures, HTTP_METHODS, LOG_LEVELS } from "../../fixtures/axis-generator.js";
+import { axisFixtureName, axisFixtures, branchName, HTTP_METHODS, LOG_LEVELS } from "../../fixtures/axis-generator.js";
+import { RUN_PLACEHOLDER } from "../../fixtures/templating.js";
 
 /** The PlantUML source of a diagram, which is the form every helper below reads. */
 function plantuml(diagram: SequenceDiagram): string {
@@ -493,16 +494,29 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
     blocks: ["alt Broad If, on condition: ", "else Narrow If, on condition: ", "else Else"],
   },
   "context-propagation": { labels: ["Write Context", "Header Modification", "Read Context"] },
+  // `context-storage` has no converter, and the diagram ends at it: the script after the step in
+  // `context-storage-property` is not drawn, the one before it in `context-storage-correlation` is.
+  "context-storage-correlation": { labels: ["Set Correlation Id"] },
+  "context-storage-delete": {},
+  "context-storage-get": {},
+  "context-storage-header": {},
+  "context-storage-property": {},
+  "context-storage-set": {},
+  "correlation-echo": { labels: ["Echo Correlation Ids"] },
   // The file elements are drawn with the file name as written, placeholder and all.
   "file-read": { labels: ["Read local file: e2e-"] },
   "file-write": { labels: ["Write to local file: e2e-"] },
   // A generated sender chain is drawn as a call to a participant named after its URI.
-  ...Object.fromEntries(
-    [true, false].map((value) => [
+  ...Object.fromEntries([
+    ...[true, false].map((value) => [
       axisFixtureName({ family: "graphql-sender", axisPath: "propagateContext", value }),
       { labels: ["GraphQL request (query/mutation) to http://localhost:8080/routes/e2e-"] },
     ]),
-  ),
+    ...["header", "body"].map((value) => [
+      axisFixtureName({ family: "graphql-sender", axisPath: "correlationIdPosition", value }),
+      { labels: ["GraphQL request (query/mutation) to http://localhost:8080/routes/e2e-", "Echo Correlation Id"] },
+    ]),
+  ]),
   "http-echo": { labels: ["Header Modification"] },
   // `HttpSenderDesignProcessor` draws the call out to a participant named from the sender's URI.
   // `Internal service` rather than `External`: the fixture addresses a service inside the stack.
@@ -519,6 +533,10 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
       axisFixtureName({ family: "http-sender", axisPath: "propagateContext", value }),
       { labels: ["GET, /orders"], participants: ["Internal service: http://e2e-http-sender.invalid:8080"] },
     ]),
+    ...["header", "body"].map((value) => [
+      axisFixtureName({ family: "http-sender", axisPath: "correlationIdPosition", value }),
+      { labels: ["GET, /orders", "Echo Correlation Id"], participants: ["Internal service: http://e2e-http-sender.invalid:8080"] },
+    ]),
   ]),
   // A generated http-trigger axis chain names its trigger after the branch, and the handlers are
   // not drawn: only the step after the trigger is.
@@ -527,24 +545,54 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
       .filter((fixture) => fixture.family === "http-trigger")
       .map((fixture) => [
         axisFixtureName(fixture),
-        { trigger: `${fixture.axisPath}=${String(fixture.value)}`, ...(fixture.downstream ? { labels: [fixture.downstream.name] } : {}) },
+        { trigger: branchName(fixture), ...(fixture.downstream ? { labels: [fixture.downstream.name] } : {}) },
       ]),
   ),
+  // A trigger that implements an operation is drawn as a request to the operation's path, which
+  // starts with a slash where a `contextPath` does not.
+  "http-trigger-system-type-implemented": { labels: ["HTTP request to /e2e-", "Header Modification"] },
+  // A service call opens a group under its element's name and draws the operation it calls: the
+  // method and the path for http, a fixed line for graphql.
+  ...Object.fromEntries(
+    axisFixtures
+      .filter((fixture) => fixture.family === "service-call")
+      .map((fixture) => {
+        const call = fixture.properties as { integrationOperationProtocolType: string; integrationOperationMethod: string; integrationOperationPath: string };
+        const label = call.integrationOperationProtocolType === "graphql"
+          ? "GraphQL request (query/mutation)"
+          : `${call.integrationOperationMethod} ${call.integrationOperationPath.split(RUN_PLACEHOLDER)[0]}`;
+        return [axisFixtureName(fixture), { labels: [label], groups: [branchName(fixture)] }];
+      }),
+  ),
+  "service-call-graphql-no-before": { labels: ["GraphQL request (query/mutation)"], groups: ["Service Call"] },
   // A generated log record is drawn as a line named after the branch.
   ...Object.fromEntries(
     LOG_LEVELS.map((value) => [axisFixtureName({ family: "log-record", axisPath: "logLevel", value }), { labels: [`logLevel=${value}`] }]),
   ),
+  "logging-level-debug": { labels: ["Probe Script"] },
+  "logging-level-error": { labels: ["Probe Script"] },
+  "logging-level-off": { labels: ["Probe Script"] },
   "long-running": { labels: ["Hold"] },
   // `LoopContainerDesignProcessor` keys the block on the loop's own `expression` property, so the
   // marker is the fixture's value rather than the placeholder.
   loop: { labels: ["Iteration Script", "Report"], blocks: ["loop 3"] },
   mapper: { labels: ["Mapper"] },
   masking: { labels: ["Echo"] },
+  // `mcp-trigger` has no converter, so the chain draws its trigger group alone.
+  "mcp-trigger": { trigger: "MCP Trigger" },
+  // The idempotency chains name their trigger after the branch.
+  ...Object.fromEntries(
+    axisFixtures
+      .filter((fixture) => fixture.family === "mcp-trigger")
+      .map((fixture) => [fixture.handWritten, { trigger: branchName(fixture) }]),
+  ),
   "method-echo": { labels: ["Echo Method"] },
+  "metrics-failure": { labels: ["Failing Script"] },
   "placeholder-resolution": { labels: ["Resolve Placeholder"] },
   // The reference renders the reused block inline where the reference sits, which is why the
   // reused script appears and the reference itself never does.
   reuse: { labels: ["Reused Script", "Report"] },
+  "scheduler-basic": { labels: ["Header Modification"], trigger: "Scheduler" },
   script: { labels: ["Script"] },
   // The script corpus under `fixtures/script/`, drawn like any other script: one line per
   // element, under the name the fixture gave it. The `.yaml` is part of the fixture name, because

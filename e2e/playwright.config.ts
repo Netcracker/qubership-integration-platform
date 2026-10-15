@@ -7,8 +7,8 @@
  *
  * `CIP_TARGET` picks the infrastructure, `compose` by default and `k8s` for a local cluster, and any
  * other value fails the config at load. The common projects below run on both targets. The target
- * adds the projects only it declares and the edges only it needs on a common project, through
- * `env/target-setup.ts`, so the list below never names a target.
+ * adds the projects only it declares through `env/target-setup.ts`, so the list below never names a
+ * target.
  */
 
 import {
@@ -115,21 +115,22 @@ const suite: SuiteProject[] = [
     name: "env",
     testDir: "./specs/env",
     workers: 1,
-    // `brokers`/`brokers-restart` are deliberately not named here, though this project recreates the
-    // engine and the catalog (`specs/env/restart-resilience.spec.ts`, `service-type-roundtrip.spec.ts`)
-    // in the same shared worker pool a broker spec runs in, and a 30 s recreate mid-flight could in
-    // principle drop a broker consumer those specs have attached — reasoned, never measured. An
-    // earlier pass named them anyway, and that traded away more than it bought: Playwright's
-    // `dependencies` is one mechanism for two different things, ordering a project after another and
-    // gating it on that other project's success, and there is no way to ask for only the first —
-    // naming a `teardown` project in `dependencies` orders after it the same way but is refused
-    // outright ("Project env must not depend on a teardown project", `common/index.js:721`, checked
-    // against this config directly). So naming `brokers`/`brokers-restart` meant one failing broker
-    // case anywhere silently skipped this project's every case, the opposite of `support/brokers.ts`'s
-    // own design ("a broker outage fails one project rather than every one of them"). Between a
-    // reasoned, unmeasured race and a mechanical, certain one, `qip-working-agreements.md` is why the
-    // certain one loses: a hazard nobody has hit is not a reason to keep code that reliably breaks a
-    // whole project on someone else's flake.
+    // No broker project is named here, though this project recreates the engine and the catalog
+    // (`specs/env/restart-resilience.spec.ts`, `service-type-roundtrip.spec.ts`), and a recreate
+    // drops the broker consumers the engine holds. Playwright's `dependencies` is one mechanism for
+    // two different things, ordering a project after another and gating it on that other project's
+    // success, and there is no way to ask for only the first: naming a `teardown` project in
+    // `dependencies` is refused outright ("Project env must not depend on a teardown project",
+    // `common/index.js:721`). So naming a broker project here would let one failing broker case skip
+    // this project's every case, the opposite of `support/brokers.ts`'s own design ("a broker outage
+    // fails one project rather than every one of them").
+    //
+    // The overlap that was measured is ordered from the other side. In CI run 38651497943
+    // `brokers-restart` ran beside this project, and the engine restart replaced the Kafka consumer
+    // the restart case waited on, so `brokers-restart` now depends on `global`, and through it on this
+    // project (`env/target-setup.ts`). `brokers` and `brokers-micro` restart nothing, and their
+    // overlap with this project stays reasoned, never measured: only Playwright's scheduling, which
+    // starts a project once every project of a lower dependency depth has finished, keeps them apart.
     //
     // `ui` is named, unlike the broker projects: a restart here mid-scenario fails a browser case
     // for a reason that has nothing to do with the UI. The cost is the one described above: a red
@@ -180,7 +181,8 @@ const suite: SuiteProject[] = [
     // deployment cache. The project still runs last, for the same reason `env` does rather than
     // because its subject belongs at the end.
     //
-    // `brokers` and `brokers-restart` are deliberately not named here, for the reason given at `env`.
+    // No broker project is named here, for the reason given at `env`; `brokers-restart` runs after this
+    // project instead.
     //
     // `ui` is named, unlike `brokers`: the specs here delete every session in OpenSearch and prune
     // snapshots, both of which the browser scenarios read. The same gating cost applies.
@@ -192,18 +194,35 @@ const suite: SuiteProject[] = [
     // after all of them. The second is that `specs/env/` is defined by a behavior — a spec belongs
     // there as soon as it calls `env.restartWith` — and nothing here restarts anything.
     //
-    // On Compose, `env/target-setup.ts` adds `teardown: "brokers-seed-teardown"` here through
-    // `decorate`, which orders the broker teardown after this project without gating either one.
+    // `suite-teardown` waits for this project too, without gating either one; see its comment.
     name: "global",
     testDir: "./specs/global",
     workers: 1,
     dependencies: ["api", "runtime", "env", "ui"],
+    teardown: "suite-teardown",
+  },
+  {
+    // The teardowns of the seeds `global` does not depend on: `seed-micro`, `brokers-seed`, and
+    // `brokers-micro-seed`. Each of those seeds names this project as its `teardown`, and so does
+    // `global`, so it runs after all of them and after everything that depends on them. Playwright
+    // gives a project one `teardown`, and `global` has to hold back two of these files. Measured:
+    // the micro teardown ran during `env`'s catalog restart and three chain deletes failed with
+    // `socket hang up`, and the broker teardown ran while `env` recreated the engine and the
+    // catalog (`DEBUG=pw:test:task`). A `teardown` edge orders this project after `global` without
+    // gating `global` on a broker or micro case, which naming `brokers` or `runtime-micro` in its
+    // `dependencies` would do.
+    //
+    // It runs on both targets and whatever `E2E_BROKERS` says, so each file returns early unless
+    // its seed wrote a state file in this run.
+    name: "suite-teardown",
+    testDir: "./specs",
+    testMatch: /\/(seed-micro|brokers-seed|brokers-micro-seed)\/[^/]*\.teardown\.ts$/,
   },
 ];
 
-/** The projects a run on `setup`'s target declares: the common ones decorated, then its own. */
+/** The projects a run on `setup`'s target declares: the common ones, then its own. */
 export function suiteProjects(setup: TargetSetup): SuiteProject[] {
-  return [...suite.map((project) => setup.decorate(project)), ...setup.projects];
+  return [...suite, ...setup.projects];
 }
 
 export default defineConfig<PlaywrightTestOptions, PlaywrightWorkerOptions & SuiteWorkerOptions>({

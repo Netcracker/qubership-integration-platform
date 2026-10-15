@@ -33,6 +33,7 @@ import {
 } from "../../support/fixtures.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 import { release, releaseChains } from "../../support/cleanup.js";
+import { tokenedDomain } from "../../support/deployable.js";
 import { whileCollectingErrors } from "../../support/console-errors.js";
 
 const RUN = EXAMPLE_RUN_TOKEN;
@@ -87,6 +88,8 @@ interface StackShape {
   nested?: Record<string, Named[]>;
   /** Chain ids the logging-properties read reports a `custom` layer for. */
   keys?: string[];
+  /** Services, as `GET /v1/systems` answers them. */
+  systems?: Named[];
   /** Detailed-design templates, as `GET /v1/detailed-design/templates` answers them. */
   templates?: Named[];
   /** Engine domains, as `GET /v1/catalog/domains` answers them. */
@@ -129,7 +132,13 @@ function stubCatalog(shape: StackShape, calls: string[] = []): Catalog {
         `getLoggingProperties:${id}`,
         (shape.keys ?? []).includes(id) ? { fallbackDefault: {}, custom: {} } : { fallbackDefault: {} },
       ),
-    listSystems: () => call("listSystems", []),
+    listSystems: () => call("listSystems", shape.systems ?? []),
+    // The catalog answers 400 "System used by one or more chains" while a chain it lists remains.
+    deleteSystem: (id: string) =>
+      call(`deleteSystem:${id}`, undefined).then(() => {
+        const left = (shape.chains ?? []).filter((chain) => !calls.includes(`deleteChain:${chain.id}`));
+        if (left.length > 0) throw new Error(`DELETE /v1/systems/${id} answered 400: System used by one or more chains`);
+      }),
     listSpecificationGroups: (id: string) => call(`listSpecificationGroups:${id}`, []),
     listEnvironments: (id: string) => call(`listEnvironments:${id}`, []),
     listContextSystems: () => call("listContextSystems", []),
@@ -304,6 +313,14 @@ test("a failed chain delete is reported and counts as still there", { tag: ["@in
   expect(outcome.failures.join("; ")).toContain(`chain ${CHAIN.name}`);
   expect(outcome.removed).toEqual([]);
   expect(sweptClean(outcome)).toBe(false);
+});
+
+test("a service goes after the chains that call it", { tag: ["@infra", "@tier1"] }, async () => {
+  const calls: string[] = [];
+  const system = { id: "s1", name: `e2e-${RUN}-service` };
+  const outcome = await sweepRunToken(stubCatalog({ chains: [CHAIN], systems: [system] }, calls), RUN);
+  expect(outcome.failures).toEqual([]);
+  expect(calls.indexOf(`deleteSystem:${system.id}`)).toBeGreaterThan(calls.indexOf(`deleteChain:${CHAIN.id}`));
 });
 
 test("a chain its folder's delete already removed is swept, not reported", { tag: ["@infra", "@tier1"] }, async () => {
@@ -721,9 +738,8 @@ test("the session search names the page parameter the service reads", { tag: ["@
  * spec that quietly goes back to deleting the key of a chain that exists.
  */
 const OWN_CHAINS: Array<{ spec: string; ownDeletes: number }> = [
-  { spec: "specs/runtime/metrics.spec.ts", ownDeletes: 0 },
-  { spec: "specs/runtime/logging-level.spec.ts", ownDeletes: 0 },
   { spec: "specs/api/creation-path-equivalence.spec.ts", ownDeletes: 0 },
+  { spec: "specs/runtime-micro-redeploy/creation-path-equivalence.spec.ts", ownDeletes: 0 },
   { spec: "specs/api/masking.spec.ts", ownDeletes: 1 },
 ];
 
@@ -750,6 +766,16 @@ test("a micro domain named after the run is deleted, and no other domain is", { 
   expect(calls.filter((each) => each.startsWith("deleteCustomResource"))).toEqual([
     `deleteCustomResource:${MICRO_DOMAIN.name}`,
   ]);
+});
+
+test("a micro domain a spec file deployed its own chains to is swept with its run", { tag: ["@infra", "@tier1"] }, async () => {
+  const calls: string[] = [];
+  const { domain } = tokenedDomain(RUN, "placeholder-redeploy");
+  const own = { id: domain, name: domain, type: "MICRO" };
+  const outcome = await sweepRunToken(stubCatalog({ domains: [DEFAULT, own] }, calls), RUN);
+
+  expect(outcome.residue).toEqual([{ kind: "micro-domain", id: domain, name: domain }]);
+  expect(calls.filter((each) => each.startsWith("deleteCustomResource"))).toEqual([`deleteCustomResource:${domain}`]);
 });
 
 test("a micro domain whose delete failed keeps the run in the manifest", { tag: ["@infra", "@tier1"] }, async () => {

@@ -18,7 +18,8 @@
  * broker spec shares this run's topics, queues and consumer groups. A container restart mid-flight
  * would turn an unrelated spec's timeout into this one's fault — the same reason
  * `.apm/instructions/e2e.instructions.md` rule 3 moves a service restart out of `specs/api/` and
- * `specs/runtime/` into its own place after they are done.
+ * `specs/runtime/` into its own place after they are done. The project also runs after `global`, and
+ * so after the engine restart in `env`, which replaces the consumer a case here waits on.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";

@@ -62,7 +62,8 @@ async function transform(request: APIRequestContext, env: Env, sessions: Session
   });
   expect(call.response.status()).toBe(200);
   expect(await call.response.text()).toBe(`transformed ${id}`);
-  return sessions.byExternalId(call.token, { elements: 5 });
+  // Steps are indexed out of order, so a wait for fewer than all of them can return one without Validate Request.
+  return sessions.byExternalId(call.token, { elements: BEFORE_XSLT.length + 1 });
 }
 
 test("xslt transforms the body with a stylesheet read off the engine's file system", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {

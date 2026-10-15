@@ -82,33 +82,32 @@ const R_KAFKA_SERIALIZER_PROPORTIONAL =
   "(R_KAFKA_SERIALIZER_INDISTINGUISHABLE), and most of the remaining (de)serializer values would only " +
   "prove that a mismatched type fails to serialize";
 
-const R_BROKER_IDEMPOTENCY =
-  "no case: the idempotency cases run on http-trigger (specs/runtime/http-trigger-idempotency.spec.ts), " +
-  "and none was built for the broker triggers";
-
-const R_PROPAGATE_CONTEXT =
-  "no case: context-propagation.schema.yaml puts propagateContext on nine elements, and none was built " +
-  "for the broker senders";
+const R_RABBITMQ_CONTEXT_ALWAYS_SENT =
+  "a defect: RabbitMqSenderProcessor copies the request context into the message headers on every send, so the " +
+  "caller's X-Request-Id reaches the message with propagateContext false on both engines; the test.fail() case in " +
+  "specs/brokers/rabbitmq.spec.ts carries it";
 
 const R_KAFKA_CONSUMER_CONSISTENCY =
   "the two values select a NetCracker Cloud Blue-Green consumer mode " +
   "(com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode) with no counterpart on this stack";
 
-const R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH =
-  "exchangeType and deadLetterExchangeType are query: true in rabbitmq-trigger-2/description.yaml and " +
-  "reach the compiled xmlDefinition through template.hbs's {{query}} call, but the brokers seed declares " +
-  "the exchange itself, off the fixture YAML, so a runtime case cannot tell one value from another; a " +
-  "case belongs on the compile (the registry's third shape, @catalog), and none was built";
-
-const R_RABBITMQ_ACK_NONE =
-  "RabbitMqTriggerProcessor.immediateAck special-cases only AcknowledgeMode.MANUAL (the positive ack " +
-  "the MANUAL case exercises); NONE leaves acking to Spring's container, which never sends one, and no " +
-  "case covers the redelivery contract that leaves";
-
-const R_KAFKA_PLAINTEXT_ONLY =
-  "the overlay's Kafka listener is PLAINTEXT (infrastructure/docker-compose.kafka.yml), so no SASL " +
-  "mechanism and no securityProtocol or sslProtocol beyond PLAINTEXT is reachable locally; Kafka over " +
-  "SSL was deferred on 2026-09-07";
+// The security axes are covered by `specs/brokers/kafka-security.spec.ts`, one case per value on
+// the listener of the Kafka overlay that serves it.
+const R_KAFKA_SASL_UNSUPPORTED =
+  "Kafka brokers implement GSSAPI, PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, and OAUTHBEARER only; any other " +
+  "mechanism needs a custom SaslServer plugged into the broker, so a value outside those five has no " +
+  "broker to connect to";
+const R_KAFKA_GSSAPI_NO_KDC =
+  "GSSAPI needs a Kerberos KDC and a keytab, and the stack runs no KDC";
+const R_KAFKA_OAUTHBEARER =
+  "no listener of the Kafka overlay enables OAUTHBEARER; Kafka's unsecured OAUTHBEARER login enabled on " +
+  "the AUTH listener would make a case possible";
+const R_KAFKA_TLSV11_DISABLED =
+  "measured on both engines: the JDK disables TLSv1.1 (jdk.tls.disabledAlgorithms), so a TLSv1.1 " +
+  "client fails with SSLHandshakeException \"No appropriate protocol\" before the broker answers";
+const R_KAFKA_TLSV13_INDISTINGUISHABLE =
+  "the TLS13 listener accepts the TLS default as well, and no listener accepts TLSv1.2 while it refuses " +
+  "TLSv1.3, so a case cannot tell TLSv1.3 apart from TLS; the TLSv1.3 cases still run, without a covers() call";
 const R_KAFKA_OFFSET_RESET_NONE =
   "measured: with a fresh consumer group and no backlog, autoOffsetReset=none reads a message the " +
   "same way earliest and latest do — the exception it alone can raise needs a record already on the " +
@@ -126,30 +125,29 @@ const R_KAFKA_SERIALIZER_INDISTINGUISHABLE =
   "to prove the element does not throw, but carries no covers() call";
 
 const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
-  "measured: the embedded google-cloud-pubsub client's lease auto-extension suppresses any " +
-  "observable redelivery within a bounded test window, so a case sees the same one session, no " +
-  "failed elements AUTO's case already shows; the case still runs, without a covers() call";
+  "measured on a chain that completes: the embedded google-cloud-pubsub client's lease auto-extension " +
+  "suppresses any observable redelivery within a bounded test window, so a case sees the same one " +
+  "session, no failed elements AUTO's case already shows; the case still runs, without a covers() call. " +
+  "A failing chain would tell the two apart, since AUTO nacks it and the emulator delivers it again " +
+  "(trigger-idempotency.spec.ts), but no case runs NONE on a failing chain";
 
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
-// `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close as a
-// byproduct of building those two chains. Its method, systemType, idempotency and acknowledgeMode
-// axes have no case.
-const R_ASYNC_API_TRIGGER_METHOD_V3 =
-  "the two async-api-trigger cases exercise one AsyncAPI 2.6 document each, which resolves to " +
-  "subscribe (kafka) and publish (amqp, via AMQPSpecificationResolver.getMethod: a channel's " +
-  "subscribe: block with no v3 action reports PUBLISH, not SUBSCRIBE — measured, not a typo here); " +
-  "send and receive need an AsyncAPI 3.0 document, and no case builds one for the trigger";
+// `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close through
+// the kafka case's seeded chain. Its acknowledgeMode axis has amqp cases in the same file, and its
+// idempotency axes amqp cases in `specs/brokers/trigger-idempotency.spec.ts`. Its method axis has a
+// passing case per AsyncAPI version and no covers() call; its systemType axis has no case.
 const R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE =
   "template.hbs never reads integrationOperationMethod and OperationElementPropertiesBuilder " +
   "branches only on integrationOperationProtocolType, so the trigger compiles to the same step " +
-  "whatever this axis holds; the kafka case resolves to subscribe and its amqp case to " +
+  "whatever this axis holds. The AsyncAPI 2.6 kafka case resolves to subscribe and its amqp case to " +
   "publish only because KafkaSpecificationResolver and AMQPSpecificationResolver invert getMethod " +
-  "for the same subscribe-only channel shape, not because either case's route reads the value";
+  "for the same subscribe-only channel shape. An AsyncAPI 3.0 document gives send and receive " +
+  "(specs/api/specifications.spec.ts), and the amqp case on its receive operation consumes the same " +
+  "way; no case's route reads the value";
 const R_ASYNC_API_TRIGGER_SYSTEM_TYPE =
   "EndpointHelperSource.integrationEndpoint, which kafka and amqp both resolve through, needs only " +
   "an activated environment with a non-blank address and never reads systemType, so INTERNAL and " +
   "IMPLEMENTED behave exactly like the EXTERNAL case; no case covers the other two values";
-const R_ASYNC_API_TRIGGER_UNCOVERED = "no case: the async-api-trigger cases vary only the protocol axis";
 // The `script` element has no axis row: it is covered at tier 1 by a fixture chain, and none of the
 // six axes the script specs sweep is a discriminator the schemas declare, so the extractor produces
 // no row for any of them. What those specs settled is written in their headers:
@@ -197,8 +195,9 @@ const CATALOG: readonly string[] = ["@catalog"];
 // NONE, RBAC and ABAC give an identical response and an identical trace on this stack.
 // Every value of its two handler axes, `script` included, belongs to
 // `specs/runtime/http-trigger-handlers.spec.ts`.
-// Its `systemType` EXTERNAL row is covered on the compile and tagged `@catalog`; INTERNAL and
-// IMPLEMENTED compile alike, so neither is covered, for `http-trigger` or `service-call`.
+// Its `systemType` EXTERNAL row is covered on the compile by `specs/api/http-trigger-system-type.spec.ts`
+// and tagged `@catalog`; INTERNAL and IMPLEMENTED compile alike, so neither is covered, for
+// `http-trigger` or `service-call`.
 // Its `correlationIdPosition` rows are covered by `specs/runtime/http-trigger-idempotency.spec.ts`,
 // and `service-call`'s by `specs/runtime/service-call-axes.spec.ts`.
 const R_RECEIVE_CORRELATION_ID =
@@ -206,10 +205,12 @@ const R_RECEIVE_CORRELATION_ID =
   "switch the correlation id on, so a case would pass for true and false alike";
 
 // `service-call`'s http and graphql protocols belong to `specs/runtime/service-call-sync.spec.ts`.
-// Its soap and grpc rows are gaps somebody decided on.
+// Its soap and grpc rows are gaps somebody decided on. No product path writes soap:
+// `specs/ui/chain-graph.spec.ts` picks a WSDL service in the element form and the form saves http.
 const R_SOAP =
-  "a WSDL import creates an http service, so a SOAP call compiles as http and is covered there; " +
-  "a soap value (written by the VS Code WSDL import) has no branch in service-call/template.hbs, and no case covers it";
+  "unreachable: the catalog reports a WSDL service as http, so the element form writes http and a SOAP call " +
+  "compiles as http, which the http case covers; the VS Code extension wrote soap up to v1.2.3 (#807); " +
+  "soap has no branch in service-call/template.hbs";
 const R_GRPC =
   "no answering endpoint: the testing service mocks HTTP only and no gRPC server runs in the stack; " +
   "the .proto import itself works";
@@ -238,13 +239,8 @@ const R_SERVICE_CALL_VALIDATION_TYPE =
 // breaker's one axis, `slidingWindowType`, is covered there too.
 
 // `specs/runtime/misc-elements.spec.ts` covers `http-sender`, `graphql-sender`, `log-record`,
-// `context-storage` and `mcp-trigger`. `swimlane` is covered on the catalog by `specs/api/elements.spec.ts`.
-const R_MCP_IDEMPOTENCY =
-  "not run on mcp-trigger: the shared idempotency partial branches on the element type (ignore answers 202 on http-trigger only), " +
-  "and a tools/call carries no header for keyExpression, so the http-trigger cases do not prove these rows; no case covers them";
-const R_SENDER_CORRELATION =
-  "no case covers it: the sender reads correlationIdPosition through the same two processors as service-call, " +
-  "and the cases in specs/runtime/service-call-axes.spec.ts cover the service-call rows only";
+// `context-storage` and `mcp-trigger`; `specs/runtime/mcp-trigger-idempotency.spec.ts` covers the
+// idempotency axes of `mcp-trigger`. `swimlane` is covered on the catalog by `specs/api/elements.spec.ts`.
 const R_CHECKPOINT_EXTERNAL_ROUTE =
   "the one value the checkpoint schema allows, and it does not reach the compiled retry route, " +
   "so no case can tell it from another value";
@@ -266,7 +262,7 @@ const R_SWIMLANE_COLOR =
 // deprecated flag is the library's own (`GET /v1/library`), and `SUPERSEDED` below is read against
 // it in `specs/api/element-library.spec.ts`. `choice`, `when` and `otherwise` stay covered: tier 1
 // runs them, and a row holds what a passing test proves.
-// `quartz-scheduler` is covered in `specs/brokers/scheduler.spec.ts`, and `script` by its fixture chain.
+// `quartz-scheduler` is covered in `specs/runtime/scheduler.spec.ts`, and `script` by its fixture chain.
 
 /**
  * Every element the library flags deprecated, and its successor. The library publishes no successor
@@ -321,23 +317,28 @@ const R_NOT_OFFERED =
  * A row moves to `covered` only together with a spec that declares it through `covers()`.
  */
 export const elementRegistry: RegistryEntry[] = [
-  { family: "async-api-trigger", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "NONE", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "MANUAL", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "AUTO", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_UNCOVERED, tags: ENGINE },
+  { family: "async-api-trigger", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
+  // MANUAL and NONE each differ from the AUTO default: a failed message is not dead-lettered. They do
+  // not differ from each other on a failing chain, since MANUAL acks the delivery before the chain
+  // runs and NONE consumes without acks, so both leave one session, an empty queue, and an empty
+  // dead-letter queue. Only the consumer's ack_required flag in the RabbitMQ management API tells
+  // them apart, and the chart exposes no management port.
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "NONE", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "MANUAL", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationAsyncProperties/acknowledgeMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "subscribe", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "publish", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "send", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_V3, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "receive", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_V3, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationProtocolType", value: "kafka", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationProtocolType", value: "amqp", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "send", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationMethod", value: "receive", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_METHOD_INDISTINGUISHABLE, tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationProtocolType", value: "kafka", tier: 2, status: "covered", tags: ENGINE },
+  { family: "async-api-trigger", kind: "axis", axisPath: "integrationOperationProtocolType", value: "amqp", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "systemType", value: "INTERNAL", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_SYSTEM_TYPE, tags: ENGINE },
-  { family: "async-api-trigger", kind: "axis", axisPath: "systemType", value: "EXTERNAL", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "async-api-trigger", kind: "axis", axisPath: "systemType", value: "EXTERNAL", tier: 2, status: "covered", tags: ENGINE },
   { family: "async-api-trigger", kind: "axis", axisPath: "systemType", value: "IMPLEMENTED", tier: 2, status: NOT_COVERED, reason: R_ASYNC_API_TRIGGER_SYSTEM_TYPE, tags: ENGINE },
   { family: "async-split-element", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("async-split-element"), tags: ENGINE },
   { family: "async-split-element-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
@@ -374,16 +375,16 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "finally", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("finally"), tags: ENGINE },
   { family: "finally-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "graphql-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE },
-  { family: "graphql-sender", kind: "axis", axisPath: "correlationIdPosition", value: "header", tier: 2, status: NOT_COVERED, reason: R_SENDER_CORRELATION, tags: ENGINE },
-  { family: "graphql-sender", kind: "axis", axisPath: "correlationIdPosition", value: "body", tier: 2, status: NOT_COVERED, reason: R_SENDER_CORRELATION, tags: ENGINE },
+  { family: "graphql-sender", kind: "axis", axisPath: "correlationIdPosition", value: "header", tier: 2, status: "covered", tags: ENGINE },
+  { family: "graphql-sender", kind: "axis", axisPath: "correlationIdPosition", value: "body", tier: 2, status: "covered", tags: ENGINE },
   { family: "graphql-sender", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
   { family: "graphql-sender", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "graphql-sender", kind: "axis", axisPath: "receiveCorrelationId", value: true, tier: 2, status: NOT_COVERED, reason: R_RECEIVE_CORRELATION_ID, tags: ENGINE },
   { family: "graphql-sender", kind: "axis", axisPath: "receiveCorrelationId", value: false, tier: 2, status: NOT_COVERED, reason: R_RECEIVE_CORRELATION_ID, tags: ENGINE },
   { family: "header-modification", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE },
-  { family: "http-sender", kind: "axis", axisPath: "correlationIdPosition", value: "header", tier: 2, status: NOT_COVERED, reason: R_SENDER_CORRELATION, tags: ENGINE },
-  { family: "http-sender", kind: "axis", axisPath: "correlationIdPosition", value: "body", tier: 2, status: NOT_COVERED, reason: R_SENDER_CORRELATION, tags: ENGINE },
+  { family: "http-sender", kind: "axis", axisPath: "correlationIdPosition", value: "header", tier: 2, status: "covered", tags: ENGINE },
+  { family: "http-sender", kind: "axis", axisPath: "correlationIdPosition", value: "body", tier: 2, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "axis", axisPath: "httpMethod", value: "POST", tier: 2, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "axis", axisPath: "httpMethod", value: "GET", tier: 2, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "axis", axisPath: "httpMethod", value: "PUT", tier: 2, status: "covered", tags: ENGINE },
@@ -447,9 +448,9 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "jms-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_JMS, tags: ENGINE },
   { family: "jms-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_JMS, tags: ENGINE },
   { family: "jms-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_JMS, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-sender-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "maas", tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.ByteArraySerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.ByteBufferSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.BytesSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
@@ -458,63 +459,63 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.IntegerSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.LongSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.ShortSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.StringSerializer", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.StringSerializer", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.UUIDSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "keySerializer", value: "org.apache.kafka.common.serialization.VoidSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "maasClassifierTenantEnabled", value: true, tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "maasClassifierTenantEnabled", value: false, tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "ANONYMOUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "CRAM-MD5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "DIGEST-MD5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "EAP-AES128", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "EAP-AES128-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "ECDH-X25519-CHALLENGE[1]", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "ECDSA-NIST256P-CHALLENGE[1]", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "EXTERNAL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "GS2-KRB5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "GS2-KRB5-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "GSS-SPNEGO", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "GSSAPI", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "KERBEROS_V4", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "KERBEROS_V5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "LOGIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS_AUTHEN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS_LOGIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS-SAMBA-AUTH", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "NTLM", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "OAUTH10A", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "OAUTHBEARER", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "OPENID20", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "OTP", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "PLAIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SAML20", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-1-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-256", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-256-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-512", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SECURID", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SKEY", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SPNEGO", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SPNEGO-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "XOAUTH", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "XOAUTH2", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "securityProtocol", value: "PLAINTEXT", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "securityProtocol", value: "SASL_PLAINTEXT", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "securityProtocol", value: "SASL_SSL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "securityProtocol", value: "SSL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.2", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.3", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "ANONYMOUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "CRAM-MD5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "DIGEST-MD5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "EAP-AES128", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "EAP-AES128-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "ECDH-X25519-CHALLENGE[1]", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "ECDSA-NIST256P-CHALLENGE[1]", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "EXTERNAL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "GS2-KRB5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "GS2-KRB5-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "GSS-SPNEGO", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "GSSAPI", tier: 2, status: NOT_COVERED, reason: R_KAFKA_GSSAPI_NO_KDC, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "KERBEROS_V4", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "KERBEROS_V5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "LOGIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS_AUTHEN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS_LOGIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS-SAMBA-AUTH", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "NTLM", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "OAUTH10A", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "OAUTHBEARER", tier: 2, status: NOT_COVERED, reason: R_KAFKA_OAUTHBEARER, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "OPENID20", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "OTP", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "PLAIN", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SAML20", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-1-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-256", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-256-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-512", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SECURID", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SKEY", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SPNEGO", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "SPNEGO-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "XOAUTH", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "saslMechanism", value: "XOAUTH2", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "securityProtocol", value: "PLAINTEXT", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "securityProtocol", value: "SASL_PLAINTEXT", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "securityProtocol", value: "SASL_SSL", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "securityProtocol", value: "SSL", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLS", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_TLSV11_DISABLED, tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.2", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.3", tier: 2, status: NOT_COVERED, reason: R_KAFKA_TLSV13_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.ByteArraySerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.ByteBufferSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.BytesSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
@@ -523,22 +524,22 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.IntegerSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.LongSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.ShortSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
-  { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.StringSerializer", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.StringSerializer", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.UUIDSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-sender-2", kind: "axis", axisPath: "valueSerializer", value: "org.apache.kafka.common.serialization.VoidSerializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "autoOffsetReset", value: "none", tier: 2, status: NOT_COVERED, reason: R_KAFKA_OFFSET_RESET_NONE, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "autoOffsetReset", value: "earliest", tier: 2, status: NOT_COVERED, reason: R_KAFKA_OFFSET_RESET_EARLIEST_INDISTINGUISHABLE, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "autoOffsetReset", value: "latest", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "autoOffsetReset", value: "latest", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "maas", tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "consumerConsistencyMode", value: "EVENTUAL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_CONSUMER_CONSISTENCY, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "consumerConsistencyMode", value: "GUARANTEE_CONSUMPTION", tier: 2, status: NOT_COVERED, reason: R_KAFKA_CONSUMER_CONSISTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.ByteArrayDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.ByteBufferDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.BytesDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
@@ -547,61 +548,61 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.IntegerDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.LongDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.ShortDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.StringDeserializer", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.StringDeserializer", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.UUIDDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "keyDeserializer", value: "org.apache.kafka.common.serialization.VoidDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "maasClassifierTenantEnabled", value: true, tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "maasClassifierTenantEnabled", value: false, tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "ANONYMOUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "CRAM-MD5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "DIGEST-MD5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "EAP-AES128", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "EAP-AES128-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "ECDH-X25519-CHALLENGE[1]", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "ECDSA-NIST256P-CHALLENGE[1]", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "EXTERNAL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "GS2-KRB5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "GS2-KRB5-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "GSS-SPNEGO", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "GSSAPI", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "KERBEROS_V4", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "KERBEROS_V5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "LOGIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS_AUTHEN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS_LOGIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS-SAMBA-AUTH", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "NTLM", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "OAUTH10A", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "OAUTHBEARER", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "OPENID20", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "OTP", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "PLAIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SAML20", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-1-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-256", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-256-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-512", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SECURID", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SKEY", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SPNEGO", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SPNEGO-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "XOAUTH", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "XOAUTH2", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "securityProtocol", value: "PLAINTEXT", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "securityProtocol", value: "SASL_PLAINTEXT", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "securityProtocol", value: "SASL_SSL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "securityProtocol", value: "SSL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.2", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.3", tier: 2, status: NOT_COVERED, reason: R_KAFKA_PLAINTEXT_ONLY, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-M-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-DSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-ECDSA-SHA1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "9798-U-RSA-SHA1-ENC", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "ANONYMOUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "CRAM-MD5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "DIGEST-MD5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "EAP-AES128", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "EAP-AES128-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "ECDH-X25519-CHALLENGE[1]", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "ECDSA-NIST256P-CHALLENGE[1]", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "EXTERNAL", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "GS2-KRB5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "GS2-KRB5-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "GSS-SPNEGO", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "GSSAPI", tier: 2, status: NOT_COVERED, reason: R_KAFKA_GSSAPI_NO_KDC, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "KERBEROS_V4", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "KERBEROS_V5", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "LOGIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS_AUTHEN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS_LOGIN", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "NMAS-SAMBA-AUTH", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "NTLM", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "OAUTH10A", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "OAUTHBEARER", tier: 2, status: NOT_COVERED, reason: R_KAFKA_OAUTHBEARER, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "OPENID20", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "OTP", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "PLAIN", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SAML20", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-1-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-256", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-256-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SCRAM-SHA-512", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SECURID", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SKEY", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SPNEGO", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "SPNEGO-PLUS", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "XOAUTH", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "saslMechanism", value: "XOAUTH2", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SASL_UNSUPPORTED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "securityProtocol", value: "PLAINTEXT", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "securityProtocol", value: "SASL_PLAINTEXT", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "securityProtocol", value: "SASL_SSL", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "securityProtocol", value: "SSL", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLS", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.1", tier: 2, status: NOT_COVERED, reason: R_KAFKA_TLSV11_DISABLED, tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.2", tier: 2, status: "covered", tags: ENGINE },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "sslProtocol", value: "TLSv1.3", tier: 2, status: NOT_COVERED, reason: R_KAFKA_TLSV13_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.ByteArrayDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_INDISTINGUISHABLE, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.ByteBufferDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.BytesDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
@@ -610,7 +611,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.IntegerDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.LongDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.ShortDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
-  { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.StringDeserializer", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.StringDeserializer", tier: 2, status: "covered", tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.UUIDDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "kafka-trigger-2", kind: "axis", axisPath: "valueDeserializer", value: "org.apache.kafka.common.serialization.VoidDeserializer", tier: 2, status: NOT_COVERED, reason: R_KAFKA_SERIALIZER_PROPORTIONAL, tags: ENGINE },
   { family: "log-record", kind: "element", tier: 1, status: "covered", tags: ENGINE },
@@ -629,52 +630,55 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "main-split-element-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "mapper-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "mcp-trigger", kind: "element", tier: 1, status: "covered", tags: ENGINE },
-  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_MCP_IDEMPOTENCY, tags: ENGINE },
-  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_MCP_IDEMPOTENCY, tags: ENGINE },
-  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_MCP_IDEMPOTENCY, tags: ENGINE },
-  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_MCP_IDEMPOTENCY, tags: ENGINE },
-  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_MCP_IDEMPOTENCY, tags: ENGINE },
+  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "on-fallback", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("on-fallback"), tags: ENGINE },
   { family: "on-fallback-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "otherwise", kind: "element", tier: 1, status: "covered", tags: ENGINE },
-  { family: "pubsub-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: true, tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: false, tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "ackMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "pubsub-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: false, tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "ackMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
   { family: "pubsub-trigger", kind: "axis", axisPath: "ackMode", value: "NONE", tier: 2, status: NOT_COVERED, reason: R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "quartz-scheduler", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "rabbitmq-sender-2", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "pubsub-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
+  { family: "quartz-scheduler", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-sender-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "maas", tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
-  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "NONE", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_ACK_NONE, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "MANUAL", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_CONTEXT_ALWAYS_SENT, tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  // MANUAL and NONE leave the same state on a failing chain; see the async-api-trigger rows.
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "NONE", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "MANUAL", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "AUTO", tier: 2, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "maas", tier: 2, status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "direct", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "fanout", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "headers", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "topic", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "direct", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "fanout", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "headers", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "topic", tier: 2, status: NOT_COVERED, reason: R_RABBITMQ_EXCHANGE_TYPE_PASSTHROUGH, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
-  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: NOT_COVERED, reason: R_BROKER_IDEMPOTENCY, tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", tier: 2, status: "covered", tags: ENGINE },
+  // The two exchange type axes are covered on the compile (specs/api/rabbitmq-trigger-snapshot.spec.ts):
+  // the brokers seed declares every exchange itself, so a runtime case passes for any value.
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "direct", tier: 2, status: "covered", tags: CATALOG },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "fanout", tier: 2, status: "covered", tags: CATALOG },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "headers", tier: 2, status: "covered", tags: CATALOG },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "deadLetterExchangeType", value: "topic", tier: 2, status: "covered", tags: CATALOG },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "direct", tier: 2, status: "covered", tags: CATALOG },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "fanout", tier: 2, status: "covered", tags: CATALOG },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "headers", tier: 2, status: "covered", tags: CATALOG },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "exchangeType", value: "topic", tier: 2, status: "covered", tags: CATALOG },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: true, tier: 2, status: "covered", tags: ENGINE },
+  { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "idempotency/enabled", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "reuse", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "reuse-reference", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "script", kind: "element", tier: 1, status: "covered", tags: ENGINE },
@@ -721,8 +725,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "service-call", kind: "axis", axisPath: "integrationOperationMethod", value: "PATCH", tier: 2, status: "covered", tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "integrationOperationMethod", value: "HEAD", tier: 2, status: "covered", tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "integrationOperationMethod", value: "OPTIONS", tier: 2, status: "covered", tags: ENGINE },
-  { family: "service-call", kind: "axis", axisPath: "integrationOperationProtocolType", value: "kafka", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "service-call", kind: "axis", axisPath: "integrationOperationProtocolType", value: "amqp", tier: 2, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "service-call", kind: "axis", axisPath: "integrationOperationProtocolType", value: "kafka", tier: 2, status: "covered", tags: ENGINE },
+  { family: "service-call", kind: "axis", axisPath: "integrationOperationProtocolType", value: "amqp", tier: 2, status: "covered", tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "integrationOperationProtocolType", value: "http", tier: 2, status: "covered", tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "integrationOperationProtocolType", value: "soap", tier: 2, status: NOT_COVERED, reason: R_SOAP, tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "integrationOperationProtocolType", value: "grpc", tier: 2, status: NOT_COVERED, reason: R_GRPC, tags: ENGINE },
@@ -734,9 +738,9 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "service-call", kind: "axis", axisPath: "systemType", value: "INTERNAL", tier: 2, status: NOT_COVERED, reason: R_SYSTEM_TYPE_ALIKE, tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "systemType", value: "EXTERNAL", tier: 2, status: "covered", tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "systemType", value: "IMPLEMENTED", tier: 2, status: NOT_COVERED, reason: R_SERVICE_CALL_IMPLEMENTED, tags: ENGINE },
-  { family: "sftp-download", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "sftp-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "sftp-upload", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
+  { family: "sftp-download", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "sftp-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "sftp-upload", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "split", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("split"), tags: ENGINE },
   { family: "split-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "split-async", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("split-async"), tags: ENGINE },
@@ -833,6 +837,12 @@ export const COVERS_ANNOTATION = "covers";
 export const REACHED_ANNOTATION = "reached";
 
 /**
+ * The annotation `strikesAsKnown` writes when a `ConditionalDefect` strikes, naming the defect. The
+ * case stopped at the step the defect names, so every call it recorded before that step was made.
+ */
+export const STRUCK_ANNOTATION = "struck";
+
+/**
  * Every spec in the report, at any nesting depth.
  *
  * Suites nest arbitrarily — project, file, `describe` — and each reader that re-implemented the
@@ -875,14 +885,15 @@ const NON_SELECTING_OPTIONS = new Map<string, "flag" | "value">([
 ]);
 
 /**
- * The `brokers`-family project names `playwright.config.ts` declares unless `E2E_BROKERS=0`.
+ * The `brokers`-family project names `env/target-setup.ts` declares unless `E2E_BROKERS=0`: the
+ * first three on either target, the micro pair on `k8s` only.
  *
  * Named here rather than imported from the config, which reads `process.env.E2E_BROKERS` at import
  * time: `npm run reconcile` runs as a process separate from `npm test` and is not guaranteed to see
  * the same environment the run itself saw. The report's own `config.projects` is what actually
  * happened, so `runFilters` reads that instead of trusting the two invocations to agree.
  */
-const BROKER_PROJECT_NAMES = ["brokers-seed", "brokers-seed-teardown", "brokers", "brokers-restart"];
+const BROKER_PROJECT_NAMES = ["brokers-seed", "brokers", "brokers-restart", "brokers-micro-seed", "brokers-micro"];
 
 /**
  * The target the run was made on, as `playwright.config.ts` records it in the report's metadata.
@@ -915,8 +926,6 @@ export function runsOn(target: Target | undefined, run: Target): boolean {
  * evidence of narrowing, since a real report always populates it.
  */
 export function runFilters(report: JsonReport): string[] {
-  // The broker projects exist only on Compose, so their absence narrows a Compose run alone.
-  const brokersDeclared = reportTarget(report) === "compose";
   const argv = report.config?.argv ?? [];
   const filters: string[] = [];
   const start = argv.indexOf("test");
@@ -944,11 +953,7 @@ export function runFilters(report: JsonReport): string[] {
   const projectNames = new Set(
     (report.config?.projects ?? []).map((project) => project.name).filter((name): name is string => Boolean(name)),
   );
-  if (
-    brokersDeclared &&
-    projectNames.size > 0 &&
-    BROKER_PROJECT_NAMES.every((name) => !projectNames.has(name))
-  ) {
+  if (projectNames.size > 0 && BROKER_PROJECT_NAMES.every((name) => !projectNames.has(name))) {
     filters.push("E2E_BROKERS=0");
   }
 
@@ -1067,8 +1072,8 @@ function countTests(report: JsonReport): number {
  * cases in `coverage.spec.ts` — asks nothing of the transports.
  *
  * A row that names a target is read only against a run on that target, which the report records:
- * a broker row is not unproven on Kubernetes, where no broker project exists, and a custom-resource
- * row is not unproven on Compose, where no cluster does. A row that names no target runs on both.
+ * a custom-resource row is not unproven on Compose, where no cluster exists. A row that names no
+ * target runs on both.
  */
 export function reconcile(
   report: JsonReport,
@@ -1149,12 +1154,22 @@ export interface OperationClaim {
   target?: Target;
 }
 
-/** Every operation a **passing** test recorded, as registry keys. */
+/**
+ * Whether a test's calls count as made: a passing test, or one a `ConditionalDefect` struck. A struck
+ * case stopped at the step the defect names, so a race the pin carries turns no row red here. A plain
+ * `test.fail()` case may have stopped anywhere, so its calls stay unread.
+ */
+function reaches(test: JsonTest): boolean {
+  if (proves(test)) return true;
+  return test.status === "expected" && (test.annotations ?? []).some((annotation) => annotation.type === STRUCK_ANNOTATION);
+}
+
+/** Every operation a passing or a struck test recorded, as registry keys. */
 export function reachedFromReport(report: JsonReport): Set<string> {
   const reached = new Set<string>();
   for (const spec of eachSpec(report)) {
     for (const each of spec.tests ?? []) {
-      if (!proves(each)) continue;
+      if (!reaches(each)) continue;
       for (const annotation of each.annotations ?? []) {
         if (annotation.type !== REACHED_ANNOTATION || !annotation.description) continue;
         reached.add(annotation.description);

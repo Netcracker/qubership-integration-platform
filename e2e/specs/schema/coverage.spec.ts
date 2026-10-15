@@ -280,6 +280,26 @@ test("a test.fail case proves nothing, however Playwright reports it", { tag: ["
   expect(reachedFromReport(reachedByFailure).size).toBe(0);
 });
 
+test("a case a ConditionalDefect struck still reaches what it called, and proves no element row", { tag: ["@infra", "@tier1"] }, () => {
+  // `strikesAsKnown` writes the annotation beside the `fail` one `test.fail()` adds. The case stopped
+  // at the step the defect names, so a race the pin carries does not turn the reconcile step red.
+  const struck = reachedReportOf("expected", "catalog GET /v1/chains");
+  const struckTest = struck.suites![0].suites![0].specs![0].tests![0];
+  struckTest.expectedStatus = "failed";
+  struckTest.annotations!.push({ type: "struck", description: "a race" }, { type: "fail", description: "a race" });
+  expect(reachedFromReport(struck)).toEqual(new Set(["catalog GET /v1/chains"]));
+
+  // A struck case that then failed for real is no evidence.
+  struckTest.status = "unexpected";
+  expect(reachedFromReport(struck).size).toBe(0);
+
+  const declared = reportOf("expected", "condition");
+  const declaring = declared.suites![0].suites![0].specs![0].tests![0];
+  declaring.expectedStatus = "failed";
+  declaring.annotations = [...(declaring.annotations ?? []), { type: "struck", description: "a race" }];
+  expect(declarationsFromReport(declared).map((d) => d.passed)).toEqual([false]);
+});
+
 test("a row is proved by a spec carrying its component tag, not by any spec at all", { tag: ["@infra", "@tier1"] }, () => {
   // `tags` says which component has to be exercised. Without this reading the field is written and
   // never read, and an `@engine` row can be earned by a `@catalog` spec that never went near the
@@ -367,7 +387,7 @@ test("E2E_BROKERS=0 narrows the run even though it never reaches argv", { tag: [
     runFilters(
       withProjects(
         "schema", "api", "seed", "seed-teardown", "tooling", "runtime", "env",
-        "brokers-seed", "brokers-seed-teardown", "brokers", "brokers-restart", "global",
+        "brokers-seed", "brokers", "brokers-restart", "global", "suite-teardown",
       ),
     ),
   ).toEqual([]);

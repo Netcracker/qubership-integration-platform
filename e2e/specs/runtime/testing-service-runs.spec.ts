@@ -22,7 +22,9 @@
 import { test, expect } from "../../support/fixtures.js";
 import { UUID } from "../../support/absent.js";
 import { readCorpusState, seedChain, triggerOf } from "../../support/corpus.js";
+import { strikesAsKnown } from "../../support/known-defect.js";
 import { tokenized } from "../../support/run.js";
+import { MOCK_BYPASSED } from "./micro-defects.js";
 import type { TestCase, TestCaseRequest, TestCaseRun, TestingService } from "../../support/testing-service.js";
 
 /** How the exports write a timestamp: Go's `time.Time.String()`, kept for the ported service's readers. */
@@ -120,7 +122,8 @@ test("a test case run mocks the chain's outbound call, and a plain call to the s
     }], async ([testCase], start) => {
       const { caseRun, errors } = await testingService.runOnce(start, testCase.id);
       expect(caseRun.status).toBe("finished");
-      expect(errors, "the case run's outbound call was not mocked").toEqual([]);
+      const messages = errors.map((error) => error.message).join("; ");
+      await strikesAsKnown(MOCK_BYPASSED, async () => expect(errors, `the case run's outbound call was not mocked: ${messages}`).toEqual([]));
     });
 
     // The same chain, with the mock still registered, called with no `external-session-cip-id`.

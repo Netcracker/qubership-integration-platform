@@ -1,0 +1,28 @@
+---
+id: "e2e0e001-0000-4000-8000-000000000001-async-api-kafka-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e0e001-0000-4000-8000-000000000001-async-api-kafka-1.0.0-e2eAsyncApiKafkaSubscribe"
+    name: "e2eAsyncApiKafkaSubscribe"
+    method: "subscribe"
+    path: "e2e-{{RUN}}-async-api-kafka"
+    specification:
+      topic: "e2e-{{RUN}}-async-api-kafka"
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+        properties:
+          ping:
+            type: "string"
+  specificationSources:
+  - id: "e2e0e001-0000-4000-8000-000000000003"
+    name: "async-api-kafka.yaml"
+    fileName: "source-e2e0e001-0000-4000-8000-000000000001-async-api-kafka-1.0.0/async-api-kafka.yaml"
+    mainSource: true
+  parentId: "e2e0e001-0000-4000-8000-000000000001-async-api-kafka"

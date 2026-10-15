@@ -6,8 +6,10 @@
  * `infrastructure/docker-compose.yml`) is what makes any of this deployable at all:
  * `PubSubConnectionCheckAction` builds its own admin client from `serviceAccountKey` with no
  * emulator endpoint, so against the emulator it always reaches real googleapis and fails
- * `UNAUTHENTICATED`. `serviceAccountKey` stays schema-required regardless, so every fixture carries
- * a syntactically valid but fake service-account key the emulator never authenticates.
+ * `UNAUTHENTICATED`. A micro domain does not read that setting and runs its own check, which
+ * reaches the emulator through the component. `serviceAccountKey` stays schema-required regardless,
+ * so every fixture carries a syntactically valid but fake service-account key the emulator never
+ * authenticates.
  *
  * `pubsub-trigger` carries no correlation-header path at all: `CustomCamelMessageReceiver` sets
  * `GooglePubsubConstants.ATTRIBUTES` as **one** header holding the whole attributes map, never
@@ -25,6 +27,9 @@
  * the call that produces the message -- the same "bind before producing" rule `rabbitmq.spec.ts`
  * follows for its exchange bindings.
  *
+ * `propagateContext` is read off the pulled message's attributes: `google-pubsub` publishes every
+ * header its filter lets through as an attribute.
+ *
  * The emulator is driven over its plain REST admin/data API (documented at the top of
  * `docker-compose.pubsub.yml`), not the `@google-cloud/pubsub` client library: the emulator needs no
  * authentication and the REST surface is small enough that a client library buys nothing here.
@@ -38,12 +43,34 @@ import {
   pullOnePubsub,
 } from "../../support/broker-clients.js";
 import { tokenized, callToken } from "../../support/run.js";
-import { callChain, elementNames, failedElements } from "../../support/sessions.js";
+import {
+  CALLER_REQUEST_ID,
+  HTTP_TRIGGER_STEPS,
+  REQUEST_ID_HEADER,
+  SESSION_TIMEOUT,
+  callChain,
+  elementNames,
+  failedElements,
+  trace,
+  type ChainCall,
+  type Sessions,
+} from "../../support/sessions.js";
 import { readUntil } from "../../support/poll.js";
 import { covers } from "../../registry/covers.js";
 
 /** What `readUntil` gets for the ackMode=NONE case's settle window, instead of a bare literal. */
 const ACKMODE_NONE_SETTLE_TIMEOUT = 12_000;
+
+/** Asserts a sender call answered 200; a failure carries the exceptions its session recorded. */
+async function expectSent(sessions: Sessions, call: ChainCall): Promise<void> {
+  // A failed step can still read IN_PROGRESS, with no exception, after its session has completed.
+  const causes = async () =>
+    trace(await sessions.byExternalId(call.token, { elements: 3 })).map((step) => step.exceptionInfo?.message).filter(Boolean);
+  const cause = call.response.status() === 200
+    ? ""
+    : (await readUntil(causes, (found) => found.length > 0, SESSION_TIMEOUT, 1_000)).join("; ");
+  expect(call.response.status(), cause).toBe(200);
+}
 
 // ---------------------------------------------------------------------------
 // pubsub-trigger
@@ -75,7 +102,8 @@ test(
   async ({ sessions }) => {
     // No `covers()` call: see the registry's own `R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE` reason.
     // This case still runs to prove the trigger keeps recording under `ackMode: NONE` rather than
-    // failing outright, which is worth having even though it cannot tell the value apart from AUTO.
+    // failing outright, which is worth having even though its chain completes, and on a completing
+    // chain NONE and AUTO leave the same trace.
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "pubsub-trigger-ackmode-none");
@@ -90,9 +118,10 @@ test(
     // exchange is in flight, so no redelivery is observable inside any bounded window a case can
     // afford to wait -- a 25 s wait produced none, and this case's own observable (one session, no
     // failed elements) is identical to the AUTO case's, so it cannot stand as proof the axis value
-    // took effect. `readUntil` still spends the whole window rather than exiting on the first
-    // (always true) reading, so this is a genuine bounded wait for "nothing more happened", not a
-    // `toPass` that a first, too-early poll would satisfy.
+    // took effect. A failing chain would differ: AUTO nacks it and the emulator delivers it again
+    // (trigger-idempotency.spec.ts). `readUntil` still spends the whole window rather than exiting on
+    // the first (always true) reading, so this is a genuine bounded wait for "nothing more happened",
+    // not a `toPass` that a first, too-early poll would satisfy.
     const settled = await readUntil(
       () => sessions.idsOf(chain.id),
       (ids) => [...ids].filter((id) => !before.has(id)).length > 1,
@@ -112,22 +141,22 @@ test(
 test(
   "an HTTP call drives pubsub-sender, and the payload lands on the topic",
   { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ request, env, sessions, run }) => {
+  async ({ request, env, sessions }) => {
     covers("pubsub-sender");
     covers("pubsub-sender", "messageOrderingEnabled", false);
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "pubsub-sender-basic");
     const topic = chain.broker.destinationName as string;
-    const subscription = tokenized(run, "pubsub-sender-basic-consumer");
+    const subscription = `${topic}-consumer`;
     const body = { ping: "pubsub-send", nonce: callToken("nonce") };
 
     await createPullSubscription(topic, subscription);
     try {
-      const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
-      expect(response.status()).toBe(200);
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
+      await expectSent(sessions, call);
 
-      const session = await sessions.byExternalId(token, { elements: 3 });
+      const session = await sessions.byExternalId(call.token, { elements: 3 });
       expect(session.chainId).toBe(chain.id);
       expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "PubSub Sender"]);
       expect(failedElements(session)).toEqual([]);
@@ -144,21 +173,21 @@ test(
 test(
   "pubsub-sender with messageOrderingEnabled=true publishes the message under its ordering key",
   { tag: ["@engine", "@sessions", "@tier2"] },
-  async ({ request, env, sessions, run }) => {
+  async ({ request, env, sessions }) => {
     covers("pubsub-sender", "messageOrderingEnabled", true);
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "pubsub-sender-ordering");
     const topic = chain.broker.destinationName as string;
-    const subscription = tokenized(run, "pubsub-sender-ordering-consumer");
+    const subscription = `${topic}-consumer`;
     const body = { ping: "pubsub-ordering", nonce: callToken("nonce") };
 
     await createPullSubscription(topic, subscription);
     try {
-      const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
-      expect(response.status()).toBe(200);
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
+      await expectSent(sessions, call);
 
-      const session = await sessions.byExternalId(token, { elements: 3 });
+      const session = await sessions.byExternalId(call.token, { elements: 3 });
       expect(session.chainId).toBe(chain.id);
       expect(failedElements(session)).toEqual([]);
 
@@ -171,3 +200,31 @@ test(
     }
   },
 );
+
+for (const value of [true, false]) {
+  const branch = `propagateContext=${value}`;
+  test(`${branch}: pubsub-sender ${value ? "sends" : "drops"} the caller's request id`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+    covers("pubsub-sender", "propagateContext", value);
+
+    const chain = brokerChain(readBrokersCorpusState(), `pubsub-sender-propagate-context-${value}`);
+    const topic = chain.broker.destinationName as string;
+    const subscription = `${topic}-consumer`;
+    const body = { ping: "pubsub-propagate-context", nonce: callToken("nonce") };
+
+    await createPullSubscription(topic, subscription);
+    try {
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: body, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
+      await expectSent(sessions, call);
+      const session = await sessions.settled(await sessions.byExternalId(call.token, { elements: 3 }));
+      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch]);
+      expect(failedElements(session)).toEqual([]);
+
+      const message = await pullOnePubsub(subscription);
+      expect(message, `no message arrived on subscription ${subscription} within the wait`).not.toBeNull();
+      expect(message!.data).toEqual(body);
+      expect(message!.attributes[REQUEST_ID_HEADER]).toBe(value ? CALLER_REQUEST_ID : undefined);
+    } finally {
+      await deletePullSubscription(subscription);
+    }
+  });
+}

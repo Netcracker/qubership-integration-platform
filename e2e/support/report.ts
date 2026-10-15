@@ -56,7 +56,7 @@ export interface ServiceFacts {
   imageCreated: string | null;
 }
 
-/** A project or spec file the run leaves out, and why. */
+/** A project the run leaves out, and why. */
 export interface Absence {
   name: string;
   reason: string;
