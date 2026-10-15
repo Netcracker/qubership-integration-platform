@@ -19,8 +19,9 @@
  *
  * On the micro engine the wait runs under the `SCHEDULER_FIRES_ON_ANOTHER_DOMAIN` pin. A failure
  * carries how many lines the domain's pod logged for the chain during the wait, how many sessions
- * the chain recorded on its domain before it, and the other micro domains the catalog lists; the
- * pin strikes only when all three fit the defect.
+ * the chain recorded on its domain before it, and the other micro domains the catalog lists. On a k8s
+ * run with brokers the last two always fit the pin, so it strikes on every micro scheduler that stops
+ * firing after its first tick, and only one that never fired stays red.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { projectCorpus, readCorpusState, seedChain } from "../../support/corpus.js";
