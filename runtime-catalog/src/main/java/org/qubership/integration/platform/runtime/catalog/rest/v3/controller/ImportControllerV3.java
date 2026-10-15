@@ -54,7 +54,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v3/import", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v3/import", "/api/cip/v3/import"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "import-controller-v-3", description = "Import Controller V3")
 public class ImportControllerV3 {

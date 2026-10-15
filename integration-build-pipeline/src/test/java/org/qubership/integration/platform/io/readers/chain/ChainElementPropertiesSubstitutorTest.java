@@ -29,6 +29,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChainElementPropertiesSubstitutorTest {
@@ -261,5 +262,164 @@ class ChainElementPropertiesSubstitutorTest {
         assertEquals("handle validation", handlerContainer.get("script"));
         assertFalse(handlerContainer.containsKey("propertiesFilename"));
         assertTrue(((Map<?, ?>) element.getProperties().get("before")).containsKey("type"));
+    }
+
+    @DisplayName("Validation schema files are restored into inline schemas")
+    @Test
+    void restoresValidationSchemasFromFiles() {
+        Map<String, Object> httpAfterEntry = new HashMap<>();
+        httpAfterEntry.put("code", "ignored");
+        httpAfterEntry.put("validationSchemaFilename", "http-after.json");
+        Map<String, Object> httpProperties = new HashMap<>();
+        httpProperties.put("validationSchemaFilename", "http-top.json");
+        httpProperties.put("after", new ArrayList<>(List.of(httpAfterEntry)));
+        ChainElementExternalEntity httpElement = ChainElementExternalEntity.builder()
+                .id("ht-1")
+                .type("http-trigger")
+                .properties(httpProperties)
+                .build();
+
+        Map<String, Object> asyncFileEntry = new HashMap<>();
+        asyncFileEntry.put("code", "c1");
+        asyncFileEntry.put("label", "l1");
+        asyncFileEntry.put("validationSchemaFilename", "async-after.json");
+        Map<String, Object> asyncKeptEntry = new HashMap<>();
+        asyncKeptEntry.put("code", "c2");
+        asyncKeptEntry.put("label", "l2");
+        asyncKeptEntry.put("schema", "keep");
+        Map<String, Object> asyncProperties = new HashMap<>();
+        asyncProperties.put("validationSchemaFilename", "async-top.json");
+        asyncProperties.put("after", new ArrayList<>(List.of(asyncFileEntry, asyncKeptEntry)));
+        ChainElementExternalEntity asyncElement = ChainElementExternalEntity.builder()
+                .id("at-1")
+                .type("async-api-trigger")
+                .properties(asyncProperties)
+                .build();
+
+        Map<String, Object> validationFileEntry = new HashMap<>();
+        validationFileEntry.put("code", "200");
+        validationFileEntry.put("type", "responseValidation");
+        validationFileEntry.put("validationSchemaFilename", "service-after-validation.json");
+        Map<String, Object> validationKeptEntry = new HashMap<>();
+        validationKeptEntry.put("code", "404");
+        validationKeptEntry.put("type", "responseValidation");
+        validationKeptEntry.put("schema", "keep");
+        Map<String, Object> serviceProperties = new HashMap<>();
+        serviceProperties.put("afterValidation",
+                new ArrayList<>(List.of(validationFileEntry, validationKeptEntry)));
+        ChainElementExternalEntity serviceElement = ChainElementExternalEntity.builder()
+                .id("sc-1")
+                .type("service-call")
+                .properties(serviceProperties)
+                .build();
+
+        Map<String, String> files = Map.of(
+                "http-top.json", "{\"type\":\"object\"}",
+                "async-top.json", "{\"type\":\"string\"}",
+                "async-after.json", "{\"type\":\"number\"}",
+                "service-after-validation.json", "{\"type\":\"boolean\"}");
+        PropertyFileSource source = files::get;
+
+        substitutor.enrichElementWithFileProperties(httpElement, source);
+        substitutor.enrichElementWithFileProperties(asyncElement, source);
+        substitutor.enrichElementWithFileProperties(serviceElement, source);
+
+        assertEquals("{\"type\":\"object\"}", httpProperties.get("validationSchema"));
+        assertFalse(httpProperties.containsKey("validationSchemaFilename"));
+        assertFalse(httpAfterEntry.containsKey("schema"));
+        assertEquals("http-after.json", httpAfterEntry.get("validationSchemaFilename"));
+        assertEquals("{\"type\":\"string\"}", asyncProperties.get("validationSchema"));
+        assertFalse(asyncProperties.containsKey("validationSchemaFilename"));
+        assertEquals("{\"type\":\"number\"}", asyncFileEntry.get("schema"));
+        assertFalse(asyncFileEntry.containsKey("validationSchemaFilename"));
+        assertEquals("keep", asyncKeptEntry.get("schema"));
+        assertFalse(asyncKeptEntry.containsKey("validationSchemaFilename"));
+        assertEquals("{\"type\":\"boolean\"}", validationFileEntry.get("schema"));
+        assertFalse(validationFileEntry.containsKey("validationSchemaFilename"));
+        assertEquals("keep", validationKeptEntry.get("schema"));
+    }
+
+    @DisplayName("Invalid validation schema references fail the import")
+    @Test
+    void rejectsInvalidValidationSchemaReferences() {
+        Map<String, Object> missingFileProperties = new HashMap<>();
+        missingFileProperties.put("validationSchemaFilename", "missing.json");
+        ChainElementExternalEntity missingFileElement = ChainElementExternalEntity.builder()
+                .id("ht-1")
+                .type("http-trigger")
+                .properties(missingFileProperties)
+                .build();
+        IllegalArgumentException missingFileError = assertThrows(IllegalArgumentException.class,
+                () -> substitutor.enrichElementWithFileProperties(missingFileElement, name -> null));
+        assertTrue(missingFileError.getMessage().contains("missing.json"));
+
+        Map<String, Object> badAfterProperties = new HashMap<>();
+        badAfterProperties.put("after", "not-a-list");
+        ChainElementExternalEntity badAfterElement = ChainElementExternalEntity.builder()
+                .id("at-1")
+                .type("async-api-trigger")
+                .properties(badAfterProperties)
+                .build();
+        IllegalArgumentException badAfterError = assertThrows(IllegalArgumentException.class,
+                () -> substitutor.enrichElementWithFileProperties(badAfterElement, name -> null));
+        assertTrue(badAfterError.getMessage().contains("after"));
+
+        Map<String, Object> badEntryProperties = new HashMap<>();
+        badEntryProperties.put("after", new ArrayList<>(List.of("not-a-map")));
+        ChainElementExternalEntity badEntryElement = ChainElementExternalEntity.builder()
+                .id("at-2")
+                .type("async-api-trigger")
+                .properties(badEntryProperties)
+                .build();
+        IllegalArgumentException badEntryError = assertThrows(IllegalArgumentException.class,
+                () -> substitutor.enrichElementWithFileProperties(badEntryElement, name -> null));
+        assertTrue(badEntryError.getMessage().contains("after"));
+
+        Map<String, Object> badValidationProperties = new HashMap<>();
+        badValidationProperties.put("afterValidation", "not-a-list");
+        ChainElementExternalEntity badValidationElement = ChainElementExternalEntity.builder()
+                .id("sc-1")
+                .type("service-call")
+                .properties(badValidationProperties)
+                .build();
+        IllegalArgumentException badValidationError = assertThrows(IllegalArgumentException.class,
+                () -> substitutor.enrichElementWithFileProperties(badValidationElement, name -> null));
+        assertTrue(badValidationError.getMessage().contains("afterValidation"));
+
+        Map<String, Object> badValidationEntryProperties = new HashMap<>();
+        badValidationEntryProperties.put("afterValidation", new ArrayList<>(List.of("not-a-map")));
+        ChainElementExternalEntity badValidationEntryElement = ChainElementExternalEntity.builder()
+                .id("sc-2")
+                .type("service-call")
+                .properties(badValidationEntryProperties)
+                .build();
+        IllegalArgumentException badValidationEntryError = assertThrows(IllegalArgumentException.class,
+                () -> substitutor.enrichElementWithFileProperties(badValidationEntryElement, name -> null));
+        assertTrue(badValidationEntryError.getMessage().contains("afterValidation"));
+
+        Map<String, Object> noFilenameProperties = new HashMap<>();
+        noFilenameProperties.put("validationSchema", "keep");
+        ChainElementExternalEntity noFilenameElement = ChainElementExternalEntity.builder()
+                .id("ht-2")
+                .type("http-trigger")
+                .properties(noFilenameProperties)
+                .build();
+        substitutor.enrichElementWithFileProperties(noFilenameElement, name -> {
+            throw new AssertionError("no file should be read");
+        });
+        assertEquals("keep", noFilenameProperties.get("validationSchema"));
+
+        Map<String, Object> nonStringFilenameProperties = new HashMap<>();
+        nonStringFilenameProperties.put("validationSchemaFilename", 42);
+        ChainElementExternalEntity nonStringFilenameElement = ChainElementExternalEntity.builder()
+                .id("ht-3")
+                .type("http-trigger")
+                .properties(nonStringFilenameProperties)
+                .build();
+        substitutor.enrichElementWithFileProperties(nonStringFilenameElement, name -> {
+            throw new AssertionError("no file should be read");
+        });
+        assertEquals(42, nonStringFilenameProperties.get("validationSchemaFilename"));
+        assertFalse(nonStringFilenameProperties.containsKey("validationSchema"));
     }
 }

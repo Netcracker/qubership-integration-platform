@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BulkDeploymentResult,
   BulkDeploymentSnapshotAction,
@@ -22,6 +22,9 @@ import {
   DomainsFormItem,
   isDomainSelectionInvalid,
 } from "../SelectDomains.tsx";
+import { toDomains } from "../../misc/domain-utils.ts";
+import { useInitialDomains } from "../../hooks/useInitialDomains.ts";
+import { api } from "../../api/api.ts";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import type { TableProps } from "antd";
 
@@ -32,6 +35,8 @@ export type DeployRequest = {
 
 type DeployChainsProps = {
   chainCount: number;
+  chainIds?: string[];
+  initialDomains?: Domain[];
   onSubmit?: (options: DeployRequest) => Promise<BulkDeploymentResult[]>;
 };
 
@@ -78,17 +83,54 @@ const resultColumns: TableProps<BulkDeploymentResult>["columns"] = [
 
 export const DeployChains: React.FC<DeployChainsProps> = ({
   chainCount,
+  chainIds,
+  initialDomains,
   onSubmit,
 }) => {
   const { closeContainingModal } = useModalContext();
   const [form] = Form.useForm<DeployRequest>();
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [domainsLoading, setDomainsLoading] = useState(false);
   const [step, setStep] = useState<"form" | "results">("form");
   const domains = Form.useWatch("domains", form);
-  const isDeployDisabled = isDomainSelectionInvalid(domains);
+  const isDeployDisabled = domainsLoading || isDomainSelectionInvalid(domains);
   const [results, setResults] = useState<
     (BulkDeploymentResult & { key: React.Key })[]
   >([]);
+
+  useInitialDomains(form, initialDomains);
+
+  useEffect(() => {
+    if (initialDomains !== undefined) {
+      return;
+    }
+    if (chainIds?.length !== 1) {
+      return;
+    }
+    const chainId = chainIds[0];
+    let cancelled = false;
+    setDomainsLoading(true);
+    void api
+      .getDeployments(chainId)
+      .then((deployments) => {
+        if (!cancelled) {
+          form.setFieldsValue({ domains: toDomains(deployments) });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          form.setFieldsValue({ domains: [] });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDomainsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form, chainIds, initialDomains]);
 
   const onFinish = async (values: DeployRequest) => {
     setConfirmLoading(true);
@@ -139,12 +181,12 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
           id="deployOptionsForm"
           form={form}
           initialValues={{
-            domains: [{ name: "default", type: DomainType.CLASSIC }],
+            domains: initialDomains ?? [],
             snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
           }}
           onFinish={(values) => void onFinish(values)}
         >
-          <DomainsFormItem label="Engine domains" />
+          <DomainsFormItem label="Engine domains" disabled={domainsLoading} />
           <Form.Item name="snapshotAction" label="Snapshot action">
             <Select
               options={[

@@ -5,7 +5,6 @@ content:
   description: Created as EXTERNAL
   activeEnvironmentId: ""
   integrationSystemType: EXTERNAL
-  protocol: ""
   extendedProtocol: ""
   specification: ""
   environments: []

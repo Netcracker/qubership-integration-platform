@@ -112,6 +112,7 @@ describe("new files", () => {
       `/workspace/${result!.chainId}/${result!.chainId}.chain.cip.yaml`,
     );
     expect(document.$schema).toBe(`${SCHEMA}/chain`);
+    expect(document.content).toEqual({});
   });
 
   it.each([
@@ -131,6 +132,8 @@ describe("new files", () => {
         `/workspace/${result!.serviceId}/${result!.serviceId}${suffix}`,
       );
       expect(document.$schema).toBe(`${SCHEMA}/${schema}`);
+      expect(document.content).not.toHaveProperty("migrations");
+      expect(document.content).not.toHaveProperty("protocol");
     },
   );
 });

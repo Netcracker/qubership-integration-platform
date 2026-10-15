@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping("/v2/secret")
+@RequestMapping({"/v2/secret", "/api/cip/v2/secret"})
 @CrossOrigin(origins = "*")
 @Validated
 @Tag(name = "secret-controller-v-2", description = "Secret Controller V2")

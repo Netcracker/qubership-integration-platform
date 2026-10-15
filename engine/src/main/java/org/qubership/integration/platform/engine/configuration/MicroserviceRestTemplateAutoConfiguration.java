@@ -50,8 +50,8 @@ public class MicroserviceRestTemplateAutoConfiguration {
     public RestTemplate restTemplateMS(RestTemplateBuilder builder) {
         return builder
             .requestFactory(getClientHttpRequestFactorySupplier())
-            .setConnectTimeout(defaultRestTemplateTimeout)
-            .setReadTimeout(defaultRestTemplateTimeout)
+            .connectTimeout(defaultRestTemplateTimeout)
+            .readTimeout(defaultRestTemplateTimeout)
             .build();
     }
 
@@ -60,8 +60,8 @@ public class MicroserviceRestTemplateAutoConfiguration {
     public RestTemplate consulRestTemplateMS(RestTemplateBuilder builder) {
         return builder
             .requestFactory(getClientHttpRequestFactorySupplier())
-            .setConnectTimeout(CONSUL_REST_TEMPLATE_TIMEOUT)
-            .setReadTimeout(CONSUL_REST_TEMPLATE_TIMEOUT)
+            .connectTimeout(CONSUL_REST_TEMPLATE_TIMEOUT)
+            .readTimeout(CONSUL_REST_TEMPLATE_TIMEOUT)
             .build();
     }
 

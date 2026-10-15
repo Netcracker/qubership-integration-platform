@@ -121,6 +121,12 @@ cip:
     component:
       quartz:
         thread-pool-count: 10
+      kafka:
+        predeploy-check-enabled: ${CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED:true}
+      rabbitmq:
+        predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
+      pubsub:
+        predeploy-check-enabled: ${CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED:true}
   context-service:
     cleanup:
       cron: ${CONTEXT_RECORDS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format

@@ -157,7 +157,7 @@ export async function createService(
         description: serviceRequest.description || "",
         activeEnvironmentId: "",
         integrationSystemType: serviceRequest.type || "EXTERNAL",
-        protocol: (serviceRequest.protocol || "").toUpperCase(),
+        protocol: serviceRequest.protocol?.toUpperCase() || undefined,
         extendedProtocol: serviceRequest.extendedProtocol || "",
         specification: serviceRequest.specification || "",
         environments: [],

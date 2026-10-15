@@ -19,7 +19,7 @@ class PubSubComponentCustomizerProducerTest {
 
     @Test
     void shouldCreateCustomizerAndApplyPubSubEmulatorEndpoint() {
-        ComponentCustomizer customizer = producer.servletCustomComponentCustomizer("localhost:8085");
+        ComponentCustomizer customizer = producer.pubSubComponentCustomizer("localhost:8085");
         GooglePubsubComponent component = new GooglePubsubComponent();
 
         assertNotNull(customizer);

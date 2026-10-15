@@ -39,7 +39,8 @@ import java.util.*;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/diagnostic", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/catalog/diagnostic", "/api/v1/cip/catalog/diagnostic"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "diagnostic-controller", description = "Diagnostic Controller")
 public class DiagnosticController {
