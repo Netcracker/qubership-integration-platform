@@ -8,6 +8,7 @@ import { LIMIT_REFUSED_WITH_500 } from "../global/classic-defects.js";
 import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "../k8s/catalog-defects.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
 import { WIPE_ABORTED_ON_CONFLICT, WIPE_ANSWERED } from "../global/sessions-defects.js";
+import { countedAnswer, VALIDATION_READ_BEFORE_ALERTS } from "../global/catalog-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
 import { linesOfChain, withEngineLines } from "../../support/logs.js";
@@ -263,4 +264,29 @@ test("a bare session delete aborted on a version conflict is the known defect on
   expect(strikes(WIPE_ABORTED_ON_CONFLICT, "classic", wipeFailure(500, conflict))).toBe(false);
   // A conflict another assertion reports is not the bare delete's.
   expect(strikes(WIPE_ABORTED_ON_CONFLICT, "classic", aborted.replace(WIPE_ANSWERED, "the chain delete answered"))).toBe(false);
+});
+
+/** What `strikesAsKnown` reads when the diagnostic round-trip's findings assertion fails on `found`. */
+function findingsFailure(found: number, alertsCount: number, entities: number): string {
+  try {
+    expect(new Array(found), `the run did not flag the script this case added ${countedAnswer(alertsCount, entities)}`).toHaveLength(1);
+  } catch (cause) {
+    return String(cause);
+  }
+  throw new Error(`${found} findings passed an assertion on one`);
+}
+
+test("a validation read whose count and entities disagree is the known defect on either engine, and a consistent read is not", TAGS, () => {
+  // CI run 38680913931: the count already held the new alert, the entities did not.
+  const straddled = findingsFailure(0, 207, 206);
+  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", straddled)).toBe(true);
+  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "micro", straddled)).toBe(true);
+
+  // A count that differs only by a digit the other number lacks still differs.
+  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", findingsFailure(0, 20, 206))).toBe(true);
+  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", findingsFailure(0, 206, 2060))).toBe(true);
+
+  // The answer agrees with itself, so the rule is what missed the script.
+  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", findingsFailure(0, 206, 206))).toBe(false);
+  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", "Error: expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 0")).toBe(false);
 });
