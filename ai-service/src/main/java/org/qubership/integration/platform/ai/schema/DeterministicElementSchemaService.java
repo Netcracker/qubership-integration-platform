@@ -499,14 +499,15 @@ public class DeterministicElementSchemaService {
     if (s == null || s.isMissingNode() || s.isNull()) {
       return null;
     }
-    if (s.has(KEY_ONE_OF) && s.get(KEY_ONE_OF).isArray()) {
-      for (JsonNode option : s.get(KEY_ONE_OF)) {
-        CoercedValue coerced = coerceBySchema(rawValue, option, resolver, documentRoot, documentUri, refStack);
-        if (coerced != null) {
-          return coerced;
+    for (String keyword : List.of(KEY_ONE_OF, "anyOf", "allOf")) {
+      if (s.has(keyword) && s.get(keyword).isArray()) {
+        for (JsonNode option : s.get(keyword)) {
+          CoercedValue coerced = coerceBySchema(rawValue, option, resolver, documentRoot, documentUri, refStack);
+          if (coerced != null) {
+            return coerced;
+          }
         }
       }
-      return null;
     }
     if (!s.has("type") || !s.get("type").isTextual()) {
       return null;
@@ -600,13 +601,12 @@ public class DeterministicElementSchemaService {
     if (s == null || s.isMissingNode() || s.isNull()) {
       return false;
     }
-    if (s.has(KEY_ONE_OF) && s.get(KEY_ONE_OF).isArray()) {
-      for (JsonNode option : s.get(KEY_ONE_OF)) {
+    for (String keyword : List.of(KEY_ONE_OF, "anyOf")) {
+      for (JsonNode option : s.path(keyword)) {
         if (matchesStructuredSchema(parsed, option, resolver, documentRoot, documentUri, refStack)) {
           return true;
         }
       }
-      return false;
     }
     if (!s.has("type") || !s.get("type").isTextual()) {
       return false;
@@ -682,8 +682,8 @@ public class DeterministicElementSchemaService {
       return navigatePropertySchema(
           s.get("items"), segment, resolver, documentRoot, documentUri, refStack);
     }
-    if (s.has(KEY_ONE_OF) && s.get(KEY_ONE_OF).isArray()) {
-      for (JsonNode option : s.get(KEY_ONE_OF)) {
+    for (String keyword : List.of(KEY_ONE_OF, "anyOf")) {
+      for (JsonNode option : s.path(keyword)) {
         JsonNode hit = navigatePropertySchema(option, segment, resolver, documentRoot, documentUri, refStack);
         if (hit != null && !hit.isMissingNode()) {
           return hit;

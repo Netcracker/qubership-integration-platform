@@ -3260,6 +3260,79 @@ class ProductPipelineStageExecutorTest {
     assertEquals(1, executionCalls.get());
   }
 
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"false,/steps", "true,/steps", "true,''"})
+  void inputContractFindingNamesOnlyAConsumedArtifactInRecovery(boolean namesConsumedInput, String pointer) throws Exception {
+    var agent = FakeFailureNarrativeAgent.narrates("unused").recoverRegenerates(
+        namesConsumedInput ? Kind.IMPLEMENTATION_PLAN : Kind.CHAIN_PLAN_GRAPH, "Regenerate the rejected artifact.");
+    var execution = capability("execution-cap", context -> {
+      var plan = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.IMPLEMENTATION_PLAN)
+          .findFirst().orElseThrow();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE, "Plan contains an unknown owner.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+              "UNKNOWN_OWNER", "Plan contains an unknown owner.", true, null,
+              namesConsumedInput ? plan.artifactId() : "unconsumed-plan", pointer)), ""))));
+    });
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    var planRef = artifactStore.latest(RUN_ID, Kind.IMPLEMENTATION_PLAN).orElseThrow().reference();
+
+    var result = execute(runtime, "design-execution");
+    var context = mapper.readTree(agent.lastRecoveryContextJson.get());
+    if (namesConsumedInput) {
+      assertEquals(mapper.valueToTree(planRef), context.at("/evidence/rejectedArtifactRefs/0"));
+      assertEquals("ok", context.at("/rejectedArtifact/plan").asText());
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+      assertEquals(PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    } else {
+      assertEquals("CHAIN_PLAN_GRAPH", context.at("/evidence/rejectedArtifactRefs/0/kind").asText());
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+    }
+  }
+
+  @Test
+  void parkedInputContractFailureDoesNotRetryTheObservingProducer() throws Exception {
+    var observed = new AtomicReference<RecoveryContext>();
+    var narrative = org.mockito.Mockito.mock(FailureNarrative.class);
+    org.mockito.Mockito.when(narrative.diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(RecoveryContext.class))).thenAnswer(call -> {
+      RecoveryContext context = call.getArgument(1);
+      observed.set(context);
+      return FailureNarrative.RecoveryResult.reply(new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
+          List.of(context.evidence().failureId()), RecoveryAction.PARK, List.of(), "", "Review the rejected input."));
+    });
+    var calls = new AtomicInteger();
+    var execution = capability("execution-cap", context -> {
+      calls.incrementAndGet();
+      var plan = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.IMPLEMENTATION_PLAN)
+          .findFirst().orElseThrow();
+      var finding = new PlanValidationFinding("INPUT_CONTRACT", "Rejected plan input.", true, null,
+          plan.artifactId(), "");
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CONTRACT_FAILURE,
+          List.of(new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, new PlanValidationResult(List.of(finding)), List.of())),
+          finding.message(), null, new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(finding), ""))));
+    });
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(narrative, profile, analysisCandidate(), planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    var plan = artifactStore.latest(RUN_ID, Kind.IMPLEMENTATION_PLAN).orElseThrow().reference();
+
+    var result = execute(runtime, "design-execution");
+
+    assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+    assertEquals(List.of(plan), observed.get().evidence().rejectedArtifactRefs());
+    assertEquals(1, calls.get());
+    assertTrue(requireRun().transitions().stream().noneMatch(transition ->
+        transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)));
+  }
+
   @Test
   void rebuildPlanReopensDesignPlanningAndKeepsTheApprovedBrief() throws Exception {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");

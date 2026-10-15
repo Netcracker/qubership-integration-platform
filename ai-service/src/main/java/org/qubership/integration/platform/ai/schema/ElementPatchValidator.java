@@ -137,7 +137,7 @@ public final class ElementPatchValidator {
 
     if (props.isObject()) {
       validatePropertiesAgainstModel(
-          objectMapper, (ObjectNode) props, model, resolver, errors, missingRequired, warnings);
+          objectMapper, (ObjectNode) props, model, resolver, errors, missingRequired);
     }
 
     boolean valid = errors.isEmpty();
@@ -154,8 +154,7 @@ public final class ElementPatchValidator {
       ElementPropertiesSchemaModel model,
       SchemaRefResolver resolver,
       ArrayNode errors,
-      ArrayNode missingRequired,
-      ArrayNode warnings) {
+      ArrayNode missingRequired) {
     Set<String> allowed = new LinkedHashSet<>(model.propertyDefs().keySet());
     Iterator<String> it = patchProps.fieldNames();
     while (it.hasNext()) {
@@ -170,7 +169,6 @@ public final class ElementPatchValidator {
     }
 
     JsonNode elementRoot = resolver.loadDocumentRoot(model.elementDocumentUri());
-    String docUri = model.elementDocumentUri();
     Deque<String> refStack = new ArrayDeque<>();
 
     Map<String, String> asText = new LinkedHashMap<>();
@@ -228,25 +226,15 @@ public final class ElementPatchValidator {
       }
     }
 
-    Iterator<String> keys = patchProps.fieldNames();
-    while (keys.hasNext()) {
-      String key = keys.next();
-      JsonNode schema = model.propertyDefs().get(key);
-      if (schema == null) {
-        continue;
-      }
+    JsonNode propertiesSchema = elementRoot.path("properties").path("properties");
+    if (!propertiesSchema.isMissingNode()) {
       validateValueForSchema(
           objectMapper,
-          "properties." + key,
-          patchProps.get(key),
-          schema,
+          "properties",
+          patchProps,
+          propertiesSchema,
           resolver,
-          elementRoot,
-          docUri,
-          refStack,
-          errors,
-          warnings,
-          0);
+          errors);
     }
   }
 
@@ -293,8 +281,7 @@ public final class ElementPatchValidator {
     int index = 0;
     for (JsonNode branch : fragment.get("oneOf")) {
       index++;
-      if (branchMatchesRecursive(
-          patchProps, branch, resolver, documentRoot, documentUri, refStack, 0)) {
+      if (resolver.validate(branch, patchProps).isEmpty()) {
         anyBranch = true;
         break;
       }
@@ -472,56 +459,6 @@ public final class ElementPatchValidator {
     }
   }
 
-  private static boolean branchMatchesRecursive(
-      JsonNode patchProps,
-      JsonNode branch,
-      SchemaRefResolver resolver,
-      JsonNode documentRoot,
-      String documentUri,
-      Deque<String> refStack,
-      int depth) {
-    if (branch == null || !branch.isObject() || depth > 12) {
-      return false;
-    }
-    if (branch.has("properties") && branch.get("properties").isObject()) {
-      Iterator<Map.Entry<String, JsonNode>> it = branch.get("properties").properties().iterator();
-      while (it.hasNext()) {
-        Map.Entry<String, JsonNode> e = it.next();
-        JsonNode propSchema = e.getValue();
-        if (propSchema != null && propSchema.has("const") && patchProps.has(e.getKey())) {
-          if (!jsonEquals(patchProps.get(e.getKey()), propSchema.get("const"))) {
-            return false;
-          }
-        }
-      }
-    }
-    if (branch.has("oneOf") && branch.get("oneOf").isArray()) {
-      boolean matched = false;
-      for (JsonNode option : branch.get("oneOf")) {
-        if (branchMatchesRecursive(
-            patchProps, option, resolver, documentRoot, documentUri, refStack, depth + 1)) {
-          matched = true;
-          break;
-        }
-      }
-      if (!matched) {
-        return false;
-      }
-    }
-    if (branch.has("required") && branch.get("required").isArray()) {
-      for (JsonNode r : branch.get("required")) {
-        if (!r.isTextual()) {
-          continue;
-        }
-        String name = r.asText();
-        if (!patchProps.has(name) || patchProps.get(name).isNull()) {
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
   /**
    * Validates a single captured property value against its element schema definition.
    *
@@ -536,19 +473,13 @@ public final class ElementPatchValidator {
       String documentUri,
       ObjectMapper objectMapper) {
     ArrayNode errors = objectMapper.createArrayNode();
-    ArrayNode warnings = objectMapper.createArrayNode();
     validateValueForSchema(
         objectMapper,
         propertyPath,
         value,
         propertySchema,
         resolver,
-        documentRoot,
-        documentUri,
-        new ArrayDeque<>(),
-        errors,
-        warnings,
-        0);
+        errors);
     List<String> messages = new ArrayList<>();
     for (JsonNode error : errors) {
       if (error.has("message")) {
@@ -564,141 +495,15 @@ public final class ElementPatchValidator {
       JsonNode value,
       JsonNode schema,
       SchemaRefResolver resolver,
-      JsonNode documentRoot,
-      String documentUri,
-      Deque<String> refStack,
-      ArrayNode errors,
-      ArrayNode warnings,
-      int depth) {
-    if (depth > 10) {
-      warnings.add(
-          objectMapper
-              .createObjectNode()
-              .put("path", path)
-              .put("message", "catalog_validation_required (nesting depth limit)"));
-      return;
+      ArrayNode errors) {
+    for (var violation : resolver.validate(schema, value)) {
+      String location = violation.getInstanceLocation().toString();
+      errors.add(objectMapper.createObjectNode()
+          .put("path", path + (location.startsWith("$") ? location.substring(1) : location))
+          .put("message", violation.getMessage()
+              + (schema.has("enum") ? ". Allowed values: " + schema.get("enum")
+                  + ". Match their spelling and case exactly." : "")));
     }
-    JsonNode s = schema;
-    if (s.isObject() && s.has("$ref")) {
-      try {
-        s = resolver.dereference(documentRoot, documentUri, s, refStack);
-      } catch (SchemaRefResolutionException ex) {
-        warnings.add(
-            objectMapper
-                .createObjectNode()
-                .put("path", path)
-                .put("message", "catalog_validation_required (" + ex.getMessage() + ")"));
-        return;
-      }
-    }
-    if (s.has("oneOf") && s.get("oneOf").isArray()) {
-      boolean any = false;
-      for (JsonNode option : s.get("oneOf")) {
-        if (valueMatchesSchema(
-            value, option, resolver, documentRoot, documentUri, refStack, depth + 1)) {
-          any = true;
-          break;
-        }
-      }
-      if (!any) {
-        errors.add(
-            objectMapper
-                .createObjectNode()
-                .put("path", path)
-                .put("message", "Value does not match any allowed oneOf alternative"));
-      }
-      return;
-    }
-    if (!valueMatchesSchema(value, s, resolver, documentRoot, documentUri, refStack, depth + 1)) {
-      errors.add(
-          objectMapper
-              .createObjectNode()
-              .put("path", path)
-              .put("message", "Type or constraint mismatch for property"));
-    }
-  }
-
-  private static boolean valueMatchesSchema(
-      JsonNode value,
-      JsonNode schema,
-      SchemaRefResolver resolver,
-      JsonNode documentRoot,
-      String documentUri,
-      Deque<String> refStack,
-      int depth) {
-    if (schema == null || schema.isNull() || schema.isMissingNode() || depth > 10) {
-      return true;
-    }
-    JsonNode s = schema;
-    if (s.isObject() && s.has("$ref")) {
-      try {
-        s = resolver.dereference(documentRoot, documentUri, s, refStack);
-      } catch (SchemaRefResolutionException ex) {
-        return true;
-      }
-    }
-    if (s.has("const")) {
-      return jsonEquals(value, s.get("const"));
-    }
-    if (s.has("enum") && s.get("enum").isArray()) {
-      for (JsonNode e : s.get("enum")) {
-        if (jsonEquals(value, e)) {
-          return true;
-        }
-      }
-      return false;
-    }
-    if (s.has("oneOf") && s.get("oneOf").isArray()) {
-      for (JsonNode option : s.get("oneOf")) {
-        if (valueMatchesSchema(
-            value, option, resolver, documentRoot, documentUri, refStack, depth + 1)) {
-          return true;
-        }
-      }
-      return false;
-    }
-    if (s.has("type") && s.get("type").isTextual()) {
-      String t = s.get("type").asText();
-      boolean typeMatches = switch (t) {
-        case "string" -> value.isTextual() || value.isNull();
-        case "integer" -> value.isIntegralNumber() || value.isTextual();
-        case "number" -> value.isNumber() || value.isTextual();
-        case "boolean" ->
-            value.isBoolean()
-                || (value.isTextual()
-                    && ("true".equalsIgnoreCase(value.asText())
-                        || "false".equalsIgnoreCase(value.asText())));
-        case "array" -> value.isArray() || value.isNull();
-        case "object" -> value.isObject() || value.isNull();
-        default -> true;
-      };
-      if (!typeMatches) {
-        return false;
-      }
-    }
-    if (value.isObject()) {
-      for (JsonNode required : s.path("required")) {
-        if (!value.has(required.asText()) || value.get(required.asText()).isNull()) {
-          return false;
-        }
-      }
-      for (Map.Entry<String, JsonNode> property : s.path("properties").properties()) {
-        if (value.has(property.getKey()) && !valueMatchesSchema(
-            value.get(property.getKey()), property.getValue(), resolver,
-            documentRoot, documentUri, refStack, depth + 1)) {
-          return false;
-        }
-      }
-    }
-    if (value.isArray() && s.has("items") && s.get("items").isObject()) {
-      for (JsonNode item : value) {
-        if (!valueMatchesSchema(item, s.get("items"), resolver,
-            documentRoot, documentUri, refStack, depth + 1)) {
-          return false;
-        }
-      }
-    }
-    return true;
   }
 
   private static boolean isRedundantIfThenCatalogWarning(

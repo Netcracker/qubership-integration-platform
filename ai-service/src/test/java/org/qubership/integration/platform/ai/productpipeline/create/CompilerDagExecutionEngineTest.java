@@ -96,6 +96,61 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
 import io.smallrye.mutiny.Uni;
 
 class CompilerDagExecutionEngineTest {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void assemblyPreservesTheResolvedChainCallTargetOrRejectsConflictingAuthorValues(boolean conflicting) {
+    String conversation = "chain-call-overlay";
+    var dag = dagWithMandatoryValidation();
+    stubAssemblyAndValidator(dag);
+    var graph = new ChainPlanGraph("1.0", graphForAssembly().chain(), List.of(
+        graphForAssembly().nodes().getFirst(),
+        new ChainPlanNode("invoke-target", "chain-call-2", "Call", null, null,
+            List.of(new PlanProperty("timeout", "30000")))),
+        List.of(new ChainPlanEdge("invoke", "trigger", "invoke-target", null)));
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("invoke-target", "chain-call-2",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.ANCHOR,
+        "invoke-target", null, null, "Selected call",
+        List.of(new PlanProperty(conflicting ? "elementId" : "timeout", conflicting ? "true" : "30000")), List.of());
+    var brief = brief().withFacts(List.of(new RequirementFact("chain-call-anchor", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Invoke the selected target.", "", "", "", "", "", "",
+        List.of("invoke-target"), null, intent),
+        new RequirementFact("invoke-target", RequirementFactPolarity.POSITIVE, RequirementFactKind.CAPABILITY,
+            "chain-call-2", "Invoke the selected target.", "Target", "", "", "", "selected-trigger", "",
+            List.of("invoke-target"))));
+    var catalog = mock(org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.class);
+    var target = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
+    target.id = "selected-trigger";
+    target.type = "chain-trigger-2";
+    when(catalog.getElementsByType("any-chain", "chain-trigger-2")).thenReturn(List.of(target));
+    graph = new org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder(catalog).bind(graph, brief);
+    var base = simpleRevision();
+    var revision = new ChainSemanticRevision(base.schemaVersion(), base.revisionId(), base.chainIdentity(),
+        base.compilerContractVersion(),
+        List.of(new SemanticEntryPoint("entry", "trigger", "invoke-target", 0, new SemanticProvenance(List.of()), null)),
+        List.of(base.nodes().getFirst(), new SemanticNode.Operation("invoke-target", "chain-call-2",
+            new SemanticProvenance(List.of()))), List.of(),
+        List.of(new SemanticExecutionEdge("invoke", "trigger", "invoke-target", null, new SemanticRoute.Sequence(), null)),
+        List.of(), List.of(), List.of(), List.of(), List.of());
+    var seed = CompilerExecutionSeed.forCreate(conversation, brief, revision, graph, List.of());
+    var request = new CompilerDagExecutionRequest("run-1", conversation, manifestFor(dag), brief,
+        revision, dag, List.of(), List.of(), seed, null);
+
+    if (conflicting) {
+      var error = assertThrows(
+          org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.ResolvedTargetConflict.class,
+          () -> engine.execute(request, (id, status) -> {}).await().indefinitely());
+      assertEquals("chain-call-anchor", error.finding().originRecordId());
+    } else {
+      var result = engine.execute(request, (id, status) -> {}).await().indefinitely();
+      assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+      var call = result.graph().nodes().stream().filter(node -> node.nodeId().equals("invoke-target"))
+          .findFirst().orElseThrow();
+      assertEquals("selected-trigger", call.properties().stream().filter(property -> property.key().equals("elementId"))
+          .findFirst().orElseThrow().value());
+      assertEquals("Selected call", call.label());
+    }
+  }
+
 
   private InMemorySkillWorkspaceStore workspaceStore;
   private SkillExecutorRegistry skillRegistry;

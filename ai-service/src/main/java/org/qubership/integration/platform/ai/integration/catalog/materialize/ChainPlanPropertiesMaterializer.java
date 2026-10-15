@@ -140,7 +140,21 @@ public class ChainPlanPropertiesMaterializer {
       Map<String, Object> patchBody,
       String[] firstValidationError, RuntimeException[] failureCause)
       throws Exception {
-    ValidatedPatch validated = validatePatch(node.type(), patchBody);
+    Map<String, Object> effectivePatch = CatalogElementWrites.mergeWithCurrentElement(current, patchBody);
+    Map<String, Object> knownProperties = new LinkedHashMap<>();
+    Set<String> allowedKeys = schemaService.allowedPatchPropertyKeys(node.type());
+    if (current != null && current.properties != null) {
+      current.properties.forEach((key, value) -> {
+        if (allowedKeys.contains(key)) {
+          knownProperties.put(key, value);
+        }
+      });
+    }
+    if (patchBody.get("properties") instanceof Map<?, ?> overlay) {
+      overlay.forEach((key, value) -> knownProperties.put((String) key, value));
+    }
+    effectivePatch.put("properties", knownProperties);
+    ValidatedPatch validated = validatePatch(node.type(), effectivePatch);
     if (!validated.valid()) {
       rememberFirstValidationError(
           firstValidationError,
@@ -150,8 +164,7 @@ public class ChainPlanPropertiesMaterializer {
       return false;
     }
     // Catalog PatchElementRequest defaults properties to {} and MapStruct replaces the whole map.
-    // Validate the plan overlay against the JSON schema, then merge the live element so catalog
-    // keys the schema does not list (hidden defaults such as chain-call-2.block) stay on the PATCH.
+    // Preserve catalog-only metadata after validating the known effective properties.
     Map<String, Object> mergedPatch = CatalogElementWrites.mergeWithCurrentElement(current, validated.patchBody());
     HttpMethodRestrictCatalogShape.applyToPatchBody(mergedPatch);
     preservePlacementFields(mergedPatch, current);

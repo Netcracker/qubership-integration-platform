@@ -603,9 +603,11 @@ class CatalogFirstApiHubDiscoveryToolTest {
       assertTrue(result.contains("ERROR"), result);
       assertTrue(
           result.contains("must not use catalog or API Hub resolution")
-              || result.contains("direct endpoint"),
+              || result.contains("direct endpoint")
+              || result.contains("not supported in create-chain"),
           result);
-      if (!inbound) {
+      if (!inbound && ChainElementFamilies.bindingMode(capabilityKey)
+          != ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
         assertTrue(result.contains("remove its native sender capability"), result);
         assertTrue(result.contains("Do not invent a runtime URI"), result);
       }

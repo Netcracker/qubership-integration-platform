@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.recovery;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -9,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 
 /** Injects deterministic, chain-scoped failures for live recovery tests. */
 @ApplicationScoped
@@ -43,6 +45,28 @@ public class E2eRecoveryFaultInjector {
     }
     int count = injections.merge(runId + '\0' + stageId, 1, Integer::sum);
     return count <= fault.maxInjections() ? Optional.of(fault.causeCode()) : Optional.empty();
+  }
+
+  /** Corrupts the candidate before approval so execution rejects an actual planning artifact. */
+  public DesignExecutionPlan corruptDesignPlan(String runId, String chainName, DesignExecutionPlan plan) {
+    if (next(runId, chainName, "design-plan-validation").isEmpty()) {
+      return plan;
+    }
+    var steps = new ArrayList<>(plan.steps());
+    var step = steps.getFirst();
+    var owners = new ArrayList<>(step.owningSkillIds());
+    owners.add("E2E recovery fault: unknown planner owner");
+    steps.set(0, new DesignExecutionPlan.Step(
+        step.stepId(), step.reportOrdinal(), step.reportText(), step.ownerKind(), owners,
+        step.toolOperationRefs(), step.participantRefs(), step.operationQueryRefs(), step.dependsOn(),
+        step.requiredArtifactTypes(), step.producedArtifactTypes(), step.mappingIntentId(), step.serviceCallId(),
+        step.regionId(), step.claims()));
+    return new DesignExecutionPlan(
+        plan.schemaVersion(), plan.semanticRevisionId(), plan.designAuthority(), plan.designInputRef(),
+        plan.designInputHash(), plan.apiRelease(), plan.bindingResolutionPolicy(), steps,
+        plan.sourceReportRef(), plan.sourceReportHash(), plan.pinnedSkillHashes(), plan.pinnedAddonHashes(),
+        plan.compilerCatalogHash(), plan.bindingResolutionPolicyHash(),
+        plan.sourceContractId(), plan.sourceContractHash());
   }
 
   /** Corrupts a real graph value so the live test exercises validation and model repair. */

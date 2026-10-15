@@ -2759,6 +2759,9 @@ public final class ProductPipelineRunSupport {
 
   private boolean isCommittedRejectedInputOwner(
       ProductPipelineRunDocument doc, String owner, RecoveryCause cause) {
+    if (isCommittedContractInputOwner(doc, owner, cause, profilesByRun.get(doc.run().runId()), artifactStore)) {
+      return true;
+    }
     if (cause == null
         || !((cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
                 && "materialization".equals(doc.run().currentStageId())
@@ -2778,6 +2781,26 @@ public final class ProductPipelineRunSupport {
                     && stage.outputRefs() != null
                     && !stage.outputRefs().isEmpty())
         .orElse(false);
+  }
+
+  /** A later plan approves semantic inputs, so their producers need no separate approval. */
+  public static boolean isCommittedContractInputOwner(ProductPipelineRunDocument doc, String owner,
+      RecoveryCause cause, ProductPipelineProfile profile, ProductPipelineArtifactStore artifactStore) {
+    if (cause == null || cause.causeCode() != RecoveryCauseCode.CONTRACT_SHAPE || profile == null
+        || !stageIdsAfter(profile, owner).contains(doc.run().currentStageId())) {
+      return false;
+    }
+    var consumer = profile.stages().stream().filter(stage -> stage.stageId().equals(doc.run().currentStageId()))
+        .findFirst().orElseThrow();
+    return doc.run().stages().stream()
+        .filter(stage -> owner.equals(stage.stageId()) && stage.status() == StageStatus.SUCCEEDED)
+        .flatMap(stage -> stage.outputRefs().stream())
+        .filter(ref -> consumer.consumes().stream().anyMatch(type -> type.matches(ref.kind())))
+        .filter(ref -> cause.findings().stream().anyMatch(finding -> ref.artifactId().equals(finding.originRecordId())))
+        .anyMatch(ref -> artifactStore.get(doc.run().runId(), ref)
+            .filter(revision -> revision.provenance() != null
+                && doc.run().runId().equals(revision.provenance().runId())
+                && owner.equals(revision.provenance().stageId())).isPresent());
   }
 
   private static boolean isEarlierApprovedOwner(ProductPipelineRunDocument doc, String owner) {

@@ -9,10 +9,26 @@ import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 
 /** Applies validated author values after model-generated configuration and naming. */
 public final class RequestedElementValues {
+  public static final class ResolvedTargetConflict extends IllegalArgumentException {
+    private final String sourceFactId;
+
+    private ResolvedTargetConflict(String sourceFactId, String nodeId) {
+      super("Requirement fact '" + sourceFactId + "' sets resolver-owned chain-call-2.elementId on node '"
+          + nodeId + "'. Select the target through its capability.");
+      this.sourceFactId = sourceFactId;
+    }
+
+    public PlanValidationFinding finding() {
+      return new PlanValidationFinding(
+          "BRIEF_CONTRACT", getMessage(), true, null, sourceFactId, "/elementIntent");
+    }
+  }
+
   private RequestedElementValues() {}
 
   public static String chainName(List<RequirementFact> facts, String fallback) {
@@ -68,6 +84,9 @@ public final class RequestedElementValues {
       }
       for (var property : intent.requestedProperties()) {
         String value = property.value();
+        if ("chain-call-2".equals(node.type()) && "elementId".equals(property.key())) {
+          throw new ResolvedTargetConflict(fact.sourceFactId(), node.nodeId());
+        }
         if ("async-api-trigger".equals(node.type()) && "integrationOperationAsyncProperties".equals(property.key())) {
           try {
             var mapper = new com.fasterxml.jackson.databind.ObjectMapper();

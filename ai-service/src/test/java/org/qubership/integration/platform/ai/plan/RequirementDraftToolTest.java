@@ -1272,7 +1272,7 @@ class RequirementDraftToolTest {
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertTrue(result.contains("Requirement draft captured"), result);
     assertFalse(result.contains("catalog-backed interactions are unresolved"), result);
-    assertTrue(draft.readyForPlan());
+    assertEquals(!List.of("scs-sender", "sds-trigger").contains(capabilityKey), draft.readyForPlan());
     assertTrue(draft.catalogBindings().isEmpty());
     verifyNoInteractions(lookup);
   }

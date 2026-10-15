@@ -57,6 +57,11 @@ public final class RequirementFlowValidator {
     if (interaction.direction() == Direction.INBOUND) {
       return inboundCatalogLookupAction(interaction, factList);
     }
+    if (nativeDirectOutboundCapabilityKey(interaction.interactionId(), factList)
+        .filter(ChainElementFamilies::isSender)
+        .filter(type -> ChainElementFamilies.bindingMode(type) == BindingMode.UNSUPPORTED_IN_CREATE).isPresent()) {
+      return LookupAction.REJECT_UNSUPPORTED;
+    }
     if (hasSenderCapabilityFact(interaction.interactionId(), factList)
         || hasCompositionCapabilityFact(interaction.interactionId(), factList)) {
       return LookupAction.SKIP;
@@ -234,6 +239,10 @@ public final class RequirementFlowValidator {
       String interactionId = interaction.interactionId();
       LookupAction action = catalogLookupAction(interaction, factList);
       CatalogBindingHint hint = byInteraction.get(interactionId);
+      if (action == LookupAction.REJECT_UNSUPPORTED) {
+        return Optional.of("requirement flow interaction " + interactionId
+            + " uses an element type that is not supported in create-chain");
+      }
       if (action == LookupAction.SKIP && hint != null) {
         return Optional.of(
             "requirement flow interaction "

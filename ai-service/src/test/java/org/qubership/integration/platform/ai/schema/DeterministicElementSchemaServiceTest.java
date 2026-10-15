@@ -32,6 +32,15 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void kafkaConnectionSourceFeedbackListsTheCaseSensitiveEnum() throws Exception {
+    String error = service.validateCapturePropertyValue("kafka-sender-2", "connectionSourceType",
+        objectMapper.readTree("\"MaaS\"")).orElseThrow();
+    assertTrue(error.contains("[\"maas\",\"manual\"]"), error);
+    assertTrue(service.validateCapturePropertyValue("kafka-sender-2", "connectionSourceType",
+        objectMapper.readTree("\"maas\"")).isEmpty());
+  }
+
+  @Test
   void resolvesContextOverrideSchemaWithReferenceAnnotations() throws Exception {
     JsonNode summary = objectMapper.readTree(service.describeElementPatchSchema("http-sender"));
     assertEquals("object", summary.path("properties").path("overrideContextParams").path("type").asText());

@@ -62,7 +62,11 @@ public class RequirementTargetResolver {
           resolved.put(capability.interactionId(), matches.getFirst().id);
         } else if (capability.targetReference() != null) {
           issues.add(new Issue("INVALID_TARGET_SELECTION", path, capability.interactionId(),
-              "Select a chain trigger verified for this target chain."));
+              "Set targetReference to the chain-trigger element ID only, without a chain ID or separator."
+                  + " Verified trigger IDs for this target chain: " + triggers.stream()
+                      .filter(trigger -> trigger != null && trigger.id != null
+                          && same(owner.participant(), trigger.chainName))
+                      .map(trigger -> trigger.id).toList() + "."));
         }
       } else if ("mcp-trigger".equals(capability.capabilityKey())) {
         if (systems == null) {

@@ -192,6 +192,23 @@ class CipDesignExecutorJavaAdapterTest {
   }
 
   @Test
+  void injectedPlanDefectIsRejectedByTheRealPreconditionBeforeExecution() {
+    var injector = new org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector(
+        "Orders", "design-plan-validation=CONTRACT_SHAPE:1");
+    var corrupted = injector.corruptDesignPlan("run", "Orders.1", approvedPlan);
+    var result = adapter.executeAfterApproval(baseInputs().withPlan(corrupted, planRef));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcomeClass());
+    assertTrue(result.message().contains("unknown skill"));
+    assertTrue(result.message().contains("E2E recovery fault"));
+    assertEquals(planRef.artifactId(), result.recoveryCause().findings().getFirst().originRecordId());
+    assertEquals("/steps", result.recoveryCause().findings().getFirst().fieldPointer());
+    assertEquals(approvedPlan, injector.corruptDesignPlan("run", "Orders.1", approvedPlan));
+    assertEquals(approvedPlan, injector.corruptDesignPlan("other-run", "Other.1", approvedPlan));
+    verifyNoInteractions(runner, bindingAdapter);
+  }
+
+  @Test
   void catalogHashMismatchDoesNotInvokeRunner() {
     DesignExecutionPlan badPlan =
         samplePlan(List.of("cip-trigger-generator"), "other-catalog", "addon-hash-trigger");
@@ -506,6 +523,34 @@ class CipDesignExecutorJavaAdapterTest {
     Reference reproduced = append(Kind.VALIDATED_EXECUTION_BUNDLE, "1", validated);
     assertNotEquals(request.validatedExecutionBundleRef().artifactId(), reproduced.artifactId());
     assertEquals(request.validatedExecutionBundleRef().contentHash(), reproduced.contentHash());
+  }
+
+  @Test
+  void resolvedChainCallConflictKeepsItsBriefFactInRecovery() {
+    var graph = new org.qubership.integration.platform.ai.plan.model.ChainPlanGraph("1.0",
+        new org.qubership.integration.platform.ai.plan.model.ChainSection("Call", ""), List.of(
+            new org.qubership.integration.platform.ai.plan.model.ChainPlanNode("invoke-target", "chain-call-2", "Call",
+                null, null, List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("elementId", "selected-trigger")))),
+        List.of());
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("invoke-target", "chain-call-2",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.ANCHOR, "invoke-target", null, null,
+        null, List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("elementId", "true")), List.of());
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("chain-call-anchor",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Invoke the selected target.",
+        "", "", "", "", "", "", List.of("invoke-target"), null, intent);
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any())).thenAnswer(call -> {
+      org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.apply(graph, List.of(fact));
+      throw new AssertionError("Conflicting author identity reached execution.");
+    });
+
+    var result = org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> adapter.executeAfterApproval(baseInputs()));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcomeClass());
+    assertEquals(RecoveryCauseCode.BRIEF_CONTRACT, result.recoveryCause().causeCode());
+    assertEquals("chain-call-anchor", result.recoveryCause().findings().getFirst().originRecordId());
+    assertEquals("/elementIntent", result.recoveryCause().findings().getFirst().fieldPointer());
+    assertTrue(result.candidates().isEmpty());
   }
 
   @Test

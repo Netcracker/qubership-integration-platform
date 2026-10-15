@@ -196,7 +196,8 @@ final class RequirementRevisionAdmission {
           path + "/" + field.getKey(), issues));
     } else if (!before.equals(after)) {
       issues.add(new Issue("AUTHOR_AMENDMENT_REQUIRED", path, null,
-          "Preserve this accepted value or supply an amendment citing the exact author source and quote."));
+          "Preserve this validated value: " + before
+              + ". Restore it during automatic repair; only an amendment citing the exact author source and quote may replace it."));
     }
   }
 

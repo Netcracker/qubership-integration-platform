@@ -462,6 +462,20 @@ while (( SECONDS < deadline )); do
     planning_stall_fingerprint=""
   fi
 
+  chat_card=""
+  chat_approve_decision=""
+  if [[ "${TRANSPORT}" == "chat" \
+      && ( "${current_state}" == "WAITING_FOR_APPROVAL" || "${current_state}" == "WAITING_FOR_INPUT" ) ]]; then
+    chat_card="$(curl -fsS "${BASE_URL}/api/v1/chat/${conversation_id}/decision" || true)"
+    chat_approve_decision="$(jq -c --argjson implement "${expects_implement}" '
+      select(.kind == "approve")
+      | (if $implement and (.actions | index("approve-and-create")) != null then "approve-and-create"
+         elif (.actions | index("approve")) != null then "approve" else null end) as $action
+      | select($action != null)
+      | {action:$action, artifactType, artifactHash, revision}
+    ' <<<"${chat_card}")"
+  fi
+
   if [[ "${current_state}" == "WAITING_FOR_APPROVAL" && "${expects_approval}" == "true" ]]; then
     if [[ -n "${recovery_fault_stage}" && "${stage_id}" == "${recovery_owner_stage}" \
         && "${recovery_revise_sent}" -eq 1 ]]; then
@@ -483,7 +497,11 @@ while (( SECONDS < deadline )); do
       fi
       send_turn "agree-$(date +%s)" "" "${approve_data}"
     else
-      send_turn "agree-$(date +%s)" "Agree"
+      if [[ -z "${chat_approve_decision}" ]]; then
+        sleep 2
+        continue
+      fi
+      send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
     fi
   elif [[ "${current_state}" == "WAITING_FOR_IMPLEMENT" && "${expects_implement}" == "true" \
       && "${TRANSPORT}" != "a2a" ]]; then
@@ -534,8 +552,39 @@ while (( SECONDS < deadline )); do
     fi
   elif [[ "${current_state}" == "WAITING_FOR_INPUT" \
       && ( "${expected_state}" != "WAITING_FOR_INPUT" || "${recovery_exhaust_halt}" == "true" ) ]]; then
-    # create-chain@2 design-input asks for Generate full IDS vs Derive minimal IDS.
-    if [[ "${stage_id}" == "design-input" ]]; then
+    if [[ "${TRANSPORT}" == "chat" && -n "${chat_card}" \
+        && "${recovery_automatic_only}" == "true" && "${recovery_fault_injected}" == "1" \
+        && "${recovery_revise_sent}" -eq 0 ]] \
+        && jq -e '.actions | index("rebuild-plan") != null' <<<"${chat_card}" >/dev/null; then
+      rebuild_decision="$(jq -c '{action:"rebuild-plan", revision}' <<<"${chat_card}")"
+      send_turn "rebuild-plan-$(date +%s)" "" "" "${rebuild_decision}"
+      recovery_revise_sent=1
+      implement_sent=0
+      continue
+    fi
+    if [[ -n "${chat_approve_decision}" && "${expects_approval}" == "true" ]]; then
+      send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
+      continue
+    fi
+    if [[ "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* && "${TRANSPORT}" == "chat" ]]; then
+      case "${design_input_choice}" in
+        "Generate full IDS") ids_action="yes" ;;
+        "Derive minimal IDS") ids_action="no" ;;
+        *) echo "FAIL: unsupported designInputChoice ${design_input_choice}" >&2; break ;;
+      esac
+      ids_decision="$(jq -c --arg action "${ids_action}" '
+        select((.actions | index($action)) != null) | {action:$action, revision}
+      ' <<<"${chat_card}")"
+      if [[ -z "${ids_decision}" ]]; then
+        sleep 2
+        continue
+      fi
+      send_turn "ids-choice-$(date +%s)" "" "" "${ids_decision}"
+      design_input_sent=1
+      continue
+    fi
+    # The IDS choice can arrive during discovery, before design-input starts.
+    if [[ "${stage_id}" == "design-input" || "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* ]]; then
       # design-input asks the IDS question first and can follow up, for example for data-mapping
       # intents. Answer the follow-ups from designInputAnswers rather than calling a second
       # question a failure.
@@ -585,7 +634,8 @@ if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
   if [[ "${recovery_automatic_only}" == "true" ]]; then
     jq -e \
       --argjson faults "${recovery_fault_stages_json}" \
-      --argjson owners "${recovery_owner_stages_json}" '
+      --argjson owners "${recovery_owner_stages_json}" \
+      --argjson rebuilt "${recovery_revise_sent}" '
       . as $doc
       | all($faults[]; . as $fault
           | any($doc.attempts[]?;
@@ -597,7 +647,12 @@ if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
       and all($owners[]; . as $owner
           | any($doc.transitions[]?;
               ((.reason // "") | startswith("automatic-reopen:" + $owner + "\u0000"))
+              or ($rebuilt == 1 and $owner == "design-planning"
+                and ((.reason // "") | startswith("author-reopen:" + $owner + "\u0000")))
               or ((.reason // "") | startswith("causal reopen of " + $owner))))
+      and (if ($owners | index("design-planning")) != null then
+        ([$doc.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash]
+          | unique | length >= 2) else true end)
       and ((["MATERIALIZATION_RESULT", "CATALOG_CHAIN_SNAPSHOT", "RECONCILE_RESULT"]
         - ($doc.committedArtifactKinds // [])) | length == 0)
     ' <<<"${evidence}" >/dev/null || {
@@ -606,12 +661,16 @@ if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
     }
     jq \
       --argjson faults "${recovery_fault_stages_json}" \
-      --argjson owners "${recovery_owner_stages_json}" '{
+      --argjson owners "${recovery_owner_stages_json}" \
+      --argjson rebuilt "${recovery_revise_sent}" '{
       automaticOnly: true,
+      rebuildPlanConfirmed: ($rebuilt == 1),
       faultStages: $faults,
       ownerStages: $owners,
+      planContentHashes: ([.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash] | unique),
       causalReopens: [.transitions[]?
         | select(((.reason // "") | startswith("automatic-reopen:"))
+          or ($rebuilt == 1 and ((.reason // "") | startswith("author-reopen:design-planning\u0000")))
           or ((.reason // "") | startswith("causal reopen of ")))],
       materializedChainId,
       reconcileMatches

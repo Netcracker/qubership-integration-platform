@@ -29,6 +29,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
@@ -51,6 +52,9 @@ import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
  */
 @ApplicationScoped
 public class DesignPlanningCapability implements StageCapability {
+  @Inject
+  E2eRecoveryFaultInjector recoveryFaultInjector = new E2eRecoveryFaultInjector("", "");
+
   @Inject
   org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget llmBudget;
 
@@ -220,6 +224,7 @@ public class DesignPlanningCapability implements StageCapability {
         contract = legacyContract(report, projection, revision, pin);
         projection = withContractLineage(projection, contract);
       }
+      projection = recoveryFaultInjector.corruptDesignPlan(context.runId(), revision.chainIdentity(), projection);
       ImplementationPlan rendering = renderer.render(report, projection, revision, brief);
 
       Reference idsRef = requireInputRef(context.inputRefs(), Kind.IDS_DOCUMENT);

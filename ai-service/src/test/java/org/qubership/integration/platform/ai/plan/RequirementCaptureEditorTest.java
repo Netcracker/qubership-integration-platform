@@ -22,10 +22,60 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureEditorTest {
 
   @Test
+  void nativeAnchorRequiresItsMatchingCapabilityWhileCatalogCallsRemainValid() {
+    var base = initial();
+    assertTrue(RequirementCaptureEditor.validate(base).isEmpty());
+    var intent = new RequirementElementIntent("create-task", "chain-call-2",
+        RequirementElementIntent.Placement.ANCHOR, "create-task", null, null, null, List.of(), List.of());
+    var fact = new FactInput("chain-target", List.of("create-task"), FactKind.BEHAVIOR,
+        Polarity.POSITIVE, "Invoke the named chain.", null, null, intent);
+    var missing = new DraftInput(base.flow(), List.of(fact), base.capabilities(), List.of(), base.settings());
+    var issues = RequirementCaptureEditor.validate(missing);
+    assertTrue(issues.stream().anyMatch(issue -> issue.code().equals("NATIVE_CAPABILITY_REQUIRED")
+        && issue.entityId().equals("chain-target") && issue.message().contains("chain-call-2")), issues.toString());
+    assertEquals(List.of(fact), RequirementCaptureEditor.factsToPreserve(missing, issues));
+    var wrong = new java.util.ArrayList<>(base.capabilities());
+    wrong.add(new CapabilityInput("create-task", "http-sender", null, null, null, null, null, null));
+    assertTrue(RequirementCaptureEditor.validate(new DraftInput(base.flow(), List.of(fact), wrong,
+        List.of(), base.settings())).stream().anyMatch(issue -> issue.code().equals("NATIVE_CAPABILITY_REQUIRED")));
+    wrong.set(1, new CapabilityInput("create-task", "chain-call-2", null, null, null, null, null, null));
+    assertTrue(RequirementCaptureEditor.validate(new DraftInput(base.flow(), List.of(fact), wrong,
+        List.of(), base.settings())).isEmpty());
+  }
+
+  @Test
+  void duplicateQuestionFeedbackReusesTheSavedQuestionWithoutChangingRequirements() {
+    var base = initial();
+    var question = new RequirementCaptureInput.QuestionInput("rbac-roles", List.of("start"), "Which roles?");
+    var saved = new DraftInput(base.flow(), base.facts(), base.capabilities(), List.of(question), base.settings());
+    var duplicate = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(question), List.of(), List.of(), null);
+    var rejected = RequirementCaptureEditor.apply(saved, duplicate);
+    assertFalse(rejected.accepted());
+    assertEquals(saved, rejected.draft());
+    assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("DUPLICATE_ENTITY")
+        && issue.entityId().equals("rbac-roles") && issue.message().contains("updateQuestions")
+        && issue.message().contains("STAY")), rejected.issues().toString());
+    var revised = new RequirementCaptureInput.QuestionInput("rbac-roles", List.of("start"), "Which RBAC roles?");
+    var corrected = RequirementCaptureEditor.apply(saved, new DraftUpdate(List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(revised),
+        List.of(), null));
+    assertTrue(corrected.accepted());
+    assertEquals(List.of(revised), corrected.draft().openQuestions());
+    assertEquals(saved.flow(), corrected.draft().flow());
+    assertEquals(saved.facts(), corrected.draft().facts());
+    assertEquals(saved.capabilities(), corrected.draft().capabilities());
+  }
+
+  @Test
   void interactionOrderMustAgreeWithTheBusinessFlowAndRemainRepairable() {
     var base = initial();
     var interactions = new java.util.ArrayList<>(base.flow().interactions());
     interactions.add(new InteractionInput("notify", Direction.OUTBOUND, "Notification API", "notify", null, null, null));
+    var capabilities = new java.util.ArrayList<>(base.capabilities());
+    for (String id : List.of("create-task", "notify")) {
+      capabilities.add(new CapabilityInput(id, "http-sender", null, null, null, null, null, null));
+    }
     for (boolean predecessor : List.of(false, true)) {
       String owner = predecessor ? "notify" : "create-task";
       var intent = new RequirementElementIntent(owner, "http-sender", RequirementElementIntent.Placement.ANCHOR,
@@ -34,7 +84,7 @@ class RequirementCaptureEditorTest {
           "Run the outbound branches independently.", null, null, intent);
       var parallel = new DraftInput(new FlowInput(interactions, List.of(
           new TransitionInput("start", "create-task"), new TransitionInput("start", "notify"))),
-          List.of(fact), base.capabilities(), List.of(), base.settings());
+          List.of(fact), capabilities, List.of(), base.settings());
       var rejected = RequirementCaptureEditor.initialize(parallel);
       assertFalse(rejected.accepted());
       assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("ELEMENT_FLOW_ORDER_MISMATCH")
@@ -53,14 +103,14 @@ class RequirementCaptureEditorTest {
           List.of(changedText), parallel.capabilities(), List.of(), base.settings())).isEmpty());
       var sequential = new DraftInput(new FlowInput(interactions, List.of(
           new TransitionInput("start", "create-task"), new TransitionInput("create-task", "notify"))),
-          List.of(fact), base.capabilities(), List.of(), base.settings());
+          List.of(fact), capabilities, List.of(), base.settings());
       assertTrue(RequirementCaptureEditor.initialize(sequential).accepted());
       assertFalse(RequirementCaptureEditor.validateFactPreservation(sequential, corrected).isEmpty());
       var intermediate = new java.util.ArrayList<>(interactions);
       intermediate.add(new InteractionInput("store", Direction.OUTBOUND, "Store API", "store", null, null, null));
       var indirect = new DraftInput(new FlowInput(intermediate, List.of(
           new TransitionInput("start", "create-task"), new TransitionInput("create-task", "store"),
-          new TransitionInput("store", "notify"))), List.of(fact), base.capabilities(), List.of(), base.settings());
+          new TransitionInput("store", "notify"))), List.of(fact), capabilities, List.of(), base.settings());
       assertTrue(RequirementCaptureEditor.initialize(indirect).accepted());
     }
   }

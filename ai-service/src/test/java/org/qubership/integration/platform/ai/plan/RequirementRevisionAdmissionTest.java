@@ -23,6 +23,44 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementRevisionAdmissionTest {
 
+  @Test
+  void roleAnswerNamesMissingAmendmentChildrenAndAcceptsTheExistingNullParent() throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Create tasks with RBAC. Proceed without IDS.");
+      var original = new FactInput("access-control", List.of("entry"), FactKind.CONSTRAINT,
+          Polarity.POSITIVE, "Access control: RBAC.");
+      var base = httpDraft(List.of(original));
+      assertTrue(h.capture(base).accepted());
+      String quote = "Allow ROLE_CIP_ADMIN.";
+      var source = h.begin(quote);
+      var intent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+          "entry", null, null, null,
+          List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", "[\"ROLE_CIP_ADMIN\"]")),
+          List.of());
+      var replacement = new FactInput(original.sourceFactId(), original.interactionIds(), original.kind(),
+          original.polarity(), original.text(), null, null, intent);
+      for (String field : List.of("requestedProperties", "exactValues")) {
+        String path = "/facts/access-control/elementIntent/" + field;
+        var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(replacement), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null,
+            List.of(new AmendmentInput(path, source.turnId(), quote)));
+        var result = h.update(update);
+        assertFalse(result.accepted());
+        assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("INVALID_AUTHOR_AMENDMENT")
+            && issue.path().equals("/changes/amendments/0/path") && issue.message().contains(path)
+            && issue.message().contains("/facts/access-control/elementIntent")), result.toString());
+        assertEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
+      }
+      var corrected = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(replacement), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null,
+          List.of(new AmendmentInput("/facts/access-control/elementIntent", source.turnId(), quote)));
+      assertTrue(h.update(corrected).accepted());
+      assertEquals(replacement, h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst());
+      assertFalse(h.update(corrected).accepted(), "An admitted source cannot authorize another amendment");
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"/flow/interactions/0/operation", "/flow/interactions/missing/operation",
       "/flow/interactions/entry/interactionId", "/flow/settings/idsRequested"})

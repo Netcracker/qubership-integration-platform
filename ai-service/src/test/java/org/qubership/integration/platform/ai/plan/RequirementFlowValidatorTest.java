@@ -728,6 +728,12 @@ class RequirementFlowValidatorTest {
             RequirementFactKind.CAPABILITY,
             capabilityKey,
             "Start the chain");
+    if (org.qubership.integration.platform.ai.schema.ChainElementFamilies.bindingMode(capabilityKey)
+        == org.qubership.integration.platform.ai.schema.ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
+      assertEquals(RequirementFlowValidator.LookupAction.REJECT_UNSUPPORTED,
+          RequirementFlowValidator.catalogLookupAction(inbound, List.of(fact)));
+      return;
+    }
     assertEquals(
         RequirementFlowValidator.LookupAction.SKIP,
         RequirementFlowValidator.catalogLookupAction(inbound, List.of(fact)));
@@ -763,6 +769,12 @@ class RequirementFlowValidatorTest {
             RequirementFactKind.CAPABILITY,
             capabilityKey,
             "Send directly");
+    if (org.qubership.integration.platform.ai.schema.ChainElementFamilies.bindingMode(capabilityKey)
+        == org.qubership.integration.platform.ai.schema.ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
+      assertEquals(RequirementFlowValidator.LookupAction.REJECT_UNSUPPORTED,
+          RequirementFlowValidator.catalogLookupAction(outbound, List.of(fact)));
+      return;
+    }
     assertEquals(
         RequirementFlowValidator.LookupAction.SKIP,
         RequirementFlowValidator.catalogLookupAction(outbound, List.of(fact)));

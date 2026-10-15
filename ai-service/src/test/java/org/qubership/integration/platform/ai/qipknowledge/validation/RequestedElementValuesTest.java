@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.qipknowledge.validation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -16,6 +18,37 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 
 class RequestedElementValuesTest {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"selected-trigger", "true"})
+  void authorIdentityIsRejectedEvenWhenTheGraphAlreadyContainsIt(String boundTarget) {
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Call", ""), List.of(
+        new ChainPlanNode("invoke-target", "chain-call-2", "Call", null, null,
+            List.of(new PlanProperty("elementId", boundTarget)))), List.of());
+    var intent = new RequirementElementIntent("invoke-target", "chain-call-2", Placement.ANCHOR,
+        "invoke-target", null, null, null, List.of(new PlanProperty("elementId", "true")), List.of());
+
+    var error = assertThrows(IllegalArgumentException.class,
+        () -> RequestedElementValues.apply(graph, List.of(fact("chain-call-anchor", intent))));
+
+    assertTrue(error.getMessage().contains("chain-call-anchor"), error.getMessage());
+    assertEquals(boundTarget, graph.nodes().getFirst().properties().getFirst().value());
+  }
+
+  @Test
+  void chainCallTimeoutAndNamePreserveTheResolvedTarget() {
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Call", ""), List.of(
+        new ChainPlanNode("invoke-target", "chain-call-2", "Generated", null, null,
+            List.of(new PlanProperty("elementId", "selected-trigger")))), List.of());
+    var intent = new RequirementElementIntent("invoke-target", "chain-call-2", Placement.ANCHOR,
+        "invoke-target", null, null, "Selected call", List.of(new PlanProperty("timeout", "30000")), List.of());
+
+    var node = RequestedElementValues.apply(graph, List.of(fact("chain-call-anchor", intent))).nodes().getFirst();
+
+    assertEquals("Selected call", node.label());
+    assertEquals(List.of(new PlanProperty("elementId", "selected-trigger"), new PlanProperty("timeout", "30000")),
+        node.properties());
+  }
+
   @Test
   void requestedNamesAndConsumerOptionsOverrideGeneratedValues() throws Exception {
     var facts = List.of(

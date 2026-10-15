@@ -122,6 +122,34 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
+  void planFaultChangesTheApprovalArtifactOnceAndPreservesItsLineage() {
+    DesignPlanningCapability capability = designPlanningCapability();
+    capability.recoveryFaultInjector = new org.qubership.integration.platform.ai.productpipeline.recovery
+        .E2eRecoveryFaultInjector("Orders", "design-plan-validation=CONTRACT_SHAPE:1");
+    var first = capability.execute(sampleContext()).collect().asList().await().indefinitely().stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+    var second = capability.execute(sampleContext()).collect().asList().await().indefinitely().stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+    var corrupted = (DesignExecutionPlan) first.candidates().stream()
+        .filter(candidate -> candidate.kind() == Kind.DESIGN_EXECUTION_PLAN).findFirst().orElseThrow().payload();
+    var repaired = (DesignExecutionPlan) second.candidates().stream()
+        .filter(candidate -> candidate.kind() == Kind.DESIGN_EXECUTION_PLAN).findFirst().orElseThrow().payload();
+    assertEquals(StageOutcomeClass.CANDIDATE, first.outcomeClass());
+    assertTrue(corrupted.steps().getFirst().owningSkillIds().contains("E2E recovery fault: unknown planner owner"));
+    assertFalse(repaired.steps().getFirst().owningSkillIds().contains("E2E recovery fault: unknown planner owner"));
+    assertEquals(repaired.sourceContractHash(), corrupted.sourceContractHash());
+    assertEquals(repaired.compilerCatalogHash(), corrupted.compilerCatalogHash());
+    assertEquals(repaired.pinnedSkillHashes(), corrupted.pinnedSkillHashes());
+    assertEquals(repaired.steps().subList(1, repaired.steps().size()),
+        corrupted.steps().subList(1, corrupted.steps().size()));
+    assertFalse(first.candidates().stream().filter(candidate -> candidate.kind() == Kind.IMPLEMENTATION_PLAN)
+        .findFirst().orElseThrow().payload().equals(second.candidates().stream()
+            .filter(candidate -> candidate.kind() == Kind.IMPLEMENTATION_PLAN).findFirst().orElseThrow().payload()));
+  }
+
+  @Test
   void workerThreadToolsReachTheTurnSink() {
     List<ChatEvent> out = new ArrayList<>();
     ToolInvocationSink.bind(out::add, null, "conv-1");

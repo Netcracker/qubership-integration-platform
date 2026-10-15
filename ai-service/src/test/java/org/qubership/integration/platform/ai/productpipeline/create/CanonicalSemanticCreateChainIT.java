@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -134,6 +136,9 @@ class CanonicalSemanticCreateChainIT {
   private CipDesignExecutorJavaAdapter designExecutorAdapter;
   private DefaultChainSemanticGraphCompiler graphCompiler;
   private ChainSemanticRevision offeredRevision;
+  private ChainSemanticRevision repairedRevision;
+  private final List<ChainSemanticRevision> compiledRevisions = new ArrayList<>();
+  private FakeFailureNarrativeAgent recoveryAgent;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -168,6 +173,59 @@ class CanonicalSemanticCreateChainIT {
             "Petstore Ext",
             List.of(),
             List.of());
+  }
+
+  @Test
+  void realSemanticCompilerFailureReopensItsProducerAndRequiresNewPlanApproval() {
+    var base = offeredRevision;
+    var region = new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion.Condition(
+        "self-condition", "node-call", List.of(
+            new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticBranch.Condition(
+                "if", org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole.IF,
+                "true", 1, "node-call", List.of("node-call"))), null);
+    offeredRevision = new ChainSemanticRevision(base.schemaVersion(), "revision-invalid-condition", base.chainIdentity(),
+        base.compilerContractVersion(), base.entryPoints(), base.nodes(), List.of(region), base.executionEdges(),
+        base.containment(), base.mappingIntents(), base.constraints(), base.assumptions(), base.citations());
+    repairedRevision = base;
+    recoveryAgent = FakeFailureNarrativeAgent.narrates("Repair the semantic input.")
+        .recoverRegenerates(Kind.CHAIN_SEMANTIC_REVISION, "Repair the rejected semantic revision.");
+    var runtime = runtime();
+    startV2(runtime);
+    runtime.acceptInput(new AcceptInputCommand(RUN_ID, "Create a pets HTTP integration"))
+        .collect().asList().await().indefinitely();
+    approveLatestWaiting(runtime);
+    var rejected = artifactStore.latest(RUN_ID, Kind.CHAIN_SEMANTIC_REVISION).orElseThrow().reference();
+    approveLatestWaiting(runtime);
+    implementApprovedPlan(runtime);
+
+    assertEquals(1, compiledRevisions.size(), this::runDebug);
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status(), this::runDebug);
+    assertEquals("design-planning", loadRun().run().currentStageId());
+    var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(),
+        org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence.class);
+    assertEquals(List.of(rejected), evidence.rejectedArtifactRefs());
+    assertEquals("design-input", evidence.producerStageId());
+    assertTrue(evidence.findings().getFirst().rawValidatorJson().contains(rejected.artifactId()));
+    assertTrue(evidence.findings().getFirst().rawValidatorJson().contains("/regions/0"));
+    var repaired = artifactStore.latest(RUN_ID, Kind.CHAIN_SEMANTIC_REVISION).orElseThrow().reference();
+    assertNotEquals(rejected.contentHash(), repaired.contentHash());
+    var plan = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.DESIGN_EXECUTION_PLAN).orElseThrow(),
+        org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan.class);
+    assertEquals(base.revisionId(), plan.semanticRevisionId());
+    var contract = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.DESIGN_PLAN_CONTRACT).orElseThrow(),
+        org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.class);
+    assertEquals(base.revisionId(), contract.semanticRevisionId());
+    assertEquals(repaired, artifactStore.latest(RUN_ID, Kind.DESIGN_PLAN_CONTRACT).orElseThrow().inputs().stream()
+        .filter(ref -> ref.kind() == Kind.CHAIN_SEMANTIC_REVISION).findFirst().orElseThrow());
+    org.mockito.Mockito.verifyNoInteractions(catalog);
+    assertFalse(artifactStore.hasCatalogWriteEvidence(RUN_ID));
+
+    var restored = reconstructedRuntime();
+    approveLatestWaiting(restored);
+    implementApprovedPlan(restored);
+    assertEquals(RunStatus.CHAIN_MATERIALIZED, loadRun().run().status(), this::runDebug);
+    assertEquals(2, compiledRevisions.size());
+    assertEquals(base, compiledRevisions.getLast());
   }
 
   @Test
@@ -363,7 +421,7 @@ class CanonicalSemanticCreateChainIT {
     org.mockito.Mockito.doNothing()
         .when(pinResolver)
         .verifyPersistedPin(any(), any(ChainSemanticRevision.class));
-    return CreateChainTestOrchestrator.supportBuilder(
+    var builder = CreateChainTestOrchestrator.supportBuilder(
             store,
             artifacts,
             new StageCapabilityRegistry(
@@ -377,8 +435,11 @@ class CanonicalSemanticCreateChainIT {
                     materializationCapability(artifacts))),
             clock)
         .profileCatalog(new ProductPipelineProfileCatalog(List.of(v2Profile)))
-        .compilerRunPinResolver(pinResolver)
-        .build();
+        .compilerRunPinResolver(pinResolver);
+    if (recoveryAgent != null) {
+      builder.failureNarrative(new FailureNarrative(recoveryAgent));
+    }
+    return builder.build();
   }
 
   private StageCapability materializationCapability(ProductPipelineArtifactStore artifacts) {
@@ -414,6 +475,7 @@ class CanonicalSemanticCreateChainIT {
     org.mockito.stubbing.Answer<CompilerDagExecutionResult> compile =
         invocation -> {
           ChainSemanticRevision revision = invocation.getArgument(1);
+          compiledRevisions.add(revision);
           List<ResolvedServiceCallBinding> bindings = invocation.getArgument(2);
           return compiledResult(
               graphCompiler.compile(revision, CONTRACT, bindings == null ? List.of() : bindings));
@@ -553,6 +615,9 @@ class CanonicalSemanticCreateChainIT {
     return new DesignInputCapability(
         (conversationId, prompt) -> {
           ProductCapabilityCaptureContext.offerSemantic(offeredRevision);
+          if (repairedRevision != null) {
+            offeredRevision = repairedRevision;
+          }
           return Multi.createFrom().empty();
         },
         new DefaultChainSemanticIdsRenderer());

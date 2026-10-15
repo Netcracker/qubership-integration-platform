@@ -72,8 +72,8 @@ public final class ElementPropertiesSchemaModelBuilder {
       }
     }
 
-    collectIfThen(inner, branches);
-    mergeConditionalThenElseProperties(inner, props);
+    collectIfThen(inner, branches, resolver);
+    mergeConditionalThenElseProperties(inner, props, resolver);
 
     return new ElementPropertiesSchemaModel(
         trimmed,
@@ -144,23 +144,26 @@ public final class ElementPropertiesSchemaModelBuilder {
     if (!hasRootOneOf) {
       mergeRequired(resolved, req);
     }
-    mergeConditionalThenElseProperties(resolved, props);
-    collectIfThen(resolved, branches);
-  }
-
-  private static void collectIfThen(JsonNode node, List<SchemaIfThenBranch> branches) {
-    collectIfThen(node, branches, false);
+    mergeConditionalThenElseProperties(resolved, props, resolver);
+    collectIfThen(resolved, branches, resolver);
   }
 
   private static void collectIfThen(
-      JsonNode node, List<SchemaIfThenBranch> branches, boolean nested) {
-    SchemaIfThenBranch parsed = parseIfThen(node, nested);
+      JsonNode node, List<SchemaIfThenBranch> branches, SchemaRefResolver resolver) {
+    collectIfThen(node, branches, false, resolver);
+  }
+
+  private static void collectIfThen(
+      JsonNode node, List<SchemaIfThenBranch> branches, boolean nested, SchemaRefResolver resolver) {
+    node = resolveBranch(node, resolver);
+    SchemaIfThenBranch parsed = parseIfThen(node, nested, resolver);
     if (parsed != null) {
       branches.add(parsed);
     }
   }
 
-  private static SchemaIfThenBranch parseIfThen(JsonNode node, boolean nested) {
+  private static SchemaIfThenBranch parseIfThen(
+      JsonNode node, boolean nested, SchemaRefResolver resolver) {
     if (node == null || !node.isObject() || !node.has("if")) {
       return null;
     }
@@ -179,34 +182,35 @@ public final class ElementPropertiesSchemaModelBuilder {
     JsonNode elseNode = node.path("else");
     List<SchemaIfThenBranch> nestedThen = new ArrayList<>();
     List<SchemaIfThenBranch> nestedElse = new ArrayList<>();
-    collectIfThen(thenNode, nestedThen, true);
-    collectIfThen(elseNode, nestedElse, true);
+    collectIfThen(thenNode, nestedThen, true, resolver);
+    collectIfThen(elseNode, nestedElse, true, resolver);
     return new SchemaIfThenBranch(
         entry.getKey(),
         value,
-        requiredSet(thenNode, nested),
+        requiredSet(thenNode, resolver, nested),
         nestedThen,
-        requiredSet(elseNode, nested),
+        requiredSet(elseNode, resolver, nested),
         nestedElse);
   }
 
-  private static Set<String> requiredSet(JsonNode branch, boolean allowPropertyKeyFallback) {
-    Set<String> keys = new LinkedHashSet<>();
-    mergeRequired(branch, keys);
-    if (allowPropertyKeyFallback && keys.isEmpty()) {
-      mergeObjectPropertyKeys(branch, keys);
+  private static JsonNode resolveBranch(JsonNode node, SchemaRefResolver resolver) {
+    if (node.has("$ref")) {
+      return resolver.dereference(null, "", node, new ArrayDeque<>());
     }
-    return keys;
+    return node;
   }
 
-  private static void mergeObjectPropertyKeys(JsonNode node, Set<String> keys) {
-    if (node == null || !node.isObject()) {
-      return;
+  private static Set<String> requiredSet(JsonNode branch, SchemaRefResolver resolver, boolean nested) {
+    JsonNode resolved = resolveBranch(branch, resolver);
+    Set<String> keys = new LinkedHashSet<>();
+    mergeRequired(resolved, keys);
+    for (JsonNode item : resolved.path("allOf")) {
+      keys.addAll(requiredSet(item, resolver, false));
     }
-    if (!node.has("properties") || !node.get("properties").isObject()) {
-      return;
+    if (nested && keys.isEmpty()) {
+      resolved.path("properties").fieldNames().forEachRemaining(keys::add);
     }
-    node.get("properties").fields().forEachRemaining(e -> keys.add(e.getKey()));
+    return keys;
   }
 
   private static void mergeOneOfBranchesIntoPropertyDefs(
@@ -224,7 +228,7 @@ public final class ElementPropertiesSchemaModelBuilder {
       collectBranchPropertySchemas(branch, perKey, resolver, documentRoot, documentUri, refStack);
     }
     for (Map.Entry<String, List<JsonNode>> e : perKey.entrySet()) {
-      List<JsonNode> variants = e.getValue();
+      List<JsonNode> variants = e.getValue().stream().distinct().toList();
       if (variants.size() == 1) {
         props.putIfAbsent(e.getKey(), variants.get(0));
       } else {
@@ -233,7 +237,7 @@ public final class ElementPropertiesSchemaModelBuilder {
           arr.add(v);
         }
         ObjectNode wrap = NODE_FACTORY.objectNode();
-        wrap.set("oneOf", arr);
+        wrap.set("anyOf", arr);
         props.putIfAbsent(e.getKey(), wrap);
       }
     }
@@ -304,27 +308,24 @@ public final class ElementPropertiesSchemaModelBuilder {
     }
   }
 
-  /**
-   * JSON Schema {@code if}/{@code then}/{@code else} often adds properties not listed under
-   * unconditional {@code properties}. Patch validation uses a flat allow-list ({@link
-   * ElementPatchValidator}); merge {@code then.properties} / {@code else.properties} with {@code
-   * putIfAbsent} so catalog defaults (e.g. {@code integrationOperationSkipEmptyQueryParameters} on
-   * HTTP service-call) are not rejected as unknown.
-   */
   private static void mergeConditionalThenElseProperties(
-      JsonNode node, Map<String, JsonNode> props) {
-    if (node == null || !node.isObject()) {
-      return;
+      JsonNode node, Map<String, JsonNode> props, SchemaRefResolver resolver) {
+    for (String key : List.of("then", "else")) {
+      mergeBranchProperties(node.path(key), props, resolver);
     }
-    if (node.has("then") && node.get("then").isObject()) {
-      JsonNode thenNode = node.get("then");
-      mergeObjectPropertiesIfAbsent(thenNode, props);
-      mergeConditionalThenElseProperties(thenNode, props);
+  }
+
+  private static void mergeBranchProperties(
+      JsonNode node, Map<String, JsonNode> props, SchemaRefResolver resolver) {
+    JsonNode resolved = resolveBranch(node, resolver);
+    mergeObjectPropertiesIfAbsent(resolved, props);
+    for (String key : List.of("allOf", "anyOf", "oneOf")) {
+      for (JsonNode branch : resolved.path(key)) {
+        mergeBranchProperties(branch, props, resolver);
+      }
     }
-    if (node.has("else") && node.get("else").isObject()) {
-      JsonNode elseNode = node.get("else");
-      mergeObjectPropertiesIfAbsent(elseNode, props);
-      mergeConditionalThenElseProperties(elseNode, props);
+    if (resolved.has("then") || resolved.has("else")) {
+      mergeConditionalThenElseProperties(resolved, props, resolver);
     }
   }
 

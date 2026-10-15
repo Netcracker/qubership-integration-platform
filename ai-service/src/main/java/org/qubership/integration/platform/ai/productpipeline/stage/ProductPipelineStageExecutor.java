@@ -1342,6 +1342,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         approvedSemanticRevision == null ? null : approvedSemanticRevision.reference();
     List<Reference> rejectedRefs = rejectedArtifactRefs(refs);
     ProducerInvocation invocation = producerInvocation(runId);
+    if (cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE && invocation != null) {
+      var nativeFindings = cause.findings();
+      var rejectedInputs = invocation.inputs().stream()
+          .filter(ref -> nativeFindings.stream().anyMatch(finding ->
+              ref.artifactId().equals(finding.originRecordId())))
+          .filter(ref -> artifactStore.get(runId, ref).isPresent()).toList();
+      if (!rejectedInputs.isEmpty()) {
+        rejectedRefs = rejectedInputs;
+      }
+    }
     String failureId = CanonicalPayloadHash.sha256Hex(Map.of(
         "invocation", invocation == null ? "" : invocation,
         "stage", stage.stageId(), "rejected", rejectedRefs,
@@ -1412,7 +1422,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     boolean pinnedInputsAvailable = invocationProved && invocation.inputs().stream()
         .allMatch(ref -> artifactStore.get(runId, ref).isPresent());
     boolean unresolvedChoice = ProducerOwnedRecovery.requiresPolicyConsultation(approvedBrief, cause);
-    boolean currentRepairEligible = ProducerOwnedRecovery.permitsCurrentOutputRepair(outcomeClass, cause,
+    boolean rejectedInput = invocationProved && rejectedRefs.stream().anyMatch(invocation.inputs()::contains);
+    boolean currentRepairEligible = !rejectedInput && ProducerOwnedRecovery.permitsCurrentOutputRepair(outcomeClass, cause,
         invocationProved, pinnedInputsAvailable, unresolvedChoice, catalogHasBeenWritten(runId));
     String resourceRefusal = llmBudget == null ? null : llmBudget.refusalForNextRequest(runId);
     if (resourceRefusal != null) {
@@ -2598,7 +2609,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 && "design-execution".equals(owner))
             || (cause.causeCode() == RecoveryCauseCode.GRAPH_STRUCTURE
                 && "design-execution".equals(doc.run().currentStageId())
-                && "design-input".equals(owner)));
+                && "design-input".equals(owner))
+            || ProductPipelineRunSupport.isCommittedContractInputOwner(doc, owner, cause,
+                profilesByRun.get(doc.run().runId()), artifactStore));
   }
 
   private HaltRecoveryGuard diagnoseAutomaticReopenRefusal(
@@ -2859,7 +2872,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         UserInput input = artifactStore.payload(revision.get(), UserInput.class);
         MappingGapPassThroughConfirmation.parse(input.text())
             .ifPresent(confirmation -> attributes.put("mappingGapPassThrough", confirmation));
-      } else if (ref.kind() == Kind.IDS_DOCUMENT && !attributes.containsKey("idsDocument")) {
+      } else if (ref.kind() == Kind.IDS_DOCUMENT) {
         attributes.put("idsDocument", artifactStore.payload(revision.get(), IdsDocument.class));
       } else if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
         attributes.put(
@@ -3356,6 +3369,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             .dropWhile(id -> !id.equals(doc.run().currentStageId())).skip(1).toList());
     for (StageSnapshot snapshot : doc.run().stages()) {
       if (snapshot.status() == StageStatus.PENDING || later.contains(snapshot.stageId())) { continue; }
+      if (snapshot.stageId().equals(doc.run().currentStageId()) && snapshot.status() != StageStatus.SUCCEEDED
+          && ProductPipelineRunSupport.preparingReplacement(profile, attributesByRun.get(doc.run().runId()),
+              snapshot.stageId())) {
+        continue;
+      }
       if (snapshot.status() == StageStatus.SUCCEEDED && ProductPipelineRunSupport.preparingReplacement(
           profile, attributesByRun.get(doc.run().runId()), snapshot.stageId())
           && !snapshot.candidateReferences().isEmpty()) {

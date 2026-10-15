@@ -50,6 +50,28 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
+  void selfContainingConditionIsRejectedAndItsCorrectionCanBeCaptured() throws Exception {
+    var tool = tool(completePack());
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+    var base = ChainSemanticCaptureFixtures.linearCapture();
+    var region = new ChainSemanticCapture.CapturedConditionRegion("header-check", "op-shared", List.of(
+        new ChainSemanticCapture.CapturedConditionBranch("if",
+            org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole.IF,
+            "true", 1, "op-shared", List.of("op-shared"))), null);
+    var invalid = new ChainSemanticCapture(base.chainIdentity(), base.operations(),
+        base.sequenceRegions(), List.of(region), base.splitRegions(), base.loopRegions(), base.retryRegions(),
+        base.errorScopeRegions(), base.edges(), base.containment());
+
+    var rejected = MAPPER.readTree(tool.captureChainSemanticRevision(invalid));
+
+    assertFalse(rejected.path("accepted").asBoolean());
+    assertEquals("REPAIR_CAPTURE", rejected.path("nextAction").asText());
+    assertTrue(rejected.toString().contains("cannot contain its owner"), rejected.toString());
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+    assertTrue(MAPPER.readTree(tool.captureChainSemanticRevision(base)).path("accepted").asBoolean());
+  }
+
+  @Test
   void rawSemanticRepeatIsStoppedAndAChangedCaptureRemainsEligible() throws Exception {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());

@@ -73,8 +73,8 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
         .validateElementIntent(brief, revision, contract));
     validateBindingPolicy(revision, brief, errors);
     if (!errors.isEmpty()) {
-      throw new IllegalArgumentException(
-          "Invalid chain semantic revision:\n- " + String.join("\n- ", errors));
+      throw new SemanticRevisionValidationException(
+          "Invalid chain semantic revision:\n- " + String.join("\n- ", errors), "");
     }
   }
 
@@ -141,6 +141,10 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       String elementType = elementType(node);
       if (!contract.elements().containsKey(elementType)) {
         errors.add("Unknown contract element: " + elementType);
+      }
+      if ((ChainElementFamilies.isTrigger(elementType) || ChainElementFamilies.isSender(elementType))
+          && ChainElementFamilies.bindingMode(elementType) == ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
+        errors.add("Runtime descriptor missing for element: " + elementType);
       }
       TopologyContract topology = contract.topology().get(elementType);
       if (topology != null && !topology.supported()) {
@@ -541,11 +545,20 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
   private static void validateRegions(
       ChainSemanticRevision revision, CompilerContract contract, Index index, List<String> errors) {
     Map<String, String> ownerToRegion = new LinkedHashMap<>();
-    for (SemanticRegion region : revision.regions()) {
+    for (int regionIndex = 0; regionIndex < revision.regions().size(); regionIndex++) {
+      SemanticRegion region = revision.regions().get(regionIndex);
       switch (region) {
         case SemanticRegion.Sequence sequence -> validateSequence(sequence, index, errors);
-        case SemanticRegion.Condition condition ->
-            validateCondition(condition, contract, index, ownerToRegion, errors);
+        case SemanticRegion.Condition condition -> {
+          if (condition.branches().stream().anyMatch(branch -> condition.ownerNodeId().equals(branch.entryNodeId())
+              || branch.exitNodeIds().contains(condition.ownerNodeId()))) {
+            throw new SemanticRevisionValidationException(
+                "Invalid chain semantic revision:\n- Condition '" + condition.regionId()
+                    + "' cannot contain its owner '" + condition.ownerNodeId() + "' in a branch",
+                "/regions/" + regionIndex);
+          }
+          validateCondition(condition, contract, index, ownerToRegion, errors);
+        }
         case SemanticRegion.Split split ->
             validateSplit(split, contract, index, ownerToRegion, errors);
         case SemanticRegion.Loop loop -> validateLoop(loop, index, ownerToRegion, errors);
