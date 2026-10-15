@@ -30,7 +30,8 @@
 import { test, expect } from "../../support/fixtures.js";
 import { BROKERS_FIXTURE_DIR, BROKERS_LOGGING, brokerChain, deleteKafkaTopics, ensureKafkaTopics, readBrokersCorpusState } from "../../support/brokers.js";
 import { consumeOneKafka, publishKafka } from "../../support/broker-clients.js";
-import { DEPLOY_TIMEOUT, ENGINE_CASE_TIMEOUT, waitForRoutes } from "../../support/corpus.js";
+import { DEPLOY_TIMEOUT, ENGINE_CASE_TIMEOUT, waitForRoutes, type DeployedChain } from "../../support/corpus.js";
+import type { Catalog } from "../../support/catalog.js";
 import { waitForRecording } from "../../support/cleanup.js";
 import { logWindowStart } from "../../support/logs.js";
 import { deploymentRows, withOwnFixture } from "../../support/spec-owned.js";
@@ -109,7 +110,7 @@ test("a wrong password: the classic engine parks kafka-trigger-2 and logs the re
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   const since = logWindowStart();
 
-  await withOwnFixture(catalog, run, "kafka-wrong-password.yaml", { dir: BROKERS_FIXTURE_DIR }, async (chain) => {
+  await withOwnFixture(catalog, run, "kafka-trigger-wrong-password.yaml", { dir: BROKERS_FIXTURE_DIR }, async (chain) => {
     await expect
       .poll(async () => await deploymentRows(catalog, chain.id), { timeout: DEPLOY_TIMEOUT, message: "the engine never refused the wrong password" })
       .toEqual([expect.stringContaining("PROCESSING: Kafka predeploy check is failed")]);
@@ -119,29 +120,38 @@ test("a wrong password: the classic engine parks kafka-trigger-2 and logs the re
   });
 });
 
-test("sslProtocol=TLSv1.2: a listener that accepts TLSv1.3 only refuses kafka-sender-2", { tag: ["@engine", "@sessions", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the case deploys a chain of its own, and a deploy into the shared micro domain rolls its pod" } }, async ({ request, env, catalog, sessions, run }) => {
-  covers("kafka-sender-2", "sslProtocol", "TLSv1.2");
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  // The pre-deploy check lists the topic with the default protocol, which TLS13 accepts.
-  const topic = tokenized(run, "kafka-tlsv1-2-refused");
+/**
+ * Creates `topic`, deploys the spec-owned `file` that names it, and runs `body` once the chain is
+ * deployed; the topic is deleted again whatever `body` did.
+ */
+async function withRefusedFixture(catalog: Catalog, run: string, file: string, topic: string, body: (chain: DeployedChain) => Promise<void>): Promise<void> {
   await ensureKafkaTopics([topic]);
   try {
-    await withOwnFixture(catalog, run, "kafka-tlsv1-2-refused.yaml", { dir: BROKERS_FIXTURE_DIR, logging: BROKERS_LOGGING }, async (chain) => {
+    await withOwnFixture(catalog, run, file, { dir: BROKERS_FIXTURE_DIR, logging: BROKERS_LOGGING }, async (chain) => {
       await expect.poll(async () => await deploymentRows(catalog, chain.id), { timeout: DEPLOY_TIMEOUT }).toEqual(["DEPLOYED: "]);
-      await waitForRoutes(env, [chain]);
-      await waitForRecording(env, sessions, chain);
-
-      const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "tlsv1-2-refused" } });
-      expect(response.status()).toBe(500);
-      const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
-      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "sslProtocol=TLSv1.2"]);
-      const failed = failedElements(session);
-      expect(failed.map((each) => each.elementName)).toEqual(["sslProtocol=TLSv1.2"]);
-      expect(failed[0].exceptionInfo?.stackTrace).toContain("SSLHandshakeException: Received fatal alert: protocol_version");
+      await body(chain);
     });
   } finally {
     await deleteKafkaTopics([topic]);
   }
+}
+
+test("sslProtocol=TLSv1.2: a listener that accepts TLSv1.3 only refuses kafka-sender-2", { tag: ["@engine", "@sessions", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the case deploys a chain of its own, and a deploy into the shared micro domain rolls its pod" } }, async ({ request, env, catalog, sessions, run }) => {
+  covers("kafka-sender-2", "sslProtocol", "TLSv1.2");
+  test.setTimeout(ENGINE_CASE_TIMEOUT);
+  // The pre-deploy check lists the topic with the default protocol, which TLS13 accepts.
+  await withRefusedFixture(catalog, run, "kafka-sender-tlsv1-2-refused.yaml", tokenized(run, "kafka-tlsv1-2-refused"), async (chain) => {
+    await waitForRoutes(env, [chain]);
+    await waitForRecording(env, sessions, chain);
+
+    const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "tlsv1-2-refused" } });
+    expect(response.status()).toBe(500);
+    const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
+    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "sslProtocol=TLSv1.2"]);
+    const failed = failedElements(session);
+    expect(failed.map((each) => each.elementName)).toEqual(["sslProtocol=TLSv1.2"]);
+    expect(failed[0].exceptionInfo?.stackTrace).toContain("SSLHandshakeException: Received fatal alert: protocol_version");
+  });
 });
 
 /** The engine log lines of consumer group `group` that report a refused TLS handshake. */
@@ -154,26 +164,20 @@ test("sslProtocol=TLSv1.2: a listener that accepts TLSv1.3 only refuses kafka-tr
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   const topic = tokenized(run, "kafka-trigger-tlsv1-2-refused");
   const since = logWindowStart();
-  await ensureKafkaTopics([topic]);
-  try {
-    await withOwnFixture(catalog, run, "kafka-trigger-tlsv1-2-refused.yaml", { dir: BROKERS_FIXTURE_DIR, logging: BROKERS_LOGGING }, async (chain) => {
-      await expect.poll(async () => await deploymentRows(catalog, chain.id), { timeout: DEPLOY_TIMEOUT }).toEqual(["DEPLOYED: "]);
-      // The fixture names its group after the topic, which carries the run token, so only this chain logs it.
-      await expect
-        .poll(async () => (await env.engineLogs(since)).split("\n").filter(refusedHandshakes(topic)).length, { timeout: DEPLOY_TIMEOUT, message: `the consumer of ${topic} logged no refused handshake` })
-        .toBeGreaterThan(0);
+  await withRefusedFixture(catalog, run, "kafka-trigger-tlsv1-2-refused.yaml", topic, async (chain) => {
+    // The fixture names its group after the topic, which carries the run token, so only this chain logs it.
+    await expect
+      .poll(async () => (await env.engineLogs(since)).split("\n").filter(refusedHandshakes(topic)).length, { timeout: DEPLOY_TIMEOUT, message: `the consumer of ${topic} logged no refused handshake` })
+      .toBeGreaterThan(0);
 
-      const before = await sessions.idsOf(chain.id);
-      await publishKafka(topic, callToken("kafka-trigger-refused"), JSON.stringify({ ping: "tlsv1-2-refused" }));
-      const fresh = await readUntil(
-        async () => [...(await sessions.idsOf(chain.id))].filter((id) => !before.has(id)),
-        (found) => found.length > 0,
-        REFUSED_CONSUMER_WINDOW,
-        1_000,
-      );
-      expect(fresh, "sessions the refused consumer recorded").toEqual([]);
-    });
-  } finally {
-    await deleteKafkaTopics([topic]);
-  }
+    const before = await sessions.idsOf(chain.id);
+    await publishKafka(topic, callToken("kafka-trigger-refused"), JSON.stringify({ ping: "tlsv1-2-refused" }));
+    const fresh = await readUntil(
+      async () => [...(await sessions.idsOf(chain.id))].filter((id) => !before.has(id)),
+      (found) => found.length > 0,
+      REFUSED_CONSUMER_WINDOW,
+      1_000,
+    );
+    expect(fresh, "sessions the refused consumer recorded").toEqual([]);
+  });
 });
