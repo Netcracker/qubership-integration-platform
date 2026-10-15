@@ -20,6 +20,11 @@ export function logWindowStart(): string {
   return new Date(Date.now() - LOG_CLOCK_SLACK).toISOString();
 }
 
+/** Selects the engine log lines a run of chain `id` writes, by the chain id in their MDC block. */
+export function linesOfChain(id: string): (line: string) => boolean {
+  return (line) => line.includes(`chain_id=${id}`);
+}
+
 /**
  * Runs `wait`, and adds to its failure how many engine log lines since `since` `pick` selects, and the
  * first of them. `what` names the selection in that message.

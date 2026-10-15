@@ -3,15 +3,15 @@
  * ones it must leave a real failure, and the engine gate `strikesAsKnown` puts in front of it. No stack.
  */
 import { test, expect, type APIResponse } from "@playwright/test";
-import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "../runtime/micro-defects.js";
+import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "../runtime/micro-defects.js";
 import { LIMIT_REFUSED_WITH_500 } from "../global/classic-defects.js";
 import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "../k8s/catalog-defects.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
 import { WIPE_ABORTED_ON_CONFLICT, WIPE_ANSWERED } from "../global/sessions-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
-import { withEngineLines } from "../../support/logs.js";
-import { PUBSUB_EMULATOR_BYPASSED, SFTP_TRIGGER_IDLE, linesOfChain, pubsubAuthFailure } from "../brokers/micro-defects.js";
+import { linesOfChain, withEngineLines } from "../../support/logs.js";
+import { PUBSUB_EMULATOR_BYPASSED, SFTP_TRIGGER_IDLE, pubsubAuthFailure } from "../brokers/micro-defects.js";
 import { ignoredCompileFailure, SCRIPT_COMPILE_IGNORED } from "../runtime-micro-redeploy/micro-defects.js";
 import type { Env } from "../../env/index.js";
 
@@ -131,6 +131,21 @@ test("an sftp trigger that never ran its chain is the known defect, and a run th
   expect(ran).toContain(`the engine logged 1 lines for chain ${chain} since 2026-10-14T06:18:41.203Z; the first: [INFO ] [chain_id=${chain}]`);
   expect(SFTP_TRIGGER_IDLE.matches(ran)).toBe(false);
   expect(SFTP_TRIGGER_IDLE.matches("Error: sessions of x\n\nExpected length: 1\nReceived length: 0")).toBe(false);
+});
+
+test("a scheduler chain its own micro pod never ran is the known defect, and a firing that recorded no session is not", TAGS, async () => {
+  const chain = "dfd387a7-7dcc-4e05-8942-e94fcd7bc936";
+  // What `nextFiring` in scheduler.spec.ts throws when no fresh settled session appears.
+  const timedOut = "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: false\n\nCall Log:\n- Timeout 20000ms exceeded while waiting on the predicate";
+  const idle = await engineLinesFailure("", `for chain ${chain}`, linesOfChain(chain), timedOut);
+  expect(idle).toContain(`the engine logged 0 lines for chain ${chain}`);
+  expect(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN.matches(idle)).toBe(true);
+  expect(strikes(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN, "classic", idle)).toBe(false);
+
+  // The pod ran the chain, so the firing reached it and something else lost or held the session.
+  const ran = await engineLinesFailure(`[INFO ] [chain_id=${chain}] [chain=e2e-x-scheduler-basic] Session started`, `for chain ${chain}`, linesOfChain(chain), timedOut);
+  expect(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN.matches(ran)).toBe(false);
+  expect(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN.matches(timedOut)).toBe(false);
 });
 
 /** What `withHeldAnswer` throws when `step` fails with `failure` and the held call answered `status` and `body`. */

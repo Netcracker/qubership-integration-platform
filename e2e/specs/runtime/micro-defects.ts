@@ -38,3 +38,20 @@ export const CONTEXT_STORE_UNTRANSACTED: ConditionalDefect = {
   engine: "micro",
   matches: (message) => message.includes("Transaction is not active"),
 };
+
+/**
+ * A scheduler chain on one micro domain can stop firing while another micro domain runs. Every micro
+ * pod starts its Quartz scheduler as `quartz-scheduler`, clustered over the shared `engine.QRTZ_`
+ * tables (`QuartzSchedulerProvider`), where the classic engine names its own `engine-<domain>`. All
+ * micro domains therefore share one cluster, and a trigger fires on whichever pod acquires it. On a
+ * pod with no route for the trigger, Camel's `CamelJob` creates an endpoint with no consumer and
+ * drops the firing, logging it only at debug. Measured in CI run 38673581259: the shared micro
+ * domain's `scheduler-basic` recorded a session every 3 s until 03:15:57, then none for over ten
+ * minutes, while its pod stayed up beside the brokers-micro domain's pod and logged 0 lines for the
+ * chain over the case's wait. No issue is filed yet.
+ */
+export const SCHEDULER_FIRES_ON_ANOTHER_DOMAIN: ConditionalDefect = {
+  title: "a micro domain's scheduler trigger fires on another micro domain's pod",
+  engine: "micro",
+  matches: (message) => /logged 0 lines for chain /.test(message),
+};
