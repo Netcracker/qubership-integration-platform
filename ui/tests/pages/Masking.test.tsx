@@ -156,9 +156,7 @@ describe("Masking chain header toolbar", () => {
     expect(
       within(slot).getByTestId("protected-btn-delete-selected-masked-fields"),
     ).toBeInTheDocument();
-    expect(
-      within(slot).getByTestId("protected-btn-add-new-masked-field"),
-    ).toBeInTheDocument();
+    expect(within(slot).getByTestId("masking-create")).toBeInTheDocument();
   });
 
   test("Add new masked field calls api.createMaskedField", async () => {
@@ -167,9 +165,7 @@ describe("Masking chain header toolbar", () => {
     renderMasking();
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
-    fireEvent.click(
-      within(slot).getByTestId("protected-btn-add-new-masked-field"),
-    );
+    fireEvent.click(within(slot).getByTestId("masking-create"));
 
     await waitFor(() => {
       expect(createMaskedField).toHaveBeenCalledWith("chain-1", {
