@@ -45,6 +45,7 @@ import java.util.Map;
  * runtime-catalog directly, {@code http://host:8080} + {@code /v1/chains} is correct.
  */
 @RegisterRestClient(configKey = "catalog-api")
+@RegisterProvider(CatalogBearerTokenFilter.class)
 @RegisterProvider(CatalogOutboundLoggingFilter.class)
 @RegisterProvider(CatalogResponseExceptionMapper.class)
 @Consumes(MediaType.APPLICATION_JSON)
