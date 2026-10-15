@@ -62,6 +62,12 @@ export interface Env {
    * the micro domain's pod for `micro`. What a failed case attaches.
    */
   engineLogs(since: string): Promise<string>;
+  /**
+   * What a failed case attaches about the engine beside `engineLogs`. For `micro`: the domain pod's
+   * log from its start and its last lines, the previous container's log after a restart, the pod's
+   * description with its events, and the Integration with its status. Empty for `classic`.
+   */
+  engineEvidence(): Promise<Evidence[]>;
   /** Restart a service with extra settings applied, and wait until it is serving again. */
   restartWith(service: ServiceRole, settings: Record<string, string>): Promise<void>;
   /**
@@ -150,6 +156,12 @@ export interface Env {
    * listing with these facts rather than naming the target.
    */
   domainFacts(): DomainFacts;
+}
+
+/** A named text a failed case attaches to its report. */
+export interface Evidence {
+  name: string;
+  body: string;
 }
 
 /** How the catalog reports the classic domains on a target. */

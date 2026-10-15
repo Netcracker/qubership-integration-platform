@@ -10,6 +10,7 @@
 import { proxyUrl } from "../env/containers.js";
 import {
   deploymentOf,
+  INTEGRATIONS,
   kubectl,
   microChainUrl,
   microServiceOf,
@@ -49,7 +50,6 @@ export interface Integration extends KubeObject {
   status?: { phase?: string };
 }
 
-const INTEGRATIONS = "integrations.camel.apache.org";
 const HTTP_ROUTES = "httproutes.gateway.networking.k8s.io";
 
 async function getOne<T>(kind: string, name: string): Promise<T | null> {

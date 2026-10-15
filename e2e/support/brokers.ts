@@ -59,7 +59,7 @@ import {
 } from "./corpus.js";
 import { deployToDomain, tokenedDomain } from "./deployable.js";
 import { keepEntities } from "./fixtures.js";
-import { noteChain } from "./diagnostics.js";
+import { microCaseFailed, noteChain } from "./diagnostics.js";
 import { sleep } from "./poll.js";
 import { readStateFile, writeStateFile } from "./state-file.js";
 
@@ -1042,14 +1042,19 @@ export async function teardownBrokers(catalog: Catalog, corpus: SeededBrokerCorp
 
 /**
  * Deletes the micro copy's logging properties, chains and services, then its domain, then its
- * topology, as `teardownMicroCorpus` and `teardownBrokers` do. It reads only the catalog and the
- * state file, because `suite-teardown` runs it with a classic `env`.
+ * topology, as `teardownMicroCorpus` and `teardownBrokers` do. `E2E_KEEP=1` and a failed micro case
+ * of the run keep all of it, as they keep the micro corpus. It reads only the catalog and the state
+ * file, because `suite-teardown` runs it with a classic `env`.
  */
 export async function teardownMicroBrokers(catalog: Catalog, corpus: MicroBrokerCorpus): Promise<void> {
   if (keepEntities()) {
     console.log(
       `[keep] ${corpus.chains.length} micro broker chains and domain ${corpus.domain} left behind for run ${corpus.run}`,
     );
+    return;
+  }
+  if (microCaseFailed(corpus.run)) {
+    console.log(`[keep] a micro case of run ${corpus.run} failed, so domain ${corpus.domain} stays for the cluster dump`);
     return;
   }
 

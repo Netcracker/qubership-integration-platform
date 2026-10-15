@@ -51,7 +51,7 @@ import {
   workerFolderName,
   type RunRecord,
 } from "./run.js";
-import { attachDiagnostics, beginDiagnostics } from "./diagnostics.js";
+import { attachDiagnostics, beginDiagnostics, microCaseFailed } from "./diagnostics.js";
 import { Sessions } from "./sessions.js";
 import { Engine } from "./engine.js";
 import type { EngineKind, Env } from "../env/index.js";
@@ -148,12 +148,12 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   },
 
   diagnostics: [
-    async ({ env, engineKind }, use, testInfo) => {
+    async ({ env, engineKind, run }, use, testInfo) => {
       beginDiagnostics();
       await use();
       // After the test body and before Playwright decides the run is over, which is the only point
       // where both the outcome and the window the test ran in are known.
-      await attachDiagnostics(testInfo, env, engineKind);
+      await attachDiagnostics(testInfo, env, engineKind, run);
     },
     { auto: true },
   ],
@@ -848,9 +848,12 @@ export default async function globalTeardown(): Promise<void> {
           `reason — see SECRET_FIXTURE_NAME.`,
       );
     }
-    if (keepEntities()) {
+    // A failed micro case keeps the run's micro domains for the CI cluster dump, which runs after
+    // the suite; the run keeps its manifest entry, so the next run's sweep collects them.
+    const keep = keepEntities() ? "E2E_KEEP=1" : microCaseFailed(run) ? "a micro case failed" : null;
+    if (keep) {
       const left = await findResidue(catalog, run, OUTSIDE_CATALOG);
-      console.log(`[keep] E2E_KEEP=1, ${left.length} entities left behind for run ${run}`);
+      console.log(`[keep] ${keep}, ${left.length} entities left behind for run ${run}`);
       for (const each of left) console.log(`[keep]   ${each.kind} ${each.name} (${each.id})`);
       return;
     }

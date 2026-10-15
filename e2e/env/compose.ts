@@ -6,6 +6,7 @@ import os from "node:os";
 import type {
   DomainFacts,
   Env,
+  Evidence,
   Overlay,
   ProcessEnvelope,
   ResourcePeak,
@@ -158,6 +159,10 @@ export class ComposeEnv implements Env {
 
   engineLogs(since: string): Promise<string> {
     return this.logs("engine", since);
+  }
+
+  async engineEvidence(): Promise<Evidence[]> {
+    return [];
   }
 
   async settings(service: ServiceRole): Promise<Record<string, string>> {

@@ -143,7 +143,8 @@ its broker overlays before a Kubernetes run, and run `helm uninstall qip -n qip-
 Compose run. Each target keeps its own state files. The Kubernetes ones start with `.e2e-k8s-`
 (`.e2e-k8s-corpus.json`, `.e2e-k8s-brokers-corpus.json`, `.e2e-k8s-runs.json`,
 `.e2e-k8s-overrides.json`, `.e2e-k8s-micro-corpus.json`, `.e2e-k8s-micro-redeploy.json`,
-`.e2e-k8s-brokers-micro-corpus.json`, `.e2e-k8s-resources.json`, `.e2e-k8s-samples.jsonl`), so a
+`.e2e-k8s-brokers-micro-corpus.json`, `.e2e-k8s-micro-failure`, `.e2e-k8s-resources.json`,
+`.e2e-k8s-samples.jsonl`), so a
 sweep or a settings revert never reaches the other target.
 `.e2e-ui-server.json` is shared, because the UI bundle is the same on both.
 
@@ -227,7 +228,9 @@ in the repository variable `EMAIL_TO`; until a repository admin creates it, the 
 a run that has already failed. Every run uploads the `e2e-report` artifact: `playwright-report/`,
 `test-results/`, the `.e2e-k8s-` state files, and `.e2e-ui-server.log`. A failed or cancelled run
 also uploads `e2e-cluster`: the workloads and events of every namespace, a description of each pod
-in `qip-e2e`, and the logs of those pods' containers, istiod, and the camel-k operator.
+in `qip-e2e`, the camel-k Integrations, and the logs of those pods' containers, istiod, and the
+camel-k operator. The dump runs after the suite, so it holds a micro domain's pod only because a
+failed micro case keeps the run's micro domains (see [Reading a failure](#reading-a-failure)).
 
 No pull request check runs the suite. `npm run check-types` and `--project=schema` need no stack;
 run them before pushing, as `AGENTS.md` describes.
@@ -286,6 +289,9 @@ E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
   corpus, as above, so the seed does not run again.
 - Set `E2E_KEEP=1` to skip teardown and pick a failure apart on the stack. Whatever the run created
   stays behind, named with the run token the failing spec prints.
+- On `k8s`, a failed micro case does the same on its own: its run keeps the micro domains and every
+  other entity, so `kubectl logs -n qip-e2e deploy/qip-engine-<domain>-v1 -c integration` still
+  reads the pod. The next run's sweep removes them.
 
 ## Flags
 
@@ -349,16 +355,30 @@ off the last line. `test-results/report.json` holds the same run in machine-read
 
 ### Reading a failure
 
-A failed spec attaches three things beyond the assertion diff, in the HTML report under the test:
+A failed spec attaches these beyond the assertion diff, in the HTML report under the test:
 
 - **`trace`**: every request and response the spec made. It is kept on failure, because
   `retries: 0` makes the usual `on-first-retry` trigger unreachable.
 - **`engine.log`**: the engine's own lines for the chain the spec addressed, since the moment the
   test started, plus the unfiltered tail. It separates "the platform regressed" from "the route
-  never started".
+  never started". A case on a micro project, `seed-micro` included, attaches `micro-engine.log`
+  instead.
+- **The micro domain's own state**, on a micro project only, read while the pod still exists:
+  `micro-pod.log` holds the first 256 KiB (262144 bytes) of the pod's log, where the engine logs
+  its startup, and its last 1500 lines; `micro-pod.previous.log` holds the previous container's
+  log after a restart; `micro-pod.describe.txt` is the pod's description with its events; and
+  `micro-integration.yaml` is the Integration with its status.
 - **`session-<id>.json`** and a link into the UI, for the trace a person reads as a diagram. When
   the spec found no session, the attachment says which token it waited for; that absence is itself
   the finding.
+
+When the routes of a deploy never all answer, the failure lists what each route still failing
+answered over the whole wait, as a count per status, such as `503 x12, 500 x31, 405 x29`. A route
+that flips between a serving and a failing status shows both, where the last poll shows only one.
+
+A failed micro case also writes its run token to `.e2e-k8s-micro-failure`. The `seed-micro` and
+`brokers-micro-seed` teardowns and the end-of-run sweep then keep the run's entities, as
+`E2E_KEEP=1` does, so the CI cluster dump still finds the micro pods.
 
 A browser case also holds a DOM snapshot and a screenshot for each step. A failure from the page
 guard names the route the page was on and the first problem it caught: an uncaught exception, a
@@ -509,8 +529,8 @@ as having lost its test.
 
 ## Residue from a previous run
 
-Two endings leave a corpus behind: `E2E_KEEP=1`, and a run that dies without finishing, such as a
-`kill -9`, a closed terminal, or a second Ctrl-C. One Ctrl-C still runs the teardown. The next run
+Three endings leave a corpus behind: `E2E_KEEP=1`, a failed micro case on `k8s`, and a run that
+dies without finishing, such as a `kill -9`, a closed terminal, or a second Ctrl-C. One Ctrl-C still runs the teardown. The next run
 sweeps whatever is left at its start and reports what it removed:
 
 ```text
@@ -537,7 +557,7 @@ Some residue is not swept:
   `/upload/<run>` SFTP tree come down only in the teardown of the run that created them, so a
   `brokers-seed` run that dies before its teardown leaves them to be cleared by hand. The same holds
   for the micro copy that `brokers-micro-seed` records in `.e2e-k8s-brokers-micro-corpus.json`,
-  whose micro domain the sweep does delete.
+  which a failed micro case also keeps, and whose micro domain the sweep does delete.
 - **A `vite preview` on 4200.** The next run's `ui-server` setup stops it, finding it in
   `.e2e-ui-server.json`.
 
