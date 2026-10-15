@@ -79,6 +79,16 @@ async function otherMicroDomains(catalog: Catalog, domain: string): Promise<stri
   return (await catalog.listDomains()).filter((each) => each.type === "MICRO" && each.name !== domain).map((each) => each.name);
 }
 
+/** Runs `wait`, and puts the chain's firing history in front of the message it fails with. */
+async function withFiringHistory<T>(catalog: Catalog, chainName: string, domain: string, earlier: number, wait: () => Promise<T>): Promise<T> {
+  try {
+    return await wait();
+  } catch (cause) {
+    const history = firingHistory(chainName, domain, earlier, await otherMicroDomains(catalog, domain));
+    throw new Error(`${history}\n\n${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+  }
+}
+
 test(
   "a cron tick fires quartz-scheduler, found by chain id",
   { tag: ["@engine", "@sessions", "@tier1"] },
@@ -92,10 +102,7 @@ test(
 
     const session = await strikesAsKnown(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN, () =>
       withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), () =>
-        nextFiring(sessions, chain.id, 2, before).catch(async (cause: unknown) => {
-          const history = firingHistory(chain.name, domain, before.size, await otherMicroDomains(catalog, domain));
-          throw new Error(`${history}\n\n${cause instanceof Error ? cause.message : String(cause)}`, { cause });
-        }),
+        withFiringHistory(catalog, chain.name, domain, before.size, () => nextFiring(sessions, chain.id, 2, before)),
       ),
     );
     expect(session.chainId).toBe(chain.id);

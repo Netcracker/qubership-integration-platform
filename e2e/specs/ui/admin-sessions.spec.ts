@@ -57,6 +57,11 @@ function rowOf(page: Page, sessionId: string): Locator {
   return new TableView(page).rows.filter({ has: page.getByText(sessionId, { exact: true }) });
 }
 
+/** The data rows that do not name `chainName`. */
+function foreignRows(page: Page, chainName: string): Locator {
+  return page.getByRole("row").filter({ hasNot: page.getByText(chainName, { exact: true }) }).filter({ has: page.getByRole("cell") });
+}
+
 test("a session found by its chain's name opens to its trace, and its delete leaves the other session", { tag: ["@ui", "@tier1"] }, async ({ page, request, catalog, env, sessions, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   await withBuilt(catalog, async (built) => {
@@ -67,7 +72,7 @@ test("a session found by its chain's name opens to its trace, and its delete lea
     // The warm-up calls recorded sessions as well, so the list holds more rows than these two.
     await expect(rowOf(page, opened.id)).toBeVisible();
     await expect(rowOf(page, kept.id)).toBeVisible();
-    await expect(page.getByRole("row").filter({ hasNot: page.getByText(chain.name, { exact: true }) }).filter({ has: page.getByRole("cell") })).toHaveCount(0);
+    await expect(foreignRows(page, chain.name)).toHaveCount(0);
 
     await rowOf(page, opened.id).getByText(opened.id, { exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/sessions/${opened.id}$`));
@@ -108,7 +113,7 @@ test.fail("a delete of every loaded session on the admin page removes those sess
       await expect(rowOf(page, opened.id)).toBeVisible();
       await expect(rowOf(page, kept.id)).toBeVisible();
       // The unfiltered list shows the two rows too, so the selection waits for the filter to apply.
-      await expect(page.getByRole("row").filter({ hasNot: page.getByText(chain.name, { exact: true }) }).filter({ has: page.getByRole("cell") })).toHaveCount(0);
+      await expect(foreignRows(page, chain.name)).toHaveCount(0);
       await page.getByRole("row").filter({ has: page.getByRole("columnheader") }).getByRole("checkbox").check();
       // The answer, not the request: the route records a delete before it answers.
       const answered = page.waitForResponse((each) => each.request().method() === "DELETE" || each.url().endsWith("/sessions/bulk-delete"));

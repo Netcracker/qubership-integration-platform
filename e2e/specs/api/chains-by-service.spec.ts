@@ -63,14 +63,15 @@ test("the chains of a service are found by the service, the operation, the speci
   const first = operationOf(run, system.id, "first");
   const second = operationOf(run, system.id, "second");
   // A chain calling another service, so the service reader is seen to filter.
-  const elsewhere = operationOf(run, tokenized(run, "by-service-elsewhere"), "elsewhere");
+  const elsewhereId = tokenized(run, "by-service-elsewhere");
+  const elsewhere = operationOf(run, elsewhereId, "elsewhere");
   const chains: string[] = [];
   try {
     const one = await callerOf(catalog, run, folder.id, system.id, first, "one");
     chains.push(one.id);
     const two = await callerOf(catalog, run, folder.id, system.id, second, "two");
     chains.push(two.id);
-    const other = await callerOf(catalog, run, folder.id, tokenized(run, "by-service-elsewhere"), elsewhere, "other");
+    const other = await callerOf(catalog, run, folder.id, elsewhereId, elsewhere, "other");
     chains.push(other.id);
 
     const light = await catalog.chainsOfSystem(system.id);

@@ -10,14 +10,11 @@
 import { test, expect } from "../../support/page-guard.js";
 import { ChainTabsPage } from "../../pages/ChainTabsPage.js";
 import { TableView } from "../../pages/TableView.js";
-import { ENGINE_CASE_TIMEOUT, SEED_LOGGING } from "../../support/corpus.js";
+import { ENGINE_CASE_TIMEOUT, MASKING_MARKER, SEED_LOGGING } from "../../support/corpus.js";
 import { createStepsChain, markStep } from "../../support/deployable.js";
 import { deployAndRecord, withBuilt } from "../../support/cleanup.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS, trace } from "../../support/sessions.js";
 import { callToken } from "../../support/run.js";
-
-/** `CamelConstants.MASKING_TEMPLATE`, as `specs/runtime/masking-runtime.spec.ts` reads it. */
-const MASKING_MARKER = "******";
 
 const MASKED_FIELD = "uiSecret";
 
