@@ -46,6 +46,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
@@ -445,9 +446,22 @@ public class ChainImportService {
         return existingFolder;
     }
 
+    void removeAllChainElementsBeforeImportUpdate(String chainId) {
+        chainFinderService.tryFindById(chainId).ifPresent(chain -> {
+            chain.setDefaultSwimlane(null);
+            chain.setReuseSwimlane(null);
+        });
+        elementService.deleteAllByChainIdAndFlush(chainId);
+    }
+
     public ImportChainResult saveImportedChain(ChainExternalEntity chainExternalEntity, File chainFilesDir, Set<String> technicalLabels) {
         Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
         ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
+
+        if (currentChainState != null) {
+            removeAllChainElementsBeforeImportUpdate(currentChainState.getId());
+            currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
+        }
 
         Folder existingFolder = resolveOrCreateRootFolder(chainExternalEntity);
 
@@ -465,7 +479,7 @@ public class ChainImportService {
 
         newChainState.setUnsavedChanges(true);
 
-        setActualChainState(currentChainState, newChainState);
+        persistImportedChainReplacingElements(currentChainState, newChainState);
 
         logImportAction(newChainState, LogOperation.CREATE_OR_UPDATE);
 
@@ -622,32 +636,52 @@ public class ChainImportService {
                             .build());
     }
 
-    private void setActualChainState(Chain currentChainState, Chain newChainState) {
-        //Actualize new entities state in persistence context
-        //Dependencies
+    private void persistImportedChainReplacingElements(Chain currentChainState, Chain newChainState) {
+        SwimlaneChainElement defaultSwimlane = null;
+        SwimlaneChainElement reuseSwimlane = null;
+        if (currentChainState != null) {
+            defaultSwimlane = newChainState.getDefaultSwimlane();
+            reuseSwimlane = newChainState.getReuseSwimlane();
+            newChainState.setDefaultSwimlane(null);
+            newChainState.setReuseSwimlane(null);
+        }
+
+        elementService.replaceImportedChainElements(newChainState.getElements());
+
+        dependencyService.setActualizedElementDependencyStates(
+                Collections.emptySet(),
+                newChainState.getDependencies());
+
+        if (currentChainState != null) {
+            newChainState.setDefaultSwimlane(defaultSwimlane);
+            newChainState.setReuseSwimlane(reuseSwimlane);
+        }
+
+        finalizeImportedChainPersistence(currentChainState, newChainState);
+    }
+
+    private void persistImportedChainMergingElements(Chain currentChainState, Chain newChainState) {
         dependencyService.setActualizedElementDependencyStates(
                 currentChainState != null ? currentChainState.getDependencies() : Collections.emptySet(),
                 newChainState.getDependencies());
 
-        //Chain Elements
         elementService.setActualizedChainElements(
                 currentChainState != null ? currentChainState.getElements() : Collections.emptyList(),
-                newChainState.getElements()
-        );
+                newChainState.getElements());
 
-        //Masked Field
+        finalizeImportedChainPersistence(currentChainState, newChainState);
+    }
+
+    private void finalizeImportedChainPersistence(Chain currentChainState, Chain newChainState) {
         maskedFieldsService.setActualizedMaskedFields(
                 currentChainState != null ? currentChainState.getMaskedFields() : Collections.emptySet(),
                 newChainState.getMaskedFields()
         );
 
-        //Chain Folder — persist the (possibly newly built) folder tree before the chain is
-        //merged/persisted, so the chain references only managed folders.
         if (newChainState.getParentFolder() != null) {
             newChainState.setParentFolder(folderService.setActualizedFolderState(newChainState.getParentFolder()));
         }
 
-        //Chain
         chainService.setActualizedChainState(currentChainState, newChainState);
     }
 
@@ -680,6 +714,6 @@ public class ChainImportService {
         if (currentChainState != null) {
             ChainUtils.chainPropertiesInitialization(currentChainState);
         }
-        setActualChainState(currentChainState, importedChain);
+        persistImportedChainMergingElements(currentChainState, importedChain);
     }
 }
