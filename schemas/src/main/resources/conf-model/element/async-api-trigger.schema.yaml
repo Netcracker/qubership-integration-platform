@@ -78,11 +78,12 @@ definitions:
         type: string
       schema:
         type: string
+      validationSchemaFilename:
+        $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-validation-schema"
     additionalProperties: false
     required:
       - code
       - label
-      - schema
   Protocol:
     enum:
       - kafka
