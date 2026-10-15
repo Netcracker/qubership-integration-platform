@@ -126,9 +126,9 @@ export const TRACKED_FIXTURE_DIRS: readonly string[] = [
  * exists to test would be false before its first assertion.
  *
  * `kafka-wrong-password.yaml` cannot deploy on the classic engine, whose pre-deploy check parks it.
- * `kafka-tlsv1-2-refused.yaml` deploys, but its producer retries the refused handshake and logs an
- * error about once a second for as long as the chain stays deployed, so `kafka-security.spec.ts`
- * deploys it only for its own case.
+ * `kafka-tlsv1-2-refused.yaml` and `kafka-trigger-tlsv1-2-refused.yaml` deploy, but their producer
+ * and consumer retry the refused handshake and log an error about once a second for as long as the
+ * chain stays deployed, so `kafka-security.spec.ts` deploys each only for its own case.
  */
 export const SPEC_OWNED_FIXTURES: ReadonlySet<string> = new Set([
   "script-inline.yaml",
@@ -140,6 +140,7 @@ export const SPEC_OWNED_FIXTURES: ReadonlySet<string> = new Set([
   "missing-rabbitmq-exchange.yaml",
   "kafka-wrong-password.yaml",
   "kafka-tlsv1-2-refused.yaml",
+  "kafka-trigger-tlsv1-2-refused.yaml",
 ]);
 
 /**

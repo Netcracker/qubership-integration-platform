@@ -48,9 +48,8 @@ export async function withOwnFixture(
   catalog: Catalog,
   run: string,
   file: string,
-  dir: string,
+  { dir, logging }: { dir: string; logging?: LoggingProperties },
   body: (chain: DeployedChain) => Promise<void>,
-  logging?: LoggingProperties,
 ): Promise<void> {
   const chain = describeFixture(file, run, dir);
   noteChain(chain);

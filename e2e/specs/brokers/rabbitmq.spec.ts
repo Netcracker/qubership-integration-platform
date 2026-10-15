@@ -15,7 +15,7 @@
  * side either -- the brokers seed declares it (`ensureRabbitmqTopology`'s `senderExchanges`), and
  * this spec's own queue binds to what the seed already declared.
  *
- * The dead-letter pair pins the acknowledge-mode contract `RabbitMqTriggerProcessor.process`
+ * The dead-letter cases pin the acknowledge-mode contract `RabbitMqTriggerProcessor.process`
  * carries: it calls `immediateAck(exchange)` as its *first* statement, before `validate` and before
  * the chain body. Under `MANUAL` that is a positive `channel.basicAck`, sent before the chain has
  * even run, so a failure afterwards can never reject the delivery and can never reach the
@@ -26,6 +26,8 @@
  * `deadLetterExchangeType`, `deadLetterQueue` and `deadLetterRoutingKey` properties. Under `NONE` the
  * container consumes with `autoAck`, so the broker counts the delivery as acknowledged when it sends
  * it: the failure records one session and the message is neither redelivered nor dead-lettered.
+ * MANUAL and NONE therefore leave the same state, and each differs from AUTO by the empty
+ * dead-letter queue.
  *
  * `propagateContext` is read off the AMQP headers of the message the spec's own queue receives. The
  * false case is a `test.fail()`: `RabbitMqSenderProcessor` sends the request context either way.
@@ -40,7 +42,7 @@ import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
 
-/** How long the MANUAL and NONE cases watch the dead-letter queue stay empty. */
+/** How long a MANUAL or NONE case watches the dead-letter queue stay empty. */
 const DLQ_ABSENCE_TIMEOUT = 15_000;
 
 // ---------------------------------------------------------------------------
@@ -73,130 +75,53 @@ test(
   },
 );
 
-test(
-  "a rejected message under acknowledgeMode AUTO lands on the configured dead-letter queue",
-  { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ sessions }) => {
-    // No deadLetterExchangeType covers() call, for the reason the first case gives for exchangeType.
+const DEAD_LETTER_CASES = [
+  { mode: "AUTO", fixture: "rabbitmq-trigger-dlq-auto", deadLettered: true, tier: "@tier1" },
+  { mode: "MANUAL", fixture: "rabbitmq-trigger-dlq-manual", deadLettered: false, tier: "@tier2" },
+  { mode: "NONE", fixture: "rabbitmq-trigger-dlq-none", deadLettered: false, tier: "@tier2" },
+] as const;
 
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "rabbitmq-trigger-dlq-auto");
-    const exchange = chain.broker.exchange as string;
-    const routingKey = chain.broker.routingKey as string;
-    const dlx = chain.broker.deadLetterExchange as string;
-    const dlk = chain.broker.deadLetterRoutingKey as string;
-    const token = callToken("rabbitmq-dlq-auto");
-    const body = { ping: "dlq-auto" };
+for (const { mode, fixture, deadLettered, tier } of DEAD_LETTER_CASES) {
+  test(
+    `a message the chain failed under acknowledgeMode ${mode} ${deadLettered ? "lands on the configured dead-letter queue" : "never reaches the dead-letter queue"}`,
+    { tag: ["@engine", "@sessions", tier] },
+    async ({ sessions }) => {
+      covers("rabbitmq-trigger-2", "acknowledgeMode", mode);
+      // No deadLetterExchangeType covers() call, for the reason the first case gives for exchangeType.
 
-    const { connection, channel, queue } = await bindConsumerQueue(dlx, dlk);
-    try {
-      await publish(exchange, routingKey, token, body);
+      const chain = brokerChain(readBrokersCorpusState(), fixture);
+      const dlx = chain.broker.deadLetterExchange as string;
+      const dlk = chain.broker.deadLetterRoutingKey as string;
+      const token = callToken(fixture);
+      const body = { ping: fixture };
+      const before = await sessions.idsOf(chain.id);
 
-      // The http-sender step fails on a host that can never resolve: this is the contract, not the
-      // assertion this case exists to make.
-      const session = await sessions.byExternalId(token, { elements: 2 });
-      expect(session.chainId).toBe(chain.id);
-      expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);
+      const { connection, channel, queue } = await bindConsumerQueue(dlx, dlk);
+      try {
+        await publish(chain.broker.exchange as string, chain.broker.routingKey as string, token, body);
 
-      // `waitForMessage` starts its own timeout only now, after the session lookup above already
-      // spent part of its own budget — a queue holds an unconsumed message regardless of when a
-      // consumer attaches, so starting to listen this late loses nothing, and the wait gets the
-      // full window instead of one `sessions.byExternalId` poll already ate into.
-      //
-      // The contract this case pins: under AUTO, maximumRetryAttempts=1 on the consumer URI means
-      // the failed delivery is rejected after one attempt and lands on the dead-letter queue the
-      // seed declared from this element's own deadLetter* properties.
-      const message = await waitForMessage(channel, queue);
-      expect(message, `no message arrived on the dead-letter queue bound to ${dlx}/${dlk}`).not.toBeNull();
-      expect(message!.body).toEqual(body);
-    } finally {
-      await channel.close();
-      await connection.close();
-    }
-  },
-);
+        // The http-sender step fails on a host that can never resolve, in every mode.
+        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
+        expect(session.chainId).toBe(chain.id);
+        expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
+        expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);
 
-test(
-  "a rejected message under acknowledgeMode MANUAL never reaches the dead-letter queue",
-  { tag: ["@engine", "@sessions", "@tier2"] },
-  async ({ sessions }) => {
-    covers("rabbitmq-trigger-2", "acknowledgeMode", "MANUAL");
+        // Started after the session lookup, so the absence window opens once the chain has failed. A
+        // queue holds an unconsumed message until something reads it, so listening late loses nothing.
+        const message = await waitForMessage(channel, queue, deadLettered ? undefined : DLQ_ABSENCE_TIMEOUT);
+        if (deadLettered) expect(message?.body, `nothing arrived on the dead-letter queue bound to ${dlx}/${dlk}`).toEqual(body);
+        else expect(message, `the message reached the dead-letter queue bound to ${dlx}/${dlk}`).toBeNull();
 
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "rabbitmq-trigger-dlq-manual");
-    const exchange = chain.broker.exchange as string;
-    const routingKey = chain.broker.routingKey as string;
-    const dlx = chain.broker.deadLetterExchange as string;
-    const dlk = chain.broker.deadLetterRoutingKey as string;
-    const token = callToken("rabbitmq-dlq-manual");
-    const body = { ping: "dlq-manual" };
-
-    const { connection, channel, queue } = await bindConsumerQueue(dlx, dlk);
-    try {
-      await publish(exchange, routingKey, token, body);
-
-      // The chain still runs and still fails -- MANUAL only changes when the ack was sent, not
-      // whether the chain body executes.
-      const session = await sessions.byExternalId(token, { elements: 2 });
-      expect(session.chainId).toBe(chain.id);
-      expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);
-
-      // `waitForMessage` starts its 15 s absence window only now, after the session lookup above
-      // has already settled -- started earlier, that window could close while the lookup was still
-      // polling, so a late dead-lettered message would arrive after this test had already stopped
-      // listening for it and the case would pass regardless of what actually happened. A queue
-      // holds an unconsumed message until something reads it, so waiting to listen loses nothing.
-      //
-      // The contract this case pins, the opposite of the AUTO case: RabbitMqTriggerProcessor acks a
-      // MANUAL delivery before the chain body runs, so the failure that follows can never reject it
-      // and it never reaches the dead-letter queue.
-      expect(
-        await waitForMessage(channel, queue, DLQ_ABSENCE_TIMEOUT),
-        `a message arrived on the MANUAL case's dead-letter queue bound to ${dlx}/${dlk}, which the ` +
-          `immediate ack should have made impossible`,
-      ).toBeNull();
-    } finally {
-      await channel.close();
-      await connection.close();
-    }
-  },
-);
-
-test(
-  "a failed message under acknowledgeMode NONE records one session and never reaches the dead-letter queue",
-  { tag: ["@engine", "@sessions", "@tier2"] },
-  async ({ sessions }) => {
-    covers("rabbitmq-trigger-2", "acknowledgeMode", "NONE");
-
-    const chain = brokerChain(readBrokersCorpusState(), "rabbitmq-trigger-dlq-none");
-    const dlx = chain.broker.deadLetterExchange as string;
-    const dlk = chain.broker.deadLetterRoutingKey as string;
-    const token = callToken("rabbitmq-dlq-none");
-    const before = await sessions.idsOf(chain.id);
-
-    const { connection, channel, queue } = await bindConsumerQueue(dlx, dlk);
-    try {
-      await publish(chain.broker.exchange as string, chain.broker.routingKey as string, token, { ping: "dlq-none" });
-
-      const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
-      expect(session.chainId).toBe(chain.id);
-      expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
-      expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);
-
-      // The absence window opens once the chain has failed, as in the MANUAL case.
-      expect(
-        await waitForMessage(channel, queue, DLQ_ABSENCE_TIMEOUT),
-        `a message arrived on the NONE case's dead-letter queue bound to ${dlx}/${dlk}`,
-      ).toBeNull();
-      expect((await channel.checkQueue(chain.broker.queues as string)).messageCount, "messages left on the trigger's queue").toBe(0);
-      const fresh = [...(await sessions.idsOf(chain.id))].filter((id) => !before.has(id));
-      expect(fresh, "sessions the message recorded").toEqual([session.id]);
-    } finally {
-      await channel.close();
-      await connection.close();
-    }
-  },
-);
+        expect((await channel.checkQueue(chain.broker.queues as string)).messageCount, "messages left on the trigger's queue").toBe(0);
+        const fresh = [...(await sessions.idsOf(chain.id))].filter((id) => !before.has(id));
+        expect(fresh, "sessions the message recorded").toEqual([session.id]);
+      } finally {
+        await channel.close();
+        await connection.close();
+      }
+    },
+  );
+}
 
 // ---------------------------------------------------------------------------
 // rabbitmq-sender-2

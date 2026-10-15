@@ -110,7 +110,7 @@ test("a script that does not compile fails the deployment", { tag: ["@engine", "
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   covers("script");
 
-  await withOwnFixture(catalog, run, "script-failures-syntax.yaml", SCRIPT_FIXTURE_DIR, async (chain) => {
+  await withOwnFixture(catalog, run, "script-failures-syntax.yaml", { dir: SCRIPT_FIXTURE_DIR }, async (chain) => {
     await expect
       .poll(async () => await deploymentRows(catalog, chain.id), {
         timeout: DEPLOY_TIMEOUT,
@@ -130,7 +130,7 @@ test("a script naming a class the engine cannot resolve parks the deployment and
   // Opened before the import, so every compile attempt counted below is this case's.
   const since = logWindowStart();
 
-  await withOwnFixture(catalog, run, "script-failures-unresolved.yaml", SCRIPT_FIXTURE_DIR, async (chain) => {
+  await withOwnFixture(catalog, run, "script-failures-unresolved.yaml", { dir: SCRIPT_FIXTURE_DIR }, async (chain) => {
     // `PROCESSING`, not `FAILED`, and the message is the one the syntax error carries too — which is
     // why the status is what separates them.
     await expect
@@ -173,7 +173,7 @@ test("a script naming a class the engine cannot resolve parks the deployment and
 test("a syntax error inside a container fails the deployment too", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys a chain of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ env, catalog, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-  await withOwnFixture(catalog, run, "script-failures-nested-syntax.yaml", SCRIPT_FIXTURE_DIR, async (chain) => {
+  await withOwnFixture(catalog, run, "script-failures-nested-syntax.yaml", { dir: SCRIPT_FIXTURE_DIR }, async (chain) => {
     // The chain carries no top-level script at all, so a `FAILED` here is the nested one having
     // been compiled: the catalog emits the Try branch's script as its own route.
     await expect

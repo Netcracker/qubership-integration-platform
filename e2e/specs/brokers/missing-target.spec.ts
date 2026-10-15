@@ -39,7 +39,7 @@ test(
   async ({ catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-    await withOwnFixture(catalog, run, "missing-kafka-topic.yaml", BROKERS_FIXTURE_DIR, async (chain) => {
+    await withOwnFixture(catalog, run, "missing-kafka-topic.yaml", { dir: BROKERS_FIXTURE_DIR }, async (chain) => {
       await expect
         .poll(async () => await deploymentRows(catalog, chain.id), {
           timeout: DEPLOY_TIMEOUT,
@@ -56,7 +56,7 @@ test(
   async ({ catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-    await withOwnFixture(catalog, run, "missing-rabbitmq-queue.yaml", BROKERS_FIXTURE_DIR, async (chain) => {
+    await withOwnFixture(catalog, run, "missing-rabbitmq-queue.yaml", { dir: BROKERS_FIXTURE_DIR }, async (chain) => {
       await expect
         .poll(async () => await deploymentRows(catalog, chain.id), {
           timeout: DEPLOY_TIMEOUT,
@@ -73,7 +73,7 @@ test(
   async ({ env, catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-    await withOwnFixture(catalog, run, "missing-rabbitmq-exchange.yaml", BROKERS_FIXTURE_DIR, async (chain) => {
+    await withOwnFixture(catalog, run, "missing-rabbitmq-exchange.yaml", { dir: BROKERS_FIXTURE_DIR }, async (chain) => {
       await expect
         .poll(async () => await deploymentRows(catalog, chain.id), {
           timeout: DEPLOY_TIMEOUT,

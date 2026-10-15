@@ -104,7 +104,8 @@ test(
   async ({ env, sessions }) => {
     // No `covers()` call: see the registry's own `R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE` reason.
     // This case still runs to prove the trigger keeps recording under `ackMode: NONE` rather than
-    // failing outright, which is worth having even though it cannot tell the value apart from AUTO.
+    // failing outright, which is worth having even though its chain completes, and on a completing
+    // chain NONE and AUTO leave the same trace.
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "pubsub-trigger-ackmode-none");
@@ -120,7 +121,8 @@ test(
     // exchange is in flight, so no redelivery is observable inside any bounded window a case can
     // afford to wait -- a 25 s wait produced none, and this case's own observable (one session, no
     // failed elements) is identical to the AUTO case's, so it cannot stand as proof the axis value
-    // took effect. `readUntil` still spends the whole window rather than exiting on the first
+    // took effect. A failing chain would differ: AUTO nacks it and the emulator delivers it again
+    // (trigger-idempotency.spec.ts). `readUntil` still spends the whole window rather than exiting on the first
     // (always true) reading, so this is a genuine bounded wait for "nothing more happened", not a
     // `toPass` that a first, too-early poll would satisfy.
     const settled = await readUntil(
