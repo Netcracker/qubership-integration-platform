@@ -21,6 +21,9 @@ spec:
     - name: tcp-authtls
       port: 29096
       targetPort: 29096
+    - name: tcp-tls13
+      port: 29097
+      targetPort: 29097
     {{- end }}
   selector:
     app: kafka

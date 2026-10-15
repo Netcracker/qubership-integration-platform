@@ -1,0 +1,37 @@
+---
+id: "e2e10022-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-trigger-security-ssl-tlsv1-3"
+description: "The Kafka trigger over SSL with sslProtocol TLSv1.3 on the TLS13 listener, which accepts TLSv1.3 only. It consumes from earliest on a topic only the spec publishes to."
+content:
+  labels: []
+  elements:
+  - id: "e2e10022-0000-4000-8000-000000000002"
+    name: "sslProtocol=TLSv1.3"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29097"
+      topics: "e2e-{{RUN}}-kafka-trigger-security-ssl-tlsv1-3"
+      securityProtocol: "SSL"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLSv1.3"
+      groupId: "e2e-{{RUN}}-kafka-trigger-security-ssl-tlsv1-3"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "earliest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: false
+  - id: "e2e10022-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e10022-0000-4000-8000-000000000002"
+    to: "e2e10022-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
