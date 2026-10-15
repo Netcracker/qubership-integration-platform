@@ -26,10 +26,10 @@ matters, name a shared `teardown` project instead. Where a project must run afte
 `global`, the edge goes from that project to `global`, as `brokers-restart` does, so a red `global`
 case skips it rather than a red case of it skipping `global`. A gate in the other direction is
 accepted only on purpose and named in the project's comment: `brokers-seed` waits for `seed`, and on
-`k8s` `env-micro` waits for `brokers-restart` (`env/target-setup.ts`). A project gets one `teardown`, so the seeds
-`global` does not depend on (`seed-micro`, `brokers-seed`, `brokers-micro-seed`) share one:
-`suite-teardown` collects their `*.teardown.ts` files, and they and `global` all name it. It then
-runs after `global` without gating either side. It runs on both targets and in any selection that
+`k8s` `env-micro` waits for `brokers-restart` (`env/target-setup.ts`). A project gets one
+`teardown`, so the seeds `global` does not depend on (`seed-micro`, `brokers-seed`,
+`brokers-micro-seed`) share one: `suite-teardown` collects their `*.teardown.ts` files, and they and
+`global` all name it. It then runs after `global` without gating either side. It runs on both targets and in any selection that
 names one of them, so a teardown file it collects returns early unless its seed wrote the state
 file in this run.
 
@@ -97,11 +97,12 @@ branch arrive in completion order, so compare them as a set. Find the session by
 because `GET /v1/sessions/external-id/{id}` returns one session and the run token matches any
 spec's. `byExternalId` waits for the number of steps, not for each step's status, so a case that
 asserts step statuses or `failedElements()` reads the session through `Sessions.settled` first; a
-message the broker can deliver more than once is read with `Sessions.earliestOf`. The exception is a call that must not carry the correlation header, because the testing
-service would mock it, or cannot, like an MCP tool call. Such a case finds the session through
-`Sessions.onlyOf` in `support/sessions.ts`, by chain id and a filter that leaves out every session the
-case did not cause (read `Sessions.idsOf` before the call), or by a marker the call carries in its
-body, so the case still reruns against a kept corpus.
+message the broker can deliver more than once is read with `Sessions.earliestOf`. The exception is
+a call that must not carry the correlation header, because the testing service would mock it, or
+cannot, like an MCP tool call. Such a case finds the session through `Sessions.onlyOf` in
+`support/sessions.ts`, by chain id and a filter that leaves out every session the case did not
+cause (read `Sessions.idsOf` before the call), or by a marker the call carries in its body, so the
+case still reruns against a kept corpus.
 
 A row reads what a passing test proves, which gives three shapes besides `covered`:
 

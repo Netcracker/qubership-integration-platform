@@ -163,8 +163,8 @@ Kafka has the listener layout of `docker-compose.kafka.yml`:
 | `AUTHTLS` | 29096 | SASL_SSL | `kafka:29096` |
 | `TLS13` | 29097 | SSL, TLSv1.3 only | `kafka:29097` |
 
-`AUTH` and `AUTHTLS` accept PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512. `TLS`, `AUTHTLS`, and `TLS13` exist only
-when you pass the server certificate and its unencrypted key; the CA that signed them is
+`AUTH` and `AUTHTLS` accept PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512. `TLS`, `AUTHTLS`, and `TLS13`
+exist only when you pass the server certificate and its unencrypted key; the CA that signed them is
 `../kafka-ssl/client/ca.crt`, which the engines trust through the values in "Values for the platform
 services". From this directory:
 
