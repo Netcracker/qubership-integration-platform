@@ -11,7 +11,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import http from "node:http";
-import type { AddressInfo } from "node:net";
+import net, { type AddressInfo } from "node:net";
 import yaml from "js-yaml";
 import { test, expect } from "@playwright/test";
 import { overlayDefinition } from "../../env/compose.js";
@@ -118,13 +118,27 @@ test("each host probe reads its broker's host address, CIP_* overrides included"
       CIP_SFTP_PORT: String(port),
     };
     const probe = (overlay: Overlay) => withEnv(overrides, () => probes[overlay]());
-    expect(await probe("rabbitmq")).toBeNull();
     expect(await probe("pubsub")).toBeNull();
     expect(await probe("sftp")).toBeNull();
     return { port, probe };
   });
   expect(await probe("kafka")).toContain(`127.0.0.1:${port} did not answer a metadata request`);
-  expect(await probe("rabbitmq")).toContain(`127.0.0.1:${port} refused a connection`);
+  expect(await probe("rabbitmq")).toContain(`127.0.0.1:${port} did not complete an AMQP handshake`);
   expect(await probe("pubsub")).toContain(`http://127.0.0.1:${port}/v1/projects/`);
   expect(await probe("sftp")).toContain(`127.0.0.1:${port} refused a connection`);
+});
+
+test("the RabbitMQ probe reports a port that accepts and then closes a connection as not ready", { tag: ["@infra", "@tier1"] }, async () => {
+  // The kind port mapping does this while the NodePort has no ready endpoint (CI run 38735160150).
+  const server = net.createServer((socket) => socket.destroy());
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    expect(await tcpReady("127.0.0.1", port)()).toBeNull();
+    const probe = hostReady("rabbitmq");
+    expect(await withEnv({ CIP_RABBITMQ_URL: `amqp://guest:guest@127.0.0.1:${port}` }, () => probe()))
+      .toMatch(/did not complete an AMQP handshake .*Socket closed abruptly during opening handshake/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
