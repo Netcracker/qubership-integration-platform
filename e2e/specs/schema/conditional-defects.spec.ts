@@ -3,7 +3,7 @@
  * ones it must leave a real failure, and the engine gate `strikesAsKnown` puts in front of it. No stack.
  */
 import { test, expect, type APIResponse } from "@playwright/test";
-import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "../runtime/micro-defects.js";
+import { CONTEXT_STORE_UNTRANSACTED, firingHistory, MOCK_BYPASSED, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "../runtime/micro-defects.js";
 import { LIMIT_REFUSED_WITH_500 } from "../global/classic-defects.js";
 import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "../k8s/catalog-defects.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
@@ -11,12 +11,23 @@ import { WIPE_ABORTED_ON_CONFLICT, WIPE_ANSWERED } from "../global/sessions-defe
 import { countedAnswer, VALIDATION_READ_BEFORE_ALERTS } from "../global/catalog-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
+import { STRUCK_ANNOTATION } from "../../registry/elements.js";
 import { linesOfChain, withEngineLines } from "../../support/logs.js";
 import { PUBSUB_EMULATOR_BYPASSED, SFTP_TRIGGER_IDLE, pubsubAuthFailure } from "../brokers/micro-defects.js";
 import { ignoredCompileFailure, SCRIPT_COMPILE_IGNORED } from "../runtime-micro-redeploy/micro-defects.js";
 import type { Env } from "../../env/index.js";
 
 const TAGS = { tag: ["@infra", "@tier1"] };
+
+/** The message of the failure `assertion` throws, as `strikesAsKnown` reads it. */
+function failureOf(assertion: () => void): string {
+  try {
+    assertion();
+  } catch (cause) {
+    return String(cause);
+  }
+  throw new Error("the assertion passed, so there is no failure to read");
+}
 
 // A classic regression of the same feature can fail with the same message, and it has to stay red.
 test("a micro defect is known only on the micro engine, and the same failure on classic is a real one", TAGS, async () => {
@@ -34,6 +45,18 @@ test("a micro defect is known only on the micro engine, and the same failure on 
   test.info().expectedStatus = "passed";
   expect(thrown).toContain("QIP-0101");
   expect(expectedStatus).toBe("passed");
+});
+
+test("a strike is recorded beside the expected failure, so reconcile can read the calls before it", TAGS, async () => {
+  const race = { title: "a race", engine: "any" as const, matches: (message: string) => message.includes("raced") };
+  await strikesAsKnown(race, async () => {
+    throw new Error("raced");
+  }).catch(() => {});
+  // Put back before asserting, for the reason the case above gives.
+  const expectedStatus = test.info().expectedStatus;
+  test.info().expectedStatus = "passed";
+  expect(expectedStatus).toBe("failed");
+  expect(test.info().annotations).toContainEqual({ type: STRUCK_ANNOTATION, description: "a race" });
 });
 
 test("a mocked service call that reached its real address is the known defect, and an unmatched mock is not", TAGS, () => {
@@ -134,17 +157,26 @@ test("an sftp trigger that never ran its chain is the known defect, and a run th
   expect(SFTP_TRIGGER_IDLE.matches("Error: sessions of x\n\nExpected length: 1\nReceived length: 0")).toBe(false);
 });
 
-test("a scheduler chain its own micro pod never ran is the known defect, and a firing that recorded no session is not", TAGS, async () => {
+test("a scheduler chain that stopped firing on its micro domain beside another is the known defect, and one that never fired is not", TAGS, async () => {
   const chain = "dfd387a7-7dcc-4e05-8942-e94fcd7bc936";
   // What `nextFiring` in scheduler.spec.ts throws when no fresh settled session appears.
   const timedOut = "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: false\n\nCall Log:\n- Timeout 20000ms exceeded while waiting on the predicate";
-  const idle = await engineLinesFailure("", `for chain ${chain}`, linesOfChain(chain), timedOut);
-  expect(idle).toContain(`the engine logged 0 lines for chain ${chain}`);
-  expect(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN.matches(idle)).toBe(true);
-  expect(strikes(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN, "classic", idle)).toBe(false);
+  const failure = (earlier: number, others: string[], log = "") =>
+    engineLinesFailure(log, `for chain ${chain}`, linesOfChain(chain), `${firingHistory("e2e-x-scheduler-basic", "e2e-x-micro", earlier, others)}\n\n${timedOut}`);
 
+  // CI run 38673581259: the chain had fired on its domain, the brokers-micro domain ran beside it,
+  // and the pod logged nothing for the chain during the wait.
+  const stopped = await failure(412, ["e2e-x-brokers-micro"]);
+  expect(stopped).toContain(`the engine logged 0 lines for chain ${chain}`);
+  expect(strikes(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN, "micro", stopped)).toBe(true);
+  expect(strikes(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN, "classic", stopped)).toBe(false);
+
+  // The chain never fired on its domain: the scheduler or the route never started.
+  expect(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN.matches(await failure(0, ["e2e-x-brokers-micro"]))).toBe(false);
+  // No other micro domain shares the Quartz cluster.
+  expect(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN.matches(await failure(412, []))).toBe(false);
   // The pod ran the chain, so the firing reached it and something else lost or held the session.
-  const ran = await engineLinesFailure(`[INFO ] [chain_id=${chain}] [chain=e2e-x-scheduler-basic] Session started`, `for chain ${chain}`, linesOfChain(chain), timedOut);
+  const ran = await failure(412, ["e2e-x-brokers-micro"], `[INFO ] [chain_id=${chain}] [chain=e2e-x-scheduler-basic] Session started`);
   expect(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN.matches(ran)).toBe(false);
   expect(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN.matches(timedOut)).toBe(false);
 });
@@ -196,12 +228,7 @@ test("an unknown deployment the micro engine reports as an unknown exchange is t
 
 /** What `strikesAsKnown` reads when the live-exchanges case's status assertion fails in a worker. */
 function statusFailure(answer: string, status: number): string {
-  try {
-    expect(status, `the engine answered ${answer}`).toBe(400);
-  } catch (cause) {
-    return String(cause);
-  }
-  throw new Error(`status ${status} passed an assertion on 400`);
+  return failureOf(() => expect(status, `the engine answered ${answer}`).toBe(400));
 }
 
 test("limit=0 answered with the classic engine's 500 is the known defect, and another status is not", TAGS, () => {
@@ -216,12 +243,7 @@ test("limit=0 answered with the classic engine's 500 is the known defect, and an
 
 /** What `strikesAsKnown` reads when the discovery case's result assertion fails on `read`. */
 function resultFailure(read: unknown): string {
-  try {
-    expect(read, RESULT_AT_100).toBeDefined();
-  } catch (cause) {
-    return String(cause);
-  }
-  throw new Error(`${String(read)} passed an assertion on a defined result`);
+  return failureOf(() => expect(read, RESULT_AT_100).toBeDefined());
 }
 
 test("an empty discovery result at progress 100 is the known defect on either engine, and a failed read is not", TAGS, () => {
@@ -238,12 +260,7 @@ test("an empty discovery result at progress 100 is the known defect on either en
 
 /** What `strikesAsKnown` reads when the bare session delete answers `status` with `body`. */
 function wipeFailure(status: number, body: string): string {
-  try {
-    expect(status, `${WIPE_ANSWERED} ${body}`).toBe(200);
-  } catch (cause) {
-    return String(cause);
-  }
-  throw new Error(`status ${status} passed an assertion on 200`);
+  return failureOf(() => expect(status, `${WIPE_ANSWERED} ${body}`).toBe(200));
 }
 
 test("a bare session delete aborted on a version conflict is the known defect on either engine, and another refusal is not", TAGS, () => {
@@ -268,12 +285,7 @@ test("a bare session delete aborted on a version conflict is the known defect on
 
 /** What `strikesAsKnown` reads when the diagnostic round-trip's findings assertion fails on `found`. */
 function findingsFailure(found: number, alertsCount: number, entities: number): string {
-  try {
-    expect(new Array(found), `the run did not flag the script this case added ${countedAnswer(alertsCount, entities)}`).toHaveLength(1);
-  } catch (cause) {
-    return String(cause);
-  }
-  throw new Error(`${found} findings passed an assertion on one`);
+  return failureOf(() => expect(new Array(found), `the run did not flag the script this case added ${countedAnswer(alertsCount, entities)}`).toHaveLength(1));
 }
 
 test("a validation read whose count and entities disagree is the known defect on either engine, and a consistent read is not", TAGS, () => {

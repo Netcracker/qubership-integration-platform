@@ -5,7 +5,7 @@
  * Not a spec: Playwright's default `testMatch` does not collect it.
  */
 import { strikesAsKnown, type ConditionalDefect } from "../../support/known-defect.js";
-import { withEngineLines } from "../../support/logs.js";
+import { NO_LINE_FOR_CHAIN, withEngineLines } from "../../support/logs.js";
 import type { Env } from "../../env/index.js";
 
 const PUBSUB_UNAUTHENTICATED = "UNAUTHENTICATED: Failed computing credential metadata";
@@ -32,8 +32,6 @@ export function pubsubAuthFailure(line: string): boolean {
 export async function pubsubDelivered<T>(env: Env, since: string, wait: () => Promise<T>): Promise<T> {
   return strikesAsKnown(PUBSUB_EMULATOR_BYPASSED, () => withEngineLines(env, since, "naming UNAUTHENTICATED", pubsubAuthFailure, wait));
 }
-
-const NO_LINE_FOR_CHAIN = /logged 0 lines for chain /;
 
 /**
  * An `sftp-trigger-2` on a micro domain never polls its directory. Measured on a micro domain: each
