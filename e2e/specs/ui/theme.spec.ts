@@ -30,6 +30,13 @@ const MODES = [
 ] as const;
 type Mode = (typeof MODES)[number]["mode"];
 
+/**
+ * Three page loads and a theme switch over the whole chain list, each paid in the renderer. On the
+ * 4-core CI runner a case took 50 to 110 s over eight runs, and 125 s in run 38673581259, where the
+ * click on a theme segment alone took 24 to 30 s to dispatch.
+ */
+const THEME_CASE_TIMEOUT = 180_000;
+
 /** WCAG 2.1 AA for body text; high contrast is held to AAA, which is what the mode is for. */
 const MIN_CONTRAST: Record<Mode, number> = { light: 4.5, dark: 4.5, "high-contrast": 7 };
 
@@ -155,6 +162,7 @@ async function expectReadable(surfaces: Surface[], mode: Mode): Promise<void> {
 
 for (const { mode, title, system } of MODES) {
   test(`the chain list and the chain editor stay readable in ${mode} mode, which survives a reload`, { tag: ["@ui", "@tier2"] }, async ({ page }) => {
+    test.setTimeout(THEME_CASE_TIMEOUT);
     const chain = seedChain(readCorpusState(), "http-echo");
     const header = chain.elements["Header Modification"];
     const chains = new ChainsPage(page);
