@@ -5,7 +5,7 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-agent-telemetry
   name: ai-agent-telemetry
   host: github.com
-  resolved_commit: edb3504c2be557041cf2e523322019a137921645
+  resolved_commit: bf4372999c972b91e9c3615594ccacb248305edd
   version: 1.1.0
   virtual_path: agent-packages/ai-agent-telemetry
   is_virtual: true
@@ -15,7 +15,7 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: apm-authoring
   host: github.com
-  resolved_commit: 9b37a1fa88e355abe6d228a6ded3b873b40d150c
+  resolved_commit: 317ddcd92ef42866c204b2e4800c5460c92eb95f
   version: 1.1.0
   virtual_path: agent-packages/apm-authoring
   is_virtual: true
@@ -38,7 +38,7 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: codex-review
   host: github.com
-  resolved_commit: 9b37a1fa88e355abe6d228a6ded3b873b40d150c
+  resolved_commit: 317ddcd92ef42866c204b2e4800c5460c92eb95f
   version: 1.0.0
   virtual_path: agent-packages/codex-review
   is_virtual: true
@@ -56,7 +56,7 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-developer-style
   host: github.com
-  resolved_commit: 9b37a1fa88e355abe6d228a6ded3b873b40d150c
+  resolved_commit: 317ddcd92ef42866c204b2e4800c5460c92eb95f
   version: 2.1.0
   virtual_path: agent-packages/english-developer-style
   is_virtual: true
@@ -66,7 +66,7 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-us-developer-style
   host: github.com
-  resolved_commit: 9b37a1fa88e355abe6d228a6ded3b873b40d150c
+  resolved_commit: 317ddcd92ef42866c204b2e4800c5460c92eb95f
   version: 2.1.0
   virtual_path: agent-packages/english-us-developer-style
   is_virtual: true
