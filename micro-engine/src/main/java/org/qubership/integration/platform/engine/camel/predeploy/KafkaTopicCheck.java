@@ -37,14 +37,19 @@ public class KafkaTopicCheck implements PredeployCheck {
 
     @Override
     public void check(Endpoint endpoint, boolean consumer) throws InterruptedException {
+        // A pattern subscription picks up matching topics as they appear, so it has no topic to miss.
         if (endpoint instanceof KafkaCustomEndpoint custom) {
             KafkaCustomConfiguration config = custom.getConfiguration();
-            checkTopics(config.getBrokers(), config.getTopic(), config.getSecurityProtocol(),
-                    config.getSaslMechanism(), config.getSaslJaasConfig());
+            if (!config.isTopicIsPattern()) {
+                checkTopics(config.getBrokers(), config.getTopic(), config.getSecurityProtocol(),
+                        config.getSaslMechanism(), config.getSaslJaasConfig());
+            }
         } else {
             KafkaConfiguration config = ((KafkaEndpoint) endpoint).getConfiguration();
-            checkTopics(config.getBrokers(), config.getTopic(), config.getSecurityProtocol(),
-                    config.getSaslMechanism(), config.getSaslJaasConfig());
+            if (!config.isTopicIsPattern()) {
+                checkTopics(config.getBrokers(), config.getTopic(), config.getSecurityProtocol(),
+                        config.getSaslMechanism(), config.getSaslJaasConfig());
+            }
         }
     }
 

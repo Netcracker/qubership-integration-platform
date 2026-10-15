@@ -90,8 +90,10 @@ class KafkaTopicCheckTest {
     void shouldFailNamingTopicsBrokerDoesNotList() {
         brokerLists(KafkaFuture.completedFuture(Set.of("orders")));
 
+        KafkaCustomEndpoint endpoint = customEndpoint("kafka:9092", "orders,missing");
+
         IllegalStateException failure = assertThrows(IllegalStateException.class,
-                () -> check.check(customEndpoint("kafka:9092", "orders,missing"), false));
+                () -> check.check(endpoint, false));
 
         assertEquals("Kafka topics (missing) not found on brokers kafka:9092. "
                 + "Create the topics or change the element.", failure.getMessage());
@@ -127,10 +129,36 @@ class KafkaTopicCheckTest {
             throw new TimeoutException("timed out");
         }));
 
+        KafkaCustomEndpoint endpoint = customEndpoint("kafka:9092", "orders");
+
         IllegalStateException failure = assertThrows(IllegalStateException.class,
-                () -> check.check(customEndpoint("kafka:9092", "orders"), true));
+                () -> check.check(endpoint, true));
 
         assertTrue(failure.getMessage().startsWith("Kafka predeploy check failed for brokers kafka:9092"));
+    }
+
+    @Test
+    void shouldSkipPatternSubscriptionForCustomEndpoint() {
+        KafkaCustomEndpoint endpoint = customEndpoint("kafka:9092", "orders.*");
+        endpoint.getConfiguration().setTopicIsPattern(true);
+
+        assertDoesNotThrow(() -> check.check(endpoint, true));
+
+        adminClientStatic.verifyNoInteractions();
+    }
+
+    @Test
+    void shouldSkipPatternSubscriptionForLegacyEndpoint() {
+        KafkaConfiguration config = new KafkaConfiguration();
+        config.setBrokers("kafka:9092");
+        config.setTopic("orders.*");
+        config.setTopicIsPattern(true);
+        KafkaEndpoint endpoint = mock(KafkaEndpoint.class);
+        when(endpoint.getConfiguration()).thenReturn(config);
+
+        assertDoesNotThrow(() -> check.check(endpoint, true));
+
+        adminClientStatic.verifyNoInteractions();
     }
 
     private void brokerLists(KafkaFuture<Set<String>> names) {
