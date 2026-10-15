@@ -142,6 +142,24 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
     });
   });
 
+  describe("component references", () => {
+    // The backend resolves the same fixture against the same expected file.
+    const expected = JSON.parse(
+      load("expected/kafka-v2-inline-payload-refs.json"),
+    ) as Record<string, unknown>;
+
+    it.each(Object.keys(expected))(
+      "%s matches the expected response schemas",
+      async (channel) => {
+        const operations = await operationsFor(
+          "v2/kafka-v2-inline-payload-refs.yaml",
+        );
+        const op = operations.find((each) => each.path === channel);
+        expect(op.responseSchemas).toEqual(expected[channel]);
+      },
+    );
+  });
+
   // These fixtures intentionally omit a protocol marker (servers/x-protocol);
   // they exercise normalizer-only behavior (message refs, missing channels).
   const PROTOCOL_LESS = new Set([

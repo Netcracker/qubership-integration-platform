@@ -354,7 +354,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                     String ref = processedSchemaPair.left;
                     String schemaAsString = ref != null
                             ? swaggerSchemaResolver.resolveRef(ref, importedComponents)
-                            : processedSchemaPair.right;
+                            : swaggerSchemaResolver.resolveInlineSchema(processedSchemaPair.right, importedComponents);
 
                     return new MutablePair<>(mediaType, schemaProcessor.applySchemaType(schemaAsString));
                 })

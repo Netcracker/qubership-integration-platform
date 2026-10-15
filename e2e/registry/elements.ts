@@ -132,10 +132,11 @@ const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
 
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
 // `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close as a
-// byproduct of building those two chains. Its method, systemType, idempotency and acknowledgeMode
-// axes have no case.
+// byproduct of building those two chains. A third kafka case validates messages against the
+// operation's schema and declares no covers(). Its method, systemType, idempotency and
+// acknowledgeMode axes have no case.
 const R_ASYNC_API_TRIGGER_METHOD_V3 =
-  "the two async-api-trigger cases exercise one AsyncAPI 2.6 document each, which resolves to " +
+  "the async-api-trigger cases exercise AsyncAPI 2.6 documents only, which resolve to " +
   "subscribe (kafka) and publish (amqp, via AMQPSpecificationResolver.getMethod: a channel's " +
   "subscribe: block with no v3 action reports PUBLISH, not SUBSCRIBE — measured, not a typo here); " +
   "send and receive need an AsyncAPI 3.0 document, and no case builds one for the trigger";

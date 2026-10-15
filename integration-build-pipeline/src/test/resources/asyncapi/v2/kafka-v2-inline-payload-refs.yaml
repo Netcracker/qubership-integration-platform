@@ -1,0 +1,133 @@
+asyncapi: 2.6.0
+info:
+  title: Orders API with inline messages
+  version: 1.0.0
+
+servers:
+  production:
+    url: kafka.orders.internal:9092
+    protocol: kafka
+
+channels:
+  orders.referenced:
+    subscribe:
+      operationId: onReferencedMessage
+      message:
+        $ref: '#/components/messages/OrderShipped'
+  orders.inline-payload-ref:
+    subscribe:
+      operationId: onInlinePayloadRef
+      message:
+        payload:
+          $ref: '#/components/schemas/OrderShipped'
+  orders.inline-nested-ref:
+    subscribe:
+      operationId: onInlineNestedRef
+      message:
+        payload:
+          type: object
+          properties:
+            orderId:
+              type: string
+            address:
+              $ref: '#/components/schemas/Address'
+  orders.inline-one-of:
+    subscribe:
+      operationId: onInlineOneOf
+      message:
+        oneOf:
+          - name: shipped
+            payload:
+              $ref: '#/components/schemas/OrderShipped'
+          - $ref: '#/components/messages/OrderShipped'
+  orders.boolean-payload:
+    subscribe:
+      operationId: onBooleanPayload
+      message:
+        oneOf:
+          - name: anything
+            payload: true
+  orders.untyped:
+    subscribe:
+      operationId: onUntyped
+      message:
+        $ref: '#/components/messages/Untyped'
+  orders.untyped-array:
+    subscribe:
+      operationId: onUntypedArray
+      message:
+        payload:
+          items:
+            $ref: '#/components/schemas/Address'
+  orders.one-of-payload:
+    subscribe:
+      operationId: onOneOfPayload
+      message:
+        payload:
+          oneOf:
+            - $ref: '#/components/schemas/Address'
+            - $ref: '#/components/schemas/OrderShipped'
+  orders.external-ref:
+    subscribe:
+      operationId: onExternalRef
+      message:
+        payload:
+          $ref: 'https://schemas.example.com/order.json'
+  orders.nested-external-ref:
+    subscribe:
+      operationId: onNestedExternalRef
+      message:
+        payload:
+          type: object
+          properties:
+            address:
+              $ref: './common.yaml#/components/schemas/Address'
+  orders.named-one-of:
+    subscribe:
+      operationId: onNamedOneOf
+      message:
+        oneOf:
+          - name: Order Shipped (v2)
+            payload:
+              $ref: '#/components/schemas/Address'
+          - name: draft~1*
+            payload:
+              type: string
+  orders.relative-ref:
+    subscribe:
+      operationId: onRelativeRef
+      message:
+        payload:
+          $ref: 'schemas/Address'
+  orders.alias:
+    subscribe:
+      operationId: onAlias
+      message:
+        payload:
+          $ref: '#/components/schemas/AddressAlias'
+
+components:
+  messages:
+    OrderShipped:
+      payload:
+        $ref: '#/components/schemas/OrderShipped'
+    Untyped:
+      payload:
+        properties:
+          address:
+            $ref: '#/components/schemas/Address'
+  schemas:
+    OrderShipped:
+      type: object
+      properties:
+        orderId:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+    Address:
+      type: object
+      properties:
+        city:
+          type: string
+    AddressAlias:
+      $ref: '#/components/schemas/Address'

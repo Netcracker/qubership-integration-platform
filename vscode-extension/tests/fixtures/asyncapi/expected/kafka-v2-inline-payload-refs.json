@@ -1,0 +1,268 @@
+{
+  "orders.alias": {
+    "payload": {
+      "$id": "http://system.catalog/schemas/payload",
+      "$ref": "#/definitions/Address",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    }
+  },
+  "orders.boolean-payload": {
+    "anything": true
+  },
+  "orders.external-ref": {
+    "payload": {
+      "$id": "http://system.catalog/schemas/payload",
+      "$ref": "https://schemas.example.com/order.json",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {}
+    }
+  },
+  "orders.inline-nested-ref": {
+    "payload": {
+      "$id": "http://system.catalog/schemas/payload",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/Address"
+        },
+        "orderId": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "orders.inline-one-of": {
+    "OrderShipped": {
+      "$id": "http://system.catalog/schemas/OrderShipped",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/Address"
+        },
+        "orderId": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "shipped": {
+      "$id": "http://system.catalog/schemas/shipped",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/Address"
+        },
+        "orderId": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "orders.inline-payload-ref": {
+    "payload": {
+      "$id": "http://system.catalog/schemas/payload",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/Address"
+        },
+        "orderId": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "orders.named-one-of": {
+    "Order Shipped (v2)": {
+      "$id": "http://system.catalog/schemas/Order%20Shipped%20%28v2%29",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {},
+      "properties": {
+        "city": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "draft~1*": {
+      "$id": "http://system.catalog/schemas/draft~1%2A",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {},
+      "type": "string"
+    }
+  },
+  "orders.nested-external-ref": {
+    "payload": {
+      "$id": "http://system.catalog/schemas/payload",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {},
+      "properties": {
+        "address": {
+          "$ref": "./common.yaml#/components/schemas/Address"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "orders.one-of-payload": {
+    "payload": {
+      "$id": "http://system.catalog/schemas/payload",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "OrderShipped": {
+          "properties": {
+            "address": {
+              "$ref": "#/definitions/Address"
+            },
+            "orderId": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "oneOf": [
+        {
+          "$ref": "#/definitions/Address"
+        },
+        {
+          "$ref": "#/definitions/OrderShipped"
+        }
+      ]
+    }
+  },
+  "orders.referenced": {
+    "OrderShipped": {
+      "$id": "http://system.catalog/schemas/OrderShipped",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/Address"
+        },
+        "orderId": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "orders.relative-ref": {
+    "payload": {
+      "$id": "http://system.catalog/schemas/payload",
+      "$ref": "schemas/Address",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {}
+    }
+  },
+  "orders.untyped": {
+    "Untyped": {
+      "$id": "http://system.catalog/schemas/Untyped",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/Address"
+        }
+      }
+    }
+  },
+  "orders.untyped-array": {
+    "payload": {
+      "$id": "http://system.catalog/schemas/payload",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/definitions/Address"
+      }
+    }
+  }
+}
