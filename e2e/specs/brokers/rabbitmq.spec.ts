@@ -34,16 +34,13 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
-import { publishAmqp as publish, bindConsumerQueue, waitForAmqpMessage as waitForMessage } from "../../support/broker-clients.js";
+import { publishAmqp as publish, bindConsumerQueue, expectAckOutcome, waitForAmqpMessage as waitForMessage } from "../../support/broker-clients.js";
 import { callToken } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, elementNames, failedElements, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER, type Sessions } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
-
-/** How long a MANUAL or NONE case watches the dead-letter queue stay empty. */
-const DLQ_ABSENCE_TIMEOUT = 15_000;
 
 // ---------------------------------------------------------------------------
 // rabbitmq-trigger-2
@@ -89,36 +86,16 @@ for (const { mode, fixture, deadLettered, tier } of DEAD_LETTER_CASES) {
       covers("rabbitmq-trigger-2", "acknowledgeMode", mode);
       // No deadLetterExchangeType covers() call, for the reason the first case gives for exchangeType.
 
+      // The http-sender step fails on a host that can never resolve, in every mode.
       const chain = brokerChain(readBrokersCorpusState(), fixture);
-      const dlx = chain.broker.deadLetterExchange as string;
-      const dlk = chain.broker.deadLetterRoutingKey as string;
-      const token = callToken(fixture);
-      const body = { ping: fixture };
-      const before = await sessions.idsOf(chain.id);
-
-      const { connection, channel, queue } = await bindConsumerQueue(dlx, dlk);
-      try {
-        await publish(chain.broker.exchange as string, chain.broker.routingKey as string, token, body);
-
-        // The http-sender step fails on a host that can never resolve, in every mode.
-        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
-        expect(session.chainId).toBe(chain.id);
-        expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
-        expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);
-
-        // Started after the session lookup, so the absence window opens once the chain has failed. A
-        // queue holds an unconsumed message until something reads it, so listening late loses nothing.
-        const message = await waitForMessage(channel, queue, deadLettered ? undefined : DLQ_ABSENCE_TIMEOUT);
-        if (deadLettered) expect(message?.body, `nothing arrived on the dead-letter queue bound to ${dlx}/${dlk}`).toEqual(body);
-        else expect(message, `the message reached the dead-letter queue bound to ${dlx}/${dlk}`).toBeNull();
-
-        expect((await channel.checkQueue(chain.broker.queues as string)).messageCount, "messages left on the trigger's queue").toBe(0);
-        const fresh = [...(await sessions.idsOf(chain.id))].filter((id) => !before.has(id));
-        expect(fresh, "sessions the message recorded").toEqual([session.id]);
-      } finally {
-        await channel.close();
-        await connection.close();
-      }
+      const target = {
+        exchange: chain.broker.exchange as string,
+        routingKey: chain.broker.routingKey as string,
+        queue: chain.broker.queues as string,
+        deadLetterExchange: chain.broker.deadLetterExchange as string,
+        deadLetterRoutingKey: chain.broker.deadLetterRoutingKey as string,
+      };
+      await expectAckOutcome(sessions, chain.id, target, callToken(fixture), { ping: fixture }, deadLettered);
     },
   );
 }

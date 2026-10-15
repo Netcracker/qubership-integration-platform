@@ -9,6 +9,7 @@
 import { Kafka, logLevel, type Consumer } from "kafkajs";
 import amqp, { type Channel, type ChannelModel } from "amqplib";
 import Client from "ssh2-sftp-client";
+import { expect } from "@playwright/test";
 import {
   ensurePubsubTopology,
   KAFKA_HOST_BROKERS,
@@ -18,7 +19,7 @@ import {
   SFTP_HOST_CONFIG,
 } from "./brokers.js";
 import { readUntil } from "./poll.js";
-import { CORRELATION_HEADER } from "./sessions.js";
+import { CORRELATION_HEADER, failedElements, type Sessions } from "./sessions.js";
 
 const kafka = new Kafka({ clientId: "e2e-broker-client", brokers: [KAFKA_HOST_BROKERS], logLevel: logLevel.NOTHING });
 
@@ -150,13 +151,15 @@ export async function declareFanout(
   }
 }
 
+/** A message a spec consumed off an AMQP queue, its body parsed as JSON. */
+export interface AmqpMessage {
+  body: unknown;
+  headers: Record<string, unknown>;
+}
+
 /** One message off an already-bound queue, or `null` if none arrives within `timeoutMs`. */
-export function waitForAmqpMessage(
-  channel: Channel,
-  queue: string,
-  timeoutMs = 20_000,
-): Promise<{ body: unknown; headers: Record<string, unknown> } | null> {
-  return new Promise<{ body: unknown; headers: Record<string, unknown> } | null>((resolve) => {
+export function waitForAmqpMessage(channel: Channel, queue: string, timeoutMs = 20_000): Promise<AmqpMessage | null> {
+  return new Promise<AmqpMessage | null>((resolve) => {
     const timer = setTimeout(() => resolve(null), timeoutMs);
     channel
       .consume(
@@ -171,6 +174,58 @@ export function waitForAmqpMessage(
       )
       .catch(() => resolve(null));
   });
+}
+
+/** How long a MANUAL or NONE acknowledgement case watches the dead-letter queue stay empty. */
+export const DEAD_LETTER_ABSENCE_TIMEOUT = 15_000;
+
+/** Where an acknowledgement case publishes, and where its trigger dead-letters a rejected delivery. */
+export interface AckTarget {
+  exchange: string;
+  routingKey: string;
+  /** The trigger's own queue. */
+  queue: string;
+  deadLetterExchange: string;
+  deadLetterRoutingKey: string;
+}
+
+/**
+ * Publishes `body` to an AMQP trigger whose chain fails in its `HTTP Sender`, and asserts the one
+ * failed session the message records, whether it reached the dead-letter queue, and that the
+ * trigger's queue is left empty.
+ */
+export async function expectAckOutcome(
+  sessions: Sessions,
+  chainId: string,
+  target: AckTarget,
+  token: string,
+  body: unknown,
+  deadLettered: boolean,
+): Promise<void> {
+  const before = await sessions.idsOf(chainId);
+  const { connection, channel, queue } = await bindConsumerQueue(target.deadLetterExchange, target.deadLetterRoutingKey);
+  try {
+    await publishAmqp(target.exchange, target.routingKey, token, body);
+
+    const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
+    expect(session.chainId).toBe(chainId);
+    expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
+    expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);
+
+    // Started after the session lookup, so the absence window opens once the chain has failed. A
+    // queue holds an unconsumed message until something reads it, so listening late loses nothing.
+    const message = await waitForAmqpMessage(channel, queue, deadLettered ? undefined : DEAD_LETTER_ABSENCE_TIMEOUT);
+    const deadLetterQueue = `the dead-letter queue bound to ${target.deadLetterExchange}/${target.deadLetterRoutingKey}`;
+    if (deadLettered) expect(message?.body, `nothing arrived on ${deadLetterQueue}`).toEqual(body);
+    else expect(message, `the message reached ${deadLetterQueue}`).toBeNull();
+
+    expect((await channel.checkQueue(target.queue)).messageCount, `messages left on ${target.queue}`).toBe(0);
+    const fresh = [...(await sessions.idsOf(chainId))].filter((id) => !before.has(id));
+    expect(fresh, "sessions the message recorded").toEqual([session.id]);
+  } finally {
+    await channel.close();
+    await connection.close();
+  }
 }
 
 /** The emulator project every pub/sub fixture names. */
@@ -218,11 +273,18 @@ export async function deletePullSubscription(subscription: string): Promise<void
   await fetch(pubsubUrl(`subscriptions/${subscription}`), { method: "DELETE" }).catch(() => {});
 }
 
+/** A message a spec pulled off a pub/sub subscription, its data parsed as JSON. */
+export interface PubsubMessage {
+  data: unknown;
+  orderingKey?: string;
+  attributes: Record<string, string>;
+}
+
 /** One message off `subscription`, acked, or `null` if none arrives within `timeoutMs`. */
 export async function pullOnePubsub(
   subscription: string,
   timeoutMs = 20_000,
-): Promise<{ data: unknown; orderingKey?: string; attributes: Record<string, string> } | null> {
+): Promise<PubsubMessage | null> {
   const received = await readUntil(
     async () => {
       const response = await fetch(pubsubUrl(`subscriptions/${subscription}:pull`), {

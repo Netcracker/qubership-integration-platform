@@ -40,12 +40,12 @@
  * **The amqp `acknowledgeMode` reaches the consumer URI through the async properties.**
  * `EnvironmentPropertiesHelper.asyncProperties` merges the element's
  * `integrationOperationAsyncProperties` over the environment's, so the element's mode wins over the
- * service's `AUTO`. Each acknowledgement fixture fails in an http-sender, and its async properties name the dead-letter exchange, queue and
- * routing key the brokers seed declares the trigger's queue with, as `rabbitmq-trigger-2`'s own
- * properties do. Under `AUTO` the container rejects the failed delivery after its one attempt
- * (`maximumRetryAttempts=1`), so it lands on the dead-letter queue. `RabbitMqTriggerProcessor` acks a
- * `MANUAL` delivery before the chain runs, and the broker counts a `NONE` delivery as acknowledged
- * when it sends it, so neither is dead-lettered nor delivered again.
+ * service's `AUTO`. Each acknowledgement fixture fails in an http-sender, and its async properties
+ * name the dead-letter exchange, queue and routing key the brokers seed declares the trigger's queue
+ * with, as `rabbitmq-trigger-2`'s own properties do. Under `AUTO` the container rejects the failed
+ * delivery after its one attempt (`maximumRetryAttempts=1`), so it lands on the dead-letter queue.
+ * `RabbitMqTriggerProcessor` acks a `MANUAL` delivery before the chain runs, and the broker counts a
+ * `NONE` delivery as acknowledged when it sends it, so neither is dead-lettered nor delivered again.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { ENGINE_CASE_TIMEOUT, waitForDeployed } from "../../support/corpus.js";
@@ -62,6 +62,7 @@ import {
 import {
   bindConsumerQueue,
   consumeOneKafka,
+  expectAckOutcome,
   publishAmqp,
   publishKafka,
   waitForAmqpMessage,
@@ -234,9 +235,6 @@ test(
   },
 );
 
-/** How long an acknowledgement case watches the dead-letter queue stay empty. */
-const DEAD_LETTER_ABSENCE_TIMEOUT = 15_000;
-
 const ACKNOWLEDGE_MODES = [
   { mode: "AUTO", deadLettered: true },
   { mode: "MANUAL", deadLettered: false },
@@ -252,31 +250,15 @@ for (const { mode, deadLettered } of ACKNOWLEDGE_MODES) {
 
       const chain = brokerChain(readBrokersCorpusState(), `async-api-trigger-ack-${mode.toLowerCase()}`);
       const async = chain.broker.integrationOperationAsyncProperties as Record<string, string>;
+      const target = {
+        exchange: chain.broker.integrationOperationPath as string,
+        routingKey: "",
+        queue: async.queues,
+        deadLetterExchange: async.deadLetterExchange,
+        deadLetterRoutingKey: async.deadLetterRoutingKey,
+      };
       const token = callToken(`async-api-ack-${mode.toLowerCase()}`);
-      const body = { ping: `async-api-ack-${mode.toLowerCase()}` };
-      const before = await sessions.idsOf(chain.id);
-
-      const { connection, channel, queue } = await bindConsumerQueue(async.deadLetterExchange, async.deadLetterRoutingKey);
-      try {
-        await publishAmqp(chain.broker.integrationOperationPath as string, "", token, body);
-
-        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
-        expect(session.chainId).toBe(chain.id);
-        expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
-        expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);
-
-        // Started after the session lookup, so the absence window opens once the chain has failed.
-        const message = await waitForAmqpMessage(channel, queue, deadLettered ? undefined : DEAD_LETTER_ABSENCE_TIMEOUT);
-        if (deadLettered) expect(message?.body, `nothing arrived on the dead-letter queue bound to ${async.deadLetterExchange}`).toEqual(body);
-        else expect(message, `the message reached the dead-letter queue bound to ${async.deadLetterExchange}`).toBeNull();
-
-        expect((await channel.checkQueue(async.queues)).messageCount, `messages left on ${async.queues}`).toBe(0);
-        const fresh = [...(await sessions.idsOf(chain.id))].filter((id) => !before.has(id));
-        expect(fresh, "sessions the message recorded").toEqual([session.id]);
-      } finally {
-        await channel.close();
-        await connection.close();
-      }
+      await expectAckOutcome(sessions, chain.id, target, token, { ping: `async-api-ack-${mode.toLowerCase()}` }, deadLettered);
     },
   );
 }
