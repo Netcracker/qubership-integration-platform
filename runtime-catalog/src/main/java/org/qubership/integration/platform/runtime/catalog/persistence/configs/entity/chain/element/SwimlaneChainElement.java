@@ -40,10 +40,10 @@ public class SwimlaneChainElement extends ChainElement {
     private List<ChainElement> elements = new LinkedList<>();
 
     @Column(name = "is_default_swimlane")
-    private boolean defaultSwimlane = false;
+    private boolean defaultSwimlane;
 
     @Column(name = "is_reuse_swimlane")
-    private boolean reuseSwimlane = false;
+    private boolean reuseSwimlane;
 
     protected SwimlaneChainElement(SwimlaneChainElement swimlane) {
         super(swimlane);
