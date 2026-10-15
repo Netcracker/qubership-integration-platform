@@ -63,9 +63,9 @@ then test the dev server. A preview an interrupted run left on 4200 is stopped f
 fails naming its pid instead.
 
 `schema`, `api`, `tooling`, `runtime`, `runtime-micro`, `runtime-micro-redeploy`, `k8s`, `brokers`,
-`brokers-micro`, and `brokers-restart` run with no browser installed. `env`, `global`,
-`global-micro`, and `env-micro` depend on `ui`, directly or through `global`, so `--project=env`
-and `--project=global` build the bundle and launch Chromium too. Set
+and `brokers-micro` run with no browser installed. `env`, `global`, `global-micro`, `env-micro`, and
+`brokers-restart` depend on `ui`, directly or through `global`, so `--project=env`,
+`--project=global`, and `--project=brokers-restart` build the bundle and launch Chromium too. Set
 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment downloads a browser you do not want.
 
 The default Compose run also starts the four broker overlays and binds their host ports: `9092`
@@ -193,7 +193,7 @@ npm test -- --project=env             # the specs that restart a service, one wo
 npm test -- --project=global          # the reads no worker can scope, one worker, last
 npm test -- --project=brokers         # kafka, rabbitmq, pub/sub and sftp
 npm test -- --project=brokers-micro   # the same on the micro engine, k8s only
-npm test -- --project=brokers-restart # the one spec that restarts a broker mid-run, after global
+npm test -- --project=brokers-restart # the one spec that restarts a broker mid-run, after brokers and global, so api, runtime, ui, and env run first
 npm test -- --project=ui              # the browser layer, against the bundle it serves on 4200
 npm test -- --grep @engine --no-deps  # one backend component's cases, no browser
 npm run report                        # open the HTML report of the last run
@@ -370,6 +370,11 @@ fails, `e2e/.e2e-ui-server.log` holds the whole `vite preview` log.
 A known divergence is pinned with `test.fail()` and a comment naming the defect, so the run stays
 green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
 turns red the day its defect is fixed, and that is the signal to remove the annotation.
+
+A defect only one engine meets, or a race, is pinned with `strikesAsKnown` and a `ConditionalDefect`
+instead, defined in `specs/<project>/<component>-defects.ts`; `grep -rn strikesAsKnown specs/` lists
+them. Such a case passes once its defect is fixed rather than turning red, so removing the pin is a
+manual check against the open findings.
 
 The `list` reporter marks a pinned case with ✘ when it fails as expected, the same mark a real
 failure gets, and without color the two look identical. The summary line tells them apart: an
