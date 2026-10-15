@@ -81,7 +81,7 @@ class ClasspathCompilerContractRepositoryTest {
     for (String type : ChainElementFamilies.classifiedTriggerAndSenderTypes()) {
       if (ChainElementFamilies.bindingMode(type)
           == ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
-        assertFalse(contract.elements().containsKey(type), type);
+        assertTrue(contract.elements().containsKey(type), "Retain historical contract mapping: " + type);
         continue;
       }
       assertTrue(contract.elements().containsKey(type), type);
@@ -97,7 +97,7 @@ class ClasspathCompilerContractRepositoryTest {
         inScope.add(type);
       }
     }
-    assertEquals(19, inScope.size());
+    assertEquals(17, inScope.size());
     CompilerContract contract = repository.require(V1);
     for (String type : inScope) {
       assertTrue(contract.elements().containsKey(type), type);

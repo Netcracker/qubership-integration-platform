@@ -55,6 +55,7 @@ public final class HaltProducerCauseTable {
               RecoveryCauseCode.UNKNOWN_PROPERTY,
               RecoveryCauseCode.MISSING_REQUIRED_PROPERTY,
               RecoveryCauseCode.MISSING_BRIEF_FACTS,
+              RecoveryCauseCode.BRIEF_CONTRACT,
               RecoveryCauseCode.CATALOG_RESOLUTION,
               RecoveryCauseCode.MAPPING_CONTRACT,
               RecoveryCauseCode.CONTRACT_SHAPE,

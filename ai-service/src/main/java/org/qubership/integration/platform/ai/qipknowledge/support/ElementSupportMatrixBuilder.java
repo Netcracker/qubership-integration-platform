@@ -132,6 +132,10 @@ public final class ElementSupportMatrixBuilder {
       ElementPropertiesSchemaModel model = schemaService.elementPropertiesSchemaModel(elementType);
       unownedRequired.addAll(model.unconditionalRequired());
       addAllBranchRequiredKeys(unownedRequired, model.conditionalBranches());
+      if (model.propertyDefs().containsKey("receiveCorrelationId")) {
+        // Requirement capture owns correlation settings, which RequestedElementValues overlays.
+        unownedRequired.removeAll(Set.of("correlationIdName", "correlationIdPosition"));
+      }
       Set<String> unconditionalDefaults = defaultedPropertyKeys(schemaService, elementType);
       unconditionalDefaults.removeAll(discriminatorKeys(model.conditionalBranches()));
       unownedRequired.removeAll(unconditionalDefaults);

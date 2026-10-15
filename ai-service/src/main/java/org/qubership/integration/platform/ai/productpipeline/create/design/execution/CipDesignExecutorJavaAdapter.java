@@ -33,6 +33,9 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRevisionValidationException;
+import org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
@@ -335,9 +338,9 @@ public class CipDesignExecutorJavaAdapter {
     Objects.requireNonNull(inputs, "inputs");
     BiConsumer<String, String> progress =
         skillProgress == null ? (skillId, status) -> {} : skillProgress;
-    String preconditionError = verifyPreconditions(inputs);
+    ExecutionResult preconditionError = verifyPreconditions(inputs);
     if (preconditionError != null) {
-      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, preconditionError);
+      return preconditionError;
     }
 
     List<BindingResolutionResult> bindingResults =
@@ -383,6 +386,14 @@ public class CipDesignExecutorJavaAdapter {
                       inputs.runManifest(),
                       attemptId,
                       progress);
+    } catch (RequestedElementValues.ResolvedTargetConflict conflict) {
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, conflict.getMessage(),
+          new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT, List.of(conflict.finding()), ""));
+    } catch (SemanticRevisionValidationException rejected) {
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, rejected.getMessage(),
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+              List.of(new PlanValidationFinding("SEMANTIC_INPUT_CONTRACT", rejected.getMessage(), true, null,
+                  inputs.revisionRef().artifactId(), rejected.fieldPointer())), ""));
     } catch (MappingContractBlockedException blocked) {
       return ExecutionResult.failure(
           StageOutcomeClass.VALIDATION_FAILURE,
@@ -410,43 +421,43 @@ public class CipDesignExecutorJavaAdapter {
     return emitValidatedBundle(inputs, bindings, engineResult, progress);
   }
 
-  private String verifyPreconditions(ExecutionInputs inputs) {
+  private ExecutionResult verifyPreconditions(ExecutionInputs inputs) {
     if (inputs.approval() == null) {
-      return "implementation approval record is required";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "implementation approval record is required");
     }
     if (!ApprovalPolicy.CATALOG_FIRST_V1.equals(inputs.approval().bindingResolutionPolicy())
         || !ApprovalPolicy.CATALOG_FIRST_V1_HASH.equals(
             inputs.approval().bindingResolutionPolicyHash())) {
-      return "implementation approval must declare CATALOG_FIRST_V1";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "implementation approval must declare CATALOG_FIRST_V1");
     }
     if (!inputs.implementationPlanRef().equals(inputs.approval().target())
         || !Objects.equals(
             inputs.implementationPlanRef().contentHash(), inputs.approval().targetContentHash())) {
-      return "approval target does not match IMPLEMENTATION_PLAN";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "approval target does not match IMPLEMENTATION_PLAN");
     }
     if (!containsCandidate(inputs.approval(), inputs.reportRef())) {
-      return "approved candidate set is missing the design plan report hash";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "approved candidate set is missing the design plan report hash");
     }
     if (!containsCandidate(inputs.approval(), inputs.planRef())) {
-      return "approved candidate set is missing the design execution plan (projection) hash";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "approved candidate set is missing the design execution plan (projection) hash");
     }
     if (!containsCandidate(inputs.approval(), inputs.revisionRef())) {
-      return "approved candidate set is missing the chain semantic revision hash";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "approved candidate set is missing the chain semantic revision hash");
     }
     if (!containsCandidate(inputs.approval(), inputs.idsRef())) {
-      return "approved candidate set is missing the IDS document hash";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "approved candidate set is missing the IDS document hash");
     }
     if (!containsCandidate(inputs.approval(), inputs.implementationPlanRef())) {
-      return "approved candidate set is missing the implementation plan hash";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "approved candidate set is missing the implementation plan hash");
     }
 
     CompilerRunPin pin = inputs.runManifest() == null ? null : inputs.runManifest().compilerRunPin();
     if (pin == null) {
-      return "compiler run pin is required";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "compiler run pin is required");
     }
     DesignExecutionPlan plan = inputs.approvedPlan();
     if (!Objects.equals(plan.compilerCatalogHash(), pin.pipelineIndexDigest())) {
-      return "compiler catalog hash mismatch between projection and run pin";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "compiler catalog hash mismatch between projection and run pin");
     }
     List<String> plannedClosure =
         DefaultApprovedCompilerExecutionRunner.orderedOwningSkillIds(plan);
@@ -454,29 +465,33 @@ public class CipDesignExecutorJavaAdapter {
       boolean known =
           pin.resolvedDag().nodes().stream().anyMatch(node -> skillId.equals(node.skillId()));
       if (!known) {
-        return "approved skill closure references unknown skill " + skillId;
+        String message = "approved skill closure references unknown skill " + skillId;
+        return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, message,
+            new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+                List.of(new PlanValidationFinding("UNKNOWN_OWNER", message, true, null,
+                    inputs.planRef().artifactId(), "/steps")), ""));
       }
       String plannedSkillHash = plan.pinnedSkillHashes().get(skillId);
       String pinnedSkillHash = pin.skillSha256ById().get(skillId);
       if (plannedSkillHash != null && !Objects.equals(plannedSkillHash, pinnedSkillHash)) {
-        return "pinned skill hash mismatch for " + skillId;
+        return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "pinned skill hash mismatch for " + skillId);
       }
       String plannedAddonHash = plan.pinnedAddonHashes().get(skillId);
       String pinnedAddonHash = pin.addonSha256ById().get(skillId);
       if (plannedAddonHash != null && !Objects.equals(plannedAddonHash, pinnedAddonHash)) {
-        return "pinned addon hash mismatch for " + skillId;
+        return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "pinned addon hash mismatch for " + skillId);
       }
     }
     for (var entry : plan.pinnedAddonHashes().entrySet()) {
       if (!Objects.equals(entry.getValue(), pin.addonSha256ById().get(entry.getKey()))) {
-        return "pinned addon hash mismatch for " + entry.getKey();
+        return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "pinned addon hash mismatch for " + entry.getKey());
       }
     }
 
     int previousOrdinal = 0;
     for (DesignExecutionPlan.Step step : plan.steps()) {
       if (step.reportOrdinal() <= previousOrdinal) {
-        return "design execution plan step ordinals are out of order";
+        return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "design execution plan step ordinals are out of order");
       }
       previousOrdinal = step.reportOrdinal();
     }
@@ -484,7 +499,7 @@ public class CipDesignExecutorJavaAdapter {
     Optional<ChainSemanticRevision> storedRevision =
         loadPayload(inputs.runId(), inputs.revisionRef(), ChainSemanticRevision.class);
     if (storedRevision.isEmpty()) {
-      return "Required artifact CHAIN_SEMANTIC_REVISION is missing for design-execution";
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, "Required artifact CHAIN_SEMANTIC_REVISION is missing for design-execution");
     }
     return null;
   }

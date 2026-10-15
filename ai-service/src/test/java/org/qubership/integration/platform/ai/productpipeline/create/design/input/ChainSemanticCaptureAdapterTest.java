@@ -346,7 +346,13 @@ class ChainSemanticCaptureAdapterTest {
     assertEquals(senderType, senderOperation(revision, "relay-out").elementType());
     assertTrue(revision.nodes().stream().noneMatch(SemanticNode.ServiceCall.class::isInstance));
     if (CONTRACT.elements().containsKey(senderType)) {
-      new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+      if (org.qubership.integration.platform.ai.schema.ChainElementFamilies.bindingMode(senderType)
+          == org.qubership.integration.platform.ai.schema.ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
+        assertThrows(IllegalArgumentException.class,
+            () -> new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief));
+      } else {
+        new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+      }
     }
   }
 

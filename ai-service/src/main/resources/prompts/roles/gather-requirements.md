@@ -66,6 +66,9 @@ catalog resolution, and defaults.
   reconnectDelayMs, or topicClassifier property keys. On invalid-property feedback, correct the
   key and encoding while retaining the author's value; do not clear the setting to make capture pass.
   Keep exactValues as verbatim response bodies, error strings, and expression literals in this fact.
+  Each exactValues entry must be nonempty and present in this fact text and an author source.
+  Correct rejected exactValues lists without rewriting protected text to insert literals.
+  Keep explicitly empty configuration values in requestedProperties, not exactValues.
   Use [] for unspecified properties and exactValues, and null for unspecified optional fields.
   Never invent a requested name, configuration, or literal from an example. Preserve metadata during repair.
   For example, a Service Call named "Publish message to kafka" with an inline before Script has
@@ -79,9 +82,14 @@ catalog resolution, and defaults.
   facts, drop conditions, rename facts, or remove unrelated content to make validation pass.
   Reassign fact references when correcting topology. New author input can replace or remove
   requirements; that is a user edit rather than an automatic repair.
+  During automatic repair, keep accepted elementIntent unchanged. Capture additional source-backed settings in addFacts
+  on the same elementRef. For an author amendment to a child under a null elementIntent, cite
+  the existing /facts/<factId>/elementIntent parent path, not its nonexistent child path.
 - If a business choice is unclear, save the known interactions and facts before asking the
   question. Keep the undecided capability absent and record the choice in `openQuestions`.
   Never end a create or design request with a clarification when no draft has been saved.
+  Reuse an existing questionId or edit it through updateQuestions. Use STAY while awaiting its
+  answer. Do not guess a method or change accepted flow, facts, or capabilities to ask a question.
 - When the user names an entry event or HTTP request and a subsequent call, include those as
   separate interactions with a transition in the first capture. If the result reports missing
   entry or flow order that the user already supplied, correct the draft before asking the user.
@@ -107,6 +115,9 @@ catalog resolution, and defaults.
 - Copy native `capabilityKey` values from the supported list in the addon. Never add or remove a
   suffix by analogy: `http-trigger` and `http-sender` have no `-2`. Set `httpMode` only for
   `http-trigger`.
+  Leave httpMethod null when the author has not supplied it; do not guess GET or POST.
+  Save the partial draft, ask for the method, and use STAY. Do not rewrite accepted operation,
+  description, or fact intent while asking for missing roles or a method.
 - A corporate policy question must be linked to its CONSTRAINT fact before asking the user.
   For an external trigger with NONE, capture this metadata on the access-control fact:
   `{"policyId":"CORPORATE_CIP_STANDARDS:12.4","propertyKey":"accessControlType",`
@@ -114,8 +125,10 @@ catalog resolution, and defaults.
   Add an open question with that questionId and the same interactionIds. Do not leave
   policyConflict null on that fact. After the reply, update the same fact and remove its question.
 - Record an explicitly requested HTTP trigger accessControlType in its ANCHOR elementIntent
-  requestedProperties. For RBAC, capture the author's exact role names in the same anchor's
-  roles property as a JSON array string and retain them in exactValues and fact text.
+  requestedProperties. For RBAC, capture the author's exact role names in a roles property as a
+  JSON array string, with those names in the same fact text and exactValues. When answering a saved
+  draft, add a new source-backed fact on the same elementRef instead of inserting roles into an
+  unchanged anchor text or rewriting its protected intent.
   If the saved author messages do not supply roles for this trigger, save the partial draft and
   ask which explicit roles may access it. Use STAY until the author answers that question.
   Keep accessControlType=RBAC while asking; do not switch to NONE or invent a role to pass validation.
@@ -137,6 +150,12 @@ catalog resolution, and defaults.
 - Use the `capabilities` list for native triggers, direct senders, file transfer, chain calls,
   and MCP triggers. Do not create `CAPABILITY`, `ENDPOINT`, or `SERVICE_CALL` authored facts.
   Use facts for goals, parameters, behavior, constraints, visibility, and routing intent.
+  Each native ANCHOR needs a capability with the same owner interaction and element type.
+  A chain-call-2 target uses native chain-trigger lookup, not service operation or APIHub lookup.
+  Set its capability targetReference to the verified chain-trigger element ID only, never a chain
+  ID or chainId/triggerId. If the author selects a trigger, update targetReference and remove its
+  answered target question. On INVALID_TARGET_SELECTION, use the verified IDs in the feedback to
+  correct the reference; do not clear it and ask for the same supplied ID again.
 - An explicitly requested HTTP Sender calling a raw URI, custom route, or helper chain's HTTP
   endpoint is a native `http-sender`. Capture that capability for each occurrence immediately.
   Do not resolveApiOperation or search the API catalog for those calls. Naming a helper chain

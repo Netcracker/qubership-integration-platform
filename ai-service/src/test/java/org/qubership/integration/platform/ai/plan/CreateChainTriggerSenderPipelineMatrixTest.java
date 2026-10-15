@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -70,6 +71,14 @@ class CreateChainTriggerSenderPipelineMatrixTest {
   @MethodSource("passingCases")
   void walksCreateChainPipelineForEachType(PipelineCase caseSpec) throws JsonProcessingException {
     RequirementBrief brief = caseSpec.brief();
+    if (List.of("scs-sender", "sds-trigger").contains(caseSpec.elementType())) {
+      var error = assertThrows(IllegalArgumentException.class, () -> {
+        var revision = adapter.adapt(caseSpec.capture(), "matrix-run", brief, CONTRACT);
+        compiler.compile(revision, CONTRACT, caseSpec.resolvedBindings(revision), brief);
+      });
+      assertTrue(error.getMessage().contains("Runtime descriptor missing"), error.getMessage());
+      return;
+    }
     Interaction lookupInteraction = caseSpec.lookupInteraction(brief.flow());
 
     assertEquals(
@@ -532,7 +541,8 @@ class CreateChainTriggerSenderPipelineMatrixTest {
     ObjectNode patch = objectMapper.createObjectNode();
     ObjectNode props = objectMapper.createObjectNode();
     for (PlanProperty property : withDefaults) {
-      putPlanProperty(props, property);
+      props.set(property.key(), objectMapper.valueToTree(
+          schemaService.coercePatchPropertyValue(elementType, property.key(), property.value())));
     }
     patch.set("properties", props);
     String validationJson =
@@ -541,22 +551,6 @@ class CreateChainTriggerSenderPipelineMatrixTest {
     assertTrue(
         result.path("valid").asBoolean(),
         elementType + " schema validation failed: " + validationJson);
-  }
-
-  private void putPlanProperty(ObjectNode props, PlanProperty property)
-      throws JsonProcessingException {
-    String value = property.value();
-    if (value != null && !value.isBlank()) {
-      if ("integrationOperationAsyncProperties".equals(property.key())) {
-        props.set(property.key(), objectMapper.readTree(value.trim()));
-        return;
-      }
-      if ("mcpServiceIds".equals(property.key()) && value.trim().startsWith("[")) {
-        props.set(property.key(), objectMapper.readTree(value.trim()));
-        return;
-      }
-    }
-    props.put(property.key(), value);
   }
 
   private static ChainPlanNode findNode(ChainPlanGraph graph, String elementType) {

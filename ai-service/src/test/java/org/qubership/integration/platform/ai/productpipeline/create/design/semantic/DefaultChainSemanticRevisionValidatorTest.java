@@ -33,12 +33,39 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 class DefaultChainSemanticRevisionValidatorTest {
+  @Test
+  void conditionCannotContainItsOwnerInABranch() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var revision = mapper.readValue(getClass().getResourceAsStream("/recovery/e024-semantic-revision.json"),
+        ChainSemanticRevision.class);
+
+    var error = assertThrows(IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT));
+
+    assertTrue(error.getMessage().contains("cannot contain its owner"), error.getMessage());
+    var corrected = copy(revision, revision.entryPoints(), revision.nodes(), List.of(),
+        revision.executionEdges(), revision.containment(), revision.mappingIntents());
+    assertDoesNotThrow(() -> validator.validate(corrected, CONTRACT));
+  }
+
 
   private static final CompilerContract CONTRACT =
       new ClasspathCompilerContractRepository().require(CompilerContract.V1);
 
   private final ChainSemanticRevisionValidator validator =
       new DefaultChainSemanticRevisionValidator();
+
+  @ParameterizedTest
+  @ValueSource(strings = {"scs-sender", "sds-trigger"})
+  void rejectsElementsWithoutRuntimeDescriptorsBeforeGeneration(String type) {
+    var base = SemanticFixtures.linearOrders();
+    List<SemanticNode> nodes = base.nodes().stream().map(node ->
+        node instanceof SemanticNode.ServiceCall
+            ? (SemanticNode) new SemanticNode.Operation(node.nodeId(), type, node.provenance()) : node).toList();
+    var candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+    var error = assertThrows(IllegalArgumentException.class, () -> validator.validate(candidate, CONTRACT));
+    assertTrue(error.getMessage().contains("Runtime descriptor missing for element: " + type), error.getMessage());
+  }
 
   @Test
   void containerProvenanceCanDescribeItsOwnBranchWork() {
@@ -90,9 +117,9 @@ class DefaultChainSemanticRevisionValidatorTest {
   @ParameterizedTest(name = "{0}")
   @MethodSource("contractFailures")
   void rejectsInvalidRevisions(String unused, ChainSemanticRevision revision, String message) {
-    IllegalArgumentException error =
+    SemanticRevisionValidationException error =
         assertThrows(
-            IllegalArgumentException.class,
+            SemanticRevisionValidationException.class,
             () -> validator.validate(revision, CONTRACT, briefFrom(revision)));
     assertTrue(error.getMessage().startsWith("Invalid chain semantic revision:"));
     assertTrue(error.getMessage().contains(message), error.getMessage());

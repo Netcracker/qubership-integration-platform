@@ -466,7 +466,10 @@ public final class RequirementCaptureEditor {
       String id = value == null ? null : identity.apply(value);
       if (id == null || !touched.add(id) || values.putIfAbsent(id, value) != null) {
         add(issues, "DUPLICATE_ENTITY", "/changes/" + operationField(family, "add") + "/" + i, id,
-            "Add a new " + family + " identity once.");
+            "questions".equals(family) && values.containsKey(id)
+                ? "Question '" + id + "' already exists. Reuse it or change it through updateQuestions."
+                    + " Use STAY while awaiting the author answer; preserve the accepted flow and facts."
+                : "Add a new " + family + " identity once.");
       }
     }
     for (int i = 0; i < replacements.size(); i++) {
@@ -749,6 +752,18 @@ public final class RequirementCaptureEditor {
       }
       checkApplicable(issues, path, capability);
     }
+    for (FactInput fact : draft.facts()) {
+      if (fact == null || fact.elementIntent() == null) continue;
+      var intent = fact.elementIntent();
+      if (intent.placement() == RequirementElementIntent.Placement.ANCHOR && validKeys.contains(intent.elementType())
+          && draft.capabilities().stream().noneMatch(capability -> capability != null
+              && Objects.equals(capability.interactionId(), intent.ownerInteractionId())
+              && Objects.equals(capability.capabilityKey(), intent.elementType()))) {
+        add(issues, "NATIVE_CAPABILITY_REQUIRED", "/draft/capabilities/" + intent.ownerInteractionId(),
+            fact.sourceFactId(), "Capture a matching '" + intent.elementType() + "' capability for interaction '"
+                + intent.ownerInteractionId() + "' before catalog lookup. Preserve this native element requirement.");
+      }
+    }
     for (InteractionInput interaction : draft.flow().interactions()) {
       if (interaction != null && interaction.direction() == Direction.OUTBOUND
           && RequirementFlowValidator.isDirectHttpTarget(interaction.participant())
@@ -791,6 +806,7 @@ public final class RequirementCaptureEditor {
               && interactions.contains(intent.elementRef())) {
         add(issues, "INVALID_ELEMENT_REFERENCE", path, fact.sourceFactId(),
             "An anchor uses its interaction ID; a local element uses a separate elementRef.");
+        continue;
       }
       if ((intent.placement() == RequirementElementIntent.Placement.BEFORE_HOOK
           || intent.placement() == RequirementElementIntent.Placement.AFTER_HOOK)

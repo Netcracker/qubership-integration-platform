@@ -81,6 +81,9 @@ public final class ChainElementFamilies {
       throw new IllegalArgumentException("null");
     }
     String type = elementType.trim();
+    if ("scs-sender".equals(type) || "sds-trigger".equals(type)) {
+      return BindingMode.UNSUPPORTED_IN_CREATE;
+    }
     if ("http-trigger".equals(type)) {
       return BindingMode.HTTP_TRIGGER_DUAL_MODE;
     }

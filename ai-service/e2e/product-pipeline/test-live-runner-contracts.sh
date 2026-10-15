@@ -14,6 +14,7 @@ pass() {
 }
 
 SCENARIO_SH="${DIR}/run-product-scenario.sh"
+python3 "${DIR}/test-runner-decisions.py"
 GATE_SH="${DIR}/run-quality-gate.sh"
 EVAL_PY="${DIR}/evaluate-plan.py"
 BUILD_PY="${DIR}/build-report-from-evidence.py"
@@ -96,7 +97,7 @@ jq -e '
     and $s.recovery.faultStage == "design-execution"
     and $s.recovery.ownerStage == "design-planning"
     and $s.recovery.automaticOnly == true
-    and $s.recovery.faultPlan == "design-execution=MISSING_REQUIRED_PROPERTY:1"
+    and $s.recovery.faultPlan == "design-plan-validation=CONTRACT_SHAPE:1"
     and (($s.recovery.followUp | type) == "string" and ($s.recovery.followUp | length) > 0)
 ' "${DIR}/scenarios.json" >/dev/null \
   || fail "recovery scenario must define the injected fault and causal owner"

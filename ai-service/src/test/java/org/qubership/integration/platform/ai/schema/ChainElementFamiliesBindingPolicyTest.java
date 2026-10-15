@@ -46,7 +46,8 @@ class ChainElementFamiliesBindingPolicyTest {
       "mail-sender, DIRECT",
       "sftp-upload, DIRECT",
       "sftp-download, DIRECT",
-      "scs-sender, DIRECT"
+      "scs-sender, UNSUPPORTED_IN_CREATE",
+      "sds-trigger, UNSUPPORTED_IN_CREATE"
   })
   void classifiesKnownTypes(String type, ChainElementFamilies.BindingMode mode) {
     assertEquals(mode, ChainElementFamilies.bindingMode(type));
@@ -60,7 +61,9 @@ class ChainElementFamiliesBindingPolicyTest {
       "scs-sender"
   })
   void directTypesNeverRequireCatalogByTypeAlone(String type) {
-    assertEquals(ChainElementFamilies.BindingMode.DIRECT, ChainElementFamilies.bindingMode(type));
+    assertEquals(Set.of("scs-sender", "sds-trigger").contains(type)
+        ? ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE : ChainElementFamilies.BindingMode.DIRECT,
+        ChainElementFamilies.bindingMode(type));
   }
 
   @Test

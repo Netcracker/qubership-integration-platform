@@ -120,12 +120,24 @@ public class RequirementDraftStore {
         .map(RequirementDraft::authoredDraft).orElse(null);
     var authorPaths = new java.util.LinkedHashSet<String>();
     if (changes != null && changes.amendments() != null) {
-      for (var amendment : changes.amendments()) {
+      for (int i = 0; i < changes.amendments().size(); i++) {
+        var amendment = changes.amendments().get(i);
         var normalized = amendment == null ? null : new RequirementCaptureInput.AmendmentInput(
             RequirementRevisionAdmission.canonicalPath(amendment.path()), amendment.sourceTurnId(), amendment.quote());
-        if (normalized == null || !RequirementRevisionAdmission.validPath(base, normalized.path())
-            || !supportsAmendment(conversationId, normalized)) {
-          issues.add(new RequirementCaptureEditor.Issue("INVALID_AUTHOR_AMENDMENT", "/changes/amendments", null,
+        String issuePath = "/changes/amendments/" + i;
+        if (normalized == null || !RequirementRevisionAdmission.validPath(base, normalized.path())) {
+          String path = normalized == null ? null : normalized.path();
+          String parent = path;
+          while (parent != null && parent.lastIndexOf('/') > 0
+              && !RequirementRevisionAdmission.validPath(base, parent)) {
+            parent = parent.substring(0, parent.lastIndexOf('/'));
+          }
+          issues.add(new RequirementCaptureEditor.Issue("INVALID_AUTHOR_AMENDMENT", issuePath + "/path", null,
+              "Requirement path '" + path + "' does not identify an existing amendable field."
+                  + (RequirementRevisionAdmission.validPath(base, parent)
+                      ? " Amend the existing parent '" + parent + "' when its child does not exist." : "")));
+        } else if (!supportsAmendment(conversationId, normalized)) {
+          issues.add(new RequirementCaptureEditor.Issue("INVALID_AUTHOR_AMENDMENT", issuePath, null,
               "Cite a fresh READY author source and its exact nonempty quote for an existing requirement path."
                   + " A repair instruction or an earlier consumed source does not authorize an amendment."));
         } else {

@@ -97,7 +97,8 @@ public final class RequirementCaptureInput {
       String capabilityKey,
       @NullableCaptureValue(description = "Only for http-trigger; null for every other capability.")
           HttpMode httpMode,
-      @NullableCaptureValue(description = "Only for http-trigger or http-sender; otherwise null.")
+      @NullableCaptureValue(description = "Only for http-trigger or http-sender. Copy the author's method;"
+          + " leave null and ask when unspecified. Never guess a method; null for other capabilities.")
           HttpMethod httpMethod,
       @NullableCaptureValue(description = "HTTP trigger path or direct HTTP sender URI; otherwise null.")
           String path,
@@ -105,7 +106,8 @@ public final class RequirementCaptureInput {
           String topic,
       @NullableCaptureValue(description = "Only for mcp-trigger; otherwise null.")
           String mcpServerId,
-      @NullableCaptureValue(description = "Only for chain-call-2 or mcp-trigger after target lookup; otherwise null.")
+      @NullableCaptureValue(description = "For chain-call-2, the verified chain-trigger element ID only,"
+          + " never a chain ID or chainId/triggerId. For mcp-trigger, the verified MCP system ID. Otherwise null.")
           String targetReference) {}
 
   public enum HttpMode {

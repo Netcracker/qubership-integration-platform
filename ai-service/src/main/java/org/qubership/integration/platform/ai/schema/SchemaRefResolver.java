@@ -1,10 +1,19 @@
 package org.qubership.integration.platform.ai.schema;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.PathType;
+import com.networknt.schema.SchemaValidatorsConfig;
+import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.Deque;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -15,18 +24,58 @@ public class SchemaRefResolver {
 
   private final SchemaResourceLoader resourceLoader;
   private final QipSchemaYamlParser yamlParser;
+  private final JsonSchemaFactory validationFactory;
   private final ConcurrentHashMap<String, JsonNode> documentRootCache = new ConcurrentHashMap<>();
 
   @Inject
   public SchemaRefResolver(SchemaResourceLoader resourceLoader, QipSchemaYamlParser yamlParser) {
     this.resourceLoader = resourceLoader;
     this.yamlParser = yamlParser;
+    this.validationFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7,
+        builder -> builder.schemaLoaders(loaders ->
+            loaders.schemas(uri -> loadDocumentRoot(uri).toString())));
   }
 
   public JsonNode loadDocumentRoot(String modelUriWithoutFragment) {
     return documentRootCache.computeIfAbsent(
         modelUriWithoutFragment,
-        uri -> yamlParser.parseYaml(resourceLoader.readSchemaYamlByModelUri(uri)));
+        uri -> {
+          JsonNode root = yamlParser.parseYaml(resourceLoader.readSchemaYamlByModelUri(uri));
+          absolutizeSchemaReferences(root, readDocumentUri(root, uri));
+          return root;
+        });
+  }
+
+  Set<ValidationMessage> validate(JsonNode schema, JsonNode value) {
+    return validationFactory.getSchema(schema,
+        SchemaValidatorsConfig.builder().locale(Locale.ROOT).pathType(PathType.JSON_PATH)
+            .formatAssertionsEnabled(false).build()).validate(value);
+  }
+
+  // Extracted property schemas must retain the document that owns their local references.
+  private static void absolutizeSchemaReferences(JsonNode schema, String documentUri) {
+    if (!schema.isObject()) {
+      return;
+    }
+    String base = schema.path("$id").asText(documentUri);
+    if (schema.path("$ref").asText().startsWith("#")) {
+      ((ObjectNode) schema).put("$ref", base + schema.get("$ref").asText());
+    }
+    for (String key : List.of("properties", "patternProperties", "definitions", "dependencies")) {
+      schema.path(key).elements().forEachRemaining(child -> absolutizeSchemaReferences(child, base));
+    }
+    for (String key : List.of("allOf", "oneOf", "anyOf")) {
+      schema.path(key).forEach(child -> absolutizeSchemaReferences(child, base));
+    }
+    for (String key : List.of("if", "then", "else", "not", "items", "additionalProperties",
+        "additionalItems", "contains", "propertyNames")) {
+      JsonNode child = schema.path(key);
+      if (child.isArray()) {
+        child.forEach(item -> absolutizeSchemaReferences(item, base));
+      } else {
+        absolutizeSchemaReferences(child, base);
+      }
+    }
   }
 
   public String readDocumentUri(JsonNode documentRoot, String fallbackUri) {

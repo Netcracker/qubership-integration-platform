@@ -381,14 +381,15 @@ public class RequirementCaptureTools {
               "Use an existing compiler element type."));
           continue;
         }
-        var keys = elementSchemas.allowedPatchPropertyKeys(intent.elementType());
+        var keys = new java.util.HashSet<>(elementSchemas.allowedPatchPropertyKeys(intent.elementType()));
+        keys.removeIf(key -> key.endsWith("Id") && key.startsWith("integration")
+            || "chain-call-2".equals(intent.elementType()) && "elementId".equals(key));
         var used = new java.util.HashSet<String>();
         for (var property : intent.requestedProperties()) {
           String propertyPath = path + "/requestedProperties"
               + (property == null || property.key() == null ? ""
                   : "/" + property.key().replace("~", "~0").replace("/", "~1"));
-          if (property == null || !keys.contains(property.key()) || !used.add(property.key())
-              || property.key().endsWith("Id") && property.key().startsWith("integration")) {
+          if (property == null || !keys.contains(property.key()) || !used.add(property.key())) {
             issues.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath, fact.sourceFactId(),
                 "Use unique runtime property keys: " + String.join(", ", new java.util.TreeSet<>(keys))
                     + ". Catalog identity belongs to the resolver. Correct the key or encoding without dropping"
@@ -431,7 +432,9 @@ public class RequirementCaptureTools {
           String literal = intent.exactValues().get(i);
           if (literal != null && !fact.text().contains(literal)) {
             issues.add(new Issue("ELEMENT_LITERAL_FACT_MISMATCH", path + "/exactValues/" + i, fact.sourceFactId(),
-                "Keep each exactValues literal unchanged in this fact text."));
+                "Keep only exactValues literals already present in this fact text and the author source."
+                    + " Correct the rejected exactValues list. Do not rewrite protected fact text to insert literals;"
+                    + " retain configuration in requestedProperties and its separate facts."));
           }
         }
         List<String> literals = new ArrayList<>(intent.exactValues());
@@ -443,7 +446,10 @@ public class RequirementCaptureTools {
           if (literal == null || literal.isBlank() || !authorText.contains(literal)) {
             String field = i < intent.exactValues().size() ? "/exactValues/" + i : "/requestedName";
             issues.add(new Issue("ELEMENT_LITERAL_SOURCE_MISMATCH", path + field, fact.sourceFactId(),
-                "Copy names and exactValues verbatim from an author source. Generated suggestions are not requested names."));
+                literal == null || literal.isBlank()
+                    ? "Use nonempty author literals in exactValues and requestedName. Remove blank exactValues entries;"
+                        + " retain explicitly empty configuration values in requestedProperties."
+                    : "Copy names and exactValues verbatim from an author source. Generated suggestions are not requested names."));
           }
         }
       }
@@ -479,7 +485,9 @@ public class RequirementCaptureTools {
                 .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
             + ". Rejected-input records are partial preservation constraints, not replacement records."
             + " Null does not instruct you to clear an accepted value. Retain accepted values and validated"
-            + " pending fields; correct only reported invalid fields or explicitly authorized amendments."))
+            + " pending fields; correct only reported invalid fields or explicitly authorized amendments."
+            + " During automatic repair, keep accepted elementIntent unchanged. Add extra source-backed settings through addFacts"
+            + " on the same elementRef, rather than updating its accepted fact."))
         .toList();
   }
 

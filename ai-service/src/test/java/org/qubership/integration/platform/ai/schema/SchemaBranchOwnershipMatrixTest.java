@@ -42,6 +42,10 @@ class SchemaBranchOwnershipMatrixTest {
       unconditionalDefaults.removeAll(discriminatorKeys(model.conditionalBranches()));
       needed.removeAll(unconditionalDefaults);
       needed.removeAll(CATALOG_BINDER_OWNED.getOrDefault(type, Set.of()));
+      if (model.propertyDefs().containsKey("receiveCorrelationId")) {
+        // RequestedElementValues overlays these author settings after generator execution.
+        needed.removeAll(Set.of("correlationIdName", "correlationIdPosition"));
+      }
       needed.removeAll(owned.getOrDefault(type, Set.of()));
       if (!needed.isEmpty()) {
         violations.add(type + " missing owners for " + needed);

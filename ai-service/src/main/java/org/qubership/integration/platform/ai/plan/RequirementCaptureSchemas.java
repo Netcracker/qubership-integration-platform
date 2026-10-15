@@ -27,6 +27,8 @@ public final class RequirementCaptureSchemas {
       new org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository()
           .require(org.qubership.integration.platform.ai.compiler.contract.CompilerContract.V1).elements().keySet().stream()
           .filter(type -> !ChainElementFamilies.isProjectedRegionShell(type))
+          .filter(type -> !(ChainElementFamilies.isTrigger(type) || ChainElementFamilies.isSender(type))
+              || ChainElementFamilies.bindingMode(type) != ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE)
           .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
   private RequirementCaptureSchemas() {}
@@ -148,6 +150,7 @@ public final class RequirementCaptureSchemas {
       keys.addAll(ChainElementFamilies.SENDERS);
       keys.addAll(ChainElementFamilies.FILE_TRANSFER);
       keys.add("chain-call-2");
+      keys.retainAll(COMPILER_ELEMENT_TYPES);
       return JsonEnumSchema.builder().enumValues(List.copyOf(keys)).build();
     }
     if ("directive".equals(name)) {

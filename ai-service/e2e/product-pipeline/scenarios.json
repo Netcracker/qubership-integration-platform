@@ -806,8 +806,8 @@
     "automaticOnly": true,
     "faultStage": "design-execution",
     "ownerStage": "design-planning",
-    "followUp": "Add the required recovery-check setting to the implementation plan.",
-    "faultPlan": "design-execution=MISSING_REQUIRED_PROPERTY:1"
+    "followUp": "Regenerate the implementation plan using only known planner owners.",
+    "faultPlan": "design-plan-validation=CONTRACT_SHAPE:1"
   }
   },
   "product-create-chain-recovery-exhausted-halt": {

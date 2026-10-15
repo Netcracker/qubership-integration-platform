@@ -162,12 +162,13 @@ public final class ElementSchemaCompactFormatter {
       out.put("detailsAvailable", true);
       return out;
     }
-    if (s.has("oneOf") && s.get("oneOf").isArray()) {
-      out.put("type", "oneOf");
+    String union = s.has("anyOf") ? "anyOf" : "oneOf";
+    if (s.path(union).isArray()) {
+      out.put("type", union);
       out.put("detailsAvailable", true);
       ArrayNode variants = NF.arrayNode();
       int i = 0;
-      for (JsonNode branch : s.get("oneOf")) {
+      for (JsonNode branch : s.get(union)) {
         if (i++ > 12) {
           break;
         }
