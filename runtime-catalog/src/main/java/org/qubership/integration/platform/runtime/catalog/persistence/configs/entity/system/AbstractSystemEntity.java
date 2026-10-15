@@ -61,4 +61,8 @@ public abstract class AbstractSystemEntity extends AbstractEntity {
     public int hashCode() {
         return Objects.hash(id, name, description);
     }
+
+    // Lombok generates the members; javadoc runs no annotation processors, so the class must exist in source.
+    public abstract static class AbstractSystemEntityBuilder<C extends AbstractSystemEntity, B extends AbstractSystemEntityBuilder<C, B>> extends AbstractEntityBuilder<C, B> {
+    }
 }

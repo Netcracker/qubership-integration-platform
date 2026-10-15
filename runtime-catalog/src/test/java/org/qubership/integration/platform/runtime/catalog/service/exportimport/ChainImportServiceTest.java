@@ -9,6 +9,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.chain.impl.ChainImpl;
 import org.qubership.integration.platform.io.model.exportimport.MetaInfoExternalEntity;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainExternalContentEntity;
@@ -173,7 +174,7 @@ class ChainImportServiceTest {
         verifyNoInteractions(folderService);
     }
 
-    @DisplayName("setActualChainState should persist the folder tree before the chain")
+    @DisplayName("saveImportedChainBackward should persist the folder tree before the chain")
     @Test
     void shouldPersistFolderBeforeChain() {
         Folder folder = Folder.builder().name("A").build();
@@ -189,7 +190,7 @@ class ChainImportServiceTest {
         order.verify(chainService).setActualizedChainState(null, imported);
     }
 
-    @DisplayName("setActualChainState should skip folder persistence when the chain has no parent")
+    @DisplayName("saveImportedChainBackward should skip folder persistence when the chain has no parent")
     @Test
     void shouldSkipFolderPersistWhenNoParent() {
         Chain imported = Chain.builder().id("c1").name("n").build();
@@ -219,6 +220,61 @@ class ChainImportServiceTest {
         assertEquals(ImportEntityStatus.UPDATED, result.getStatus());
         assertSame(existingFolder, captor.getValue().getExistingFolder());
         verify(folderService, never()).save(any(Folder.class), nullable(String.class));
+    }
+
+    @DisplayName("saveImportedChain should remove existing elements before mapping an update")
+    @Test
+    void shouldRemoveElementsBeforeMappingOnUpdate() {
+        Chain existingChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain refreshedChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain mapped = Chain.builder().id("c1").name("Chain 1").build();
+        when(chainFinderService.tryFindById("c1"))
+                .thenReturn(Optional.of(existingChain))
+                .thenReturn(Optional.of(existingChain))
+                .thenReturn(Optional.of(refreshedChain));
+        when(chainModelMapper.map(any(), any())).thenReturn(new ChainImpl());
+        when(chainExternalEntityMapper.toInternalEntity(any())).thenReturn(mapped);
+
+        service.saveImportedChain(externalChain(null), null, Collections.emptySet());
+
+        InOrder order = inOrder(elementService, chainModelMapper);
+        order.verify(elementService).deleteAllByChainIdAndFlush("c1");
+        order.verify(chainModelMapper).map(any(), any());
+    }
+
+    @DisplayName("saveImportedChainBackward should merge elements against the existing chain on update")
+    @Test
+    void shouldMergeElementsOnBackwardUpdate() {
+        Chain existingChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain imported = Chain.builder().id("c1").name("Chain 1").build();
+        when(chainFinderService.tryFindById("c1")).thenReturn(Optional.of(existingChain));
+
+        service.saveImportedChainBackward(imported);
+
+        verify(elementService).setActualizedChainElements(existingChain.getElements(), imported.getElements());
+        verify(elementService, never()).replaceImportedChainElements(any());
+        verify(dependencyService).setActualizedElementDependencyStates(
+                existingChain.getDependencies(), imported.getDependencies());
+        verify(chainService).setActualizedChainState(existingChain, imported);
+    }
+
+    @DisplayName("saveImportedChain should replace elements after delete on update")
+    @Test
+    void shouldReplaceElementsOnV3Update() {
+        Chain existingChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain refreshedChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain mapped = Chain.builder().id("c1").name("Chain 1").build();
+        when(chainFinderService.tryFindById("c1"))
+                .thenReturn(Optional.of(existingChain))
+                .thenReturn(Optional.of(existingChain))
+                .thenReturn(Optional.of(refreshedChain));
+        when(chainModelMapper.map(any(), any())).thenReturn(new ChainImpl());
+        when(chainExternalEntityMapper.toInternalEntity(any())).thenReturn(mapped);
+
+        service.saveImportedChain(externalChain(null), null, Collections.emptySet());
+
+        verify(elementService).replaceImportedChainElements(mapped.getElements());
+        verify(elementService, never()).setActualizedChainElements(any(), any());
     }
 
     // makeDeployActions builds a snapshot for every imported chain whose commit request asks for one,
