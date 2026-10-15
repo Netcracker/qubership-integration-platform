@@ -75,8 +75,9 @@ Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `qip-d
 ```text
 docker-compose.yml          # base local stack: runtime-catalog, engine, sessions-management,
                             # testing-service, ui-proxy, postgres, opensearch, consul
-docker-compose.kafka.yml    # optional: kafka in KRaft mode (9092) + akhq UI (8099); SASL, TLS and
-                            # SASL-over-TLS listeners, see README.md "Kafka listeners"
+docker-compose.kafka.yml    # optional: kafka in KRaft mode (9092) + akhq UI (8099); SASL, TLS,
+                            # SASL-over-TLS, and TLSv1.3-only listeners, see README.md
+                            # "Kafka listeners"
 docker-compose.rabbitmq.yml # optional: rabbitmq (5672) + management UI (15672)
 docker-compose.redis.yml    # optional: redis (6379)
 docker-compose.pubsub.yml   # optional: GCP Pub/Sub emulator (8085)

@@ -305,7 +305,8 @@ exist for that shape, and each is invisible from inside the file that carries it
 - **Negative configuration**, `specs/brokers/missing-target.spec.ts` and
   `specs/brokers/broker-restart.spec.ts`. Every other fixture is correct by construction, so these
   assert the pre-deploy refusal of a missing Kafka topic, RabbitMQ queue, and exchange, and the
-  platform's reconnect after a broker restart.
+  platform's reconnect after a broker restart. The missing-target cases are `@classic-only`: the
+  micro engine runs no pre-deploy check, so a micro domain reports such a chain `DEPLOYED`.
 
 ## The shared corpus
 
@@ -324,7 +325,7 @@ pays the engine's deployment pickup on its own, about 2 s each against 0.49 s in
 
 On `k8s`, `seed-micro` deploys a micro copy of every corpus chain to a micro domain of the run, so a
 fixture added to the corpus runs on both engines. `microCopy` in `fixtures/templating.ts` remaps the
-copy's ids and trigger paths. A chain that calls back into the engine calls `ENGINE_LOOPBACK`
+copy's IDs and trigger paths. A chain that calls back into the engine calls `ENGINE_LOOPBACK`
 (`http://localhost:8080/routes/…`), in its own URI or as a service's address, and `microCopy`
 rewrites that call to the callee's micro copy. The micro engine resolves `#{…}` once, when the domain
 loads, so a corpus chain reads no common variable except the one both seeds write
@@ -374,11 +375,11 @@ gate sends warm-up calls until one records, and fails once more of them are lost
 `UNRECORDED_WARM_UP_LIMIT` allows.
 
 `fixtures/brokers/` is a second corpus, outside `CORPUS_FIXTURE_DIRS`, imported and deployed by the
-`brokers-seed` project rather than `seed`, because the engine's pre-deploy connectivity checks would
-stall the whole shared corpus whenever a broker is down. `support/brokers.ts` is its assembler, and
-it also creates the run-token topics, queues, exchanges, dead-letter bindings, and pub/sub topology
-each fixture needs before deploying, since nothing on either side of a broker chain declares its
-own. What it imported is written to `.e2e-brokers-corpus.json` (`.e2e-k8s-brokers-corpus.json` on
+`brokers-seed` project rather than `seed`, because the classic engine's pre-deploy connectivity
+checks would stall the whole shared corpus whenever a broker is down. `support/brokers.ts` is its
+assembler, and it also creates the run-token topics, queues, exchanges, dead-letter bindings, and
+pub/sub topology each fixture needs before deploying, since nothing on either side of a broker chain
+declares its own. What it imported is written to `.e2e-brokers-corpus.json` (`.e2e-k8s-brokers-corpus.json` on
 `k8s`) and read back with `readBrokersCorpusState`.
 
 On `k8s`, `brokers-micro-seed` deploys a micro copy of the same fixtures to a micro domain of its
