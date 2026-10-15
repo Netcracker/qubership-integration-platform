@@ -7,16 +7,10 @@
  * tab change while the form holds an edit. The guard covers in-app navigation only: the page sets no
  * `beforeunload` handler, so a reload or a typed URL leaves without the dialog.
  */
-import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "../../support/page-guard.js";
 import { ChainTabsPage } from "../../pages/ChainTabsPage.js";
 import { ChainsPage } from "../../pages/ChainsPage.js";
 import { tokenized } from "../../support/run.js";
-
-/** A form field by its label, which antd names with a trailing colon and, when required, a leading `* `. */
-function field(page: Page, role: "textbox" | "combobox", label: string): Locator {
-  return page.getByRole(role, { name: new RegExp(`^(\\* )?${label} :$`) });
-}
 
 test("a name, description, and label applied on the properties tab are saved", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, folder, run }) => {
   const chain = await catalog.createChain(tokenized(run, "ui-props"), folder.id);
@@ -25,13 +19,13 @@ test("a name, description, and label applied on the properties tab are saved", {
   const tabs = new ChainTabsPage(page);
 
   await tabs.goto(chain.id, "properties");
-  const name = field(page, "textbox", "Name");
+  const name = tabs.field("textbox", "Name");
   await expect(name).toHaveValue(chain.name);
   // Nothing to save until the form holds a change.
   await expect(tabs.apply).toBeDisabled();
   await name.fill(renamed);
-  await field(page, "textbox", "Description").fill("set in the browser");
-  const labels = field(page, "combobox", "Labels");
+  await tabs.field("textbox", "Description").fill("set in the browser");
+  const labels = tabs.field("combobox", "Labels");
   await labels.fill(label);
   await labels.press("Enter");
   const saved = page.waitForResponse((response) => response.request().method() === "PUT" && response.url().endsWith(`/chains/${chain.id}`));
@@ -44,7 +38,8 @@ test("a name, description, and label applied on the properties tab are saved", {
     description: "set in the browser",
     labels: [label],
   });
-  // The header reads the chain the page holds, so it shows the new name in place.
+  // The header and the tab title read the chain the page holds, so both show the new name in place.
+  await expect(tabs.breadcrumbItem(renamed)).toBeVisible();
   await expect(page).toHaveTitle(renamed);
   await expect(tabs.apply).toBeDisabled();
   // A saved form holds no change, so a tab change opens no dialog.
@@ -60,7 +55,7 @@ test("leaving the properties tab with an unsaved edit asks first, and discards t
   const unsaved = page.getByRole("dialog", { name: "Unsaved Changes" });
 
   await tabs.goto(chain.id, "properties");
-  const name = field(page, "textbox", "Name");
+  const name = tabs.field("textbox", "Name");
   await expect(name).toHaveValue(chain.name);
   await name.fill(edited);
 
@@ -77,6 +72,9 @@ test("leaving the properties tab with an unsaved edit asks first, and discards t
   await unsaved.getByRole("button", { name: "Yes", exact: true }).click();
   await expect(unsaved).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/graph$`));
+  // Back on the tab, the form reads the saved chain again, so the edit is gone.
+  await tabs.tab("Properties").click();
+  await expect(name).toHaveValue(chain.name);
   expect((await catalog.getChain(chain.id)).name, "the discarded edit reached the catalog").toBe(chain.name);
 });
 

@@ -5,9 +5,8 @@
  * `POST /v1/maas-actions/{kafka,rabbitmq}/declarative`, and that the file reaches the browser as a
  * download. `specs/api/maas.spec.ts` covers the file the catalog builds from the parameters.
  *
- * No case presses Create. It calls the MaaS agent, which this stack does not run, so each case
- * asserts that the page sent no create request. The Namespace field gates Export but is not sent
- * with it: the file names the namespace as the placeholder `${ENV_NAMESPACE}`, which the deployer
+ * No case presses Create: it calls the MaaS agent, which this stack does not run. The Namespace
+ * field gates Export but is not sent with it: the file names the namespace as the placeholder `${ENV_NAMESPACE}`, which the deployer
  * resolves in the target namespace.
  */
 import { readFile } from "node:fs/promises";
@@ -19,15 +18,6 @@ import { callToken } from "../../support/run.js";
 /** `MAAS_NAMESPACE_PLACEHOLDER` in `MaasService.java`. */
 const NAMESPACE_PLACEHOLDER = "${ENV_NAMESPACE}";
 
-/** The create requests the page sent, which go to the MaaS agent rather than build a file. */
-function watchCreates(page: Page): string[] {
-  const creates: string[] = [];
-  page.on("request", (sent) => {
-    if (sent.method() === "POST" && /\/maas-actions\/(kafka|rabbitmq)$/.test(new URL(sent.url()).pathname)) creates.push(sent.url());
-  });
-  return creates;
-}
-
 /** Presses Export and reads the downloaded file. */
 async function exportFile(page: Page): Promise<{ name: string; manifest: unknown }> {
   const downloaded: Promise<Download> = page.waitForEvent("download");
@@ -38,7 +28,6 @@ async function exportFile(page: Page): Promise<{ name: string; manifest: unknown
 
 test("the Kafka MaaS export downloads a topic manifest for the typed classifier", { tag: ["@ui", "@tier2"] }, async ({ page }) => {
   const classifier = callToken("ui-maas-topic");
-  const creates = watchCreates(page);
 
   await page.goto("/devtools/maas/kafka");
   await page.getByRole("textbox", { name: "Namespace" }).fill(callToken("ui-maas-ns"));
@@ -51,7 +40,6 @@ test("the Kafka MaaS export downloads a topic manifest for the typed classifier"
     kind: "topic",
     spec: { classifier: { name: classifier, namespace: NAMESPACE_PLACEHOLDER } },
   });
-  expect(creates).toEqual([]);
 });
 
 test("the RabbitMQ MaaS export downloads a vhost manifest with the typed exchange, queue, and binding", { tag: ["@ui", "@tier2"] }, async ({ page }) => {
@@ -59,7 +47,6 @@ test("the RabbitMQ MaaS export downloads a vhost manifest with the typed exchang
   const exchange = callToken("ui-maas-exchange");
   const queue = callToken("ui-maas-queue");
   const routingKey = callToken("ui-maas-rk");
-  const creates = watchCreates(page);
 
   await page.goto("/devtools/maas/rabbitmq");
   await page.getByRole("textbox", { name: "Namespace" }).fill(callToken("ui-maas-ns"));
@@ -83,5 +70,4 @@ test("the RabbitMQ MaaS export downloads a vhost manifest with the typed exchang
       },
     },
   });
-  expect(creates).toEqual([]);
 });

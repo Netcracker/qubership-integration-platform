@@ -7,34 +7,54 @@
  * never to a micro one, whose pod a deploy would roll.
  *
  * The engine rows come from `GET /v1/catalog/domains/{domain}/engines`, which lists pods only where
- * `Env.domainFacts().listsEnginePods` says so: Compose's dev-mode domain source lists none, so there
- * the case reads the empty engine level and stops.
+ * `Env.domainFacts().listsEnginePods` says so. The first case reads the engine level on both targets.
+ * Compose's dev-mode domain source lists no pod, so no engine row exists to expand there, and the
+ * second case is skipped on it with that reason.
  */
+import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "../../support/page-guard.js";
+import type { Catalog } from "../../support/catalog.js";
 import { DEFAULT_DOMAIN } from "../../support/catalog-types.js";
 import { DEPLOY_TIMEOUT } from "../../support/corpus.js";
 import { tokenizedChain } from "../../support/deployable.js";
 import { callToken } from "../../support/run.js";
 import { leftBehind } from "../../support/teardown.js";
 
+/** Expands the `default` domain and returns its engine row, once the page has the engine listing. */
+async function expandDefaultDomain(page: Page, host: string): Promise<Locator> {
+  const engines = page.waitForResponse((response) => response.url().endsWith(`/domains/${DEFAULT_DOMAIN}/engines`));
+  await page.goto("/admintools/domains");
+  await rowOf(page, DEFAULT_DOMAIN).getByRole("button", { name: "Expand row" }).click();
+  expect((await engines).ok()).toBe(true);
+  return rowOf(page, host);
+}
+
+function rowOf(page: Page, text: string): Locator {
+  return page.getByRole("row").filter({ has: page.getByRole("cell", { name: text, exact: true }) });
+}
+
+async function defaultEngineHost(catalog: Catalog): Promise<string> {
+  const [host] = (await catalog.engineHosts())[DEFAULT_DOMAIN] ?? [];
+  expect(host, `no engine registered in the ${DEFAULT_DOMAIN} domain`).toBeDefined();
+  return host;
+}
+
+test("the default domain lists its engine pod where the domain source lists pods", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, env }) => {
+  const host = await defaultEngineHost(catalog);
+  const engine = await expandDefaultDomain(page, host);
+  // The expanded domain row holds the engine table, so it matches the engine row's filter too.
+  await expect(engine.getByRole("cell", { name: host, exact: true })).toHaveCount(env.domainFacts().listsEnginePods ? 1 : 0);
+});
+
 test("a chain shows on its engine's row after the deploy and leaves after the undeploy with no reload", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, env, folder, run }) => {
+  test.skip(!env.domainFacts().listsEnginePods, "the domain source lists no engine pod, so no engine row exists to expand");
   // A call token in the route keeps repeats of the case apart.
   const chain = await tokenizedChain(catalog, run, { prefix: "ui-domains", what: callToken("deploy"), parentId: folder.id });
   const snapshot = await catalog.createSnapshot(chain.id);
-  const [host] = (await catalog.engineHosts())[DEFAULT_DOMAIN] ?? [];
-  expect(host, `no engine registered in the ${DEFAULT_DOMAIN} domain`).toBeDefined();
-  const rowOf = (text: string) => page.getByRole("row").filter({ has: page.getByRole("cell", { name: text, exact: true }) });
+  const host = await defaultEngineHost(catalog);
   const listed = page.getByRole("link", { name: chain.name, exact: true });
 
-  const engines = page.waitForResponse((response) => response.url().endsWith(`/domains/${DEFAULT_DOMAIN}/engines`));
-  await page.goto("/admintools/domains");
-  await rowOf(DEFAULT_DOMAIN).getByRole("button", { name: "Expand row" }).click();
-  expect((await engines).ok()).toBe(true);
-  const engine = rowOf(host);
-  if (!env.domainFacts().listsEnginePods) {
-    await expect(engine).toHaveCount(0);
-    return;
-  }
+  const engine = await expandDefaultDomain(page, host);
   const deployments = page.waitForResponse((response) => response.url().endsWith(`/engines/${host}/deployments`));
   await engine.getByRole("button", { name: "Expand row" }).click();
   expect((await deployments).ok()).toBe(true);
