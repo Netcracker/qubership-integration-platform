@@ -44,7 +44,7 @@ class EngineRoutesResourceBuilderTest {
 
         builder = new EngineRoutesResourceBuilder(
                 handlebars, engineRoutesNamingStrategy, serviceNamingStrategy, new K8sNameValidator());
-        ReflectionTestUtils.setField(builder, "publicRoutePrefixV1", "/api/v1/qip/engine");
+        ReflectionTestUtils.setField(builder, "publicRoutePrefixV1", "/api/v1/cip/engine");
         ReflectionTestUtils.setField(builder, "publicGatewayName", "public-gateway");
         ReflectionTestUtils.setField(builder, "privateGatewayName", "private-gateway");
         ReflectionTestUtils.setField(builder, "internalGatewayName", "internal-gateway-service");
@@ -79,16 +79,16 @@ class EngineRoutesResourceBuilderTest {
         assertTrue(result.contains("name: public-gateway"));
         assertTrue(result.contains("name: private-gateway"));
         assertTrue(result.contains("name: internal-gateway-service"));
-        assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/sessions"));
-        assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/chains/"));
-        assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/live-exchanges"));
+        assertTrue(result.contains("value: /api/v1/cip/engine/my-domain/sessions"));
+        assertTrue(result.contains("value: /api/v1/cip/engine/my-domain/chains/"));
+        assertTrue(result.contains("value: /api/v1/cip/engine/my-domain/live-exchanges"));
     }
 
     @Test
     void checkpointSessionRuleTruncatesToPrefixBeforeChainIdVariable() throws Exception {
         String result = builder.build(contextFor("my-domain"));
 
-        assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/chains/"));
+        assertTrue(result.contains("value: /api/v1/cip/engine/my-domain/chains/"));
         assertFalse(result.contains("chainId"));
         assertTrue(result.contains("replacePrefixMatch: /v1/engine/chains/"));
     }
@@ -104,9 +104,9 @@ class EngineRoutesResourceBuilderTest {
     void domainNameLabelIsSanitizedButPathsUseRawDomainName() throws Exception {
         String result = builder.build(contextFor("test_domain"));
 
-        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/sessions"));
-        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/chains/"));
-        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/live-exchanges"));
+        assertTrue(result.contains("value: /api/v1/cip/engine/test_domain/sessions"));
+        assertTrue(result.contains("value: /api/v1/cip/engine/test_domain/chains/"));
+        assertTrue(result.contains("value: /api/v1/cip/engine/test_domain/live-exchanges"));
         assertTrue(result.contains("my-domain-label: testdomain"));
     }
 

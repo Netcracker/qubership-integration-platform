@@ -94,7 +94,7 @@ This service handles **session observability** in the Qubership Integration Plat
 
 | Service | Protocol | What For |
 |---|---|---|
-| **OpenSearch** | HTTP (`OPENSEARCH_*` env vars) | Primary data store. Sessions stored in index `qip-elements-{namespace}-session-elements`. |
+| **OpenSearch** | HTTP (`OPENSEARCH_*` env vars) | Primary data store. Sessions stored in index `cip-elements-{namespace}-session-elements`. |
 | **Runtime Catalog** | REST (`GET /v1/chains/names`) | Resolve chainId → chainName for display in session listings |
 | **Consul** | REST | Externalized configuration at `config/{NAMESPACE}/` |
 

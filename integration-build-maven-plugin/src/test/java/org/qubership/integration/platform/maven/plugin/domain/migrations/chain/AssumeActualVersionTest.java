@@ -14,8 +14,8 @@ import static org.mockito.Mockito.when;
 
 class AssumeActualVersionTest {
 
-    private static final String CHAIN_SCHEMA = "http://qubership.org/schemas/product/qip/chain";
-    private static final String SERVICE_SCHEMA = "http://qubership.org/schemas/product/qip/service";
+    private static final String CHAIN_SCHEMA = "http://qubership.org/schemas/product/cip/chain";
+    private static final String SERVICE_SCHEMA = "http://qubership.org/schemas/product/cip/service";
 
     private final AssumeActualVersion strategy = new AssumeActualVersion(
         List.of(chainMigration(1), chainMigration(2), chainMigration(5)),

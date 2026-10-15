@@ -155,7 +155,7 @@ public class ImportControllerV3 {
         return ResponseEntity.status(responseStatus).body(importSessionResponse);
     }
 
-    @Operation(description = "Find differences between the chain stored in the QIP database and the imported one",
+    @Operation(description = "Find differences between the chain stored in the CIP database and the imported one",
         requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
             mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
             schemaProperties = {

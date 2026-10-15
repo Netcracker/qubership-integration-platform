@@ -22,9 +22,9 @@ outputEnabled: true
 container: false
 deprecated: true # TODO deprecated since 22.2
 designParameters:
-  externalParticipantId: 'Unknown QIP chain'
-  externalParticipantName: 'Unknown QIP chain'
-  requestLineTitle: 'QIP chain call'
+  externalParticipantId: 'Unknown CIP chain'
+  externalParticipantName: 'Unknown CIP chain'
+  requestLineTitle: 'CIP chain call'
   directionToChain: true
   hasResponse: true
   responseAfterRequest: false

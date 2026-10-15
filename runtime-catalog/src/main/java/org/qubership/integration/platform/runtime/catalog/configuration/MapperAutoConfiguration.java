@@ -52,11 +52,11 @@ public class MapperAutoConfiguration {
     @Bean(name = {"objectMapper", "jsonMapper"})
     @ConditionalOnMissingBean(name = {"objectMapper", "jsonMapper"})
     public ObjectMapper objectMapper() {
-        return qipPrimaryObjectMapper();
+        return primaryObjectMapper();
     }
 
     @Bean("primaryObjectMapper")
-    public ObjectMapper qipPrimaryObjectMapper() {
+    public ObjectMapper primaryObjectMapper() {
         ObjectMapper objectMapper = JsonMapper.builder()
                 .enable(SerializationFeature.INDENT_OUTPUT)
                 .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
@@ -135,7 +135,7 @@ public class MapperAutoConfiguration {
 
     @Bean("objectMapperWithSorting")
     public ObjectMapper objectMapperWithSorting() {
-        ObjectMapper objectMapper = qipPrimaryObjectMapper();
+        ObjectMapper objectMapper = primaryObjectMapper();
         objectMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
         return objectMapper;

@@ -32,8 +32,8 @@ import org.apache.camel.tracing.Tracer;
 import org.apache.commons.lang3.tuple.Pair;
 import org.codehaus.groovy.control.CompilationFailedException;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.engine.camel.CipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.CustomResilienceReifier;
-import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.context.propagation.constant.BusinessIds;
 import org.qubership.integration.platform.engine.camel.converters.FormDataConverter;
 import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
@@ -621,7 +621,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             .toList();
         ClassLoader classLoader = externalLibraryService
                 .getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader());
-        return new QipCustomClassResolver(classLoader);
+        return new CipCustomClassResolver(classLoader);
     }
 
     private void startContext(SpringCamelContext context) {

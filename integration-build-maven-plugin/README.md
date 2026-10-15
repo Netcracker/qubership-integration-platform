@@ -65,14 +65,14 @@ source root:
 src/main/integration/
 ├── chains/
 │   └── c0273e0b-d143-4704-b4ee-266f045c6631/
-│       ├── c0273e0b-d143-4704-b4ee-266f045c6631.chain.qip.yaml
+│       ├── c0273e0b-d143-4704-b4ee-266f045c6631.chain.cip.yaml
 │       └── resources/
 │           └── script-a81e8f34-72ef-4f95-a80b-7a5049d52547.groovy
 └── services/
     └── 1acc68e3-.../
-        ├── 1acc68e3-....service.qip.yaml
-        ├── <groupId>.specification-group.qip.yaml
-        ├── <specificationId>.specification.qip.yaml
+        ├── 1acc68e3-....service.cip.yaml
+        ├── <groupId>.specification-group.cip.yaml
+        ├── <specificationId>.specification.cip.yaml
         └── resources/
             └── openapi.json
 ```
