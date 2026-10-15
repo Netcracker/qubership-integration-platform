@@ -1,6 +1,7 @@
 /** An MCP client for the engine's streamable HTTP endpoint at `/mcp`, spoken over the `request` fixture. */
 import { expect, type APIRequestContext } from "@playwright/test";
 import { DEPLOY_TIMEOUT } from "./corpus.js";
+import { trace, type RecordedSession, type Sessions } from "./sessions.js";
 
 export interface Tool {
   name: string;
@@ -60,4 +61,15 @@ export async function offeredTool(mcp: McpSession, toolName: string): Promise<To
   let tool: Tool | undefined;
   await expect.poll(async () => (tool = (await mcp.tools()).find((each) => each.name === toolName)) !== undefined, { timeout: DEPLOY_TIMEOUT, message: `tools/list never offered ${toolName}` }).toBe(true);
   return tool!;
+}
+
+/**
+ * The sessions of `chainId` outside `before` whose trigger received a tool call carrying `marker`. A
+ * tool call carries no correlation header, so the arguments the engine sets as the trigger's body
+ * are what tell its session apart.
+ */
+export async function mcpSessionsOf(sessions: Sessions, chainId: string, marker: string, before: ReadonlySet<string> = new Set()): Promise<RecordedSession[]> {
+  const fresh = (await sessions.search({}, { chainId })).sessions.filter((each) => !before.has(each.id));
+  const read = await Promise.all(fresh.map((each) => sessions.session(each.id)));
+  return read.filter((each) => trace(each)[0]?.bodyBefore?.includes(marker));
 }

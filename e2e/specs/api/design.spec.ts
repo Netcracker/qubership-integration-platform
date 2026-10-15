@@ -44,7 +44,7 @@ import type { Catalog, SequenceDiagram } from "../../support/catalog.js";
 import { readCorpusState } from "../../support/corpus.js";
 import { tokenized } from "../../support/run.js";
 import { ABSENT_UUID } from "../../support/absent.js";
-import { axisFixtureName, axisFixtures, HTTP_METHODS, LOG_LEVELS } from "../../fixtures/axis-generator.js";
+import { axisFixtureName, axisFixtures, branchName, HTTP_METHODS, LOG_LEVELS } from "../../fixtures/axis-generator.js";
 import { RUN_PLACEHOLDER } from "../../fixtures/templating.js";
 
 /** The PlantUML source of a diagram, which is the form every helper below reads. */
@@ -545,7 +545,7 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
       .filter((fixture) => fixture.family === "http-trigger")
       .map((fixture) => [
         axisFixtureName(fixture),
-        { trigger: `${fixture.axisPath}=${String(fixture.value)}`, ...(fixture.downstream ? { labels: [fixture.downstream.name] } : {}) },
+        { trigger: branchName(fixture), ...(fixture.downstream ? { labels: [fixture.downstream.name] } : {}) },
       ]),
   ),
   // A trigger that implements an operation is drawn as a request to the operation's path, which
@@ -561,7 +561,7 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
         const label = call.integrationOperationProtocolType === "graphql"
           ? "GraphQL request (query/mutation)"
           : `${call.integrationOperationMethod} ${call.integrationOperationPath.split(RUN_PLACEHOLDER)[0]}`;
-        return [axisFixtureName(fixture), { labels: [label], groups: [`${fixture.axisPath}=${String(fixture.value)}`] }];
+        return [axisFixtureName(fixture), { labels: [label], groups: [branchName(fixture)] }];
       }),
   ),
   "service-call-graphql-no-before": { labels: ["GraphQL request (query/mutation)"], groups: ["Service Call"] },
@@ -584,7 +584,7 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   ...Object.fromEntries(
     axisFixtures
       .filter((fixture) => fixture.family === "mcp-trigger")
-      .map((fixture) => [fixture.handWritten, { trigger: `${fixture.axisPath}=${String(fixture.value)}` }]),
+      .map((fixture) => [fixture.handWritten, { trigger: branchName(fixture) }]),
   ),
   "method-echo": { labels: ["Echo Method"] },
   "metrics-failure": { labels: ["Failing Script"] },

@@ -18,10 +18,10 @@
 import { randomUUID } from "node:crypto";
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain, type SeedChain } from "../../support/corpus.js";
-import { PASSED_STEP } from "../../fixtures/axis-generator.js";
-import { McpSession, offeredTool } from "../../support/mcp.js";
+import { branchName, PASSED_STEP } from "../../fixtures/axis-generator.js";
+import { McpSession, mcpSessionsOf, offeredTool } from "../../support/mcp.js";
 import { element, elementNames, SESSION_TIMEOUT, trace, type RecordedSession, type Sessions } from "../../support/sessions.js";
-import { branchOf, coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes, type IdempotencyMode } from "../../support/idempotency.js";
+import { coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes, type IdempotencyMode } from "../../support/idempotency.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
 import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
@@ -33,11 +33,13 @@ interface ToolResult {
   isError: boolean;
 }
 
-/** The text the second call answers, given the arguments the call sent; the last case pins the failed one. */
-const REPLIES: Record<string, (argumentsText: string) => string> = {
+/** The text the second call answers, given the arguments the call sent. */
+const REPLIES: Record<string, ((argumentsText: string) => string) | null> = {
   disabled: () => PASSED,
   // The check interrupts the exchange before any step writes a body, so the tool answers its own arguments.
   ignore: (sent) => sent,
+  // The last case pins this reply, so the loop checks only that the chain stopped before its downstream step.
+  "throw-exception": null,
   "execute-subchain": () => JSON.stringify({ called: "chain" }),
 };
 
@@ -52,9 +54,7 @@ async function callTool(mcp: McpSession, sessions: Sessions, chainId: string, to
   const result = await mcp.call<ToolResult>("tools/call", { name: tool, arguments: { key } });
   let found: RecordedSession | undefined;
   await expect(async () => {
-    const fresh = (await sessions.search({}, { chainId })).sessions.filter((each) => !before.has(each.id));
-    const read = await Promise.all(fresh.map((each) => sessions.session(each.id)));
-    const mine = read.filter((each) => trace(each)[0]?.bodyBefore?.includes(key));
+    const mine = await mcpSessionsOf(sessions, chainId, key, before);
     expect(mine, `sessions of ${chainId} carrying ${key}`).toHaveLength(1);
     found = mine[0];
     expect(trace(found).length).toBeGreaterThanOrEqual(elements);
@@ -74,7 +74,7 @@ async function toolOf(request: APIRequestContext, env: Env, mode: IdempotencyMod
 }
 
 for (const mode of MODES) {
-  const branch = branchOf(mode);
+  const branch = branchName(mode);
   test(`mcp-trigger ${branch}: a repeated key ${mode.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
     coversIdempotency("mcp-trigger", mode);
     const { mcp, chain } = await toolOf(request, env, mode);
@@ -101,8 +101,8 @@ test.fail("mcp-trigger: a duplicate under throw-exception answers the tool call 
   const mode = MODES.find((each) => each.value === "throw-exception")!;
   const { mcp, chain } = await outsideTheDefect("opening the tool", () => toolOf(request, env, mode));
   const key = randomUUID();
-  await outsideTheDefect("the first call", () => callTool(mcp, sessions, chain.id, chain.name, key, 3));
-  const { result } = await outsideTheDefect("the duplicate call", () => callTool(mcp, sessions, chain.id, chain.name, key, 2));
+  await outsideTheDefect("the first call", () => callTool(mcp, sessions, chain.id, chain.name, key, firstSteps(mode, PASSED_STEP.name).length));
+  const { result } = await outsideTheDefect("the duplicate call", () => callTool(mcp, sessions, chain.id, chain.name, key, mode.steps.length + 1));
   const sent = JSON.stringify({ key });
   const answeredArguments = result.content.length === 1 && result.content[0].type === "text" && result.content[0].text === sent;
   if (!result.isError && !answeredArguments) {

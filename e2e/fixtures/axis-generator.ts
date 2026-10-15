@@ -459,6 +459,11 @@ function assertDeclared(fixture: AxisFixture, schemas: Map<string, unknown>): vo
   }
 }
 
+/** The name of the element under test, `<axisPath>=<value>`: the `elementName` a session trace reports. */
+export function branchName({ axisPath, value }: { axisPath: string; value: SchemaValue }): string {
+  return `${axisPath}=${String(value)}`;
+}
+
 /**
  * The chain document for one generated axis value, with `{{RUN}}` still in it.
  *
@@ -472,7 +477,7 @@ export function generateAxisChain(
   assertDeclared(fixture, schemas);
 
   const name = axisFixtureName(fixture);
-  const branch = `${fixture.axisPath}=${String(fixture.value)}`;
+  const branch = branchName(fixture);
   const trigger = {
     id: stableId(name, "trigger"),
     name: fixture.family === "http-trigger" ? branch : "HTTP Trigger",
