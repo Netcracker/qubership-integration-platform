@@ -16,6 +16,7 @@ import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import {
   axisFixtureName,
+  branchName,
   CORRELATION_ECHO,
   CORRELATION_ID_FIELD,
   CORRELATION_ID_HEADER,
@@ -23,47 +24,42 @@ import {
   PASSED_STEP,
 } from "../../fixtures/axis-generator.js";
 import { callToken } from "../../support/run.js";
-import { callChain, element, elementNames, type ExecutionStatus } from "../../support/sessions.js";
+import { callChain, element, elementNames } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
+import { coversIdempotency, IDEMPOTENCY_STEP, idempotencyModes } from "../../support/idempotency.js";
 
 const PASSED = JSON.stringify({ called: "downstream" });
-const IDEMPOTENCY_STEP = "Idempotency";
 
-interface DuplicateCase {
-  axisPath: "idempotency/enabled" | "idempotency/actionOnDuplicate";
-  value: boolean | string;
+/** What the duplicate answers over HTTP, by the mode's fixture. */
+interface HttpDuplicate {
   /** What the second call does, for the title. */
   outcome: string;
   status: number;
   /** The duplicate's body; a `code` is the platform's error body instead. */
   reply?: string;
   code?: string;
-  executionStatus: ExecutionStatus;
-  /** The duplicate's steps after the trigger and `Validate Request`. */
-  steps: string[];
 }
 
-const DUPLICATES: DuplicateCase[] = [
-  { axisPath: "idempotency/enabled", value: false, outcome: "runs the chain again", status: 200, reply: PASSED, executionStatus: "COMPLETED_NORMALLY", steps: [PASSED_STEP.name] },
+const HTTP_DUPLICATES: Record<string, HttpDuplicate> = {
+  disabled: { outcome: "runs the chain again", status: 200, reply: PASSED },
   // No `reply`: the body is the request echoed back, because the check interrupts the exchange before anything writes one.
-  { axisPath: "idempotency/actionOnDuplicate", value: "ignore", outcome: "answers 202 and stops", status: 202, executionStatus: "COMPLETED_NORMALLY", steps: [IDEMPOTENCY_STEP] },
-  { axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", outcome: "fails the exchange", status: 500, code: "QIP-0001", executionStatus: "COMPLETED_WITH_ERRORS", steps: [IDEMPOTENCY_STEP] },
-  { axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", outcome: "answers from the sub-chain", status: 200, reply: JSON.stringify({ called: "chain" }), executionStatus: "COMPLETED_NORMALLY", steps: [IDEMPOTENCY_STEP, "Callee Reply"] },
-];
+  ignore: { outcome: "answers 202 and stops", status: 202 },
+  "throw-exception": { outcome: "fails the exchange", status: 500, code: "QIP-0001" },
+  "execute-subchain": { outcome: "answers from the sub-chain", status: 200, reply: JSON.stringify({ called: "chain" }) },
+};
 
-for (const duplicate of DUPLICATES) {
-  const branch = `${duplicate.axisPath}=${duplicate.value}`;
+for (const mode of idempotencyModes(PASSED_STEP.name)) {
+  const duplicate = HTTP_DUPLICATES[mode.fixture];
+  const branch = branchName(mode);
   test(`${branch}: a repeated key ${duplicate.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-    covers("http-trigger", duplicate.axisPath, duplicate.value);
-    // Every actionOnDuplicate chain enables the check.
-    if (duplicate.axisPath === "idempotency/actionOnDuplicate") covers("http-trigger", "idempotency/enabled", true);
-    const chain = seedChain(readCorpusState(), axisFixtureName({ family: "http-trigger", ...duplicate }));
+    coversIdempotency("http-trigger", mode);
+    const chain = seedChain(readCorpusState(), axisFixtureName({ family: "http-trigger", axisPath: mode.axisPath, value: mode.value }));
     const url = env.chainUrl(chain.contextPath);
     const key = callToken("idempotency");
     const headers = { [IDEMPOTENCY_KEY_HEADER]: key };
     // A body only this case sends, so an echoed request cannot pass for another answer.
     const data = { key };
-    const enabled = duplicate.value !== false;
+    const enabled = mode.value !== false;
     const before = ["Validate Request", ...(enabled ? [IDEMPOTENCY_STEP] : [])];
 
     const first = await callChain(request, url, { data, headers });
@@ -78,12 +74,10 @@ for (const duplicate of DUPLICATES) {
     if (duplicate.code) expect(JSON.parse(body).code, body).toBe(duplicate.code);
     else expect(body).toBe(duplicate.reply ?? JSON.stringify(data));
 
-    const secondSession = await sessions.byExternalId(second.token, { elements: duplicate.steps.length + 2 });
-    expect(secondSession.executionStatus).toBe(duplicate.executionStatus);
-    expect(elementNames(secondSession)).toEqual([branch, "Validate Request", ...duplicate.steps]);
-    if (duplicate.code) {
-      expect(element(secondSession, IDEMPOTENCY_STEP)?.exceptionInfo?.message).toBe("Duplicated idempotency key");
-    }
+    const secondSession = await sessions.byExternalId(second.token, { elements: mode.steps.length + 2 });
+    expect(secondSession.executionStatus).toBe(mode.executionStatus);
+    expect(elementNames(secondSession)).toEqual([branch, "Validate Request", ...mode.steps]);
+    if (mode.failure) expect(element(secondSession, IDEMPOTENCY_STEP)?.exceptionInfo?.message).toBe(mode.failure);
   });
 }
 
@@ -93,7 +87,7 @@ const POSITIONS = [
 ] as const;
 
 for (const { fixture, position } of POSITIONS) {
-  const branch = `${fixture.axisPath}=${fixture.value}`;
+  const branch = branchName(fixture);
   test(`correlationIdPosition ${position} receives the correlation id the call carries`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
     covers("http-trigger", "correlationIdPosition", position);
     const chain = seedChain(readCorpusState(), axisFixtureName(fixture));

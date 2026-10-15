@@ -22,12 +22,12 @@ import { randomUUID } from "node:crypto";
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState, type BrokerChain } from "../../support/brokers.js";
 import { publishAmqp, publishKafka, publishPubsub, seekPubsubToNow } from "../../support/broker-clients.js";
-import { IDEMPOTENCY_KEY_HEADER } from "../../fixtures/axis-generator.js";
+import { branchName, IDEMPOTENCY_KEY_HEADER } from "../../fixtures/axis-generator.js";
 import { callToken } from "../../support/run.js";
 import { element, elementNames, type RecordedSession, type Sessions } from "../../support/sessions.js";
 import { logWindowStart } from "../../support/logs.js";
 import { readUntil } from "../../support/poll.js";
-import { branchOf, coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes } from "../../support/idempotency.js";
+import { coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes } from "../../support/idempotency.js";
 import type { Env } from "../../env/index.js";
 import { pubsubDelivered } from "./micro-defects.js";
 
@@ -98,7 +98,7 @@ const BROKERS: Broker[] = [
 
 for (const broker of BROKERS) {
   for (const mode of MODES) {
-    const branch = branchOf(mode);
+    const branch = branchName(mode);
     test(`${broker.family} ${branch}: a repeated key ${mode.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ env, sessions }) => {
       coversIdempotency(broker.family, mode);
       const chain = brokerChain(readBrokersCorpusState(), `${broker.name}-trigger-idempotency-${mode.fixture}`);

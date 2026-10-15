@@ -75,7 +75,7 @@ import { strikesAsKnown } from "../../support/known-defect.js";
 import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "./micro-defects.js";
 import { waitForFirstRecording, withBuilt } from "../../support/cleanup.js";
 import type { APIRequestContext } from "@playwright/test";
-import { McpSession, offeredTool } from "../../support/mcp.js";
+import { McpSession, mcpSessionsOf, offeredTool } from "../../support/mcp.js";
 import type { Env } from "../../env/index.js";
 
 /** How long a log line may take to reach the engine log after its step is traced. */
@@ -332,15 +332,6 @@ test.describe("context-storage", () => {
 const MCP_TRIGGER = "MCP Trigger";
 const ECHO_STEP = "Echo Arguments";
 
-/** The session of the chain whose echo step answered the tool call carrying `ping`, if it has arrived. */
-async function mcpSessionOf(sessions: Sessions, chainId: string, ping: string): Promise<RecordedSession | undefined> {
-  for (const summary of (await sessions.search({}, { chainId })).sessions) {
-    const session = await sessions.session(summary.id);
-    if (element(session, ECHO_STEP)?.bodyAfter?.includes(ping)) return session;
-  }
-  return undefined;
-}
-
 test("mcp-trigger: a deployed chain is an MCP tool that runs the chain", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("mcp-trigger");
   const chain = seedChain(readCorpusState(), "mcp-trigger");
@@ -359,7 +350,7 @@ test("mcp-trigger: a deployed chain is an MCP tool that runs the chain", { tag: 
   const result = await mcp.call("tools/call", { name: toolName, arguments: { ping } });
   expect(result).toEqual({ content: [{ type: "text", text: JSON.stringify({ ping }) }], isError: false });
   await expect(async () => {
-    const session = await mcpSessionOf(sessions, chain.id, ping);
+    const [session] = await mcpSessionsOf(sessions, chain.id, ping);
     expect(session, `the session of the tool call carrying ${ping}`).toBeDefined();
     expect(session?.executionStatus).toBe("COMPLETED_NORMALLY");
     expect(elementNames(session as RecordedSession)).toEqual([MCP_TRIGGER, ECHO_STEP]);
@@ -399,7 +390,7 @@ test("mcp-trigger: undeploying the chain removes its tool", { tag: ["@engine", "
       send: async (marker) => {
         await mcp.call("tools/call", { name: toolName, arguments: { ping: marker } });
       },
-      recorded: async (marker) => (await mcpSessionOf(sessions, chain.id, marker)) !== undefined,
+      recorded: async (marker) => (await mcpSessionsOf(sessions, chain.id, marker)).length > 0,
     });
 
     await catalog.undeployAll(chain.id);

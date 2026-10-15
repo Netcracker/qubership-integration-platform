@@ -6,6 +6,7 @@
  * inside the caller's session.
  */
 import { covers } from "../registry/covers.js";
+import { branchName } from "../fixtures/axis-generator.js";
 import type { ExecutionStatus } from "./sessions.js";
 
 export const IDEMPOTENCY_STEP = "Idempotency";
@@ -34,11 +35,6 @@ export function idempotencyModes(downstream: string): IdempotencyMode[] {
   ];
 }
 
-/** The trigger's element name in the fixtures, `<axisPath>=<value>`. */
-export function branchOf(mode: IdempotencyMode): string {
-  return `${mode.axisPath}=${String(mode.value)}`;
-}
-
 /** Declares the rows a passing case of `mode` proves on `family`. */
 export function coversIdempotency(family: string, mode: IdempotencyMode): void {
   covers(family, mode.axisPath, mode.value);
@@ -48,5 +44,5 @@ export function coversIdempotency(family: string, mode: IdempotencyMode): void {
 
 /** The first session's steps: the trigger, the check when it is on, and `downstream`. */
 export function firstSteps(mode: IdempotencyMode, downstream: string): string[] {
-  return [branchOf(mode), ...(mode.value !== false ? [IDEMPOTENCY_STEP] : []), downstream];
+  return [branchName(mode), ...(mode.value !== false ? [IDEMPOTENCY_STEP] : []), downstream];
 }
