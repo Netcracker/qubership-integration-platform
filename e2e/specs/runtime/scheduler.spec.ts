@@ -29,6 +29,9 @@ import {
   type Sessions,
 } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
+import { strikesAsKnown } from "../../support/known-defect.js";
+import { linesOfChain, logWindowStart, withEngineLines } from "../../support/logs.js";
+import { SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "./micro-defects.js";
 
 /**
  * The next settled session of `chainId` that `before` does not carry, with its trace.
@@ -67,12 +70,16 @@ async function nextFiring(
 test(
   "a cron tick fires quartz-scheduler, found by chain id",
   { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ sessions }) => {
+  async ({ env, sessions }) => {
     covers("quartz-scheduler");
 
     const chain = seedChain(readCorpusState(), "scheduler-basic");
+    const since = logWindowStart();
 
-    const session = await nextFiring(sessions, chain.id, 2);
+    // A failure carries how many lines the domain's pod wrote for the chain while the case waited.
+    const session = await strikesAsKnown(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN, () =>
+      withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), () => nextFiring(sessions, chain.id, 2)),
+    );
     expect(session.chainId).toBe(chain.id);
     expect(elementNames(session)).toEqual(["Scheduler", "Header Modification"]);
     expect(failedElements(session)).toEqual([]);

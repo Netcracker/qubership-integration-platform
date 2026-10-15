@@ -46,8 +46,3 @@ export const SFTP_TRIGGER_IDLE: ConditionalDefect = {
   engine: "micro",
   matches: (message) => NO_LINE_FOR_CHAIN.test(message),
 };
-
-/** Selects the engine log lines a run of chain `id` writes, by the chain id in their MDC block. */
-export function linesOfChain(id: string): (line: string) => boolean {
-  return (line) => line.includes(`chain_id=${id}`);
-}
