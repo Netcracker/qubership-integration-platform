@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
-import { K8sEnv, recordedMicroDomain, type Kubectl } from "../../env/k8s.js";
+import { K8sEnv, MICRO_LOG_HEAD_BYTES, recordedMicroDomain, type Kubectl } from "../../env/k8s.js";
 import { withoutColors } from "../../support/colors.js";
 import { readingOfTop } from "../../env/k8s-observer.js";
 import {
@@ -589,6 +589,44 @@ test("a micro engine restart fails when no single Ready pod replaces the deleted
     "micro pod old was deleted and no pod replaced it within 50ms (container integration of new is not Ready)",
   );
   expect(await restart(microPods(["new", false, true], ["newer", false, true]))).toContain("(2 pods replace old)");
+});
+
+const MICRO_LOG = "logs deploy/qip-engine-e2e-run1-micro-v1 -c integration";
+
+test("a classic env has no engine evidence beyond its log", { tag: ["@infra", "@tier1"] }, async () => {
+  const { calls, run } = recordingKubectl();
+  expect(await new K8sEnv({ engineKind: "classic", kubectl: run }).engineEvidence()).toEqual([]);
+  expect(calls).toEqual([]);
+});
+
+test("a micro env's evidence is the pod's whole short log, its description, and the Integration", { tag: ["@infra", "@tier1"] }, async () => {
+  const run = stubKubectl({
+    [`${MICRO_LOG} --limit-bytes=${MICRO_LOG_HEAD_BYTES} -n qip-e2e`]: "\u001b[38;5;231m[INFO ] the engine started",
+    [`describe pods -l ${MICRO_SELECTOR} -n qip-e2e`]: "Events: Started",
+    "get integrations.camel.apache.org qip-engine-e2e-run1-micro-v1 -o yaml -n qip-e2e": "phase: Running",
+  });
+  const env = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro", kubectl: run });
+  // The stub refuses `--previous`, as kubectl does for a container that never restarted.
+  expect(await env.engineEvidence()).toEqual([
+    { name: "micro-pod.log", body: "[INFO ] the engine started" },
+    { name: "micro-pod.describe.txt", body: "Events: Started" },
+    { name: "micro-integration.yaml", body: "phase: Running" },
+  ]);
+});
+
+test("a micro env's evidence holds the head and the tail of a long log, and the previous container's log", { tag: ["@infra", "@tier1"] }, async () => {
+  const head = "s".repeat(MICRO_LOG_HEAD_BYTES);
+  const run = stubKubectl({
+    [`${MICRO_LOG} --limit-bytes=${MICRO_LOG_HEAD_BYTES} -n qip-e2e`]: head,
+    [`${MICRO_LOG} --tail=1500 -n qip-e2e`]: "the last request failed",
+    [`${MICRO_LOG} --previous --tail=1500 -n qip-e2e`]: "the container was killed",
+  });
+  const env = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro", kubectl: run });
+  const evidence = Object.fromEntries((await env.engineEvidence()).map((each) => [each.name, each.body]));
+  expect(evidence["micro-pod.log"]).toBe(`${head}\n\n--- the last 1500 lines ---\nthe last request failed`);
+  expect(evidence["micro-pod.previous.log"]).toBe("the container was killed");
+  // A kubectl call that fails puts its error in the attachment, so the rest still arrives.
+  expect(evidence["micro-integration.yaml"]).toMatch(/^kubectl get integrations\.camel\.apache\.org .* failed: /);
 });
 
 test("the k8s target declares its own projects and the broker projects, and leaves nothing out", { tag: ["@infra", "@tier1"] }, () => {

@@ -56,7 +56,7 @@ import { axisFixtureName, axisFixtures, renderAxisFixtures } from "../fixtures/a
 import type { Env } from "../env/index.js";
 import type { SuiteWorkerOptions } from "../env/target-setup.js";
 import { MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../env/k8s.js";
-import { noteChain } from "./diagnostics.js";
+import { microCaseFailed, noteChain } from "./diagnostics.js";
 import { keepEntities } from "./fixtures.js";
 import { tokenized } from "./run.js";
 import type { EndpointMockReference } from "./testing-service.js";
@@ -470,6 +470,8 @@ export async function waitForUndeployed(catalog: Catalog, chains: readonly Deplo
  * `timeout` is a parameter because the seed is not the only caller: the restart spec waits for the
  * same routes to come back after the engine has been recreated, and that budget is a different
  * measured number from the one a fresh deploy takes.
+ *
+ * A failure adds what each route still failing answered over the whole wait (`routeHistory`).
  */
 export async function waitForRoutes(
   env: Env,
@@ -477,21 +479,51 @@ export async function waitForRoutes(
   timeout: number = DEPLOY_TIMEOUT,
   message = "seed chains whose route never began to answer",
 ): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        const missing: string[] = [];
-        for (const chain of chains.filter((each) => each.contextPath !== "")) {
-          const status = await fetch(env.chainUrl(chain.contextPath), { method: "GET" })
-            .then((response) => response.status)
-            .catch(() => 0);
-          if (status !== 200 && status !== 405) missing.push(`${chain.name} (${status || "no response"})`);
-        }
-        return missing.sort();
-      },
-      { timeout, message },
-    )
-    .toEqual([]);
+  const routed = chains.filter((each) => each.contextPath !== "");
+  const history = new Map<string, number[]>(routed.map((each) => [each.name, []]));
+  let missing: string[] = [];
+  try {
+    await expect
+      .poll(
+        async () => {
+          const failing: string[] = [];
+          for (const chain of routed) {
+            const status = await fetch(env.chainUrl(chain.contextPath), { method: "GET" })
+              .then((response) => response.status)
+              .catch(() => 0);
+            history.get(chain.name)?.push(status);
+            if (status !== 200 && status !== 405) failing.push(chain.name);
+          }
+          // Set once the poll is complete, because the timeout can fire while a poll is in flight.
+          missing = failing;
+          return failing.map((name) => `${name} (${statusName(history.get(name)?.at(-1) ?? 0)})`).sort();
+        },
+        { timeout, message },
+      )
+      .toEqual([]);
+  } catch (cause) {
+    const text = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`${text}\n\n${routeHistory(history, missing)}`, { cause });
+  }
+}
+
+function statusName(status: number): string {
+  return status === 0 ? "no response" : String(status);
+}
+
+/**
+ * What each of `names` answered over a `waitForRoutes` poll, one route a line: each status with its
+ * count, in the order the statuses first appeared. A route that flips between a serving and a
+ * failing status shows both, where the last poll alone shows only one.
+ */
+export function routeHistory(history: ReadonlyMap<string, readonly number[]>, names: readonly string[]): string {
+  const lines = [...names].sort().map((name) => {
+    const counts = new Map<number, number>();
+    for (const status of history.get(name) ?? []) counts.set(status, (counts.get(status) ?? 0) + 1);
+    const each = [...counts].map(([status, count]) => `${statusName(status)} x${count}`).join(", ");
+    return `${name}: ${each}`;
+  });
+  return [`what each of those routes answered over the wait, by count:`, ...lines].join("\n");
 }
 
 /**
@@ -792,8 +824,9 @@ export async function seedMicroCorpus(
     env,
     chains,
     MICRO_READY_TIMEOUT,
-    `micro chains whose route never began to answer on ${corpus.domain}. If none answers, read the ` +
-      `status of Integration ${corpus.domain} and the camel-k operator log (e2e/k8s/README.md, camel-k)`,
+    `micro chains whose route never began to answer on ${corpus.domain}. The case attaches the pod's ` +
+      `log, its description, and the Integration; if no pod started, read the camel-k operator log ` +
+      `(e2e/k8s/README.md, camel-k)`,
   );
   return { corpus, readyMs: Date.now() - deployedAt };
 }
@@ -817,9 +850,9 @@ export function readMicroCorpusState(file: string = MICRO_CORPUS_STATE_FILE): Mi
 
 /**
  * Deletes the micro copy's logging properties, its chains, the services they call, the placeholder
- * variable, and then its domain. `E2E_KEEP=1` leaves all five. Deleting the variable `seed` also
- * wrote is harmless: a deployed chain keeps the value it resolved, and the second delete of a name
- * is a no-op.
+ * variable, and then its domain. `E2E_KEEP=1` leaves all five, and so does a failed micro case of
+ * the run (`microCaseFailed`). Deleting the variable `seed` also wrote is harmless: a deployed chain
+ * keeps the value it resolved, and the second delete of a name is a no-op.
  *
  * A chain whose logging properties survived is kept, for the reason `teardownCorpus` keeps one. The
  * domain goes last, with `DELETE /v1/cr/{name}`, and the state file only once nothing failed.
@@ -830,6 +863,10 @@ export async function teardownMicroCorpus(catalog: Catalog, corpus: MicroCorpus)
       `[keep] ${corpus.chains.length} micro chains and domain ${corpus.domain} left behind for run ` +
         `${corpus.run}`,
     );
+    return;
+  }
+  if (microCaseFailed(corpus.run)) {
+    console.log(`[keep] a micro case of run ${corpus.run} failed, so domain ${corpus.domain} stays for the cluster dump`);
     return;
   }
 

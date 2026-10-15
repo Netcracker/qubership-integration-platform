@@ -12,6 +12,7 @@ import type {
   DomainFacts,
   EngineKind,
   Env,
+  Evidence,
   Overlay,
   ProcessEnvelope,
   ResourcePeak,
@@ -105,6 +106,18 @@ export function recordedMicroDomain(file: string = MICRO_CORPUS_STATE_FILE): str
   }
   return domain;
 }
+
+/** Where a failed micro case records its run, so the micro teardowns keep the domains for the CI cluster dump. */
+export const MICRO_FAILURE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-failure");
+
+/** The camel-k Integration, which the catalog names `microServiceOf(domain)`. */
+export const INTEGRATIONS = "integrations.camel.apache.org";
+
+/** How much of a micro pod's log, from its start, a failed case attaches: the engine's startup. */
+export const MICRO_LOG_HEAD_BYTES = 256 * 1024;
+
+/** How many of a micro pod's last log lines a failed case attaches, enough for whole stack traces. */
+export const MICRO_LOG_TAIL_LINES = 1500;
 
 /** The container camel-k gives the engine in a micro domain's pod. */
 const MICRO_CONTAINER = "integration";
@@ -386,6 +399,29 @@ export class K8sEnv implements Env {
       "logs", `deploy/${microServiceOf(this.microDomain())}`, "-n", NAMESPACE, "-c", MICRO_CONTAINER,
       `--since-time=${since}`,
     ]));
+  }
+
+  async engineEvidence(): Promise<Evidence[]> {
+    if (this.engineKind === "classic") return [];
+    const service = microServiceOf(this.microDomain());
+    const read = (args: string[]): Promise<string> =>
+      this.kubectl([...args, "-n", NAMESPACE]).then(withoutColors, (cause: unknown) => `kubectl ${args.join(" ")} failed: ${String(cause)}`);
+    const log = ["logs", `deploy/${service}`, "-c", MICRO_CONTAINER];
+    const head = await read([...log, `--limit-bytes=${MICRO_LOG_HEAD_BYTES}`]);
+    // A head shorter than the limit is the whole log, so the tail would repeat it.
+    const body =
+      Buffer.byteLength(head) < MICRO_LOG_HEAD_BYTES
+        ? head
+        : `${head}\n\n--- the last ${MICRO_LOG_TAIL_LINES} lines ---\n${await read([...log, `--tail=${MICRO_LOG_TAIL_LINES}`])}`;
+    const evidence: Evidence[] = [
+      { name: "micro-pod.log", body },
+      { name: "micro-pod.describe.txt", body: await read(["describe", "pods", "-l", `${MICRO_POD_LABEL}=${service}`]) },
+      { name: "micro-integration.yaml", body: await read(["get", INTEGRATIONS, service, "-o", "yaml"]) },
+    ];
+    // `--previous` fails for a container that never restarted, which leaves nothing to attach.
+    const previous = await this.kubectl([...log, "--previous", `--tail=${MICRO_LOG_TAIL_LINES}`, "-n", NAMESPACE]).catch(() => null);
+    if (previous !== null) evidence.push({ name: "micro-pod.previous.log", body: withoutColors(previous) });
+    return evidence;
   }
 
   async settings(service: ServiceRole): Promise<Record<string, string>> {
