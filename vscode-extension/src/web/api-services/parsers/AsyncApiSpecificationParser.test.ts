@@ -125,6 +125,27 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
       expect(reply.path).toBe("order/reply");
     });
 
+    it("takes the MaaS classifier from the operation, then from the channel", async () => {
+      const operations = await operationsFor(
+        "v3/kafka-v3-maas-classifier.yaml",
+      );
+      const classifierOf = (address: string, method: string) =>
+        operations.find((o) => o.path === address && o.method === method)
+          .specification.maasClassifierName;
+
+      expect(classifierOf("operation/topic", "send")).toBe(
+        "operation.level.topic",
+      );
+      expect(classifierOf("channel/topic", "send")).toBe("channel.level.topic");
+      expect(classifierOf("channel/topic", "receive")).toBe(
+        "operation.level.topic",
+      );
+      expect(classifierOf("request/topic", "send")).toBeUndefined();
+      expect(classifierOf("reply/topic", "receive")).toBe(
+        "reply.channel.topic",
+      );
+    });
+
     it("AMQP v3: emits binding specification with exchangeName", async () => {
       const operations = await operationsFor(
         "v3/amqp-v3-exchange-bindings.yaml",

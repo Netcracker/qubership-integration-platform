@@ -163,7 +163,8 @@ public class AsyncApiV3Normalizer {
         OperationObject v2Op = new OperationObject();
         v2Op.setSummary(v3Op.getSummary());
         v2Op.setOperationId(v3Op.getOperationId() != null ? v3Op.getOperationId() : operationKey);
-        v2Op.setMaasClassifierName(v3Op.getMaasClassifierName());
+        v2Op.setMaasClassifierName(v3Op.getMaasClassifierName() != null
+                ? v3Op.getMaasClassifierName() : v3Channel.getMaasClassifierName());
         v2Op.setMessage(convertMessages(v3Op, v3Channel, v3Channels));
         return v2Op;
     }
@@ -360,6 +361,9 @@ public class AsyncApiV3Normalizer {
         String baseId = v3Op.getOperationId() != null ? v3Op.getOperationId() : operationKey;
         replyOp.setOperationId(baseId + "Reply");
         replyOp.setAction(ACTION_SEND.equals(v3Op.getAction()) ? ACTION_RECEIVE : ACTION_SEND);
+        if (replyV3Channel != null) {
+            replyOp.setMaasClassifierName(replyV3Channel.getMaasClassifierName());
+        }
 
         if (reply.getMessages() != null && !reply.getMessages().isEmpty()) {
             replyOp.setMessage(convertMessageList(reply.getMessages(), v3Channels));

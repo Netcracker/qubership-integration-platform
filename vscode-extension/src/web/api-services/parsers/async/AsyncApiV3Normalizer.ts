@@ -145,7 +145,8 @@ export class AsyncApiV3Normalizer {
     return {
       summary: v3Op.summary,
       operationId: v3Op.operationId ?? operationKey,
-      maasClassifierName: v3Op["x-maas-classifier-name"],
+      maasClassifierName:
+        v3Op["x-maas-classifier-name"] ?? v3Channel["x-maas-classifier-name"],
       message: this.convertMessages(v3Op, v3Channel, v3Channels),
     };
   }
@@ -351,6 +352,7 @@ export class AsyncApiV3Normalizer {
       summary: v3Op.summary ? `${v3Op.summary} (reply)` : "reply",
       operationId: `${baseId}Reply`,
       action: v3Op.action === ACTION_SEND ? ACTION_RECEIVE : ACTION_SEND,
+      maasClassifierName: replyV3Channel?.["x-maas-classifier-name"],
     };
 
     if (reply.messages && reply.messages.length > 0) {

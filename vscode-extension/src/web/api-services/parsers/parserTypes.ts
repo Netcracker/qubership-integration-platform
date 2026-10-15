@@ -117,6 +117,7 @@ export interface AsyncApiV3Channel {
   parameters?: any;
   bindings?: Record<string, any>;
   servers?: any;
+  "x-maas-classifier-name"?: string;
 }
 
 /** AsyncAPI 3.0 server (`host` + `pathname` instead of 2.x `url`). */
