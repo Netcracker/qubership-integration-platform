@@ -336,6 +336,13 @@ test("the v2 audit search pages by offset where the v1 one takes a time window",
   // across them, which is also what makes this read spec-scoped on a table every worker writes into.
   const mine = [{ column: "ENTITY_ID", condition: "IS", value: chain.id }];
 
+  // A writer thread stores audit rows after the response, so wait for all three before reading.
+  await expect
+    .poll(
+      async () => (await catalog.searchActionsLogV2({ limit: 10, filters: mine })).actionLogs.length,
+      { message: "waiting for the audit writer to store the create and both updates" },
+    )
+    .toBe(3);
   const page = await catalog.searchActionsLogV2({ limit: 10, filters: mine });
   expect(page.actionLogs.map((each) => each.operation), "newest first, one row per write")
     .toEqual(["UPDATE", "UPDATE", "CREATE"]);
