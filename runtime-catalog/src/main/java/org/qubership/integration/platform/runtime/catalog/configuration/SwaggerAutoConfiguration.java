@@ -59,6 +59,21 @@ public class SwaggerAutoConfiguration {
             .addSecurityItem(new SecurityRequirement().addList(BEARER_AUTH));
     }
 
+    @Bean
+    public OpenApiCustomizer hidePublicRoutes() {
+        return openApi -> {
+            if (openApi.getPaths() != null) {
+                openApi.getPaths().keySet().removeIf(path ->
+                    path.startsWith("/api/v1/cip")
+                        || path.startsWith("/api/cip/v1")
+                        || path.startsWith("/api/v2/cip")
+                        || path.startsWith("/api/cip/v2")
+                        || path.startsWith("/cip/catalog/api/v2")
+                        || path.startsWith("/api/cip/v3"));
+            }
+        };
+    }
+
     private Info getInfo() {
         return new Info()
             .title("Cloud Integration Platform Catalog")

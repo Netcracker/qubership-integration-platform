@@ -34,7 +34,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/chains/{chainId}/masking")
+@RequestMapping(value = {"/v1/chains/{chainId}/masking", "/api/v1/cip/catalog/chains/{chainId}/masking"})
 @CrossOrigin(origins = "*")
 @Tag(name = "masked-fields-controller", description = "Masked Fields Controller")
 public class MaskedFieldsController {

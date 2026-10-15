@@ -33,7 +33,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/export")
+@RequestMapping({"/v1/export", "/api/v1/cip/systems-catalog/export"})
 @Tag(name = "specification-export-controller", description = "Specification Export Controller")
 public class SpecificationExportController {
     private final SpecificationExportService specificationExportService;

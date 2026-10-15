@@ -82,6 +82,7 @@ public abstract class SessionElementMapper {
             expression = "java(convertSessionElementPropertyMapToJson(element.getPropertiesAfter()))")
     @Mapping(target = "chainElementId", expression = "java(null)")
     @Mapping(target = "chainName", source = "session.chainName")
+    @Mapping(target = "externalSessionId", source = "session.externalSessionCipId")
     public abstract SessionElementElastic toSessionElementElastic(SessionElement element, Session session);
 
     public List<SessionElement> toSessionElements(List<SessionElementElastic> elasticElements) {

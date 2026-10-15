@@ -11,9 +11,10 @@
  * - an `EXTERNAL`, a `CONTEXT`, and an `MCP` service from `qip.createService`, one per import
  *   endpoint.
  *
- * Only the changed chain imports as written. The catalog refuses the created chain and all three
- * created services with `Failed to retrieve migration data`: none of them carries the `migrations`
- * field the catalog reads its version from. Those four cases pin the defect, #1004, with `test.fail()`.
+ * A created file carries no `migrations`, so the catalog reads it as current and runs no migration on
+ * it. Each case imports the file and checks that the catalog's export keeps the name and the
+ * description the extension wrote. Migration 101 of a chain or a service, run on a file already in
+ * the current format, nests its `content` a second time, and the description is then lost.
  *
  * The golden files carry fixed ids, which the spec reads off their file names, so the cases delete
  * whatever holds an id before importing, and two suite runs against one stack would import the same
@@ -26,9 +27,8 @@ import yaml from "js-yaml";
 import type { APIResponse } from "@playwright/test";
 import type { Catalog } from "../../support/catalog.js";
 import { test, expect } from "../../support/fixtures.js";
-import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import { leftBehind } from "../../support/teardown.js";
-import { entryText, zipOf } from "../../support/zip.js";
+import { archiveOf, entryText, zipOf } from "../../support/zip.js";
 
 const EXTENSION = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../vscode-extension/src/web/test");
 const GOLDEN = path.join(EXTENSION, "golden");
@@ -74,8 +74,6 @@ async function serviceArchive(id: string, suffix: string): Promise<Buffer> {
 interface ImportRow {
   id: string;
   status: string;
-  message?: string;
-  errorMessage?: string;
 }
 
 /** The rows of an import answer: a bare array for services, `{chains}` for chains. */
@@ -105,61 +103,74 @@ test("a chain the extension changed imports into the catalog, and the catalog ex
   }
 });
 
-/** The files the catalog refuses, each with the endpoint that imports it. */
-const REFUSED = [
+interface Document {
+  id: string;
+  name: string;
+  content: { description?: string };
+}
+
+/** The fields of `document` that a migration run on a current file would lose. */
+function keptFields(document: Document): Record<string, unknown> {
+  const { description } = document.content;
+  return { id: document.id, name: document.name, content: description === undefined ? {} : { description } };
+}
+
+/** The files the extension creates, each with the endpoint that imports it and the one that exports it. */
+const CREATED = [
   {
     title: "a chain the extension created imports into the catalog",
     id: CREATED_CHAIN,
+    entry: `chains/${CREATED_CHAIN}/${CREATED_CHAIN}.chain.cip.yaml`,
     archive: () => chainArchive(CREATED_CHAIN),
     importPath: "/v1/catalog/import",
     location: `/v1/chains/${CREATED_CHAIN}`,
     remove: (catalog: Catalog) => catalog.deleteChain(CREATED_CHAIN),
+    export: (catalog: Catalog) => catalog.exportChain(CREATED_CHAIN),
   },
   {
     title: "an external service the extension created imports into the catalog",
     id: EXTERNAL,
+    entry: `services/${EXTERNAL}/${EXTERNAL}.service.cip.yaml`,
     archive: () => serviceArchive(EXTERNAL, ".service.cip.yaml"),
     importPath: "/v1/import/system",
     location: `/v1/systems/${EXTERNAL}`,
     remove: (catalog: Catalog) => catalog.deleteSystem(EXTERNAL),
+    export: (catalog: Catalog) => catalog.exportSystems([EXTERNAL]),
   },
   {
     title: "a context service the extension created imports into the catalog",
     id: CONTEXT,
+    entry: `services/${CONTEXT}/${CONTEXT}.context-service.cip.yaml`,
     archive: () => serviceArchive(CONTEXT, ".context-service.cip.yaml"),
     importPath: "/v1/catalog/context-system/import",
     location: `/v1/catalog/context-system/${CONTEXT}`,
     remove: (catalog: Catalog) => catalog.deleteContextSystem(CONTEXT),
+    export: async (catalog: Catalog) => await archiveOf(await catalog.exportContextSystems([CONTEXT])),
   },
   {
     title: "an MCP service the extension created imports into the catalog",
     id: MCP,
+    entry: `services/${MCP}/${MCP}.mcp-service.cip.yaml`,
     archive: () => serviceArchive(MCP, ".mcp-service.cip.yaml"),
     importPath: "/v1/catalog/mcp-system/import",
     location: `/v1/catalog/mcp-system/${MCP}`,
     remove: (catalog: Catalog) => catalog.deleteMcpSystem(MCP),
+    export: (catalog: Catalog) => catalog.exportMcpSystems([MCP]),
   },
 ];
 
-// #1004: a file the extension creates carries no `migrations`, so no strategy finds its version.
-const REFUSAL = "Failed to retrieve migration data";
-
-for (const each of REFUSED) {
-  test.fail(each.title, { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
+for (const each of CREATED) {
+  test(each.title, { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
     try {
-      const archive = await outsideTheDefect("building the archive", async () => {
-        await removeIfPresent(catalog, each.location, () => each.remove(catalog));
-        return await each.archive();
-      });
-      const response = await outsideTheDefect(`the import of ${each.id}`, () => catalog.importArchive(each.importPath, archive));
-      const status = response.status();
-      const rows = await rowsOf(response);
-      const row = rows.length === 1 ? rows[0] : undefined;
-      const refused = status === 207 && row?.status === "ERROR" && (row.message ?? row.errorMessage ?? "").includes(REFUSAL);
-      if (!refused && !(status === 200 && row?.status === "CREATED")) {
-        notTheKnownDefect(`the import of ${each.id} answered ${status} with ${JSON.stringify(rows)}, which is neither the known refusal nor a fix`);
-      }
-      expect({ status, row: row?.status }, "the catalog imports it now: delete the test.fail() annotation").toEqual({ status: 200, row: "CREATED" });
+      await removeIfPresent(catalog, each.location, () => each.remove(catalog));
+
+      const response = await catalog.importArchive(each.importPath, await each.archive());
+      expect(response.status(), await response.text()).toBe(200);
+      expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: each.id, status: "CREATED" })]);
+
+      const exported = yaml.load(await entryText(await each.export(catalog), each.entry));
+      const written = yaml.load(goldenText(path.basename(each.entry))) as Document;
+      expect(exported, "the catalog's export of the imported file").toMatchObject(keptFields(written));
     } finally {
       await removeIfPresent(catalog, each.location, () => each.remove(catalog)).catch(leftBehind(each.location));
     }
