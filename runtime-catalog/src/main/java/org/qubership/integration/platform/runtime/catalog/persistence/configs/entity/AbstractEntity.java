@@ -105,4 +105,8 @@ public abstract class AbstractEntity implements Serializable, Comparable<Abstrac
         return Comparator.comparing(AbstractEntity::getId)
                 .compare(this, abstractEntity);
     }
+
+    // Lombok generates the members; javadoc runs no annotation processors, so the class must exist in source.
+    public abstract static class AbstractEntityBuilder<C extends AbstractEntity, B extends AbstractEntityBuilder<C, B>> {
+    }
 }
