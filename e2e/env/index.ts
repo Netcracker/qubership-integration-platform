@@ -107,8 +107,8 @@ export interface Env {
   resourcePeaks(): Promise<ResourcePeak[]>;
   /**
    * Brings up an optional broker by name and waits until it is serving on its host port. A spec
-   * never names `docker` or `kubectl`, so this is the one seam through which the `brokers` project
-   * brings up the broker it needs.
+   * never names `docker` or `kubectl`, so this is the one seam through which `brokers-seed` and
+   * `brokers-micro-seed` bring up the brokers their fixtures need.
    *
    * On Compose it starts the overlay's compose file together with the base stack under one project,
    * and leaves a running broker alone: the same rule provisioning follows for the base stack, and
