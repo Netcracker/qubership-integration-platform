@@ -97,7 +97,7 @@ meaning as above, and `global.qip.ui.e2eLocations` (default `false`) adds two ng
 the end-to-end suite:
 
 - `/e2e/svc/<service>/<path>` reaches port 8080 of any Service in the release's namespace, so a
-  test can call a micro domain's Service, `qip-engine-<domain>-v1`, from the host.
+  test can call a micro domain's Service, `cip-engine-<domain>-v1`, from the host.
 - `/e2e/gateway/<path>` reaches `public-gateway` on port 80.
 
 Their upstreams are built from variables and resolved through `global.qip.ui.resolver`, so a

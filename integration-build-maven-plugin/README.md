@@ -94,7 +94,7 @@ continues. With no chains found, `build-crs` writes nothing.
 | `controlPlaneType` | `ISTIO` or `CORE` | `cip.controlPlaneType` | `ISTIO` | `ISTIO` generates the route resources; `CORE` skips them. |
 | `defaultSecretEnabled` | `boolean` | `cip.defaultSecretEnabled` | `false` | Sets `DEFAULT_SECRET_ENABLED` in the engine container's environment. |
 | `outputTimestamp` | `String` | none | `${project.build.outputTimestamp}` | Build time stamped into the resources. See [Build timestamp](#build-timestamp). |
-| `libraryUrlTemplate` | `String` | `cip.libraryUrlTemplate` | `http://{appPrefix}-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar` | URL the engine loads each DTO library from. See [Library URL](#library-url). |
+| `libraryUrlTemplate` | `String` | `cip.libraryUrlTemplate` | `http://cip-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar` | URL the engine loads each DTO library from. See [Library URL](#library-url). |
 | `options` | object | none | see [Resource options](#resource-options) | Shapes the generated deployment. |
 
 Set a parameter in the plugin's `<configuration>`, or on the command line through its user property:
@@ -129,12 +129,8 @@ reproducible on its own; see [Snapshots](#snapshots).
 ### Library URL
 
 The integrations configuration tells the engine where to load each DTO library from. `libraryUrlTemplate`
-builds that URL from two placeholders:
-
-| Placeholder | Value |
-| --- | --- |
-| `{specificationId}` | The id of the specification the library was generated from. |
-| `{appPrefix}` | The plugin's application prefix, `qip`. |
+builds that URL from one placeholder, `{specificationId}`: the id of the specification the library was
+generated from.
 
 The default points at runtime-catalog, which serves the library it generated itself. To load the
 libraries that `build-libs` publishes instead, point the template at your repository:
@@ -145,7 +141,7 @@ libraries that `build-libs` publishes instead, point the template at your reposi
 </configuration>
 ```
 
-The placeholders take single braces, not `${...}`, because Maven would substitute a property of the same
+The placeholder takes single braces, not `${...}`, because Maven would substitute a property of the same
 name before the plugin sees the template. A placeholder the plugin does not know stays in the URL
 unchanged, so a typo such as `{specId}` surfaces only when the engine fails to fetch the library.
 
@@ -167,7 +163,7 @@ domains. With `deployAll`, a chain that names no micro-domain goes into `default
 
 Each domain is built separately, into one set of resources: one engine deployment running every chain of
 that domain. The domain name becomes the deployment name and prefixes the resource names, for example
-`qip-engine-<domain>-routes`.
+`cip-engine-<domain>-routes`.
 
 ### Output
 
@@ -177,7 +173,7 @@ kind with one name fail the build with `Duplicate resource '...'`.
 
 Each file is also attached to the project as an artifact of type `yaml`, classified by its file name
 without the extension. `mvn install` and `mvn deploy` publish it next to the project's own artifact, for
-example `my-app-1.0-Service-qip-engine-orders-domain-v1.yaml`. To depend on one resource, name its
+example `my-app-1.0-Service-cip-engine-orders-domain-v1.yaml`. To depend on one resource, name its
 classifier:
 
 ```xml
@@ -186,7 +182,7 @@ classifier:
   <artifactId>my-app</artifactId>
   <version>1.0</version>
   <type>yaml</type>
-  <classifier>Service-qip-engine-orders-domain-v1</classifier>
+  <classifier>Service-cip-engine-orders-domain-v1</classifier>
 </dependency>
 ```
 
