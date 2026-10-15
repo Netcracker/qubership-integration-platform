@@ -10,9 +10,10 @@
  *
  * - An id nothing names answers **200 with `[]`** on all five, never 404, because each reader runs
  *   a query over element properties and looks no service up.
- * - Only `GET /v1/chains/systems/{systemId}` matches on the service id. The other four match the
- *   operation, specification, or group id alone and ignore the service id in their path. The ids the
- *   catalog mints start with the service id, so on real data both readings select the same chains.
+ * - `GET /v1/chains/systems/{systemId}` and `GET /v1/chains/{systemId}/specificationGroup` match on
+ *   the service id. The other three match the operation, specification, or group id alone and
+ *   ignore the service id in their path. The ids the catalog mints start with the service id, so on
+ *   real data both readings select the same chains.
  */
 import { test, expect } from "../../support/fixtures.js";
 import type { Catalog, ChainOfService } from "../../support/catalog.js";

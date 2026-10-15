@@ -8,9 +8,8 @@
  * id either, so a call's session is the one the chain gained during the call with the call's
  * arguments in its trigger's body.
  *
- * `shared/idempotency.hbs` puts the check inside the trigger's step, so `Idempotency` follows the
- * trigger in the trace when the check is on, and `Callee Reply` is the step
- * `fixtures/chains/chain-callee/` runs inside the caller's session.
+ * `support/idempotency.ts` holds the modes; `Callee Reply` is the step `fixtures/chains/chain-callee/`
+ * runs inside the caller's session.
  *
  * Both engines answer a tool call from the exchange's body and never read its exception
  * (`McpToolRegistrar`), so a duplicate under `throw-exception` answers `isError: false` with the
@@ -21,13 +20,12 @@ import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain, type SeedChain } from "../../support/corpus.js";
 import { PASSED_STEP } from "../../fixtures/axis-generator.js";
 import { McpSession, offeredTool } from "../../support/mcp.js";
-import { element, elementNames, SESSION_TIMEOUT, trace, type ExecutionStatus, type RecordedSession, type Sessions } from "../../support/sessions.js";
-import { covers } from "../../registry/covers.js";
+import { element, elementNames, SESSION_TIMEOUT, trace, type RecordedSession, type Sessions } from "../../support/sessions.js";
+import { branchOf, coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes, type IdempotencyMode } from "../../support/idempotency.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
 import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 
-const IDEMPOTENCY_STEP = "Idempotency";
 const PASSED = JSON.stringify({ called: "downstream" });
 
 interface ToolResult {
@@ -35,29 +33,15 @@ interface ToolResult {
   isError: boolean;
 }
 
-interface Mode {
-  axisPath: "idempotency/enabled" | "idempotency/actionOnDuplicate";
-  value: boolean | string;
-  /** The fixture name's suffix. */
-  fixture: string;
-  /** What the second call does, for the title. */
-  outcome: string;
-  /** The text the second call answers, given the arguments the call sent; the last case pins the failed one. */
-  reply?: (argumentsText: string) => string;
-  executionStatus: ExecutionStatus;
-  /** The second session's steps after the trigger. */
-  steps: string[];
-  /** The exception the `Idempotency` step records. */
-  failure?: string;
-}
-
-const MODES: Mode[] = [
-  { axisPath: "idempotency/enabled", value: false, fixture: "disabled", outcome: "runs the chain again", reply: () => PASSED, executionStatus: "COMPLETED_NORMALLY", steps: [PASSED_STEP.name] },
+/** The text the second call answers, given the arguments the call sent; the last case pins the failed one. */
+const REPLIES: Record<string, (argumentsText: string) => string> = {
+  disabled: () => PASSED,
   // The check interrupts the exchange before any step writes a body, so the tool answers its own arguments.
-  { axisPath: "idempotency/actionOnDuplicate", value: "ignore", fixture: "ignore", outcome: "stops at the check", reply: (sent) => sent, executionStatus: "COMPLETED_NORMALLY", steps: [IDEMPOTENCY_STEP] },
-  { axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", fixture: "throw-exception", outcome: "fails at the check", executionStatus: "COMPLETED_WITH_ERRORS", steps: [IDEMPOTENCY_STEP], failure: "Duplicated idempotency key" },
-  { axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", fixture: "execute-subchain", outcome: "answers from the sub-chain", reply: () => JSON.stringify({ called: "chain" }), executionStatus: "COMPLETED_NORMALLY", steps: [IDEMPOTENCY_STEP, "Callee Reply"] },
-];
+  ignore: (sent) => sent,
+  "execute-subchain": () => JSON.stringify({ called: "chain" }),
+};
+
+const MODES = idempotencyModes(PASSED_STEP.name);
 
 /**
  * Calls the tool and returns its answer and its session: the one the chain gained during the call
@@ -80,7 +64,7 @@ async function callTool(mcp: McpSession, sessions: Sessions, chainId: string, to
 }
 
 /** The chain of `mode`, with its tool offered on an open MCP session. */
-async function toolOf(request: APIRequestContext, env: Env, mode: Mode): Promise<{ mcp: McpSession; chain: SeedChain }> {
+async function toolOf(request: APIRequestContext, env: Env, mode: IdempotencyMode): Promise<{ mcp: McpSession; chain: SeedChain }> {
   const chain = seedChain(readCorpusState(), `mcp-trigger-idempotency-${mode.fixture}`);
   const mcp = new McpSession(request, `${env.engineUrl()}/mcp`);
   await mcp.open();
@@ -90,26 +74,24 @@ async function toolOf(request: APIRequestContext, env: Env, mode: Mode): Promise
 }
 
 for (const mode of MODES) {
-  const branch = `${mode.axisPath}=${mode.value}`;
+  const branch = branchOf(mode);
   test(`mcp-trigger ${branch}: a repeated key ${mode.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-    covers("mcp-trigger", mode.axisPath, mode.value);
-    // Every actionOnDuplicate chain enables the check.
-    if (mode.axisPath === "idempotency/actionOnDuplicate") covers("mcp-trigger", "idempotency/enabled", true);
+    coversIdempotency("mcp-trigger", mode);
     const { mcp, chain } = await toolOf(request, env, mode);
     const key = randomUUID();
-    const enabled = mode.value !== false;
-    const firstSteps = [branch, ...(enabled ? [IDEMPOTENCY_STEP] : []), PASSED_STEP.name];
+    const steps = firstSteps(mode, PASSED_STEP.name);
 
-    const first = await callTool(mcp, sessions, chain.id, chain.name, key, firstSteps.length);
+    const first = await callTool(mcp, sessions, chain.id, chain.name, key, steps.length);
     expect(first.result).toEqual({ content: [{ type: "text", text: PASSED }], isError: false });
     expect(first.session.executionStatus).toBe("COMPLETED_NORMALLY");
-    expect(elementNames(first.session)).toEqual(firstSteps);
+    expect(elementNames(first.session)).toEqual(steps);
 
     const second = await callTool(mcp, sessions, chain.id, chain.name, key, mode.steps.length + 1);
     expect(second.session.executionStatus).toBe(mode.executionStatus);
     expect(elementNames(second.session)).toEqual([branch, ...mode.steps]);
     if (mode.failure) expect(element(second.session, IDEMPOTENCY_STEP)?.exceptionInfo?.message).toBe(mode.failure);
-    if (mode.reply) expect(second.result).toEqual({ content: [{ type: "text", text: mode.reply(JSON.stringify({ key })) }], isError: false });
+    const reply = REPLIES[mode.fixture];
+    if (reply) expect(second.result).toEqual({ content: [{ type: "text", text: reply(JSON.stringify({ key })) }], isError: false });
     else expect(second.result.content.map((each) => each.text), "the chain stopped before its downstream step").not.toContain(PASSED);
   });
 }

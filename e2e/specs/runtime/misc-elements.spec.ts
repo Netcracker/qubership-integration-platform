@@ -155,9 +155,14 @@ for (const position of ["header", "body"] as const) {
     covers("http-sender", "correlationIdPosition", position);
     const chain = generated({ family: "http-sender", axisPath: "correlationIdPosition", value: position });
     const sent = callToken("correlation");
-    const response = position === "header"
-      ? { status: 200, body: MOCKED, headers: [{ name: CORRELATION_ID_HEADER, value: sent }] }
-      : { status: 200, body: JSON.stringify({ [CORRELATION_ID_FIELD]: sent }), headers: [{ name: "Content-Type", value: "application/json" }] };
+    // The mock answers an id in both places, the configured one and a decoy in the other.
+    const decoy = callToken("decoy");
+    const [header, field] = position === "header" ? [sent, decoy] : [decoy, sent];
+    const response = {
+      status: 200,
+      body: JSON.stringify({ [CORRELATION_ID_FIELD]: field }),
+      headers: [{ name: "Content-Type", value: "application/json" }, { name: CORRELATION_ID_HEADER, value: header }],
+    };
     await testingService.withMock({ name: tokenized(run, `http-sender-correlationIdPosition-${position}`), reference: { chainId: chain.id, elementId: chain.elements[branch] }, response }, async () => {
       const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
       const body = await call.response.text();
