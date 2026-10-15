@@ -10,8 +10,9 @@
  * with the ids they need: an element's form at `/chains/:id/graph/:elementId`
  * (`chain-graph.spec.ts`), a session (`chain-tabs.spec.ts`), and a test case run with its errors
  * (`testing-section.spec.ts`). The admin test run screens show the same components as the last.
- * Left out entirely: the redirects `/` and `/admintools/engine-list`, the documentation pages under
- * `/doc`, `/not-implemented`, and the not-found page, which `testing-section.spec.ts` reaches.
+ * `doc.spec.ts` opens the documentation pages under `/doc`. Left out entirely: the redirects `/`
+ * and `/admintools/engine-list`, `/not-implemented`, and the not-found page, which
+ * `testing-section.spec.ts` reaches.
  */
 import type { Page } from "@playwright/test";
 import { test, expect } from "../../support/page-guard.js";
