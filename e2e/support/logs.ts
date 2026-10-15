@@ -25,6 +25,9 @@ export function linesOfChain(id: string): (line: string) => boolean {
   return (line) => line.includes(`chain_id=${id}`);
 }
 
+/** What `withEngineLines` adds to a failure when the engine logged no line for the chain it selects by id. */
+export const NO_LINE_FOR_CHAIN = /logged 0 lines for chain /;
+
 /**
  * Runs `wait`, and adds to its failure how many engine log lines since `since` `pick` selects, and the
  * first of them. `what` names the selection in that message.

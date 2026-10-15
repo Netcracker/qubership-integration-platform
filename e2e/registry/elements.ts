@@ -837,6 +837,12 @@ export const COVERS_ANNOTATION = "covers";
 export const REACHED_ANNOTATION = "reached";
 
 /**
+ * The annotation `strikesAsKnown` writes when a `ConditionalDefect` strikes, naming the defect. The
+ * case stopped at the step the defect names, so every call it recorded before that step was made.
+ */
+export const STRUCK_ANNOTATION = "struck";
+
+/**
  * Every spec in the report, at any nesting depth.
  *
  * Suites nest arbitrarily — project, file, `describe` — and each reader that re-implemented the
@@ -1148,12 +1154,22 @@ export interface OperationClaim {
   target?: Target;
 }
 
-/** Every operation a **passing** test recorded, as registry keys. */
+/**
+ * Whether a test's calls count as made: a passing test, or one a `ConditionalDefect` struck. A struck
+ * case stopped at the step the defect names, so a race the pin carries turns no row red here. A plain
+ * `test.fail()` case may have stopped anywhere, so its calls stay unread.
+ */
+function reaches(test: JsonTest): boolean {
+  if (proves(test)) return true;
+  return test.status === "expected" && (test.annotations ?? []).some((annotation) => annotation.type === STRUCK_ANNOTATION);
+}
+
+/** Every operation a passing or a struck test recorded, as registry keys. */
 export function reachedFromReport(report: JsonReport): Set<string> {
   const reached = new Set<string>();
   for (const spec of eachSpec(report)) {
     for (const each of spec.tests ?? []) {
-      if (!proves(each)) continue;
+      if (!reaches(each)) continue;
       for (const annotation of each.annotations ?? []) {
         if (annotation.type !== REACHED_ANNOTATION || !annotation.description) continue;
         reached.add(annotation.description);

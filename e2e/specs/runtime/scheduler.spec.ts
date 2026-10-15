@@ -16,9 +16,15 @@
  * in the first place: a manually added row would fail `specs/schema/coverage.spec.ts`'s "no row
  * names a value the schemas no longer declare" check. The gap is recorded here, in prose, rather
  * than invented as a registry entry that check would immediately reject.
+ *
+ * On the micro engine the wait runs under the `SCHEDULER_FIRES_ON_ANOTHER_DOMAIN` pin. A failure
+ * carries how many lines the domain's pod logged for the chain during the wait, how many sessions
+ * the chain recorded on its domain before it, and the other micro domains the catalog lists; the
+ * pin strikes only when all three fit the defect.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { readCorpusState, seedChain } from "../../support/corpus.js";
+import { projectCorpus, readCorpusState, seedChain } from "../../support/corpus.js";
+import type { Catalog } from "../../support/catalog.js";
 import {
   SESSION_TIMEOUT,
   elementNames,
@@ -31,7 +37,7 @@ import {
 import { covers } from "../../registry/covers.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
 import { linesOfChain, logWindowStart, withEngineLines } from "../../support/logs.js";
-import { SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "./micro-defects.js";
+import { firingHistory, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "./micro-defects.js";
 
 /**
  * The next settled session of `chainId` that `before` does not carry, with its trace.
@@ -45,8 +51,8 @@ async function nextFiring(
   sessions: Sessions,
   chainId: string,
   elements: number,
+  before: Set<string>,
 ): Promise<RecordedSession> {
-  const before = await sessions.idsOf(chainId);
   let found: RecordedSession | undefined;
   await expect
     .poll(
@@ -67,18 +73,29 @@ async function nextFiring(
   return found as RecordedSession;
 }
 
+/** The micro domains the catalog lists besides `domain`. */
+async function otherMicroDomains(catalog: Catalog, domain: string): Promise<string[]> {
+  return (await catalog.listDomains()).filter((each) => each.type === "MICRO" && each.name !== domain).map((each) => each.name);
+}
+
 test(
   "a cron tick fires quartz-scheduler, found by chain id",
   { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ env, sessions }) => {
+  async ({ env, catalog, sessions }) => {
     covers("quartz-scheduler");
 
     const chain = seedChain(readCorpusState(), "scheduler-basic");
+    const { domain } = projectCorpus();
     const since = logWindowStart();
+    const before = await sessions.idsOf(chain.id);
 
-    // A failure carries how many lines the domain's pod wrote for the chain while the case waited.
     const session = await strikesAsKnown(SCHEDULER_FIRES_ON_ANOTHER_DOMAIN, () =>
-      withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), () => nextFiring(sessions, chain.id, 2)),
+      withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), () =>
+        nextFiring(sessions, chain.id, 2, before).catch(async (cause: unknown) => {
+          const history = firingHistory(chain.name, domain, before.size, await otherMicroDomains(catalog, domain));
+          throw new Error(`${history}\n\n${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+        }),
+      ),
     );
     expect(session.chainId).toBe(chain.id);
     expect(elementNames(session)).toEqual(["Scheduler", "Header Modification"]);
