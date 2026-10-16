@@ -20,6 +20,7 @@ import {
   escapeHtml,
   preheader,
 } from "../../support/run-email.mjs";
+import { OUTCOMES_FILE, testKey } from "../../support/run-history.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RED_RUN = path.resolve(HERE, "../../fixtures/run-summary/red");
@@ -335,4 +336,66 @@ test("a project name in prose keeps its hyphens from breaking, and a command, a 
   expect(html).toContain("Error: chains on e2e-r9u3x9-brokers-micro never answered");
   expect(html).toContain(`${escapeHtml(preheader(email))}&#8199;`);
   expect(emailText(email)).not.toMatch(/\u2011|&#8209;/);
+});
+
+const RUNS = `${REPO}/actions/runs`;
+const earlier = (runId: string, startedAt: string, failed: string[] = [], sha = "0123456") => ({ runId, url: `${RUNS}/${runId}`, sha, startedAt, failed, skipped: [] });
+
+test("each failed test says whether the run before failed it too, and the title says when every one did", { tag: ["@infra", "@tier2"] }, () => {
+  const report = reportOf({ api: [] }, [file("api/a.spec.ts", [failing("api", "old", "Error: no"), failing("api", "fresh", "Error: no", 9)])]);
+  const old = testKey("api", "api/case.spec.ts", "old");
+  const history = [earlier("2", "2026-10-15T02:00:00Z", [old], SHA), earlier("1", "2026-10-14T02:00:00Z", [old, "api › gone.spec.ts › fixed"])];
+  const mixed = emailOf({ report, history, env: ENV });
+
+  expect(mixed.title).toBe("E2E nightly failed");
+  expect(mixed.trend).toBe("1 of them is new since the previous run.");
+  expect(preheader(mixed)).toBe("2 tests failed in api. 1 of them is new since the previous run. 0 passed. 37 min on k8s.");
+  const html = emailHtml(mixed);
+  // Both runs kept failed it, so it began in one the history no longer holds.
+  expect(html).toContain(`Failing for 3 runs, since <a href="${RUNS}/1" style="color:#175cd3;text-decoration:none;">Oct 14</a> or earlier`);
+  // The run that passed it ran this commit, which points at a flaky test rather than a change.
+  expect(html).toContain(`New since <a href="${RUNS}/2" style="color:#175cd3;text-decoration:none;">the last run that ran it</a>, which ran the same commit`);
+  expect(emailText(mixed)).toContain(`    Failing for 3 runs, since Oct 14 or earlier  ${RUNS}/1\n`);
+
+  const still = emailOf({ report: reportOf({ api: [] }, [file("api/a.spec.ts", [failing("api", "old", "Error: no")])]), history, env: ENV });
+  expect(emailSubject(still)).toBe("E2E nightly still failing: 1 test in api (main @ 7a393a8)");
+  expect(still.trend).toBe("It failed in the previous run too.");
+  expect(emailText(still).split("\n")[0]).toBe("1 test failed in api. It failed in the previous run too.");
+
+  expect(emailOf({ report, env: ENV }).trend).toBeUndefined();
+});
+
+test("a test the previous run failed and this one passed is counted in the trend", { tag: ["@infra", "@tier2"] }, () => {
+  const report = reportOf({ api: [] }, [file("api/a.spec.ts", [failing("api", "red", "Error: no"), passing("api", "green")])]);
+  const history = [earlier("2", "2026-10-15T02:00:00Z", [testKey("api", "api/a.spec.ts", "green")])];
+  expect(emailOf({ report, history, env: ENV }).trend).toBe("It is new since the previous run. 1 test that the previous run failed passes now.");
+});
+
+test("the report and the cluster dump link to their artifacts when the workflow passes them", { tag: ["@infra", "@tier2"] }, () => {
+  const report = reportOf({ api: [] }, [file("api/a.spec.ts", [failing("api", "case", "Error: no")])]);
+  const email = emailOf({ report, env: { ...ENV, REPORT_URL: `${RUN}/artifacts/1`, CLUSTER_URL: `${RUN}/artifacts/2` } });
+  expect(email.artifactsUrl).toBe(`${RUN}/artifacts/1`);
+  expect(emailHtml(email)).toContain(`<a href="${RUN}/artifacts/2" style="color:#175cd3;text-decoration:none;">Cluster dump</a>`);
+  expect(emailText(email)).toContain(`Cluster dump: ${RUN}/artifacts/2\n`);
+  expect(emailHtml(emailOf({ report, env: ENV }))).not.toContain("Cluster dump");
+});
+
+test("a pin in a project that needs no stack is not a known defect", { tag: ["@infra", "@tier2"] }, () => {
+  const pinned: Spec = { title: "pinned", file: "schema/a.spec.ts", line: 3, tests: [{ projectName: "schema", status: "expected", annotations: [{ type: "fail" }], results: [{}] }] };
+  const report = reportOf({ schema: [] }, [file("schema/a.spec.ts", [pinned, failing("schema", "red", "Error: no")])]);
+  Object.assign(report.config.projects[0].metadata, { stack: false });
+  expect(emailOf({ report, env: ENV }).counts).toMatchObject({ passed: 1, known: 0 });
+});
+
+test("the script reads the earlier runs from the directory E2E_HISTORY_DIR names", { tag: ["@infra", "@tier2"] }, () => {
+  const dir = test.info().outputPath("red");
+  fs.mkdirSync(dir, { recursive: true });
+  for (const each of ["report.json", ".last-run.json", "stack.json"]) fs.copyFileSync(path.join(RED_RUN, each), path.join(dir, each));
+  const history = test.info().outputPath("history");
+  const failed = [testKey("ui", "ui/admin-tools.spec.ts", "a live exchange is killed only after its termination is confirmed")];
+  fs.mkdirSync(path.join(history, "1"), { recursive: true });
+  fs.writeFileSync(path.join(history, "1", OUTCOMES_FILE), JSON.stringify(earlier("1", "2026-10-15T02:00:00Z", failed)));
+
+  const output = execFileSync(process.execPath, [SCRIPT, dir], { encoding: "utf8", env: { PATH: process.env.PATH, ...ENV, E2E_HISTORY_DIR: history } });
+  expect(output).toBe("subject=E2E nightly still failing: 1 test in ui, 48 skipped (main @ 7a393a8)\n");
 });

@@ -8,11 +8,14 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 import {
   FAILED_TESTS_LIMIT,
+  METASPACE_ATTACHMENT,
+  PEAKS_ATTACHMENT,
   SUMMARY_FILE,
   failedTests,
   summaryMarkdown,
   writeRunSummary,
 } from "../../support/run-summary.mjs";
+import { OUTCOMES_FILE, testKey } from "../../support/run-history.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.resolve(HERE, "../../fixtures/run-summary");
@@ -44,7 +47,7 @@ test("a green run gets its status and counts and no failed list", { tag: ["@infr
   writeRunSummary(dir);
   const summary = fs.readFileSync(path.join(dir, SUMMARY_FILE), "utf8");
   expect(summary).toContain("Status: **passed**");
-  expect(summary).toContain("| 944 | 0 | 0 | 0 |");
+  expect(summary).toContain("| 944 | 0 | 0 | 0 | 0 |");
   expect(summary).not.toContain("### Failed tests");
   expect(summary).not.toContain("### Errors");
 });
@@ -55,9 +58,9 @@ test("a red run lists each failed test with its project, location, title, and fi
   writeRunSummary(dir);
   const summary = fs.readFileSync(path.join(dir, SUMMARY_FILE), "utf8");
   expect(summary).toContain("Status: **failed**");
-  expect(summary).toContain("| 895 | 1 | 0 | 48 |");
+  expect(summary).toContain("| 895 | 1 | 0 | 48 | 0 |");
   expect(summary).toContain(
-    "| ui | `ui/admin-tools.spec.ts:126` | a live exchange is killed only after its termination is confirmed | " +
+    "| ui | `ui/admin-tools.spec.ts:126` | a live exchange is killed only after its termination is confirmed |  | " +
       "Error: expect(received).toBe(expected) // Object.is equality |",
   );
   expect(summary).not.toContain("\u001b");
@@ -94,7 +97,7 @@ test("a pipe in a title or an error line does not split its table cell", { tag: 
   failing.title = "a | b";
   failing.tests[0].results[0].errors = [{ message: "Error: c | d" }];
 
-  expect(summaryMarkdown({ report })).toContain("| a \\| b | Error: c \\| d |");
+  expect(summaryMarkdown({ report })).toContain("| a \\| b |  | Error: c \\| d |");
 });
 
 test("the failed list stops at its limit and points at the HTML report", { tag: ["@infra", "@tier2"] }, () => {
@@ -128,11 +131,105 @@ test("a missing run file leaves out only its own sections", { tag: ["@infra", "@
   writeRunSummary(noStack);
   const summary = fs.readFileSync(path.join(noStack, SUMMARY_FILE), "utf8");
   expect(summary).not.toContain("Status:");
-  expect(summary).toContain("| 944 | 0 | 0 | 0 |");
+  expect(summary).toContain("| 944 | 0 | 0 | 0 | 0 |");
 });
 
 test("the script writes the summary and prints nothing", { tag: ["@infra", "@tier2"] }, () => {
   const red = copyRun("red");
   expect(execFileSync(process.execPath, [SCRIPT, red], { encoding: "utf8" })).toBe("");
   expect(fs.readFileSync(path.join(red, SUMMARY_FILE), "utf8")).toContain("### Failed tests");
+});
+
+const RUNS = "https://github.com/Netcracker/qubership-integration-platform/actions/runs";
+const FAILING_KEY = testKey("ui", "ui/admin-tools.spec.ts", "a live exchange is killed only after its termination is confirmed");
+
+/** An earlier run's outcomes, as the history directory holds them. */
+const earlier = (runId: string, startedAt: string, failed: string[] = [], skipped: string[] = []) => ({ runId, url: `${RUNS}/${runId}`, startedAt, failed, skipped });
+
+test("a failed test that the previous run passed is new, and one it failed counts its runs and links where it began", { tag: ["@infra", "@tier2"] }, () => {
+  const { report } = readRun("red");
+  const passedBefore = summaryMarkdown({ report, history: [earlier("2", "2026-10-14T02:00:00Z"), earlier("1", "2026-10-13T02:00:00Z", [FAILING_KEY])] });
+  expect(passedBefore).toContain("| a live exchange is killed only after its termination is confirmed | new | Error:");
+  expect(passedBefore).toContain(`Against the [previous run](${RUNS}/2) of Oct 14: 1 new failure, 0 still failing, 0 fixed.`);
+
+  // A run that skipped the test says nothing either way, and the streak reads through it.
+  const history = [earlier("3", "2026-10-15T02:00:00Z", [FAILING_KEY]), earlier("2", "2026-10-14T02:00:00Z", [], [FAILING_KEY]), earlier("1", "2026-10-13T02:00:00Z", [FAILING_KEY]), earlier("0", "2026-10-12T02:00:00Z")];
+  const still = summaryMarkdown({ report, history });
+  expect(still).toContain(`| 3 runs, since [Oct 13](${RUNS}/1) |`);
+  expect(still).toContain("0 new failures, 1 still failing, 0 fixed.");
+
+  // Failing in every run kept, the start lies before the history.
+  expect(summaryMarkdown({ report, history: history.slice(0, 3) })).toContain(`| 3 runs, since [Oct 13](${RUNS}/1) or earlier |`);
+});
+
+test("a test the previous run failed and this one passed counts as fixed", { tag: ["@infra", "@tier2"] }, () => {
+  const { report } = readRun("green");
+  const fixed = testKey("runtime", "runtime/misc-elements.spec.ts", "httpMethod=POST: an http sender sends POST");
+  const summary = summaryMarkdown({ report, history: [earlier("2", "2026-10-14T02:00:00Z", [fixed, "api › gone.spec.ts › a deleted test"])] });
+  expect(summary).toContain("0 new failures, 0 still failing, 1 fixed.");
+});
+
+test("the summary writes the run's outcomes, its failed and skipped tests by key, for the next run", { tag: ["@infra", "@tier2"] }, () => {
+  const dir = copyRun("red");
+  const { report } = readRun("red");
+  const { admin, failing } = failingSpec(report);
+  admin.specs.push({ ...failing, title: "skipped", tests: [{ ...failing.tests[0], status: "skipped" }] });
+  fs.writeFileSync(path.join(dir, "report.json"), JSON.stringify(report));
+
+  writeRunSummary(dir, { GITHUB_REPOSITORY: "Netcracker/qubership-integration-platform", GITHUB_RUN_ID: "38916652673", GITHUB_SHA: "8b5ae2c" });
+  const outcomes = JSON.parse(fs.readFileSync(path.join(dir, OUTCOMES_FILE), "utf8"));
+  expect(outcomes).toEqual({
+    runId: "38916652673",
+    url: `${RUNS}/38916652673`,
+    sha: "8b5ae2c",
+    startedAt: report.stats.startTime,
+    failed: [FAILING_KEY],
+    skipped: [testKey("ui", "ui/admin-tools.spec.ts", "skipped")],
+  });
+});
+
+test("the coverage section reads what reconcile wrote and says whether the claims held", { tag: ["@infra", "@tier2"] }, () => {
+  const coverage = { target: "k8s", elements: { covered: 204, total: 437 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 0 };
+  expect(summaryMarkdown({ coverage })).toContain(
+    "### Coverage\n\nElements: 204 of 437 registry rows covered on k8s. API operations: 301 of 303 covered, 301 reached. Reconciliation passed.",
+  );
+  expect(summaryMarkdown({ coverage: { ...coverage, problems: 2 } })).toContain("Reconciliation found 2 problems; the reconcile step lists them.");
+});
+
+test("the resources table reads the peaks and the Metaspace the envelope spec attached", { tag: ["@infra", "@tier2"] }, () => {
+  const { report } = readRun("green");
+  const body = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64");
+  const MIB = 1024 ** 2;
+  report.suites[0].specs[0].tests[0].results[0].attachments = [
+    { name: PEAKS_ATTACHMENT, contentType: "application/json", body: body([{ role: "engine", memoryBytes: 1079 * MIB, cpuPercent: 324.4, samples: 300, band: { memoryBytes: 3072 * MIB, cpuPercent: 900 } }]) },
+    { name: METASPACE_ATTACHMENT, contentType: "application/json", body: body([{ role: "engine", usedBytes: 151 * MIB, maxBytes: 512 * MIB, band: 0.95 }]) },
+  ];
+  expect(summaryMarkdown({ report })).toContain("| engine | 1079 MiB of 3072 MiB | 324% of 900% | 151 MiB of 512 MiB, 29% of 95% |");
+  expect(summaryMarkdown(readRun("green"))).not.toContain("<summary>Resources</summary>");
+});
+
+test("the time by project and the slowest tests come from each result's start and duration", { tag: ["@infra", "@tier2"] }, () => {
+  const summary = summaryMarkdown(readRun("green"));
+  expect(summary).toContain("Took 18.7 min.");
+  expect(summary).toMatch(/<summary>Time by project<\/summary>\n\n\| Project \| Tests \| Started \| Took \|/);
+  expect(summary).toMatch(/\| `schema` \| 2 \| \+6:14 \| 0:00 \|/);
+  expect(summary).toContain("<summary>Slowest 5 tests</summary>");
+});
+
+test("known defects are grouped by the defect a conditional pin names, and a stackless project's pins are left out", { tag: ["@infra", "@tier2"] }, () => {
+  const { report } = readRun("green");
+  const [spec] = report.suites[0].specs;
+  const pinned = (projectName: string, description?: string) => ({ ...spec.tests[0], projectName, status: "expected", annotations: [{ type: "fail", description }] });
+  report.config.projects = [{ name: "schema", metadata: { stack: false } }];
+  report.suites[0].specs.push(
+    { ...spec, title: "a", tests: [pinned("runtime-micro", "the micro engine drops it"), pinned("brokers-micro", "the micro engine drops it")] },
+    { ...spec, title: "b", line: 9, tests: [pinned("api")] },
+    { ...spec, title: "c", tests: [pinned("schema", "a race")] },
+  );
+  const summary = summaryMarkdown({ report });
+  expect(summary).toContain("<summary>Known defects: 3 cases</summary>");
+  expect(summary).toContain("| the micro engine drops it | `runtime-micro`, `brokers-micro` | 2 |");
+  expect(summary).toContain(`| \`${spec.file}:9\` b | \`api\` | 1 |`);
+  expect(summary).not.toContain("a race");
+  expect(summary).toContain("| 941 | 0 | 0 | 0 | 3 |");
 });

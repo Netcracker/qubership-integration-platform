@@ -25,11 +25,13 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "../../support/fixtures.js";
 import { ROLES } from "../../env/containers.js";
 import {
+  BANDS,
   formatPeaks,
   metaspaceOutsideBand,
   outsideBand,
   readRunResources,
 } from "../../env/resources.js";
+import { METASPACE_ATTACHMENT, PEAKS_ATTACHMENT } from "../../support/run-summary.mjs";
 import type { Env, ProcessEnvelope } from "../../env/index.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -88,8 +90,11 @@ test("every service is still the process the run started", { tag: ["@infra", "@t
   ).toEqual(baseline.map(identity));
 });
 
-test("no service ended the run against its Metaspace ceiling", { tag: ["@infra", "@tier1"] }, async ({ env }) => {
+test("no service ended the run against its Metaspace ceiling", { tag: ["@infra", "@tier1"] }, async ({ env }, testInfo) => {
   const reported = (await envelopes(env)).filter((each) => each.metaspace !== null);
+  // For the CI step summary, which reads the report rather than the console.
+  const readings = reported.map((each) => ({ role: each.role, ...each.metaspace, band: BANDS[each.role].metaspaceShare }));
+  await testInfo.attach(METASPACE_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
   expect(
     reported.map((each) => each.role).sort(),
     "the three JVM services report Metaspace; the testing service is Go and reports none",
@@ -106,8 +111,10 @@ test("no service ended the run against its Metaspace ceiling", { tag: ["@infra",
   expect(metaspaceOutsideBand(reported), "a JVM this close to its ceiling is one import from OOM").toEqual([]);
 });
 
-test("no service left its stated resource band", { tag: ["@infra", "@tier1"] }, async ({ env }) => {
+test("no service left its stated resource band", { tag: ["@infra", "@tier1"] }, async ({ env }, testInfo) => {
   const peaks = await env.resourcePeaks();
+  const readings = peaks.map((each) => ({ ...each, band: { memoryBytes: BANDS[each.role].memoryBytes, cpuPercent: BANDS[each.role].cpuPercent } }));
+  await testInfo.attach(PEAKS_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
   expect(
     peaks.map((each) => each.role).sort(),
     "the sampler globalSetup started writes a peak per service; an empty reading means the run " +
