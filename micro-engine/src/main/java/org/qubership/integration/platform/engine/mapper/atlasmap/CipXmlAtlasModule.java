@@ -34,8 +34,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 @AtlasModuleDetail(
         name = "CipXmlAtlasModule",
@@ -56,6 +58,7 @@ public class CipXmlAtlasModule extends ComplexMappingAtlasModule {
 
                 try {
                     DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+                    hardenBuilderFactory(dbf);
                     dbf.setNamespaceAware(namespaced);
                     DocumentBuilder b = dbf.newDocumentBuilder();
                     return b.parse(new ByteArrayInputStream(source.getBytes("UTF-8")));
@@ -65,6 +68,15 @@ public class CipXmlAtlasModule extends ComplexMappingAtlasModule {
             }
         });
         inspectionService = new XmlInspectionService();
+    }
+
+    private static void hardenBuilderFactory(DocumentBuilderFactory documentBuilderFactory) throws ParserConfigurationException {
+        documentBuilderFactory.setValidating(false);
+        documentBuilderFactory.setExpandEntityReferences(false);
+        documentBuilderFactory.setXIncludeAware(false);
+        documentBuilderFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        documentBuilderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        documentBuilderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
     }
 
     @Override
