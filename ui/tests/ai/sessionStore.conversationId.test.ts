@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it } from "@jest/globals";
 import { restoreServerMessageIndexes } from "../../src/components/ai/conversationTurnIndex.ts";
+import { mockStorageQuota } from "../helpers/storageQuota.ts";
 
 describe("ChatSessionStore conversationId (A1)", () => {
   beforeEach(() => {
@@ -45,9 +46,7 @@ describe("ChatSessionStore conversationId (A1)", () => {
     expect(store.resolveDefaultSessionId(store.getAllSessions())).toBe(
       legacySession.id,
     );
-    expect(JSON.parse(localStorage.getItem("cip_ai_chat_sessions")!)).toEqual([
-      legacySession,
-    ]);
+    expect(localStorage.getItem("cip_ai_chat_sessions")).not.toBeNull();
     expect(localStorage.getItem("cip_ai_last_active_session_id")).toBe(
       legacySession.id,
     );
@@ -118,6 +117,87 @@ describe("ChatSessionStore conversationId (A1)", () => {
       legacySession,
     );
   });
+
+  it("retains legacy history when the destination rejects the compressed copy", async () => {
+    localStorage.setItem(
+      "qip_ai_chat_sessions",
+      JSON.stringify([legacySession]),
+    );
+    const setItem = Storage.prototype.setItem;
+    const write = jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key: string, value: string) {
+        if (key === "cip_ai_chat_sessions") {
+          throw new DOMException("Storage is full", "QuotaExceededError");
+        }
+        setItem.call(this, key, value);
+      });
+    try {
+      await loadStore();
+      expect(localStorage.getItem("qip_ai_chat_sessions")).not.toBeNull();
+      expect(localStorage.getItem("cip_ai_chat_sessions")).toBeNull();
+    } finally {
+      write.mockRestore();
+    }
+    jest.resetModules();
+    expect((await loadStore()).getSession(legacySession.id)).toEqual(
+      legacySession,
+    );
+  });
+
+  it.each(["qip_ai_chat_sessions", "cip_ai_chat_sessions"])(
+    "keeps a full history usable across migration, reload, and two tabs (%s)",
+    async (key) => {
+      const history = {
+        ...legacySession,
+        messages: [
+          { role: "assistant", content: "Saved requirements. ".repeat(2000) },
+        ],
+      };
+      const serialized = JSON.stringify([history]);
+      localStorage.setItem(key, serialized);
+      const quota = mockStorageQuota(key.length + serialized.length + 64);
+      try {
+        const firstTab = await loadStore();
+        expect(firstTab.getSession(history.id)).toEqual(history);
+        const created = firstTab.createSession();
+        const conversationId = firstTab.ensureConversationId(created.id);
+        firstTab.updateSessionLastAttachmentObjectKeys(created.id, [
+          "spec.json",
+        ]);
+
+        jest.resetModules();
+        const secondTab = await loadStore();
+        expect(secondTab.getSession(history.id)).toEqual(history);
+        expect(secondTab.getSession(created.id)?.conversationId).toBe(
+          conversationId,
+        );
+        expect(
+          secondTab.getSession(created.id)?.lastAttachmentObjectKeys,
+        ).toEqual(["spec.json"]);
+        secondTab.updateSessionTitle(history.id, "Updated in another tab");
+        firstTab.updateSessionTitle(created.id, "New chain");
+
+        jest.resetModules();
+        const reloaded = await loadStore();
+        expect(reloaded.getSession(history.id)?.messages).toEqual(
+          history.messages,
+        );
+        expect(reloaded.getSession(history.id)?.title).toBe(
+          "Updated in another tab",
+        );
+        expect(reloaded.getSession(created.id)?.conversationId).toBe(
+          conversationId,
+        );
+        expect(reloaded.getSession(created.id)?.title).toBe("New chain");
+        expect(
+          reloaded.resolveDefaultSessionId(reloaded.getAllSessions()),
+        ).toBe(created.id);
+      } finally {
+        quota.mockRestore();
+      }
+    },
+  );
 
   it("backfills a saved legacy session with repeated inputs and persists their positions", async () => {
     jest.useFakeTimers();

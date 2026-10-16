@@ -6,12 +6,23 @@ import {
 } from "./types.ts";
 import { ChatMessage } from "../modelProviders/types.ts";
 import { v4 as uuidv4 } from "uuid";
+import { compressToUTF16, decompressFromUTF16 } from "lz-string";
 
 const STORAGE_KEY = "cip_ai_chat_sessions";
 const LAST_ACTIVE_SESSION_ID_KEY = "cip_ai_last_active_session_id";
 const LEGACY_STORAGE_KEY = "qip_ai_chat_sessions";
 const LEGACY_LAST_ACTIVE_SESSION_ID_KEY = "qip_ai_last_active_session_id";
 const STORAGE_DEBOUNCE_MS = 500;
+
+function readSessions(stored: string): ChatSession[] {
+  return JSON.parse(
+    stored.startsWith("lz:") ? decompressFromUTF16(stored.slice(3)) : stored,
+  ) as ChatSession[];
+}
+
+function serializeSessions(sessions: ChatSession[]): string {
+  return `lz:${compressToUTF16(JSON.stringify(sessions))}`;
+}
 
 function getLatestSessionId(sessions: ChatSession[]): string | null {
   if (sessions.length === 0) {
@@ -48,18 +59,21 @@ class ChatSessionStore {
     try {
       const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
       if (legacy === null) return;
+      const legacySessions = readSessions(legacy);
       const sessions = new Map(
-        (JSON.parse(legacy) as ChatSession[]).map((session) => [
-          session.id,
-          session,
-        ]),
+        legacySessions.map((session) => [session.id, session]),
       );
       for (const session of this.readPersistedSessions()) {
         sessions.set(session.id, session);
       }
+      // Compress the existing key before migration needs a second copy of the history.
+      localStorage.setItem(
+        LEGACY_STORAGE_KEY,
+        serializeSessions(legacySessions),
+      );
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify(Array.from(sessions.values())),
+        serializeSessions(Array.from(sessions.values())),
       );
       const activeSession = localStorage.getItem(
         LEGACY_LAST_ACTIVE_SESSION_ID_KEY,
@@ -76,7 +90,7 @@ class ChatSessionStore {
 
   private readPersistedSessions(): ChatSession[] {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as ChatSession[]) : [];
+    return stored ? readSessions(stored) : [];
   }
 
   private ensureLoadedSessions(): ChatSession[] {
@@ -160,7 +174,7 @@ class ChatSessionStore {
           }
         }
         const sessions = Array.from(merged.values());
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+        localStorage.setItem(STORAGE_KEY, serializeSessions(sessions));
         this.memorySessions = sessions;
       } catch {
         // Ignore storage errors
