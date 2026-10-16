@@ -1,4 +1,4 @@
-// The two `FileType.File` masks in `qipExplorer.ts`. A chain or service file reached through a
+// The two `FileType.File` masks in `cipExplorer.ts`. A chain or service file reached through a
 // symbolic link stats as `File | SymbolicLink`, and the strict comparisons these replaced left such
 // a file out of the tree altogether.
 //
@@ -9,7 +9,7 @@
 import { FileType, TreeItemCollapsibleState } from "vscode";
 import { resetWorkspace, seedWorkspace } from "../fake-vscode";
 import { bindFileApi } from "../fake-vscode/fileApi";
-import { QipExplorerItem, QipExplorerProvider } from "../../src/web/qipExplorer";
+import { CipExplorerItem, CipExplorerProvider } from "../../src/web/cipExplorer";
 
 const SYMLINKED_FILE = FileType.File | FileType.SymbolicLink;
 
@@ -26,16 +26,16 @@ const serviceYaml = (id: string, name: string) =>
 
 // `getChildren` is entered at the category level, which is how the tree view asks for the chains or
 // the services of a category it has already rendered.
-const category = (label: string): QipExplorerItem => ({
+const category = (label: string): CipExplorerItem => ({
   id: `${label.toLowerCase()}-category`,
   label,
-  contextValue: `qip-${label.toLowerCase()}-category`,
+  contextValue: `cip-${label.toLowerCase()}-category`,
   collapsibleState: TreeItemCollapsibleState.Collapsed,
   type: "category",
 });
 
 describe("the explorer tree over a symbolic link", () => {
-  let explorer: QipExplorerProvider;
+  let explorer: CipExplorerProvider;
 
   beforeEach(() => {
     resetWorkspace();
@@ -59,7 +59,7 @@ describe("the explorer tree over a symbolic link", () => {
     });
     // `ContentParser` reads every file through the facade.
     bindFileApi();
-    explorer = new QipExplorerProvider();
+    explorer = new CipExplorerProvider();
   });
 
   it("lists a chain file reached through a link beside a plain one", async () => {

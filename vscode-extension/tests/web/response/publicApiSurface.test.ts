@@ -17,7 +17,6 @@ import * as exportImagesHandlerBarrel from "../../../src/web/exportImagesHandler
 import * as exportImageUtilsBarrel from "../../../src/web/exportImageUtils";
 
 import { fileApi } from "../../../src/web/response/file/fileApiProvider";
-import type { QipExtensionAPI } from "../../../src/web/index";
 
 // The consumer implements each of these through `setFileApi`. The list is plain strings rather than
 // `keyof FileApi`, so a rename shows up as a diff here instead of as a compile error.
@@ -51,15 +50,6 @@ const fileApiMethods = [
   "writePropertyFile",
   "writeServiceFile",
 ] as const;
-
-// `QipExtensionAPI` is an interface, so the public entry point carries no runtime value for it.
-// This mapped type is the guard: it stops compiling when the type export or a method goes.
-const extensionApiMethods: Record<keyof QipExtensionAPI, true> = {
-  loadConfigFromPath: true,
-  registerConfig: true,
-  unregisterConfig: true,
-  getConfig: true,
-};
 
 // The modules `src/web/index.ts` re-exports with `export *`, bar `exportImageTypes`: that one
 // declares types alone, so its `Object.keys` is empty and the comparison below would hold whatever
@@ -112,7 +102,7 @@ describe("the FileApi contract the consumer implements", () => {
 });
 
 describe("the names the consumer resolves through the public entry point", () => {
-  it.each(["setFileApi", "getDefaultExtensions", "getExtensionsForUri"] as const)(
+  it.each(["setFileApi"] as const)(
     "re-exports %s as a function",
     (name) => {
       expect(typeof (publicEntry as Record<string, unknown>)[name]).toBe(

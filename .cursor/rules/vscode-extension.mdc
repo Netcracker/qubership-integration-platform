@@ -77,7 +77,7 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
   a symbolic link for one, can only be pinned at level 1.
 - Jest reads `vscode` through `tests/__mocks__/vscode.ts`, which forwards the fake in `tests/fake-vscode/`: an
   in-memory `workspace.fs`, a `Uri` that joins paths, `workspaceFolders`, `FileType`, the five window prompts the
-  layer raises, and the tree-view types `qipExplorer.ts` builds its items from. Seed a tree with `seedWorkspace`,
+  layer raises, and the tree-view types `cipExplorer.ts` builds its items from. Seed a tree with `seedWorkspace`,
   address it with `workspaceUri` and read it back with `workspaceTree`, so a case asserts the file tree rather than the
   calls that produced it. A seed entry carries its own `FileType`, which is the only way to reach
   `FileType.SymbolicLink`: the level-2 host has no member that creates a link. It implements the six filesystem methods
@@ -106,7 +106,7 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
   the suite pins only what `harness.ts` uses it for: a whole-folder copy, and `overwrite` over an existing target. A
   `FileSystemError`'s `message` is the bare `uri.toString()`, so a message that names a path composes it.
 - `FileStat.type` is a bitmask, so a symlink to a file stats as `File | SymbolicLink`. The eight `File` comparisons in
-  `fileApiImpl.ts` and `qipExplorer.ts` mask it off (`(type & vscode.FileType.File) !== 0`) and the five `Directory`
+  `fileApiImpl.ts` and `cipExplorer.ts` mask it off (`(type & vscode.FileType.File) !== 0`) and the five `Directory`
   comparisons compare strictly; a new comparison follows the same split, and each file carries the reason above its
   class. Masking `Directory` would make the traversals descend into a linked directory, so a link cycle recurses
   without bound, and would turn the public `deleteFile` from deleting the link into reading through it.

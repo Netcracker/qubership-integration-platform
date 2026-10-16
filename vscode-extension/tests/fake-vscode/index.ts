@@ -1,6 +1,6 @@
 // The fake `vscode` module the Jest suite runs against: the in-memory filesystem from
 // `file-system.ts`, a `Uri` that really joins paths, the window prompts the layer raises, and the
-// tree-view types `qipExplorer.ts` builds its items from. `jest.config.cjs` maps `^vscode$` to
+// tree-view types `cipExplorer.ts` builds its items from. `jest.config.cjs` maps `^vscode$` to
 // `tests/__mocks__/vscode.ts`, which re-exports this module. The suites that pass their own factory
 // to `jest.mock("vscode", …)` override that mapping and never load it.
 //
@@ -131,7 +131,7 @@ const prompts: jest.Mock[] = [
   window.showQuickPick,
 ];
 
-// The tree-view surface `qipExplorer.ts` builds its items from. The provider's constructor makes an
+// The tree-view surface `cipExplorer.ts` builds its items from. The provider's constructor makes an
 // `EventEmitter`, `refresh` fires it, and each item carries a `ThemeIcon` and a collapsible state.
 export class EventEmitter<T> {
   private listeners: ((value: T) => void)[] = [];

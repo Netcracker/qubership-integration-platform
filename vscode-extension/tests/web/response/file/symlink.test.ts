@@ -18,7 +18,7 @@ import {
 } from "../../../fake-vscode";
 import { bindFileApi } from "../../../fake-vscode/fileApi";
 import { VSCodeFileApi } from "../../../../src/web/response/file/fileApiImpl";
-import { QipFileType } from "../../../../src/web/response/serviceApiUtils";
+import { CipFileType } from "../../../../src/web/response/serviceApiUtils";
 
 const SYMLINKED_FILE = FileType.File | FileType.SymbolicLink;
 const SYMLINKED_DIRECTORY = FileType.Directory | FileType.SymbolicLink;
@@ -63,7 +63,7 @@ describe("the file API reads through a symbolic link to a file", () => {
   });
 
   it("reports a linked chain file as a chain", async () => {
-    await expect(api.getFileType(workspaceUri(CHAIN_FILE))).resolves.toBe(QipFileType.CHAIN);
+    await expect(api.getFileType(workspaceUri(CHAIN_FILE))).resolves.toBe(CipFileType.CHAIN);
   });
 
   it("writes to a linked file instead of taking it for its own parent directory", async () => {
@@ -95,7 +95,7 @@ describe("the file API leaves a symbolic link to a directory alone", () => {
 
   it("answers UNKNOWN for a path it cannot stat", async () => {
     await expect(api.getFileType(workspaceUri("links/absent.chain.cip.yaml"))).resolves.toBe(
-      QipFileType.UNKNOWN,
+      CipFileType.UNKNOWN,
     );
   });
 });

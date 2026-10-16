@@ -156,7 +156,7 @@ export class VSCodeFileApi implements FileApi {
       // itself: both callers propagate it to the consumer unchanged. The wording covers any `stat`
       // failure, since the code is not read here.
       vscode.window.showErrorMessage(
-        `Cannot read the chain file or folder: ${baseUri.fsPath}. Refresh the QIP explorer and open the chain again.`,
+        `Cannot read the chain file or folder: ${baseUri.fsPath}. Refresh the CIP explorer and open the chain again.`,
       );
       throw err;
     }
