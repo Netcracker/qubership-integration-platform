@@ -17,14 +17,11 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
 import org.qubership.integration.platform.runtime.catalog.secrets.ConsulAdminTokenEnvironmentPostProcessor;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.cloud.consul.config.ConsulConfigProperties;
-import org.springframework.context.annotation.Primary;
-import org.springframework.stereotype.Component;
 
-@Primary
-@Component
-@ConfigurationProperties(ConsulConfigProperties.PREFIX)
+//@Primary
+//@Component
+//@ConfigurationProperties(ConsulConfigProperties.PREFIX)
 public class ConsulAclTokenProvider extends ConsulConfigProperties {
 
     @Override
