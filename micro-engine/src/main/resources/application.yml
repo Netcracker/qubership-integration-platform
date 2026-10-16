@@ -53,10 +53,10 @@ camel:
     messageHistory: true
     streamCachingEnabled: true # enable exchange payload spooling
     streamCachingBufferSize: 16384
+    inflightRepositoryBrowseEnabled: true
     globalOptions:
       CamelJacksonEnableTypeConverter: true
       CamelJacksonTypeConverterToPojo: true
-      inflightRepositoryBrowseEnabled: true
   component:
     bean:
       bean-info-cache-size: 30 # until took the fix from https://issues.apache.org/jira/browse/CAMEL-22775
@@ -234,7 +234,7 @@ quarkus:
     level: ${ROOT_LOG_LEVEL:INFO}
     console:
       level: ${ROOT_LOG_LEVEL:INFO}
-      format: "[%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-5p] [request_id=%-15X{requestId:--}] [tenant_id=%-36X{tenantId:--}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{trace_id:--}] [spanId=%-16X{span_id:--}] [originating_bi_id=%-36X{originating-bi-id:--}] [business_identifiers=%-36X{businessIdentifiers:--}] [method=%-30.30M] [log_type=%-3X{logType:--}] [session_id=%-36X{internalProperty_sessionId:--}] [chain_id=%-36X{chainId:--}] [chain=%-30X{chainName:--}] [chain_element_id=%-36X{elementId:--}] [chain_element=%-15X{elementName:--}] %m%n%ex{5}"
+      format: "[%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-5p] [request_id=%-15X{requestId}] [tenant_id=%-36X{tenantId}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{trace_id}] [spanId=%-16X{span_id}] [originating_bi_id=%-36X{originating-bi-id}] [business_identifiers=%-36X{businessIdentifiers}] [method=%-30.30M] [log_type=%-3X{logType}] [session_id=%-36X{internalProperty_sessionId}] [chain_id=%-36X{chainId}] [chain=%-30X{chainName}] [chain_element_id=%-36X{elementId}] [chain_element=%-15X{elementName}] %s%e%n"
       filter: camel-job-filter
     json:
       log-format: none # see org.qubership.integration.platform.engine.service.debugger.logging.JsonLogProvider
