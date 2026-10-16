@@ -42,7 +42,6 @@ import org.springframework.stereotype.Component;
 
 import java.net.URISyntaxException;
 import java.util.Optional;
-import java.util.function.Predicate;
 
 import static org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.ChainElementTypeHelper.isHttpTriggerElement;
 
@@ -55,7 +54,6 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
     private final Optional<TestingService> testingService;
     private final boolean m2mFallbackEnabled;
     private final UrlCache m2mUrlCache;
-    private final Predicate<ElementProperties> m2mElementChecker;
 
     @Autowired
     public HttpSenderDependencyBinder(
@@ -63,15 +61,13 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
         MetricTagsHelper metricTagsHelper,
         Optional<TestingService> testingService,
         @Value("${cip.chains.http-client.m2m.fallback-interceptor.enabled}") boolean m2mFallbackEnabled,
-        UrlCache m2mUrlCache,
-        Predicate<ElementProperties> m2mElementChecker
+        UrlCache m2mUrlCache
     ) {
         this.metricsStore = metricsStore;
         this.metricTagsHelper = metricTagsHelper;
         this.testingService = testingService;
         this.m2mFallbackEnabled = m2mFallbackEnabled;
         this.m2mUrlCache = m2mUrlCache;
-        this.m2mElementChecker = m2mElementChecker;
     }
 
     @Override
@@ -93,7 +89,6 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
             }
             log.info("M2M fallback interceptor: {}", m2mFallbackEnabled);
             log.info("M2M on element: {}", Boolean.parseBoolean(elementProperties.getProperties().get(ChainProperties.M2M)));
-            log.info("M2M element checker: {}", m2mElementChecker.test(elementProperties));
 
             if (metricsStore.isMetricsEnabled()) {
                 MicrometerHttpClientInterceptor interceptor = new MicrometerHttpClientInterceptor(
@@ -142,9 +137,7 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
     }
 
     private boolean isKubernetesM2MEnabled(ElementProperties elementProperties) {
-        return m2mFallbackEnabled
-                && (Boolean.parseBoolean(elementProperties.getProperties().get(ChainProperties.M2M))
-                || m2mElementChecker.test(elementProperties));
+        return m2mFallbackEnabled && Boolean.parseBoolean(elementProperties.getProperties().get(ChainProperties.M2M));
     }
 
     private static boolean isHttpChainElement(ElementProperties properties) {
