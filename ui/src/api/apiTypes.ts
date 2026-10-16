@@ -1152,6 +1152,7 @@ export interface SpecificationGroup {
 export interface Specification {
   id: string;
   name: string;
+  description?: string;
   specificationGroupId: string;
   deprecated?: boolean;
   version: string;
@@ -1163,7 +1164,7 @@ export interface Specification {
   modifiedBy?: User;
   chains?: BaseEntity[];
   labels?: EntityLabel[];
-  operations?: SystemOperation;
+  operations?: SystemOperation[];
 }
 
 export interface SystemOperation {
