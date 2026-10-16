@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 
 import java.io.Serializable;
 
-public class QIPDateTimeAction extends QIPCustomAction implements Serializable {
+public class CIPDateTimeAction extends CIPCustomAction implements Serializable {
 
     @JsonProperty("returnUnixTimeOutput")
     private Boolean returnUnixTimeOutput;
@@ -36,14 +36,14 @@ public class QIPDateTimeAction extends QIPCustomAction implements Serializable {
     private String outputLocale;
 
 
-    public QIPDateTimeAction() {
+    public CIPDateTimeAction() {
     }
 
-    public QIPDateTimeAction(QIPCustomActionType type) {
+    public CIPDateTimeAction(CIPCustomActionType type) {
         super(type);
     }
 
-    public QIPDateTimeAction(QIPCustomActionType type, Boolean returnUnixTimeOutput, String outputFormat, String outputTimezone, String outputLocale) {
+    public CIPDateTimeAction(CIPCustomActionType type, Boolean returnUnixTimeOutput, String outputFormat, String outputTimezone, String outputLocale) {
         super(type);
         this.returnUnixTimeOutput = returnUnixTimeOutput;
         this.outputFormat = outputFormat;

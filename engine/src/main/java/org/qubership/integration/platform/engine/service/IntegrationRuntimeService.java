@@ -59,7 +59,7 @@ import org.qubership.integration.platform.engine.model.deployment.engine.EngineD
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.*;
-import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
+import org.qubership.integration.platform.engine.security.CipSecurityAccessPolicy;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
@@ -567,7 +567,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             String.class,
             formDataConverter);
         context.getTypeConverterRegistry().addTypeConverter(
-            QipSecurityAccessPolicy.class,
+            CipSecurityAccessPolicy.class,
             String.class,
             securityAccessPolicyConverter);
         context.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, "true");

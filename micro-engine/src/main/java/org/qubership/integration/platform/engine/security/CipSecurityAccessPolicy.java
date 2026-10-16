@@ -26,15 +26,15 @@ import java.util.List;
     Do not move this class.
  */
 @Getter
-public class QipSecurityAccessPolicy {
+public class CipSecurityAccessPolicy {
     private final List<String> configAttributes;
 
-    public QipSecurityAccessPolicy(List<String> configAttributes) {
+    public CipSecurityAccessPolicy(List<String> configAttributes) {
         this.configAttributes = configAttributes;
     }
 
-    public static QipSecurityAccessPolicy fromStrings(Collection<String> strings) {
+    public static CipSecurityAccessPolicy fromStrings(Collection<String> strings) {
         List<String> attributes = strings.stream().toList();
-        return new QipSecurityAccessPolicy(attributes);
+        return new CipSecurityAccessPolicy(attributes);
     }
 }

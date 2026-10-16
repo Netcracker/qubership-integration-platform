@@ -28,10 +28,10 @@ import static java.util.stream.Collectors.toList;
     Warning: Class is specified in http trigger template.hbs file by full name (with package).
     Do not move this class.
  */
-public class QipSecurityAccessPolicy {
+public class CipSecurityAccessPolicy {
     private final List<ConfigAttribute> configAttributes;
 
-    public QipSecurityAccessPolicy(List<ConfigAttribute> configAttributes) {
+    public CipSecurityAccessPolicy(List<ConfigAttribute> configAttributes) {
         this.configAttributes = configAttributes;
     }
 
@@ -39,8 +39,8 @@ public class QipSecurityAccessPolicy {
         return configAttributes;
     }
 
-    public static QipSecurityAccessPolicy fromStrings(Collection<String> strings) {
+    public static CipSecurityAccessPolicy fromStrings(Collection<String> strings) {
         List<ConfigAttribute> attributes = strings.stream().map(SecurityConfig::new).collect(toList());
-        return new QipSecurityAccessPolicy(attributes);
+        return new CipSecurityAccessPolicy(attributes);
     }
 }

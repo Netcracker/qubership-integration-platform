@@ -19,16 +19,16 @@ package org.qubership.integration.platform.mapper.model.atlasmap.action;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 
-public class QIPDefaultValueAction extends QIPCustomAction {
+public class CIPDefaultValueAction extends CIPCustomAction {
     @JsonProperty("defaultValue")
     private String defaultValue = "";
 
-    public QIPDefaultValueAction() {
-        super(QIPCustomActionType.GET_DEFAULT_VALUE);
+    public CIPDefaultValueAction() {
+        super(CIPCustomActionType.GET_DEFAULT_VALUE);
     }
 
-    public QIPDefaultValueAction(String defaultValue) {
-        super(QIPCustomActionType.GET_DEFAULT_VALUE);
+    public CIPDefaultValueAction(String defaultValue) {
+        super(CIPCustomActionType.GET_DEFAULT_VALUE);
         this.defaultValue = defaultValue;
     }
 

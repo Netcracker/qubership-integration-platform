@@ -22,8 +22,8 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 import java.util.HashMap;
 import java.util.Map;
 
-public class QIPDictionaryAction extends QIPCustomAction {
-    //TODO Extend from QIPDefaultValue Action
+public class CIPDictionaryAction extends CIPCustomAction {
+    //TODO Extend from CIPDefaultValue Action
     @JsonProperty("defaultValue")
     private String defaultValue = "";
 
@@ -31,12 +31,12 @@ public class QIPDictionaryAction extends QIPCustomAction {
     private Map<String, String> dictionary = new HashMap<>();
 
 
-    public QIPDictionaryAction() {
-       super(QIPCustomActionType.DICTIONARY);
+    public CIPDictionaryAction() {
+       super(CIPCustomActionType.DICTIONARY);
     }
 
-    public QIPDictionaryAction(String defaultValue, Map<String, String> dictionary) {
-        super(QIPCustomActionType.DICTIONARY);
+    public CIPDictionaryAction(String defaultValue, Map<String, String> dictionary) {
+        super(CIPCustomActionType.DICTIONARY);
         this.defaultValue = defaultValue;
         this.dictionary = dictionary;
     }

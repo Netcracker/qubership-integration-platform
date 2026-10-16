@@ -20,7 +20,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 
 
-public class QIPFormatDateTimeAction extends QIPDateTimeAction {
+public class CIPFormatDateTimeAction extends CIPDateTimeAction {
 
     @JsonProperty("returnUnixTimeInput")
     private Boolean returnUnixTimeInput;
@@ -34,19 +34,19 @@ public class QIPFormatDateTimeAction extends QIPDateTimeAction {
     @JsonProperty("inputTimezone")
     private String inputTimezone;
 
-    public QIPFormatDateTimeAction() {
+    public CIPFormatDateTimeAction() {
     }
 
-    public QIPFormatDateTimeAction(Boolean returnUnixTimeInput, String inputFormat, String inputLocale, String inputTimezone) {
-        super(QIPCustomActionType.FORMAT_DATE_TIME);
+    public CIPFormatDateTimeAction(Boolean returnUnixTimeInput, String inputFormat, String inputLocale, String inputTimezone) {
+        super(CIPCustomActionType.FORMAT_DATE_TIME);
         this.returnUnixTimeInput = returnUnixTimeInput;
         this.inputFormat = inputFormat;
         this.inputLocale = inputLocale;
         this.inputTimezone = inputTimezone;
     }
 
-    public QIPFormatDateTimeAction(Boolean returnUnixTimeInput, String inputFormat, String inputLocale, String inputTimezone, Boolean returnUnixTimeOutput, String outputFormat, String outputLocale, String outputTimezone) {
-        super(QIPCustomActionType.FORMAT_DATE_TIME, returnUnixTimeOutput, outputFormat, outputTimezone, outputLocale);
+    public CIPFormatDateTimeAction(Boolean returnUnixTimeInput, String inputFormat, String inputLocale, String inputTimezone, Boolean returnUnixTimeOutput, String outputFormat, String outputLocale, String outputTimezone) {
+        super(CIPCustomActionType.FORMAT_DATE_TIME, returnUnixTimeOutput, outputFormat, outputTimezone, outputLocale);
         this.returnUnixTimeInput = returnUnixTimeInput;
         this.inputFormat = inputFormat;
         this.inputLocale = inputLocale;

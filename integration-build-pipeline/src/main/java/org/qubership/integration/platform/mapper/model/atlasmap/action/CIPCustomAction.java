@@ -23,20 +23,20 @@ import io.atlasmap.v2.Action;
 import java.io.Serializable;
 
 
-public class QIPCustomAction extends Action implements Serializable {
+public class CIPCustomAction extends Action implements Serializable {
 
     @JsonIgnore
-    private QIPCustomActionType qipActionType;
+    private CIPCustomActionType actionType;
 
-    public QIPCustomAction() {}
+    public CIPCustomAction() {}
 
-    public QIPCustomAction(QIPCustomActionType type) {
-        this.qipActionType = type;
+    public CIPCustomAction(CIPCustomActionType type) {
+        this.actionType = type;
     }
 
     @Override
     @JsonProperty("@type")
     public String getType() {
-        return qipActionType.value();
+        return actionType.value();
     }
 }
