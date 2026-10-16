@@ -1,9 +1,11 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
+import { QipExplorerProvider } from "../../qipExplorer";
 import {
   FIXTURES,
   SCHEMA,
   SUITE_TIMEOUT,
+  WindowStubs,
   activateExtension,
   activeTab,
   closeAllEditors,
@@ -11,19 +13,24 @@ import {
   describeInput,
   exists,
   expectCustomEditor,
+  expectWebviewPanel,
   fileNameOf,
   folderOf,
   golden,
+  holdsFor,
   listDirectory,
   listTree,
   manifest,
+  openTabLabels,
   readText,
   readYaml,
   suffixOf,
+  useExtensionModules,
   waitFor,
   withPrompts,
   workspaceRoot,
   workspaceUri,
+  writeYaml,
 } from "./harness";
 
 const EDITORS = [
@@ -55,6 +62,23 @@ async function newRootDirectory(run: () => Thenable<unknown>): Promise<string> {
   const added = (await listDirectory(workspaceRoot())).filter((name) => !before.includes(name));
   assert.strictEqual(added.length, 1, `expected one new directory, got ${JSON.stringify(added)}`);
   return added[0];
+}
+
+// Runs a command with the error popup captured, and returns the messages it raised. `stubs` answers
+// the other prompts the command raises, inside the same capture.
+async function errorsFrom(run: () => Thenable<unknown>, stubs: WindowStubs = {}): Promise<string[]> {
+  const errors: string[] = [];
+  await withPrompts(
+    {
+      ...stubs,
+      showErrorMessage: (message) => {
+        errors.push(message);
+        return undefined;
+      },
+    },
+    run,
+  );
+  return errors;
 }
 
 suite("Custom editors", function () {
@@ -118,6 +142,26 @@ suite("Create commands", function () {
         content: {},
       });
       await assertGolden(workspaceUri(`${folder}/${folder}.chain.cip.yaml`), folder, "CHAIN", ".chain.cip.yaml");
+    } finally {
+      await vscode.workspace.fs.delete(workspaceUri(folder), { recursive: true });
+    }
+  });
+
+  // `createEmptyChain(true)` writes into the folder above the workspace. This host mounts the
+  // workspace at the root of its filesystem, where `Uri.joinPath(root, "..")` resolves to the root
+  // again, so the chain lands in the workspace and this host cannot tell the two create commands
+  // apart. Only the dismissed prompt is pinned here, then: `qip.createService` writes nothing when
+  // its name prompt is dismissed, and this command falls back to a name.
+  test('qip.createChainParent names the chain "New Chain" when the name prompt is dismissed', async () => {
+    const folder = await newRootDirectory(() =>
+      withPrompts({ showInputBox: () => undefined }, () =>
+        vscode.commands.executeCommand("qip.createChainParent"),
+      ),
+    );
+    try {
+      const chain = await readYaml(workspaceUri(`${folder}/${folder}.chain.cip.yaml`));
+      assert.strictEqual(chain.name, "New Chain");
+      assert.strictEqual(chain.id, folder);
     } finally {
       await vscode.workspace.fs.delete(workspaceUri(folder), { recursive: true });
     }
@@ -275,4 +319,127 @@ suite("Open commands", function () {
       await expectCustomEditor(viewType, workspaceUri(fixture));
     });
   }
+
+  // The command takes no argument and raises no prompt: it opens the editor on no document at all.
+  test("qip.open opens the offline chain editor webview", async () => {
+    await vscode.commands.executeCommand("qip.open");
+    await expectWebviewPanel("QIP Offline Chain Editor");
+  });
+});
+
+suite("Export image commands", function () {
+  this.timeout(SUITE_TIMEOUT);
+
+  // The qip-ui webview renders the image and posts it back, so a level-2 case reaches the panel and no
+  // further: nothing writes a file here. The startup payload reaches the panel through a WeakMap in the
+  // extension's own copy of apiRouter, which this bundle cannot read, so each case asserts the panel
+  // and the paths the payload is built from.
+  const outputDir = workspaceUri("export-images-out").toString();
+
+  suiteSetup(activateExtension);
+  teardown(closeAllEditors);
+
+  // The panel is awaited inside the capture, because `errorsFrom` restores the popup as soon as its
+  // callback resolves: a message raised while the panel opens would otherwise go unrecorded.
+  test("qip.exportImages opens the export webview for the chain it is given", async () => {
+    const errors = await errorsFrom(async () => {
+      await vscode.commands.executeCommand("qip.exportImages", workspaceUri(FIXTURES.chain).toString(), { outputDir });
+      await expectWebviewPanel("QIP Export Images");
+    });
+    assert.deepStrictEqual(errors, []);
+  });
+
+  test("qip.exportImages reports a missing output directory and opens nothing", async () => {
+    const errors = await errorsFrom(() => vscode.commands.executeCommand("qip.exportImages", undefined, {}));
+    assert.deepStrictEqual(errors, ["outputDir is required"]);
+    await holdsFor(async () => assert.deepStrictEqual(openTabLabels(), []), 1000);
+  });
+
+  // The payload carries a chain id per path, so the handler parses every path before the panel opens.
+  test("qip.exportImages reports a path it cannot read as a chain and opens nothing", async () => {
+    const absent = workspaceUri("chains/absent.chain.cip.yaml");
+    const errors = await errorsFrom(() =>
+      vscode.commands.executeCommand("qip.exportImages", absent.toString(), { outputDir }),
+    );
+    assert.strictEqual(errors.length, 1, `expected one message, got ${JSON.stringify(errors)}`);
+    assert.match(errors[0], /^Failed to export QIP chain images: /);
+    assert.ok(errors[0].includes(absent.toString()), `the message does not name the file: ${errors[0]}`);
+    await holdsFor(async () => assert.deepStrictEqual(openTabLabels(), []), 1000);
+  });
+
+  test("qip.exportImagesFromExplorer asks for an output folder, then opens the export webview", async () => {
+    let asked: vscode.OpenDialogOptions | undefined;
+    const errors = await errorsFrom(
+      async () => {
+        await vscode.commands.executeCommand("qip.exportImagesFromExplorer");
+        await expectWebviewPanel("QIP Export Images");
+      },
+      {
+        showOpenDialog: (options) => {
+          asked = options;
+          return [workspaceUri("export-images-out")];
+        },
+      },
+    );
+    assert.deepStrictEqual(errors, []);
+    assert.strictEqual(asked?.canSelectFolders, true, "the dialog does not ask for a folder");
+    assert.strictEqual(asked?.canSelectFiles, false);
+  });
+
+  test("qip.exportImagesFromExplorer opens nothing when the folder dialog is dismissed", async () => {
+    await withPrompts({ showOpenDialog: () => undefined }, () =>
+      vscode.commands.executeCommand("qip.exportImagesFromExplorer"),
+    );
+    await holdsFor(async () => assert.deepStrictEqual(openTabLabels(), []), 1000);
+  });
+});
+
+suite("Explorer commands", function () {
+  this.timeout(SUITE_TIMEOUT);
+
+  const chainId = "7c3a1f58-6b24-4d0e-9f31-5a8c2e4b7d16";
+  const chainPath = `refreshed/${chainId}/${chainId}.chain.cip.yaml`;
+  let explorer: QipExplorerProvider;
+
+  suiteSetup(async () => {
+    await activateExtension();
+    useExtensionModules();
+    explorer = new QipExplorerProvider();
+  });
+
+  teardown(closeAllEditors);
+
+  // The provider the command refreshes is private to extension.ts and a tree view's rendered content
+  // has no API, so the case pins what is reachable: the command is registered, `refresh` fires the
+  // event the tree view redraws on, and the tree data is read from the filesystem rather than from a
+  // cache, so a file written behind the explorer is listed on the next read.
+  test("qip.refreshExplorer is registered, and a refresh fires the event and re-reads the files", async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes("qip.refreshExplorer"), "qip.refreshExplorer is not registered");
+    await vscode.commands.executeCommand("qip.refreshExplorer");
+
+    const fired: unknown[] = [];
+    const subscription = explorer.onDidChangeTreeData((event) => fired.push(event));
+    try {
+      explorer.refresh();
+      assert.strictEqual(fired.length, 1, "refresh fired no tree data event");
+    } finally {
+      subscription.dispose();
+    }
+
+    try {
+      const chain = await readYaml(workspaceUri(FIXTURES.chain));
+      await writeYaml(chainPath, { ...chain, id: chainId, name: "vsc-refreshed-chain" });
+      const root = await explorer.getChildren();
+      const category = root.find((item) => item.label === "Chains");
+      assert.ok(category, "no Chains category in the tree");
+      const listed = await explorer.getChildren(category);
+      const refreshed = listed.find((item) => item.id === chainId);
+      assert.ok(refreshed, `the chain written behind the explorer is missing from ${JSON.stringify(listed.map((item) => item.id))}`);
+      assert.strictEqual(refreshed.label, `vsc-refreshed-chain-${chainId}`);
+      assert.strictEqual(refreshed.fileUri?.toString(), workspaceUri(chainPath).toString());
+    } finally {
+      await vscode.workspace.fs.delete(workspaceUri("refreshed"), { recursive: true });
+    }
+  });
 });

@@ -34,27 +34,27 @@ describe("resolveOutputFileUri", () => {
 
   test("appends .png when extension is missing", () => {
     const uri = resolveOutputFileUri("/tmp/export", "chain-1");
-    expect(uri.path).toBe("/joined/path");
+    expect(uri.path).toBe("/tmp/export/chain-1.png");
   });
 
   test("keeps existing png extension", () => {
     const uri = resolveOutputFileUri("/tmp/export", "chain-1.png");
-    expect(uri.path).toBe("/joined/path");
+    expect(uri.path).toBe("/tmp/export/chain-1.png");
   });
 
   test("keeps existing svg extension", () => {
     const uri = resolveOutputFileUri("/tmp/export", "chain-1.svg");
-    expect(uri.path).toBe("/joined/path");
+    expect(uri.path).toBe("/tmp/export/chain-1.svg");
   });
 
   test("resolves scheme-based output dir", () => {
     const uri = resolveOutputFileUri("file:///tmp/export", "chain-1.png");
-    expect(uri.path).toBe("/joined/path");
+    expect(uri.path).toBe("/tmp/export/chain-1.png");
   });
 
   test("resolves relative output dir against workspace root", () => {
     const uri = resolveOutputFileUri("exports", "chain-1");
-    expect(uri.path).toBe("/joined/path");
+    expect(uri.path).toBe("/workspace/exports/chain-1.png");
     expect(getRootDirectory).toHaveBeenCalled();
   });
 });

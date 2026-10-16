@@ -25,6 +25,11 @@ import {
 import { extractEntityId } from "../navigationUtils";
 const RESOURCES_FOLDER = "resources";
 
+// `FileStat.type` is a bitmask, so a link to a file stats as `File | SymbolicLink`. The
+// `FileType.File` comparisons below mask that off; the `FileType.Directory` ones compare strictly
+// on purpose. Masking them would make `findAndBuildChainsRecursively` and `collectFiles` descend
+// into a linked directory, so a link cycle recurses without bound, and it would turn `deleteFile`
+// from deleting the link into reading through it and rejecting the target as not empty.
 export class VSCodeFileApi implements FileApi {
   context: ExtensionContext;
 
@@ -125,7 +130,7 @@ export class VSCodeFileApi implements FileApi {
   private async getParentDirectoryUri(uri: Uri): Promise<Uri> {
     try {
       const stat = await vscode.workspace.fs.stat(uri);
-      if (stat.type === vscode.FileType.File) {
+      if ((stat.type & vscode.FileType.File) !== 0) {
         return this.resolveParentDirectory(uri);
       }
       return uri;
@@ -140,7 +145,9 @@ export class VSCodeFileApi implements FileApi {
   ): Promise<string[]> {
     const entries = await readDirectory(directoryUri);
     return entries
-      .filter(([, type]: [string, number]) => type === 1)
+      .filter(
+        ([, type]: [string, number]) => (type & vscode.FileType.File) !== 0,
+      )
       .filter(([name]: [string, number]) => name.endsWith(extension))
       .map(([name]: [string, number]) => name);
   }
@@ -149,8 +156,19 @@ export class VSCodeFileApi implements FileApi {
     if (!baseUri) {
       throw Error("No base uri provided");
     }
-    const stat = await vscode.workspace.fs.stat(baseUri);
-    if (stat.type === vscode.FileType.File) {
+    let stat;
+    try {
+      stat = await vscode.workspace.fs.stat(baseUri);
+    } catch (err) {
+      // A FileSystemError's message is the uri alone, so name the path here and rethrow the error
+      // itself: both callers propagate it to the consumer unchanged. The wording covers any `stat`
+      // failure, since the code is not read here.
+      vscode.window.showErrorMessage(
+        `Cannot read the chain file or folder: ${baseUri.fsPath}. Refresh the QIP explorer and open the chain again.`,
+      );
+      throw err;
+    }
+    if ((stat.type & vscode.FileType.File) !== 0) {
       return baseUri;
     }
     const extensions = this.getExtensionsForContext(baseUri);
@@ -181,7 +199,10 @@ export class VSCodeFileApi implements FileApi {
     const extensions = this.getExtensionsForContext(folderUri);
 
     for (const [name, type] of entries) {
-      if (type === vscode.FileType.File && name.endsWith(extensions.chain)) {
+      if (
+        (type & vscode.FileType.File) !== 0 &&
+        name.endsWith(extensions.chain)
+      ) {
         const fileUri = vscode.Uri.joinPath(folderUri, name);
 
         const chainYaml = await this.parseFile(fileUri);
@@ -302,7 +323,7 @@ export class VSCodeFileApi implements FileApi {
 
     for (const [name, type] of entries) {
       if (
-        type === vscode.FileType.File &&
+        (type & vscode.FileType.File) !== 0 &&
         name.endsWith(fileFilter.extension)
       ) {
         const fileUri = vscode.Uri.joinPath(folderUri, name);
@@ -794,7 +815,7 @@ export class VSCodeFileApi implements FileApi {
       const extensions: FileExtensionsConfig =
         this.getExtensionsForContext(fileUri);
 
-      if (stat.type === vscode.FileType.File) {
+      if ((stat.type & vscode.FileType.File) !== 0) {
         const name = extractFilename(fileUri);
         if (name.endsWith(extensions.mcpService)) {
           return QipFileType.MCP_SERVICE;
