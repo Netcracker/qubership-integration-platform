@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -60,6 +62,14 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
@@ -1055,6 +1065,75 @@ class ChatDecisionServiceTest {
     ChatDecisionCommand command = command(ChatEvent.IMPORT_EXTERNAL_ACTION, null, null, null);
     service.rememberImportChoice("conv-1", command);
     assertEquals("EXTERNAL", drafts.get("conv-1").orElseThrow().preferredSystemType());
+  }
+
+  @Test
+  void replacementSpecRestoresImportApprovalFromTheDurableWait() {
+    String conversationId = "conv-1";
+    String runId = "conv-1-create-chain-2";
+    ConversationService conversations = mock(ConversationService.class);
+    when(conversations.getAllowedAttachmentKeys(conversationId))
+        .thenReturn(List.of("uploads/old-api.yaml"));
+    when(conversations.getMessages(conversationId)).thenReturn(List.of());
+    ProductPipelineArtifactStore artifacts = inMemoryArtifactStore();
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    ChatEvent.Decision old = handler.createDecision(conversationId);
+    handler.appendApprovalRecord(runId, conversationId, old, artifacts);
+    when(conversations.getAllowedAttachmentKeys(conversationId))
+        .thenReturn(List.of("uploads/replacement-api.yaml"));
+    CreateChainApplicationFacade facade = waitingFacade(conversationId, "uploaded-spec-import", artifacts);
+    doReturn(Multi.createFrom().empty()).when(facade).start(any());
+    ChatDecisionService service = uploadedSpecsDecisionService(facade, conversations, artifacts, handler);
+
+    ChatEvent.Decision current = service.openDecision(conversationId).orElseThrow();
+
+    assertEquals(UploadedSpecsApprovalHandler.ARTIFACT_TYPE, current.artifactType());
+    assertEquals(handler.attachmentHash(conversationId), current.artifactHash());
+    assertFalse(old.artifactHash().equals(current.artifactHash()));
+    assertEquals(List.of(ChatEvent.IMPORT_ACTION, "clarify"), current.actions());
+    assertEquals(List.of(new ChatEvent.UploadedSpecItem("uploads/replacement-api.yaml", "replacement-api")), current.specs());
+    ChatDecisionService reloaded = uploadedSpecsDecisionService(facade, conversations, artifacts, handler);
+    assertEquals(current, reloaded.openDecision(conversationId).orElseThrow());
+    ChatDecisionCommand answer = command(ChatEvent.IMPORT_ACTION, current.artifactType(), current.artifactHash(), null);
+    answer.setSpecSystemTypes(Map.of("uploads/replacement-api.yaml", "EXTERNAL"));
+
+    reloaded.apply(conversationId, answer).collect().asList().await().indefinitely();
+
+    ApprovalRecordV2 approved = latestUploadedSpecsApproval(artifacts, conversationId);
+    assertEquals(current.artifactHash(), approved.targetContentHash());
+    assertEquals(Map.of("uploads/replacement-api.yaml", "EXTERNAL"), approved.specSystemTypes());
+    assertFalse(reloaded.openDecision(conversationId).orElseThrow().actions().contains(ChatEvent.IMPORT_ACTION));
+    verify(facade).start(any(StartCreateChainCommand.class));
+  }
+
+  @Test
+  void pendingAttachmentsDoNotReplaceAnUnrelatedClarification() {
+    ConversationService conversations = mock(ConversationService.class);
+    when(conversations.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/replacement-api.yaml"));
+    ProductPipelineArtifactStore artifacts = inMemoryArtifactStore();
+    ChatDecisionService service = uploadedSpecsDecisionService(
+        waitingFacade("conv-1", "requirement-discovery", artifacts), conversations, artifacts,
+        new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class)));
+
+    ChatEvent.Decision decision = service.openDecision("conv-1").orElseThrow();
+
+    assertEquals("clarify", decision.kind());
+    assertFalse(decision.actions().contains(ChatEvent.IMPORT_ACTION));
+  }
+
+  private static CreateChainApplicationFacade waitingFacade(
+      String conversationId, String stage, ProductPipelineArtifactStore artifacts) {
+    String runId = conversationId + "-create-chain-2";
+    ProductPipelineRunStore runs = mock(ProductPipelineRunStore.class);
+    when(runs.loadByConversation(conversationId)).thenReturn(Optional.of(new ProductPipelineRunDocument(
+        new RunSnapshot(runId, conversationId, 4L, RunStatus.WAITING_FOR_INPUT, stage, List.of(), null, "flow-1"),
+        List.of(), List.of(new RunTransition(3L, 4L, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT,
+            stage, Instant.EPOCH, "Approval required to import uploaded API specifications")), "v1")));
+    return spy(new CreateChainApplicationFacade(mock(CreateRunSelectionService.class),
+        mock(CreateRunBindingStore.class), mock(CreateChainOrchestrator.class), runs,
+        mock(ProductPipelineProfileCatalog.class), artifacts));
   }
 
   @Test

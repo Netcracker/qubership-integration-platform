@@ -104,19 +104,26 @@ public class ChatDecisionService {
         return chainList;
       }
     }
+    var snapshot = facade.snapshot(conversationId);
+    Optional<ChatEvent.Decision> uploaded = snapshot
+        .filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
+            && PipelineGates.UPLOADED_SPECS_IMPORT.equals(clarify.gateId()))
+        .flatMap(current -> uploadedSpecsDecision(conversationId));
+    if (uploaded.isPresent()) {
+      return uploaded;
+    }
     Optional<ChatEvent.Decision> waiting =
-        facade
-            .snapshot(conversationId)
+        snapshot
             .flatMap(
-                snapshot ->
-                    Optional.ofNullable(snapshot.pendingAction())
+                current ->
+                    Optional.ofNullable(current.pendingAction())
                         .filter(pending -> !ChatEvent.isSilentClarification(pending))
                         .map(
                             pending ->
                                 (ChatEvent.Decision)
                                     ChatEvent.decision(
                                         pending,
-                                        snapshot.revision(),
+                                        current.revision(),
                                         storedQuestion(conversationId, pending),
                                         actionsFor(conversationId, pending))));
     if (waiting.isPresent()) {
@@ -126,7 +133,7 @@ public class ChatDecisionService {
     if (creation.isPresent()) {
       return creation;
     }
-    Optional<ChatEvent.Decision> uploaded = uploadedSpecsDecision(conversationId);
+    uploaded = uploadedSpecsDecision(conversationId);
     Optional<ChatEvent.Decision> imported =
         uploaded.isPresent() ? uploaded : importDecision(conversationId);
     if (imported.isPresent() || patchStore == null) {
