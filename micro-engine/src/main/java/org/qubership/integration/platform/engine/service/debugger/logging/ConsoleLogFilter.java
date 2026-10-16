@@ -15,11 +15,11 @@ public class ConsoleLogFilter implements Filter {
     private final CamelJobLogFilter camelJobLogFilter = new CamelJobLogFilter();
 
     @Override
-    public boolean isLoggable(LogRecord record) {
-        if (!camelJobLogFilter.isLoggable(record)) {
+    public boolean isLoggable(LogRecord logRecord) {
+        if (!camelJobLogFilter.isLoggable(logRecord)) {
             return false;
         }
-        if (record instanceof ExtLogRecord extRecord) {
+        if (logRecord instanceof ExtLogRecord extRecord) {
             JsonLogProvider.MDC_MAPPING.keySet().stream()
                     .filter(key -> extRecord.getMdc(key) == null)
                     .forEach(key -> extRecord.putMdc(key, ABSENT_MDC_VALUE));

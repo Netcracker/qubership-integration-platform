@@ -19,24 +19,24 @@ class ConsoleLogFilterTest {
 
     @Test
     void shouldWriteDashForAbsentMdcFieldsAndKeepPresentOnes() {
-        ExtLogRecord record = new ExtLogRecord(Level.INFO, "message", ConsoleLogFilterTest.class.getName());
-        record.setLoggerName(ConsoleLogFilterTest.class.getName());
-        record.setMdc(Map.of("chainId", "chain-1"));
+        ExtLogRecord logRecord = new ExtLogRecord(Level.INFO, "message", ConsoleLogFilterTest.class.getName());
+        logRecord.setLoggerName(ConsoleLogFilterTest.class.getName());
+        logRecord.setMdc(Map.of("chainId", "chain-1"));
 
-        assertTrue(filter.isLoggable(record));
+        assertTrue(filter.isLoggable(logRecord));
 
-        assertEquals("chain-1", record.getMdc("chainId"));
+        assertEquals("chain-1", logRecord.getMdc("chainId"));
         JsonLogProvider.MDC_MAPPING.keySet().stream()
                 .filter(key -> !key.equals("chainId"))
-                .forEach(key -> assertEquals(ConsoleLogFilter.ABSENT_MDC_VALUE, record.getMdc(key), key));
+                .forEach(key -> assertEquals(ConsoleLogFilter.ABSENT_MDC_VALUE, logRecord.getMdc(key), key));
     }
 
     @Test
     void shouldDropCamelJobRecordForMissingCamelContext() {
-        ExtLogRecord record = new ExtLogRecord(Level.ERROR, "message", ConsoleLogFilterTest.class.getName());
-        record.setLoggerName("org.apache.camel.component.quartz.CamelJob");
-        record.setThrown(new RuntimeException("No CamelContext could be found with name test-context"));
+        ExtLogRecord logRecord = new ExtLogRecord(Level.ERROR, "message", ConsoleLogFilterTest.class.getName());
+        logRecord.setLoggerName("org.apache.camel.component.quartz.CamelJob");
+        logRecord.setThrown(new RuntimeException("No CamelContext could be found with name test-context"));
 
-        assertFalse(filter.isLoggable(record));
+        assertFalse(filter.isLoggable(logRecord));
     }
 }
