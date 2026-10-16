@@ -60,7 +60,7 @@ import java.util.Set;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/chains", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(path = {"/v1/chains", "/api/v1/cip/catalog/chains"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "chain-controller", description = "Chain Controller")
 public class ChainController {

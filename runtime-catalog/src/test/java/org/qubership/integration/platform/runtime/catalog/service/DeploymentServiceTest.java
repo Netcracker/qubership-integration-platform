@@ -56,9 +56,13 @@ import java.util.function.BiConsumer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -188,11 +192,24 @@ class DeploymentServiceTest {
         when(deploymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         runTransactionsImmediately();
 
-        var response = service.deploySnapshotToDomain(snapshot, "domainA");
+        var response = service.deploySnapshotToDomain(snapshot, "domainA", null);
 
         assertThat(response.getStatus()).isEqualTo(BulkDeploymentStatus.CREATED);
         assertThat(response.getChainId()).isEqualTo("chain-1");
         assertThat(response.getDomain().getName()).isEqualTo("domainA");
+    }
+
+    @Test
+    void deploySnapshotPassesTheDeploymentsToExcludeToTheTriggerCheck() {
+        Snapshot snapshot = snapshotWithChain();
+        when(chainFinderService.findById("chain-1")).thenReturn(snapshot.getChain());
+        DeploymentService spied = spy(service);
+        doReturn(new Deployment()).when(spied).create(any(Deployment.class), any(Chain.class), any(Snapshot.class), any());
+        List<Deployment> excludeDeployments = List.of(new Deployment());
+
+        spied.deploySnapshot(snapshot, List.of("domainA"), excludeDeployments);
+
+        verify(spied).create(any(Deployment.class), eq(snapshot.getChain()), eq(snapshot), same(excludeDeployments));
     }
 
     @Test
@@ -203,7 +220,7 @@ class DeploymentServiceTest {
         when(deploymentRepository.save(any())).thenThrow(new RuntimeException("db down"));
         runTransactionsImmediately();
 
-        var response = service.deploySnapshotToDomain(snapshot, "domainA");
+        var response = service.deploySnapshotToDomain(snapshot, "domainA", null);
 
         assertThat(response.getStatus()).isEqualTo(BulkDeploymentStatus.FAILED_DEPLOY);
         assertThat(response.getErrorMessage()).isEqualTo("db down");

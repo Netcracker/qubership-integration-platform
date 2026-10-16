@@ -23,6 +23,7 @@ import {
   CreateDeploymentOptions,
   DeploymentCreate,
 } from "../components/modal/DeploymentCreate.tsx";
+import { toDomains } from "../misc/domain-utils.ts";
 import { api } from "../api/api.ts";
 import { LongActionButton } from "../components/LongActionButton.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
@@ -243,13 +244,19 @@ export const Deployments: React.FC = () => {
     [chainId, notificationService, onDeploymentCreated],
   );
 
+  const initialDomains = useMemo(() => toDomains(deployments), [deployments]);
+
   const onCreateClick = useCallback(() => {
     showModal({
       component: (
-        <DeploymentCreate chainId={chainId} onSubmit={createDeployment} />
+        <DeploymentCreate
+          chainId={chainId}
+          initialDomains={initialDomains}
+          onSubmit={createDeployment}
+        />
       ),
     });
-  }, [showModal, chainId, createDeployment]);
+  }, [showModal, chainId, createDeployment, initialDomains]);
 
   const chainTabToolbar = useMemo(
     () => (
@@ -272,6 +279,7 @@ export const Deployments: React.FC = () => {
               type: "primary",
               iconName: "plus",
               onClick: onCreateClick,
+              "data-testid": "deployments-create",
             }}
           />
         }

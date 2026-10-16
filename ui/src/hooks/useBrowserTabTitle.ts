@@ -67,7 +67,13 @@ async function resolveServiceTabTitle(
   }
 
   try {
-    const service = await api.getService(route.systemId);
+    // Context and MCP services live under their own catalog endpoints.
+    const service =
+      route.variant === "context"
+        ? await api.getContextService(route.systemId)
+        : route.variant === "mcp"
+          ? await api.getMcpSystem(route.systemId)
+          : await api.getService(route.systemId);
     return service.name;
   } catch {
     return null;

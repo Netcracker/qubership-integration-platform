@@ -1,0 +1,34 @@
+# The specification the services and specifications specs import.
+#
+# Three operations over two paths, which is the point: an import that produced one operation per
+# path, or one per file, would pass a count of two and fail here. `info.version` is load-bearing —
+# the catalog names the specification after it and builds the model id as
+# `{systemId}-{groupName}-{version}`, so a spec can address the result without reading it back.
+openapi: 3.0.3
+info:
+  title: E2E Widgets API
+  version: 1.0.0
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      responses:
+        "200":
+          description: every widget
+    post:
+      operationId: createWidget
+      responses:
+        "201":
+          description: the widget that was created
+  /widgets/{id}:
+    get:
+      operationId: getWidget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: one widget

@@ -7,8 +7,8 @@
 # an explicit override. The two tag lines stay separate (schemas-v*, schemas-maven-v*)
 # so each keeps its own recovery sentinel.
 #
-# The only way to release schemas. The Maven line is call-only, so both artifacts
-# always carry the same number.
+# Releases schemas on its own; release-all chains the same two lines itself. The
+# Maven line is call-only, so both artifacts always carry the same number.
 #
 # No workflow-level concurrency: the reusable serialises per module (group
 # includes inputs.module). A wrapper-level group keyed on github.workflow would
@@ -16,20 +16,12 @@
 
 name: Schemas Release
 
-run-name: Schemas Release (${{ inputs.release-type }})
+run-name: Schemas Release (patch)
 
 on:
+  # Patch only: minor and major go through release-all.
   workflow_dispatch:
     inputs:
-      release-type:
-        description: "patch | minor | major"
-        type: choice
-        options:
-          - "patch"
-          - "minor"
-          - "major"
-        required: false
-        default: "patch"
       npm-dist-tag:
         description: "npm distribution tag"
         required: false
@@ -64,7 +56,7 @@ jobs:
     uses: ./.github/workflows/_npm-module-release.yaml
     with:
       module: schemas
-      release-type: ${{ inputs.release-type }}
+      release-type: patch
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
     secrets:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}

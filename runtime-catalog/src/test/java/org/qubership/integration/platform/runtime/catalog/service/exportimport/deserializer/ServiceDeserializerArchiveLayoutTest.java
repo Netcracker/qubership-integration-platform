@@ -32,6 +32,7 @@ import org.qubership.integration.platform.io.readers.migrations.system.ServiceIm
 import org.qubership.integration.platform.io.readers.migrations.system.V100ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -42,10 +43,10 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -80,7 +81,7 @@ class ServiceDeserializerArchiveLayoutTest {
         YAMLMapper yamlMapper = new YAMLMapper();
         List<ServiceImportFileMigration> migrations = List.of(new V100ServiceImportFileMigration());
 
-        when(versionsGetterService.getVersions(any())).thenReturn(List.of(100, 101, 102));
+        when(versionsGetterService.getVersions(any())).thenReturn(Optional.of(List.of(100, 101, 102)));
         when(fileMigrationService.migrate(anyString(), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
         when(fileMigrationService.migrate(any(ObjectNode.class), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -89,9 +90,9 @@ class ServiceDeserializerArchiveLayoutTest {
 
         deserializer = new ServiceDeserializer(
                 reader,
-                new IntegrationSystemDtoMapper(URI.create("http://qubership.org/schemas/product/qip/service"), migrations),
-                new SpecificationGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification-group")),
-                new SystemModelDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification"))
+                new IntegrationSystemDtoMapper(new ApplicationJsonSchemaProperties(), migrations),
+                new SpecificationGroupDtoMapper(new ApplicationJsonSchemaProperties()),
+                new SystemModelDtoMapper(new ApplicationJsonSchemaProperties())
         );
     }
 

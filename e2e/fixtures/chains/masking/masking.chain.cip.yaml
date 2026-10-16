@@ -1,0 +1,35 @@
+---
+id: "e2e00015-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-masking"
+description: "The chain the runtime masking assertion calls. The seed gives it one masked field\
+  \ before deploying it, because masked fields travel to the engine with the deployment; the chain\
+  \ itself only echoes the request so the recorded body is the one that was sent."
+content:
+  labels: []
+  elements:
+  - id: "e2e00015-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-masking"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00015-0000-4000-8000-000000000003"
+    name: "Echo"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-masking: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e00015-0000-4000-8000-000000000002"
+    to: "e2e00015-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

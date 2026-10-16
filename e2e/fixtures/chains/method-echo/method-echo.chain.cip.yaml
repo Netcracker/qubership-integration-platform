@@ -1,0 +1,35 @@
+---
+id: "e2e00022-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-method-echo"
+description: "The endpoint the generated sender chains call on the engine's own port. It accepts\
+  \ any method and answers the one it received, in a header and as a JSON body, so a sender's\
+  \ httpMethod is read off the reply and a GraphQL sender gets JSON back."
+content:
+  labels: []
+  elements:
+  - id: "e2e00022-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-method-echo"
+      httpMethodRestrict: ""
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00022-0000-4000-8000-000000000003"
+    name: "Echo Method"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setHeader('e2e-method', exchange.getMessage().getHeader('CamelHttpMethod'));\
+        \ exchange.getMessage().setHeader('Content-Type', 'application/json');\
+        \ exchange.getMessage().setBody('{\"method\":\"' + exchange.getMessage().getHeader('CamelHttpMethod') + '\"}')"
+  dependencies:
+  - from: "e2e00022-0000-4000-8000-000000000002"
+    to: "e2e00022-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

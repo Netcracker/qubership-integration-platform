@@ -1,0 +1,15 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/container-element-properties
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Container Element Properties
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  children:
+    type: array
+    title: Child elements
+    items:
+      $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/element"

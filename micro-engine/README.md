@@ -66,6 +66,9 @@ Application parameters can be set by environment variables.
 | MONITORING_ENABLED                  | false                                                |                                                                                                                              |
 | TESTING_SERVICE_ENABLED             | false                                                | Enables endpoint mocking. Enable it only where the testing service is deployed: an unmatched call gets a 404.                |
 | TESTING_SERVICE_ADDRESS             | `http://testing-service:8080`                        | Testing service address, used when endpoint mocking is enabled.                                                              |
+| CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED | true                                                 | Enables the Kafka predeploy check. The engine does not start while a topic a chain uses is missing.                          |
+| CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED  | true                                                 | Enables the AMQP predeploy check. The engine does not start while a queue or an exchange a chain uses is missing.            |
+| CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED | true                                                 | Enables the Pub/Sub predeploy check. The engine does not start while a topic or a subscription a chain uses is missing.      |
 
 
 Configuration can be overridden with values stored in Consul.

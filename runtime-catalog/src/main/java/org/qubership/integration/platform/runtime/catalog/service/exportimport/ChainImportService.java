@@ -34,10 +34,10 @@ import org.qubership.integration.platform.io.readers.migrations.ImportFileMigrat
 import org.qubership.integration.platform.io.readers.migrations.MigrationException;
 import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.common.GroupPathUtils;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainImportException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ComparisonEntityNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.*;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainsIgnoreOverrideResult;
@@ -46,18 +46,22 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.engine.ImportDomainDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
 import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceService;
 import org.qubership.integration.platform.runtime.catalog.service.difference.EntityDifferenceResult;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeployPrepare;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
@@ -67,10 +71,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
+import static java.util.stream.Collectors.*;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 import static org.qubership.integration.platform.library.constants.CamelOptions.CONTEXT_SYSTEM_ID;
 import static org.qubership.integration.platform.library.constants.CamelOptions.SYSTEM_ID;
@@ -87,8 +96,6 @@ public class ChainImportService {
     private final ChainFinderService chainFinderService;
     private final FolderService folderService;
     private final SnapshotService snapshotService;
-    private final DeploymentService deploymentService;
-    private final EngineService engineService;
     private final ChainExternalEntityMapper chainExternalEntityMapper;
     private final ImportSessionService importProgressService;
     private final ActionsLogService actionsLogService;
@@ -101,11 +108,10 @@ public class ChainImportService {
     private final Collection<ChainImportFileMigration> chainImportFileMigrations;
     private final ChainModelMapper chainModelMapper;
     private final ChainReader chainReader;
+    private final BulkDeploymentService bulkDeploymentService;
 
     @Value("${cip.build.artifact-descriptor-version}")
     private String artifactDescriptorVersion;
-    @Value("${app.prefix}")
-    private String appName;
 
     @Autowired
     public ChainImportService(
@@ -115,8 +121,6 @@ public class ChainImportService {
             ChainFinderService chainFinderService,
             FolderService folderService,
             SnapshotService snapshotService,
-            DeploymentService deploymentService,
-            EngineService engineService,
             ChainExternalEntityMapper chainExternalEntityMapper,
             ImportSessionService importProgressService,
             ActionsLogService actionsLogService,
@@ -128,7 +132,8 @@ public class ChainImportService {
             FileMigrationService fileMigrationService,
             Collection<ChainImportFileMigration> chainImportFileMigrations,
             ChainModelMapper chainModelMapper,
-            ChainReader chainReader
+            ChainReader chainReader,
+            BulkDeploymentService bulkDeploymentService
     ) {
         this.yamlMapper = yamlMapper;
         this.transactionTemplate = transactionTemplate;
@@ -136,8 +141,6 @@ public class ChainImportService {
         this.chainFinderService = chainFinderService;
         this.folderService = folderService;
         this.snapshotService = snapshotService;
-        this.deploymentService = deploymentService;
-        this.engineService = engineService;
         this.chainExternalEntityMapper = chainExternalEntityMapper;
         this.importProgressService = importProgressService;
         this.actionsLogService = actionsLogService;
@@ -150,6 +153,7 @@ public class ChainImportService {
         this.chainImportFileMigrations = chainImportFileMigrations;
         this.chainModelMapper = chainModelMapper;
         this.chainReader = chainReader;
+        this.bulkDeploymentService = bulkDeploymentService;
     }
 
     public List<ImportChainPreviewDTO> getChainsImportPreview(File importDirectory, ChainImportInstructionsConfig instructionsConfig) {
@@ -442,9 +446,22 @@ public class ChainImportService {
         return existingFolder;
     }
 
+    void removeAllChainElementsBeforeImportUpdate(String chainId) {
+        chainFinderService.tryFindById(chainId).ifPresent(chain -> {
+            chain.setDefaultSwimlane(null);
+            chain.setReuseSwimlane(null);
+        });
+        elementService.deleteAllByChainIdAndFlush(chainId);
+    }
+
     public ImportChainResult saveImportedChain(ChainExternalEntity chainExternalEntity, File chainFilesDir, Set<String> technicalLabels) {
         Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
         ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
+
+        if (currentChainState != null) {
+            removeAllChainElementsBeforeImportUpdate(currentChainState.getId());
+            currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
+        }
 
         Folder existingFolder = resolveOrCreateRootFolder(chainExternalEntity);
 
@@ -462,7 +479,7 @@ public class ChainImportService {
 
         newChainState.setUnsavedChanges(true);
 
-        setActualChainState(currentChainState, newChainState);
+        persistImportedChainReplacingElements(currentChainState, newChainState);
 
         logImportAction(newChainState, LogOperation.CREATE_OR_UPDATE);
 
@@ -504,9 +521,7 @@ public class ChainImportService {
     }
 
     private File getChainYAMLFile(File chainDir) {
-        File[] chainFiles = chainDir.listFiles((dir, fileName) ->
-                (fileName.startsWith(CHAIN_YAML_NAME_PREFIX) && fileName.endsWith(YAML_FILE_NAME_POSTFIX))
-                        || fileName.endsWith(CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX));
+        File[] chainFiles = chainDir.listFiles((dir, fileName) -> ExportImportUtils.isChainFileName(fileName));
 
         if (ArrayUtils.isEmpty(chainFiles)) {
             throw new RuntimeException("Directory " + chainDir.getName() + " does not contain chain YAML file");
@@ -515,129 +530,158 @@ public class ChainImportService {
         return chainFiles[0];
     }
 
-    private void makeDeployActions(List<ImportChainResult> chainsResult, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
-        List<ChainDeployPrepare> preparedDeployments = new ArrayList<>();
-        int total = chainsResult.size();
-        int counter = 0;
-        for (ImportChainResult chainResult : chainsResult) {
-            importProgressService.calculateImportStatus(
-                    importId, total, counter, ImportSessionService.CHAIN_IMPORT_PERCENTAGE_THRESHOLD, ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD);
-            counter++;
-
-            if (chainResult.getStatus() == ImportEntityStatus.ERROR
-                    || chainResult.getStatus() == ImportEntityStatus.SKIPPED
-                    || chainResult.getStatus() == ImportEntityStatus.IGNORED) {
-                continue;
-            }
-
-            ChainCommitRequest request = null;
-            if (!CollectionUtils.isEmpty(commitRequests)) {
-                request = commitRequests.stream()
-                        .filter(cRequest -> StringUtils.equals(cRequest.getId(), chainResult.getId()))
-                        .findAny()
-                        .orElse(null);
-                if (request == null || request.getDeployAction() == ChainCommitRequestAction.NONE) {
-                    continue;
-                }
-            }
-
-            try {
-                Snapshot snapshot = snapshotService.build(chainResult.getId(), technicalLabels);
-                if (request != null) {
-                    if (request.getDeployAction() == ChainCommitRequestAction.SNAPSHOT) {
-                        continue;
-                    }
-                    if (request.getDeployAction() == ChainCommitRequestAction.DEPLOY && CollectionUtils.isNotEmpty(request.getDomains())) {
-                        List<DeploymentExternalEntity> deployments = request.getDomains().stream()
-                                .map(domain -> DeploymentExternalEntity.builder().domain(domain.getName()).build())
-                                .collect(Collectors.toList());
-                        chainResult.setDeployments(deployments);
-                    }
-                }
-                if (CollectionUtils.isNotEmpty(chainResult.getDeployments())) {
-                    preparedDeployments.add(new ChainDeployPrepare(chainResult, snapshot));
-                }
-            } catch (Exception e) {
-                chainResult.setStatus(ImportEntityStatus.ERROR);
-                chainResult.setErrorMessage(SAVED_WITHOUT_SNAPSHOT_ERROR_MESSAGE + e.getMessage());
-            }
-        }
-
-        deployChains(preparedDeployments, importId);
-    }
-
-    private void deployChains(List<ChainDeployPrepare> chainsToDeploy, String importId) {
-        List<Deployment> oldDeploysList = new ArrayList<>();
-        int total = chainsToDeploy.size();
-        int counter = 0;
-
-        for (ChainDeployPrepare entity : chainsToDeploy) {
-            String chainId = entity.getImportChainResult().getId();
-            oldDeploysList.addAll(deploymentService.findAllByChainId(chainId));
-        }
-        for (ChainDeployPrepare entity : chainsToDeploy) {
-            importProgressService.calculateImportStatus(importId, total, counter, ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD, 100);
-            counter++;
-
-            ImportChainResult importChainResult = entity.getImportChainResult();
-            Snapshot snapshot = entity.getSnapshot();
-            List<DeploymentExternalEntity> deployments = importChainResult.getDeployments();
-
-            if (!CollectionUtils.isEmpty(deployments)) {
+    void makeDeployActions(List<ImportChainResult> chainsResult, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
+        int totalChains = chainsResult.size();
+        Map<String, List<Snapshot>> snapshotsByDomain = IntStream.range(0, totalChains)
+            // Updating action progress
+            .peek(i -> importProgressService.calculateImportStatus(
+                    importId, totalChains, i, ImportSessionService.CHAIN_IMPORT_PERCENTAGE_THRESHOLD,
+                    ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD))
+            .mapToObj(chainsResult::get)
+            // Filtering out chains that are in error state or should be skipped or ignored
+            .filter(chainResult -> !(chainResult.getStatus() == ImportEntityStatus.ERROR
+                || chainResult.getStatus() == ImportEntityStatus.SKIPPED
+                || chainResult.getStatus() == ImportEntityStatus.IGNORED))
+            // Attaching a commit request
+            .map(chainResult -> Pair.of(getChainCommitRequest(commitRequests, chainResult.getId()), chainResult))
+            // Filtering out chains with NONE deploy action
+            .filter(item -> {
+                ChainCommitRequestAction action = item.getLeft().getDeployAction();
+                return isNull(action) || !ChainCommitRequestAction.NONE.equals(action);
+            })
+            // Creating snapshots
+            .<Pair<Snapshot, Collection<String>>>map(item -> {
+                ChainCommitRequest request = item.getLeft();
+                ImportChainResult chainResult = item.getRight();
                 try {
-                    for (DeploymentExternalEntity deployment : deployments) {
-                        if (engineService.getDomainByName(deployment.getDomain()) != null) {
-                            createDeployment(snapshot, oldDeploysList, deployment);
-                        } else {
-                            importChainResult.setStatus(ImportEntityStatus.ERROR);
-                            importChainResult.setErrorMessage(
-                                    SAVED_WITHOUT_DEPLOYMENT_ERROR_MESSAGE + "domain "
-                                            + deployment.getDomain() + " doesn't exists");
-                        }
+                    Snapshot snapshot = snapshotService.build(chainResult.getId(), technicalLabels);
+                    ChainCommitRequestAction action = request.getDeployAction();
+                    Collection<String> domains;
+                    if (ChainCommitRequestAction.DEPLOY.equals(action) && CollectionUtils.isNotEmpty(request.getDomains())) {
+                        domains = request.getDomains().stream().map(ImportDomainDTO::getName).toList();
+                    } else if (isNull(action) || ChainCommitRequestAction.DEPLOY.equals(action)) {
+                        // No action, or DEPLOY without domains: deploy to the domains the archive lists
+                        domains = Optional.ofNullable(chainResult.getDeployments())
+                                .orElse(Collections.emptyList()).stream()
+                                .map(DeploymentExternalEntity::getDomain)
+                                .toList();
+                    } else {
+                        domains = Collections.emptyList();
                     }
+                    return Pair.of(snapshot, domains);
                 } catch (Exception e) {
-                    log.error("Unable to deploy chain {} {}", importChainResult.getId(),
-                            e.getMessage());
-                    importChainResult.setStatus(ImportEntityStatus.ERROR);
-                    importChainResult.setErrorMessage(
-                            SAVED_WITHOUT_DEPLOYMENT_ERROR_MESSAGE + e.getMessage());
+                    chainResult.setStatus(ImportEntityStatus.ERROR);
+                    chainResult.setErrorMessage(SAVED_WITHOUT_SNAPSHOT_ERROR_MESSAGE + e.getMessage());
                 }
+                return Pair.of(null, Collections.emptyList());
+            })
+            // Grouping snapshots by target domains
+            .flatMap(item -> {
+                Snapshot snapshot = item.getLeft();
+                Collection<String> domains = item.getRight();
+                return domains.stream().map(domain -> Pair.of(domain, snapshot));
+            })
+            .collect(groupingBy(Pair::getLeft, mapping(Pair::getRight, toList())));
+
+        Map<String, List<ImportChainResult>> resultByChainId = chainsResult.stream()
+            .filter(chainResult -> nonNull(chainResult.getId()))
+            .collect(groupingBy(ImportChainResult::getId));
+
+        int totalSnapshots = snapshotsByDomain.values().stream().mapToInt(Collection::size).sum();
+        AtomicInteger counter = new AtomicInteger(0);
+
+        Consumer<BulkDeploymentResponse> resultConsumer = deployResult -> {
+            importProgressService.calculateImportStatus(importId, totalSnapshots, counter.getAndIncrement(),
+                ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD, 100);
+
+            String chainId = deployResult.getChainId();
+            if (BulkDeploymentStatus.FAILED_DEPLOY.equals(deployResult.getStatus())) {
+                resultByChainId.getOrDefault(chainId, Collections.emptyList()).forEach(result -> {
+                    // One failed domain marks the whole chain ERROR, even when its other domains deployed.
+                    result.setStatus(ImportEntityStatus.ERROR);
+                    // When a chain fails on several domains, only the last message survives.
+                    String message = SAVED_WITHOUT_DEPLOYMENT_ERROR_MESSAGE
+                        + String.format("domain %s: %s", deployResult.getDomain().getName(), deployResult.getErrorMessage());
+                    result.setErrorMessage(message);
+                });
             }
+        };
+
+        // Read once for the whole import, before the first domain is deployed
+        List<Deployment> replacedDeployments = bulkDeploymentService.findReplacedDeployments(snapshotsByDomain);
+
+        // Deploying snapshots
+        snapshotsByDomain.forEach((domain, snapshots) -> {
+            Collection<String> domains = Collections.singletonList(domain);
+            try {
+                bulkDeploymentService.deploySnapshots(snapshots, domains, DeployMode.APPEND, replacedDeployments,
+                    resultConsumer);
+            } catch (Exception e) {
+                DomainType domainType = e instanceof DomainTypeDisabledException ex ? ex.getDomainType() : null;
+                bulkDeploymentService.buildResponseForSnapshots(snapshots, domain, domainType,
+                    BulkDeploymentStatus.FAILED_DEPLOY, e.getMessage()).forEach(resultConsumer);
+            }
+        });
+    }
+
+    private ChainCommitRequest getChainCommitRequest(List<ChainCommitRequest> chainCommitRequests, String id) {
+        // Without commit requests, every chain takes the archive's deployments, as a request with no action does
+        return chainCommitRequests.isEmpty()
+                ? ChainCommitRequest.builder().build()
+                : chainCommitRequests.stream()
+                        .filter(request -> StringUtils.equals(id, request.getId()))
+                        .findAny()
+                        .orElse(ChainCommitRequest.builder()
+                            .deployAction(ChainCommitRequestAction.NONE)
+                            .build());
+    }
+
+    private void persistImportedChainReplacingElements(Chain currentChainState, Chain newChainState) {
+        SwimlaneChainElement defaultSwimlane = null;
+        SwimlaneChainElement reuseSwimlane = null;
+        if (currentChainState != null) {
+            defaultSwimlane = newChainState.getDefaultSwimlane();
+            reuseSwimlane = newChainState.getReuseSwimlane();
+            newChainState.setDefaultSwimlane(null);
+            newChainState.setReuseSwimlane(null);
         }
+
+        elementService.replaceImportedChainElements(newChainState.getElements());
+
+        dependencyService.setActualizedElementDependencyStates(
+                Collections.emptySet(),
+                newChainState.getDependencies());
+
+        if (currentChainState != null) {
+            newChainState.setDefaultSwimlane(defaultSwimlane);
+            newChainState.setReuseSwimlane(reuseSwimlane);
+        }
+
+        finalizeImportedChainPersistence(currentChainState, newChainState);
     }
 
-    private void createDeployment(Snapshot snapshot, List<Deployment> excludeDeployments, DeploymentExternalEntity deployment) {
-        Deployment deploymentConfig = new Deployment();
-        deploymentConfig.setDomain(deployment.getDomain());
-        deploymentService.create(deploymentConfig, snapshot.getChain(), snapshot, excludeDeployments);
-    }
-
-    private void setActualChainState(Chain currentChainState, Chain newChainState) {
-        //Actualize new entities state in persistence context
-        //Dependencies
+    private void persistImportedChainMergingElements(Chain currentChainState, Chain newChainState) {
         dependencyService.setActualizedElementDependencyStates(
                 currentChainState != null ? currentChainState.getDependencies() : Collections.emptySet(),
                 newChainState.getDependencies());
 
-        //Chain Elements
         elementService.setActualizedChainElements(
                 currentChainState != null ? currentChainState.getElements() : Collections.emptyList(),
-                newChainState.getElements()
-        );
+                newChainState.getElements());
 
-        //Masked Field
+        finalizeImportedChainPersistence(currentChainState, newChainState);
+    }
+
+    private void finalizeImportedChainPersistence(Chain currentChainState, Chain newChainState) {
         maskedFieldsService.setActualizedMaskedFields(
                 currentChainState != null ? currentChainState.getMaskedFields() : Collections.emptySet(),
                 newChainState.getMaskedFields()
         );
 
-        //Chain Folder — persist the (possibly newly built) folder tree before the chain is
-        //merged/persisted, so the chain references only managed folders.
         if (newChainState.getParentFolder() != null) {
             newChainState.setParentFolder(folderService.setActualizedFolderState(newChainState.getParentFolder()));
         }
 
-        //Chain
         chainService.setActualizedChainState(currentChainState, newChainState);
     }
 
@@ -670,6 +714,6 @@ public class ChainImportService {
         if (currentChainState != null) {
             ChainUtils.chainPropertiesInitialization(currentChainState);
         }
-        setActualChainState(currentChainState, importedChain);
+        persistImportedChainMergingElements(currentChainState, importedChain);
     }
 }

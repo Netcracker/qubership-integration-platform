@@ -17,6 +17,8 @@ public class CamelPubSubConfiguration {
         return ComponentCustomizer.builder(GooglePubsubComponent.class)
                 .build((component) -> {
                     component.setEndpoint(address);
+                    // The emulator serves plaintext gRPC; authenticate defaults true and fails UNAUTHENTICATED against it.
+                    component.setAuthenticate(false);
                 });
     }
 }

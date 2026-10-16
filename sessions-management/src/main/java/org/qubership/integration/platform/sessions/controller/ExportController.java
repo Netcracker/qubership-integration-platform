@@ -38,7 +38,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/v1/sessions/export")
+@RequestMapping({"/v1/sessions/export", "/api/v1/cip/sessions-management/sessions/export"})
 @Tag(name = "export-controller", description = "Export Controller")
 public class ExportController {
     private final ExportService exportService;

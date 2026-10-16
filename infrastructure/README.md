@@ -14,19 +14,18 @@ This directory contains Docker compose files designed to run Qubership Integrati
 
 ## Service file format round trip
 
-`test-service-type-roundtrip.sh` exercises the service file format against the running stack. It creates one service of
-each of the five kinds, exports and re-imports them in the current format — checking both halves of the format, the
-file name and the `$schema` that states the type — then repeats the export with `CIP_EXPORT_LEGACY_FORMAT=true` and
-checks what survives the downgrade: plain services only.
+`e2e/specs/env/service-type-roundtrip.spec.ts` exercises the service file format against the running stack. It creates
+one service of each of the five kinds, exports and re-imports them in the current format — checking both halves of the
+format, the file name and the `$schema` that states the type — then repeats the export with
+`CIP_EXPORT_LEGACY_FORMAT=true` and checks what survives the downgrade: plain services only.
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d      # the script refuses to start without it
-infrastructure/test-service-type-roundtrip.sh
+cd e2e && npm test -- --project=env --no-deps --grep "service type round trip"
 ```
 
-Needs `curl`, `jq`, `unzip` and `docker`. It sets the legacy flag through a throwaway compose override and restores the
-container on every exit path, so it never edits `qip-dev.env` — which `qip-engine` and `qip-sessions-management` read
-too. The script header explains how to read a failure.
+The suite brings the Compose stack up itself, so nothing has to be started first. It sets the legacy flag through a
+throwaway compose override and restores the container on every exit path, so it never edits `qip-dev.env` — which
+`qip-engine` and `qip-sessions-management` read too. See [e2e/README.md](../e2e/README.md) for how to read a failure.
 
 ## Contribution
 

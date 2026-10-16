@@ -1,0 +1,17 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/try
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: Try (deprecated)
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: try
+required:
+  - type

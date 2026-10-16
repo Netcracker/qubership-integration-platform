@@ -1,0 +1,24 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-script
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Reference to Script resource
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  exportFileExtension:
+    type: string
+    const: groovy
+  propertiesToExportInSeparateFile:
+    type: string
+    const: script
+  propertiesFilename:
+    type: string
+    subtype: resourceReference
+    resourceType: groovy
+    title: Specification resource reference
+  script:
+    type: string
+    title: Script

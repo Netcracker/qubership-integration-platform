@@ -7,6 +7,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
@@ -32,7 +33,6 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,7 +42,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.util.*;
@@ -67,7 +66,7 @@ public class MCPSystemImportExportService {
     private final ArchiveWriter archiveWriter;
     private final ImportInstructionsService importInstructionsService;
     private final ImportSessionService importProgressService;
-    private final URI mcpServiceSchemaUri;
+    private final ApplicationJsonSchemaProperties schemas;
 
     @Autowired
     public MCPSystemImportExportService(
@@ -80,7 +79,7 @@ public class MCPSystemImportExportService {
             ArchiveWriter archiveWriter,
             ImportInstructionsService importInstructionsService,
             ImportSessionService importProgressService,
-            @Value("${cip.json.schemas.mcp-service:http://qubership.org/schemas/product/qip/mcp-service}") URI mcpServiceSchemaUri
+            ApplicationJsonSchemaProperties schemas
     ) {
         this.transactionTemplate = transactionTemplate;
         this.yamlMapper = yamlMapper;
@@ -91,7 +90,7 @@ public class MCPSystemImportExportService {
         this.archiveWriter = archiveWriter;
         this.importInstructionsService = importInstructionsService;
         this.importProgressService = importProgressService;
-        this.mcpServiceSchemaUri = mcpServiceSchemaUri;
+        this.schemas = schemas;
     }
 
     public byte[] export(List<String> ids) {
@@ -297,7 +296,7 @@ public class MCPSystemImportExportService {
             JsonNode schemaNode = node.get("$schema");
             if (schemaNode != null && schemaNode.isTextual()) {
                 String fileSchema = schemaNode.asText();
-                return mcpServiceSchemaUri.toString().equals(fileSchema);
+                return schemas.isMcpService(fileSchema);
             }
             return false;
         } catch (Exception e) {

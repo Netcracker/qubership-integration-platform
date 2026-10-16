@@ -1,0 +1,40 @@
+---
+id: "e2e0k001-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-missing-kafka-topic"
+description: "kafka-trigger-2 pointed at a topic the brokers seed never creates. Spec-owned\
+  \ (SPEC_OWNED_FIXTURES), so it sits outside the seed's corpus scan and ensureKafkaTopics never\
+  \ sees it -- that is the whole premise. Imported and deployed by missing-target.spec.ts, which\
+  \ asserts the deployment parks at PROCESSING naming the missing topic and never reaches DEPLOYED."
+content:
+  labels: []
+  elements:
+  - id: "e2e0k001-0000-4000-8000-000000000002"
+    name: "Kafka Trigger"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-missing-kafka-topic"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      groupId: "e2e-{{RUN}}-missing-kafka-topic"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "latest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: false
+  - id: "e2e0k001-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e0k001-0000-4000-8000-000000000002"
+    to: "e2e0k001-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

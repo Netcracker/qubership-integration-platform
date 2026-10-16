@@ -1,0 +1,11 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-validation-schema
+$schema: http://json-schema.org/draft-07/schema
+type: string
+subtype: resourceReference
+resourceType: json
+title: Validation schema resource reference
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP

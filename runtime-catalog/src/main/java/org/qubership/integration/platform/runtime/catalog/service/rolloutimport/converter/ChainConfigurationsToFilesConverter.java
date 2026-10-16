@@ -10,7 +10,6 @@ import org.qubership.integration.platform.io.readers.migrations.chain.ChainImpor
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -20,10 +19,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CHAIN_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.FILE_NAME_PROPERTY;
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 import static org.qubership.integration.platform.io.readers.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
+import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.generateChainFileExportName;
 
 @Slf4j
 @Component
@@ -32,16 +30,13 @@ public class ChainConfigurationsToFilesConverter {
     private static final String RESOURCES_FOLDER_PREFIX = "resources" + File.separator;
 
     private final ObjectMapper objectMapper;
-    private final String appPrefix;
     private final List<ChainImportFileMigration> chainImportFileMigrations;
 
     public ChainConfigurationsToFilesConverter(
             @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
-            @Value("${app.prefix:qip}") String appPrefix,
             List<ChainImportFileMigration> chainImportFileMigrations
     ) {
         this.objectMapper = objectMapper;
-        this.appPrefix = appPrefix;
         this.chainImportFileMigrations = chainImportFileMigrations;
     }
 
@@ -63,7 +58,7 @@ public class ChainConfigurationsToFilesConverter {
 
             String chainId = chainConfig.getKey();
             Path chainDirectory = Path.of(chainId);
-            String chainFileName = chainId + CHAIN_YAML_NAME_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String chainFileName = generateChainFileExportName(chainId, false);
             files.put(chainDirectory.resolve(chainFileName), objectMapper.writeValueAsBytes(chainConfig.getValue()));
 
             List<String> propertyFileNames = contentNode.findValuesAsText(FILE_NAME_PROPERTY);

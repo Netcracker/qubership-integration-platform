@@ -55,8 +55,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      # One number for the whole backend: the four services and the drop tag all
-      # take it, so a wave can't leave them on different lines.
+      # The drop tag and release title.
       platform-version: ${{ steps.platform.outputs.release-version }}
       release-engine: ${{ steps.check.outputs.engine }}
       release-micro-engine: ${{ steps.check.outputs.micro-engine }}
@@ -64,6 +63,7 @@ jobs:
       release-integration-build-maven-plugin: ${{ steps.check.outputs.integration-build-maven-plugin }}
       release-runtime-catalog: ${{ steps.check.outputs.runtime-catalog }}
       release-sessions-management: ${{ steps.check.outputs.sessions-management }}
+      release-schemas: ${{ steps.check.outputs.schemas }}
       release-testing-service: ${{ steps.check.outputs.testing-service }}
       release-ui: ${{ steps.check.outputs.ui }}
       release-vscode-extension: ${{ steps.check.outputs.vscode-extension }}
@@ -80,21 +80,22 @@ jobs:
           MODULES: ${{ inputs.modules }}
         run: |
           set -eu
-          # schemas and checkstyle are released manually (rare cadence) — not part of release-all.
-          ALL_MODULES="engine micro-engine integration-build-pipeline integration-build-maven-plugin testing-service runtime-catalog sessions-management ui vscode-extension"
+          # checkstyle is build tooling on its own version line — not part of release-all.
+          . scripts/modules.sh
+          ALL_MODULES="${QIP_BOM_MODULES[*]}"
 
           # Normalise input: strip spaces, wrap with commas so we can match whole tokens.
           requested=",${MODULES// /},"
 
-          # Reject unknown tokens so a typo (or a manually-released module like
-          # schemas/checkstyle) fails loudly instead of being silently dropped.
+          # Reject unknown tokens so a typo (or checkstyle) fails loudly instead
+          # of being silently dropped.
           if [[ "$MODULES" != "all" ]]; then
             known=",${ALL_MODULES// /,},"
             IFS=',' read -ra tokens <<< "${MODULES// /}"
             for tok in "${tokens[@]}"; do
               [ -z "$tok" ] && continue
               if [[ "$known" != *",${tok},"* ]]; then
-                echo "::error::Unknown module '$tok'. Valid: $ALL_MODULES (or 'all'). schemas and checkstyle have their own release workflows."
+                echo "::error::Unknown module '$tok'. Valid: $ALL_MODULES (or 'all'). checkstyle has its own release workflow."
                 exit 1
               fi
             done
@@ -149,7 +150,6 @@ jobs:
     uses: ./.github/workflows/engine-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
-      version: ${{ needs.prepare.outputs.platform-version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
     secrets:
@@ -171,7 +171,6 @@ jobs:
     uses: ./.github/workflows/micro-engine-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
-      version: ${{ needs.prepare.outputs.platform-version }}
       build-docker: ${{ inputs.build-docker }}
     secrets:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
@@ -204,7 +203,6 @@ jobs:
     uses: ./.github/workflows/runtime-catalog-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
-      version: ${{ needs.prepare.outputs.platform-version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
     secrets:
@@ -243,7 +241,6 @@ jobs:
     uses: ./.github/workflows/sessions-management-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
-      version: ${{ needs.prepare.outputs.platform-version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
     secrets:
@@ -268,9 +265,43 @@ jobs:
     secrets:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
-  release-ui:
+  # schemas runs as two jobs rather than through schemas-release.yaml, so that ui
+  # waits for the npm line only: a caller job ends with the whole called workflow.
+  release-schemas-npm:
     needs: prepare
-    if: needs.prepare.outputs.release-ui == 'true'
+    if: needs.prepare.outputs.release-schemas == 'true'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/_npm-module-release.yaml
+    with:
+      module: schemas
+      release-type: ${{ inputs.release-type }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
+  # The Maven artifact takes the number the npm line released.
+  release-schemas-maven:
+    needs: release-schemas-npm
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/schemas-maven-release.yaml
+    with:
+      version: ${{ needs.release-schemas-npm.outputs.release-version }}
+      profile: ${{ inputs.profile }}
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
+  # The npm releases run one after another (schemas, ui, vscode-extension): each
+  # commits the root package-lock.json, and parallel bumps of it would conflict.
+  release-ui:
+    needs: [prepare, release-schemas-npm]
+    if: always() && needs.prepare.outputs.release-ui == 'true' && (needs.release-schemas-npm.result == 'success' || needs.release-schemas-npm.result == 'skipped')
     permissions:
       contents: write
       packages: write
@@ -305,6 +336,8 @@ jobs:
       - release-integration-build-maven-plugin
       - release-runtime-catalog
       - release-sessions-management
+      - release-schemas-npm
+      - release-schemas-maven
       - release-testing-service
       - release-ui
       - release-vscode-extension
@@ -354,6 +387,8 @@ jobs:
       - release-integration-build-maven-plugin
       - release-runtime-catalog
       - release-sessions-management
+      - release-schemas-npm
+      - release-schemas-maven
       - release-testing-service
       - release-ui
       - release-vscode-extension
@@ -400,20 +435,21 @@ jobs:
       # The PR gate checks what is true at rest. This is the one moment the
       # wave's own postcondition holds, so it is the only honest place to
       # assert it — and only for a full wave, since a partial one leaves the
-      # services apart on purpose.
-      - name: Check the wave landed one version everywhere
+      # modules apart on purpose.
+      - name: Check the wave landed one major.minor everywhere
         if: ${{ inputs.modules == 'all' }}
         env:
           VERSION: ${{ needs.prepare.outputs.platform-version }}
         run: |
           set -eu
-          . scripts/modules.sh
           bash scripts/check-version-invariants.sh
-          for module in "${QIP_BACKEND[@]}"; do
-            actual="$(grep -oP '(?<=<revision>)[^<]+' "$module/pom.xml" | head -1)"
-            [ "$actual" = "$VERSION" ] || {
-              echo "::error::$module is on $actual, but the wave released $VERSION"
-              exit 1
+          # The BOM reads the tags the wave just pushed, one per module.
+          failed=0
+          while read -r module module_version; do
+            [ "${module_version%.*}" = "${VERSION%.*}" ] || {
+              echo "::error::$module is on $module_version, but the wave released ${VERSION%.*}.x"
+              failed=1
             }
-          done
-          echo "Wave $VERSION landed on every backend service."
+          done < <(bash scripts/build-bom.sh | jq -r '.modules | to_entries[] | "\(.key) \(.value)"')
+          [ "$failed" -eq 0 ] || exit 1
+          echo "Wave $VERSION landed one major.minor on every module."

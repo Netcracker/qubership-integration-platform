@@ -12,6 +12,8 @@ export type ChainGraphViewControlsProps = {
   after?: React.ReactNode;
   onExpandAllContainers?: () => void;
   onCollapseAllContainers?: () => void;
+  minimapVisible?: boolean;
+  onToggleMinimap?: () => void;
 };
 
 export const ChainGraphViewControls = ({
@@ -19,6 +21,8 @@ export const ChainGraphViewControls = ({
   after,
   onExpandAllContainers,
   onCollapseAllContainers,
+  minimapVisible = true,
+  onToggleMinimap,
 }: ChainGraphViewControlsProps) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const { zoom } = useViewport();
@@ -94,6 +98,14 @@ export const ChainGraphViewControls = ({
         title="Collapse All"
         onClick={onCollapseAllContainers}
         icon={<OverridableIcon name="collapseAll" />}
+      />
+      <Button
+        className={styles.button}
+        type={"text"}
+        title={minimapVisible ? "Hide Minimap" : "Show Minimap"}
+        data-active={minimapVisible}
+        onClick={onToggleMinimap}
+        icon={<OverridableIcon name="compass" />}
       />
       {after ? (
         <>

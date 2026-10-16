@@ -17,6 +17,7 @@ import {
   useMonacoTheme,
 } from "../../../hooks/useMonacoTheme.ts";
 import { buildElementMap } from "./compare/compare.ts";
+import styles from "./ChainDiffTextView.module.css";
 
 type Monaco = typeof monacoNs;
 export type DiffNavigationDirection = "next" | "previous";
@@ -127,21 +128,25 @@ export const ChainDiffTextView = forwardRef<
   }, [chain1, chain2]);
 
   return (
-    <DiffEditor
-      className="qip-editor"
-      originalLanguage={"yaml"}
-      modifiedLanguage={"yaml"}
-      original={yaml1}
-      modified={yaml2}
-      theme={monacoTheme}
-      options={{
-        readOnly: true,
-        originalAriaLabel: "Body Before",
-        modifiedAriaLabel: "Body After",
-        automaticLayout: true,
-      }}
-      onMount={handleMount}
-    />
+    <div className={styles.fill}>
+      <DiffEditor
+        className="qip-editor"
+        height="calc(90vh - 14rem)"
+        wrapperProps={{ "data-testid": "chain-diff-editor" }}
+        originalLanguage={"yaml"}
+        modifiedLanguage={"yaml"}
+        original={yaml1}
+        modified={yaml2}
+        theme={monacoTheme}
+        options={{
+          readOnly: true,
+          originalAriaLabel: "Body Before",
+          modifiedAriaLabel: "Body After",
+          automaticLayout: true,
+        }}
+        onMount={handleMount}
+      />
+    </div>
   );
 });
 

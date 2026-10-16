@@ -18,12 +18,12 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>1.5.0-SNAPSHOT</version>
+    <version>1.5.1-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
-    <revision>1.5.0</revision>
-    <changelist>-6-m2m-kuber-SNAPSHOT</changelist>
+    <revision>1.5.1</revision>
+    <changelist>-1-m2m-kuber-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
@@ -43,7 +43,7 @@
     <opensearch.version>2.14.0</opensearch.version>
     <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
     <reflections.version>0.10.2</reflections.version>
-    <lz4-java.version>1.11.1</lz4-java.version>
+    <lz4-java.version>1.11.4</lz4-java.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
     <!-- Plugins -->
   </properties>

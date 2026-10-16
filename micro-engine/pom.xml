@@ -34,7 +34,7 @@
 
 
     <properties>
-        <revision>1.5.0</revision>
+        <revision>1.5.1</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
@@ -626,6 +626,10 @@
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-bean</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-xslt</artifactId>
+        </dependency>
 
         <!-- Groovy -->
         <dependency>
@@ -882,6 +886,9 @@
                             <version>${mapstruct.version}</version>
                         </path>
                     </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-Amapstruct.unmappedTargetPolicy=IGNORE</arg>
+                    </compilerArgs>
                 </configuration>
                 <executions>
                     <execution>
@@ -977,7 +984,7 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>3.7.0</version>
                 <configuration>
-                    <failOnError>false</failOnError>
+                    <failOnError>true</failOnError>
                     <doclint>none</doclint>
                 </configuration>
                 <executions>

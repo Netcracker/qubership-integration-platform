@@ -2,8 +2,13 @@ import { Button, Form, Modal, Select, SelectProps } from "antd";
 import React, { useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { useSnapshots } from "../../hooks/useSnapshots.tsx";
-import { DomainType } from "../../api/apiTypes.ts";
-import { Domain, SelectDomains } from "../SelectDomains.tsx";
+import { useInitialDomains } from "../../hooks/useInitialDomains.ts";
+import { handleModalSubmit } from "../../misc/modal-submit.ts";
+import {
+  Domain,
+  DomainsFormItem,
+  isDomainSelectionInvalid,
+} from "../SelectDomains.tsx";
 
 export type CreateDeploymentOptions = {
   domains: Domain[];
@@ -12,17 +17,24 @@ export type CreateDeploymentOptions = {
 
 type CreateDeploymentProps = {
   chainId?: string;
+  initialDomains?: Domain[];
   onSubmit?: (request: CreateDeploymentOptions) => void | Promise<void>;
 };
 
 export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
   chainId,
+  initialDomains,
   onSubmit,
 }) => {
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<{ domains: Domain[]; snapshot: string }>();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const { closeContainingModal } = useModalContext();
   const { isLoading: snapshotsLoading, snapshots } = useSnapshots(chainId);
+  const domains = Form.useWatch("domains", form);
+  const isDeployDisabled =
+    snapshotsLoading || isDomainSelectionInvalid(domains);
+
+  useInitialDomains(form, initialDomains);
 
   const snapshotOptions: SelectProps["options"] =
     snapshots
@@ -36,24 +48,12 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
     if (!chainId) {
       return;
     }
-    setConfirmLoading(true);
     const options: CreateDeploymentOptions = { domains, snapshotId };
-    try {
-      const result = onSubmit?.(options);
-      if (result instanceof Promise) {
-        void result.finally(() => {
-          setConfirmLoading(false);
-          closeContainingModal();
-        });
-      } else {
-        setConfirmLoading(false);
-        closeContainingModal();
-      }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
-      setConfirmLoading(false);
-      closeContainingModal();
-    }
+    handleModalSubmit(
+      () => onSubmit?.(options),
+      setConfirmLoading,
+      closeContainingModal,
+    );
   };
 
   const handleCancel = () => {
@@ -75,7 +75,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
           form="deploymentCreateForm"
           htmlType={"submit"}
           loading={confirmLoading}
-          disabled={snapshotsLoading}
+          disabled={isDeployDisabled}
         >
           Deploy
         </Button>,
@@ -85,7 +85,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
         id="deploymentCreateForm"
         form={form}
         initialValues={{
-          domains: [{ name: "default", type: DomainType.CLASSIC }],
+          domains: initialDomains ?? [],
         }}
         onFinish={(values) => handleOk(values.domains, values.snapshot)}
         layout="horizontal"
@@ -93,15 +93,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
         style={{ maxWidth: 600 }}
         disabled={snapshotsLoading}
       >
-        <Form.Item
-          label="Domains"
-          name="domains"
-          rules={[
-            { required: true, message: "Please specify at least one domain" },
-          ]}
-        >
-          <SelectDomains />
-        </Form.Item>
+        <DomainsFormItem />
         <Form.Item
           label="Snapshot"
           name="snapshot"

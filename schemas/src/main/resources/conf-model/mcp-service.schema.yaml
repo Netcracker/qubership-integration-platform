@@ -1,0 +1,35 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/top-level-entity-properties"
+title: MCP Service
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+  fileExtension: mcp-service.cip
+properties:
+  content:
+    type: object
+    allOf:
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/labels-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/migrations-property"
+    properties:
+      identifier:
+        type: string
+        title: MCP server identifier
+        description: MCP server identifier
+      instructions:
+        type: string
+        title: Server instructions
+        description: |
+          Server instructions give the server a way to inject information
+          that the LLM should always read in order to understand how to use
+          the server—independent of individual prompts, tools, or messages.
+    required:
+      - identifier
+required:
+  - content

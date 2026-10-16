@@ -33,7 +33,7 @@ import java.util.Set;
 
 @Slf4j
 @RestController
-@RequestMapping("/v1/secured-variables")
+@RequestMapping({"/v1/secured-variables", "/api/v1/cip/variables-management/secured-variables"})
 @CrossOrigin(origins = "*")
 @Tag(name = "secured-variable-controller", description = "Secured Variable Controller")
 public class SecuredVariableController {

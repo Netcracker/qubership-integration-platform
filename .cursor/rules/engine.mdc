@@ -1,6 +1,6 @@
 ---
-description: "Spring Boot execution engine: architecture, deployment lifecycle, datasources, and build."
-globs: "engine/**"
+description: 'Spring Boot execution engine: architecture, deployment lifecycle, datasources, and build.'
+globs: engine/**
 ---
 
 ### Project Overview

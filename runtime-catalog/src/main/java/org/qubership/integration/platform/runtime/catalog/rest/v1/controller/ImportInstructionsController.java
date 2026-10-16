@@ -47,7 +47,7 @@ import java.util.Set;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/import-instructions")
+@RequestMapping(value = {"/v1/catalog/import-instructions", "/api/v1/cip/catalog/import-instructions"})
 @CrossOrigin(origins = "*")
 @Tag(name = "import-instructions-controller", description = "Import Instructions Controller")
 public class ImportInstructionsController {

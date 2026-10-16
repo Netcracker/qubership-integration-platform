@@ -11,8 +11,8 @@ jest.mock("../../../src/web/response/file", () => ({
 const parseFile = fileApi.parseFile as jest.Mock;
 
 describe("getChain", () => {
-  const workspaceUri = Uri.file("/workspace/current.chain.qip.yaml");
-  const explicitUri = Uri.file("/workspace/chains/chain-1.chain.qip.yaml");
+  const workspaceUri = Uri.file("/workspace/current.chain.cip.yaml");
+  const explicitUri = Uri.file("/workspace/chains/chain-1.chain.cip.yaml");
 
   beforeEach(() => {
     jest.clearAllMocks();

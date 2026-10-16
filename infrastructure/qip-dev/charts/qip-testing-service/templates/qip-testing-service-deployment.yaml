@@ -10,9 +10,14 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
-  strategy: {}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   template:
     metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
     spec:
@@ -67,7 +72,10 @@ spec:
             # and the schema declared above.
             - name: CIP_TESTING_POSTGRES_DSN
               value: "postgres://$(POSTGRES_URL)?sslmode=disable&search_path=$(CIP_TESTING_POSTGRES_SCHEMA)"
-          image: ghcr.io/netcracker/qubership-integration-testing-service:latest
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          image: ghcr.io/netcracker/qubership-integration-testing-service:{{ .Values.image.tag }}
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:

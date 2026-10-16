@@ -72,6 +72,7 @@ export class DocumentationService {
   // words is not treated as the library.
   private readonly ELEMENTS_LIBRARY_SEGMENT = /(^|__)(QIP_)?Elements_Library$/;
   private readonly INDEX_FILENAME = "index";
+  private readonly README_FILENAME = "readme";
 
   private pathsPromise: Promise<string[]> | null = null;
   private namesPromise: Promise<string[][]> | null = null;
@@ -233,8 +234,13 @@ export class DocumentationService {
       // Extract element types from both file name and folder name
       const elementTypes = new Set<string>();
 
-      // From file name: "http_trigger" → "http-trigger"
-      if (fileName && fileName !== this.INDEX_FILENAME) {
+      // From file name: "http_trigger" → "http-trigger" (old naming;
+      // readme.md pages map through the folder name below)
+      if (
+        fileName &&
+        fileName !== this.INDEX_FILENAME &&
+        fileName !== this.README_FILENAME
+      ) {
         elementTypes.add(fileName.replace(/_/g, "-"));
       }
 

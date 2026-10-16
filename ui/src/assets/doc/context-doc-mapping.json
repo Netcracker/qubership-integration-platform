@@ -1,118 +1,118 @@
 [
     {
         "pattern": "^/chains$",
-        "doc": "/doc/01__Chains/chains.md"
+        "doc": "/doc/01__Chains/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-        "doc": "/doc/01__Chains/1__Graph/graph.md"
+        "doc": "/doc/01__Chains/1__Graph/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/graph",
-        "doc": "/doc/01__Chains/1__Graph/graph.md"
+        "doc": "/doc/01__Chains/1__Graph/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/snapshots",
-        "doc": "/doc/01__Chains/2__Snapshots/snapshots.md"
+        "doc": "/doc/01__Chains/2__Snapshots/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/deployments",
-        "doc": "/doc/01__Chains/3__Deployments/deployments.md"
+        "doc": "/doc/01__Chains/3__Deployments/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/sessions",
-        "doc": "/doc/01__Chains/4__Sessions/sessions.md"
+        "doc": "/doc/01__Chains/4__Sessions/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/logging-settings",
-        "doc": "/doc/01__Chains/5__Logging/logging.md"
+        "doc": "/doc/01__Chains/5__Logging/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/masking",
-        "doc": "/doc/01__Chains/6__Masking/masking.md"
+        "doc": "/doc/01__Chains/6__Masking/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/properties",
-        "doc": "/doc/01__Chains/7__Properties/properties.md"
+        "doc": "/doc/01__Chains/7__Properties/readme.md"
     },
     {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/testing",
-        "doc": "/doc/01__Chains/8__Testing/testing.md"
+        "doc": "/doc/01__Chains/8__Testing/readme.md"
     },
     {
         "pattern": "/services#external",
-        "doc": "/doc/02__Services/1__External/external.md"
+        "doc": "/doc/02__Services/1__External/readme.md"
     },
     {
         "pattern": "/services#internal",
-        "doc": "/doc/02__Services/2__Inner_Cloud/inner_cloud.md"
+        "doc": "/doc/02__Services/2__Inner_Cloud/readme.md"
     },
     {
         "pattern": "/services#implemented",
-        "doc": "/doc/02__Services/3__Implemented/implemented.md"
+        "doc": "/doc/02__Services/3__Implemented/readme.md"
     },
     {
         "pattern": "/services#context",
-        "doc": "/doc/02__Services/4__Context/context.md"
+        "doc": "/doc/02__Services/4__Context/readme.md"
     },
     {
         "pattern": "/services#mcp",
-        "doc": "/doc/02__Services/5__MCP/mcp.md"
+        "doc": "/doc/02__Services/5__MCP/readme.md"
     },
     {
         "pattern": "/services$",
-        "doc": "/doc/02__Services/services.md"
+        "doc": "/doc/02__Services/readme.md"
     },
     {
         "pattern": "/admintools/domains",
-        "doc": "/doc/03__Admin_Tools/1__Domains/domains.md"
+        "doc": "/doc/03__Admin_Tools/1__Domains/readme.md"
     },
     {
         "pattern": "/admintools/variables/common",
-        "doc": "/doc/03__Admin_Tools/2__Variables/variables.md"
+        "doc": "/doc/03__Admin_Tools/2__Variables/readme.md"
     },
     {
         "pattern": "/admintools/variables/secured",
-        "doc": "/doc/03__Admin_Tools/2__Variables/variables.md"
+        "doc": "/doc/03__Admin_Tools/2__Variables/readme.md"
     },
     {
         "pattern": "/admintools/audit",
-        "doc": "/doc/03__Admin_Tools/3__Audit/audit.md"
+        "doc": "/doc/03__Admin_Tools/3__Audit/readme.md"
     },
     {
         "pattern": "/admintools/import-instructions",
-        "doc": "/doc/03__Admin_Tools/4__Import_Instructions/import_instructions.md"
+        "doc": "/doc/03__Admin_Tools/4__Import_Instructions/readme.md"
     },
     {
         "pattern": "/admintools/sessions",
-        "doc": "/doc/03__Admin_Tools/5__Sessions/session_log.md"
+        "doc": "/doc/03__Admin_Tools/5__Sessions/readme.md"
     },
     {
         "pattern": "/admintools/access-control",
-        "doc": "/doc/03__Admin_Tools/6__Access_Control/access_control.md"
+        "doc": "/doc/03__Admin_Tools/6__Access_Control/readme.md"
     },
     {
         "pattern": "/admintools/detailed-design/templates",
-        "doc": "/doc/03__Admin_Tools/7__Design_Templates/design_templates.md"
+        "doc": "/doc/03__Admin_Tools/7__Design_Templates/readme.md"
     },
     {
         "pattern": "/admintools/exchanges",
-        "doc": "/doc/03__Admin_Tools/8__Live_Exchanges/live_exchanges.md"
+        "doc": "/doc/03__Admin_Tools/8__Live_Exchanges/readme.md"
     },
     {
         "pattern": "/admintools/testing",
-        "doc": "/doc/03__Admin_Tools/9__Testing/testing.md"
+        "doc": "/doc/03__Admin_Tools/9__Testing/readme.md"
     },
     {
         "pattern": "/devtools/maas/kafka",
-        "doc": "/doc/04__Dev_Tools/1__MaaS/maas.md#view-kafka-tab"
+        "doc": "/doc/04__Dev_Tools/1__MaaS/readme.md#view-kafka-tab"
     },
     {
         "pattern": "/devtools/maas/rabbitmq",
-        "doc": "/doc/04__Dev_Tools/1__MaaS/maas.md#view-rabbitmq-tab"
+        "doc": "/doc/04__Dev_Tools/1__MaaS/readme.md#view-rabbitmq-tab"
     },
     {
         "pattern": "/devtools/diagnostic/validations",
-        "doc": "/doc/04__Dev_Tools/2__Diagnostic/diagnostic.md"
+        "doc": "/doc/04__Dev_Tools/2__Diagnostic/readme.md"
     }
 ]

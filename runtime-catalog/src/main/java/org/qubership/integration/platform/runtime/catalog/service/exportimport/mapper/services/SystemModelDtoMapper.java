@@ -20,12 +20,12 @@ import org.qubership.integration.platform.chain.model.ImportSystemModel;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationSourceDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModelLabel;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -42,9 +42,9 @@ public class SystemModelDtoMapper {
 
     @Autowired
     public SystemModelDtoMapper(
-            @Value("${cip.json.schemas.specification:http://qubership.org/schemas/product/qip/specification}") URI schemaUri
+            ApplicationJsonSchemaProperties schemas
     ) {
-        this.schemaUri = schemaUri;
+        this.schemaUri = URI.create(schemas.getSpecification());
     }
 
     public SystemModel toInternalEntity(ImportSystemModel importSystemModel) {

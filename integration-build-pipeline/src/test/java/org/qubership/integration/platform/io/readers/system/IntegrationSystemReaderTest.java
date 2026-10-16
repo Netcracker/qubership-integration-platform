@@ -16,11 +16,13 @@
 
 package org.qubership.integration.platform.io.readers.system;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.chain.model.ImportEnvironment;
 import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
@@ -34,9 +36,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class IntegrationSystemReaderTest {
@@ -44,13 +48,15 @@ class IntegrationSystemReaderTest {
     @TempDir
     Path serviceDir;
 
+    private FileMigrationService fileMigrationService;
     private IntegrationSystemReader reader;
 
     @BeforeEach
     void setUp() throws Exception {
         // Migration is exercised by its own tests; here it passes the document through unchanged.
-        FileMigrationService fileMigrationService = mock(FileMigrationService.class);
+        fileMigrationService = mock(FileMigrationService.class);
         when(fileMigrationService.migrate(anyString(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(fileMigrationService.migrate(any(ObjectNode.class), any())).thenAnswer(invocation -> invocation.getArgument(0));
         VersionsGetterService versionsGetterService = mock(VersionsGetterService.class);
 
         reader = new IntegrationSystemReader(
@@ -95,6 +101,29 @@ class IntegrationSystemReaderTest {
         assertEquals("env-1", environment.getId());
         assertEquals("http://example.org", environment.getAddress());
         assertEquals(java.util.List.of("prod"), result.getLabels());
+    }
+
+    @DisplayName("read leaves a separate group file unversioned when the system file has no migration metadata")
+    @Test
+    void leavesSeparateFileUnversionedWithoutSystemMetadata() throws Exception {
+        Path systemFile = serviceDir.resolve("sys-3.service.qip.yaml");
+        Files.writeString(systemFile, """
+                id: sys-3
+                name: Created System
+                content:
+                  integrationSystemType: EXTERNAL
+                """);
+        Files.writeString(serviceDir.resolve("group-1.specification-group.qip.yaml"), """
+                id: group-1
+                name: Group
+                parentId: sys-3
+                """);
+
+        reader.read(systemFile.toFile());
+
+        ArgumentCaptor<ObjectNode> migrated = ArgumentCaptor.forClass(ObjectNode.class);
+        verify(fileMigrationService).migrate(migrated.capture(), any());
+        assertFalse(migrated.getValue().has("migrations"));
     }
 
     @DisplayName("toModel flattens the export content block onto the model")

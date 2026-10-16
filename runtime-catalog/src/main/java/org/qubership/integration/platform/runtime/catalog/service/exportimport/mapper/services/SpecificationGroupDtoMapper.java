@@ -19,10 +19,10 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroupLabel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -36,9 +36,9 @@ public class SpecificationGroupDtoMapper {
 
     @Autowired
     public SpecificationGroupDtoMapper(
-            @Value("${cip.json.schemas.specification-group:http://qubership.org/schemas/product/qip/specification-group}") URI schemaUri
+            ApplicationJsonSchemaProperties schemas
     ) {
-        this.schemaUri = schemaUri;
+        this.schemaUri = URI.create(schemas.getSpecificationGroup());
     }
 
     public SpecificationGroup toInternalEntity(ImportSpecificationGroup importSpecificationGroup) {
