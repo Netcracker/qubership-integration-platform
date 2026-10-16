@@ -20,7 +20,7 @@ scenarios:
         path: "/routes/test"
     body: "not allowed"
     expectedBody:
-      code: "QIP-0100"
+      code: "CIP-0100"
       message: "Request has not passed input validations, configured within requested chain"
       reason: "Chain failed during request validation."
       extra:
