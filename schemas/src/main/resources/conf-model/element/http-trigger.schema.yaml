@@ -106,9 +106,11 @@ definitions:
         type: string
         title: URI
       httpMethodRestrict:
-        type: string
         title: HTTP Methods
-        pattern: "^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$"
+        oneOf:
+          - type: string
+            pattern: "^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$"
+          - $ref: "#/definitions/HttpMethodRestrictCatalog"
     required:
       - contextPath
   ImplementedServiceEndpoint:
@@ -131,8 +133,10 @@ definitions:
         title: Service type
         $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/service-type"
       httpMethodRestrict:
-        type: string
         title: Operation method
+        oneOf:
+          - type: string
+          - $ref: "#/definitions/HttpMethodRestrictCatalog"
       integrationOperationPath:
         type: string
         title: Operation name
@@ -144,5 +148,23 @@ definitions:
       - systemType
       - integrationOperationPath
       - httpMethodRestrict
+  HttpMethodRestrictCatalog:
+    type: object
+    additionalProperties: false
+    properties:
+      httpMethods:
+        type: array
+        items:
+          type: string
+          enum:
+            - POST
+            - GET
+            - PUT
+            - DELETE
+            - PATCH
+            - HEAD
+            - OPTIONS
+    required:
+      - httpMethods
 required:
   - type

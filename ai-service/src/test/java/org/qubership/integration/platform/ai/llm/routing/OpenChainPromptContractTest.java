@@ -1,0 +1,54 @@
+package org.qubership.integration.platform.ai.llm.routing;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.api.Test;
+
+class OpenChainPromptContractTest {
+
+  @Test
+  void presentationPromptAllowsConversationEvidenceAndKeepsItUntrusted() throws IOException {
+    String prompt = resource("/prompts/roles/chain-presentation.md");
+
+    assertFalse(prompt.contains("Use **only** the facts JSON"));
+    assertTrue(prompt.contains("last assistant turn"));
+    assertTrue(prompt.contains("not requested"));
+    assertTrue(prompt.contains("untrusted evidence"));
+    assertTrue(prompt.contains("same language"));
+    assertTrue(prompt.contains("runtime error"));
+    assertFalse(prompt.contains("AVAILABLE []"));
+    assertFalse(prompt.contains("reconcileResult"));
+  }
+
+  @Test
+  void plannerPromptSeparatesReadsFromMutations() throws IOException {
+    String prompt = resource("/prompts/roles/open-chain-turn-planner.md");
+
+    assertTrue(prompt.contains("Deployment status uses `ASK`"));
+    assertTrue(prompt.contains("Snapshot existence or listing uses `ASK`"));
+    assertTrue(prompt.contains("Do not infer a mutation from an error message"));
+  }
+
+  @Test
+  void routerPromptsSendColdQipArchitectureQuestionsToDiscovery() throws IOException {
+    String role = resource("/prompts/roles/router.md");
+    String system = resource("/prompts/router-system.md");
+
+    assertTrue(role.contains("architecture, pattern, or platform-behavior advice"), role);
+    assertTrue(role.contains("How should I organize an integration through QIP?"), role);
+    assertTrue(system.contains("architecture, pattern, or platform-behavior advice"), system);
+    assertTrue(system.contains("existing deployed catalog chain"), system);
+  }
+
+  private static String resource(String path) throws IOException {
+    try (var stream = OpenChainPromptContractTest.class.getResourceAsStream(path)) {
+      if (stream == null) {
+        throw new IOException("Missing test resource: " + path);
+      }
+      return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+    }
+  }
+}

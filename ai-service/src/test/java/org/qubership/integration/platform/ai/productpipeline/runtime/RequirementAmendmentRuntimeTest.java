@@ -1,0 +1,137 @@
+package org.qubership.integration.platform.ai.productpipeline.runtime;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.mutiny.Multi;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.*;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.*;
+import org.qubership.integration.platform.ai.productpipeline.capability.*;
+import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.FakeFailureNarrativeAgent;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.*;
+import org.qubership.integration.platform.ai.productpipeline.store.*;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+
+class RequirementAmendmentRuntimeTest {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void v2FactChangeReopensTheDraftAndRestoresTheExactCorrectionAfterRestart(boolean executionHalt) throws Exception {
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    Clock clock = Clock.systemUTC();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
+    var runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    ProductPipelineProfile profile;
+    try (var input = getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
+      profile = ProductPipelineProfileParser.parse(input);
+    }
+    AtomicReference<StageExecutionContext> resumed = new AtomicReference<>();
+    StageCapability discovery = new StageCapability() {
+      public String capabilityId() { return "requirement-discovery"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        resumed.set(context);
+        return Multi.createFrom().item(new CapabilitySignal.Completed(
+            StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "review corrected draft")));
+      }
+    };
+    var capabilities = new StageCapabilityRegistry(List.of(discovery));
+    var narrative = new FailureNarrative(FakeFailureNarrativeAgent.owner("", "")
+        .answeringUnder("REQUIREMENT_CHANGE", ""), 12, null);
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts, capabilities, clock)
+        .profileCatalog(new ProductPipelineProfileCatalog(List.of(profile)))
+        .failureNarrative(narrative)
+        .build();
+    String runId = "amendment-v2", chatId = "amendment-chat";
+    var manifest = new RunManifest(runId, null, List.of(), "product", profile.profileId(),
+        profile.profileVersion(), "profile-sha", "baseline", "baseline-sha",
+        List.of(new DependencyClosureEntry("requirement-discovery", "1", "discovery-sha")),
+        "closure-sha", new KnowledgePackageRef("knowledge", "1", "1.0.0", "checksum", "CERTIFIED", "certificate"),
+        "24.4", List.of(new ArtifactTypeRef("user-input", 1)), null);
+    var command = new StartOrResumeCommand(chatId, runId, profile, manifest);
+    support.bootstrap(command, "flow");
+    var draft = RequirementFactFixtures.greetingsApprovedDraft();
+    var provenance = new ArtifactProvenance(runId, "requirement-discovery", profile.profileId(),
+        profile.profileVersion(), "profile-sha", "requirement-discovery", "1", "closure-sha");
+    Reference draftRef = artifacts.append(new AppendCommand(runId, Kind.REQUIREMENT_DRAFT, "2",
+        "requirement-discovery", "1", draft, List.of(), null, provenance)).reference();
+    Reference hint = artifacts.append(new AppendCommand(runId, Kind.CATALOG_BINDING_HINT, "1",
+        "requirement-discovery", "1", Map.of("hint", "companion"), List.of(draftRef), null, provenance)).reference();
+    Reference bypass = artifacts.append(new AppendCommand(runId, Kind.IDS_BYPASS, "1",
+        "requirement-discovery", "1", Map.of("bypass", true), List.of(draftRef), null, provenance)).reference();
+    var brief = new RequirementBrief("Greetings", List.of("GET /greetings"), List.of(), List.of(),
+        List.of(), "Return Hello world!", draftRef.artifactId(), draft.planningText(), draft.facts())
+        .withFlow(draft.flow());
+    Reference briefRef = artifacts.append(new AppendCommand(runId, Kind.REQUIREMENT_BRIEF, "1",
+        "requirement-analysis", "1", brief, List.of(draftRef), null,
+        new ArtifactProvenance(runId, "requirement-analysis", profile.profileId(), profile.profileVersion(),
+            "profile-sha", "requirement-analysis", "1", "closure-sha"))).reference();
+    var doc = runs.load(runId).orElseThrow();
+    List<StageSnapshot> stages = new ArrayList<>();
+    for (var stage : doc.run().stages()) {
+      if (stage.stageId().equals("requirement-discovery")) {
+        stages.add(new StageSnapshot(stage.stageId(), StageStatus.SUCCEEDED, List.of(draftRef, hint, bypass), null));
+      } else if (stage.stageId().equals("requirement-analysis")) {
+        stages.add(new StageSnapshot(stage.stageId(),
+            executionHalt ? StageStatus.SUCCEEDED : StageStatus.WAITING_FOR_APPROVAL,
+            executionHalt ? List.of(briefRef) : List.of(), executionHalt ? briefRef.artifactId() : null,
+            List.of(briefRef), briefRef, 1));
+      } else if (executionHalt && stage.stageId().equals("design-execution")) {
+        stages.add(new StageSnapshot(stage.stageId(), StageStatus.WAITING_FOR_INPUT, List.of(), null));
+      } else { stages.add(stage); }
+    }
+    long revision = doc.run().runRevision();
+    RunStatus waiting = executionHalt ? RunStatus.WAITING_FOR_INPUT : RunStatus.WAITING_FOR_APPROVAL;
+    String waitingStage = executionHalt ? "design-execution" : "requirement-analysis";
+    runs.commit(revision, new LogicalCommit(runId, revision, waiting,
+        waitingStage, stages, new StageAttempt("review", waitingStage, revision + 1,
+            executionHalt ? StageStatus.WAITING_FOR_INPUT : StageStatus.WAITING_FOR_APPROVAL,
+            clock.instant(), clock.instant(), List.of(briefRef), null),
+        new RunTransition(revision, revision + 1, RunStatus.RUNNING, waiting,
+            waitingStage, clock.instant(), executionHalt
+                ? PipelineGates.tag(PipelineGates.RECOVERY_REGENERATE_EXECUTION, "Review the requirements")
+                : "Approve the brief")));
+    var conversations = new ConversationService();
+    String correction = "Change the greeting to Good morning and remove the body logging requirement.";
+    var source = conversations.archive().beginInput(chatId, correction, null);
+    conversations.archive().resolveInput(chatId, source, correction);
+    support.withConversations(conversations);
+    var inputCommand = new AcceptInputCommand(runId, correction);
+    support.recordInput(inputCommand).collect().asList().await().indefinitely();
+    var reopened = runs.load(runId).orElseThrow();
+    assertEquals("requirement-discovery", reopened.run().currentStageId());
+    var analysis = reopened.run().stages().stream()
+        .filter(stage -> stage.stageId().equals("requirement-analysis")).findFirst().orElseThrow();
+    assertEquals(StageStatus.PENDING, analysis.status());
+    assertEquals(null, analysis.approvableReference());
+    assertTrue(analysis.candidateReferences().isEmpty());
+    assertEquals(executionHalt ? List.of(briefRef) : List.of(), analysis.outputRefs());
+    UserInput associated = artifacts.payload(artifacts.latest(runId, Kind.USER_INPUT).orElseThrow(), UserInput.class);
+    assertEquals("requirement-discovery", associated.targetStageId());
+    assertEquals(draftRef, associated.draftReference());
+    assertEquals(List.of(source.turnId()), associated.sourceTurnIds());
+    assertThrows(IllegalStateException.class, () -> support.recordApprove(new ApproveCommand(runId,
+        briefRef, reopened.run().runRevision())).collect().asList().await().indefinitely());
+    var restored = CreateChainTestOrchestrator.supportBuilder(runs, artifacts, capabilities, clock)
+        .profileCatalog(new ProductPipelineProfileCatalog(List.of(profile))).build();
+    restored.restoreForExternalWorkflow(command).collect().asList().await().indefinitely();
+    restored.stageExecutor().execute(runId, "requirement-discovery").await().indefinitely();
+    assertEquals(correction, resumed.get().attributeAsString("userText"));
+    assertEquals(draftRef, resumed.get().attributes().get("requirementCorrectionDraftReference"));
+  }
+}

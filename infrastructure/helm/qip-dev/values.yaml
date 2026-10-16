@@ -123,3 +123,21 @@ global:
       micro:
         enabled: true
         image: ghcr.io/netcracker/qubership-integration-micro-engine:latest
+    ai:
+      image: ghcr.io/netcracker/qubership-integration-ai-service:main
+      knowledgeSidecarImage: ghcr.io/netcracker/qubership-integration-knowledge-sidecar:main
+      knowledgeVolume: null
+      llmApiKey: placeholder
+      llmBaseUrl: https://api.openai.com/v1
+      llmChatModel: gpt-4o-mini
+      llmReasoningEffort: none
+      llmTemperature: "0.2"
+      llmMaxTokens: "4096"
+      llmTimeout: 180s
+      minioEndpoint: http://minio:9000
+      # Existing Secret with accessKey and secretKey entries. Provision the qip-ai-storage bucket separately.
+      minioCredentialsSecret: minio-credentials
+      # Runtime A2A rollout flag (default off). Does not delete Task data when flipped.
+      a2aEnabled: "false"
+      # Public base URL for the Agent Card. Set before enabling A2A (for example https://ai.example.com).
+      a2aPublicBaseUrl: ""

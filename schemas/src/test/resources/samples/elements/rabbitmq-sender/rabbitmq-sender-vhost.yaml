@@ -1,0 +1,9 @@
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/rabbitmq-sender-2
+id: "5d61300d-249c-5d7b-b1d9-63db3086dddd"
+name: Schema contract sample
+type: rabbitmq-sender-2
+properties:
+  connectionSourceType: manual
+  addresses: localhost
+  exchange: orders
+  vhost: /orders

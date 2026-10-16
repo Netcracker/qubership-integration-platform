@@ -1,0 +1,329 @@
+package org.qubership.integration.platform.ai.productpipeline.create.flow;
+
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.serverlessworkflow.impl.WorkflowModel;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.time.Duration;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
+import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
+import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutionResult;
+
+/** Executes one profile stage per Flow task and records live signals for the current command. */
+@ApplicationScoped
+public class ProvidedIdsFlowTasks {
+
+  private static final ObjectMapper JSON = new ObjectMapper();
+  private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {};
+  private static final String CONTINUE = "CONTINUE";
+  private static final double JITTER_RATIO = 0.2;
+  private static final Duration DEFAULT_CACHE_IDLE_TIMEOUT = Duration.ofHours(1);
+
+  private final ProductPipelineRunSupport runSupport;
+  private final Map<String, List<PipelineSignal>> signalsByRun;
+  private final Map<String, ProvidedIdsFlow.RunContext> contextByRun;
+  private final Map<String, Boolean> settledRuns;
+
+  @Inject
+  public ProvidedIdsFlowTasks(ProductPipelineRunSupport runSupport, AppConfig appConfig) {
+    this(runSupport, appConfig.create().flowCacheIdleTimeout());
+  }
+
+  public ProvidedIdsFlowTasks(ProductPipelineRunSupport runSupport) {
+    this(runSupport, DEFAULT_CACHE_IDLE_TIMEOUT);
+  }
+
+  ProvidedIdsFlowTasks(ProductPipelineRunSupport runSupport, Duration cacheIdleTimeout) {
+    this.runSupport = Objects.requireNonNull(runSupport, "runSupport");
+    this.signalsByRun = idleCache(cacheIdleTimeout);
+    this.contextByRun = idleCache(cacheIdleTimeout);
+    this.settledRuns = idleCache(cacheIdleTimeout);
+  }
+
+  ProvidedIdsFlow.RunContext begin(String runId) {
+    signalsByRun.put(runId, new java.util.concurrent.CopyOnWriteArrayList<>());
+    ProvidedIdsFlow.RunContext context =
+        new ProvidedIdsFlow.RunContext(runId, null, null, null, null);
+    contextByRun.put(runId, context);
+    return context;
+  }
+
+  public ProvidedIdsFlow.RunContext executeCurrentStage(ProvidedIdsFlow.RunContext input) {
+    Objects.requireNonNull(input, "input");
+    if (input.waitForActivation()) {
+      return input;
+    }
+    runSupport.ensureDurablePinsLoaded(input.runId());
+    String stageId = runSupport.currentStageId(input.runId());
+    int used = runSupport.restoreTechnicalRetryCount(input.runId(), stageId);
+    StageExecutionResult result;
+    List<PipelineSignal> lifecycle;
+    try {
+      result = runSupport.stageExecutor().execute(input.runId(), stageId).await().indefinitely();
+      lifecycle =
+          runSupport.applyStageLifecycle(input.runId(), result).collect().asList().await().indefinitely();
+    } catch (RuntimeException failure) {
+      // A throwable reaching the workflow engine aborts the instance: no attempt, no status, and a
+      // run that stays RUNNING with nothing for the author to click.
+      result = runSupport.stageExecutor().haltOnEscapedFailure(input.runId(), failure);
+      lifecycle = List.of();
+    }
+    // Lifecycle already includes stage signals plus review text inserted in front of a wait.
+    // Appending those extras onto result.signals() puts the review after WaitingForApproval,
+    // and chat then replaces the narrative with the compact Goal/Facts block.
+    List<PipelineSignal> combined =
+        lifecycle.isEmpty() ? result.signals() : lifecycle;
+    signalsByRun
+        .computeIfAbsent(input.runId(), ignored -> new java.util.concurrent.CopyOnWriteArrayList<>())
+        .addAll(combined);
+    ProvidedIdsFlow.RunContext next =
+        nextContext(input, result.decision(), used, runSupport.retryPolicy(input.runId(), stageId));
+    contextByRun.put(input.runId(), next);
+    markSettled(input.runId(), next.decision());
+    return next;
+  }
+
+  public ProvidedIdsFlow.RunContext restoreAfterInput(Object payload) {
+    ProvidedIdsFlow.RunContext restored = restoreContext(payload);
+    // An event may arrive again after the run reaches a later human gate.
+    String decision = ProvidedIdsFlow.decisionFrom(runSupport.currentRunSnapshot(restored.runId()));
+    ProvidedIdsFlow.RunContext next = restored.withDecision(decision);
+    contextByRun.put(next.runId(), next);
+    markSettled(next.runId(), decision);
+    return next;
+  }
+
+  /** A saved listen is stale when an accepted command has already advanced the run. */
+  public boolean stillWaiting(ProvidedIdsFlow.RunContext input) {
+    return input.decision().equals(
+        ProvidedIdsFlow.decisionFrom(runSupport.currentRunSnapshot(input.runId())));
+  }
+
+  /** Releases a prepared child only after its conversation-pointer CAS succeeds. */
+  public ProvidedIdsFlow.RunContext restoreAfterActivation(Object payload) {
+    ProvidedIdsFlow.RunContext restored = restoreContext(payload);
+    ProvidedIdsFlow.RunContext next = restored.withDecision(null);
+    contextByRun.put(next.runId(), next);
+    return next;
+  }
+
+  public ProvidedIdsFlow.RunContext restoreAfterRetry(Object payload) {
+    ProvidedIdsFlow.RunContext restored = restoreContext(payload);
+    ProvidedIdsFlow.RunContext next = restored.withContinueKeepingRetries();
+    contextByRun.put(next.runId(), next);
+    markSettled(next.runId(), next.decision());
+    return next;
+  }
+
+  Result finish(ProvidedIdsFlow.RunContext input) {
+    if (input == null) {
+      return new Result(List.of());
+    }
+    return new Result(drainSignals(input.runId()));
+  }
+
+  void discard(ProvidedIdsFlow.RunContext input) {
+    if (input != null) {
+      signalsByRun.remove(input.runId());
+    }
+  }
+
+  List<PipelineSignal> drainSignals(String runId) {
+    settledRuns.remove(runId);
+    List<PipelineSignal> signals = signalsByRun.remove(runId);
+    return signals == null ? List.of() : List.copyOf(signals);
+  }
+
+  boolean settled(String runId) {
+    return settledRuns.containsKey(runId)
+        && runSupport.currentRunSnapshot(runId).status()
+            != org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING;
+  }
+
+  private void markSettled(String runId, String decision) {
+    if (reenters(decision)) {
+      settledRuns.remove(runId);
+    } else {
+      settledRuns.put(runId, true);
+    }
+  }
+
+  private ProvidedIdsFlow.RunContext restoreContext(Object payload) {
+    if (payload instanceof ProvidedIdsFlow.RunContext context) {
+      return context;
+    }
+    Map<String, Object> map = asMap(payload);
+    Object runId = map.get("runId");
+    if (runId == null) {
+      throw new IllegalStateException("cannot restore create-chain Flow context from " + payload);
+    }
+    String decision = stringValue(map.get("decision"));
+    Integer retriesUsed = integerValue(map.get("technicalRetriesUsed"));
+    String retryDelay = stringValue(map.get("retryDelay"));
+    ProvidedIdsFlow.RunContext stored = contextByRun.get(runId.toString());
+    if (stored != null) {
+      return new ProvidedIdsFlow.RunContext(
+          stored.runId(),
+          stored.profileId(),
+          stored.profileVersion(),
+          stored.runManifestDigest(),
+          decision,
+          retriesUsed != null ? retriesUsed : stored.technicalRetriesUsed(),
+          retryDelay != null ? retryDelay : stored.retryDelay());
+    }
+    return new ProvidedIdsFlow.RunContext(
+        runId.toString(),
+        stringValue(map.get("profileId")),
+        stringValue(map.get("profileVersion")),
+        stringValue(map.get("runManifestDigest")),
+        decision,
+        retriesUsed,
+        retryDelay);
+  }
+
+  private static Map<String, Object> asMap(Object payload) {
+    Object current = unwrap(payload);
+    if (current instanceof ProvidedIdsFlow.RunContext context) {
+      Map<String, Object> map = new LinkedHashMap<>();
+      map.put("runId", context.runId());
+      map.put("profileId", context.profileId());
+      map.put("profileVersion", context.profileVersion());
+      map.put("runManifestDigest", context.runManifestDigest());
+      map.put("decision", context.decision());
+      map.put("technicalRetriesUsed", context.technicalRetriesUsed());
+      map.put("retryDelay", context.retryDelay());
+      return map;
+    }
+    if (current instanceof Map<?, ?> map) {
+      Map<String, Object> copy = new LinkedHashMap<>();
+      map.forEach((key, value) -> copy.put(String.valueOf(key), value));
+      return copy;
+    }
+    if (current instanceof List<?> list && !list.isEmpty()) {
+      return asMap(list.get(0));
+    }
+    if (current instanceof Collection<?> collection && !collection.isEmpty()) {
+      return asMap(collection.iterator().next());
+    }
+    try {
+      if (current instanceof String text) {
+        return asMap(JSON.readValue(text, Object.class));
+      }
+      if (current instanceof byte[] bytes) {
+        return asMap(JSON.readValue(bytes, Object.class));
+      }
+      if (current instanceof JsonNode node) {
+        return asMap(JSON.convertValue(node, Object.class));
+      }
+      return JSON.convertValue(current, MAP);
+    } catch (Exception e) {
+      throw new IllegalStateException("cannot restore create-chain Flow context from " + payload, e);
+    }
+  }
+
+  private static Object unwrap(Object payload) {
+    if (payload instanceof WorkflowModel model) {
+      Object javaObject = model.asJavaObject();
+      if (javaObject != null && javaObject != payload) {
+        return unwrap(javaObject);
+      }
+    }
+    if (payload instanceof List<?> list && !list.isEmpty()) {
+      return unwrap(list.get(0));
+    }
+    if (payload instanceof Collection<?> collection && !collection.isEmpty()) {
+      return unwrap(collection.iterator().next());
+    }
+    return payload;
+  }
+
+  private static ProvidedIdsFlow.RunContext nextContext(
+      ProvidedIdsFlow.RunContext input,
+      StageDecision decision,
+      int usedBeforeAttempt,
+      RetryPolicy retryPolicy) {
+    if (decision instanceof StageDecision.Retry retry) {
+      return input.withRetry(
+          retry.technicalRetry()
+              ? Duration.ofMillis(nextDelayMs(retry.delay().toMillis(), retryPolicy, usedBeforeAttempt))
+              : retry.delay(),
+          usedBeforeAttempt + (retry.technicalRetry() ? 1 : 0));
+    }
+    return input.withDecision(decisionName(decision));
+  }
+
+  private static long nextDelayMs(long baseDelayMs, RetryPolicy policy, int retriesUsed) {
+    double grown = Math.max(baseDelayMs, 0L) * Math.pow(policy.backoffCoefficient(), retriesUsed);
+    double jitter = ThreadLocalRandom.current().nextDouble(1 - JITTER_RATIO, 1 + JITTER_RATIO);
+    return Math.min(Math.round(grown * jitter), policy.maximumDelayMs());
+  }
+
+  private static String decisionName(StageDecision decision) {
+    return switch (decision) {
+      case StageDecision.WaitForInput ignored -> "WAIT_FOR_INPUT";
+      case StageDecision.WaitForApproval wait -> approvalDecision(wait.stageId());
+      case StageDecision.WaitForImplementation ignored -> "WAIT_FOR_IMPLEMENTATION";
+      case StageDecision.Retry ignored -> "RETRY";
+      case StageDecision.ReopenProducer ignored -> CONTINUE;
+      case StageDecision.Continue ignored -> CONTINUE;
+      default -> "STOP";
+    };
+  }
+
+  private static String approvalDecision(String stageId) {
+    if ("requirement-analysis".equals(stageId)) {
+      return "WAIT_FOR_REQUIREMENT_APPROVAL";
+    }
+    if ("design-input".equals(stageId)) {
+      return "WAIT_FOR_IDS_APPROVAL";
+    }
+    if ("design-planning".equals(stageId)) {
+      return "WAIT_FOR_PLAN_APPROVAL";
+    }
+    return "STOP";
+  }
+
+  private static boolean reenters(String decision) {
+    return CONTINUE.equals(decision) || "RETRY".equals(decision);
+  }
+
+  private static String stringValue(Object value) {
+    return value == null ? null : value.toString();
+  }
+
+  private static Integer integerValue(Object value) {
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof Number number) {
+      return number.intValue();
+    }
+    try {
+      return Integer.valueOf(value.toString());
+    } catch (NumberFormatException ignored) {
+      return null;
+    }
+  }
+
+  private static <K, V> ConcurrentMap<K, V> idleCache(Duration idleTimeout) {
+    return Caffeine.newBuilder()
+        .expireAfterAccess(Objects.requireNonNull(idleTimeout, "cacheIdleTimeout"))
+        .<K, V>build()
+        .asMap();
+  }
+
+  record Result(List<PipelineSignal> signals) {}
+}

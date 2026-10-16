@@ -1,0 +1,245 @@
+package org.qubership.integration.platform.ai.plan.mapping.schema;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
+
+class JsonSchemaMappingContractFactoryTest {
+
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  @Test
+  void recursiveObjectReferenceIsRejected() throws Exception {
+    JsonNode schema = MAPPER.readTree("""
+        {"$ref":"#/$defs/Node","$defs":{"Node":{
+          "type":"object","properties":{"child":{"$ref":"#/$defs/Node"}}
+        }}}
+        """);
+
+    IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        () -> JsonSchemaMappingContractFactory.from(schema));
+    assertTrue(error.getMessage().contains("Recursive JSON Schema"));
+  }
+
+  @Test
+  void repeatedSiblingReferencesRemainValid() throws Exception {
+    JsonNode schema = MAPPER.readTree("""
+        {"type":"object","properties":{
+          "first":{"$ref":"#/$defs/Address"},"second":{"$ref":"#/$defs/Address"}
+        },"$defs":{"Address":{"type":"object","properties":{"city":{"type":"string"}}}}}
+        """);
+
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertEquals("string", contract.field("$.first.city").orElseThrow().type());
+    assertEquals("string", contract.field("$.second.city").orElseThrow().type());
+  }
+
+  @Test
+  void objectPropertiesBecomeKnownFields() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "orderId": { "type": "string" } },
+              "required": ["orderId"]
+            }
+            """);
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertTrue(contract.known());
+    MappingContract.Field field = contract.field("$.orderId").orElseThrow();
+    assertEquals("string", field.type());
+    assertTrue(field.required());
+  }
+
+  @Test
+  void nestedObjectUsesDotPath() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "customer": {
+                  "type": "object",
+                  "properties": { "name": { "type": "string" } }
+                }
+              }
+            }
+            """);
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertTrue(contract.field("$.customer.name").isPresent());
+  }
+
+  @Test
+  void nestedOpenObjectAcceptsAdditionalFields() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+            """);
+
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+
+    assertTrue(contract.field("$.parameters.salesforceTaskId").isPresent());
+  }
+
+  @Test
+  void nestedClosedObjectRejectsAdditionalFields() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                }
+              }
+            }
+            """);
+
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+
+    assertTrue(contract.field("$.parameters.salesforceTaskId").isEmpty());
+  }
+
+  @Test
+  void nullInputIsUnknownContract() {
+    assertFalse(JsonSchemaMappingContractFactory.from(null).known());
+  }
+
+  @Test
+  void objectWithoutPropertiesIsUnknownContract() throws Exception {
+    JsonNode schema = MAPPER.readTree("{\"type\": \"object\"}");
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertFalse(contract.known());
+    assertTrue(contract.field("$.anything").isEmpty());
+  }
+
+  @Test
+  void propertyLessSchemaIsUnknownContract() throws Exception {
+    MappingContract typedObject =
+        JsonSchemaMappingContractFactory.from(MAPPER.readTree("{\"type\": \"object\"}"));
+    MappingContract emptyObject = JsonSchemaMappingContractFactory.from(MAPPER.readTree("{}"));
+    MappingContract emptyProperties =
+        JsonSchemaMappingContractFactory.from(
+            MAPPER.readTree("{\"type\": \"object\", \"properties\": {}}"));
+    assertFalse(typedObject.known());
+    assertFalse(emptyObject.known());
+    assertFalse(emptyProperties.known());
+    assertTrue(typedObject.field("$.anything").isEmpty());
+  }
+
+  @Test
+  void closedEmptyObjectIsAKnownContract() throws Exception {
+    MappingContract withEmptyProperties =
+        JsonSchemaMappingContractFactory.from(
+            MAPPER.readTree(
+                """
+                {"type":"object","properties":{},"additionalProperties":false}
+                """));
+    MappingContract withoutProperties =
+        JsonSchemaMappingContractFactory.from(
+            MAPPER.readTree(
+                """
+                {"type":"object","additionalProperties":false}
+                """));
+
+    assertTrue(withEmptyProperties.known());
+    assertTrue(withoutProperties.known());
+    assertTrue(withEmptyProperties.fields().isEmpty());
+    assertTrue(withoutProperties.fields().isEmpty());
+    assertTrue(withEmptyProperties.field("$.invented").isEmpty());
+  }
+
+  @Test
+  void oneOfObjectVariantsExposeUnionFields() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": { "taskId": { "type": "string" }, "orderId": { "type": "string" } },
+                  "required": ["taskId", "orderId"]
+                },
+                {
+                  "type": "object",
+                  "properties": { "taskId": { "type": "string" }, "executionId": { "type": "string" } },
+                  "required": ["taskId"]
+                }
+              ]
+            }
+            """);
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertTrue(contract.known());
+    assertTrue(contract.field("$.taskId").isPresent());
+    assertTrue(contract.field("$.orderId").isPresent());
+    assertTrue(contract.field("$.executionId").isPresent());
+    assertTrue(contract.field("$.taskId").orElseThrow().required());
+    assertFalse(contract.field("$.orderId").orElseThrow().required());
+  }
+
+  @Test
+  void inDocumentRefViaDefinitionsResolvesProperties() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "orderId": { "$ref": "#/definitions/OrderId" }
+              },
+              "required": ["orderId"],
+              "definitions": {
+                "OrderId": { "type": "string" }
+              }
+            }
+            """);
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    MappingContract.Field field = contract.field("$.orderId").orElseThrow();
+    assertEquals("string", field.type());
+    assertTrue(field.required());
+  }
+
+  @Test
+  void fieldLookupAcceptsBareNamesUsedInCapturedBriefs() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "Subject": { "type": "string" },
+                "parameters": {
+                  "type": "object",
+                  "properties": { "salesforceTaskId": { "type": "string" } }
+                }
+              },
+              "required": ["Subject"]
+            }
+            """);
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertTrue(contract.field("Subject").isPresent());
+    assertTrue(contract.field("parameters.salesforceTaskId").isPresent());
+    assertEquals("$.Subject", contract.field("Subject").orElseThrow().path());
+  }
+}

@@ -25,6 +25,7 @@
       <module>micro-engine</module>
       <module>sessions-management</module>
       <module>schemas</module>
+      <module>ai-service</module>
     </modules>
 
     <licenses>

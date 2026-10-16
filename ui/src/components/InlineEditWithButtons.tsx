@@ -15,6 +15,7 @@ const { useForm } = Form;
 
 export type InlineEditWithButtonsRef<Values> = {
   getValuesAndClose: () => Values | null;
+  isEditing: () => boolean;
 };
 
 export type InlineEditWithButtonsProps<Values> = InlineEditProps<Values> & {
@@ -41,7 +42,7 @@ function InlineEditActionButtons<Values>({
 }) {
   const form = Form.useFormInstance<Values>();
   const ctx = useContext(InlineEditContext);
-  const values = Form.useWatch(undefined, form) as Values | undefined;
+  const values = Form.useWatch([], form) as Values | undefined;
 
   const applyEnabled =
     showApply &&
@@ -119,9 +120,11 @@ export function InlineEditWithButtons<Values>(
     return values;
   }, [active, form, toggle]);
 
-  useImperativeHandle(innerRef, () => ({ getValuesAndClose }), [
-    getValuesAndClose,
-  ]);
+  useImperativeHandle(
+    innerRef,
+    () => ({ getValuesAndClose, isEditing: () => active }),
+    [active, getValuesAndClose],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {

@@ -1,0 +1,444 @@
+package org.qubership.integration.platform.ai.schema;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+
+class DeterministicElementSchemaServiceTest {
+
+  private final ObjectMapper objectMapper = new ObjectMapper();
+
+  private DeterministicElementSchemaService service;
+
+  @BeforeEach
+  void setUp() {
+    SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
+    QipSchemaYamlParser qipSchemaYamlParser = new QipSchemaYamlParser();
+    SchemaRefResolver schemaRefResolver =
+        new SchemaRefResolver(schemaResourceLoader, qipSchemaYamlParser);
+
+    service = DeterministicElementSchemaService.createForUnitTests(objectMapper);
+  }
+
+  @Test
+  void kafkaConnectionSourceFeedbackListsTheCaseSensitiveEnum() throws Exception {
+    String error = service.validateCapturePropertyValue("kafka-sender-2", "connectionSourceType",
+        objectMapper.readTree("\"MaaS\"")).orElseThrow();
+    assertTrue(error.contains("[\"maas\",\"manual\"]"), error);
+    assertTrue(service.validateCapturePropertyValue("kafka-sender-2", "connectionSourceType",
+        objectMapper.readTree("\"maas\"")).isEmpty());
+  }
+
+  @Test
+  void resolvesContextOverrideSchemaWithReferenceAnnotations() throws Exception {
+    JsonNode summary = objectMapper.readTree(service.describeElementPatchSchema("http-sender"));
+    assertEquals("object", summary.path("properties").path("overrideContextParams").path("type").asText());
+
+    Object value = service.coercePatchPropertyValue(
+        "http-sender", "overrideContextParams", "{\"X-Request-Id\":\"override-request-id\"}");
+    assertEquals(Map.of("X-Request-Id", "override-request-id"), value);
+    assertTrue(service.validateCapturePropertyValue(
+        "http-sender", "overrideContextParams", objectMapper.valueToTree(value)).isEmpty());
+  }
+
+  @Test
+  void rejectsNonObjectContextOverridesAtCaptureAndPatchBoundaries() throws Exception {
+    for (String raw : List.of("X-Request-Id=override-request-id", "[\"override-request-id\"]")) {
+      Object value = service.coercePatchPropertyValue("http-sender", "overrideContextParams", raw);
+      assertTrue(service.validateCapturePropertyValue(
+          "http-sender", "overrideContextParams", objectMapper.valueToTree(value)).isPresent(), raw);
+      JsonNode result = objectMapper.readTree(service.validateElementPatch("http-sender",
+          objectMapper.writeValueAsString(Map.of("properties", Map.of(
+              "uri", "http://engine:8080/routes/headers", "httpMethod", "GET",
+              "propagateContext", true, "overrideContextParams", value)))));
+      assertFalse(result.path("valid").asBoolean(), result.toString());
+      assertTrue(result.path("errors").toString().contains("overrideContextParams"), result.toString());
+    }
+  }
+
+  @Test
+  void validatesServiceCallAuthorizationAndResponseHandlerContents() throws Exception {
+    assertTrue(service.validateCapturePropertyValue(
+        "service-call", "authorizationConfiguration", objectMapper.readTree("{}"))
+        .isPresent());
+    assertTrue(service.validateCapturePropertyValue(
+        "service-call", "authorizationConfiguration", objectMapper.readTree("{\"type\":\"m2m\"}"))
+        .isEmpty());
+    assertTrue(service.validateCapturePropertyValue(
+        "service-call", "after", objectMapper.readTree("[\"200\"]"))
+        .isPresent());
+    assertTrue(service.validateCapturePropertyValue(
+        "service-call", "after", objectMapper.readTree("[{\"type\":\"none\",\"code\":\"200\"}]"))
+        .isEmpty());
+  }
+
+  @Test
+  void describeElementPatchSchemaExposesHttpTriggerRootOneOfRequired() throws Exception {
+    // Prove describeElementPatchSchema tells the truth for http-trigger Endpoint oneOf:
+    // unconditional required stays on accessControlType; branch required lives in alternatives.
+    String schemaJson = service.describeElementPatchSchema("http-trigger");
+    JsonNode root = objectMapper.readTree(schemaJson);
+
+    JsonNode requiredProperties = root.path("requiredProperties");
+    JsonNode unconditionalRequired = root.path("unconditionalRequiredProperties");
+    assertTrue(requiredProperties.isArray(), schemaJson);
+    assertTrue(unconditionalRequired.isArray(), schemaJson);
+    assertEquals(requiredProperties, unconditionalRequired, schemaJson);
+    assertTrue(
+        arrayContains(requiredProperties, "accessControlType"),
+        "unconditional required must keep accessControlType: " + schemaJson);
+    assertTrue(
+        arrayContains(unconditionalRequired, "accessControlType"),
+        "unconditionalRequiredProperties must keep accessControlType: " + schemaJson);
+
+    JsonNode alternatives = root.path("rootOneOfAlternatives");
+    assertTrue(alternatives.isArray(), schemaJson);
+    assertTrue(alternatives.size() >= 2, "rootOneOfAlternatives must be non-empty: " + schemaJson);
+
+    JsonNode custom = findAlternative(alternatives, "Custom", "CustomEndpoint");
+    assertTrue(custom != null && !custom.isMissingNode(), "Custom branch missing: " + schemaJson);
+    assertTrue(requiredContains(custom, "contextPath"), "Custom requires contextPath: " + custom);
+
+    JsonNode implemented =
+        findAlternative(alternatives, "Implemented Service", "ImplementedServiceEndpoint");
+    assertTrue(
+        implemented != null && !implemented.isMissingNode(),
+        "Implemented Service branch missing: " + schemaJson);
+    assertTrue(
+        requiredContains(implemented, "integrationOperationId"),
+        "Implemented Service requires integrationOperationId: " + implemented);
+  }
+
+  @Test
+  void describeElementPatchSchemaReturnsSameJsonOnSecondCall() {
+    String first = service.describeElementPatchSchema("http-trigger");
+    String second = service.describeElementPatchSchema("http-trigger");
+    assertEquals(first, second);
+  }
+
+  @Test
+  void headerModificationRemoveIsArrayTyped() {
+    assertTrue(service.isArrayProperty("header-modification", "headerModificationToRemove"));
+    assertFalse(service.isArrayProperty("header-modification", "headerModificationToAdd"));
+  }
+
+  @Test
+  void coercesHttpTriggerBooleanPropertyBeforeValidation() throws Exception {
+    Object externalRoute =
+        service.coercePatchPropertyValue("http-trigger", "externalRoute", "true");
+    Map<String, Object> patch =
+        Map.of(
+            "properties",
+            Map.of(
+                "contextPath",
+                "/greetings",
+                "httpMethodRestrict",
+                "GET",
+                "accessControlType",
+                "NONE",
+                "externalRoute",
+                externalRoute));
+
+    String validationJson =
+        service.validateElementPatch("http-trigger", objectMapper.writeValueAsString(patch));
+
+    assertEquals(Boolean.TRUE, externalRoute);
+    JsonNode root = objectMapper.readTree(validationJson);
+    assertTrue(root.path("valid").asBoolean(), validationJson);
+  }
+
+  @Test
+  void coercesHttpTriggerRolesJsonArrayBeforeValidation() throws Exception {
+    Object roles =
+        service.coercePatchPropertyValue("http-trigger", "roles", "[\"qip-viewer\",\"admin\"]");
+    assertInstanceOf(List.class, roles);
+
+    Map<String, Object> patch =
+        Map.of(
+            "properties",
+            Map.of(
+                "contextPath",
+                "/greetings",
+                "httpMethodRestrict",
+                "GET",
+                "accessControlType",
+                "RBAC",
+                "externalRoute",
+                true,
+                "roles",
+                roles));
+
+    String validationJson =
+        service.validateElementPatch("http-trigger", objectMapper.writeValueAsString(patch));
+
+    JsonNode root = objectMapper.readTree(validationJson);
+    assertTrue(root.path("valid").asBoolean(), validationJson);
+  }
+
+  @Test
+  void validatesSecureHelloStyleRbacPatch() throws Exception {
+    Object roles =
+        service.coercePatchPropertyValue("http-trigger", "roles", "[\"qip-viewer\"]");
+    Object externalRoute =
+        service.coercePatchPropertyValue("http-trigger", "externalRoute", "true");
+    Map<String, Object> patch =
+        Map.of(
+            "properties",
+            Map.of(
+                "contextPath",
+                "/secure-hello",
+                "httpMethodRestrict",
+                "GET",
+                "externalRoute",
+                externalRoute,
+                "accessControlType",
+                "RBAC",
+                "roles",
+                roles));
+
+    String validationJson =
+        service.validateElementPatch("http-trigger", objectMapper.writeValueAsString(patch));
+
+    JsonNode root = objectMapper.readTree(validationJson);
+    assertTrue(root.path("valid").asBoolean(), validationJson);
+  }
+
+  @Test
+  void validatesSecureHelloStyleRbacPatchWithElementName() throws Exception {
+    Object roles =
+        service.coercePatchPropertyValue("http-trigger", "roles", "[\"qip-viewer\"]");
+    Object externalRoute =
+        service.coercePatchPropertyValue("http-trigger", "externalRoute", "true");
+    Map<String, Object> patch =
+        Map.of(
+            "name",
+            "HTTP Trigger",
+            "properties",
+            Map.of(
+                "contextPath",
+                "/secure-hello",
+                "httpMethodRestrict",
+                "GET",
+                "externalRoute",
+                externalRoute,
+                "accessControlType",
+                "RBAC",
+                "roles",
+                roles));
+
+    String validationJson =
+        service.validateElementPatch("http-trigger", objectMapper.writeValueAsString(patch));
+
+    JsonNode root = objectMapper.readTree(validationJson);
+    assertTrue(root.path("valid").asBoolean(), validationJson);
+  }
+
+  @Test
+  void coercesHttpTriggerAbacParametersJsonObjectBeforeValidation() throws Exception {
+    String abacJson =
+        "{\"resourceType\":\"CHAIN\",\"operation\":\"ALL\",\"resourceDataType\":\"String\",\"resourceString\":\"/cip-routes/demo\"}";
+    Object abacParameters =
+        service.coercePatchPropertyValue("http-trigger", "abacParameters", abacJson);
+    assertInstanceOf(Map.class, abacParameters);
+
+    Map<String, Object> patch =
+        Map.of(
+            "properties",
+            Map.of(
+                "contextPath",
+                "/greetings",
+                "httpMethodRestrict",
+                "GET",
+                "accessControlType",
+                "ABAC",
+                "externalRoute",
+                true,
+                "abacParameters",
+                abacParameters));
+
+    String validationJson =
+        service.validateElementPatch("http-trigger", objectMapper.writeValueAsString(patch));
+
+    JsonNode root = objectMapper.readTree(validationJson);
+    assertTrue(root.path("valid").asBoolean(), validationJson);
+  }
+
+  @Test
+  void rejectsHttpMethodRestrictArrayAtCaptureBoundary() {
+    ArrayNode methodArray = objectMapper.createArrayNode().add("GET");
+
+    assertTrue(
+        service
+            .validateCapturePropertyValue("http-trigger", "httpMethodRestrict", methodArray)
+            .isPresent());
+  }
+
+  @Test
+  void acceptsHttpMethodRestrictCatalogObjectAtCaptureBoundary() throws Exception {
+    JsonNode catalogObject = objectMapper.readTree("{\"httpMethods\":[\"GET\"]}");
+
+    assertTrue(
+        service
+            .validateCapturePropertyValue("http-trigger", "httpMethodRestrict", catalogObject)
+            .isEmpty());
+  }
+
+  @Test
+  void acceptsRolesArrayAtCaptureBoundary() {
+    ArrayNode roles = objectMapper.createArrayNode().add("qip-viewer");
+
+    assertTrue(
+        service.validateCapturePropertyValue("http-trigger", "roles", roles).isEmpty());
+  }
+
+  @Test
+  void rabbitmqSenderMaasBranchRequiresVhostClassifier() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build(
+            "rabbitmq-sender-2", schemaRefResolverForTests());
+    Set<String> keys =
+        model.requiredKeysFor(Map.of("connectionSourceType", "maas", "exchange", "ex"));
+    assertTrue(keys.contains("connectionSourceType"));
+    assertTrue(keys.contains("exchange"));
+    assertTrue(keys.contains("vhostClassifierName"));
+    assertFalse(keys.contains("addresses"));
+    assertFalse(keys.contains("routingKey"));
+  }
+
+  @Test
+  void rabbitmqSenderManualBranchRequiresAddresses() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build(
+            "rabbitmq-sender-2", schemaRefResolverForTests());
+    Set<String> keys =
+        model.requiredKeysFor(Map.of("connectionSourceType", "manual", "exchange", "ex"));
+    assertTrue(keys.contains("addresses"));
+    assertFalse(keys.contains("vhostClassifierName"));
+  }
+
+  @Test
+  void rabbitmqSenderWithoutDiscriminatorDoesNotAssumeManual() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build(
+            "rabbitmq-sender-2", schemaRefResolverForTests());
+    Set<String> keys = model.requiredKeysFor(Map.of("exchange", "ex"));
+    assertTrue(keys.contains("connectionSourceType"));
+    assertFalse(keys.contains("addresses"));
+  }
+
+  @Test
+  void kafkaSenderTenantBranchRequiresTenantId() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build("kafka-sender-2", schemaRefResolverForTests());
+    Set<String> keys =
+        model.requiredKeysFor(
+            Map.of(
+                "connectionSourceType", "maas",
+                "topicsClassifierName", "t1",
+                "maasClassifierTenantEnabled", "true"));
+    assertTrue(keys.contains("maasClassifierTenantId"));
+  }
+
+  @Test
+  void kafkaSenderPropagateContextDoesNotRequireOverrideContextParams() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build("kafka-sender-2", schemaRefResolverForTests());
+    Set<String> keys = model.requiredKeysFor(Map.of("propagateContext", "true"));
+    assertFalse(keys.contains("overrideContextParams"));
+  }
+
+  @Test
+  void validateElementPatchRejectsMaasRabbitmqWithoutVhostClassifier() throws Exception {
+    String patch =
+        """
+        {"name":"Send","properties":{"connectionSourceType":"maas","exchange":"ex"}}
+        """;
+    JsonNode result = objectMapper.readTree(service.validateElementPatch("rabbitmq-sender-2", patch));
+    assertFalse(result.path("valid").asBoolean());
+    assertTrue(result.toString().contains("vhostClassifierName"));
+  }
+
+  @Test
+  void validateElementPatchAcceptsMaasRabbitmqWithVhostClassifier() throws Exception {
+    String patch =
+        """
+        {"name":"Send","properties":{
+          "connectionSourceType":"maas",
+          "exchange":"ex",
+          "vhostClassifierName":"cip-auto-tests"}}
+        """;
+    JsonNode result = objectMapper.readTree(service.validateElementPatch("rabbitmq-sender-2", patch));
+    assertTrue(result.path("valid").asBoolean(), result.toString());
+  }
+
+  @Test
+  void requiredPatchPropertyKeysHonorsRabbitMaasBranch() {
+    Set<String> keys =
+        service.requiredPatchPropertyKeys(
+            "rabbitmq-sender-2", Map.of("connectionSourceType", "maas"));
+    assertTrue(keys.contains("vhostClassifierName"));
+  }
+
+  @Test
+  void withUnconditionalSchemaDefaultsKeepsExistingRetryCount() {
+    List<PlanProperty> merged =
+        service.withUnconditionalSchemaDefaults(
+            "service-call", List.of(new PlanProperty("retryCount", "3")));
+
+    String retryCount = null;
+    String retryDelay = null;
+    for (PlanProperty property : merged) {
+      if ("retryCount".equals(property.key())) {
+        retryCount = property.value();
+      }
+      if ("retryDelay".equals(property.key())) {
+        retryDelay = property.value();
+      }
+    }
+    assertEquals("3", retryCount);
+    assertEquals("5000", retryDelay);
+  }
+
+  private SchemaRefResolver schemaRefResolverForTests() {
+    SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
+    QipSchemaYamlParser qipSchemaYamlParser = new QipSchemaYamlParser();
+    return new SchemaRefResolver(schemaResourceLoader, qipSchemaYamlParser);
+  }
+
+  private static JsonNode findAlternative(JsonNode alternatives, String title, String name) {
+    for (JsonNode alt : alternatives) {
+      if (title.equals(alt.path("title").asText(null))
+          || name.equals(alt.path("name").asText(null))) {
+        return alt;
+      }
+    }
+    return null;
+  }
+
+  private static boolean requiredContains(JsonNode alternative, String property) {
+    return arrayContains(alternative.path("required"), property);
+  }
+
+  private static boolean arrayContains(JsonNode array, String value) {
+    if (!array.isArray()) {
+      return false;
+    }
+    for (JsonNode item : array) {
+      if (value.equals(item.asText())) {
+        return true;
+      }
+    }
+    return false;
+  }
+}

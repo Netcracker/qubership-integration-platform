@@ -4,6 +4,7 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { ChainContext } from "../../src/pages/ChainPage";
 import { ChainProperties } from "../../src/pages/ChainProperties";
 
 Object.defineProperty(globalThis, "matchMedia", {
@@ -126,6 +127,52 @@ describe("ChainProperties", () => {
       proceed: mockProceed,
       reset: mockReset,
     });
+  });
+
+  it("refreshes pristine properties but preserves a draft across later catalog changes", async () => {
+    const initial = {
+      chain: {
+        id: "chain-1",
+        name: "Original",
+        labels: [],
+        navigationPath: [],
+      },
+      update: mockChainUpdate,
+      refresh: jest.fn(),
+    } as unknown as NonNullable<React.ContextType<typeof ChainContext>>;
+    const view = render(
+      <ChainContext.Provider value={initial}>
+        <ChainProperties />
+      </ChainContext.Provider>,
+    );
+    const name = await screen.findByRole("textbox", { name: "Name" });
+    view.rerender(
+      <ChainContext.Provider
+        value={{
+          ...initial,
+          chain: { ...initial.chain!, name: "Catalog name" },
+        }}
+      >
+        <ChainProperties />
+      </ChainContext.Provider>,
+    );
+    await waitFor(() => expect(name).toHaveValue("Catalog name"));
+    fireEvent.change(name, { target: { value: "My draft" } });
+    view.rerender(
+      <ChainContext.Provider
+        value={{
+          ...initial,
+          chain: { ...initial.chain!, name: "New catalog name" },
+        }}
+      >
+        <ChainProperties />
+      </ChainContext.Provider>,
+    );
+    await screen.findByText(
+      "Chain properties changed in the catalog. Your draft is preserved.",
+    );
+    expect(name).toHaveValue("My draft");
+    expect(mockChainUpdate).not.toHaveBeenCalled();
   });
 
   it("uses blocker proceed when user chooses Yes in unsaved changes dialog", async () => {

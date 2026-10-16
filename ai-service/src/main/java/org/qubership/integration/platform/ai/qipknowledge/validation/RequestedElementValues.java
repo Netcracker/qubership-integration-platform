@@ -1,0 +1,112 @@
+package org.qubership.integration.platform.ai.qipknowledge.validation;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
+
+/** Applies validated author values after model-generated configuration and naming. */
+public final class RequestedElementValues {
+  public static final class ResolvedTargetConflict extends IllegalArgumentException {
+    private final String sourceFactId;
+
+    private ResolvedTargetConflict(String sourceFactId, String nodeId) {
+      super("Requirement fact '" + sourceFactId + "' sets resolver-owned chain-call-2.elementId on node '"
+          + nodeId + "'. Select the target through its capability.");
+      this.sourceFactId = sourceFactId;
+    }
+
+    public PlanValidationFinding finding() {
+      return new PlanValidationFinding(
+          "BRIEF_CONTRACT", getMessage(), true, null, sourceFactId, "/elementIntent");
+    }
+  }
+
+  private RequestedElementValues() {}
+
+  public static String chainName(List<RequirementFact> facts, String fallback) {
+    return facts.stream().filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+        .map(RequirementFact::elementIntent).filter(java.util.Objects::nonNull)
+        .filter(intent -> intent.placement() == Placement.CHAIN && intent.requestedName() != null)
+        .map(intent -> intent.requestedName()).findFirst().orElse(fallback);
+  }
+
+  public static Map<String, String> names(List<RequirementFact> facts) {
+    Map<String, String> names = new LinkedHashMap<>();
+    for (var fact : facts) {
+      var intent = fact.elementIntent();
+      if (intent != null && fact.polarity() == RequirementFactPolarity.POSITIVE
+          && intent.placement() != Placement.CHAIN && intent.requestedName() != null) {
+        String prior = names.putIfAbsent(intent.elementRef(), intent.requestedName());
+        if (prior != null && !prior.equals(intent.requestedName())) {
+          throw new IllegalArgumentException("Conflicting requested names for elementRef=" + intent.elementRef());
+        }
+      }
+    }
+    return Map.copyOf(names);
+  }
+
+  public static NamingManifest naming(NamingManifest generated, List<RequirementFact> facts) {
+    Map<String, String> labels = new LinkedHashMap<>(generated.labelsByRoleId());
+    labels.putAll(names(facts));
+    return new NamingManifest(generated.schemaVersion(), chainName(facts, generated.chainName()),
+        labels, generated.sourceRequirementFactIds(), generated.knowledgeCitations());
+  }
+
+  public static ChainPlanGraph apply(ChainPlanGraph graph, List<RequirementFact> facts) {
+    Map<String, String> names = names(facts);
+    List<ChainPlanNode> nodes = graph.nodes().stream().map(node -> names.containsKey(node.nodeId())
+        ? new ChainPlanNode(node.nodeId(), node.type(), names.get(node.nodeId()), node.parentNodeId(),
+            node.order(), node.properties()) : node).toList();
+    var chain = graph.chain();
+    graph = new ChainPlanGraph(graph.schemaVersion(), new ChainSection(chainName(facts, chain.name()),
+        chain.description(), chain.maskingEnabled(), chain.maskedFieldNames(), chain.semanticRevisionId(),
+        chain.compilerContractVersion(), chain.folderPath()), nodes, graph.edges());
+    for (var fact : facts) {
+      var intent = fact.elementIntent();
+      if (intent == null || fact.polarity() != RequirementFactPolarity.POSITIVE
+          || intent.placement() == Placement.CHAIN || intent.placement() == Placement.BEFORE_HOOK
+          || intent.placement() == Placement.AFTER_HOOK) {
+        continue;
+      }
+      var node = nodes.stream().filter(candidate -> candidate.nodeId().equals(intent.elementRef()))
+          .findFirst().orElseThrow(() -> new IllegalArgumentException(
+              "Requested element is absent from the graph: " + intent.elementRef()));
+      if (!node.type().equals(intent.elementType())) {
+        throw new IllegalArgumentException("Requested element type differs for " + intent.elementRef());
+      }
+      for (var property : intent.requestedProperties()) {
+        String value = property.value();
+        if ("chain-call-2".equals(node.type()) && "elementId".equals(property.key())) {
+          throw new ResolvedTargetConflict(fact.sourceFactId(), node.nodeId());
+        }
+        if ("async-api-trigger".equals(node.type()) && "integrationOperationAsyncProperties".equals(property.key())) {
+          try {
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            var current = graph.nodes().stream().filter(candidate -> candidate.nodeId().equals(intent.elementRef()))
+                .flatMap(candidate -> candidate.properties().stream()).filter(p -> p.key().equals(property.key()))
+                .map(p -> p.value()).findFirst().orElse("{}");
+            var options = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(current);
+            var classifier = options.get("maas.classifier.name");
+            options.setAll((com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(value));
+            if (classifier != null) {
+              options.set("maas.classifier.name", classifier);
+            }
+            value = options.toString();
+          } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new IllegalArgumentException("Invalid approved Kafka consumer options.", error);
+          }
+        }
+        graph = graph.withNodeProperty(intent.elementRef(), property.key(), value);
+      }
+    }
+    return graph;
+  }
+}

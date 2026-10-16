@@ -1,0 +1,11 @@
+1. Analyze requirements and name chain Orders (cip-requirement-analyzer + cip-naming-generator)
+2. Find API Orders API for Orders Service in APIHub for version 2024.4 (APIHub MCP search_rest_api_operations)
+3. Get API operation specification Orders API for Orders Service in APIHub (APIHub MCP get_rest_api_operations_specification)
+4. Resolve External integration target Orders Service from the retrieved spec (binding for cip-service-call-generator)
+5. Generate HTTP Trigger element with interface Orders API (cip-trigger-generator)
+6. Generate Service Call element for Orders Service.createOrder bound to the retrieved spec (cip-service-call-generator)
+7. Generate execution structure and element ordering (cip-structure-generator)
+8. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
+9. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+10. Validate the assembled chain (cip-chain-validator)
+If you agree, reply **Agree** or **Execute plan** to proceed.

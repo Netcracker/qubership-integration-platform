@@ -39,6 +39,9 @@ then: # maas
     - vhostClassifierName
 else: # manual
   properties:
+    vhost:
+      type: string
+      title: Virtual host
     addresses:
       type: string
       title: Addresses

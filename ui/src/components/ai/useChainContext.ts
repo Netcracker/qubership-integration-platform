@@ -5,15 +5,22 @@ import {
   createCompactChainSchema,
   CompactChainSchema,
 } from "./chainContextUtils.ts";
+import { useCatalogRefresh } from "../../hooks/useCatalogRefresh.ts";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 
 export interface ChainContext {
   chain: Chain;
   compactSchema: CompactChainSchema;
   refresh: () => Promise<void>;
+  getFreshContext?: () => Promise<ChainContext>;
 }
 
 export function useChainContext(): ChainContext | null {
   const [chain, setChain] = useState<Chain | null>(null);
+  const chainRef = useRef(chain);
+  const readGeneration = useRef(0);
+  const refreshErrorRef = useRef<Error>();
+  const notificationService = useNotificationService();
   const [pathname, setPathname] = useState<string>(
     typeof window !== "undefined" ? window.location.pathname : "",
   );
@@ -38,9 +45,13 @@ export function useChainContext(): ChainContext | null {
     console.log(
       `[useChainContext] refreshChain: fetching chain data for chainId: ${chainId}`,
     );
+    const generation = ++readGeneration.current;
     try {
       const chainData = await api.getChain(chainId);
-      if (lastChainIdRef.current === chainId) {
+      if (
+        lastChainIdRef.current === chainId &&
+        generation === readGeneration.current
+      ) {
         console.log(
           `[useChainContext] refreshChain: chain data updated for chainId: ${chainId}`,
           {
@@ -48,6 +59,8 @@ export function useChainContext(): ChainContext | null {
             elementsCount: chainData.elements?.length || 0,
           },
         );
+        chainRef.current = chainData;
+        refreshErrorRef.current = undefined;
         setChain(chainData);
       } else {
         console.log(
@@ -59,6 +72,12 @@ export function useChainContext(): ChainContext | null {
         );
       }
     } catch (error) {
+      if (
+        lastChainIdRef.current === chainId &&
+        generation === readGeneration.current
+      )
+        refreshErrorRef.current =
+          error instanceof Error ? error : new Error(String(error));
       console.error(
         `[useChainContext] refreshChain: failed to refresh chain for chainId: ${chainId}`,
         error,
@@ -66,8 +85,43 @@ export function useChainContext(): ChainContext | null {
       if (isDebugEnabled) {
         console.debug("[AI Chat] Failed to refresh chain for context", error);
       }
+      throw error;
     }
   }, [pathname, isDebugEnabled]);
+
+  const currentChainId = pathname.startsWith("/chains/")
+    ? pathname.split("/")[2]
+    : undefined;
+  const { refresh: refreshExternal, waitForIdle } = useCatalogRefresh(
+    currentChainId ?? "",
+    (change) =>
+      Boolean(
+        currentChainId &&
+          (change.chainIds === null ||
+            change.chainIds.includes(currentChainId)),
+      ),
+    async (isCurrent) => {
+      if (!currentChainId) return;
+      const generation = ++readGeneration.current;
+      try {
+        const data = await api.getChain(currentChainId);
+        if (!isCurrent() || generation !== readGeneration.current) return;
+        chainRef.current = data;
+        refreshErrorRef.current = undefined;
+        setChain(data);
+      } catch (error) {
+        if (!isCurrent() || generation !== readGeneration.current) return;
+        refreshErrorRef.current =
+          error instanceof Error ? error : new Error(String(error));
+        notificationService.requestFailed(
+          "Failed to refresh Rocky's chain context",
+          error,
+          () => void refreshExternal().catch(() => undefined),
+        );
+        throw error;
+      }
+    },
+  );
 
   useEffect(() => {
     const updatePathname = () => {
@@ -116,6 +170,8 @@ export function useChainContext(): ChainContext | null {
     if (!chainId) {
       if (lastChainIdRef.current !== null) {
         lastChainIdRef.current = null;
+        chainRef.current = null;
+        refreshErrorRef.current = undefined;
         setChain(null);
       }
       return;
@@ -126,11 +182,17 @@ export function useChainContext(): ChainContext | null {
     }
 
     lastChainIdRef.current = chainId;
+    const generation = ++readGeneration.current;
 
     api
       .getChain(chainId)
       .then((chainData) => {
-        if (lastChainIdRef.current === chainId) {
+        if (
+          lastChainIdRef.current === chainId &&
+          generation === readGeneration.current
+        ) {
+          chainRef.current = chainData;
+          refreshErrorRef.current = undefined;
           setChain(chainData);
         }
       })
@@ -138,7 +200,11 @@ export function useChainContext(): ChainContext | null {
         if (isDebugEnabled) {
           console.debug("[AI Chat] Failed to load chain for context", error);
         }
-        if (lastChainIdRef.current === chainId) {
+        if (
+          lastChainIdRef.current === chainId &&
+          generation === readGeneration.current
+        ) {
+          chainRef.current = null;
           setChain(null);
         }
       });
@@ -170,7 +236,7 @@ export function useChainContext(): ChainContext | null {
         console.log(
           `[useChainContext] Refreshing chain data for chainId: ${chainId}`,
         );
-        void refreshChain();
+        void refreshChain().catch(() => undefined);
       }
     };
 
@@ -200,8 +266,20 @@ export function useChainContext(): ChainContext | null {
       chain,
       compactSchema,
       refresh: refreshChain,
+      getFreshContext: async () => {
+        await waitForIdle();
+        if (refreshErrorRef.current) throw refreshErrorRef.current;
+        const latest = chainRef.current;
+        if (!latest || latest.id !== currentChainId)
+          throw new Error("The open chain context is not available.");
+        return {
+          chain: latest,
+          compactSchema: createCompactChainSchema(latest),
+          refresh: refreshChain,
+        };
+      },
     };
-  }, [chain, refreshChain]);
+  }, [chain, refreshChain, waitForIdle, currentChainId]);
 
   return context;
 }

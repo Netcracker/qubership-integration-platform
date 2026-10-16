@@ -1,37 +1,1602 @@
-import { Button, Drawer, Tabs, Space, Typography, Divider } from "antd";
-import React, { useState } from "react";
+import {
+  Button,
+  Divider,
+  Drawer,
+  Modal,
+  Select,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
+import Input from "antd/es/input/index";
+import type { TextAreaRef } from "antd/es/input/TextArea";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import "./AiAssistantPanel.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { api } from "../../api/api.ts";
+import { getConfig } from "../../appConfig.ts";
+import { getDefaultAiProvider } from "../../ai/config.ts";
+import { getAiServiceUrl } from "../../ai/appConfig.ts";
+import type {
+  CatalogSystemType,
+  ChatDecision,
+  ChatMessage,
+  ChatRequest,
+  ChatResponse,
+  StreamingChunk,
+} from "../../ai/modelProviders/types.ts";
+import { AiModelProvider } from "../../ai/modelProviders/AiModelProvider.ts";
+import type { ChatSession } from "../../ai/sessions/types.ts";
+import { getChatSessionStore } from "../../ai/sessions/sessionStore.ts";
+import { publishCatalogChange } from "../../misc/catalog-change-events.ts";
+import type { ChainModificationProposal } from "./ChainModificationConfirmation.tsx";
 import { ChainModificationConfirmation } from "./ChainModificationConfirmation.tsx";
 import { applyChainModificationProposal } from "./applyChainModificationProposal.ts";
 import { useAiDrawerResize } from "./useAiDrawerResize.ts";
-import { useAiAssistantChat } from "./useAiAssistantChat.ts";
-import { AiChatMessageList } from "./AiChatMessageList.tsx";
-import { AiChatInput } from "./AiChatInput.tsx";
-import { INPUT_TEXTAREA_ROWS, SEND_KEY } from "./aiAssistantConstants.ts";
+import { useChatStickToBottom } from "./useChatStickToBottom.ts";
+import { useChainContext } from "./useChainContext.ts";
+import {
+  appendTurnFailure,
+  applyStreamingDoneMessages,
+  buildMetaMessage,
+  discardEmptyAssistantPlaceholder,
+  ensureAssistantPlaceholder,
+  getResponseTail,
+  getRoleLabel,
+  shouldHideEmptyStreamingAssistant,
+  upsertAssistantMessage,
+  withoutErrorVariantMessages,
+} from "./chatMessageUtils.ts";
+import {
+  appendDecision,
+  composerDraftText,
+  hasUnansweredDecision,
+  isActionableDecision,
+  markDecisionAnswered,
+  openingUserAssignment,
+  reconcileDecisionMessages,
+  removeDecision,
+  unansweredDecision,
+  visibleDecisionNarrative,
+} from "./chatDecisionUtils.ts";
+import { AiDecisionCard } from "./AiDecisionCard.tsx";
+import { useModalsContext } from "../../Modals.tsx";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { ExportChains } from "../modal/ExportChains.tsx";
+import { downloadChainsExport } from "../../misc/chain-export.ts";
+import {
+  extractDesignUrlFromMessages,
+  lastUserMessageIsBuildChainIntent,
+  looksLikeValidationResult,
+  replaceChainModificationProposalForDisplay,
+  tryParseChainModificationProposal,
+} from "./chainModificationContent.ts";
+import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
+import { SEND_KEY } from "./aiAssistantConstants.ts";
+import { revealStreamText, waitForNextPaint } from "./streamReveal.ts";
+import { AiEmptyState } from "./AiEmptyState.tsx";
+import { AiAssistantHeaderActions } from "./AiAssistantHeaderActions.tsx";
+import { AiComposerActions } from "./AiComposerActions.tsx";
+import { AiActivityInline } from "./activity/AiActivityInline.tsx";
+import { attachActivityToLastAssistant } from "./activity/activitySummary.ts";
+import { useActivityStore } from "./activity/activityStore.ts";
+import {
+  resetConversation,
+  truncateConversation,
+  resolveServerMessageIndexes,
+} from "./conversationTurnApi.ts";
+import {
+  shouldShowErrorToastForAbort,
+  findUserIndexAtOrBefore,
+  getVisibleChatMessages,
+  sliceMessagesForEdit,
+  sliceMessagesForRegenerate,
+  toServerAfterMessageIndex,
+  visibleToFullMessageIndex,
+  withServerMessageIndex,
+} from "./conversationTurnIndex.ts";
+import type { ChainPlanStatusDto } from "../../api/ai/chainPlanClient.ts";
+import {
+  approveChainPlanForBuild,
+  dismissChainPlanOpenItems,
+  fetchChainPlanStatus,
+} from "../../api/ai/chainPlanClient.ts";
+import { fetchOpenDecision } from "../../api/ai/decisionClient.ts";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ResponseResult {
+  finalMessages: ChatMessage[];
+  conversationId?: string;
+  supportsCatalogChangeEvents?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const UI_REFRESH_THROTTLE_MS = 150;
+const DRAWER_Z_INDEX = 2000;
+const SESSION_SELECT_DROPDOWN_Z_INDEX = DRAWER_Z_INDEX + 100;
+const SESSION_SELECT_DROPDOWN_MIN_WIDTH = 320;
+/** First line of the user message, capped so session labels stay readable. */
+const SESSION_TITLE_MAX_LENGTH = 100;
+
+function sessionTitleFromUserMessage(content: string): string {
+  const firstLine = content.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
+  if (firstLine.length <= SESSION_TITLE_MAX_LENGTH) {
+    return firstLine;
+  }
+  return `${firstLine.slice(0, SESSION_TITLE_MAX_LENGTH)}...`;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+/** Card action the browser answers itself; see exportFromCard. */
+const EXPORT_CHAINS_ACTION = "export-chains";
 
 export const AiAssistant: React.FC = () => {
   const [open, setOpen] = useState(false);
 
-  const chat = useAiAssistantChat(open);
+  const sessionStore = getChatSessionStore();
+  const chainContext = useChainContext();
+  const { showModal } = useModalsContext();
+  const notificationService = useNotificationService();
+  const interruptionRefreshRef = useRef({ refreshed: false });
+
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSession, setCurrentSession] = useState<ChatSession | null>(
+    null,
+  );
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [providerError, setProviderError] = useState<string | null>(null);
+  const [showLongRunningHint, setShowLongRunningHint] = useState(false);
+
+  const [inputValue, setInputValue] = useState("");
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = React.useRef<TextAreaRef | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const sendInProgressRef = useRef(false);
+  const decisionReconciliationGenerationRef = useRef(0);
+
+  const {
+    scrollContainerRef,
+    contentRef,
+    onScroll: handleScroll,
+    pinToBottom: scrollToBottom,
+    resumeFollowing,
+  } = useChatStickToBottom();
+
+  const lastUiRefreshTimeRef = useRef(0);
+  const pendingRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [pendingProposal, setPendingProposal] =
+    useState<ChainModificationProposal | null>(null);
+  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+
+  const activityStore = useActivityStore();
+
+  // Chain plan
+  const [chainPlanStatus, setChainPlanStatus] =
+    useState<ChainPlanStatusDto | null>(null);
+
+  const assistantName = getConfig().aiAssistantName ?? "Rocky";
   const { drawerWidth, isResizing, onResizeMouseDown } =
     useAiDrawerResize(open);
 
-  const showDrawer = () => {
+  // ---------------------------------------------------------------------------
+  // Animations
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!isLoading && !isStreaming) {
+      setShowLongRunningHint(false);
+      return;
+    }
+    const t = setTimeout(() => setShowLongRunningHint(true), 4000);
+    return () => clearTimeout(t);
+  }, [isLoading, isStreaming]);
+
+  // ---------------------------------------------------------------------------
+  // Session management
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    // A session becoming current is the reader looking at it fresh, whatever scroll position a
+    // previous session was left at — start following again rather than carrying that over.
+    resumeFollowing();
+    if (currentSessionId) {
+      const session = sessionStore.getSession(currentSessionId);
+      if (session) {
+        setCurrentSession((prevSession) => {
+          if (prevSession && prevSession.id === currentSessionId) {
+            if (prevSession.messages.length >= session.messages.length) {
+              return prevSession;
+            }
+          }
+          return { ...session, messages: [...session.messages] };
+        });
+      } else {
+        setCurrentSession(null);
+      }
+    } else {
+      setCurrentSession(null);
+    }
+  }, [currentSessionId, sessionStore, resumeFollowing]);
+
+  useEffect(() => {
+    const allSessions = sessionStore.getAllSessions();
+    setSessions([...allSessions]);
+    if (allSessions.length > 0 && !currentSessionId) {
+      const defaultId = sessionStore.resolveDefaultSessionId(allSessions);
+      if (defaultId) setCurrentSessionId(defaultId);
+    }
+  }, [currentSessionId, sessionStore]);
+
+  const refreshSessions = useCallback(() => {
+    const allSessions = sessionStore.getAllSessions();
+    setSessions([...allSessions]);
+    if (currentSessionId) {
+      const updatedSession = sessionStore.getSession(currentSessionId);
+      if (updatedSession) {
+        setCurrentSession({
+          ...updatedSession,
+          messages: [...updatedSession.messages],
+        });
+      }
+    }
+  }, [sessionStore, currentSessionId]);
+
+  const throttledRefreshSessions = useCallback(() => {
+    const now = Date.now();
+    const elapsed = now - lastUiRefreshTimeRef.current;
+    if (elapsed >= UI_REFRESH_THROTTLE_MS) {
+      lastUiRefreshTimeRef.current = now;
+      refreshSessions();
+    } else if (pendingRefreshRef.current === null) {
+      const delay = UI_REFRESH_THROTTLE_MS - elapsed;
+      pendingRefreshRef.current = setTimeout(() => {
+        lastUiRefreshTimeRef.current = Date.now();
+        pendingRefreshRef.current = null;
+        refreshSessions();
+      }, delay);
+    }
+  }, [refreshSessions]);
+
+  const flushRefresh = useCallback(() => {
+    if (pendingRefreshRef.current !== null) {
+      clearTimeout(pendingRefreshRef.current);
+      pendingRefreshRef.current = null;
+    }
+    lastUiRefreshTimeRef.current = Date.now();
+    refreshSessions();
+  }, [refreshSessions]);
+
+  // ---------------------------------------------------------------------------
+  // Chain plan status
+  // ---------------------------------------------------------------------------
+
+  const refreshChainPlanStatus = useCallback(
+    async (conversationId: string | undefined) => {
+      if (!conversationId) {
+        setChainPlanStatus(null);
+        return;
+      }
+      try {
+        const s = await fetchChainPlanStatus(conversationId);
+        setChainPlanStatus(s);
+      } catch {
+        setChainPlanStatus(null);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setChainPlanStatus(null);
+      return;
+    }
+    void refreshChainPlanStatus(currentSession?.conversationId);
+  }, [open, currentSession?.conversationId, refreshChainPlanStatus]);
+
+  // ---------------------------------------------------------------------------
+  // Decision reconciliation
+  //
+  // The decision card is a projection of durable server state, not something the
+  // browser remembers: the server is asked what it is waiting on, and the
+  // transcript is made to match. A failed fetch is logged and otherwise ignored —
+  // it must never be read as "the server has nothing open" and drop a card that
+  // is, in fact, still pending.
+  // ---------------------------------------------------------------------------
+
+  const reconcileOpenDecision = useCallback(
+    async (conversationId: string | undefined, sessionId: string) => {
+      if (!conversationId) return;
+      // Never project a durable gate onto an in-flight turn: startOrResume can leave a silent
+      // WAITING_FOR_INPUT that openGate would otherwise paint as a clarify card while skills run.
+      if (sendInProgressRef.current) return;
+      const generation = ++decisionReconciliationGenerationRef.current;
+      let serverDecision: ChatDecision | null;
+      try {
+        serverDecision = await fetchOpenDecision(conversationId);
+      } catch (err) {
+        console.warn("[AiAssistant] Failed to reconcile open decision", err);
+        return;
+      }
+      if (
+        sendInProgressRef.current ||
+        generation !== decisionReconciliationGenerationRef.current
+      )
+        return;
+      const session = sessionStore.getSession(sessionId);
+      if (!session) return;
+      const reconciled = reconcileDecisionMessages(
+        session.messages,
+        serverDecision,
+      );
+      sessionStore.updateSessionMessages(sessionId, reconciled);
+      refreshSessions();
+    },
+    [sessionStore, refreshSessions],
+  );
+
+  // Reconcile on mount (for the session the store restores) and whenever the
+  // active session switches to one the server tracks a conversation for.
+  useEffect(() => {
+    if (!open || !currentSessionId) return;
+    const conversationId =
+      sessionStore.getSession(currentSessionId)?.conversationId;
+    if (!conversationId) return;
+    void reconcileOpenDecision(conversationId, currentSessionId);
+  }, [open, currentSessionId, sessionStore, reconcileOpenDecision]);
+
+  // ---------------------------------------------------------------------------
+  // Chain context refresh
+  // ---------------------------------------------------------------------------
+
+  const refreshChainContexts = useCallback((chainId?: string) => {
+    publishCatalogChange({
+      chainIds: chainId ? [chainId] : null,
+      chainsListChanged: true,
+    });
+  }, []);
+
+  const refreshAfterInterruption = useCallback(
+    (state = interruptionRefreshRef.current) => {
+      if (state.refreshed) return;
+      state.refreshed = true;
+      publishCatalogChange({ chainIds: null, chainsListChanged: true });
+      notificationService.warning(
+        "Catalog update status is unknown",
+        "The connection ended before completion. The server may still be writing; refresh again if needed.",
+        () => publishCatalogChange({ chainIds: null, chainsListChanged: true }),
+      );
+    },
+    [notificationService],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Response complete
+  // ---------------------------------------------------------------------------
+
+  const handleResponseComplete = useCallback(
+    (sessionId: string, result: ResponseResult) => {
+      const { finalMessages, conversationId } = result;
+      sessionStore.updateSessionMessages(sessionId, finalMessages);
+      if (conversationId)
+        sessionStore.updateConversationId(sessionId, conversationId);
+      flushRefresh();
+
+      const lastAssistant = [...finalMessages]
+        .reverse()
+        .find((m) => m.role === "assistant" && m.variant !== "error");
+      if (lastAssistant) {
+        const proposal = tryParseChainModificationProposal(
+          lastAssistant.content,
+        );
+        if (proposal) {
+          setPendingProposal(proposal);
+          setIsConfirmationOpen(true);
+        }
+      }
+
+      if (!result.supportsCatalogChangeEvents) void refreshChainContexts();
+      const cid =
+        conversationId ?? sessionStore.getSession(sessionId)?.conversationId;
+      void refreshChainPlanStatus(cid);
+      void reconcileOpenDecision(cid, sessionId);
+    },
+    [
+      sessionStore,
+      flushRefresh,
+      refreshChainContexts,
+      refreshChainPlanStatus,
+      reconcileOpenDecision,
+    ],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Streaming path (with UI-refresh throttle)
+  // ---------------------------------------------------------------------------
+
+  const runStreamingChat = useCallback(
+    async (
+      aiProvider: AiModelProvider,
+      requestPayload: ChatRequest,
+      sessionId: string,
+      requestMessages: ChatMessage[],
+      start: number,
+      conversationId: string,
+    ): Promise<void> => {
+      setIsStreaming(true);
+      activityStore.reset();
+
+      let accumulatedContent = "";
+      let visibleContent = "";
+      let currentMessages = ensureAssistantPlaceholder([...requestMessages]);
+      sessionStore.updateSessionMessages(sessionId, currentMessages);
+      refreshSessions();
+      let periodicalChainRefreshAt = performance.now() + 2000;
+      let activeConversationId = conversationId;
+      let turnFailed = false;
+      let turnEnded = false;
+      let receivedDone = false;
+      let supportsCatalogChangeEvents = false;
+      const interruptionState = interruptionRefreshRef.current;
+      let streamOps: Promise<void> = Promise.resolve();
+
+      const paintVisible = (chunk: string) => {
+        visibleContent += chunk;
+        currentMessages = upsertAssistantMessage(
+          currentMessages,
+          visibleContent,
+        );
+        sessionStore.updateSessionMessages(sessionId, currentMessages);
+        throttledRefreshSessions();
+        scrollToBottom();
+      };
+
+      const enqueueOp = (op: () => void | Promise<void>) => {
+        streamOps = streamOps.then(op).catch((err: unknown) => {
+          console.error("[AiAssistant] stream reveal failed", err);
+        });
+      };
+
+      await aiProvider.streamChat!(requestPayload, (chunk: StreamingChunk) => {
+        if (chunk.type === "meta" && chunk.conversationId) {
+          supportsCatalogChangeEvents =
+            chunk.supportsCatalogChangeEvents === true;
+          activeConversationId = chunk.conversationId;
+          sessionStore.updateConversationId(sessionId, chunk.conversationId);
+          if (
+            !requestPayload.decision &&
+            chunk.userMessageIndex !== undefined
+          ) {
+            currentMessages = withServerMessageIndex(
+              currentMessages,
+              chunk.userMessageIndex,
+            );
+            sessionStore.updateSessionMessages(sessionId, currentMessages);
+          }
+          return;
+        }
+
+        if (chunk.type === "catalog-changed" && chunk.catalogChange) {
+          publishCatalogChange(chunk.catalogChange);
+          return;
+        }
+
+        if (chunk.type === "step" && chunk.step) {
+          activityStore.applyStep(chunk.step);
+          // Activity rows grow inside the scroll container without changing message text.
+          scrollToBottom();
+          return;
+        }
+
+        if (chunk.type === "decision" && chunk.decision) {
+          const decision = chunk.decision;
+          enqueueOp(() => {
+            // Keep whatever the assistant streamed before the gate, then park the card after it.
+            if (accumulatedContent.trim()) {
+              currentMessages = upsertAssistantMessage(
+                currentMessages,
+                accumulatedContent,
+              );
+              accumulatedContent = "";
+            }
+            visibleContent = "";
+            currentMessages = appendDecision(currentMessages, decision);
+            sessionStore.updateSessionMessages(sessionId, currentMessages);
+            refreshSessions();
+            scrollToBottom();
+          });
+          return;
+        }
+
+        if (chunk.type === "delta" && chunk.contentDelta) {
+          if (turnFailed) {
+            return;
+          }
+          const delta = chunk.contentDelta;
+          enqueueOp(async () => {
+            accumulatedContent += delta;
+            await revealStreamText(
+              delta,
+              paintVisible,
+              waitForNextPaint,
+              () =>
+                turnEnded ||
+                abortControllerRef.current?.signal.aborted === true,
+            );
+            if (chainContext && !supportsCatalogChangeEvents) {
+              const now = performance.now();
+              if (now >= periodicalChainRefreshAt) {
+                periodicalChainRefreshAt = now + 2000;
+                void refreshChainContexts();
+              }
+            }
+          });
+          return;
+        }
+
+        if (chunk.type === "done") {
+          receivedDone = true;
+          turnEnded = true;
+          enqueueOp(() => {
+            const durationMs = Math.round(performance.now() - start);
+            let finalMessages = applyStreamingDoneMessages(
+              currentMessages,
+              accumulatedContent,
+              {
+                turnFailed,
+                durationMs,
+                finishReason: chunk.finishReason,
+                usage: chunk.usage,
+              },
+            );
+            finalMessages = attachActivityToLastAssistant(
+              finalMessages,
+              activityStore.getRows(),
+              durationMs,
+            );
+            finalMessages = discardEmptyAssistantPlaceholder(finalMessages);
+            activityStore.reset();
+            handleResponseComplete(sessionId, {
+              finalMessages,
+              conversationId: chunk.conversationId ?? activeConversationId,
+              supportsCatalogChangeEvents,
+            });
+            setIsStreaming(false);
+            scrollToBottom();
+          });
+          return;
+        }
+
+        if (chunk.type === "error" && chunk.errorMessage) {
+          if (chunk.transportError) refreshAfterInterruption(interruptionState);
+          turnEnded = true;
+          const errorMessage = chunk.errorMessage;
+          turnFailed = true;
+          enqueueOp(() => {
+            // The turn ended without a "done" event: check whether the server still has
+            // a gate open so an aborted or failed turn does not leave a stale card.
+            void reconcileOpenDecision(activeConversationId, sessionId);
+            if (!shouldShowErrorToastForAbort(new Error(errorMessage))) {
+              setIsStreaming(false);
+              return;
+            }
+            const durationMs = Math.round(performance.now() - start);
+            currentMessages = appendTurnFailure(
+              currentMessages,
+              errorMessage,
+              accumulatedContent,
+              hasUnansweredDecision(currentMessages) ? "valid" : "stale",
+            );
+            currentMessages = attachActivityToLastAssistant(
+              currentMessages,
+              activityStore.getRows(),
+              durationMs,
+            );
+            currentMessages = discardEmptyAssistantPlaceholder(currentMessages);
+            activityStore.reset();
+            sessionStore.updateSessionMessages(sessionId, currentMessages);
+            flushRefresh();
+            setIsStreaming(false);
+          });
+        }
+      });
+      if (!receivedDone) refreshAfterInterruption(interruptionState);
+      await streamOps;
+    },
+    [
+      chainContext,
+      sessionStore,
+      activityStore,
+      refreshSessions,
+      throttledRefreshSessions,
+      scrollToBottom,
+      refreshChainContexts,
+      handleResponseComplete,
+      flushRefresh,
+      reconcileOpenDecision,
+      refreshAfterInterruption,
+    ],
+  );
+
+  // ---------------------------------------------------------------------------
+  // chatWithProgress fallback path
+  // ---------------------------------------------------------------------------
+
+  const runChatWithProgress = useCallback(
+    async (
+      aiProvider: AiModelProvider,
+      requestPayload: ChatRequest,
+      sessionId: string,
+      requestMessages: ChatMessage[],
+      start: number,
+    ): Promise<void> => {
+      setIsStreaming(true);
+      activityStore.reset();
+      sessionStore.updateSessionMessages(
+        sessionId,
+        ensureAssistantPlaceholder(requestMessages),
+      );
+      refreshSessions();
+
+      let supportsCatalogChangeEvents = false;
+      let receivedDone = false;
+      let serverError = false;
+      let indexedRequestMessages = requestMessages;
+      const interruptionState = interruptionRefreshRef.current;
+      const onChunk = (chunk: StreamingChunk) => {
+        if (chunk.type === "meta") {
+          supportsCatalogChangeEvents =
+            chunk.supportsCatalogChangeEvents === true;
+          if (
+            !requestPayload.decision &&
+            chunk.userMessageIndex !== undefined
+          ) {
+            indexedRequestMessages = withServerMessageIndex(
+              indexedRequestMessages,
+              chunk.userMessageIndex,
+            );
+            sessionStore.updateSessionMessages(
+              sessionId,
+              ensureAssistantPlaceholder(indexedRequestMessages),
+            );
+          }
+        }
+        if (chunk.type === "catalog-changed" && chunk.catalogChange)
+          publishCatalogChange(chunk.catalogChange);
+        if (chunk.type === "done") receivedDone = true;
+        if (chunk.type === "error") {
+          serverError = !chunk.transportError;
+          if (chunk.transportError) refreshAfterInterruption(interruptionState);
+        }
+        if (chunk.type === "step" && chunk.step) {
+          activityStore.applyStep(chunk.step);
+        }
+      };
+
+      let response: ChatResponse;
+      try {
+        response = await aiProvider.chatWithProgress(requestPayload, onChunk);
+      } finally {
+        if (!receivedDone && !serverError)
+          refreshAfterInterruption(interruptionState);
+        setIsStreaming(false);
+      }
+
+      const durationMs = Math.round(performance.now() - start);
+
+      const responseTail = getResponseTail(
+        indexedRequestMessages,
+        response.messages,
+      );
+      const lastAssistantFromResponse = [...responseTail]
+        .reverse()
+        .find((m): m is ChatMessage => m.role === "assistant");
+
+      const mergedAssistantContent =
+        lastAssistantFromResponse?.content.trim() ?? "";
+
+      let finalMessages: ChatMessage[] = [
+        ...indexedRequestMessages.filter((m) => (m.role as string) !== "tool"),
+        ...(mergedAssistantContent
+          ? [{ role: "assistant" as const, content: mergedAssistantContent }]
+          : []),
+      ];
+      if (!mergedAssistantContent) {
+        finalMessages = ensureAssistantPlaceholder(finalMessages);
+      }
+
+      if (response.usage || response.finishReason) {
+        finalMessages = [
+          ...finalMessages,
+          buildMetaMessage(durationMs, response.finishReason, response.usage),
+        ];
+      }
+
+      finalMessages = attachActivityToLastAssistant(
+        finalMessages,
+        activityStore.getRows(),
+        durationMs,
+      );
+      finalMessages = discardEmptyAssistantPlaceholder(finalMessages);
+      activityStore.reset();
+
+      if (finalMessages.length > 0) {
+        handleResponseComplete(sessionId, {
+          finalMessages,
+          conversationId: response.conversationId,
+          supportsCatalogChangeEvents,
+        });
+      }
+    },
+    [
+      sessionStore,
+      activityStore,
+      refreshSessions,
+      scrollToBottom,
+      handleResponseComplete,
+      refreshAfterInterruption,
+    ],
+  );
+
+  // ---------------------------------------------------------------------------
+  // sendToProvider
+  // ---------------------------------------------------------------------------
+
+  const sendToProvider = useCallback(
+    async (
+      sessionId: string,
+      messages: ChatMessage[],
+      attachmentUrls?: string[],
+      newMessages?: ChatMessage[],
+      attachmentObjectKeys?: string[],
+      scenarioHint?: string,
+      decision?: ChatRequest["decision"],
+    ) => {
+      if (sendInProgressRef.current) {
+        console.warn(
+          "[AiAssistant] sendToProvider skipped – already in progress",
+        );
+        return;
+      }
+      if (messages.length === 0) {
+        setProviderError(
+          "Conversation is empty. Please type a message and try again.",
+        );
+        return;
+      }
+      ++decisionReconciliationGenerationRef.current;
+      sendInProgressRef.current = true;
+
+      let aiProvider: AiModelProvider | null = null;
+      try {
+        aiProvider = getDefaultAiProvider();
+        setProviderError(null);
+      } catch (error) {
+        const errorMsg =
+          error instanceof Error
+            ? error.message
+            : "Failed to initialize AI provider";
+        setProviderError(errorMsg);
+        sessionStore.updateSessionMessages(
+          sessionId,
+          appendTurnFailure(
+            messages,
+            errorMsg,
+            undefined,
+            hasUnansweredDecision(messages) ? "valid" : "stale",
+          ),
+        );
+        refreshSessions();
+        sendInProgressRef.current = false;
+        return;
+      }
+
+      setIsLoading(true);
+      setIsStreaming(false);
+      abortControllerRef.current = new AbortController();
+      interruptionRefreshRef.current = { refreshed: false };
+
+      try {
+        const currentSessionData = sessionStore.getSession(sessionId);
+        const existingConversationId = currentSessionData?.conversationId;
+        // Persist before SSE so a failed/aborted stream keeps the same id on retry.
+        const conversationId = sessionStore.ensureConversationId(sessionId);
+        const messagesToApi =
+          existingConversationId && newMessages ? newMessages : messages;
+
+        // Merge attachment URLs and object keys from previous sends
+        const prevUrls = currentSessionData?.lastAttachmentUrls ?? [];
+        const prevKeys = currentSessionData?.lastAttachmentObjectKeys ?? [];
+        const incoming = decision ? [] : (attachmentUrls ?? []);
+        const mergedAttachmentUrls = decision
+          ? undefined
+          : prevUrls.length || incoming.length
+            ? [...new Set([...prevUrls, ...incoming])]
+            : undefined;
+
+        const incomingKeys = decision ? [] : (attachmentObjectKeys ?? []);
+        const mergedAttachmentObjectKeys = decision
+          ? undefined
+          : prevKeys.length || incomingKeys.length
+            ? [...new Set([...prevKeys, ...incomingKeys])]
+            : undefined;
+
+        if (mergedAttachmentObjectKeys?.length) {
+          sessionStore.updateSessionLastAttachmentObjectKeys(
+            sessionId,
+            mergedAttachmentObjectKeys,
+          );
+        }
+        if (mergedAttachmentUrls?.length) {
+          sessionStore.updateSessionLastAttachmentUrls(
+            sessionId,
+            mergedAttachmentUrls,
+          );
+        }
+
+        const requestPayload: ChatRequest = {
+          messages: withoutErrorVariantMessages(messagesToApi),
+          conversationId,
+          abortSignal: abortControllerRef.current.signal,
+          attachmentUrls: mergedAttachmentUrls,
+          attachmentObjectKeys: mergedAttachmentObjectKeys,
+          temperature: 1,
+          scenarioHint: scenarioHint?.trim() || undefined,
+          decision,
+        };
+
+        if (chainContext) {
+          const fresh = chainContext.getFreshContext
+            ? await chainContext.getFreshContext()
+            : chainContext;
+          const { chain, compactSchema } = fresh;
+          requestPayload.context = {
+            type: "chain",
+            chainId: chain.id,
+            compactSchema,
+          };
+        }
+
+        const start = performance.now();
+
+        if (
+          aiProvider.capabilities?.supportsStreaming &&
+          aiProvider.streamChat
+        ) {
+          await runStreamingChat(
+            aiProvider,
+            requestPayload,
+            sessionId,
+            messages,
+            start,
+            conversationId,
+          );
+        } else {
+          await runChatWithProgress(
+            aiProvider,
+            requestPayload,
+            sessionId,
+            messages,
+            start,
+          );
+        }
+      } catch (error) {
+        if (!shouldShowErrorToastForAbort(error)) {
+          refreshSessions();
+          return;
+        }
+        const message =
+          error instanceof Error ? error.message : "Failed to get AI response";
+        const sessionMessages =
+          sessionStore.getSession(sessionId)?.messages ?? messages;
+        const last = sessionMessages[sessionMessages.length - 1];
+        if (last?.variant === "error") {
+          refreshSessions();
+          return;
+        }
+        sessionStore.updateSessionMessages(
+          sessionId,
+          appendTurnFailure(
+            sessionMessages,
+            message,
+            undefined,
+            hasUnansweredDecision(sessionMessages) ? "valid" : "stale",
+          ),
+        );
+        refreshSessions();
+      } finally {
+        setIsLoading(false);
+        setIsStreaming(false);
+        abortControllerRef.current = null;
+        sendInProgressRef.current = false;
+        await reconcileOpenDecision(
+          sessionStore.getSession(sessionId)?.conversationId,
+          sessionId,
+        );
+      }
+    },
+    [
+      chainContext,
+      sessionStore,
+      refreshSessions,
+      runStreamingChat,
+      runChatWithProgress,
+      reconcileOpenDecision,
+    ],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Session UI handlers
+  // ---------------------------------------------------------------------------
+
+  const showDrawer = useCallback(() => {
     setOpen(true);
-    chat.ensureSessionOnOpen();
-  };
+    const allSessions = sessionStore.getAllSessions();
+    if (allSessions.length === 0) {
+      const newSession = sessionStore.createSession();
+      setCurrentSessionId(newSession.id);
+      refreshSessions();
+      return;
+    }
+    const hasActiveSession =
+      currentSessionId !== null &&
+      sessionStore.getSession(currentSessionId) !== null;
+    if (!hasActiveSession) {
+      const defaultId = sessionStore.resolveDefaultSessionId(allSessions);
+      if (defaultId) setCurrentSessionId(defaultId);
+    }
+  }, [sessionStore, refreshSessions, currentSessionId]);
 
   const onClose = () => setOpen(false);
+
+  const handleCreateSession = () => {
+    const newSession = sessionStore.createSession();
+    setCurrentSessionId(newSession.id);
+    refreshSessions();
+  };
+
+  const handleStartSameTask = useCallback(() => {
+    if (!currentSessionId || isLoading || isStreaming) return;
+    const session = sessionStore.getSession(currentSessionId);
+    if (!session) return;
+    const assignment = openingUserAssignment(session.messages);
+    if (!assignment) return;
+    const newSession = sessionStore.createSession();
+    setCurrentSessionId(newSession.id);
+    refreshSessions();
+    const userMessage: ChatMessage = { role: "user", content: assignment };
+    sessionStore.updateSessionMessages(newSession.id, [userMessage]);
+    void sendToProvider(newSession.id, [userMessage]);
+  }, [
+    currentSessionId,
+    isLoading,
+    isStreaming,
+    sessionStore,
+    refreshSessions,
+    sendToProvider,
+  ]);
+
+  const handleSessionChange = (sessionId: string) => {
+    sessionStore.setLastActiveSessionId(sessionId);
+    setCurrentSessionId(sessionId);
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    sessionStore.deleteSession(sessionId);
+    refreshSessions();
+    if (currentSessionId === sessionId) {
+      const updatedSessions = sessionStore.getAllSessions();
+      setCurrentSessionId(
+        updatedSessions.length > 0
+          ? sessionStore.resolveDefaultSessionId(updatedSessions)
+          : null,
+      );
+    }
+  };
+
+  const handleAbort = useCallback(() => {
+    refreshAfterInterruption();
+    abortControllerRef.current?.abort();
+    activityStore.markRunningCancelled();
+    if (currentSessionId) {
+      const session = sessionStore.getSession(currentSessionId);
+      const steps = activityStore.getRows();
+      if (session) {
+        let next = session.messages;
+        if (steps.length > 0) {
+          next = attachActivityToLastAssistant(next, steps);
+        }
+        next = discardEmptyAssistantPlaceholder(next);
+        if (next !== session.messages) {
+          sessionStore.updateSessionMessages(currentSessionId, next);
+          refreshSessions();
+        }
+      }
+      // The aborted turn never reaches the "done" or "error" chunk, so nothing else
+      // would otherwise check whether the server still has a gate open.
+      void reconcileOpenDecision(session?.conversationId, currentSessionId);
+    }
+    activityStore.reset();
+    setIsStreaming(false);
+    setIsLoading(false);
+  }, [
+    activityStore,
+    currentSessionId,
+    sessionStore,
+    refreshSessions,
+    reconcileOpenDecision,
+    refreshAfterInterruption,
+  ]);
+
+  // ---------------------------------------------------------------------------
+  // Decision card answer
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The export card is answered in the browser: it opens the chains page export dialog and
+   * downloads the archive. The server keeps nothing for it, so nothing is sent. The card freezes
+   * only once the export starts, so closing the dialog leaves it usable.
+   */
+  const exportFromCard = useCallback(
+    (decision: ChatDecision) => {
+      const chainIds = decision.chainIds ?? [];
+      const sessionId = currentSessionId;
+      if (!sessionId || chainIds.length === 0) return;
+      showModal({
+        component: (
+          <ExportChains
+            multiple={chainIds.length !== 1}
+            onSubmit={(options) => {
+              const session = sessionStore.getSession(sessionId);
+              if (session) {
+                sessionStore.updateSessionMessages(
+                  sessionId,
+                  markDecisionAnswered(
+                    session.messages,
+                    decision.id,
+                    EXPORT_CHAINS_ACTION,
+                  ),
+                );
+                refreshSessions();
+              }
+              downloadChainsExport(api, chainIds, options).catch(
+                (error: unknown) =>
+                  notificationService.requestFailed(
+                    "Failed to export chains",
+                    error,
+                  ),
+              );
+            }}
+          />
+        ),
+      });
+    },
+    [
+      currentSessionId,
+      sessionStore,
+      refreshSessions,
+      showModal,
+      notificationService,
+    ],
+  );
+
+  const handleDecisionAnswer = useCallback(
+    async (
+      decision: ChatDecision,
+      action: string,
+      comment: string,
+      specSystemTypes?: Record<string, CatalogSystemType>,
+    ) => {
+      if (action === EXPORT_CHAINS_ACTION) {
+        exportFromCard(decision);
+        return;
+      }
+      if (!currentSessionId || sendInProgressRef.current) return;
+      resumeFollowing();
+      const session = sessionStore.getSession(currentSessionId);
+      if (!session) return;
+
+      const answeredMessages = markDecisionAnswered(
+        session.messages,
+        decision.id,
+        action,
+      );
+      sessionStore.updateSessionMessages(currentSessionId, answeredMessages);
+      refreshSessions();
+
+      await sendToProvider(
+        currentSessionId,
+        answeredMessages,
+        session.lastAttachmentUrls,
+        [],
+        session.lastAttachmentObjectKeys,
+        undefined,
+        {
+          action,
+          artifactType: decision.artifactType,
+          artifactHash: decision.artifactHash,
+          revision: decision.revision,
+          comment: comment || undefined,
+          ...(specSystemTypes === undefined ? {} : { specSystemTypes }),
+        },
+      );
+    },
+    [
+      currentSessionId,
+      sessionStore,
+      refreshSessions,
+      sendToProvider,
+      resumeFollowing,
+      exportFromCard,
+    ],
+  );
+
+  // ---------------------------------------------------------------------------
+  // handleClarificationSubmit
+  // ---------------------------------------------------------------------------
+
+  /**
+   * A clarification has no enumerable answer, so the reader's text goes through the ordinary
+   * chat-message path — a real user turn, not a decision command — while the card still freezes
+   * like an answered approval card.
+   */
+  const handleClarificationSubmit = useCallback(
+    async (decision: ChatDecision, text: string) => {
+      if (!currentSessionId || sendInProgressRef.current) return;
+      resumeFollowing();
+      const session = sessionStore.getSession(currentSessionId);
+      if (!session) return;
+
+      const answeredLabel = decision.actions.includes(text) ? text : "clarify";
+      const answeredMessages = markDecisionAnswered(
+        session.messages,
+        decision.id,
+        answeredLabel,
+      );
+      const userMessage: ChatMessage = { role: "user", content: text };
+      const next = [...answeredMessages, userMessage];
+      sessionStore.updateSessionMessages(currentSessionId, next);
+      refreshSessions();
+
+      await sendToProvider(
+        currentSessionId,
+        next,
+        session.lastAttachmentUrls,
+        [userMessage],
+        session.lastAttachmentObjectKeys,
+      );
+    },
+    [
+      currentSessionId,
+      sessionStore,
+      refreshSessions,
+      sendToProvider,
+      resumeFollowing,
+    ],
+  );
+
+  // ---------------------------------------------------------------------------
+  // handleSend
+  // ---------------------------------------------------------------------------
+
+  const handleSend = useCallback(async () => {
+    const messageText = composerDraftText(
+      inputValue,
+      inputRef.current?.resizableTextArea?.textArea?.value,
+    );
+    if (
+      (!messageText && attachedFiles.length === 0) ||
+      isLoading ||
+      isStreaming
+    ) {
+      return;
+    }
+    resumeFollowing();
+
+    const sessionId = currentSessionId ?? sessionStore.createSession().id;
+    if (sessionId !== currentSessionId) setCurrentSessionId(sessionId);
+
+    const session = sessionStore.getSession(sessionId);
+    if (!session) return;
+
+    const openDecision = unansweredDecision(session.messages);
+    if (openDecision && messageText && attachedFiles.length === 0) {
+      setInputValue("");
+      await handleClarificationSubmit(openDecision, messageText);
+      return;
+    }
+
+    let attachmentUrls: string[] | undefined;
+    let attachmentObjectKeys: string[] | undefined;
+
+    if (attachedFiles.length > 0) {
+      try {
+        const aiProvider = getDefaultAiProvider();
+        if (aiProvider.uploadFile) {
+          const results = await Promise.all(
+            attachedFiles.map((file) =>
+              aiProvider.uploadFile!(file, sessionId),
+            ),
+          );
+          attachmentUrls = results.map((r) => r.url);
+          attachmentObjectKeys = results.map((r) => r.objectKey);
+        }
+      } catch (e) {
+        console.warn(
+          "[AiAssistant] Upload failed, sending without attachments",
+          e,
+        );
+      }
+      setAttachedFiles([]);
+    }
+
+    const userContent =
+      messageText ||
+      ((attachmentObjectKeys?.length ?? attachmentUrls?.length)
+        ? "See attached files."
+        : "");
+    const userMessage: ChatMessage = { role: "user", content: userContent };
+    // Drop unanswered cards from a prior wait so a silent bootstrap gate cannot linger
+    // above the new turn's skill spinner while the stream is still running.
+    let baseMessages = session.messages;
+    for (const message of session.messages) {
+      const openId =
+        message.decision?.answeredAction === undefined
+          ? message.decision?.id
+          : undefined;
+      if (openId) {
+        baseMessages = removeDecision(baseMessages, openId);
+      }
+    }
+    const next = [...baseMessages, userMessage];
+    sessionStore.updateSessionMessages(sessionId, next);
+    setInputValue("");
+    refreshSessions();
+    await sendToProvider(
+      sessionId,
+      next,
+      attachmentUrls,
+      [userMessage],
+      attachmentObjectKeys,
+    );
+
+    const after = sessionStore.getSession(sessionId);
+    if (
+      after &&
+      (after.title === "New Chat" || after.title.match(/^Chat \d+$/))
+    ) {
+      sessionStore.updateSessionTitle(
+        sessionId,
+        sessionTitleFromUserMessage(userMessage.content),
+      );
+      refreshSessions();
+    }
+  }, [
+    currentSessionId,
+    inputValue,
+    isLoading,
+    isStreaming,
+    attachedFiles,
+    handleClarificationSubmit,
+    refreshSessions,
+    sendToProvider,
+    sessionStore,
+    resumeFollowing,
+  ]);
+
+  // ---------------------------------------------------------------------------
+  // handleBuildChainClick: approve plan, then build
+  // ---------------------------------------------------------------------------
+
+  const handleBuildChainClick = useCallback(async () => {
+    if (!currentSessionId || isLoading || isStreaming) return;
+    const session = sessionStore.getSession(currentSessionId);
+    if (!session) return;
+    const conversationId = session.conversationId;
+    if (!conversationId) return;
+    if (lastUserMessageIsBuildChainIntent(session.messages)) return;
+
+    const runBuild = async () => {
+      if ((chainPlanStatus?.openItemCount ?? 0) > 0) {
+        const dismissed = await dismissChainPlanOpenItems(conversationId);
+        if (dismissed) setChainPlanStatus(dismissed);
+      }
+      const approved = await approveChainPlanForBuild(conversationId);
+      if (approved) setChainPlanStatus(approved);
+
+      const buildMessage: ChatMessage = {
+        role: "user",
+        content:
+          "Implement the approved chain implementation plan in the catalog.",
+      };
+      const next = [...session.messages, buildMessage];
+      sessionStore.updateSessionMessages(currentSessionId, next);
+      refreshSessions();
+
+      const latestSession = sessionStore.getSession(currentSessionId);
+      let urls =
+        latestSession?.lastAttachmentUrls ?? session.lastAttachmentUrls;
+      const keys =
+        latestSession?.lastAttachmentObjectKeys ??
+        session.lastAttachmentObjectKeys;
+      if (!urls?.length) {
+        const designUrl = extractDesignUrlFromMessages(session.messages);
+        if (designUrl) urls = [designUrl];
+      }
+      await sendToProvider(
+        currentSessionId,
+        next,
+        urls,
+        [buildMessage],
+        keys,
+        // IMPLEMENT_CHAIN has no handler and, with a chain open, starts a CREATE interview.
+        // Leave the hint off when the reader already has a chain on screen.
+        chainContext ? undefined : "IMPLEMENT_CHAIN",
+      );
+    };
+
+    if ((chainPlanStatus?.openItemCount ?? 0) > 0) {
+      Modal.confirm({
+        title: "Dismiss open plan items?",
+        content:
+          "Unresolved plan items will be marked dismissed. You can verify bindings in the catalog UI before running the chain.",
+        okText: "Dismiss and build",
+        cancelText: "Cancel",
+        onOk: () => runBuild(),
+      });
+      return;
+    }
+
+    await runBuild();
+  }, [
+    currentSessionId,
+    isLoading,
+    isStreaming,
+    chainPlanStatus,
+    sessionStore,
+    refreshSessions,
+    sendToProvider,
+    chainContext,
+  ]);
+
+  // ---------------------------------------------------------------------------
+  // handleClear
+  // ---------------------------------------------------------------------------
+
+  const handleClear = useCallback(async () => {
+    if (isLoading || isStreaming || !currentSessionId) return;
+    const session = sessionStore.getSession(currentSessionId);
+    const conversationId = session?.conversationId;
+    const serviceUrl = getAiServiceUrl();
+
+    if (conversationId && serviceUrl) {
+      try {
+        await resetConversation(serviceUrl, conversationId);
+      } catch (err) {
+        console.error("[AiAssistant] Clear reset failed", err);
+      }
+    }
+
+    sessionStore.updateSessionMessages(currentSessionId, []);
+    sessionStore.updateSessionLastAttachmentUrls(currentSessionId, undefined);
+    sessionStore.updateSessionLastAttachmentObjectKeys(
+      currentSessionId,
+      undefined,
+    );
+    activityStore.reset();
+    setChainPlanStatus(null);
+    refreshSessions();
+  }, [
+    isLoading,
+    isStreaming,
+    currentSessionId,
+    sessionStore,
+    activityStore,
+    refreshSessions,
+  ]);
+
+  // ---------------------------------------------------------------------------
+  // Regenerate
+  // ---------------------------------------------------------------------------
+
+  const handlePrepareRegenerateFromIndex = useCallback(
+    async (visibleIndex: number) => {
+      if (!currentSessionId || isLoading || isStreaming) return;
+      const session = sessionStore.getSession(currentSessionId);
+      if (!session) return;
+
+      const visible = getVisibleChatMessages(session.messages);
+      const fullIndex = visibleToFullMessageIndex(
+        session.messages,
+        visible,
+        visibleIndex,
+      );
+      if (fullIndex < 0 || session.messages[fullIndex]?.role !== "user") return;
+
+      const serviceUrl = getAiServiceUrl();
+      const conversationId = session.conversationId;
+      let indexedMessages = session.messages;
+      if (conversationId && serviceUrl) {
+        try {
+          indexedMessages = await resolveServerMessageIndexes(
+            serviceUrl,
+            conversationId,
+            session.messages,
+            fullIndex,
+          );
+          await truncateConversation(
+            serviceUrl,
+            conversationId,
+            toServerAfterMessageIndex(indexedMessages, fullIndex),
+          );
+        } catch (err) {
+          console.error("[AiAssistant] Edit truncate failed", err);
+          notificationService.requestFailed(
+            "Failed to edit the conversation",
+            err,
+          );
+          return;
+        }
+      }
+
+      const sliced = sliceMessagesForEdit(indexedMessages, fullIndex);
+      const userMessage = session.messages[fullIndex];
+      sessionStore.updateSessionMessages(currentSessionId, sliced);
+      setInputValue(userMessage.content);
+      refreshSessions();
+      scrollToBottom();
+    },
+    [
+      currentSessionId,
+      isLoading,
+      isStreaming,
+      refreshSessions,
+      sessionStore,
+      scrollToBottom,
+      notificationService,
+    ],
+  );
+
+  const handleRegenerateFromIndex = useCallback(
+    async (visibleIndex: number) => {
+      if (!currentSessionId || isLoading || isStreaming) return;
+      const session = sessionStore.getSession(currentSessionId);
+      if (!session) return;
+
+      const visible = getVisibleChatMessages(session.messages);
+      const fullIndex = visibleToFullMessageIndex(
+        session.messages,
+        visible,
+        visibleIndex,
+      );
+      if (fullIndex < 0) return;
+
+      const userFullIndex = findUserIndexAtOrBefore(
+        session.messages,
+        fullIndex,
+      );
+      if (userFullIndex < 0) return;
+
+      const serviceUrl = getAiServiceUrl();
+      const conversationId = session.conversationId;
+      let indexedMessages = session.messages;
+      if (conversationId && serviceUrl) {
+        try {
+          indexedMessages = await resolveServerMessageIndexes(
+            serviceUrl,
+            conversationId,
+            session.messages,
+            userFullIndex,
+          );
+          await truncateConversation(
+            serviceUrl,
+            conversationId,
+            toServerAfterMessageIndex(indexedMessages, userFullIndex),
+          );
+        } catch (err) {
+          console.error("[AiAssistant] Regenerate truncate failed", err);
+          notificationService.requestFailed(
+            "Failed to regenerate the answer",
+            err,
+          );
+          return;
+        }
+      }
+
+      const baseMessages = sliceMessagesForRegenerate(
+        indexedMessages,
+        userFullIndex,
+      );
+      sessionStore.updateSessionMessages(currentSessionId, baseMessages);
+      refreshSessions();
+
+      const latestSession = sessionStore.getSession(currentSessionId);
+      await sendToProvider(
+        currentSessionId,
+        baseMessages,
+        latestSession?.lastAttachmentUrls ?? session.lastAttachmentUrls,
+        undefined,
+        latestSession?.lastAttachmentObjectKeys ??
+          session.lastAttachmentObjectKeys,
+      );
+    },
+    [
+      currentSessionId,
+      isLoading,
+      isStreaming,
+      refreshSessions,
+      sendToProvider,
+      sessionStore,
+      notificationService,
+    ],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
+  const visibleMessages = useMemo(
+    () => getVisibleChatMessages(currentSession?.messages ?? []),
+    [currentSession?.messages],
+  );
+
+  const lastAssistantVisibleIndex = useMemo(() => {
+    for (let i = visibleMessages.length - 1; i >= 0; i -= 1) {
+      if (visibleMessages[i]?.role === "assistant") {
+        return i;
+      }
+    }
+    return -1;
+  }, [visibleMessages]);
+
+  const handleCopyMessage = useCallback((text: string) => {
+    void navigator.clipboard.writeText(text);
+  }, []);
+
+  const isTurnInFlight = isLoading || isStreaming;
+  const hasActivity = activityStore.rows.length > 0;
+
+  const sessionOptions = useMemo(
+    () =>
+      sessions.map((session) => ({
+        value: session.id,
+        label: session.title,
+      })),
+    [sessions],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <>
       <div style={{ display: "flex", alignItems: "center" }}>
         <Button
           type="text"
-          aria-label={chat.assistantName}
-          title={chat.assistantName}
+          aria-label={assistantName}
+          title={assistantName}
           style={{ fontSize: 18, color: "inherit" }}
           icon={<OverridableIcon name="comment" />}
           onClick={(e) => {
@@ -52,131 +1617,482 @@ export const AiAssistant: React.FC = () => {
               }}
             >
               <span style={{ fontSize: 16, fontWeight: 500 }}>
-                {chat.assistantName}
+                {assistantName}
               </span>
-              <Space size="small">
-                <Button
-                  size="small"
-                  icon={<OverridableIcon name="plus" />}
-                  onClick={chat.handleCreateSession}
-                >
-                  New Chat
-                </Button>
-                <Button
-                  size="small"
-                  onClick={chat.handleClear}
-                  disabled={chat.isLoading || chat.isStreaming}
-                >
-                  Clear
-                </Button>
-              </Space>
+              <AiAssistantHeaderActions
+                onNewChat={handleCreateSession}
+                onClearChat={handleClear}
+                clearDisabled={isLoading || isStreaming}
+              />
             </div>
           </div>
         }
         placement="right"
         open={open}
-        closable={true}
+        closable
         onClose={onClose}
-        afterOpenChange={() => {}}
+        // The panel slides in over a CSS transition the scroll-to-bottom effect cannot see;
+        // this fires once that transition genuinely finishes, so a restored session lands on its
+        // latest message rather than wherever the effect guessed mid-animation.
+        afterOpenChange={(nowOpen) => {
+          if (nowOpen) scrollToBottom();
+        }}
         width={drawerWidth}
-        zIndex={2000}
+        zIndex={DRAWER_Z_INDEX}
         rootClassName="ai-assistant-drawer"
       >
         <div
           className={`ai-drawer-resize-handle ${isResizing ? "resizing" : ""}`}
           onMouseDown={onResizeMouseDown}
         />
-        {chat.sessions.length > 0 && chat.currentSessionId && (
-          <Tabs
-            activeKey={chat.currentSessionId}
-            onChange={chat.handleSessionChange}
-            onEdit={chat.handleTabEdit}
-            items={chat.tabItems}
-            type="editable-card"
-            hideAdd
-            style={{ marginBottom: 6 }}
-            size="small"
-          />
+
+        {sessions.length > 0 && currentSessionId && (
+          <Space.Compact className="ai-session-switcher" block>
+            <Select
+              size="small"
+              className="ai-session-switcher__select"
+              value={currentSessionId}
+              onChange={handleSessionChange}
+              options={sessionOptions}
+              popupMatchSelectWidth={false}
+              classNames={{ popup: { root: "ai-session-switcher__dropdown" } }}
+              styles={{
+                popup: {
+                  root: {
+                    zIndex: SESSION_SELECT_DROPDOWN_Z_INDEX,
+                    minWidth: Math.max(
+                      drawerWidth,
+                      SESSION_SELECT_DROPDOWN_MIN_WIDTH,
+                    ),
+                  },
+                },
+              }}
+              getPopupContainer={() => document.body}
+            />
+            <Button
+              size="small"
+              icon={<OverridableIcon name="delete" />}
+              title="Delete chat"
+              aria-label="Delete chat"
+              onClick={() => handleDeleteSession(currentSessionId)}
+            />
+          </Space.Compact>
         )}
 
         <div className="ai-chat-root">
-          {chat.providerError && (
+          {providerError && (
             <Typography.Text type="danger" className="ai-provider-error">
-              {chat.providerError}
+              {providerError}
             </Typography.Text>
           )}
 
-          {chat.chainContext && (
+          {chainContext && (
             <div className="ai-context-pill">
               <span className="ai-context-pill__label">Chain:</span>
               <span className="ai-context-pill__value">
-                {chat.chainContext.chain.name}
+                {chainContext.chain.name}
               </span>
             </div>
           )}
 
-          <AiChatMessageList
-            visibleMessages={chat.visibleMessages}
-            isLoading={chat.isLoading}
-            isStreaming={chat.isStreaming}
-            assistantName={chat.assistantName}
-            workingDots={chat.workingDots}
-            chainContext={chat.chainContext}
-            showLongRunningHint={chat.showLongRunningHint}
-            scrollContainerRef={chat.scrollContainerRef}
-            onScroll={chat.handleScroll}
-            onExecutePlan={() => void chat.handleExecutePlanClick()}
-            onPrepareRegenerate={chat.handlePrepareRegenerateFromIndex}
-            onRegenerate={(i) => void chat.handleRegenerateFromIndex(i)}
-          />
+          {chainPlanStatus?.hasActivePlan && currentSession?.conversationId && (
+            <div className="ai-chain-plan-toolbar">
+              <Tag color={chainPlanStatus.approved ? "success" : "default"}>
+                {chainPlanStatus.approved ? "Approved" : "Draft"}
+              </Tag>
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => void handleBuildChainClick()}
+                disabled={isLoading || isStreaming}
+              >
+                Build chain
+              </Button>
+            </div>
+          )}
+
+          <div
+            ref={scrollContainerRef}
+            className="ai-message-list"
+            onScroll={handleScroll}
+          >
+            <div ref={contentRef} className="ai-message-list__content">
+              <AiEmptyState
+                assistantName={assistantName}
+                visible={visibleMessages.length === 0}
+              />
+              {visibleMessages.length === 0 ? null : (
+                <>
+                  {visibleMessages.map((message, index) => {
+                    const isLastVisible = index === visibleMessages.length - 1;
+                    const isUser = message.role === "user";
+                    const showLiveActivity =
+                      message.role === "assistant" &&
+                      isLastVisible &&
+                      hasActivity;
+                    if (
+                      shouldHideEmptyStreamingAssistant(message, {
+                        isLastVisible,
+                        isTurnInFlight: isLoading || isStreaming,
+                        hasLiveActivity: showLiveActivity,
+                      })
+                    ) {
+                      return null;
+                    }
+                    const showPersistedActivity =
+                      message.role === "assistant" &&
+                      Boolean(message.activity?.steps?.length) &&
+                      !showLiveActivity;
+                    const isErrorBubble = message.variant === "error";
+                    const narrativeContent =
+                      message.role === "assistant" && !isErrorBubble
+                        ? visibleDecisionNarrative(
+                            replaceChainModificationProposalForDisplay(
+                              message.content,
+                            ),
+                            message.decision,
+                          )
+                        : message.content;
+                    const showThinkingInBubble =
+                      message.role === "assistant" &&
+                      !isErrorBubble &&
+                      isLastVisible &&
+                      (isLoading || isStreaming) &&
+                      !narrativeContent.trim() &&
+                      !hasActivity &&
+                      !showPersistedActivity;
+                    const turnIdle = !isLoading && !isStreaming;
+                    const showEdit = isUser && turnIdle;
+                    const showCopy =
+                      message.role === "assistant" &&
+                      !isErrorBubble &&
+                      Boolean(narrativeContent.trim());
+                    const hideChromeRecovery =
+                      message.decision !== undefined &&
+                      isActionableDecision(message.decision);
+                    const showRegenerate =
+                      message.role === "assistant" &&
+                      index === lastAssistantVisibleIndex &&
+                      turnIdle &&
+                      !hideChromeRecovery;
+
+                    return (
+                      <div
+                        key={message.id ?? `msg-${index}`}
+                        className={`ai-message ai-message--${message.role}${
+                          isErrorBubble ? " ai-message--error" : ""
+                        }`}
+                      >
+                        {!isUser ? (
+                          <div className="ai-message__meta">
+                            <Typography.Text
+                              type="secondary"
+                              className="ai-message__role"
+                            >
+                              {getRoleLabel(message.role, assistantName)}
+                            </Typography.Text>
+                          </div>
+                        ) : null}
+                        <div className="ai-message__bubble">
+                          {showLiveActivity ? (
+                            <AiActivityInline
+                              rows={activityStore.rows}
+                              collapsed={false}
+                              inFlight
+                            />
+                          ) : null}
+                          {showPersistedActivity && message.activity ? (
+                            <AiActivityInline
+                              rows={message.activity.steps}
+                              collapsed={message.activity.collapsed}
+                              summary={message.activity.summary}
+                            />
+                          ) : null}
+                          {isErrorBubble && (
+                            <div className="ai-message__error">
+                              <Typography.Text type="danger">
+                                {message.content}
+                              </Typography.Text>
+                              {message.detail?.trim() ? (
+                                <Typography.Paragraph
+                                  type="secondary"
+                                  className="ai-message__error-detail"
+                                >
+                                  {message.detail}
+                                </Typography.Paragraph>
+                              ) : null}
+                              {message.content.includes(
+                                "Reload this conversation",
+                              ) ? (
+                                <Button
+                                  size="small"
+                                  className="ai-message__reload"
+                                  onClick={() => {
+                                    if (!currentSessionId) return;
+                                    void reconcileOpenDecision(
+                                      sessionStore.getSession(currentSessionId)
+                                        ?.conversationId,
+                                      currentSessionId,
+                                    );
+                                  }}
+                                >
+                                  Reload this conversation
+                                </Button>
+                              ) : null}
+                            </div>
+                          )}
+                          {!isErrorBubble && narrativeContent.trim() && (
+                            <MarkdownRenderer>
+                              {narrativeContent}
+                            </MarkdownRenderer>
+                          )}
+                          {message.decision ? (
+                            <AiDecisionCard
+                              decision={message.decision}
+                              busy={isLoading || isStreaming}
+                              onStartSameTask={handleStartSameTask}
+                              onAnswer={(action, comment, specSystemTypes) =>
+                                void handleDecisionAnswer(
+                                  message.decision!,
+                                  action,
+                                  comment,
+                                  specSystemTypes,
+                                )
+                              }
+                              onSubmitClarification={(text) =>
+                                void handleClarificationSubmit(
+                                  message.decision!,
+                                  text,
+                                )
+                              }
+                            />
+                          ) : null}
+                          {showThinkingInBubble ? (
+                            <Typography.Text
+                              type="secondary"
+                              style={{ fontStyle: "italic" }}
+                            >
+                              {showLongRunningHint
+                                ? "Working… (this may take a minute)"
+                                : "Thinking"}
+                              <span className="ai-thinking-dots">
+                                <span className="ai-thinking-dot ai-thinking-dot--1">
+                                  .
+                                </span>
+                                <span className="ai-thinking-dot ai-thinking-dot--2">
+                                  .
+                                </span>
+                                <span className="ai-thinking-dot ai-thinking-dot--3">
+                                  .
+                                </span>
+                              </span>
+                            </Typography.Text>
+                          ) : null}
+
+                          {message.role === "assistant" &&
+                            !isErrorBubble &&
+                            index === visibleMessages.length - 1 &&
+                            !isLoading &&
+                            !isStreaming &&
+                            looksLikeValidationResult(message.content) &&
+                            chainContext?.chain?.id && (
+                              <div className="ai-message__plan-actions">
+                                <Button
+                                  type="primary"
+                                  size="middle"
+                                  onClick={() => {
+                                    window.location.href = `/chains/${chainContext.chain.id}/sessions`;
+                                  }}
+                                >
+                                  Go to Sessions
+                                </Button>
+                              </div>
+                            )}
+                        </div>
+                        {showEdit || showCopy || showRegenerate ? (
+                          <Space size="small" className="ai-message__actions">
+                            {showEdit ? (
+                              <Tooltip title="Edit message and send again">
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={<OverridableIcon name="edit" />}
+                                  aria-label="Edit message and send again"
+                                  onClick={() =>
+                                    void handlePrepareRegenerateFromIndex(index)
+                                  }
+                                />
+                              </Tooltip>
+                            ) : null}
+                            {showCopy ? (
+                              <Tooltip title="Copy">
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={<OverridableIcon name="copy" />}
+                                  aria-label="Copy"
+                                  onClick={() =>
+                                    handleCopyMessage(narrativeContent)
+                                  }
+                                />
+                              </Tooltip>
+                            ) : null}
+                            {showRegenerate ? (
+                              <Tooltip title="Regenerate this answer">
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={
+                                    <OverridableIcon
+                                      name="redo"
+                                      className="ai-icon-rotate-vertical"
+                                    />
+                                  }
+                                  aria-label="Regenerate this answer"
+                                  onClick={() =>
+                                    void handleRegenerateFromIndex(index)
+                                  }
+                                />
+                              </Tooltip>
+                            ) : null}
+                          </Space>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+
+                  {(isLoading || isStreaming) &&
+                    visibleMessages[visibleMessages.length - 1]?.role ===
+                      "user" && (
+                      <div className="ai-message ai-message--assistant">
+                        <div className="ai-message__meta">
+                          <Typography.Text
+                            type="secondary"
+                            className="ai-message__role"
+                          >
+                            {getRoleLabel("assistant", assistantName)}
+                          </Typography.Text>
+                        </div>
+                        <div className="ai-message__bubble">
+                          {hasActivity ? (
+                            <AiActivityInline
+                              rows={activityStore.rows}
+                              collapsed={false}
+                              inFlight
+                            />
+                          ) : (
+                            <Typography.Text
+                              type="secondary"
+                              style={{ fontStyle: "italic" }}
+                            >
+                              {showLongRunningHint
+                                ? "Working… (this may take a minute)"
+                                : "Thinking"}
+                              <span className="ai-thinking-dots">
+                                <span className="ai-thinking-dot ai-thinking-dot--1">
+                                  .
+                                </span>
+                                <span className="ai-thinking-dot ai-thinking-dot--2">
+                                  .
+                                </span>
+                                <span className="ai-thinking-dot ai-thinking-dot--3">
+                                  .
+                                </span>
+                              </span>
+                            </Typography.Text>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                </>
+              )}
+            </div>
+          </div>
 
           <Divider className="ai-divider" />
 
-          <AiChatInput
-            fileInputRef={chat.fileInputRef}
-            inputRef={chat.inputRef}
-            attachedFiles={chat.attachedFiles}
-            setAttachedFiles={chat.setAttachedFiles}
-            inputValue={chat.inputValue}
-            setInputValue={chat.setInputValue}
-            textareaRows={INPUT_TEXTAREA_ROWS}
-            sendKey={SEND_KEY}
-            isLoading={chat.isLoading}
-            isStreaming={chat.isStreaming}
-            meta={chat.meta}
-            onSend={() => void chat.handleSend()}
-            onAbort={chat.handleAbort}
-          />
+          <div className="ai-input">
+            <input
+              type="file"
+              ref={fileInputRef}
+              multiple
+              accept=".txt,.md,.json,.yaml,.yml,.csv,.pdf,text/plain,application/json,text/yaml,application/x-yaml,text/markdown,text/csv,application/pdf,image/png,image/jpeg,image/gif,image/webp"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                const maxSize = 10 * 1024 * 1024;
+                const valid = files
+                  .filter((f) => f.size <= maxSize)
+                  .slice(0, 5);
+                setAttachedFiles((prev) => [...prev, ...valid].slice(0, 5));
+                e.target.value = "";
+              }}
+            />
+
+            {attachedFiles.length > 0 && (
+              <div className="ai-input__attachments">
+                {attachedFiles.map((file, i) => (
+                  <Tag
+                    key={`${file.name}-${i}`}
+                    closable
+                    onClose={(event) => {
+                      event.preventDefault();
+                      setAttachedFiles((prev) =>
+                        prev.filter((_, j) => j !== i),
+                      );
+                    }}
+                  >
+                    {file.name}
+                  </Tag>
+                ))}
+              </div>
+            )}
+
+            <Input.TextArea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onInput={(e) => setInputValue(e.currentTarget.value)}
+              placeholder={`Ask ${assistantName} about this chain...`}
+              autoSize={{ minRows: 1, maxRows: 8 }}
+              onKeyDown={(e) => {
+                if (e.key === SEND_KEY && !e.shiftKey) {
+                  e.preventDefault();
+                  if (!isTurnInFlight) {
+                    void handleSend();
+                  }
+                }
+              }}
+            />
+
+            <AiComposerActions
+              isTurnInFlight={isTurnInFlight}
+              onAttach={() => fileInputRef.current?.click()}
+              onSend={() => {
+                void handleSend();
+              }}
+              onAbort={handleAbort}
+            />
+          </div>
         </div>
 
         <ChainModificationConfirmation
-          open={chat.isConfirmationOpen}
-          proposal={chat.pendingProposal}
-          onCancel={() => chat.setIsConfirmationOpen(false)}
+          open={isConfirmationOpen}
+          proposal={pendingProposal}
+          onCancel={() => setIsConfirmationOpen(false)}
           onApply={(proposal) => {
-            void (async () => {
-              if (!chat.chainContext) {
-                chat.setIsConfirmationOpen(false);
-                return;
-              }
-              const chainId = proposal.chainId || chat.chainContext.chain.id;
-              try {
-                await applyChainModificationProposal(
-                  proposal,
-                  api,
-                  chat.chainContext,
-                );
-                await chat.refreshChainContexts(chainId);
-              } catch (error) {
-                console.error(
-                  "[Ai] Failed to apply chain modifications",
-                  error,
-                );
-              } finally {
-                chat.setIsConfirmationOpen(false);
-                chat.setPendingProposal(null);
-              }
-            })();
+            if (!chainContext) {
+              setIsConfirmationOpen(false);
+              return;
+            }
+            void applyChainModificationProposal(proposal, api, chainContext)
+              .catch((err: unknown) => {
+                console.error("[AI] Failed to apply chain modifications", err);
+              })
+              .finally(() => {
+                setIsConfirmationOpen(false);
+                setPendingProposal(null);
+              });
           }}
         />
       </Drawer>

@@ -1,0 +1,247 @@
+package org.qubership.integration.platform.ai.integration.catalog.materialize;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
+import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecTitleExtractor;
+import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateEnvironmentRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemSearchRequest;
+import org.qubership.integration.platform.ai.storage.S3Service;
+
+/**
+ * Imports a single uploaded API specification into the runtime catalog. The import is idempotent by
+ * document content: an existing specification with the same parsed JSON or YAML tree is reused.
+ */
+@ApplicationScoped
+public class UploadedSpecAutoImporter {
+
+  private static final Logger LOG = Logger.getLogger(UploadedSpecAutoImporter.class);
+  private static final String DEFAULT_ENVIRONMENT = "default";
+  private static final String SYSTEM_TYPE_INTERNAL = "INTERNAL";
+
+  private final S3Service s3Service;
+  private final CatalogRestClient catalogRestClient;
+  private final CatalogSpecificationImporter catalogSpecificationImporter;
+  private final ConversationCatalogCache conversationCatalogCache;
+  private final InternalAsyncMaasEnvironmentConfigurer internalAsyncMaasEnvironmentConfigurer;
+
+  @Inject
+  public UploadedSpecAutoImporter(
+      S3Service s3Service,
+      @RestClient CatalogRestClient catalogRestClient,
+      CatalogSpecificationImporter catalogSpecificationImporter,
+      ConversationCatalogCache conversationCatalogCache,
+      InternalAsyncMaasEnvironmentConfigurer internalAsyncMaasEnvironmentConfigurer) {
+    this.s3Service = s3Service;
+    this.catalogRestClient = catalogRestClient;
+    this.catalogSpecificationImporter = catalogSpecificationImporter;
+    this.conversationCatalogCache = conversationCatalogCache;
+    this.internalAsyncMaasEnvironmentConfigurer = internalAsyncMaasEnvironmentConfigurer;
+  }
+
+  public UploadedSpecImportOutcome importSpec(
+      String conversationId, UploadedSpecAttachment attachment) {
+    return importSpec(conversationId, attachment, SYSTEM_TYPE_INTERNAL);
+  }
+
+  public UploadedSpecImportOutcome importSpec(
+      String conversationId, UploadedSpecAttachment attachment, String systemType) {
+    byte[] content = s3Service.readObjectBytes(attachment.s3Key());
+    String specName = UploadedSpecTitleExtractor.resolveSpecName(content, attachment.filename());
+
+    CatalogRestClient.SystemDto system = findOrCreateSystem(specName, systemType);
+    String catalogSystemType =
+        system.type() == null || system.type().isBlank()
+            ? SYSTEM_TYPE_INTERNAL
+            : system.type().trim().toUpperCase(Locale.ROOT);
+    String requestedType =
+        systemType == null || systemType.isBlank()
+            ? SYSTEM_TYPE_INTERNAL
+            : systemType.trim().toUpperCase(Locale.ROOT);
+    boolean typeMismatchOnReuse = !catalogSystemType.equals(requestedType);
+    if (typeMismatchOnReuse) {
+      LOG.warnf(
+          "Reused catalog system %s keeps type %s; import requested %s conversationId=%s s3Key=%s",
+          system.id(), catalogSystemType, requestedType, conversationId, attachment.s3Key());
+    }
+    ensureDefaultEnvironment(system.id(), catalogSystemType);
+
+    Optional<CatalogRestClient.SpecificationGroupDto> existingGroup =
+        findReusableSpecificationGroup(system.id(), specName);
+
+    String specificationId;
+    String specificationGroupId;
+    boolean reused;
+    if (existingGroup.isPresent()) {
+      specificationGroupId = existingGroup.get().id();
+      Optional<CatalogRestClient.SpecificationDto> existingSpec =
+          findMatchingSpecificationInGroup(system.id(), specificationGroupId, content);
+      if (existingSpec.isPresent()) {
+        specificationId = existingSpec.get().id();
+        reused = true;
+        LOG.infof(
+            "Reused matching uploaded specification conversationId=%s systemId=%s modelId=%s s3Key=%s",
+            conversationId,
+            system.id(),
+            specificationId,
+            attachment.s3Key());
+      } else {
+        CatalogSpecificationImporter.ImportOutcome outcome =
+            catalogSpecificationImporter.importOpenApiDocumentIntoGroup(
+                system.id(), specificationGroupId, content, attachment.filename());
+        specificationId = outcome.specificationId();
+        reused = false;
+      }
+    } else {
+      CatalogSpecificationImporter.ImportOutcome outcome =
+          catalogSpecificationImporter.importOpenApiDocument(
+              system.id(), specName, null, content, attachment.filename());
+      specificationId = outcome.specificationId();
+      specificationGroupId = outcome.specificationGroupId();
+      reused = false;
+    }
+
+    conversationCatalogCache.rememberSystems(conversationId, List.of(system));
+    conversationCatalogCache.rememberActiveSystemId(conversationId, system.id());
+    conversationCatalogCache.rememberSpecificationsForSystem(
+        conversationId,
+        system.id(),
+        List.of(
+            new CatalogRestClient.SpecificationDto(
+                specificationId, specName, specificationGroupId, system.id())));
+
+    internalAsyncMaasEnvironmentConfigurer.configure(system.id());
+
+    return new UploadedSpecImportOutcome(
+        attachment.s3Key(),
+        system.id(),
+        specificationGroupId,
+        specificationId,
+        reused,
+        typeMismatchOnReuse);
+  }
+
+  private CatalogRestClient.SystemDto findOrCreateSystem(String baseName, String systemType) {
+    List<CatalogRestClient.SystemDto> systems =
+        catalogRestClient.searchSystems(new CatalogSystemSearchRequest(baseName));
+    if (systems != null) {
+      for (CatalogRestClient.SystemDto system : systems) {
+        if (system.name() != null && system.name().equalsIgnoreCase(baseName)) {
+          return system;
+        }
+      }
+    }
+    String resolvedType =
+        systemType == null || systemType.isBlank() ? SYSTEM_TYPE_INTERNAL : systemType.trim();
+    return catalogRestClient.createSystem(new CatalogCreateSystemRequest(baseName, resolvedType));
+  }
+
+  private void ensureDefaultEnvironment(String systemId, String systemType) {
+    String normalizedType =
+        systemType == null ? "" : systemType.trim().toUpperCase(java.util.Locale.ROOT);
+    if (!SYSTEM_TYPE_INTERNAL.equals(normalizedType)) {
+      return;
+    }
+    List<CatalogRestClient.EnvironmentDto> environments =
+        catalogRestClient.getEnvironments(systemId);
+    if (environments == null || environments.isEmpty()) {
+      catalogRestClient.createEnvironment(
+          systemId, new CatalogCreateEnvironmentRequest(DEFAULT_ENVIRONMENT, ""));
+    }
+  }
+
+  /**
+   * Reuse the existing group on a catalog system when the OpenAPI title matches the group name, or
+   * when the group was named from a longer filename that still starts with that title.
+   */
+  private Optional<CatalogRestClient.SpecificationGroupDto> findReusableSpecificationGroup(
+      String systemId, String specName) {
+    List<CatalogRestClient.SpecificationGroupDto> groups =
+        catalogRestClient.getSpecificationGroups(systemId);
+    if (groups == null || specName == null || specName.isBlank()) {
+      return Optional.empty();
+    }
+    Optional<CatalogRestClient.SpecificationGroupDto> exact =
+        groups.stream()
+            .filter(
+                g ->
+                    g != null
+                        && g.id() != null
+                        && !g.id().isBlank()
+                        && g.name() != null
+                        && g.name().equalsIgnoreCase(specName))
+            .findFirst();
+    if (exact.isPresent()) {
+      return exact;
+    }
+    String needle = specName.toLowerCase(Locale.ROOT);
+    List<CatalogRestClient.SpecificationGroupDto> prefixed =
+        groups.stream()
+            .filter(
+                g ->
+                    g != null
+                        && g.id() != null
+                        && !g.id().isBlank()
+                        && g.name() != null)
+            .filter(
+                g -> {
+                  String name = g.name().toLowerCase(Locale.ROOT);
+                  return name.startsWith(needle + " ");
+                })
+            .toList();
+    if (prefixed.size() == 1) {
+      return Optional.of(prefixed.getFirst());
+    }
+    return Optional.empty();
+  }
+
+  private Optional<CatalogRestClient.SpecificationDto> findMatchingSpecificationInGroup(
+      String systemId, String specificationGroupId, byte[] uploadedContent) {
+    List<CatalogRestClient.SpecificationDto> specs =
+        catalogRestClient.getApiSpecifications(systemId);
+    if (specs == null) {
+      return Optional.empty();
+    }
+    List<CatalogRestClient.SpecificationDto> candidates =
+        specs.stream()
+            .filter(
+                s ->
+                    s != null
+                        && s.id() != null
+                        && !s.id().isBlank()
+                        && specificationGroupId.equals(s.specificationGroupId()))
+            .toList();
+    boolean sourceReadFailed = false;
+    for (CatalogRestClient.SpecificationDto candidate : candidates) {
+      try {
+        String existingSource = catalogRestClient.getModelSource(candidate.id());
+        if (existingSource == null) {
+          throw new IllegalStateException("Catalog returned no specification source");
+        }
+        if (CatalogSpecificationImporter.sameDocument(uploadedContent, existingSource)) {
+          return Optional.of(candidate);
+        }
+      } catch (RuntimeException e) {
+        sourceReadFailed = true;
+        LOG.warnf(
+            e,
+            "Could not compare uploaded specification with catalog model systemId=%s modelId=%s",
+            systemId,
+            candidate.id());
+      }
+    }
+    if (sourceReadFailed) {
+      throw new IllegalStateException(
+          "Could not verify whether the uploaded specification already exists in the catalog");
+    }
+    return Optional.empty();
+  }
+}

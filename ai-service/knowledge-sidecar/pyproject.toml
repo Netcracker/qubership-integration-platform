@@ -1,0 +1,29 @@
+[project]
+name = "qip-knowledge-sidecar"
+version = "0.1.0"
+description = "Serve externally compiled QIP Knowledge Packages through a read-only runtime adapter."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.116.1",
+  "uvicorn==0.35.0",
+  "lancedb>=0.34.0",
+  "pydantic>=2.11.7",
+  "PyYAML==6.0.2",
+  "httpx==0.28.1",
+  "jsonschema>=4.23",
+  "pyarrow>=17",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.1"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts", "src", "vendor/cip-runtime"]

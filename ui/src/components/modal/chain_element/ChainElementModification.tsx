@@ -16,6 +16,7 @@ import {
   Element,
   OperationInfo,
   PatchElementRequest,
+  RestApiError,
 } from "../../../api/apiTypes.ts";
 import { useLibraryElement } from "../../../hooks/useLibraryElement.tsx";
 import Form from "@rjsf/antd";
@@ -92,6 +93,10 @@ import { usePermissions } from "../../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../../permissions/funcs.ts";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { ModalWithFullscreenToggle } from "../ModalWithFullscreenToggle.tsx";
+import { useCatalogRefresh } from "../../../hooks/useCatalogRefresh.ts";
+import { getDataFromElement } from "../../../misc/chain-graph-utils.ts";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
+import { traverseElementsDepthFirst } from "../../../misc/tree-utils.ts";
 import { JsonAsStringField } from "./field/JsonAsStringField.tsx";
 import { MCPServiceField } from "./field/select/MCPServiceField.tsx";
 import {
@@ -270,12 +275,13 @@ const FORM_DEFAULT_STATE_BEHAVIOR = {
 };
 
 export const ChainElementModification: React.FC<ElementModificationProps> = ({
-  node,
+  node: initialNode,
   chainId,
   elementId,
   onSubmit,
   onClose,
 }) => {
+  const [node, setNode] = useState(initialNode);
   const chainContext = useContext(ChainContext);
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
@@ -291,6 +297,78 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const [activeKey, setActiveKey] = useState<string>();
   const { showModal } = useModalsContext();
   const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const hasChangesRef = useRef(hasChanges);
+  hasChangesRef.current = hasChanges;
+  const [catalogNode, setCatalogNode] = useState<ChainGraphNode | null>(null);
+  const [deletedInCatalog, setDeletedInCatalog] = useState(false);
+  const initialNodeRef = useRef(initialNode);
+  useEffect(() => {
+    if (initialNodeRef.current === initialNode) return;
+    initialNodeRef.current = initialNode;
+    if (
+      (hasChanges || elementNameRef.current?.isEditing()) &&
+      initialNode.id === node.id
+    )
+      setCatalogNode(initialNode);
+    else setNode(initialNode);
+  }, [initialNode, node.id, hasChanges]);
+  const { refresh: refreshCatalogElement } = useCatalogRefresh(
+    `${chainId}:${elementId}`,
+    (change) => change.chainIds === null || change.chainIds.includes(chainId),
+    async (isCurrent) => {
+      try {
+        const elements = await api.getElements(chainId);
+        if (!isCurrent()) return;
+        let element: Element | undefined;
+        traverseElementsDepthFirst(elements, (item) => {
+          if (item.id === elementId) element = item;
+        });
+        if (!element) {
+          setDeletedInCatalog(true);
+          return;
+        }
+        const data = {
+          ...node.data,
+          ...getDataFromElement(element, libraryElement),
+        };
+        const changed =
+          JSON.stringify([
+            data.label,
+            data.description ?? "",
+            data.properties,
+          ]) !==
+          JSON.stringify([
+            node.data.label,
+            node.data.description ?? "",
+            node.data.properties,
+          ]);
+        setDeletedInCatalog(false);
+        if (!changed) {
+          setCatalogNode(null);
+          return;
+        }
+        const updated = { ...node, data };
+        if (hasChangesRef.current || elementNameRef.current?.isEditing())
+          setCatalogNode(updated);
+        else {
+          setCatalogNode(null);
+          setNode(updated);
+        }
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (error instanceof RestApiError && error.responseCode === 404) {
+          setDeletedInCatalog(true);
+          return;
+        }
+        notificationService.requestFailed(
+          "Failed to refresh the element; your form is preserved",
+          error,
+          () => void refreshCatalogElement().catch(() => undefined),
+        );
+        throw error;
+      }
+    },
+  );
   const [elementDescription, setElementDescription] = useState<string>("");
   const [missingRequiredParamsMap, setMissingRequiredParamsMap] = useState<
     Record<string, string[]>
@@ -686,7 +764,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   }, []);
 
   const handleOk = useCallback(async () => {
-    if (isUnsupported) {
+    if (isUnsupported || deletedInCatalog) {
       return;
     }
 
@@ -721,6 +799,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         chainContext?.refresh?.()?.catch(() => {
           /* best-effort; refreshChain reports its own errors */
         });
+        handleClose();
       }
     } catch (error) {
       notificationService.errorWithDetails(
@@ -730,7 +809,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       );
     } finally {
       setIsLoading(false);
-      handleClose();
     }
   }, [
     formData,
@@ -742,6 +820,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     updateElement,
     handleClose,
     isUnsupported,
+    deletedInCatalog,
     chainContext,
   ]);
 
@@ -950,7 +1029,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               )}
               onSave={handleNameSave}
               disabled={
-                !canEditChain || libraryElementIsLoading || isUnsupported
+                !canEditChain ||
+                libraryElementIsLoading ||
+                isUnsupported ||
+                deletedInCatalog
               }
             />
           </div>
@@ -997,7 +1079,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               form="elementModificationForm"
               htmlType={"submit"}
               loading={isLoading}
-              disabled={isSaveDisabled || !canEditChain}
+              disabled={isSaveDisabled || !canEditChain || deletedInCatalog}
               onClick={() => void handleOk()}
             >
               Save
@@ -1017,6 +1099,37 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         tabIndex={-1}
         className={styles["modalFocusRoot"]}
       >
+        {deletedInCatalog && (
+          <Alert
+            type="warning"
+            showIcon
+            title="This element was deleted from the catalog. Your form input is preserved."
+          />
+        )}
+        {catalogNode && !deletedInCatalog && (
+          <Alert
+            type="warning"
+            showIcon
+            title="This element changed in the catalog. Your draft is preserved."
+            action={
+              <Button
+                onClick={() =>
+                  confirmAndRun({
+                    title: "Discard unsaved changes and reload this element?",
+                    okText: "Reload element",
+                    onOk: () => {
+                      setNode(catalogNode);
+                      setCatalogNode(null);
+                      setHasChanges(false);
+                    },
+                  })
+                }
+              >
+                Reload element
+              </Button>
+            }
+          />
+        )}
         {isUnsupported && (
           <Alert
             type="error"

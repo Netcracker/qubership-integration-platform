@@ -1,0 +1,1495 @@
+/**
+ * @jest-environment jsdom
+ */
+
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: jest.fn<(query: string) => MediaQueryList>().mockImplementation((query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn<MediaQueryList["dispatchEvent"]>(),
+  })),
+});
+
+import { describe, expect, it, jest } from "@jest/globals";
+import "@testing-library/jest-dom";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+import { AiDecisionCard } from "../../../src/components/ai/AiDecisionCard.tsx";
+import type { ChatDecision } from "../../../src/ai/modelProviders/types.ts";
+
+const mockGetElementsByType = jest.fn<(...args: unknown[]) => Promise<unknown[]>>();
+jest.mock("../../../src/api/api", () => ({
+  api: {
+    getElementsByType: (...args: Parameters<typeof mockGetElementsByType>): unknown =>
+      mockGetElementsByType(...args),
+  },
+}));
+
+const mockNotificationService = { requestFailed: jest.fn() };
+jest.mock("../../../src/hooks/useNotificationService", () => ({
+  useNotificationService: () => mockNotificationService,
+}));
+
+jest.mock("../../../src/api/rest/vscodeExtensionApi", () => ({
+  isVsCode: false,
+  VSCodeExtensionApi: class MockedVSCode {},
+}));
+
+jest.mock("../../../src/components/ai/AiMarkdownRenderer.tsx", () => {
+  const R = require("react") as typeof import("react");
+
+  function withBold(text: string): ReactNode[] {
+    return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+      const match = /^\*\*(.+)\*\*$/.exec(part);
+      return match ? R.createElement("strong", { key: index }, match[1]) : part;
+    });
+  }
+
+  return {
+    MarkdownRenderer: ({ children }: { children: string }) => {
+      const listItems: ReactElement[] = [];
+      const body: ReactNode[] = [];
+      const flushList = () => {
+        if (listItems.length === 0) {
+          return;
+        }
+        body.push(
+          R.createElement(
+            "ol",
+            { key: `ol-${body.length}` },
+            listItems.splice(0),
+          ),
+        );
+      };
+      for (const line of String(children).split("\n")) {
+        const item = /^(\d+)\.\s+(.*)$/.exec(line);
+        if (item) {
+          listItems.push(
+            R.createElement("li", { key: item[1] }, withBold(item[2])),
+          );
+        } else if (line.trim() === "") {
+          flushList();
+        } else {
+          flushList();
+          body.push(
+            R.createElement("p", { key: `p-${body.length}` }, withBold(line)),
+          );
+        }
+      }
+      flushList();
+      return R.createElement("div", { className: "ai-markdown" }, body);
+    },
+  };
+});
+
+function buildDecision(overrides: Partial<ChatDecision> = {}): ChatDecision {
+  return {
+    id: "gate-1",
+    kind: "approve",
+    question: "Approve the chain revision?",
+    artifactType: "chain",
+    artifactHash: "abc123",
+    revision: 2,
+    actions: ["approve", "request-changes"],
+    ...overrides,
+  };
+}
+
+describe("AiDecisionCard", () => {
+  it("should send the clicked action with the typed comment when a button is clicked", () => {
+    const onAnswer = jest.fn();
+    render(<AiDecisionCard decision={buildDecision()} onAnswer={onAnswer} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Add a comment (optional)"), {
+      target: { value: "Looks good to me" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(onAnswer).toHaveBeenCalledWith("approve", "Looks good to me");
+  });
+
+  it("should keep the export button usable after the dialog it opens is closed", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          artifactType: "CHAIN_EXPORT",
+          actions: ["export-chains"],
+          chainIds: ["c1", "c2"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    const exportButton = screen.getByRole("button", { name: "Export" });
+    fireEvent.click(exportButton);
+    fireEvent.click(exportButton);
+
+    expect(onAnswer).toHaveBeenCalledTimes(2);
+    expect(onAnswer).toHaveBeenCalledWith("export-chains", "");
+  });
+
+  it("should send import-specification-external from the import card", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          id: "import:pkg.geosite",
+          question:
+            "Import the API Hub specification GeoSite API into the runtime catalog?",
+          artifactType: undefined,
+          artifactHash: undefined,
+          revision: 0,
+          actions: [
+            "import-specification-internal",
+            "import-specification-external",
+          ],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    const external = screen.getByRole("button", { name: "Import as external" });
+    expect(external.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(external);
+    expect(onAnswer).toHaveBeenCalledWith("import-specification-external", "");
+  });
+
+  it("should still label the legacy import-specification action", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          actions: ["import-specification"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Import specification" }),
+    );
+    expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
+  });
+
+  it("should submit the planning action from a ready requirements card", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Requirements are ready. Continue to planning?",
+          actions: ["continue-to-planning"],
+        })}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue to planning" }),
+    );
+
+    expect(onAnswer).toHaveBeenCalledWith("continue-to-planning", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+  });
+
+  it("should send per-spec system types when Import is clicked", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          id: "uploaded-specs-import-proposal:hash",
+          question: "Import uploaded API specifications into the catalog?",
+          artifactType: "uploaded-specs-import-proposal",
+          artifactHash: "hash",
+          actions: ["import-specification", "clarify"],
+          specs: [
+            { s3Key: "uploads/orders-api.yaml", displayName: "Orders API" },
+            {
+              s3Key: "uploads/partner-events.yaml",
+              displayName: "partner_[events].yaml <probe>",
+            },
+          ],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(screen.getByText("Orders API").closest("strong")).not.toBeNull();
+    expect(
+      screen.getByText("partner_[events].yaml <probe>").closest("strong"),
+    ).not.toBeNull();
+    const externalOptions = screen.getAllByRole("radio", { name: "External" });
+    fireEvent.click(externalOptions[1]);
+    fireEvent.change(screen.getByPlaceholderText("Add a comment (optional)"), {
+      target: { value: "Looks good" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(onAnswer).toHaveBeenCalledWith(
+      "import-specification",
+      "Looks good",
+      {
+        "uploads/orders-api.yaml": "INTERNAL",
+        "uploads/partner-events.yaml": "EXTERNAL",
+      },
+    );
+  });
+
+  it("should send Import with INTERNAL for a single spec row", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          actions: ["import-specification", "clarify"],
+          specs: [
+            { s3Key: "uploads/orders-api.yaml", displayName: "Orders API" },
+          ],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect(onAnswer).toHaveBeenCalledWith("import-specification", "", {
+      "uploads/orders-api.yaml": "INTERNAL",
+    });
+  });
+
+  it("should not send a type map when Clarify is clicked", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          actions: ["import-specification", "clarify"],
+          specs: [
+            { s3Key: "uploads/orders-api.yaml", displayName: "Orders API" },
+          ],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Clarify" }));
+    expect(onAnswer).toHaveBeenCalledWith("clarify", "");
+  });
+
+  it("should render frozen with the chosen action once answered and hide the buttons", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({ answeredAction: "approve" });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByText("Approve")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("Add a comment (optional)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request changes" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should not send a second answer when a button is clicked twice before busy catches up", () => {
+    const onAnswer = jest.fn();
+    render(<AiDecisionCard decision={buildDecision()} onAnswer={onAnswer} />);
+
+    const approveButton = screen.getByRole("button", { name: "Approve" });
+    fireEvent.click(approveButton);
+    fireEvent.click(approveButton);
+
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+  });
+
+  it("should disable the buttons while busy", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard decision={buildDecision()} onAnswer={onAnswer} busy />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it("should render the reason, the missing-evidence items, and no action buttons for a clarify card", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "The run needs the target service name before it can continue.",
+      question: "",
+      missingEvidence: ["Target service name", "Target operation id"],
+      actions: [],
+    });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(
+      screen.getByText(
+        "The run needs the target service name before it can continue.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Target service name")).toBeInTheDocument();
+    expect(screen.getByText("Target operation id")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request changes" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should fall back to the question when reason is empty for a clarify card", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "",
+      question: "Which environment should this target?",
+      missingEvidence: [],
+      actions: [],
+    });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(
+      screen.getByText("Which environment should this target?"),
+    ).toBeInTheDocument();
+  });
+
+  it("should not list missing-evidence items that already appear as the clarify reason", () => {
+    const onAnswer = jest.fn();
+    const question =
+      "What should the new integration chain do? Please provide its trigger (for example, HTTP method and path), expected response or business outcome, and any downstream service calls.";
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: question,
+      question,
+      missingEvidence: [question],
+      actions: [],
+    });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getAllByText(question)).toHaveLength(1);
+  });
+
+  it("should keep the submit button disabled until text is typed for a clarify card", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Missing evidence.",
+      missingEvidence: [],
+      actions: [],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    const submitButton = screen.getByRole("button", { name: "Submit" });
+    expect(submitButton).toBeDisabled();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Provide the missing information"),
+      { target: { value: "It targets the billing service." } },
+    );
+    expect(submitButton).not.toBeDisabled();
+  });
+
+  it("should call onSubmitClarification with the typed text when submit is clicked", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Missing evidence.",
+      missingEvidence: [],
+      actions: [],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Provide the missing information"),
+      { target: { value: "It targets the billing service." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onSubmitClarification).toHaveBeenCalledTimes(1);
+    expect(onSubmitClarification).toHaveBeenCalledWith(
+      "It targets the billing service.",
+    );
+  });
+
+  it.each(["yes", "no"])(
+    "should send %s as a command at an IDS gate",
+    (action) => {
+      const onAnswer = jest.fn();
+      const onSubmitClarification = jest.fn();
+      const decision = buildDecision({
+        kind: "clarify",
+        reason:
+          "Would you like an integration design document (IDS) for your approved requirements?",
+        missingEvidence: [],
+        actions: ["yes", "no"],
+      });
+      render(
+        <AiDecisionCard
+          decision={decision}
+          onAnswer={onAnswer}
+          onSubmitClarification={onSubmitClarification}
+        />,
+      );
+
+      expect(
+        screen.queryByPlaceholderText("Provide the missing information"),
+      ).toBeNull();
+      fireEvent.click(
+        screen.getByRole("button", { name: action === "yes" ? "Yes" : "No" }),
+      );
+
+      expect(onAnswer).toHaveBeenCalledWith(action, "");
+      expect(onSubmitClarification).not.toHaveBeenCalled();
+    },
+  );
+
+  it("should render Retry for a stage-retry clarify gate", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "bad domain",
+      missingEvidence: [],
+      actions: ["retry"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onAnswer).toHaveBeenCalledWith("retry", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+  });
+
+  it("should display the finite repair allowance and submit its command", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      revision: 19,
+      question:
+        "Automatic repair credit is spent. Continue with two corrections and two clean attempts?",
+      actions: ["continue-repair", "stop-with-report"],
+      recovery: {
+        category: "repair-allowance-required",
+        title: "Repair paused",
+        summary:
+          "Automatic repair credit is spent. Continue repair grants two targeted corrections and two clean regenerations. Existing request, token, time, and run limits still apply.",
+        preservedWork: "Your approved plan is saved.",
+        technicalDetails:
+          "Unresolved: contextPath. Targeted: 2 spent; clean: 2 spent.",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+    const proceed = screen.getByRole("button", { name: "Continue repair" });
+    expect(proceed.className).toContain("ant-btn-primary");
+    fireEvent.click(proceed);
+    expect(onAnswer).toHaveBeenCalledWith("continue-repair", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        /Continue repair grants two targeted corrections and two clean regenerations/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Existing request, token, time, and run limits still apply/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("should render a contextual retry with collapsed technical details and semantic actions", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "The provider temporarily limited requests.",
+      actions: ["retry-creation", "stop-with-report"],
+      recovery: {
+        category: "temporary-technical-failure",
+        title: "Creation paused temporarily",
+        summary: "The provider temporarily limited requests.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails: "rate_limit_exceeded",
+        retryDelayMs: 2_000,
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByRole("alert")).toHaveAttribute("aria-labelledby");
+    expect(screen.getByText("Creation paused temporarily")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved requirements and plan are saved."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Retry in 2 seconds.")).not.toBeInTheDocument();
+    const details = screen.getByText("Technical details").closest("details");
+    expect(details).not.toHaveAttribute("open");
+
+    fireEvent.click(screen.getByText("Technical details"));
+    expect(details).toHaveAttribute("open");
+    expect(screen.getByText(/rate_limit_exceeded/)).toBeInTheDocument();
+
+    const retry = screen.getByRole("button", { name: "Retry creation" });
+    expect(retry.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(retry);
+
+    expect(onAnswer).toHaveBeenCalledWith("retry-creation", "");
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should offer available restart checkpoints in one menu", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "Creation is paused.",
+      actions: [
+        "retry-creation",
+        "restart-from-beginning",
+        "restart-from-approved-requirements",
+        "restart-from-approved-plan",
+        "stop-with-report",
+      ],
+      recovery: {
+        category: "temporary-technical-failure",
+        title: "Creation is paused",
+        summary: "The current attempt could not continue.",
+        preservedWork: "Approved checkpoints are available.",
+        technicalDetails: "",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.queryByRole("button", { name: "Beginning" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Restart from/ }));
+    fireEvent.click(screen.getByText("Approved requirements"));
+
+    expect(onAnswer).toHaveBeenCalledWith(
+      "restart-from-approved-requirements",
+      "",
+    );
+  });
+
+  it.each([
+    ["Beginning", "restart-from-beginning"],
+    ["Approved requirements", "restart-from-approved-requirements"],
+    ["Approved plan", "restart-from-approved-plan"],
+  ])("should dispatch the %s restart checkpoint once", (label, action) => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation is paused.",
+          actions: [action],
+          recovery: {
+            category: "unclassified-failure",
+            title: "Creation is paused",
+            summary: "The current attempt could not continue.",
+            preservedWork: "Approved checkpoints are available.",
+            technicalDetails: "",
+          },
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Restart from/ }));
+    const item = screen.getByText(label);
+    fireEvent.click(item);
+    fireEvent.click(item);
+
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(onAnswer).toHaveBeenCalledWith(action, "");
+  });
+
+  it.each([
+    ["busy", { busy: true }],
+    ["stale", { stale: true }],
+  ])(
+    "should disable restart checkpoints while the card is %s",
+    (_state, props) => {
+      const onAnswer = jest.fn();
+      render(
+        <AiDecisionCard
+          decision={buildDecision({
+            kind: "clarify",
+            question: "Creation is paused.",
+            actions: ["restart-from-beginning"],
+            recovery: {
+              category: "unclassified-failure",
+              title: "Creation is paused",
+              summary: "The current attempt could not continue.",
+              preservedWork: "Approved checkpoints are available.",
+              technicalDetails: "",
+            },
+          })}
+          onAnswer={onAnswer}
+          {...props}
+        />,
+      );
+
+      const restart = screen.getByRole("button", { name: /Restart from/ });
+      expect(restart).toBeDisabled();
+      fireEvent.click(restart);
+
+      expect(screen.queryByText("Beginning")).toBeNull();
+      expect(onAnswer).not.toHaveBeenCalled();
+    },
+  );
+
+  it("should hide restart checkpoints for a regular clarification", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Which source field should be used?",
+          actions: ["restart-from-beginning"],
+        })}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Provide the missing information"),
+      {
+        target: { value: "Use $.customer.id" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onSubmitClarification).toHaveBeenCalledWith("Use $.customer.id");
+    expect(screen.queryByRole("button", { name: /Restart from/ })).toBeNull();
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it("should show the selected restart checkpoint after answering", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation is paused.",
+          actions: ["restart-from-approved-plan"],
+          answeredAction: "restart-from-approved-plan",
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(screen.getByText("Approved plan")).toBeInTheDocument();
+    expect(screen.queryByText("Sent")).toBeNull();
+  });
+
+  it("should render a requirement defect with Edit requirements and no stage identifiers", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "The approved requirements need correction.",
+      actions: ["edit-requirements", "stop-with-report"],
+      recovery: {
+        category: "requirement-brief-defect",
+        title: "Requirements need correction",
+        summary: "The approved requirements need correction.",
+        preservedWork: "Your approved product facts stay available.",
+        technicalDetails: "PLAN_BLOCKER: missing quartz",
+        runId: "run-1",
+        failedStageId: "planning",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(
+      screen.getByText("Requirements need correction"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved product facts stay available."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "planning" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "requirement-analysis" }),
+    ).not.toBeInTheDocument();
+
+    const details = screen.getByText("Technical details").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Technical details"));
+    expect(
+      screen.getByText(/PLAN_BLOCKER: missing quartz/),
+    ).toBeInTheDocument();
+
+    const edit = screen.getByRole("button", { name: "Edit requirements" });
+    expect(edit.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(edit);
+
+    expect(onAnswer).toHaveBeenCalledWith("edit-requirements", "");
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should offer a typed design rebuild after a rejected topology", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Restore the approved inline hook.",
+          actions: ["rebuild-design", "stop-with-report"],
+          recovery: {
+            category: "design-artifact-defect",
+            title: "The design cannot be used",
+            summary: "Restore the approved inline hook.",
+            preservedWork: "Your approved requirements stay unchanged.",
+            technicalDetails: "",
+          },
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Rebuild design" }));
+    expect(onAnswer).toHaveBeenCalledWith("rebuild-design", "");
+    expect(
+      screen.getByText("Your approved requirements stay unchanged."),
+    ).toBeInTheDocument();
+  });
+
+  it("should render a plan defect with Rebuild plan and no stage identifiers", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "The plan is missing information required to create the chain.",
+      actions: ["rebuild-plan", "stop-with-report"],
+      recovery: {
+        category: "plan-artifact-defect",
+        title: "The plan cannot be used",
+        summary:
+          "The plan is missing information required to create the chain.",
+        preservedWork: "Your approved requirements stay unchanged.",
+        technicalDetails: "PLAN_BLOCKER: invalid graph edge",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByText("The plan cannot be used")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved requirements stay unchanged."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "design-planning" }),
+    ).not.toBeInTheDocument();
+
+    const rebuild = screen.getByRole("button", { name: "Rebuild plan" });
+    expect(rebuild.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(rebuild);
+
+    expect(onAnswer).toHaveBeenCalledWith("rebuild-plan", "");
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should render an environment failure with only End run and keep report", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "This region is not supported for chain creation.",
+      actions: ["stop-with-report"],
+      recovery: {
+        category: "permanent-environment-failure",
+        title: "Creation cannot continue here",
+        summary: "This region is not supported for chain creation.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails: "PKIX path building failed",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(
+      screen.getByText("Creation cannot continue here"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved requirements and plan are saved."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry creation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit requirements" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Rebuild plan" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "design-execution" }),
+    ).not.toBeInTheDocument();
+
+    const endRun = screen.getByRole("button", {
+      name: "End run and keep report",
+    });
+    expect(endRun.className).not.toMatch(/ant-btn-primary/);
+    fireEvent.click(endRun);
+
+    expect(onAnswer).toHaveBeenCalledWith("stop-with-report", "");
+  });
+
+  it("should render an internal failure with only End run and keep report", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question:
+        "A step inside the service broke. Repeating the same request will not help.",
+      actions: ["stop-with-report"],
+      recovery: {
+        category: "internal-service-failure",
+        title: "Creation hit an internal problem",
+        summary:
+          "A step inside the service broke. Repeating the same request will not help.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails:
+          "java.lang.IllegalStateException: catalog lookup broke",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(
+      screen.getByText("Creation hit an internal problem"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved requirements and plan are saved."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry creation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "design-execution" }),
+    ).not.toBeInTheDocument();
+
+    const endRun = screen.getByRole("button", {
+      name: "End run and keep report",
+    });
+    expect(endRun.className).not.toMatch(/ant-btn-primary/);
+    fireEvent.click(endRun);
+
+    expect(onAnswer).toHaveBeenCalledWith("stop-with-report", "");
+  });
+
+  it("should keep unclassified raw error collapsed under Technical details", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question:
+        "Creation stopped without a recoverable cause. Repeating the same request will not help.",
+      actions: ["stop-with-report"],
+      recovery: {
+        category: "unclassified-failure",
+        title: "Creation cannot continue",
+        summary:
+          "Creation stopped without a recoverable cause. Repeating the same request will not help.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails:
+          "mapping intent mismatch between live revision and approved chain semantic revision",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    const fold = screen.getByText("Technical details").closest("details");
+    expect(fold).not.toBeNull();
+    expect(fold).not.toHaveAttribute("open");
+    expect(fold).toHaveTextContent(
+      "Raw error: mapping intent mismatch between live revision and approved chain semantic revision",
+    );
+    expect(screen.getByText("Creation cannot continue")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry creation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should omit unlabeled pipeline stage ids from recovery and clarify buttons", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const recovery = buildDecision({
+      kind: "clarify",
+      question: "Creation stopped without a recoverable cause.",
+      actions: ["planning", "analysis", "stop-with-report"],
+      recovery: {
+        category: "unclassified-failure",
+        title: "Creation cannot continue",
+        summary: "Creation stopped without a recoverable cause.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails: "",
+      },
+    });
+    const { rerender } = render(
+      <AiDecisionCard
+        decision={recovery}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "planning" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "analysis" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+
+    rerender(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Either artifact could be wrong.",
+          missingEvidence: [],
+          actions: ["planning", "analysis", "stop-with-report"],
+        })}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "planning" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "analysis" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should send deployment follow-up buttons as typed decisions", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "Would you like me to propose a chain fix?",
+      missingEvidence: [],
+      actions: ["propose-deployment-fix", "dismiss-deployment-failure"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    const propose = screen.getByRole("button", { name: "Propose a fix" });
+    expect(propose.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(propose);
+
+    expect(onAnswer).toHaveBeenCalledWith("propose-deployment-fix", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+  });
+
+  it("should preserve the command and localized label after answering a deployment card", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      question:
+        "Chain **Orders** is deployed on domain **default**. Reuse snapshot **V1**?",
+      actions: ["redeploy-chain", "cancel-redeploy"],
+      actionLabels: {
+        "redeploy-chain": "Erneut bereitstellen",
+        "cancel-redeploy": "Beibehalten",
+      },
+    });
+    const view = render(
+      <AiDecisionCard decision={decision} onAnswer={onAnswer} />,
+    );
+    for (const value of ["Orders", "default", "V1"]) {
+      expect(screen.getByText(value).tagName).toBe("STRONG");
+    }
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erneut bereitstellen" }),
+    );
+    expect(onAnswer).toHaveBeenCalledWith("redeploy-chain", "");
+    view.rerender(
+      <AiDecisionCard
+        decision={{ ...decision, answeredAction: "redeploy-chain" }}
+        onAnswer={onAnswer}
+      />,
+    );
+    expect(screen.getByText("Erneut bereitstellen")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Erneut bereitstellen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should send session logging buttons as typed decisions", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question:
+        "Which session logging level should this chain use? Current: OFF.",
+      missingEvidence: [],
+      actions: [
+        "session-logging-off",
+        "session-logging-error",
+        "session-logging-info",
+        "session-logging-debug",
+      ],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Off" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Error" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Info" })).toBeInTheDocument();
+    const debug = screen.getByRole("button", { name: "Debug" });
+    expect(debug.className).not.toMatch(/ant-btn-primary/);
+    fireEvent.click(debug);
+
+    expect(onAnswer).toHaveBeenCalledWith("session-logging-debug", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+  });
+
+  it("should send Create topics as the primary command when a MaaS Kafka card is shown", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question:
+            "Deploy is waiting because these Kafka MaaS topics are missing: `orders-in` in `qip-dev`. Create them?",
+          missingEvidence: [],
+          actions: ["create-maas-kafka-topics", "dismiss-maas-kafka-topics"],
+        })}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    const create = screen.getByRole("button", { name: "Create topics" });
+    expect(create.className).toMatch(/ant-btn-primary/);
+    const dismiss = screen.getByRole("button", { name: "Not now" });
+    expect(dismiss.className).not.toMatch(/ant-btn-primary/);
+    fireEvent.click(create);
+
+    expect(onAnswer).toHaveBeenCalledWith("create-maas-kafka-topics", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+  });
+
+  it("should send Not now as a typed dismiss when a MaaS Kafka card is shown", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Create missing Kafka MaaS topics?",
+          missingEvidence: [],
+          actions: ["create-maas-kafka-topics", "dismiss-maas-kafka-topics"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+
+    expect(onAnswer).toHaveBeenCalledWith("dismiss-maas-kafka-topics", "");
+  });
+
+  it("should render Revise for a stage-revise clarify gate", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "The brief omitted the scheduler.",
+      missingEvidence: [],
+      actions: ["retry", "revise"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Revise" }));
+
+    expect(onAnswer).toHaveBeenCalledWith("revise", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+  });
+
+  it("should send a command action through onAnswer even on a clarify card", () => {
+    // The import gate is a clarification the server can execute: it has to arrive as a typed
+    // command so the transcript records the marker the import stage reads. A stage answer such as
+    // "yes" travels as an ordinary message instead.
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason:
+        "Import the API Hub specification into the runtime catalog before planning?",
+      missingEvidence: [],
+      actions: [
+        "import-specification-internal",
+        "import-specification-external",
+      ],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Import as internal" }));
+
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+    expect(onAnswer).toHaveBeenCalledWith("import-specification-internal", "");
+  });
+
+  it("should render Pass through and Describe mappings for a mapping-gap clarify gate", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason:
+        "Some data mappings are still missing before design can continue.",
+      missingEvidence: [
+        'INITIALIZATION: ENDPOINT "GET /orders" → SERVICE_CALL "Outbound call call-1"',
+      ],
+      actions: ["pass_through", "describe_mappings"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        '1. INITIALIZATION: ENDPOINT "GET /orders" → SERVICE_CALL "Outbound call call-1"',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("One rule per line: 1: $.source -> $.target"),
+    ).toBeInTheDocument();
+
+    const describe = screen.getByRole("button", { name: "Describe mappings" });
+    expect(describe).toBeDisabled();
+
+    const passThrough = screen.getByRole("button", { name: "Pass through" });
+    expect(passThrough.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(passThrough);
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onSubmitClarification).toHaveBeenCalledWith("pass_through");
+  });
+
+  it("should submit described mappings text when Describe mappings is clicked", () => {
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason:
+        "Some data mappings are still missing before design can continue.",
+      missingEvidence: [],
+      actions: ["pass_through", "describe_mappings"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={jest.fn()}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText("One rule per line: 1: $.source -> $.target"),
+      { target: { value: "1: $.id → $.customerId" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Describe mappings" }));
+
+    expect(onSubmitClarification).toHaveBeenCalledWith(
+      "1: $.id → $.customerId",
+    );
+  });
+
+  it("should render numbered patch actions as a list with bold verbs", () => {
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          question:
+            "Add an if branch to the Available pets decision.\n\n1. **Adds** Available is at least ten (if)\n\n2. **Adds** Log healthy inventory (log-record)\n\nApply this to the chain?",
+          actions: ["apply-chain-patch", "request-changes"],
+        })}
+        onAnswer={jest.fn()}
+      />,
+    );
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Adds Available is at least ten (if)");
+    expect(items[1]).toHaveTextContent(
+      "Adds Log healthy inventory (log-record)",
+    );
+    expect(items[0].querySelector("strong")).toHaveTextContent("Adds");
+    expect(items[1].querySelector("strong")).toHaveTextContent("Adds");
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+  });
+
+  it("should request a new review when the patch approval contains feedback", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          artifactType: "CHAIN_PATCH",
+          actions: ["apply-chain-patch", "request-changes"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Add a comment (optional)"), {
+      target: { value: "  Remove the extra header line  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+
+    expect(onAnswer).toHaveBeenCalledWith(
+      "request-changes",
+      "Remove the extra header line",
+    );
+  });
+
+  it("should freeze the clarify card and hide the text area once submitted", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Missing evidence.",
+      missingEvidence: [],
+      actions: [],
+      answeredAction: "clarify",
+    });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("Provide the missing information"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should fill Retry creation and End run when a regeneratable halt has no labeled actions", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation output needs regeneration",
+          actions: [],
+          recovery: {
+            category: "regeneratable-execution-failure",
+            title: "Creation output needs regeneration",
+            summary: "The capture was rejected.",
+            preservedWork: "Your approved requirements and plan are saved.",
+            technicalDetails: "CONTRACT_SHAPE",
+          },
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Retry creation" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should treat a blank clarify as End run instead of a dead Submit", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "",
+          actions: [],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should hint that yes or no enables Submit on a free-text clarify", () => {
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Should I write an IDS? Answer yes or no.",
+          actions: [],
+        })}
+        onAnswer={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Enter yes or no to enable Submit."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
+  });
+
+  it("should offer a same-task creation after End run", () => {
+    const onStartSameTask = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation cannot continue",
+          actions: ["stop-with-report"],
+          answeredAction: "stop-with-report",
+          recovery: {
+            category: "unclassified-failure",
+            title: "Creation cannot continue",
+            summary: "The approved plan did not produce a chain patch.",
+            preservedWork: "Your approved requirements and plan are saved.",
+            technicalDetails: "GRAPH_PATCH_ARTIFACT",
+          },
+        })}
+        onAnswer={jest.fn()}
+        onStartSameTask={onStartSameTask}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Start new creation with the same task",
+      }),
+    );
+    expect(onStartSameTask).toHaveBeenCalled();
+  });
+
+  it("should submit the selected chain-trigger id from the picker", async () => {
+    mockGetElementsByType.mockResolvedValue([
+      {
+        id: "trig-header",
+        name: "Trigger",
+        chainName: "Header chain",
+      },
+    ]);
+    const onSubmitClarification = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question:
+            "Chain-call call-other has no unique chain-trigger yet. Choose the catalog chain to call.",
+          reason:
+            "Chain-call call-other has no unique chain-trigger yet. Choose the catalog chain to call.",
+          actions: [],
+        })}
+        onAnswer={jest.fn()}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.queryByPlaceholderText("Provide the missing information"),
+    ).not.toBeInTheDocument();
+    const submitButton = screen.getByRole("button", { name: "Submit" });
+    expect(submitButton).toBeDisabled();
+
+    await waitFor(() => {
+      expect(mockGetElementsByType).toHaveBeenCalledWith(
+        "any-chain",
+        "chain-trigger-2",
+      );
+    });
+
+    fireEvent.mouseDown(
+      screen.getByRole("combobox", { name: "Catalog chain to call" }),
+    );
+    fireEvent.click(await screen.findByText("Header chain: Trigger"));
+    expect(submitButton).not.toBeDisabled();
+    fireEvent.click(submitButton);
+    expect(onSubmitClarification).toHaveBeenCalledWith("trig-header");
+  });
+});

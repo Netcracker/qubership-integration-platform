@@ -1,0 +1,11 @@
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/context-storage
+id: "a5bca77d-57d5-553c-bff8-073b9fcad32a"
+name: Schema contract sample
+type: context-storage
+properties:
+  contextServiceId: context-service
+  useCorrelationId: true
+  operation: GET
+  target: BODY
+  overrideContextParams:
+    X-Request-Id: request-id
