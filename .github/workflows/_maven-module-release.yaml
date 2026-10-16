@@ -23,6 +23,13 @@ name: Maven Module Release (reusable)
 
 on:
   workflow_call:
+    outputs:
+      release-version:
+        description: "Released module version (X.Y.Z)"
+        value: ${{ jobs.check-version.outputs.release-version }}
+      recover:
+        description: "True when re-applying a version bump after a prior tagged publish"
+        value: ${{ jobs.check-version.outputs.recover }}
     inputs:
       module:
         required: true
