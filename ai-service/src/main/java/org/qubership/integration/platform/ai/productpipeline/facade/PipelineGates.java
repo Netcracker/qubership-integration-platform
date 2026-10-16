@@ -26,6 +26,8 @@ public final class PipelineGates {
   /** The API Hub specification is selected and waiting to be imported into the catalog. */
   public static final String IMPORT_SPECIFICATION = "import-specification";
 
+  public static final String UPLOADED_SPECS_IMPORT = "uploaded-specs-import";
+
   /** The run asks whether to write an integration design document. */
   public static final String IDS_PATH_CHOICE = "ids-path-choice";
 

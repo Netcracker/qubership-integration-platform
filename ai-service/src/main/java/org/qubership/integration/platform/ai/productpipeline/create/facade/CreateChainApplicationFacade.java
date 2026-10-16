@@ -1328,7 +1328,11 @@ public class CreateChainApplicationFacade {
    * missing.
    */
   private CreateChainPendingAction.Clarify clarifyFromWait(String taskId, String waitPrompt) {
-    String gateId = PipelineGates.gateOf(waitPrompt).orElse("");
+    String gateId = PipelineGates.gateOf(waitPrompt).orElseGet(() ->
+        runStore.loadByConversation(taskId)
+            .filter(doc -> "uploaded-spec-import".equals(doc.run().currentStageId()))
+            .map(doc -> PipelineGates.UPLOADED_SPECS_IMPORT)
+            .orElse(""));
     String prompt = publicPrompt(waitPrompt);
     if (!prompt.isBlank()) {
       if (PipelineGates.isContextualRecoveryGate(gateId)) {
