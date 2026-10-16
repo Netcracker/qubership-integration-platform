@@ -108,5 +108,6 @@ System allows to export MCP service with its metadata, labels, identifier, and i
 
 ---
 
+- Only one MCP server is available per CIP Engine.
 - **Identifier** must be unique within MCP services.
 - **Technical** labels cannot be imported via UI or exported.

@@ -37,6 +37,7 @@ Table contains sessions, aggregated by correlation identifier, if it is availabl
 
 At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
+  - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter sessions by **Chain**, **Status**, **Start Time**, **Finish Time**, and **Engine**.
   > ℹ️ **Note:** When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
   - ![Settings|20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **ID**.
   - ![Delete|20](img/delete.svg) - deletes selected session(s).
