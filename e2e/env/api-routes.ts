@@ -1,5 +1,5 @@
 /**
- * The `/api/` prefix table, derived from `infrastructure/nginx/routes.conf`.
+ * The `/api/` prefix table, derived from `infrastructure/docker/nginx/routes.conf`.
  *
  * Addressing is two surfaces, not one. The `/api/` surface goes through nginx; chain invocation
  * does not, because no `location` matches `/routes/` or `/qip-routes/` and the request falls
@@ -37,7 +37,7 @@ export type RouteOutcome =
   | "blocked";
 
 export interface ApiRoute {
-  /** The `location` in `infrastructure/nginx/routes.conf` this row exercises, by line number. */
+  /** The `location` in `infrastructure/docker/nginx/routes.conf` this row exercises, by line number. */
   line: number;
   /** Which service the row reaches, for `proxied` rows. */
   role: ServiceRole;

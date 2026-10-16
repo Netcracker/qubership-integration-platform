@@ -16,12 +16,8 @@
 
 package org.qubership.integration.platform.engine.errorhandling.errorcode;
 
-import org.eclipse.microprofile.config.ConfigProvider;
-
 public class ErrorCodePrefix {
-    private static final String CODE_PREFIX = ConfigProvider.getConfig()
-            .getValue("application.prefix", String.class)
-            .toUpperCase();
+    private static final String CODE_PREFIX = "CIP";
 
     private ErrorCodePrefix() {
     }

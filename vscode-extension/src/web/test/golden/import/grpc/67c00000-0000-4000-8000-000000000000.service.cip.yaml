@@ -1,0 +1,23 @@
+id: 67c00000-0000-4000-8000-000000000000
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+name: import-67c00000
+content:
+  integrationSystemType: INTERNAL
+  migrations: "[100, 101, 102]"
+  description: ""
+  activeEnvironmentId: 67c09ec0-0000-4000-8000-000000000003
+  extendedProtocol: GRPC
+  specification: ""
+  environments:
+    - id: 67c09ec0-0000-4000-8000-000000000003
+      name: orders gRPC endpoint
+      address: grpc://localhost:50051
+      description: Environment created for orders specification group
+      sourceType: MANUAL
+      systemId: 67c00000-0000-4000-8000-000000000000
+      properties:
+        connectTimeout: "120000"
+        soTimeout: "120000"
+      labels: []
+  labels: []
+  protocol: GRPC

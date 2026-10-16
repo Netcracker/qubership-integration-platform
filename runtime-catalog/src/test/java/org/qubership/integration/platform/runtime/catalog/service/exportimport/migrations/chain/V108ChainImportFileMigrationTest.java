@@ -84,14 +84,14 @@ class V108ChainImportFileMigrationTest {
         ObjectNode content = factory.objectNode();
         content.set("folder", folder);
         ObjectNode metaInfo = factory.objectNode();
-        metaInfo.put("application", "QIP");
+        metaInfo.put("application", "CIP");
         ObjectNode chainNode = factory.objectNode();
         chainNode.set("metaInfo", metaInfo);
         chainNode.set("content", content);
 
         ObjectNode result = migration.makeMigration(chainNode);
 
-        assertEquals("QIP", result.get("metaInfo").get("application").asText());
+        assertEquals("CIP", result.get("metaInfo").get("application").asText());
         assertEquals("A", result.get("metaInfo").get("group").asText());
         assertFalse(result.get("content").has("folder"));
     }

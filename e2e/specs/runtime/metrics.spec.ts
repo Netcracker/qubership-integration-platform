@@ -6,7 +6,7 @@
  * `chains.failures` tagged by `chain_id` and `chain_name`
  * (`engine/.../debugger/metrics/MetricsStore.java:49-72`), all of it behind `cip.metrics.enabled`.
  * Measured: the flag reads `MONITORING_ENABLED`, which Compose did not set, so `/actuator/prometheus`
- * carried none of these meters — `infrastructure/engine-dev.env` now turns it on.
+ * carried none of these meters — `infrastructure/docker/engine-dev.env` now turns it on.
  *
  * Three measured facts shape the assertions:
  *
@@ -108,7 +108,7 @@ test("a chain's session counter grows with the calls it serves", { tag: ["@engin
   expect(
     exposition,
     "the engine publishes no chain meters, or /actuator/prometheus did not answer: " +
-      "cip.metrics.enabled reads MONITORING_ENABLED, and infrastructure/engine-dev.env is where " +
+      "cip.metrics.enabled reads MONITORING_ENABLED, and infrastructure/docker/engine-dev.env is where " +
       "Compose sets it",
   ).toContain("qip_engine_sessions_counter_total");
 

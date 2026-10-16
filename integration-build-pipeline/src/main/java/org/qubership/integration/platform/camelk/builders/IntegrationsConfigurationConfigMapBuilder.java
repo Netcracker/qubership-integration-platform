@@ -108,7 +108,7 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
 
             return resourceYamlMapper.writeValueAsString(configMapNode);
         } catch (Exception e) {
-            String message = "Failed to build integration source ConfigMap for chains configuration";
+            String message = "Failed to build integration source ConfigMap for chains configuration: " + e.getMessage();
             log.error(message, e);
             throw new ResourceBuildError(message, e);
         }

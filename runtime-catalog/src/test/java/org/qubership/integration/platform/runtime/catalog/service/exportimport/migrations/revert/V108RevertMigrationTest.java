@@ -45,7 +45,7 @@ class V108RevertMigrationTest {
     void shouldPreserveOtherMetaInfoFields() {
         ObjectNode metaInfo = factory.objectNode();
         metaInfo.put("group", "A");
-        metaInfo.put("application", "QIP");
+        metaInfo.put("application", "CIP");
         ObjectNode content = factory.objectNode();
         content.put("migrations", "[101, 108]");
         ObjectNode chainNode = factory.objectNode();
@@ -56,7 +56,7 @@ class V108RevertMigrationTest {
 
         assertInstanceOf(ObjectNode.class, result.get("metaInfo"));
         assertFalse(result.get("metaInfo").has("group"));
-        assertEquals("QIP", result.get("metaInfo").get("application").asText());
+        assertEquals("CIP", result.get("metaInfo").get("application").asText());
         assertEquals("A", result.get("content").get("folder").get("name").asText());
         assertEquals("[101]", result.get("content").get("migrations").asText());
     }
@@ -66,7 +66,7 @@ class V108RevertMigrationTest {
     void shouldDoNothingWhenGroupBlank() {
         ObjectNode metaInfo = factory.objectNode();
         metaInfo.put("group", "");
-        metaInfo.put("application", "QIP");
+        metaInfo.put("application", "CIP");
         ObjectNode content = factory.objectNode();
         content.put("migrations", "[101, 108]");
         ObjectNode chainNode = factory.objectNode();
@@ -76,7 +76,7 @@ class V108RevertMigrationTest {
         ObjectNode result = migration.revert(chainNode);
 
         assertInstanceOf(ObjectNode.class, result.get("metaInfo"));
-        assertEquals("QIP", result.get("metaInfo").get("application").asText());
+        assertEquals("CIP", result.get("metaInfo").get("application").asText());
         assertFalse(result.get("content").has("folder"));
         assertEquals("[101, 108]", result.get("content").get("migrations").asText());
     }

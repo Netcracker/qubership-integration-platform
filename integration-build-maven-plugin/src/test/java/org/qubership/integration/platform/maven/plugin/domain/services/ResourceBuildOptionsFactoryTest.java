@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 class ResourceBuildOptionsFactoryTest {
 
-    private static final String DEFAULT_IMAGE = "qip/micro-engine:test";
+    private static final String DEFAULT_IMAGE = "cip/micro-engine:test";
 
     private final ResourceBuildOptionsFactory factory = new ResourceBuildOptionsFactory(DEFAULT_IMAGE);
 
@@ -44,7 +44,7 @@ class ResourceBuildOptionsFactoryTest {
             .mount(mount)
             .environment(environment)
             .integrations(integrations)
-            .serviceAccount("qip")
+            .serviceAccount("cip")
             .build();
 
         ResourceBuildOptions result = factory.createResourceBuildOptions("orders", parameters(options));
@@ -59,7 +59,7 @@ class ResourceBuildOptionsFactoryTest {
         assertSame(mount, result.getMount());
         assertSame(integrations, result.getIntegrations());
         assertEquals("DEBUG", result.getEnvironment().get("LOG_LEVEL"));
-        assertEquals("qip", result.getServiceAccount());
+        assertEquals("cip", result.getServiceAccount());
     }
 
     @Test

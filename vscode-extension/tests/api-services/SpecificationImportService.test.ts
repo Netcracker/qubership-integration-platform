@@ -1,8 +1,16 @@
+// What this file owns: the control flow of `runImport` around its collaborators, over stubs of all
+// of them. One case is left, and it asserts that `validateAllowedSystemProtocol` is called with the
+// system type and the detected protocol — an interaction only a stub can observe.
+//
+// `returns warningMessage (graceful failure) when validation throws` used to sit beside it and is
+// gone: `tests/web/import/failures.test.ts` pins that refusal over the fake filesystem with the
+// real validator, naming the exact message, the untouched tree and the dialog text, so the stubbed
+// pair asserted less about more. A case about what the user is told, or about what lands on disk,
+// belongs in `tests/web/import/`.
 import {
   createVscodeMock,
   stubFileApi,
   stubLabelUtils,
-  stubProjectConfigService,
   buildSystem,
   buildSerializedOpenApiFile,
 } from "../helpers/mocks";
@@ -26,10 +34,6 @@ jest.mock("../../src/web/response/file/fileApiProvider", () =>
   stubFileApi({ getFileType: jest.fn().mockResolvedValue("SERVICE") }),
 );
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
-jest.mock("../../src/web/services/ProjectConfigService", () =>
-  stubProjectConfigService(),
-);
-
 jest.mock("../../src/web/api-services/SystemService", () => ({
   SystemService: jest.fn().mockImplementation(() => ({
     getSystemById: mockGetSystemById,
@@ -123,29 +127,5 @@ describe("SpecificationImportService – validateAllowedSystemProtocol in runImp
       IntegrationSystemType.IMPLEMENTED,
       expect.any(String),
     );
-  });
-
-  test("returns warningMessage (graceful failure) when validation throws", async () => {
-    mockGetSystemById.mockResolvedValue(
-      buildSystem({
-        integrationSystemType: IntegrationSystemType.IMPLEMENTED,
-        protocol: "GRPC",
-      }),
-    );
-    mockValidateAllowedSystemProtocol.mockImplementation(() => {
-      throw new Error(
-        "Specification type is not allowed for implemented system: HTTP",
-      );
-    });
-
-    const result = await service.importSpecificationGroup({
-      systemId: "sys-1",
-      name: "Test Group",
-      files: [buildSerializedOpenApiFile()],
-    });
-
-    expect(result.done).toBe(true);
-    expect(result.warningMessage).toBeDefined();
-    expect(mockFailImportSession).toHaveBeenCalled();
   });
 });

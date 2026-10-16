@@ -111,7 +111,7 @@ class ChainLoggerTest {
         String properties = "error-properties";
 
         errorCodePrefixMock = mockStatic(ErrorCodePrefix.class);
-        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("qip");
+        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("cip");
 
         chainLogger.logError(message, exception, body, headers, properties);
 
@@ -168,7 +168,7 @@ class ChainLoggerTest {
         long duration = 30000L;
 
         errorCodePrefixMock = mockStatic(ErrorCodePrefix.class);
-        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("qip");
+        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("cip");
 
         chainLogger.logFailedHttpOperation(body, headers, properties, httpException, duration);
 
@@ -191,7 +191,7 @@ class ChainLoggerTest {
         long duration = 100L;
 
         errorCodePrefixMock = mockStatic(ErrorCodePrefix.class);
-        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("qip");
+        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("cip");
 
         chainLogger.logFailedOperation(body, headers, properties, exception, duration);
 
@@ -292,7 +292,7 @@ class ChainLoggerTest {
         when(runtimeProperties.getLogLoggingLevel()).thenReturn(LogLoggingLevel.INFO);
 
         errorCodePrefixMock = mockStatic(ErrorCodePrefix.class);
-        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("qip");
+        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("cip");
 
         chainLogger.logHTTPExchangeFinished(exchange, dbgProperties, "body", "headers", "properties", null, 150L,
                 mock(HttpOperationFailedException.class));
@@ -436,7 +436,7 @@ class ChainLoggerTest {
         when(exchange.getProperty(Properties.SESSION_ID)).thenReturn("session-123");
 
         errorCodePrefixMock = mockStatic(ErrorCodePrefix.class);
-        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("qip");
+        errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("cip");
 
         chainLogger.logAfterProcess(exchange, dbgProperties, "body", "headers", "properties", "node-1", 100L);
 

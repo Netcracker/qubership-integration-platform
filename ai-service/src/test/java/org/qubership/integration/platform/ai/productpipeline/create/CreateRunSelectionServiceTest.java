@@ -179,7 +179,7 @@ class CreateRunSelectionServiceTest {
   @Test
   void composeDoesNotExposeCreateRuntimeOrProfileSelectors() throws Exception {
     String compose =
-        Files.readString(Path.of("../infrastructure/docker-compose.yml"));
+        Files.readString(Path.of("../infrastructure/docker/docker-compose.yml"));
     assertFalse(compose.contains("QIP_CREATE_RUNTIME"));
     assertFalse(compose.contains("QIP_CREATE_PRODUCT_PROFILE_ID"));
     assertFalse(compose.contains("QIP_CREATE_PRODUCT_PROFILE_VERSION"));

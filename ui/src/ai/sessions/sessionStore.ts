@@ -7,8 +7,10 @@ import {
 import { ChatMessage } from "../modelProviders/types.ts";
 import { v4 as uuidv4 } from "uuid";
 
-const STORAGE_KEY = "qip_ai_chat_sessions";
-const LAST_ACTIVE_SESSION_ID_KEY = "qip_ai_last_active_session_id";
+const STORAGE_KEY = "cip_ai_chat_sessions";
+const LAST_ACTIVE_SESSION_ID_KEY = "cip_ai_last_active_session_id";
+const LEGACY_STORAGE_KEY = "qip_ai_chat_sessions";
+const LEGACY_LAST_ACTIVE_SESSION_ID_KEY = "qip_ai_last_active_session_id";
 const STORAGE_DEBOUNCE_MS = 500;
 
 function getLatestSessionId(sessions: ChatSession[]): string | null {
@@ -34,11 +36,42 @@ class ChatSessionStore {
   >();
 
   constructor() {
+    this.migrateLegacySessions();
     window.addEventListener("storage", (event) => {
       if (event.key === STORAGE_KEY && this.pendingSave === null) {
         this.memorySessions = null;
       }
     });
+  }
+
+  private migrateLegacySessions(): void {
+    try {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy === null) return;
+      const sessions = new Map(
+        (JSON.parse(legacy) as ChatSession[]).map((session) => [
+          session.id,
+          session,
+        ]),
+      );
+      for (const session of this.readPersistedSessions()) {
+        sessions.set(session.id, session);
+      }
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(Array.from(sessions.values())),
+      );
+      const activeSession = localStorage.getItem(
+        LEGACY_LAST_ACTIVE_SESSION_ID_KEY,
+      );
+      if (activeSession && !localStorage.getItem(LAST_ACTIVE_SESSION_ID_KEY)) {
+        localStorage.setItem(LAST_ACTIVE_SESSION_ID_KEY, activeSession);
+      }
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_LAST_ACTIVE_SESSION_ID_KEY);
+    } catch {
+      // Keep legacy history if the migration cannot be saved.
+    }
   }
 
   private readPersistedSessions(): ChatSession[] {

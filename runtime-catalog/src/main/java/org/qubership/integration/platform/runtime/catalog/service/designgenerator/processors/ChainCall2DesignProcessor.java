@@ -61,8 +61,8 @@ public class ChainCall2DesignProcessor implements DesignProcessor {
     public String getExternalParticipantName(ChainElement element) {
         return getExternalParticipant(element)
                 .map(Chain::getName)
-                .map(name -> "QIP chain: " + name)
-                .orElse("Unknown QIP chain");
+                .map(name -> "CIP chain: " + name)
+                .orElse("Unknown CIP chain");
     }
 
     @Override
@@ -75,7 +75,7 @@ public class ChainCall2DesignProcessor implements DesignProcessor {
                 .or(() -> triggerId)
                 .orElse(null);
 
-        builder.append(LINE_WITH_ARROW_SOLID_RIGHT, refChainId, externalParticipantId, "QIP chain trigger call: " + nameOrId);
+        builder.append(LINE_WITH_ARROW_SOLID_RIGHT, refChainId, externalParticipantId, "CIP chain trigger call: " + nameOrId);
         builder.append(ACTIVATE, externalParticipantId);
         builder.append(LINE_WITH_ARROW_DOTTED_RIGHT, externalParticipantId, refChainId, DEFAULT_RESPONSE_TITLE);
         builder.append(DEACTIVATE, externalParticipantId);

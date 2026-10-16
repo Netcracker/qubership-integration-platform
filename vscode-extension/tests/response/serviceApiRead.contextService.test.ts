@@ -8,11 +8,6 @@ jest.mock("vscode", () => createVscodeMock(), { virtual: true });
 jest.mock("../../src/web/response/file/fileApiProvider", () =>
   stubFileApi({ findFileById: jest.fn() }),
 );
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest
-    .fn()
-    .mockReturnValue({ contextService: ".context-service.qip.yaml" }),
-}));
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },
@@ -22,9 +17,9 @@ jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 import { getContextService } from "../../src/web/response/serviceApiRead";
 import { fileApi } from "../../src/web/response/file/fileApiProvider";
 
-const chainFileUri = { path: "/project/orders/orders.chain.qip.yaml" } as any;
+const chainFileUri = { path: "/project/orders/orders.chain.cip.yaml" } as any;
 const contextServiceFileUri = {
-  path: "/project/ctx-1/ctx-1.context-service.qip.yaml",
+  path: "/project/ctx-1/ctx-1.context-service.cip.yaml",
 } as any;
 
 // Mirrors VSCodeFileApi.getContextService, which throws unless the file holds the requested service.
@@ -52,7 +47,7 @@ describe("getContextService – the file a chain reads it from", () => {
 
     expect(fileApi.findFileById).toHaveBeenCalledWith(
       "ctx-1",
-      ".context-service.qip.yaml",
+      ".context-service.cip.yaml",
     );
     expect(service.name).toBe("Orders Context");
   });

@@ -17,11 +17,7 @@ import {
 } from "./response/apiRouter";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
-import {
-  DEFAULT_APP_NAME,
-  initializeContextFromFile,
-} from "./response/file/fileExtensions";
-import { QipExplorerProvider } from "./qipExplorer";
+import { CipExplorerProvider } from "./cipExplorer";
 import {
   VSCodeMessage,
   VSCodeResponse,
@@ -29,12 +25,6 @@ import {
 } from "@netcracker/qip-ui";
 import type { ExportImagesCommandConfig } from "./exportImageTypes";
 import { FileCacheService } from "./services/FileCacheService";
-import {
-  ProjectConfigService,
-  CONFIG_FILENAME,
-  ProjectConfig,
-} from "./services/ProjectConfigService";
-import { ConfigApiProvider } from "./services/ConfigApiProvider";
 import {
   getAndClearNavigationStateValue,
   initNavigationState,
@@ -53,33 +43,7 @@ type VSCodeMessageWrapper = {
   data: VSCodeMessage<any>;
 };
 
-export interface QipExtensionAPI {
-  loadConfigFromPath(configUri: Uri): Promise<void>;
-
-  registerConfig(
-    appName: string,
-    configData: {
-      extensions?: {
-        chain?: string;
-        service?: string;
-        specificationGroup?: string;
-        specification?: string;
-      };
-      schemaUrls?: {
-        service?: string;
-        chain?: string;
-        specification?: string;
-        specificationGroup?: string;
-      };
-    },
-  ): void;
-
-  unregisterConfig(appName: string): void;
-
-  getConfig(appName: string): ProjectConfig | undefined;
-}
-
-let globalQipProvider: QipExplorerProvider | null = null;
+let globalCipProvider: CipExplorerProvider | null = null;
 const activeWebviewPanels = new Map<string, WebviewPanel>();
 let currentExtensionVersion = "unknown";
 
@@ -238,9 +202,9 @@ function broadcastThemeToAllWebviews() {
   });
 }
 
-export function refreshQipExplorer() {
-  if (globalQipProvider) {
-    globalQipProvider.refresh();
+export function refreshCipExplorer() {
+  if (globalCipProvider) {
+    globalCipProvider.refresh();
   }
 }
 
@@ -350,7 +314,7 @@ const CHAIN_DIFF_ASSOCIATION_GLOB = "*.chain.cip.yaml";
 
 /**
  * Keeps `workbench.diffEditorAssociations` in sync with the
- * `qipExtension.useDefaultDiffView` toggle.
+ * `cipExtension.useDefaultDiffView` toggle.
  *
  * The extension's `configurationDefaults` map chain file diffs to the visual
  * editor. When the toggle is on, a user-level `"default"` association
@@ -360,7 +324,7 @@ const CHAIN_DIFF_ASSOCIATION_GLOB = "*.chain.cip.yaml";
  */
 async function syncChainDiffAssociation(): Promise<void> {
   const useDefaultDiffView = vscode.workspace
-    .getConfiguration("qipExtension")
+    .getConfiguration("cipExtension")
     .get<boolean>("useDefaultDiffView", false);
 
   const configuration = vscode.workspace.getConfiguration();
@@ -395,8 +359,8 @@ function openWebviewForElement(
   elementType: "chain" | "service",
 ) {
   const panel = vscode.window.createWebviewPanel(
-    "qipWebView",
-    `QIP ${elementType === "chain" ? "Chain" : "Service"} Editor`,
+    "cipWebView",
+    `CIP ${elementType === "chain" ? "Chain" : "Service"} Editor`,
     vscode.ViewColumn.One,
     {
       enableScripts: true,
@@ -414,8 +378,8 @@ async function openExportImagesWebview(
   startupPayload: ExportImagesStartupPayload,
 ) {
   const panel = vscode.window.createWebviewPanel(
-    "qipWebView",
-    "QIP Export Images",
+    "cipWebView",
+    "CIP Export Images",
     vscode.ViewColumn.One,
     {
       enableScripts: true,
@@ -469,14 +433,6 @@ async function enrichWebview(
     throw new Error("Invalid parameters for enrichWebview");
   }
 
-  if (fileUri) {
-    try {
-      await initializeContextFromFile(fileUri);
-    } catch (error) {
-      console.error("Failed to initialize context from file:", error);
-    }
-  }
-
   panel.webview.html = await getWebviewContent(context, panel.webview);
 
   const panelId = crypto.randomUUID();
@@ -513,7 +469,7 @@ async function enrichWebview(
         vscode.commands.executeCommand(
           "vscode.openWith",
           response.payload,
-          "qip.chainFile.editor",
+          "cip.chainFile.editor",
         );
         return;
       } else if (message.data.type === "navigateInNewTab") {
@@ -527,7 +483,7 @@ async function enrichWebview(
         return;
       }
     } catch (e) {
-      console.error("Failed to fetch data for QIP Extension API", e);
+      console.error("Failed to fetch data for CIP Extension API", e);
       if (e instanceof Error) {
         response.error = { message: e.message, name: e.name };
       }
@@ -536,84 +492,18 @@ async function enrichWebview(
   });
 }
 
-async function setupFileWatchers(context: ExtensionContext): Promise<void> {
+function setupFileWatchers(context: ExtensionContext): void {
   const cacheService = FileCacheService.getInstance();
+  const watcher = vscode.workspace.createFileSystemWatcher("**/*.cip.yaml");
 
-  const extensionsToWatch = new Set<string>();
+  watcher.onDidChange((uri) => cacheService.invalidateByUri(uri));
+  watcher.onDidDelete((uri) => cacheService.invalidateByUri(uri));
+  watcher.onDidCreate((uri) => cacheService.invalidateByUri(uri));
 
-  try {
-    const configService = ProjectConfigService.getInstance();
-    const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-
-    if (workspaceUri) {
-      await configService.loadWorkspaceConfig(workspaceUri);
-    }
-
-    const allConfigs = configService.getAllConfigs();
-
-    if (allConfigs.length > 0) {
-      allConfigs.forEach((config) => {
-        Object.values(config.extensions).forEach((extension: string) => {
-          const pattern = `**/*${extension}`;
-          extensionsToWatch.add(pattern);
-        });
-      });
-    } else {
-      const defaultAppNames = [DEFAULT_APP_NAME];
-      defaultAppNames.forEach((appName) => {
-        const defaultConfig = configService.buildDefaultConfig(appName);
-        Object.values(defaultConfig.extensions).forEach((extension: string) => {
-          const pattern = `**/*${extension}`;
-          extensionsToWatch.add(pattern);
-        });
-      });
-    }
-  } catch (error) {
-    console.error(
-      "[QIP] Failed to setup file watchers from config, using cip defaults:",
-      error,
-    );
-
-    const fallbackConfig =
-      ProjectConfigService.getInstance().buildDefaultConfig(DEFAULT_APP_NAME);
-    Object.values(fallbackConfig.extensions).forEach((extension: string) => {
-      const pattern = `**/*${extension}`;
-      extensionsToWatch.add(pattern);
-    });
-  }
-
-  extensionsToWatch.forEach((pattern) => {
-    const watcher = vscode.workspace.createFileSystemWatcher(pattern);
-
-    watcher.onDidChange((uri) => cacheService.invalidateByUri(uri));
-    watcher.onDidDelete((uri) => cacheService.invalidateByUri(uri));
-    watcher.onDidCreate((uri) => cacheService.invalidateByUri(uri));
-
-    context.subscriptions.push(watcher);
-    console.log(`[QIP] File watcher created for pattern: ${pattern}`);
-  });
-
-  console.log(`[QIP] Total file watchers created: ${extensionsToWatch.size}`);
-
-  const configWatcher = vscode.workspace.createFileSystemWatcher(
-    `**/${CONFIG_FILENAME}`,
-  );
-  configWatcher.onDidChange(() => {
-    vscode.window
-      .showInformationMessage(
-        "QIP config changed. Reload window to apply new file extensions.",
-        "Reload",
-      )
-      .then((selection) => {
-        if (selection === "Reload") {
-          vscode.commands.executeCommand("workbench.action.reloadWindow");
-        }
-      });
-  });
-  context.subscriptions.push(configWatcher);
+  context.subscriptions.push(watcher);
 }
 
-export function activate(context: ExtensionContext): QipExtensionAPI {
+export function activate(context: ExtensionContext): void {
   const fileApiImpl = new VSCodeFileApi(context);
   setFileApi(fileApiImpl);
 
@@ -621,19 +511,14 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   currentExtensionVersion = context.extension.packageJSON.version ?? "unknown";
 
-  const projectConfigService = ProjectConfigService.getInstance();
-  projectConfigService.setContext(context);
+  setupFileWatchers(context);
 
-  setupFileWatchers(context).catch((error) => {
-    console.error("[QIP] Failed to setup file watchers:", error);
-  });
-
-  // Register QIP Explorer provider
-  const qipProvider = new QipExplorerProvider(context);
-  globalQipProvider = qipProvider;
+  // Register CIP Explorer provider
+  const cipProvider = new CipExplorerProvider();
+  globalCipProvider = cipProvider;
 
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("qip-main", qipProvider),
+    vscode.window.registerTreeDataProvider("cip-main", cipProvider),
   );
 
   const editorParams = {
@@ -646,7 +531,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
-      "qip.chainFile.editor",
+      "cip.chainFile.editor",
       new ChainFileEditorProvider(context),
       editorParams,
     ),
@@ -654,7 +539,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
-      "qip.serviceFile.editor",
+      "cip.serviceFile.editor",
       new BaseFileEditorProvider(context),
       editorParams,
     ),
@@ -662,7 +547,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
-      "qip.contextServiceFile.editor",
+      "cip.contextServiceFile.editor",
       new BaseFileEditorProvider(context),
       editorParams,
     ),
@@ -670,22 +555,22 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
-      "qip.mcpServiceFile.editor",
+      "cip.mcpServiceFile.editor",
       new BaseFileEditorProvider(context),
       editorParams,
     ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("qip.open", function () {
+    vscode.commands.registerCommand("cip.open", function () {
       // The code you place here will be executed every time your command is executed
 
       // Display a message box to the user
       //vscode.window.showInformationMessage('Hello World from qip-visual-studio-extension in a web extension host!');
 
       const panel = vscode.window.createWebviewPanel(
-        "qipWebView", // Identifies the type of the webview
-        "QIP Offline Chain Editor", // Title of the panel
+        "cipWebView", // Identifies the type of the webview
+        "CIP Offline Chain Editor", // Title of the panel
         vscode.ViewColumn.One, // Show in the first column
         {
           enableScripts: true, // Allow JavaScript execution
@@ -700,14 +585,14 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "qip.exportImages",
+      "cip.exportImages",
       async (filePath?: string | Uri, config?: ExportImagesCommandConfig) => {
         try {
           await exportImagesHandler(context, filePath, config);
         } catch (error) {
-          console.error("Failed to export QIP chain images:", error);
+          console.error("Failed to export CIP chain images:", error);
           await vscode.window.showErrorMessage(
-            `Failed to export QIP chain images: ${error}`,
+            `Failed to export CIP chain images: ${error}`,
           );
         }
       },
@@ -715,7 +600,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("qip.exportImagesFromExplorer", async () => {
+    vscode.commands.registerCommand("cip.exportImagesFromExplorer", async () => {
       try {
         const folders = await vscode.window.showOpenDialog({
           canSelectFiles: false,
@@ -738,25 +623,25 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
           return;
         }
 
-        await vscode.commands.executeCommand("qip.exportImages", undefined, {
+        await vscode.commands.executeCommand("cip.exportImages", undefined, {
           outputDir,
           filePaths: targets.flatMap((target) =>
             target.filePath ? [target.filePath] : [],
           ),
         } satisfies ExportImagesCommandConfig);
       } catch (error) {
-        console.error("QIP export from explorer failed:", error);
+        console.error("CIP export from explorer failed:", error);
         await vscode.window.showErrorMessage(
-          `QIP export from explorer failed: ${error}`,
+          `CIP export from explorer failed: ${error}`,
         );
       }
     }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("qip.createChain", async () => {
+    vscode.commands.registerCommand("cip.createChain", async () => {
       const result = await fileApiImpl.createEmptyChain();
-      qipProvider.refresh();
+      cipProvider.refresh();
       if (result) {
         openWebviewForElement(context, result.folderUri, "chain");
       }
@@ -764,9 +649,9 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("qip.createChainParent", async () => {
+    vscode.commands.registerCommand("cip.createChainParent", async () => {
       const result = await fileApiImpl.createEmptyChain(true);
-      qipProvider.refresh();
+      cipProvider.refresh();
       if (result) {
         openWebviewForElement(context, result.folderUri, "chain");
       }
@@ -774,9 +659,9 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("qip.createService", async () => {
+    vscode.commands.registerCommand("cip.createService", async () => {
       const result = await fileApiImpl.createEmptyService();
-      qipProvider.refresh();
+      cipProvider.refresh();
       if (result) {
         const serviceFileUri = vscode.Uri.joinPath(
           result.folderUri,
@@ -789,21 +674,21 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   // Register refresh command
   context.subscriptions.push(
-    vscode.commands.registerCommand("qip.refreshExplorer", () => {
-      qipProvider.refresh();
+    vscode.commands.registerCommand("cip.refreshExplorer", () => {
+      cipProvider.refresh();
     }),
   );
 
   syncChainDiffAssociation().catch((error) => {
-    console.error("[QIP] Failed to sync chain diff editor association:", error);
+    console.error("[CIP] Failed to sync chain diff editor association:", error);
   });
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("qipExtension.useDefaultDiffView")) {
+      if (e.affectsConfiguration("cipExtension.useDefaultDiffView")) {
         syncChainDiffAssociation().catch((error) => {
           console.error(
-            "[QIP] Failed to sync chain diff editor association:",
+            "[CIP] Failed to sync chain diff editor association:",
             error,
           );
         });
@@ -839,7 +724,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   // Register reveal in explorer command
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "qip.revealInExplorer",
+      "cip.revealInExplorer",
       async (item: any) => {
         if (item && item.fileUri) {
           try {
@@ -874,7 +759,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
 
   // Register delete commands
   context.subscriptions.push(
-    vscode.commands.registerCommand("qip.deleteService", async (item: any) => {
+    vscode.commands.registerCommand("cip.deleteService", async (item: any) => {
       if (item && item.fileUri) {
         const result = await vscode.window.showWarningMessage(
           `Are you sure you want to delete service "${item.label}"?`,
@@ -884,7 +769,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
         if (result === "Delete") {
           try {
             await deleteService(item.fileUri);
-            qipProvider.refresh();
+            cipProvider.refresh();
             vscode.window.showInformationMessage(
               `Service "${item.label}" deleted successfully`,
             );
@@ -899,7 +784,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("qip.deleteChain", async (item: any) => {
+    vscode.commands.registerCommand("cip.deleteChain", async (item: any) => {
       if (item && item.fileUri) {
         const result = await vscode.window.showWarningMessage(
           `Are you sure you want to delete chain "${item.label}"?`,
@@ -909,7 +794,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
         if (result === "Delete") {
           try {
             await deleteChain(item.fileUri);
-            qipProvider.refresh();
+            cipProvider.refresh();
             vscode.window.showInformationMessage(
               `Chain "${item.label}" deleted successfully`,
             );
@@ -924,7 +809,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   // Register open in text editor command
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "qip.openInTextEditor",
+      "cip.openInTextEditor",
       async (item: any) => {
         if (item && item.fileUri) {
           try {
@@ -945,8 +830,6 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       },
     ),
   );
-
-  return ConfigApiProvider.getInstance();
 }
 
 // This method is called when your extension is deactivated
@@ -987,7 +870,7 @@ async function getWebviewContent(context: ExtensionContext, webview: Webview) {
     }
 
     useBundled = bundledExists;
-    const cssFileUri = vscode.Uri.joinPath(qipUiAssetsRoot, "qip-ui.css");
+    const cssFileUri = vscode.Uri.joinPath(qipUiAssetsRoot, "cip-ui.css");
 
     jsUri = webview.asWebviewUri(jsFileUri);
     cssUri = webview.asWebviewUri(cssFileUri);
@@ -1019,7 +902,7 @@ async function getWebviewContent(context: ExtensionContext, webview: Webview) {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>QIP Offline Chain Editor</title>
+        <title>CIP Offline Chain Editor</title>
         <link href="${cssUri}" rel="stylesheet">
         ${importMapScript}
         <script type="module" crossorigin src="${jsUri}"></script>

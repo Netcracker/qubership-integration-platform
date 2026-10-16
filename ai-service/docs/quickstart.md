@@ -79,15 +79,15 @@ LLM_CHAT_MODEL=<model-name>
 ```
 
 Add APIHub credentials only when you run scenarios that call APIHub. Use
-`infrastructure/docker-compose.env.local.yml` as the Compose override. Credentials remain local and are not part of
+`infrastructure/docker/docker-compose.local-env.yml` as the Compose override. Credentials remain local and are not part of
 `integration-platform-skills`.
 
 ## 4. Build and start the containers
 
 ```bash
 docker compose \
-  -f infrastructure/docker-compose.yml \
-  -f infrastructure/docker-compose.env.local.yml \
+  -f infrastructure/docker/docker-compose.yml \
+  -f infrastructure/docker/docker-compose.local-env.yml \
   --profile ai up -d --build
 ```
 

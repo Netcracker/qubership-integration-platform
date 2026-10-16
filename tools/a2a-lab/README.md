@@ -35,7 +35,7 @@ Create the ignored local configuration file:
 scripts/a2a-lab.sh init
 ```
 
-The ADK container loads `infrastructure/ai-service-dev.env` and then `infrastructure/.env.local`. The second file
+The ADK container loads `infrastructure/docker/ai-service-dev.env` and then `infrastructure/.env.local`. The second file
 overrides `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_CHAT_MODEL` without copying secrets into the lab configuration.
 
 The Compose overlay enables the A2A feature flag, connects `qip-ai-service` to the `ai_a2a` PostgreSQL database, and

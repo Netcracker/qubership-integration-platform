@@ -106,7 +106,7 @@ rg -q 'QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX' "${GATE_SH}" ||
     fail "quality gate must scope the recovery fault to the selected chain prefix"
 rg -q -- '--no-build --no-deps --force-recreate qip-ai-service' "${GATE_SH}" ||
     fail "skip-deploy must recreate qip-ai-service so the recovery-fault prefix reaches the container"
-[[ "$(rg -c 'path: \.env\.local' "${ROOT:-${DIR}/../../..}/infrastructure/docker-compose.yml")" -ge 2 ]] ||
+[[ "$(rg -c 'path: \.\./\.env\.local' "${ROOT:-${DIR}/../../..}/infrastructure/docker/docker-compose.yml")" -ge 2 ]] ||
     fail "AI service and evaluator must load the documented optional .env.local overrides"
 rg -q -- '--scenario' "${GATE_SH}" ||
     fail "quality gate must support running the recovery scenario in isolation"
@@ -631,7 +631,7 @@ done
 pass "discovery WAITING_FOR_INPUT continue contract"
 
 ROOT="$(cd "${DIR}/../../.." && pwd)"
-COMPOSE_FILE="${ROOT}/infrastructure/docker-compose.yml"
+COMPOSE_FILE="${ROOT}/infrastructure/docker/docker-compose.yml"
 EVALUATOR_DOCKERFILE="${ROOT}/ai-service/e2e/evaluator/Dockerfile"
 
 echo "=== compose and properties use one package path ==="
@@ -751,6 +751,25 @@ fi
 exit 1
 EOF
 chmod +x "${STUB_BIN}/curl"
+
+echo "=== A2A lab resolves Compose files from infrastructure/docker ==="
+LAB_ROOT="${TMP}/a2a-lab-layout"
+mkdir -p "${LAB_ROOT}/scripts" "${LAB_ROOT}/tools/a2a-lab" "${LAB_ROOT}/infrastructure/docker"
+cp "${ROOT}/scripts/a2a-lab.sh" "${LAB_ROOT}/scripts/"
+touch "${LAB_ROOT}/tools/a2a-lab/.env" \
+    "${LAB_ROOT}/infrastructure/.env.local" \
+    "${LAB_ROOT}/infrastructure/docker/docker-compose.yml" \
+    "${LAB_ROOT}/infrastructure/docker/docker-compose.a2a-lab.yml" \
+    "${LAB_ROOT}/infrastructure/docker/docker-compose.local-env.yml"
+PATH="${STUB_BIN}:${PATH}" DOCKER_STUB_LOG="${DOCKER_STUB_LOG}" \
+    bash "${LAB_ROOT}/scripts/a2a-lab.sh" config
+rg -qF -- "--project-directory ${LAB_ROOT}/infrastructure/docker --env-file" "${DOCKER_STUB_LOG}" ||
+    fail "A2A lab must resolve relative Compose paths from infrastructure/docker"
+for compose_file in docker-compose.yml docker-compose.a2a-lab.yml docker-compose.local-env.yml; do
+    rg -qF -- "-f ${LAB_ROOT}/infrastructure/docker/${compose_file}" "${DOCKER_STUB_LOG}" ||
+        fail "A2A lab must load ${compose_file} from infrastructure/docker"
+done
+pass "A2A lab Compose paths"
 
 resolve_contract() {
     local stub_mode="$1"

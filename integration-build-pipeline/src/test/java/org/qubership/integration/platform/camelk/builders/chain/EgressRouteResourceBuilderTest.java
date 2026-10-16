@@ -53,8 +53,8 @@ class EgressRouteResourceBuilderTest {
                 egressNamingStrategy,
                 new K8sNameValidator());
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "egressGatewayName", "egress-gateway");
-        org.springframework.test.util.ReflectionTestUtils.setField(builder, "domainLabel", "qip.domain");
-        org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersionLabel", "qip.bg-version");
+        org.springframework.test.util.ReflectionTestUtils.setField(builder, "domainLabel", "cip.domain");
+        org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersionLabel", "cip.bg-version");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersion", "v1");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "hostResourcesEnabled", true);
     }

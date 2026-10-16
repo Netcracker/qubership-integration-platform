@@ -332,12 +332,12 @@ class SnapshotBundleProducerIntegrationTest {
         try (Stream<Path> sourcePaths = Files.walk(sourceDirectory)) {
             List<Path> chainDefinitions = sourcePaths
                     .filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".chain.qip.yaml"))
+                    .filter(path -> path.getFileName().toString().endsWith(".chain.cip.yaml"))
                     .toList();
             for (Path chainDefinition : chainDefinitions) {
                 Path chainDirectory = chainDefinition.getParent();
                 String chainId = chainDirectory.getFileName().toString();
-                assertThat(chainDefinition.getFileName().toString()).isEqualTo(chainId + ".chain.qip.yaml");
+                assertThat(chainDefinition.getFileName().toString()).isEqualTo(chainId + ".chain.cip.yaml");
                 copyDirectory(chainDirectory, importDirectory.resolve("chains").resolve(chainId));
                 chainIds.add(chainId);
             }

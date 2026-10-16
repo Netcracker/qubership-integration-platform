@@ -1,2 +1,3 @@
 org.qubership.integration.platform.engine.camel.listeners.RoutesConfigurer
 org.qubership.integration.platform.engine.camel.listeners.PredeployCheckListener
+org.qubership.integration.platform.engine.camel.listeners.TruststoreListener

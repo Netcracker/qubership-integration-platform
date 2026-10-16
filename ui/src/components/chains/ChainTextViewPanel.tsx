@@ -67,7 +67,7 @@ export const ChainTextViewPanel: React.FC<ChainTextViewPanelProps> = ({
   );
 
   return (
-    <div className={`${styles.rightPanelCodeBlock} qip-editor`}>
+    <div className={`${styles.rightPanelCodeBlock} cip-editor`}>
       <Editor
         height="100%"
         wrapperProps={{ "data-testid": "chain-text-view-editor" }}

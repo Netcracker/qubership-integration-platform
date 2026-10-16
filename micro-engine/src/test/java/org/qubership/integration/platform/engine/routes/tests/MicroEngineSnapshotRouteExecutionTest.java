@@ -107,7 +107,6 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
                     TenantConfiguration.class
             )
             .ignoreNestedClasses()
-            .configProperty("application.prefix", "qip")
             .configProperty("application.name", "snapshot-tests")
             .configProperty("application.namespace", "snapshot-tests")
             .configProperty("application.cloud_service_name", "snapshot-tests")
@@ -119,7 +118,7 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
             .configProperty("cip.metrics.prometheus.init.delay", "30")
             .configProperty("cip.camel.startup.error-handling.ignore-variables-errors", "false")
             .configProperty("cip.camel.startup.error-handling.ignore-route-loading-errors", "false")
-            .configProperty("kubernetes.variables-secret.label", "qip-variable-type")
+            .configProperty("kubernetes.variables-secret.label", "cip-variable-type")
             .configProperty("kubernetes.variables-secret.name", "snapshot-test-variables")
             .configProperty("tenant.default.id", "default-tenant")
             .build();

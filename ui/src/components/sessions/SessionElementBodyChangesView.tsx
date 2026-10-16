@@ -68,7 +68,7 @@ export const SessionElementBodyChangesView: React.FC<
       </Flex>
       {viewDiff ? (
         <DiffEditor
-          className="qip-editor"
+          className="cip-editor"
           wrapperProps={{ "data-testid": "session-body-diff-editor" }}
           originalLanguage={originalLanguage}
           modifiedLanguage={modifiedLanguage}

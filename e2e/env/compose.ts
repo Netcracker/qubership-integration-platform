@@ -25,7 +25,7 @@ const run = promisify(execFile);
 /** Exported because the provisioner names the same file, and one definition is enough. */
 export function composeFile(): string {
   return (
-    process.env.CIP_COMPOSE_FILE ?? path.resolve(repoRoot(), "infrastructure/docker-compose.yml")
+    process.env.CIP_COMPOSE_FILE ?? path.resolve(repoRoot(), "infrastructure/docker/docker-compose.yml")
   );
 }
 

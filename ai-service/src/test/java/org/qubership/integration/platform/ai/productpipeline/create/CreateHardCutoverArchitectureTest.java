@@ -58,10 +58,9 @@ class CreateHardCutoverArchitectureTest {
     scanTree(Path.of("src/main/resources/prompts"), SELECTABLE_SCENARIO_VOCAB, violations, true);
     scanTree(Path.of("src/main/resources/routing"), SELECTABLE_SCENARIO_VOCAB, violations, true);
 
-    Path compose = Path.of("../infrastructure/docker-compose.yml");
-    if (Files.isRegularFile(compose)) {
-      scanFile(compose, FORBIDDEN, violations);
-    }
+    Path compose = Path.of("../infrastructure/docker/docker-compose.yml");
+    assertTrue(Files.isRegularFile(compose), "Missing Compose file: " + compose);
+    scanFile(compose, FORBIDDEN, violations);
 
     Path productE2e = Path.of("e2e/product-pipeline");
     if (!Files.isDirectory(productE2e)) {

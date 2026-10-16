@@ -83,11 +83,11 @@ public class AtlasMapUtils implements AtlasFieldAction {
         }
     }
 
-    public static class QIPGetUUID extends Action implements Serializable {
+    public static class CIPGetUUID extends Action implements Serializable {
         private static final long serialVersionUID = 1L;
     }
 
-    public static class QIPDateTimeAction extends Action implements Serializable {
+    public static class CIPDateTimeAction extends Action implements Serializable {
         private static final long serialVersionUID = 1L;
 
         protected Boolean returnUnixTimeOutput;
@@ -140,19 +140,19 @@ public class AtlasMapUtils implements AtlasFieldAction {
 
     }
 
-    public static class QIPCurrentTime extends QIPDateTimeAction implements Serializable {
+    public static class CIPCurrentTime extends CIPDateTimeAction implements Serializable {
         private static final long serialVersionUID = 1L;
     }
 
-    public static class QIPCurrentDate extends QIPDateTimeAction implements Serializable {
+    public static class CIPCurrentDate extends CIPDateTimeAction implements Serializable {
         private static final long serialVersionUID = 1L;
     }
 
-    public static class QIPCurrentDateTime extends QIPDateTimeAction implements Serializable {
+    public static class CIPCurrentDateTime extends CIPDateTimeAction implements Serializable {
         private static final long serialVersionUID = 1L;
     }
 
-    public static class QIPDefaultValue extends Action implements Serializable {
+    public static class CIPDefaultValue extends Action implements Serializable {
         private static final long serialVersionUID = 1L;
 
         protected Object defaultValue = "";
@@ -168,7 +168,7 @@ public class AtlasMapUtils implements AtlasFieldAction {
         }
     }
 
-    public static class QIPFormatDateTime extends QIPDateTimeAction implements Serializable {
+    public static class CIPFormatDateTime extends CIPDateTimeAction implements Serializable {
         private static final long serialVersionUID = 1L;
 
         protected Boolean returnUnixTimeInput;
@@ -218,7 +218,7 @@ public class AtlasMapUtils implements AtlasFieldAction {
 
     }
 
-    public static class QIPDictionary extends Action implements Serializable {
+    public static class CIPDictionary extends Action implements Serializable {
 
         protected String defaultValue = "";
 
@@ -247,12 +247,12 @@ public class AtlasMapUtils implements AtlasFieldAction {
     }
 
     @AtlasActionProcessor(sourceType = FieldType.ANY)
-    public static String getuuid(QIPGetUUID action, String input) {
+    public static String getuuid(CIPGetUUID action, String input) {
         return UUID.randomUUID().toString();
     }
 
     @AtlasActionProcessor(sourceType = FieldType.ANY)
-    public static String currentTime(QIPCurrentTime action, String input) {
+    public static String currentTime(CIPCurrentTime action, String input) {
         return convertDateFormat(
                 action.getReturnUnixTimeOutput(),
                 action.getOutputFormat(),
@@ -263,7 +263,7 @@ public class AtlasMapUtils implements AtlasFieldAction {
     }
 
     @AtlasActionProcessor(sourceType = FieldType.ANY)
-    public static String currentDate(QIPCurrentDate action, String input) {
+    public static String currentDate(CIPCurrentDate action, String input) {
         return convertDateFormat(
                 action.getReturnUnixTimeOutput(),
                 action.getOutputFormat(),
@@ -274,7 +274,7 @@ public class AtlasMapUtils implements AtlasFieldAction {
     }
 
     @AtlasActionProcessor(sourceType = FieldType.ANY)
-    public static String currentDateTime(QIPCurrentDateTime action, String input) {
+    public static String currentDateTime(CIPCurrentDateTime action, String input) {
         return convertDateFormat(
                 action.getReturnUnixTimeOutput(),
                 action.getOutputFormat(),
@@ -285,7 +285,7 @@ public class AtlasMapUtils implements AtlasFieldAction {
     }
 
     @AtlasActionProcessor(sourceType = FieldType.ANY)
-    public static Object defaultValue(QIPDefaultValue action, Object input) {
+    public static Object defaultValue(CIPDefaultValue action, Object input) {
         if (input instanceof String) {
             input = ((String) input).isBlank() ? null : input;
         }
@@ -293,7 +293,7 @@ public class AtlasMapUtils implements AtlasFieldAction {
     }
 
     @AtlasActionProcessor(sourceType = FieldType.STRING)
-    public static String formatDateTime(QIPFormatDateTime action, String input) {
+    public static String formatDateTime(CIPFormatDateTime action, String input) {
         return convertDateFormat(
                 action.getReturnUnixTimeInput(),
                 action.getInputFormat(),
@@ -308,7 +308,7 @@ public class AtlasMapUtils implements AtlasFieldAction {
     }
 
     @AtlasActionProcessor(sourceType = FieldType.STRING)
-    public static String lookupValue(QIPDictionary action, String input) {
+    public static String lookupValue(CIPDictionary action, String input) {
         return action.getDictionary().getOrDefault(input, action.defaultValue);
     }
 

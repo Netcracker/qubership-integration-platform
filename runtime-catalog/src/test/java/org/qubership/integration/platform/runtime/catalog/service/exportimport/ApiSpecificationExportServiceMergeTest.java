@@ -32,7 +32,7 @@ class ApiSpecificationExportServiceMergeTest {
     @BeforeEach
     void setUp() throws Exception {
         systemModelService = mock(SystemModelService.class);
-        service = new ApiSpecificationExportService("/qip-routes", null, null, systemModelService);
+        service = new ApiSpecificationExportService("/cip-routes", null, null, systemModelService);
 
         mergeAsyncApiSpec = ApiSpecificationExportService.class
                 .getDeclaredMethod("mergeAsyncApiSpec", ObjectNode.class, ObjectNode.class);

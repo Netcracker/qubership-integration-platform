@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The SOAP import fixture. Two operations, one soap:address, and an inline schema that reaches every
+  model-group arm of SoapSchemaGenerator.buildComplexTypeSchema: sequence (Customer), all
+  (Metadata), choice (Payment), simpleContent (Amount) and complexContent (Order). That function's
+  trailing fallback for a type with no model group stays white here, and
+  tests/api-services/parsers/SoapSchemaGenerator.test.ts covers it. The schema also carries an
+  element ref, an unbounded element, two optional elements, an anonymous enumeration and a named
+  simpleType restriction, so the generated request and response schemas are worth comparing against
+  a golden.
+
+  The type declarations are inline rather than in orders-types.xsd because WsdlParser.collectSchemas
+  only walks a wsdl:types element: a standalone .xsd document contributes no schema entry, and a
+  reference into it falls back. shippingAddress is that reference, kept so the golden records the
+  fallback.
+-->
+<wsdl:definitions
+    xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+    xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:tns="http://orders.qip.test/"
+    xmlns:ext="http://orders.qip.test/types"
+    targetNamespace="http://orders.qip.test/"
+    name="OrdersService">
+
+  <wsdl:types>
+    <xsd:schema targetNamespace="http://orders.qip.test/" elementFormDefault="qualified">
+      <xsd:import namespace="http://orders.qip.test/types" schemaLocation="orders-types.xsd"/>
+
+      <xsd:element name="traceId" type="xsd:string"/>
+
+      <xsd:element name="createOrderRequest">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element ref="tns:traceId"/>
+            <xsd:element name="customer" type="tns:Customer"/>
+            <xsd:element name="lines" type="tns:OrderLine" maxOccurs="unbounded"/>
+            <xsd:element name="priority" minOccurs="0">
+              <xsd:simpleType>
+                <xsd:restriction base="xsd:string">
+                  <xsd:enumeration value="LOW"/>
+                  <xsd:enumeration value="NORMAL"/>
+                  <xsd:enumeration value="HIGH"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
+            <xsd:element name="payment" type="tns:Payment" minOccurs="0"/>
+            <xsd:element name="metadata" type="tns:Metadata" minOccurs="0"/>
+            <xsd:element name="shippingAddress" type="ext:AddressType" minOccurs="0"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+
+      <xsd:element name="createOrderResponse">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="orderId" type="xsd:string"/>
+            <xsd:element name="accepted" type="xsd:boolean"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+
+      <xsd:element name="getOrderRequest">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="orderId" type="xsd:string"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+
+      <xsd:element name="getOrderResponse" type="tns:Order"/>
+
+      <xsd:complexType name="Customer">
+        <xsd:sequence>
+          <xsd:element name="id" type="xsd:string"/>
+          <xsd:element name="email" type="tns:Email"/>
+        </xsd:sequence>
+      </xsd:complexType>
+
+      <xsd:complexType name="OrderLine">
+        <xsd:sequence>
+          <xsd:element name="sku" type="xsd:string"/>
+          <xsd:element name="quantity" type="xsd:int"/>
+          <xsd:element name="unitPrice" type="xsd:decimal" minOccurs="0"/>
+        </xsd:sequence>
+      </xsd:complexType>
+
+      <xsd:complexType name="OrderSummary">
+        <xsd:sequence>
+          <xsd:element name="orderId" type="xsd:string"/>
+          <xsd:element name="total" type="tns:Amount"/>
+        </xsd:sequence>
+      </xsd:complexType>
+
+      <xsd:complexType name="Order">
+        <xsd:complexContent>
+          <xsd:extension base="tns:OrderSummary">
+            <xsd:sequence>
+              <xsd:element name="customer" type="tns:Customer"/>
+              <xsd:element name="lines" type="tns:OrderLine" maxOccurs="unbounded"/>
+            </xsd:sequence>
+          </xsd:extension>
+        </xsd:complexContent>
+      </xsd:complexType>
+
+      <xsd:complexType name="Payment">
+        <xsd:choice>
+          <xsd:element name="card" type="xsd:string"/>
+          <xsd:element name="invoiceRef" type="xsd:string"/>
+        </xsd:choice>
+      </xsd:complexType>
+
+      <xsd:complexType name="Metadata">
+        <xsd:all>
+          <xsd:element name="source" type="xsd:string"/>
+          <xsd:element name="receivedAt" type="xsd:dateTime"/>
+        </xsd:all>
+      </xsd:complexType>
+
+      <xsd:complexType name="Amount">
+        <xsd:simpleContent>
+          <xsd:extension base="xsd:decimal">
+            <xsd:attribute name="currency" type="xsd:string"/>
+          </xsd:extension>
+        </xsd:simpleContent>
+      </xsd:complexType>
+
+      <xsd:simpleType name="Email">
+        <xsd:restriction base="xsd:string">
+          <xsd:pattern value=".+@.+"/>
+          <xsd:maxLength value="128"/>
+        </xsd:restriction>
+      </xsd:simpleType>
+    </xsd:schema>
+  </wsdl:types>
+
+  <wsdl:message name="createOrderRequest">
+    <wsdl:part name="parameters" element="tns:createOrderRequest"/>
+  </wsdl:message>
+  <wsdl:message name="createOrderResponse">
+    <wsdl:part name="parameters" element="tns:createOrderResponse"/>
+  </wsdl:message>
+  <wsdl:message name="getOrderRequest">
+    <wsdl:part name="parameters" element="tns:getOrderRequest"/>
+  </wsdl:message>
+  <wsdl:message name="getOrderResponse">
+    <wsdl:part name="parameters" element="tns:getOrderResponse"/>
+  </wsdl:message>
+
+  <wsdl:portType name="OrdersPortType">
+    <wsdl:operation name="createOrder">
+      <wsdl:input message="tns:createOrderRequest"/>
+      <wsdl:output message="tns:createOrderResponse"/>
+    </wsdl:operation>
+    <wsdl:operation name="getOrder">
+      <wsdl:input message="tns:getOrderRequest"/>
+      <wsdl:output message="tns:getOrderResponse"/>
+    </wsdl:operation>
+  </wsdl:portType>
+
+  <wsdl:binding name="OrdersBinding" type="tns:OrdersPortType">
+    <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="createOrder">
+      <soap:operation soapAction="http://orders.qip.test/createOrder"/>
+      <wsdl:input>
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="getOrder">
+      <soap:operation soapAction="http://orders.qip.test/getOrder"/>
+      <wsdl:input>
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+
+  <wsdl:service name="OrdersService">
+    <wsdl:port name="OrdersPort" binding="tns:OrdersBinding">
+      <soap:address location="http://orders.qip.test:8080/orders"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

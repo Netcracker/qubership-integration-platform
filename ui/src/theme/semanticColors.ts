@@ -60,7 +60,7 @@ export const COLOR_PALETTE: Record<string, string> = {
 };
 
 // Brand accent tones for solid semantic badges (protocol / source / status tags
-// rendered via qip-solid-tag). Single source of truth so the maps below and
+// rendered via cip-solid-tag). Single source of truth so the maps below and
 // STATUS_COLORS (services/utils.tsx) never drift apart.
 export const SOLID_TAG_TONES = {
   blue: "#0068ff",

@@ -1479,11 +1479,12 @@ export class Catalog {
    * twenty operations, and the answer carries neither a total nor a next-page marker, so a caller
    * cannot tell a truncated listing from a complete one.
    *
-   * Omitting it would have gone red rather than green today, which is why the defect sat here: the
-   * four call sites in `specs/api/specifications.spec.ts` assert with `toEqual` and `toHaveLength`
-   * against three-operation fixtures, and the only other reader, `awaitSpecificationImport`, asks
-   * the listing whether it is empty. It turns silent the day a fixture crosses twenty operations,
-   * or the operations are read for anything but their count.
+   * Omitting it would have gone red rather than green today, which is why the defect sat here: no
+   * reader has yet needed more than twenty operations. The four call sites in
+   * `specs/api/specifications.spec.ts` and the one in `specs/api/extension-output.spec.ts`, which
+   * three cases share, read fixtures and goldens of at most three operations, and
+   * `awaitSpecificationImport` below only tests the listing for emptiness. It turns silent the day
+   * one of them crosses twenty.
    */
   listOperations(modelId: string): Promise<OperationView[]> {
     return this.call("get", `/v1/operations?modelId=${encodeURIComponent(modelId)}&count=0`);

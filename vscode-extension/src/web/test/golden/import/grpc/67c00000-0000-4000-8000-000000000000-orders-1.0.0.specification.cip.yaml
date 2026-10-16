@@ -1,0 +1,410 @@
+id: 67c00000-0000-4000-8000-000000000000-orders-1.0.0
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
+name: 1.0.0
+content:
+  deprecated: false
+  version: 1.0.0
+  source: MANUAL
+  operations:
+    - id: 67c00000-0000-4000-8000-000000000000-orders-1.0.0-OrderService.CreateOrder
+      name: OrderService.CreateOrder
+      method: CreateOrder
+      path: test.orders.grpc.OrderService
+      specification:
+        operationId: OrderService.CreateOrder
+        summary: Creates one order.
+        responses:
+          "200":
+            content:
+              application/json:
+                schema:
+                  $id: http://system.catalog/schemas/responses/orders.v1.OrderService.CreateOrder
+                  $schema: http://json-schema.org/draft-07/schema#
+                  $ref: "#/definitions/orders.v1.Order"
+                  definitions:
+                    orders.v1.Order:
+                      type: object
+                      properties:
+                        order_id:
+                          type: string
+                        status:
+                          $ref: "#/definitions/orders.v1.OrderStatus"
+                        lines:
+                          type: array
+                          items:
+                            $ref: "#/definitions/orders.v1.Order.Line"
+                        total:
+                          $ref: "#/definitions/double"
+                        attributes:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        signature:
+                          $ref: "#/definitions/bytes"
+                      additionalProperties: false
+                      description: An order with its lines.
+                    orders.v1.OrderStatus:
+                      type: string
+                      enum:
+                        - ORDER_STATUS_UNSPECIFIED
+                        - ORDER_STATUS_NEW
+                        - ORDER_STATUS_SHIPPED
+                      description: The states an order moves through.
+                    orders.v1.Order.Line:
+                      type: object
+                      properties:
+                        sku:
+                          type: string
+                        quantity:
+                          $ref: "#/definitions/int32"
+                      additionalProperties: false
+                      description: One line of an order.
+                    int32:
+                      type: number
+                      format: int32
+                    double:
+                      type: number
+                    bytes:
+                      type: string
+                      format: bytes
+        requestBody:
+          content:
+            application/json:
+              schema:
+                $id: http://system.catalog/schemas/requests/orders.v1.OrderService.CreateOrder
+                $schema: http://json-schema.org/draft-07/schema#
+                $ref: "#/definitions/orders.v1.CreateOrderRequest"
+                definitions:
+                  orders.v1.CreateOrderRequest:
+                    type: object
+                    properties:
+                      order:
+                        $ref: "#/definitions/orders.v1.Order"
+                    additionalProperties: false
+                  orders.v1.Order:
+                    type: object
+                    properties:
+                      order_id:
+                        type: string
+                      status:
+                        $ref: "#/definitions/orders.v1.OrderStatus"
+                      lines:
+                        type: array
+                        items:
+                          $ref: "#/definitions/orders.v1.Order.Line"
+                      total:
+                        $ref: "#/definitions/double"
+                      attributes:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      signature:
+                        $ref: "#/definitions/bytes"
+                    additionalProperties: false
+                    description: An order with its lines.
+                  orders.v1.OrderStatus:
+                    type: string
+                    enum:
+                      - ORDER_STATUS_UNSPECIFIED
+                      - ORDER_STATUS_NEW
+                      - ORDER_STATUS_SHIPPED
+                    description: The states an order moves through.
+                  orders.v1.Order.Line:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                      quantity:
+                        $ref: "#/definitions/int32"
+                    additionalProperties: false
+                    description: One line of an order.
+                  int32:
+                    type: number
+                    format: int32
+                  double:
+                    type: number
+                  bytes:
+                    type: string
+                    format: bytes
+        x-grpc:
+          serviceName: OrderService
+          methodName: CreateOrder
+          servicePath: test.orders.grpc.OrderService
+          requestType: orders.v1.CreateOrderRequest
+          responseType: orders.v1.Order
+          requestStream: false
+          responseStream: false
+      requestSchema:
+        application/json:
+          $id: http://system.catalog/schemas/requests/orders.v1.OrderService.CreateOrder
+          $schema: http://json-schema.org/draft-07/schema#
+          $ref: "#/definitions/orders.v1.CreateOrderRequest"
+          definitions:
+            orders.v1.CreateOrderRequest:
+              type: object
+              properties:
+                order:
+                  $ref: "#/definitions/orders.v1.Order"
+              additionalProperties: false
+            orders.v1.Order:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                status:
+                  $ref: "#/definitions/orders.v1.OrderStatus"
+                lines:
+                  type: array
+                  items:
+                    $ref: "#/definitions/orders.v1.Order.Line"
+                total:
+                  $ref: "#/definitions/double"
+                attributes:
+                  type: object
+                  additionalProperties:
+                    type: string
+                signature:
+                  $ref: "#/definitions/bytes"
+              additionalProperties: false
+              description: An order with its lines.
+            orders.v1.OrderStatus:
+              type: string
+              enum:
+                - ORDER_STATUS_UNSPECIFIED
+                - ORDER_STATUS_NEW
+                - ORDER_STATUS_SHIPPED
+              description: The states an order moves through.
+            orders.v1.Order.Line:
+              type: object
+              properties:
+                sku:
+                  type: string
+                quantity:
+                  $ref: "#/definitions/int32"
+              additionalProperties: false
+              description: One line of an order.
+            int32:
+              type: number
+              format: int32
+            double:
+              type: number
+            bytes:
+              type: string
+              format: bytes
+      responseSchemas:
+        "200":
+          application/json:
+            $id: http://system.catalog/schemas/responses/orders.v1.OrderService.CreateOrder
+            $schema: http://json-schema.org/draft-07/schema#
+            $ref: "#/definitions/orders.v1.Order"
+            definitions:
+              orders.v1.Order:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  status:
+                    $ref: "#/definitions/orders.v1.OrderStatus"
+                  lines:
+                    type: array
+                    items:
+                      $ref: "#/definitions/orders.v1.Order.Line"
+                  total:
+                    $ref: "#/definitions/double"
+                  attributes:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  signature:
+                    $ref: "#/definitions/bytes"
+                additionalProperties: false
+                description: An order with its lines.
+              orders.v1.OrderStatus:
+                type: string
+                enum:
+                  - ORDER_STATUS_UNSPECIFIED
+                  - ORDER_STATUS_NEW
+                  - ORDER_STATUS_SHIPPED
+                description: The states an order moves through.
+              orders.v1.Order.Line:
+                type: object
+                properties:
+                  sku:
+                    type: string
+                  quantity:
+                    $ref: "#/definitions/int32"
+                additionalProperties: false
+                description: One line of an order.
+              int32:
+                type: number
+                format: int32
+              double:
+                type: number
+              bytes:
+                type: string
+                format: bytes
+    - id: 67c00000-0000-4000-8000-000000000000-orders-1.0.0-OrderService.ListOrders
+      name: OrderService.ListOrders
+      method: ListOrders
+      path: test.orders.grpc.OrderService
+      specification:
+        operationId: OrderService.ListOrders
+        summary: Streams the orders of one customer.
+        responses:
+          "200":
+            content:
+              application/json:
+                schema:
+                  $id: http://system.catalog/schemas/responses/orders.v1.OrderService.ListOrders
+                  $schema: http://json-schema.org/draft-07/schema#
+                  $ref: "#/definitions/orders.v1.Order"
+                  definitions:
+                    orders.v1.Order:
+                      type: object
+                      properties:
+                        order_id:
+                          type: string
+                        status:
+                          $ref: "#/definitions/orders.v1.OrderStatus"
+                        lines:
+                          type: array
+                          items:
+                            $ref: "#/definitions/orders.v1.Order.Line"
+                        total:
+                          $ref: "#/definitions/double"
+                        attributes:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        signature:
+                          $ref: "#/definitions/bytes"
+                      additionalProperties: false
+                      description: An order with its lines.
+                    orders.v1.OrderStatus:
+                      type: string
+                      enum:
+                        - ORDER_STATUS_UNSPECIFIED
+                        - ORDER_STATUS_NEW
+                        - ORDER_STATUS_SHIPPED
+                      description: The states an order moves through.
+                    orders.v1.Order.Line:
+                      type: object
+                      properties:
+                        sku:
+                          type: string
+                        quantity:
+                          $ref: "#/definitions/int32"
+                      additionalProperties: false
+                      description: One line of an order.
+                    int32:
+                      type: number
+                      format: int32
+                    double:
+                      type: number
+                    bytes:
+                      type: string
+                      format: bytes
+        requestBody:
+          content:
+            application/json:
+              schema:
+                $id: http://system.catalog/schemas/requests/orders.v1.OrderService.ListOrders
+                $schema: http://json-schema.org/draft-07/schema#
+                $ref: "#/definitions/orders.v1.ListOrdersRequest"
+                definitions:
+                  orders.v1.ListOrdersRequest:
+                    type: object
+                    properties:
+                      customer_id:
+                        type: string
+                      page_size:
+                        $ref: "#/definitions/int32"
+                    additionalProperties: false
+                  int32:
+                    type: number
+                    format: int32
+        x-grpc:
+          serviceName: OrderService
+          methodName: ListOrders
+          servicePath: test.orders.grpc.OrderService
+          requestType: orders.v1.ListOrdersRequest
+          responseType: orders.v1.Order
+          requestStream: false
+          responseStream: true
+      requestSchema:
+        application/json:
+          $id: http://system.catalog/schemas/requests/orders.v1.OrderService.ListOrders
+          $schema: http://json-schema.org/draft-07/schema#
+          $ref: "#/definitions/orders.v1.ListOrdersRequest"
+          definitions:
+            orders.v1.ListOrdersRequest:
+              type: object
+              properties:
+                customer_id:
+                  type: string
+                page_size:
+                  $ref: "#/definitions/int32"
+              additionalProperties: false
+            int32:
+              type: number
+              format: int32
+      responseSchemas:
+        "200":
+          application/json:
+            $id: http://system.catalog/schemas/responses/orders.v1.OrderService.ListOrders
+            $schema: http://json-schema.org/draft-07/schema#
+            $ref: "#/definitions/orders.v1.Order"
+            definitions:
+              orders.v1.Order:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  status:
+                    $ref: "#/definitions/orders.v1.OrderStatus"
+                  lines:
+                    type: array
+                    items:
+                      $ref: "#/definitions/orders.v1.Order.Line"
+                  total:
+                    $ref: "#/definitions/double"
+                  attributes:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  signature:
+                    $ref: "#/definitions/bytes"
+                additionalProperties: false
+                description: An order with its lines.
+              orders.v1.OrderStatus:
+                type: string
+                enum:
+                  - ORDER_STATUS_UNSPECIFIED
+                  - ORDER_STATUS_NEW
+                  - ORDER_STATUS_SHIPPED
+                description: The states an order moves through.
+              orders.v1.Order.Line:
+                type: object
+                properties:
+                  sku:
+                    type: string
+                  quantity:
+                    $ref: "#/definitions/int32"
+                additionalProperties: false
+                description: One line of an order.
+              int32:
+                type: number
+                format: int32
+              double:
+                type: number
+              bytes:
+                type: string
+                format: bytes
+  specificationSources:
+    - id: 67c09ec0-0000-4000-8000-000000000002
+      name: orders.proto
+      sourceHash: ba1c41d
+      fileName: source-67c00000-0000-4000-8000-000000000000-orders-1.0.0/orders.proto
+      mainSource: true
+  parentId: 67c00000-0000-4000-8000-000000000000-orders
+  labels: []

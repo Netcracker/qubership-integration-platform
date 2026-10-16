@@ -33,7 +33,7 @@
  * values need for their subscribe/publish half, and `service-call-async-amqp.yaml` is a v3 document
  * for the send/receive half.
  *
- * **The four documents live in `fixtures/specifications/`, not `fixtures/brokers/`.** Measured: the
+ * **The AsyncAPI documents live in `fixtures/specifications/`, not `fixtures/brokers/`.** Measured: the
  * brokers seed's `corpusFixtureNames`/`assembleCorpus` walk every top-level entry of
  * `fixtures/brokers/` — directory or `.yaml` file alike — as a **chain** fixture
  * (`chainFixtureNames` in `fixtures/templating.ts`), so an AsyncAPI document dropped there breaks the
@@ -248,6 +248,102 @@ test(
     } finally {
       // Logged rather than thrown: a delete failure here would otherwise replace whatever assertion
       // error the `try` block above raised, hiding the reason the case actually failed.
+      await deleteKafkaTopics([topic]).catch((cause: unknown) => {
+        console.error(`[teardown] kafka topic ${topic} was not deleted: ${String(cause)}`);
+      });
+    }
+  },
+);
+
+// Before #1082 the payload of an inline message was stored with its `$ref` into `components`, which
+// the operation does not carry, so the engine rejected every message, valid or not, with "Reference
+// /components/schemas/OrderShipped cannot be resolved".
+test(
+  "an async-api-trigger validates a Kafka message against an inline payload that references a component",
+  { tag: ["@engine", "@catalog", "@sessions", "@tier2"] },
+  async ({ catalog, sessions, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+
+    const name = tokenized(run, "async-api-trigger-kafka-inline-ref");
+    const topic = tokenized(run, "async-api-kafka-inline-ref");
+    await ensureKafkaTopics([topic]);
+    try {
+      await withBuilt(catalog, async (built) => {
+        const system = await catalog.createSystem(name, "EXTERNAL");
+        built.services.push({ name: `the service ${name} (${system.id})`, remove: () => catalog.deleteSystem(system.id) });
+        const file = asyncApiFixture("async-api-kafka-inline-ref.yaml", run);
+        const imported = await catalog.awaitSpecificationImport(
+          await catalog.importSpecificationGroup(system.id, name, file, "kafka"),
+        );
+        const operation = imported.operations[0];
+        if (!operation) throw new Error("the kafka AsyncAPI import produced no operation");
+
+        // The validation the element form adds from the operation's schema, one item per message
+        // (`CustomArrayField`, `elementType === "async-api-trigger"`).
+        const { responseSchemas } = await catalog.operationInfo(operation.id);
+        const after = Object.entries(responseSchemas).map(([code, schema]) => ({
+          code,
+          label: code,
+          schema: JSON.stringify(schema, null, 2),
+        }));
+
+        const trigger: ChainStep = {
+          name: "AsyncAPI Trigger",
+          type: "async-api-trigger",
+          properties: {
+            systemType: "EXTERNAL",
+            integrationSystemId: system.id,
+            integrationSpecificationGroupId: `${system.id}-${name}`,
+            integrationSpecificationId: imported.specifications[0].id,
+            integrationOperationId: operation.id,
+            integrationOperationPath: operation.path,
+            integrationOperationMethod: operation.method,
+            integrationOperationProtocolType: "kafka",
+            reconnectDelay: 30000,
+            integrationOperationAsyncProperties: { groupId: topic },
+            idempotency: { enabled: false },
+            after,
+          },
+        };
+        const chain = await createStepsChain(
+          catalog,
+          run,
+          {
+            what: "async-api-trigger-kafka-inline-ref",
+            parentId: folder.id,
+            trigger,
+            steps: [
+              {
+                name: "Header Modification",
+                type: "header-modification",
+                properties: { headerModificationToAdd: { "e2e-fixture": run }, headerModificationToRemove: [] },
+              },
+            ],
+            logging: BROKERS_LOGGING,
+          },
+          built.chains,
+        );
+
+        const snapshot = await catalog.createSnapshot(chain.id);
+        await catalog.deploy(chain.id, snapshot.id);
+        await waitForDeployed(catalog, [chain]);
+        await waitForKafkaConsumers([topic]);
+
+        const valid = callToken("async-api-kafka-inline-ref-valid");
+        await publishKafka(topic, valid, JSON.stringify({ orderId: "1", address: { city: "Rome" } }));
+        const accepted = await sessions.byExternalId(valid, { elements: 2 });
+        expect(accepted.chainId).toBe(chain.id);
+        expect(elementNames(accepted)).toEqual(["AsyncAPI Trigger", "Header Modification"]);
+        expect(failedElements(accepted)).toEqual([]);
+
+        // The other half: the schema the trigger validates against still rejects a wrong type.
+        const invalid = callToken("async-api-kafka-inline-ref-invalid");
+        await publishKafka(topic, invalid, JSON.stringify({ orderId: "1", address: { city: 2 } }));
+        const rejected = await sessions.byExternalId(invalid);
+        const failures = failedElements(rejected).map((each) => [each.elementName, each.exceptionInfo?.message]);
+        expect(failures).toEqual([["AsyncAPI Trigger", expect.stringContaining("Errors during message validation")]]);
+      });
+    } finally {
       await deleteKafkaTopics([topic]).catch((cause: unknown) => {
         console.error(`[teardown] kafka topic ${topic} was not deleted: ${String(cause)}`);
       });

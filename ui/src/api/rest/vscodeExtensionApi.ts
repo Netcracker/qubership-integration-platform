@@ -88,7 +88,6 @@ import {
   VariableImportPreview,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
-import { getAppName } from "../../appConfig.ts";
 import { DiffDocumentType } from "../../components/chains/diff/DiffDocumentContext.tsx";
 import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
 
@@ -140,7 +139,7 @@ export class VSCodeExtensionApi implements Api {
     const message: VSCodeMessage<V> = { type, requestId, payload };
 
     this.vscode.postMessage({
-      command: getAppName(),
+      command: "cip",
       // @ts-expect-error since any type is prohibited
       data: message,
     });

@@ -22,7 +22,6 @@ jest.mock("axios-rate-limit", () => ({
 }));
 
 jest.mock("../../../src/appConfig", () => ({
-  getAppName: () => "qip",
   getConfig: () => ({ apiGateway: "https://api.example.com" }),
 }));
 
@@ -37,7 +36,7 @@ type RecordedRequest = {
   data?: unknown;
 };
 
-const testingBase = "/api/v1/qip/testing-service";
+const testingBase = "/api/v1/cip/testing-service";
 
 async function createApi(
   responseData: unknown = [],
@@ -383,7 +382,7 @@ describe("RestApi testing service", () => {
     await api.getSessionByExternalId("external-1");
 
     expect(lastRequest(requests).url).toBe(
-      "/api/v1/qip/sessions-management/sessions/external-id/external-1",
+      "/api/v1/cip/sessions-management/sessions/external-id/external-1",
     );
   });
 

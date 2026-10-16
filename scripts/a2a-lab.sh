@@ -4,17 +4,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 INFRASTRUCTURE_DIR="$REPOSITORY_DIR/infrastructure"
+COMPOSE_DIR="$INFRASTRUCTURE_DIR/docker"
 LAB_ENV_FILE="$REPOSITORY_DIR/tools/a2a-lab/.env"
 
 COMPOSE_ARGS=(
-    --project-directory "$INFRASTRUCTURE_DIR"
+    --project-directory "$COMPOSE_DIR"
     --env-file "$LAB_ENV_FILE"
-    -f "$INFRASTRUCTURE_DIR/docker-compose.yml"
-    -f "$INFRASTRUCTURE_DIR/docker-compose.a2a-lab.yml"
+    -f "$COMPOSE_DIR/docker-compose.yml"
+    -f "$COMPOSE_DIR/docker-compose.a2a-lab.yml"
 )
 
-if [[ -f "$INFRASTRUCTURE_DIR/docker-compose.local-env.yml" && -f "$INFRASTRUCTURE_DIR/.env.local" ]]; then
-    COMPOSE_ARGS+=(-f "$INFRASTRUCTURE_DIR/docker-compose.local-env.yml")
+if [[ -f "$COMPOSE_DIR/docker-compose.local-env.yml" && -f "$INFRASTRUCTURE_DIR/.env.local" ]]; then
+    COMPOSE_ARGS+=(-f "$COMPOSE_DIR/docker-compose.local-env.yml")
 fi
 
 compose() {

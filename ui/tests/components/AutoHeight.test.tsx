@@ -54,7 +54,7 @@ describe("AutoHeight", () => {
       );
       const div = container.firstChild as HTMLElement;
       expect(div.className).toContain("my-class");
-      expect(div.className).toContain("qip-auto-height");
+      expect(div.className).toContain("cip-auto-height");
       expect(div.id).toBe("my-id");
     });
 

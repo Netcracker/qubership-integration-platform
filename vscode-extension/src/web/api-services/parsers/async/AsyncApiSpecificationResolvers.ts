@@ -3,7 +3,7 @@ import {
   AsyncApiOperationObject,
 } from "../parserTypes";
 import { AsyncApiSchemaResolver } from "./AsyncApiSchemaResolver";
-import { deepClone } from "./asyncJsonUtils";
+import { deepClone, isObject } from "./asyncJsonUtils";
 
 const MESSAGES_PREFIX = "#/components/messages/";
 const PAYLOAD_FIELD_NAME = "payload";
@@ -80,10 +80,11 @@ abstract class AbstractAsyncApiResolver
     }
 
     if (message.payload != null) {
-      // Clone so the emitted schema does not alias the parsed document (the
-      // backend clones via valueToTree); two operations sharing a channel
-      // message must not see each other's downstream mutations.
-      result[PAYLOAD_FIELD_NAME] = deepClone(message.payload);
+      result[PAYLOAD_FIELD_NAME] = this.getPayloadNode(
+        PAYLOAD_FIELD_NAME,
+        message.payload,
+        components,
+      );
       return result;
     }
 
@@ -123,10 +124,26 @@ abstract class AbstractAsyncApiResolver
         } else if (refs.length > 1) {
           key = `${PAYLOAD_FIELD_NAME}_${i}`;
         }
-        result[key] = deepClone(refNode.payload);
+        result[key] = this.getPayloadNode(key, refNode.payload, components);
       }
     }
     return result;
+  }
+
+  // Returns a copy, so two operations sharing a channel message never share a schema.
+  private getPayloadNode(
+    name: string,
+    payload: unknown,
+    components: unknown,
+  ): unknown {
+    if (!isObject(payload)) {
+      return deepClone(payload);
+    }
+    return this.schemaResolver.resolveSchema(
+      name,
+      payload,
+      components as Record<string, any>,
+    ).schema;
   }
 
   private getRefNode(

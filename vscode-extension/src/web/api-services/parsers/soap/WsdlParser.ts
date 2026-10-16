@@ -30,6 +30,18 @@ export class WsdlParser {
       throw new Error("Unsupported WSDL: document has no root element");
     }
 
+    // WSDL 1.1 names the root element `wsdl:definitions` and WSDL 2.0 names it `wsdl:description`,
+    // each in its own namespace; a root in neither collects no operation, no endpoint and no
+    // message, which the import would otherwise write as a specification with nothing in it.
+    if (
+      mainRoot.namespaceURI !== WSDL_11_NS &&
+      mainRoot.namespaceURI !== WSDL_20_NS
+    ) {
+      throw new Error(
+        `Unsupported WSDL: root element <${mainRoot.nodeName}> is in no WSDL namespace`,
+      );
+    }
+
     const version = this.detectVersion(mainRoot.namespaceURI ?? null);
     const targetNamespace =
       mainRoot.getAttribute("targetNamespace") || undefined;

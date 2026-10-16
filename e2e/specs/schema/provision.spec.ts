@@ -148,7 +148,7 @@ test("only a selection of stack-free projects skips provisioning", { tag: ["@inf
 test("a support container whose configuration has moved on is named rather than recreated", { tag: ["@infra", "@tier1"] }, () => {
   const lines = formatReport({ ...NOTHING, staleSupport: ["postgres", "consul"] });
 
-  // The suite starts these and never recreates them: `infrastructure/docker-compose.yml` declares no
+  // The suite starts these and never recreates them: `infrastructure/docker/docker-compose.yml` declares no
   // volume for their data, so a recreate discards the catalog rows, the recorded sessions or the
   // deployment state the stack is holding. Reporting is the whole of what the suite can do, and
   // silence would read as a stack that matches the commit.
@@ -170,11 +170,11 @@ test("every support service watches the configuration the compose file mounts in
 
   for (const each of watched) {
     expect(fs.existsSync(path.resolve(repoRoot(), each)), `${each} is watched but not in the checkout`).toBe(true);
-    // The compose file spells a mount relative to its own directory, so `infrastructure/consul`
+    // The compose file spells a mount relative to its own directory, so `infrastructure/docker/consul`
     // reads as `./consul`. A watch may be broader than the mount and consul's is: the compose file
     // mounts `./consul/server.json` and `./consul/consul-acl.json` by name, and watching the
     // directory is what makes a third file added beside them count.
-    const mount = `./${each.replace(/^infrastructure\//, "")}`;
+    const mount = `./${each.replace(/^infrastructure\/docker\//, "")}`;
     const mounted = new RegExp(`${mount.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[:/]`);
     expect(mounted.test(compose), `${each} is watched but ${mount} is mounted nowhere`).toBe(true);
   }
@@ -209,7 +209,7 @@ function container(createdMs: number, state: Partial<ContainerState> = {}): Cont
 test("a support container is stale whether or not it answers", { tag: ["@infra", "@tier1"] }, async () => {
   // The case a gate on health made unreachable, and the reason the notice was written: postgres runs
   // `/docker-entrypoint-initdb.d` only against an empty data directory, so a schema added under
-  // `infrastructure/init-db` is inert until the container is replaced. A container that is stopped,
+  // `infrastructure/docker/init-db` is inert until the container is replaced. A container that is stopped,
   // or still inside its healthcheck's `starting` window, is started rather than recreated — and
   // `docker compose up -d` starts the container that is already there, with the mounts it already
   // has.
