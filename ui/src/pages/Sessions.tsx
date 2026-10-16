@@ -459,8 +459,12 @@ export const Sessions: React.FC<SessionsProps> = ({
     };
   }, [isLoading, allSessionsLoaded, offset, fetchSessions]);
 
+  // A correlation group row is not a session, so its key stays out of the selection.
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
-    setSelectedRowKeys(newSelectedRowKeys);
+    const sessionIds = new Set(sessions.map((session) => session.id));
+    setSelectedRowKeys(
+      newSelectedRowKeys.filter((key) => sessionIds.has(String(key))),
+    );
   };
 
   const hasSelection = selectedRowKeys.length > 0;
@@ -468,17 +472,12 @@ export const Sessions: React.FC<SessionsProps> = ({
   const deleteSelectedSessions = useCallback(async () => {
     try {
       const ids = toStringIds(selectedRowKeys);
-      if (selectedRowKeys.length === sessions.length) {
-        await api.deleteSessionsByChainId(chainId);
-        setSessions([]);
-      } else {
-        await api.deleteSessions(ids);
-        setSessions((prevSessions) => filterOutByIds(prevSessions, ids));
-      }
+      await api.deleteSessions(ids);
+      setSessions((prevSessions) => filterOutByIds(prevSessions, ids));
     } catch (error) {
       notificationService.requestFailed("Failed to delete sessions", error);
     }
-  }, [selectedRowKeys, sessions.length, chainId, notificationService]);
+  }, [selectedRowKeys, notificationService]);
 
   const onDeleteBtnClick = useCallback(() => {
     if (!hasSelection) return;
