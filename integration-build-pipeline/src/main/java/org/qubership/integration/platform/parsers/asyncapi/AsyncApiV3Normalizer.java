@@ -58,6 +58,7 @@ public class AsyncApiV3Normalizer {
 
         Map<String, V3Channel> v3Channels = v3.getChannels();
         Map<String, Channel> v2Channels = new LinkedHashMap<>();
+        Set<OperationObject> declaredOperations = new HashSet<>();
 
         if (v3.getOperations() != null && v3Channels != null) {
             for (Map.Entry<String, V3Operation> entry : v3.getOperations().entrySet()) {
@@ -88,6 +89,7 @@ public class AsyncApiV3Normalizer {
 
                 OperationObject v2Op = convertOperation(entry.getKey(), v3Op, v3Channel, v3Channels);
                 v2Op.setAction(v3Op.getAction());
+                declaredOperations.add(v2Op);
 
                 if (ACTION_SEND.equals(v3Op.getAction())) {
                     v2Channel.setPublish(v2Op);
@@ -95,7 +97,7 @@ public class AsyncApiV3Normalizer {
                     v2Channel.setSubscribe(v2Op);
                 }
 
-                normalizeReplyOperation(entry.getKey(), v3Op, v3, v2Channels);
+                normalizeReplyOperation(entry.getKey(), v3Op, v3, v2Channels, declaredOperations);
             }
         }
 
@@ -163,7 +165,8 @@ public class AsyncApiV3Normalizer {
         OperationObject v2Op = new OperationObject();
         v2Op.setSummary(v3Op.getSummary());
         v2Op.setOperationId(v3Op.getOperationId() != null ? v3Op.getOperationId() : operationKey);
-        v2Op.setMaasClassifierName(v3Op.getMaasClassifierName());
+        v2Op.setMaasClassifierName(v3Op.getMaasClassifierName() != null
+                ? v3Op.getMaasClassifierName() : v3Channel.getMaasClassifierName());
         v2Op.setMessage(convertMessages(v3Op, v3Channel, v3Channels));
         return v2Op;
     }
@@ -329,7 +332,8 @@ public class AsyncApiV3Normalizer {
 
     private void normalizeReplyOperation(String operationKey, V3Operation v3Op,
                                          AsyncapiV3Specification v3,
-                                         Map<String, Channel> v2Channels) {
+                                         Map<String, Channel> v2Channels,
+                                         Set<OperationObject> declaredOperations) {
         V3Reply reply = v3Op.getReply();
         if (reply == null || reply.getChannel() == null || reply.getChannel().getRef() == null) {
             return;
@@ -360,6 +364,9 @@ public class AsyncApiV3Normalizer {
         String baseId = v3Op.getOperationId() != null ? v3Op.getOperationId() : operationKey;
         replyOp.setOperationId(baseId + "Reply");
         replyOp.setAction(ACTION_SEND.equals(v3Op.getAction()) ? ACTION_RECEIVE : ACTION_SEND);
+        if (replyV3Channel != null) {
+            replyOp.setMaasClassifierName(replyV3Channel.getMaasClassifierName());
+        }
 
         if (reply.getMessages() != null && !reply.getMessages().isEmpty()) {
             replyOp.setMessage(convertMessageList(reply.getMessages(), v3Channels));
@@ -367,9 +374,12 @@ public class AsyncApiV3Normalizer {
             replyOp.setMessage(convertChannelMessages(replyV3Channel.getMessages()));
         }
 
+        // The generated reply never replaces an operation declared on the reply channel.
         if (ACTION_SEND.equals(v3Op.getAction())) {
-            replyV2Channel.setSubscribe(replyOp);
-        } else {
+            if (!declaredOperations.contains(replyV2Channel.getSubscribe())) {
+                replyV2Channel.setSubscribe(replyOp);
+            }
+        } else if (!declaredOperations.contains(replyV2Channel.getPublish())) {
             replyV2Channel.setPublish(replyOp);
         }
     }
