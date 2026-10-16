@@ -12,6 +12,7 @@ import { ServiceParametersTab } from "./ServiceParametersTab";
 import { ServiceApiSpecsTab } from "./ServiceApiSpecsTab";
 import { ServiceEnvironmentsTab } from "./ServiceEnvironmentsTab";
 import { api } from "../../../api/api";
+import { documentationService } from "../../../services/documentation/documentationService";
 import {
   IntegrationSystem,
   IntegrationSystemType,
@@ -160,6 +161,14 @@ export const ServiceParametersPage: React.FC = () => {
         });
     }
   }, [location.pathname, systemId]);
+
+  useEffect(() => {
+    if (system?.type) {
+      documentationService.setServiceTypeOverride(system.type);
+      return () => documentationService.clearServiceTypeOverride();
+    }
+    return undefined;
+  }, [system?.type]);
 
   useEffect(() => {
     if (groupId && systemId) {

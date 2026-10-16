@@ -18,6 +18,7 @@ import {
   segmentsToSafeHtml,
 } from "./documentationHighlightUtils";
 import { onConfigChange } from "../../appConfig";
+import { IntegrationSystemType } from "../../api/apiTypes";
 
 interface SearchDocument {
   id: number;
@@ -81,12 +82,21 @@ export class DocumentationService {
   private contextMappingPromise: Promise<DocumentMappingRule[]> | null = null;
   private elementMappingPromise: Promise<DocumentMappingRule[]> | null = null;
   elementTypeMappingCache: Record<string, string> | null = null;
+  private serviceTypeOverride: IntegrationSystemType | null = null;
 
   constructor(
     private fetcher: Fetcher = (url: string) => fetch(url),
     private windowOpener: WindowOpener = (url: string, target: string) =>
       window.open(url, target),
   ) {}
+
+  public setServiceTypeOverride(type: IntegrationSystemType): void {
+    this.serviceTypeOverride = type;
+  }
+
+  public clearServiceTypeOverride(): void {
+    this.serviceTypeOverride = null;
+  }
 
   public resetCaches(): void {
     this.pathsPromise = null;
@@ -381,16 +391,106 @@ export class DocumentationService {
 
   public openContextDocumentation(onError?: (error: Error) => void): void {
     console.log("Opening context documentation...");
-    const path = window.location.pathname + window.location.hash;
-    void this.openMappedDocumentation(this.loadContextMapping(), path).catch(
-      (error) => {
+    const pathname = window.location.pathname;
+    const path = pathname + window.location.hash;
+    void (async () => {
+      try {
+        const servicePath = await this.resolveServiceDocPath(pathname);
+        if (servicePath) {
+          console.log("Documentation mapping:", path, "->", servicePath);
+          this.openPage(servicePath);
+          return;
+        }
+        await this.openMappedDocumentation(this.loadContextMapping(), path);
+      } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
         console.error("Failed to open context documentation:", err);
         onError?.(err);
         // Fallback to documentation home if context mapping fails
         this.openPage(DOCUMENTATION_ROUTE_BASE);
-      },
-    );
+      }
+    })();
+  }
+
+  private parseServiceRoute(path: string): {
+    variant: string;
+    systemId: string;
+  } | null {
+    const match = path.match(/^\/services\/(systems|context|mcp)\/([^/#?]+)/);
+    if (!match) {
+      return null;
+    }
+    return { variant: match[1], systemId: match[2] };
+  }
+
+  private serviceDocBase(type: IntegrationSystemType): string | null {
+    switch (type) {
+      case IntegrationSystemType.EXTERNAL:
+        return `${DOCUMENTATION_ROUTE_BASE}/02__Services/1__External/readme`;
+      case IntegrationSystemType.INTERNAL:
+        return `${DOCUMENTATION_ROUTE_BASE}/02__Services/2__Inner_Cloud/readme`;
+      case IntegrationSystemType.IMPLEMENTED:
+        return `${DOCUMENTATION_ROUTE_BASE}/02__Services/3__Implemented/readme`;
+      case IntegrationSystemType.CONTEXT:
+        return `${DOCUMENTATION_ROUTE_BASE}/02__Services/4__Context/readme`;
+      case IntegrationSystemType.MCP:
+        return `${DOCUMENTATION_ROUTE_BASE}/02__Services/5__MCP/readme`;
+      default:
+        return null;
+    }
+  }
+
+  private serviceTabAnchor(path: string): string {
+    if (path.includes("/environments")) {
+      return "#add-environment";
+    }
+    if (path.includes("/operations")) {
+      return "#view-operations";
+    }
+    if (path.includes("/specificationGroups")) {
+      return "#view-specification-groups";
+    }
+    if (path.includes("/parameters")) {
+      return "#view-parameters";
+    }
+    return "";
+  }
+
+  private resolveServiceSync(path: string): string | null {
+    const parsed = this.parseServiceRoute(path);
+    if (!parsed || parsed.variant !== "systems") {
+      return null;
+    }
+    if (!this.serviceTypeOverride) {
+      return null;
+    }
+    const base = this.serviceDocBase(this.serviceTypeOverride);
+    if (!base) {
+      return null;
+    }
+    return `${base}${this.serviceTabAnchor(path)}`;
+  }
+
+  private async resolveServiceDocPath(path: string): Promise<string | null> {
+    const syncPath = this.resolveServiceSync(path);
+    if (syncPath) {
+      return syncPath;
+    }
+    const parsed = this.parseServiceRoute(path);
+    if (!parsed || parsed.variant !== "systems") {
+      return null;
+    }
+    try {
+      const { api } = await import("../../api/api");
+      const service = await api.getService(parsed.systemId);
+      const base = this.serviceDocBase(service.type);
+      if (!base) {
+        return null;
+      }
+      return `${base}${this.serviceTabAnchor(path)}`;
+    } catch {
+      return null;
+    }
   }
 
   public openPage(url: string): void {
@@ -417,7 +517,8 @@ export class DocumentationService {
       console.log("Documentation mapping rule not found");
     }
     const mappedPath =
-      mappingRule?.doc?.replace(".md", "") || `${DOCUMENTATION_ROUTE_BASE}/not-found`;
+      mappingRule?.doc?.replace(".md", "") ||
+      `${DOCUMENTATION_ROUTE_BASE}/not-found`;
     console.log("Documentation mapping:", path, "->", mappedPath);
     return mappedPath;
   }
@@ -432,6 +533,10 @@ export class DocumentationService {
   }
 
   public async mapContextToDoc(path: string): Promise<string | null> {
+    const servicePath = this.resolveServiceSync(path);
+    if (servicePath) {
+      return servicePath;
+    }
     const rules = await this.loadContextMapping();
     const rule = rules.find((r) =>
       // NOSONAR - patterns from trusted config (context-doc-mapping.json)
