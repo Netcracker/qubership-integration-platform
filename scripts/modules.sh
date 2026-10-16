@@ -31,7 +31,6 @@ QIP_BOM_MODULES=(
     micro-engine
     runtime-catalog
     sessions-management
-    ai-service
     integration-build-pipeline
     integration-build-maven-plugin
     schemas
