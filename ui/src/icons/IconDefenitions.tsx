@@ -138,10 +138,10 @@ import {
 } from "@ant-design/icons";
 
 /**
- * Default header logo (QIP text). Override: configure({ icons: { logo: … } }).
+ * Default header logo (CIP text). Override: configure({ icons: { logo: … } }).
  * Deprecated key name in configuration: `qip` — see merge in IconProvider.
  */
-const QIP_WORDMARK_FONT_FAMILY =
+const CIP_WORDMARK_FONT_FAMILY =
   '"Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif';
 
 const DefaultNavLogoIcon: React.FC<AntdIconProps> = ({ style, className }) => (
@@ -153,19 +153,19 @@ const DefaultNavLogoIcon: React.FC<AntdIconProps> = ({ style, className }) => (
     style={style}
     className={className}
   >
-    <title>QIP</title>
+    <title>CIP</title>
     <text
       x="20"
       y="9"
       textAnchor="middle"
       dominantBaseline="central"
       fill="currentColor"
-      fontFamily={QIP_WORDMARK_FONT_FAMILY}
+      fontFamily={CIP_WORDMARK_FONT_FAMILY}
       fontSize="20"
       fontWeight="700"
       letterSpacing="-0.06em"
     >
-      QIP
+      CIP
     </text>
   </svg>
 );

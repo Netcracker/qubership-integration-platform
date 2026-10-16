@@ -1,8 +1,4 @@
-import {
-  createVscodeMock,
-  stubFileApi,
-  stubProjectConfigService,
-} from "../helpers/mocks";
+import { createVscodeMock, stubFileApi } from "../helpers/mocks";
 
 jest.mock(
   "vscode",
@@ -22,18 +18,7 @@ jest.mock("../../src/web/response/file/fileApiProvider", () =>
     findFileById: jest.fn(),
   }),
 );
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-  getExtensionsForUri: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-}));
 jest.mock("../../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
-jest.mock("../../src/web/services/ProjectConfigService", () =>
-  stubProjectConfigService(),
-);
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },
 }));
@@ -54,7 +39,7 @@ import { SpecificationGroupService } from "../../src/web/api-services/Specificat
 import { fileApi } from "../../src/web/response/file/fileApiProvider";
 import { ContentParser } from "../../src/web/api-services/parsers/ContentParser";
 
-const serviceFileUri = { path: "/ws/svc-1.qip-service.yaml" } as any;
+const serviceFileUri = { path: "/ws/svc-1.service.cip.yaml" } as any;
 
 const files: Record<string, any> = {
   "grp-1.qip-group.yaml": {

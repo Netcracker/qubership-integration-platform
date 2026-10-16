@@ -93,8 +93,8 @@ class MicroDomainServiceTest {
                 context -> "engine-routes",
                 new K8sNameValidator());
         // The @Value fields are package-private, so the test in this package sets them directly.
-        service.domainLabel = "qip.domain";
-        service.bgVersionLabel = "qip.bgVersion";
+        service.domainLabel = "cip.domain";
+        service.bgVersionLabel = "cip.bgVersion";
         service.bgVersion = "v1";
         return service;
     }
@@ -238,7 +238,7 @@ class MicroDomainServiceTest {
                 metadata:
                   name: %s
                   labels:
-                    qip.domain: payments
+                    cip.domain: payments
                 spec: {}
                 """.formatted(name);
     }
@@ -337,9 +337,9 @@ class MicroDomainServiceTest {
                 .name("int-res")
                 .resourceVersion("42")
                 .annotations(new LinkedHashMap<>(Map.of("camel.apache.org/operator.id", "camel-k")))
-                .labels(new LinkedHashMap<>(Map.of("qip.domain", "payments")));
+                .labels(new LinkedHashMap<>(Map.of("cip.domain", "payments")));
         BuiltResources built = new BuiltResources(
-                integrationYaml("int-res"),   // declares only the qip.domain label
+                integrationYaml("int-res"),   // declares only the cip.domain label
                 Map.of(new ResourceKey("Integration", "int-res"), observed));
 
         MicroDomainService service = newService(false);
@@ -354,7 +354,7 @@ class MicroDomainServiceTest {
         CamelKIntegration written = (CamelKIntegration) captor.getValue();
         assertEquals("camel-k", written.getMetadata().getAnnotations().get("camel.apache.org/operator.id"),
                 "an annotation only the operator set must survive the write");
-        assertEquals("payments", written.getMetadata().getLabels().get("qip.domain"));
+        assertEquals("payments", written.getMetadata().getLabels().get("cip.domain"));
     }
 
     @DisplayName("Stamps the observed resourceVersion onto a core-kind document too")
@@ -393,7 +393,7 @@ class MicroDomainServiceTest {
                 .resourceVersion("42")
                 .uid("live-uid")
                 .ownerReferences(new ArrayList<>(List.of(owner)))
-                .finalizers(new ArrayList<>(List.of("qip.org/cleanup")));
+                .finalizers(new ArrayList<>(List.of("cip.org/cleanup")));
         BuiltResources built = new BuiltResources(
                 integrationYaml("int-res"),
                 Map.of(new ResourceKey("Integration", "int-res"), observed));
@@ -408,10 +408,10 @@ class MicroDomainServiceTest {
         assertEquals(List.of(owner), written.getOwnerReferences(),
                 "a PUT replaces metadata wholesale, so dropping ownerReferences here would break "
                         + "garbage collection for an operator-owned object");
-        assertEquals(List.of("qip.org/cleanup"), written.getFinalizers());
+        assertEquals(List.of("cip.org/cleanup"), written.getFinalizers());
         assertEquals("live-uid", written.getUid());
         assertEquals("int-res", written.getName(), "the generated name must win over the live one");
-        assertEquals("payments", written.getLabels().get("qip.domain"));
+        assertEquals("payments", written.getLabels().get("cip.domain"));
     }
 
     @DisplayName("Leaves a document Phase 1 never looked at to the write-time read")
@@ -593,7 +593,7 @@ class MicroDomainServiceTest {
         spec.setTraits(traits);
         CamelKIntegration integration = new CamelKIntegration();
         integration.setSpec(spec);
-        // The operator sets this annotation outside QIP's own Handlebars template. A PUT that drops
+        // The operator sets this annotation outside CIP's own Handlebars template. A PUT that drops
         // unmodeled metadata would silently strip it; V1ObjectMeta models every field, so it survives
         // the CamelKIntegration round trip even though CamelKIntegration.IntegrationSpec does not.
         //

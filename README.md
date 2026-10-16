@@ -60,7 +60,7 @@ The `fetch-docs` step copies [`help/docs/`](help/docs/) into `ui/public/doc/`.
 ### Step 4 — Start the local backend stack
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml up -d --build
 ```
 
 Builds four application images — three from the JARs produced in Step 1, plus the testing service from its Go sources — and starts them alongside PostgreSQL, Consul, OpenSearch, and an Nginx proxy. The testing service answers on <http://localhost:8095> directly, and through the proxy under `/api/v1/qip/testing-service/`.
@@ -68,7 +68,7 @@ Builds four application images — three from the JARs produced in Step 1, plus 
 If your integration chains use Kafka, RabbitMQ, Redis, or Google Pub/Sub, start the corresponding optional service alongside the main stack:
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.kafka.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.kafka.yml up -d --build
 ```
 
 Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `docker-compose.redis.yml`, `docker-compose.pubsub.yml`, `docker-compose.sftp.yml`.
@@ -88,12 +88,7 @@ The extension provides offline visual editors for `.chain.cip.yaml` and `.servic
 
 `*.qip.yaml` files from earlier versions do not open in the extension. Rename them to `*.cip.yaml`.
 
-If a workspace `.config.qip.yaml` has a `configs.qip` block, delete the block so the embedded `cip` defaults apply.
-To keep custom settings, move them to `configs.cip`, then change each `extensions` value to end in `.cip.yaml` and
-each `schemaUrls` value to the matching URI in `vscode-extension/configs/default.config.cip.yaml`.
-A block the extension saved holds the old extensions and schema URLs as literal values, and a `configs.cip` block in
-the workspace file replaces the embedded default as a whole. Moved unchanged, the block makes the extension create
-`*.qip.yaml` files that declare the old `$schema`, and its editors do not open them.
+The extension no longer reads `.config.qip.yaml`. File extensions are always `*.cip.yaml`, so you can delete the file.
 
 ```bash
 npm install                                           # if not done already

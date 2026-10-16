@@ -1,5 +1,5 @@
 /**
- * The Kubernetes adapter: the suite's install of `infrastructure/qip-dev` in namespace `qip-e2e`.
+ * The Kubernetes adapter: the suite's install of `infrastructure/helm/qip-dev` in namespace `qip-e2e`.
  *
  * Every host-side address is a fixed port from `env/containers.ts`. The chart names each platform
  * Deployment `qip-<role>-v1` and its container `qip-<role>`, and `kubectl` reaches both through the

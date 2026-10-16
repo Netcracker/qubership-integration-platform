@@ -102,7 +102,7 @@ export const AutoHeight: React.FC<AutoHeightProps> = ({
       {...props}
       // Marker for the form CSS to strip the dead trailing margins of the
       // editor's nested RJSF wrappers (see ChainElementModification.module.css).
-      className={className ? `qip-auto-height ${className}` : "qip-auto-height"}
+      className={className ? `cip-auto-height ${className}` : "cip-auto-height"}
       // Clip the editor to its measured height. The mapper's flex-filled column
       // tables round up by ~1px, which would otherwise leak out as a stray
       // scrollbar on the form. Monaco's own popups render in a body-level node,

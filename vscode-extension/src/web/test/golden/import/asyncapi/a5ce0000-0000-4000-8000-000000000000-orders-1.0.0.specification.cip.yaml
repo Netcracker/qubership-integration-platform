@@ -1,0 +1,59 @@
+id: a5ce0000-0000-4000-8000-000000000000-orders-1.0.0
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
+name: 1.0.0
+content:
+  deprecated: false
+  version: 1.0.0
+  source: MANUAL
+  operations:
+    - id: a5ce0000-0000-4000-8000-000000000000-orders-1.0.0-publishOrderCreated
+      name: publishOrderCreated
+      method: send
+      path: orders.created
+      specification:
+        topic: orders.created
+      requestSchema: {}
+      responseSchemas:
+        payload:
+          type: object
+          required:
+            - orderId
+          properties:
+            orderId:
+              type: string
+            total:
+              type: number
+              format: double
+    - id: a5ce0000-0000-4000-8000-000000000000-orders-1.0.0-consumeOrderShipped
+      name: consumeOrderShipped
+      method: receive
+      path: orders.shipped
+      specification:
+        topic: orders.shipped
+      requestSchema: {}
+      responseSchemas:
+        OrderShipped:
+          name: OrderShipped
+          $ref: "#/definitions/OrderShipped"
+          definitions:
+            OrderShipped:
+              type: object
+              required:
+                - orderId
+                - shippedAt
+              properties:
+                orderId:
+                  type: string
+                shippedAt:
+                  type: string
+                  format: date-time
+          $id: http://system.catalog/schemas/OrderShipped
+          $schema: http://json-schema.org/draft-07/schema#
+  specificationSources:
+    - id: a5ce7fe5-0000-4000-8000-000000000002
+      name: orders-asyncapi.yaml
+      sourceHash: 100b5cc4
+      fileName: source-a5ce0000-0000-4000-8000-000000000000-orders-1.0.0/orders-asyncapi.yaml
+      mainSource: true
+  parentId: a5ce0000-0000-4000-8000-000000000000-orders
+  labels: []

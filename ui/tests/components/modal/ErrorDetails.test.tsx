@@ -122,14 +122,14 @@ describe("ErrorDetails", () => {
   it("shows service chip, formatted occurrence time, and message content", () => {
     render(
       <ErrorDetails
-        service="qip-engine-v1"
+        service="cip-engine-v1"
         timestamp={999}
         message="Kafka predeploy check is failed"
         stacktrace=""
       />,
     );
 
-    expect(screen.getByText("qip-engine-v1")).toBeInTheDocument();
+    expect(screen.getByText("cip-engine-v1")).toBeInTheDocument();
     expect(screen.getByText("ts(999)")).toBeInTheDocument();
     expect(
       screen.getByText("Kafka predeploy check is failed"),

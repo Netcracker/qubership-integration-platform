@@ -481,7 +481,8 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
                 out.append('\n');
             }
         } catch (Exception e) {
-            throw new ResourceBuildError("Failed to build " + description, e);
+            String message = String.format("Failed to build %s: %s", description, e.getMessage());
+            throw new ResourceBuildError(message, e);
         }
     }
 }

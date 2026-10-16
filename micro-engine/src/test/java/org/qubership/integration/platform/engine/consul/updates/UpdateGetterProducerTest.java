@@ -50,7 +50,7 @@ class UpdateGetterProducerTest {
     void setUp() {
         producer = new UpdateGetterProducer();
         producer.keyPrefix = "config/test";
-        producer.keyEngineConfigRoot = "/qip-engine-configurations";
+        producer.keyEngineConfigRoot = "/cip-engine-configurations";
         producer.keyDeploymentsUpdate = "/deployments-update";
         producer.keyLibrariesUpdate = "/libraries-update";
         producer.keyRuntimeConfigurations = "/runtime-configurations";
@@ -67,7 +67,7 @@ class UpdateGetterProducerTest {
         KeyValueList kvList = changedKvList(entries);
 
         when(consulClient.getValuesWithOptions(
-                eq("config/test/qip-engine-configurations/deployments-update"),
+                eq("config/test/cip-engine-configurations/deployments-update"),
                 any(BlockingQueryOptions.class)
         )).thenReturn(Uni.createFrom().item(kvList));
         when(deploymentUpdateParser.apply(entries)).thenReturn(42L);
@@ -94,7 +94,7 @@ class UpdateGetterProducerTest {
         );
 
         when(consulClient.getValuesWithOptions(
-                eq("config/test/qip-engine-configurations/runtime-configurations/chains"),
+                eq("config/test/cip-engine-configurations/runtime-configurations/chains"),
                 any(BlockingQueryOptions.class)
         )).thenReturn(Uni.createFrom().item(kvList));
         when(chainRuntimePropertiesUpdateParser.apply(entries)).thenReturn(properties);
@@ -119,7 +119,7 @@ class UpdateGetterProducerTest {
         );
 
         when(consulClient.getValuesWithOptions(
-                eq("config/test/qip-engine-configurations/variables/common"),
+                eq("config/test/cip-engine-configurations/variables/common"),
                 any(BlockingQueryOptions.class)
         )).thenReturn(Uni.createFrom().item(kvList));
         when(commonVariablesUpdateParser.apply(entries)).thenReturn(variables);

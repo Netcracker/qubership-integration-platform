@@ -1,7 +1,7 @@
 export type ThemeMode = "light" | "dark" | "high-contrast";
 export type ThemeModeWithSystem = ThemeMode | "system";
 
-const THEME_STORAGE_KEY = "qip-ui-theme-mode";
+const THEME_STORAGE_KEY = "cip-ui-theme-mode";
 
 export function getSystemTheme(): ThemeMode {
   if (globalThis.window === undefined) {

@@ -773,7 +773,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                           wrapperProps={{
                             "data-testid": "load-schema-graphql-schema-editor",
                           }}
-                          className="qip-editor"
+                          className="cip-editor"
                           language={"graphql"}
                           theme={monacoTheme}
                           options={{
@@ -795,7 +795,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                           wrapperProps={{
                             "data-testid": "load-schema-graphql-query-editor",
                           }}
-                          className="qip-editor"
+                          className="cip-editor"
                           language={"graphql"}
                           theme={monacoTheme}
                           options={{
@@ -819,7 +819,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         wrapperProps={{
                           "data-testid": "load-schema-text-editor",
                         }}
-                        className="qip-editor"
+                        className="cip-editor"
                         options={{ readOnly: true, fixedOverflowWidgets: true }}
                         language={"json"}
                         theme={monacoTheme}
@@ -942,7 +942,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                           wrapperProps={{
                             "data-testid": "load-sample-graphql-schema-editor",
                           }}
-                          className="qip-editor"
+                          className="cip-editor"
                           language={"graphql"}
                           theme={monacoTheme}
                           onValidate={(markers) => {
@@ -987,7 +987,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                           wrapperProps={{
                             "data-testid": "load-sample-graphql-query-editor",
                           }}
-                          className="qip-editor"
+                          className="cip-editor"
                           language={"graphql"}
                           theme={monacoTheme}
                           onValidate={(markers) => {
@@ -1036,7 +1036,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         wrapperProps={{
                           "data-testid": "load-sample-text-editor",
                         }}
-                        className="qip-editor"
+                        className="cip-editor"
                         language={selectedLanguage}
                         theme={monacoTheme}
                         onValidate={(markers) => {

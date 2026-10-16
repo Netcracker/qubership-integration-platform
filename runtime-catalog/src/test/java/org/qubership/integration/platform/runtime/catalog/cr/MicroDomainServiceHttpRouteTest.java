@@ -62,8 +62,8 @@ class MicroDomainServiceHttpRouteTest {
                 engineRoutesNamingStrategy,
                 new K8sNameValidator()
         );
-        microDomainService.domainLabel = "qip.domain";
-        microDomainService.bgVersionLabel = "qip.bgVersion";
+        microDomainService.domainLabel = "cip.domain";
+        microDomainService.bgVersionLabel = "cip.bgVersion";
         microDomainService.bgVersion = "v1";
     }
 
@@ -84,8 +84,8 @@ class MicroDomainServiceHttpRouteTest {
         microDomainService.deleteHttpRoutes(DOMAIN);
 
         Map<String, String> selector = new HashMap<>();
-        selector.put("qip.domain", DOMAIN);
-        selector.put("qip.bgVersion", "v1");
+        selector.put("cip.domain", DOMAIN);
+        selector.put("cip.bgVersion", "v1");
         selector.put(SNAPSHOT_ID_LABEL, null);
         verify(kubeOperator).getCustomObjectsByLabels(GROUP, VERSION, PLURAL, selector);
     }
@@ -144,7 +144,7 @@ class MicroDomainServiceHttpRouteTest {
                     - matches:
                         - path:
                             type: PathPrefix
-                            value: /qip-routes/a
+                            value: /cip-routes/a
                 """;
 
         List<Object> parsed = io.kubernetes.client.util.Yaml.loadAll(httpRouteYaml);

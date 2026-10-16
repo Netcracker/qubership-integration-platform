@@ -19,7 +19,6 @@ m2m:
   enabled: true
 
 application:
-  prefix: qip
   name: ${CAMEL_K_INTEGRATION:default}
   namespace: ${NAMESPACE:local}
   cloud_service_name: ${CLOUD_SERVICE_NAME}
@@ -31,7 +30,7 @@ consul:
   url: ${CONSUL_URL:http://consul:8500}
   keys:
     prefix: config/${NAMESPACE}
-    engine-config-root: /${application.prefix}-engine-configurations
+    engine-config-root: /cip-engine-configurations
     deployments-update: /deployments-update
     libraries-update: /libraries-update
     engines-state: /engines-state
@@ -54,10 +53,10 @@ camel:
     messageHistory: true
     streamCachingEnabled: true # enable exchange payload spooling
     streamCachingBufferSize: 16384
+    inflightRepositoryBrowseEnabled: true
     globalOptions:
       CamelJacksonEnableTypeConverter: true
       CamelJacksonTypeConverterToPojo: true
-      inflightRepositoryBrowseEnabled: true
   component:
     bean:
       bean-info-cache-size: 30 # until took the fix from https://issues.apache.org/jira/browse/CAMEL-22775
@@ -97,9 +96,9 @@ cip:
     routes:
       registration:
         enabled: ${apigateway.routes.registration.enabled}
-      prefix: /${application.prefix}-routes
+      prefix: /cip-routes
       public:
-        v1-prefix: /api/v1/${application.prefix}/engine
+        v1-prefix: /api/v1/cip/engine
   chains:
     configuration:
       location: ${CIP_CHAINS_CONFIGURATION_URL:}
@@ -113,7 +112,7 @@ cip:
         ignore-variables-errors: false
         ignore-route-loading-errors: false
     routes:
-      prefix: /${application.prefix}-routes
+      prefix: /cip-routes
       legacy-prefix: /routes
     stream-caching:
       enabled: true # enable exchange payload spooling
@@ -159,7 +158,7 @@ cip:
           maximum: 300000
     index:
       elements:
-        name: ${application.prefix}-elements-${application.namespace}
+        name: cip-elements-${application.namespace}
         shards: ${OPENSEARCH_INDEX_SHARDS:3}
     rollover:
       min_index_age: 1d
@@ -225,8 +224,8 @@ kubernetes:
     token-file-path: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
     cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
   variables-secret:
-    name: ${application.prefix}-secured-variables-v2
-    label: ${application.prefix}-variable-type
+    name: cip-secured-variables-v2
+    label: cip-variable-type
 
 quarkus:
   application:
@@ -235,7 +234,7 @@ quarkus:
     level: ${ROOT_LOG_LEVEL:INFO}
     console:
       level: ${ROOT_LOG_LEVEL:INFO}
-      format: "[%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-5p] [request_id=%-15X{requestId:--}] [tenant_id=%-36X{tenantId:--}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{trace_id:--}] [spanId=%-16X{span_id:--}] [originating_bi_id=%-36X{originating-bi-id:--}] [business_identifiers=%-36X{businessIdentifiers:--}] [method=%-30.30M] [log_type=%-3X{logType:--}] [session_id=%-36X{internalProperty_sessionId:--}] [chain_id=%-36X{chainId:--}] [chain=%-30X{chainName:--}] [chain_element_id=%-36X{elementId:--}] [chain_element=%-15X{elementName:--}] %m%n%ex{5}"
+      format: "[%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-5p] [request_id=%-15X{requestId}] [tenant_id=%-36X{tenantId}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{trace_id}] [spanId=%-16X{span_id}] [originating_bi_id=%-36X{originating-bi-id}] [business_identifiers=%-36X{businessIdentifiers}] [method=%-30.30M] [log_type=%-3X{logType}] [session_id=%-36X{internalProperty_sessionId}] [chain_id=%-36X{chainId}] [chain=%-30X{chainName}] [chain_element_id=%-36X{elementId}] [chain_element=%-15X{elementName}] %s%e%n"
       filter: camel-job-filter
     json:
       log-format: none # see org.qubership.integration.platform.engine.service.debugger.logging.JsonLogProvider

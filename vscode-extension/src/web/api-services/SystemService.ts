@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import type { IntegrationSystem } from "@netcracker/qip-ui";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
+import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
 import { LabelUtils } from "./LabelUtils";
 
 /**
@@ -94,7 +94,7 @@ export class SystemService {
   }
 
   private async findServiceFileUri(systemId: string): Promise<Uri> {
-    const ext = getExtensionsForFile();
+    const ext = FILE_EXTENSIONS;
     return await fileApi.findFileById(systemId, ext.service);
   }
 }

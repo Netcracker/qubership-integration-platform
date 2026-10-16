@@ -35,9 +35,11 @@ public class ResourceBuildService {
             }
             applyBuilders(stringBuilder, buildContext, commonResourceBuilders);
             return stringBuilder.toString();
+        } catch (ResourceBuildError e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to build custom resource", e);
-            throw new ResourceBuildError("Failed to build custom resource", e);
+            throw new ResourceBuildError("Failed to build custom resource: " + e.getMessage(), e);
         }
     }
 

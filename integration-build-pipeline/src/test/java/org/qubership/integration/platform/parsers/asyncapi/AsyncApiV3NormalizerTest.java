@@ -104,6 +104,50 @@ class AsyncApiV3NormalizerTest {
     }
 
     @Test
+    void normalizeMaasClassifierPrefersOperationOverChannel() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-maas-classifier.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertEquals("operation.level.topic",
+                v2.getChannels().get("operation/topic").getPublish().getMaasClassifierName());
+        Channel channel = v2.getChannels().get("channel/topic");
+        assertEquals("channel.level.topic", channel.getPublish().getMaasClassifierName());
+        assertEquals("operation.level.topic", channel.getSubscribe().getMaasClassifierName());
+    }
+
+    @Test
+    void normalizeReplyTakesMaasClassifierFromReplyChannel() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-maas-classifier.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertNull(v2.getChannels().get("request/topic").getPublish().getMaasClassifierName());
+        assertEquals("reply.channel.topic",
+                v2.getChannels().get("reply/topic").getSubscribe().getMaasClassifierName());
+    }
+
+    @Test
+    void normalizeReplyKeepsOperationDeclaredOnReplyChannelInEitherOrder() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-reply-slot.yaml");
+        Map<String, V3Operation> declared = v3.getOperations();
+
+        for (Map<String, V3Operation> operations : List.of(declared, new LinkedHashMap<>(declared).reversed())) {
+            v3.setOperations(operations);
+            AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+            assertEquals("receiveOrderReply", v2.getChannels().get("order/reply").getSubscribe().getOperationId(),
+                    "operation order " + operations.keySet());
+        }
+    }
+
+    @Test
+    void normalizeLastReplyTakesSharedReplyChannel() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-reply-slot.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertEquals("sendRefundRequestReply", v2.getChannels().get("shared/reply").getSubscribe().getOperationId());
+    }
+
+    @Test
     void normalizeAmqpSimple() throws IOException {
         AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/amqp-v3-simple.yaml");
         AsyncapiSpecification v2 = normalizer.normalize(v3);

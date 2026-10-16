@@ -80,7 +80,7 @@ The library registers routes and runs the executor. Everything else belongs to t
 - `cmd/testing-service` owns the database DSN, schema creation, health, pprof, metrics, route registration and the API
   prefix. Dropping these from the library is what removed three vendor dependencies.
 - `Mount` registers relative paths (`/test-cases`, not `/api/v1/test-cases`), so the host chooses the prefix. The binary
-  mounts under `/api/v1`, which the nginx rule in `infrastructure/nginx/routes.conf` assumes.
+  mounts under `/api/v1`, which the nginx rule in `infrastructure/docker/nginx/routes.conf` assumes.
 - The generated spec does not follow the prefix: `basePath` is empty and every `@Router` annotation spells out
   `/api/v1/…`, so `docs/` describes the standalone binary. A host that mounts elsewhere serves paths the spec does not
   match, and publishes its own spec instead.

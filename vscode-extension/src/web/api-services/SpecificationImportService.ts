@@ -22,10 +22,12 @@ import {
 import { EnvironmentService } from "./EnvironmentService";
 import { SystemService } from "./SystemService";
 import { fileApi } from "../response/file/fileApiProvider";
+import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationParser";
 import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from "./parsers/ContentParser";
-import { ProjectConfigService } from "../services/ProjectConfigService";
+import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
+import { CIP_SCHEMA_URLS } from "../services/cipSchemas";
 import { SpecificationValidator } from "./SpecificationValidator";
 import { ApiSpecificationType } from "./importApiTypes";
 import { normalizePath } from "./pathUtils";
@@ -319,16 +321,11 @@ export class SpecificationImportService {
   private async detectImportingProtocol(
     files: File[],
   ): Promise<ApiSpecificationType | null> {
-    let fallbackProtocol: ApiSpecificationType | null = null;
     for (const file of files) {
       const extension = this.getFileExtension(file.name);
       const extensionBasedProtocol = this.detectProtocolByExtension(extension);
       if (extensionBasedProtocol) {
-        if (extensionBasedProtocol === ApiSpecificationType.ASYNC) {
-          fallbackProtocol = fallbackProtocol ?? ApiSpecificationType.ASYNC;
-        } else {
-          return extensionBasedProtocol;
-        }
+        return extensionBasedProtocol;
       }
 
       const content = await this.readFileContent(file);
@@ -352,7 +349,7 @@ export class SpecificationImportService {
       }
     }
 
-    return fallbackProtocol;
+    return null;
   }
 
   /**
@@ -385,14 +382,13 @@ export class SpecificationImportService {
         }
 
         // Create specification file with operations using existing architecture
-        const config = ProjectConfigService.getConfig();
-        const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${config.extensions.specification}`;
+        const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${FILE_EXTENSIONS.specification}`;
         const specFileUri = Uri.joinPath(baseFolder, specFileName);
 
-        // Create QIP specification using operations from SpecificationProcessorService
-        const qipSpecification = {
+        // Create CIP specification using operations from SpecificationProcessorService
+        const cipSpecification = {
           id: specification.id,
-          $schema: config.schemaUrls.specification,
+          $schema: CIP_SCHEMA_URLS.SPECIFICATION,
           name: specification.name,
           content: {
             deprecated: specification.deprecated,
@@ -418,7 +414,7 @@ export class SpecificationImportService {
         };
 
         // Disable anchors to avoid "Excessive alias count" error when parsing large specifications
-        const yamlContent = yaml.stringify(qipSpecification, {
+        const yamlContent = yaml.stringify(cipSpecification, {
           aliasDuplicateObjects: false,
         });
         const bytes = new TextEncoder().encode(yamlContent);
@@ -673,11 +669,14 @@ export class SpecificationImportService {
 
         const parsedContent = ContentParser.parseContent(content);
         if (parsedContent && typeof parsedContent === "object") {
-          if (
-            parsedContent.openapi ||
-            parsedContent.swagger ||
-            parsedContent.asyncapi
-          ) {
+          if (parsedContent.asyncapi) {
+            // Normalized rather than raw: `extractEnvironmentCandidates` reads a server's `url`,
+            // which only the 2.x shape carries, where a 3.0 document declares `host` and
+            // `pathname`. The catalog normalizes before it maps servers to environments
+            // (`AsyncapiSpecificationParser.toSystemModel`), and this is the same step.
+            return await AsyncApiSpecificationParser.parseAsyncApiContent(content);
+          }
+          if (parsedContent.openapi || parsedContent.swagger) {
             return parsedContent;
           }
           if (parsedContent.type === "WSDL") {
@@ -955,6 +954,7 @@ export class SpecificationImportService {
       case ".wsdl":
         return ApiSpecificationType.SOAP;
       case ".graphql":
+      case ".graphqls":
       case ".gql":
         return ApiSpecificationType.GRAPHQL;
       case ".proto":

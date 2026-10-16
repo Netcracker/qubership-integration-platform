@@ -9,14 +9,6 @@ jest.mock("vscode", () => createVscodeMock(), { virtual: true });
 jest.mock("../../src/web/response/file/fileApiProvider", () =>
   stubFileApi({ getMainService: jest.fn(), findFileById: jest.fn() }),
 );
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-  getExtensionsForUri: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-}));
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },

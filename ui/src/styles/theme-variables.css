@@ -1,4 +1,4 @@
-/* Unified Theme System for QIP UI */
+/* Unified Theme System for CIP UI */
 
 /* Light Theme (Default for Browser) */
 :root:not(.vscode-webview) {
@@ -73,12 +73,12 @@
   --node-removed-color: #f48771;
 
   /* Table: warning / unsaved row — low mix so it stays quieter than input panels */
-  --qip-table-warning-row-background: color-mix(
+  --cip-table-warning-row-background: color-mix(
     in srgb,
     var(--vscode-warningForeground) 7%,
     var(--vscode-editor-background)
   );
-  --qip-table-warning-row-background-hover: color-mix(
+  --cip-table-warning-row-background-hover: color-mix(
     in srgb,
     var(--vscode-warningForeground) 11%,
     var(--vscode-list-hoverBackground)
@@ -133,12 +133,12 @@
   /* Container Node Colors */
   --container-border-color: #fff9e6;
   --container-header-background: #fff9e6;
-  --qip-table-warning-row-background: color-mix(
+  --cip-table-warning-row-background: color-mix(
     in srgb,
     var(--vscode-warningForeground) 6%,
     var(--vscode-editor-background)
   );
-  --qip-table-warning-row-background-hover: color-mix(
+  --cip-table-warning-row-background-hover: color-mix(
     in srgb,
     var(--vscode-warningForeground) 12%,
     var(--vscode-list-hoverBackground)
@@ -189,12 +189,12 @@
   /* Container Node Colors */
   --container-border-color: #fff9e6;
   --container-header-background: #fff9e6;
-  --qip-table-warning-row-background: color-mix(
+  --cip-table-warning-row-background: color-mix(
     in srgb,
     var(--vscode-warningForeground) 16%,
     var(--vscode-editor-background)
   );
-  --qip-table-warning-row-background-hover: color-mix(
+  --cip-table-warning-row-background-hover: color-mix(
     in srgb,
     var(--vscode-warningForeground) 24%,
     var(--vscode-list-hoverBackground)
@@ -233,12 +233,12 @@
   --doc-fg: var(--vscode-foreground, rgb(0 0 0 / 88%));
 
   /* Host warning hue at low mix — table tint stays softer than validation panels */
-  --qip-table-warning-row-background: color-mix(
+  --cip-table-warning-row-background: color-mix(
     in srgb,
     var(--vscode-warningForeground, #cca700) 8%,
     var(--vscode-editor-background, #fff)
   );
-  --qip-table-warning-row-background-hover: color-mix(
+  --cip-table-warning-row-background-hover: color-mix(
     in srgb,
     var(--vscode-warningForeground, #cca700) 13%,
     var(--vscode-list-hoverBackground, var(--vscode-editor-background, #f5f5f5))

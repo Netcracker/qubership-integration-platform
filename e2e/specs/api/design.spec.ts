@@ -146,7 +146,7 @@ test("a chain design carries both languages and the chain's own structure", { ta
 
   expect(participants(source)).toEqual([
     "Unknown external (via external route) service",
-    `QIP chain: ${chain.name}`,
+    `CIP chain: ${chain.name}`,
   ]);
   // One group per trigger, titled with the trigger's name.
   expect(groups(source)).toEqual(["HTTP Trigger"]);
@@ -228,7 +228,7 @@ test("a snapshot design reads the snapshot's elements, not the chain's", { tag: 
   const nothing = await catalog.snapshotDesign(chain.id, ABSENT_UUID);
   expect(nothing.snapshotId).toBe(ABSENT_UUID);
   expect(labels(plantuml(nothing))).toEqual([]);
-  expect(participants(plantuml(nothing))).toEqual([`QIP chain: ${chain.name}`]);
+  expect(participants(plantuml(nothing))).toEqual([`CIP chain: ${chain.name}`]);
 });
 
 test("the detailed design renders the built-in template over the chain", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
@@ -453,14 +453,14 @@ interface CorpusMarkers {
 const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   // `ChainCall2DesignProcessor` resolves `chainCallElementId` to the element it addresses and names
   // it, which is the callee's `chain-trigger-2`.
-  "chain-call": { labels: ["QIP chain trigger call: Chain Trigger"] },
-  // `chain-trigger-2` carries `requestLineTitle: 'QIP chain call'` and a fixed participant name in
+  "chain-call": { labels: ["CIP chain trigger call: Chain Trigger"] },
+  // `chain-trigger-2` carries `requestLineTitle: 'CIP chain call'` and a fixed participant name in
   // its descriptor, so a chain reached from another chain is drawn as coming from nowhere in
   // particular. Its two triggers give it two groups.
   "chain-callee": {
-    labels: ["QIP chain call", "Direct Reply", "Callee Reply"],
+    labels: ["CIP chain call", "Direct Reply", "Callee Reply"],
     groups: ["Chain Trigger"],
-    participants: ["Unknown QIP chain"],
+    participants: ["Unknown CIP chain"],
   },
   // `CheckpointDesignProcessor` opens a group of its own and writes both branches of the retry.
   checkpoint: {
@@ -623,7 +623,7 @@ test("every seeded fixture generates a diagram carrying its own converter's outp
     expect(diagram.chainId, `${chain.fixture}: the diagram names its chain`).toBe(chain.id);
     expect(lines(source).at(-1), `${chain.fixture}: the document is closed`).toBe("@enduml");
     expect(drawn, `${chain.fixture}: the chain itself is always a participant`).toContain(
-      `QIP chain: ${chain.name}`,
+      `CIP chain: ${chain.name}`,
     );
     expect(openedGroups, `${chain.fixture}: a group per trigger`).toContain(expected.trigger ?? "HTTP Trigger");
 

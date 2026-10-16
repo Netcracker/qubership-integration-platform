@@ -19,12 +19,12 @@ import {
 } from "./serviceApiRead";
 import vscode, { ExtensionContext, Uri } from "vscode";
 import { ContentParser } from "../api-services/parsers/ContentParser";
-import { getExtensionsForFile } from "./file/fileExtensions";
+import { FILE_EXTENSIONS } from "./file/fileExtensions";
 import { fileApi } from "./file/fileApiProvider";
-import { refreshQipExplorer } from "../extension";
+import { refreshCipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
-import { ProjectConfigService } from "../services/ProjectConfigService";
-import { QipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
+import { CIP_SCHEMA_URLS } from "../services/cipSchemas";
+import { CipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -146,10 +146,9 @@ export async function createService(
 ): Promise<IntegrationSystem> {
   try {
     const serviceId = crypto.randomUUID();
-    const config = ProjectConfigService.getConfig();
 
     const service = {
-      $schema: config.schemaUrls.service,
+      $schema: CIP_SCHEMA_URLS.SERVICE,
       id: serviceId,
       name: serviceRequest.name,
       content: {
@@ -164,7 +163,7 @@ export async function createService(
     };
 
     const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
-    const ext = getExtensionsForFile();
+    const ext = FILE_EXTENSIONS;
     const serviceFileUri = vscode.Uri.joinPath(
       serviceFolderUri,
       `${serviceId}${ext.service}`,
@@ -651,9 +650,7 @@ export async function deleteSpecificationByUri(
 
     if (specificationInfo?.id) {
       try {
-        const siblingName =
-          specificationFileUri.path.split("/").pop() || "";
-        const extensions = getExtensionsForFile(siblingName);
+        const extensions = FILE_EXTENSIONS;
         const groupId = specificationInfo.content?.parentId;
 
         if (!groupId) {
@@ -786,9 +783,7 @@ export async function deleteSpecificationGroupByUri(
       );
     }
 
-    const siblingName =
-      specificationGroupFileUri.path.split("/").pop() || "";
-    const extensions = getExtensionsForFile(siblingName);
+    const extensions = FILE_EXTENSIONS;
     const serviceId = groupInfo?.content?.parentId;
 
     if (!serviceId) {
@@ -847,8 +842,8 @@ export async function deleteSpecificationModel(
 
 export async function deleteService(serviceFileUri: Uri): Promise<void> {
   try {
-    const fileType = await fileApi.getFileType(serviceFileUri).catch(() => QipFileType.UNKNOWN);
-    if ((fileType as unknown as QipFileType) === QipFileType.SERVICE) {
+    const fileType = await fileApi.getFileType(serviceFileUri).catch(() => CipFileType.UNKNOWN);
+    if ((fileType as unknown as CipFileType) === CipFileType.SERVICE) {
       const groupFiles = await fileApi.getSpecificationGroupFiles(serviceFileUri).catch(() => [] as string[]);
       for (const groupFile of groupFiles) {
         try {
@@ -951,7 +946,7 @@ export async function createEmptyService() {
       serviceRequest,
     );
 
-    refreshQipExplorer();
+    refreshCipExplorer();
 
     vscode.window.showInformationMessage(
       `Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${service.id}`,

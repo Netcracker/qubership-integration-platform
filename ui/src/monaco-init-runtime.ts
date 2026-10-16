@@ -61,8 +61,8 @@ export function initBundledMonaco(): void {
 
   const globalBase =
     typeof window !== "undefined"
-      ? (window as Window & { __QIP_MONACO_WORKER_BASE__?: string })
-          .__QIP_MONACO_WORKER_BASE__
+      ? (window as Window & { __CIP_MONACO_WORKER_BASE__?: string })
+          .__CIP_MONACO_WORKER_BASE__
       : undefined;
   if (globalBase) {
     setDefaultWorkerBasePath(globalBase);

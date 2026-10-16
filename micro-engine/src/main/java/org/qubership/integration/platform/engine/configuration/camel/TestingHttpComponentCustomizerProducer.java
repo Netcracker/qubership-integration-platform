@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.configuration.camel;
 
+import io.quarkus.arc.Unremovable;
 import io.quarkus.arc.lookup.LookupIfProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
@@ -25,8 +26,10 @@ public class TestingHttpComponentCustomizerProducer {
 
     private static final HttpActivityListener NOOP_LISTENER = new NoopActivityListener();
 
+    // Camel looks customizers up programmatically, so ArC removes a producer that nothing injects.
     @Produces
     @LookupIfProperty(name = "cip.testing.enabled", stringValue = "true")
+    @Unremovable
     public ComponentCustomizer testingHttpComponentCustomizer() {
         return ComponentCustomizer.builder(HttpComponent.class)
                 .build(component -> component.setHttpActivityListener(NOOP_LISTENER));

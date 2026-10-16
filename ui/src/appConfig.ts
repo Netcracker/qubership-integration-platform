@@ -15,7 +15,6 @@ export type UserInfo = {
 
 export type AppConfig = {
   apiGateway?: string;
-  appName?: string;
   aiServiceUrl?: string;
   aiAssistantName?: string;
   icons?: IconOverrides;
@@ -39,7 +38,6 @@ export type AppConfig = {
 };
 
 const appConfigValue: AppConfig = {
-  appName: import.meta.env.VITE_API_APP,
   apiGateway: import.meta.env.VITE_GATEWAY,
   aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL as string | undefined,
   aiAssistantName: import.meta.env.VITE_AI_ASSISTANT_NAME as string | undefined,
@@ -47,20 +45,10 @@ const appConfigValue: AppConfig = {
   dev: import.meta.env.DEV,
 };
 
-function setAppName(name: string | undefined | null): void {
-  if (typeof name === "string" && name.length > 0) {
-    appConfigValue.appName = name;
-  }
-}
-
 export function setIcons(icons?: IconOverrides) {
   if (icons) {
     appConfigValue.icons = icons;
   }
-}
-
-export function getAppName(): string {
-  return appConfigValue.appName || import.meta.env.VITE_API_APP || "";
 }
 
 export function getIcons(): IconOverrides {
@@ -96,7 +84,7 @@ function emitConfigChange(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      console.warn("[QIP UI Config] Config change listener failed:", error);
+      console.warn("[CIP UI Config] Config change listener failed:", error);
     }
   }
 }
@@ -104,11 +92,6 @@ function emitConfigChange(): void {
 export function configure(config: Partial<AppConfig>): void {
   const overrides: string[] = [];
 
-  if (config.appName !== undefined) {
-    const oldValue = appConfigValue.appName;
-    setAppName(config.appName);
-    overrides.push(`appName: "${oldValue}" -> "${config.appName}"`);
-  }
   if (config.apiGateway !== undefined) {
     const oldValue = appConfigValue.apiGateway;
     appConfigValue.apiGateway = config.apiGateway;
@@ -208,7 +191,7 @@ export function configure(config: Partial<AppConfig>): void {
   }
 
   if (overrides.length > 0) {
-    console.log("[QIP UI Config] Configuration overrides applied:", overrides);
+    console.log("[CIP UI Config] Configuration overrides applied:", overrides);
   }
 
   if (overrides.length > 0) {
@@ -238,13 +221,6 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
     config.apiGateway = apiGateway;
   }
 
-  const appName =
-    (import.meta.env.VITE_APP_NAME as string | undefined) ||
-    import.meta.env.VITE_API_APP;
-  if (appName) {
-    config.appName = appName;
-  }
-
   const aiServiceUrl = import.meta.env.VITE_AI_SERVICE_URL as
     | string
     | undefined;
@@ -268,7 +244,7 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
       }
     } catch (error) {
       console.warn(
-        "[QIP UI Config] Failed to parse VITE_CSS_VARIABLES:",
+        "[CIP UI Config] Failed to parse VITE_CSS_VARIABLES:",
         error,
       );
     }
@@ -285,7 +261,7 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
       }
     } catch (error) {
       console.warn(
-        "[QIP UI Config] Failed to parse VITE_ADDITIONAL_CSS:",
+        "[CIP UI Config] Failed to parse VITE_ADDITIONAL_CSS:",
         error,
       );
     }
@@ -305,7 +281,6 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
 }
 
 export type AppExtensionProps = {
-  appName?: string;
   icons?: IconOverrides;
   apiGateway?: string;
   aiServiceUrl?: string;
