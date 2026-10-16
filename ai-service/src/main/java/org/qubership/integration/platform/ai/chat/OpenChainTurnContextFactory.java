@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
+import org.eclipse.microprofile.context.ManagedExecutor;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
@@ -44,6 +45,7 @@ public class OpenChainTurnContextFactory {
   private final CatalogRestClient catalogRestClient;
   private final OpenChainTurnPlanner turnPlanner;
   private final LastAssistantTurnStore lastAssistantTurnStore;
+  private final ManagedExecutor executor;
 
   @Inject
   public OpenChainTurnContextFactory(
@@ -54,7 +56,8 @@ public class OpenChainTurnContextFactory {
       KnownFailureMapper knownFailureMapper,
       @RestClient CatalogRestClient catalogRestClient,
       OpenChainTurnPlanner turnPlanner,
-      LastAssistantTurnStore lastAssistantTurnStore) {
+      LastAssistantTurnStore lastAssistantTurnStore,
+      ManagedExecutor executor) {
     this.chainContextExtractor = chainContextExtractor;
     this.conversationService = conversationService;
     this.pinnedFailureStore = pinnedFailureStore;
@@ -63,6 +66,7 @@ public class OpenChainTurnContextFactory {
     this.catalogRestClient = catalogRestClient;
     this.turnPlanner = turnPlanner;
     this.lastAssistantTurnStore = lastAssistantTurnStore;
+    this.executor = executor;
   }
 
   public OpenChainTurnContext build(ChatRequest request, String conversationId) {
@@ -194,7 +198,8 @@ public class OpenChainTurnContextFactory {
             }
             throw error;
           }
-        });
+        },
+        executor);
   }
 
   private static <T> CatalogRead<T> join(CompletableFuture<CatalogRead<T>> read) {
