@@ -542,6 +542,42 @@ describe("Sessions", () => {
     expect(mockDeleteSessions).toHaveBeenCalledWith(["g-child-1", "g-child-2"]);
   });
 
+  test("a delete reloads the sessions from offset 0 and clears the selection", async () => {
+    mockDeleteSessions.mockResolvedValue(undefined);
+    await renderWithSessions([
+      baseSession({ id: "r1" }),
+      baseSession({ id: "r2" }),
+    ]);
+    mockGetSessions
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "r2" }), baseSession({ id: "r3" })],
+        offset: 2,
+      })
+      .mockResolvedValueOnce({ sessions: [], offset: 2 });
+
+    fireEvent.click(
+      within(screen.getByRole("row", { name: /r1/ })).getByRole("checkbox"),
+    );
+    fireEvent.click(
+      screen.getByTestId("protected-btn-delete-selected-sessions"),
+    );
+    await act(async () => {
+      await capturedConfirmOnOk!();
+    });
+
+    expect(await screen.findByText("r3")).toBeInTheDocument();
+    expect(screen.queryByText("r1")).not.toBeInTheDocument();
+    expect(mockGetSessions).toHaveBeenNthCalledWith(
+      3,
+      "chain-1",
+      { filterRequestList: [], searchString: "" },
+      { offset: 0 },
+    );
+    expect(
+      within(screen.getByRole("row", { name: /r2/ })).getByRole("checkbox"),
+    ).not.toBeChecked();
+  });
+
   test("delete does nothing when no rows selected", async () => {
     await renderWithSessions([baseSession({ id: "n1" })]);
 

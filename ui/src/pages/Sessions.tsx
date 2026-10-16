@@ -32,7 +32,7 @@ import { downloadFile } from "../misc/download-utils.ts";
 import { ImportSessions } from "../components/modal/ImportSessions.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
-import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
+import { toStringIds } from "../misc/selection-utils.ts";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
@@ -469,15 +469,21 @@ export const Sessions: React.FC<SessionsProps> = ({
 
   const hasSelection = selectedRowKeys.length > 0;
 
+  const onRefreshSessions = useCallback(() => {
+    setSelectedRowKeys([]);
+    void fetchSessions(0);
+  }, [fetchSessions]);
+
   const deleteSelectedSessions = useCallback(async () => {
     try {
-      const ids = toStringIds(selectedRowKeys);
-      await api.deleteSessions(ids);
-      setSessions((prevSessions) => filterOutByIds(prevSessions, ids));
+      await api.deleteSessions(toStringIds(selectedRowKeys));
     } catch (error) {
       notificationService.requestFailed("Failed to delete sessions", error);
+      return;
     }
-  }, [selectedRowKeys, notificationService]);
+    // The server pages by position, so the list reloads from the start to reach the sessions that remain.
+    onRefreshSessions();
+  }, [selectedRowKeys, notificationService, onRefreshSessions]);
 
   const onDeleteBtnClick = useCallback(() => {
     if (!hasSelection) return;
@@ -513,11 +519,6 @@ export const Sessions: React.FC<SessionsProps> = ({
       ),
     });
   }, [showModal]);
-
-  const onRefreshSessions = useCallback(() => {
-    setSelectedRowKeys([]);
-    void fetchSessions(0);
-  }, [fetchSessions]);
 
   const rowSelection: TableRowSelection<SessionTableItem> = {
     type: "checkbox",
