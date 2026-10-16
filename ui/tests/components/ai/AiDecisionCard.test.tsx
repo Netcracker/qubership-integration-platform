@@ -27,7 +27,7 @@ const mockGetElementsByType = jest.fn<(...args: unknown[]) => Promise<unknown[]>
 jest.mock("../../../src/api/api", () => ({
   api: {
     getElementsByType: (...args: Parameters<typeof mockGetElementsByType>): unknown =>
-      mockGetElementsByType(...args) as unknown,
+      mockGetElementsByType(...args),
   },
 }));
 

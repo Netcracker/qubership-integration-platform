@@ -390,16 +390,15 @@ Do not include these changes in the launch horizon:
 - new AI capabilities beyond `create-chain@2`;
 - browser UI redesign.
 
-## Prompt index
+## Implementation order
 
-Execute the files under `prompts/` in dependency order. Each prompt is a fresh agent context and must end with a focused
-commit and a short handoff containing test evidence.
+Implement these workstreams in dependency order:
 
-- [01 SDK compatibility](prompts/01-sdk-compatibility.md)
-- [02 Task persistence](prompts/02-task-persistence.md)
-- [03 Pipeline facade](prompts/03-pipeline-facade.md)
-- [04 A2A transport](prompts/04-a2a-transport.md)
-- [05 Streaming](prompts/05-streaming.md)
-- [06 Approval and artifacts](prompts/06-approval-and-artifacts.md)
-- [07 Browser, database, security, and rollout](prompts/07-browser-security-and-rollout.md)
-- [08 E2E launch gates](prompts/08-e2e-launch-gates.md)
+1. SDK compatibility
+2. Task persistence
+3. Pipeline facade
+4. A2A transport
+5. Streaming
+6. Approval and artifacts
+7. Browser, database, security, and rollout
+8. E2E launch gates
