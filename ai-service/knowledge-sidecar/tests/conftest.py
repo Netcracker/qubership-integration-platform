@@ -36,7 +36,7 @@ def package_b(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def upstream_package() -> Path:
-    configured = os.getenv("QIP_KNOWLEDGE_TEST_PACKAGE")
+    configured = os.getenv("QIP_KNOWLEDGE_TEST_PACKAGE", "")
     if not configured:
         pytest.skip("QIP_KNOWLEDGE_TEST_PACKAGE is not set")
     package = Path(configured).expanduser().resolve()
