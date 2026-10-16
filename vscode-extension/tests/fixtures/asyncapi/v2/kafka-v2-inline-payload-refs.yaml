@@ -93,6 +93,23 @@ channels:
           - name: draft~1*
             payload:
               type: string
+  orders.one-of-local-definitions:
+    subscribe:
+      operationId: onOneOfLocalDefinitions
+      message:
+        oneOf:
+          - name: event
+            payload:
+              type: object
+              properties:
+                code:
+                  $ref: '#/definitions/Code'
+                address:
+                  $ref: '#/components/schemas/Address'
+              definitions:
+                Code:
+                  type: string
+                  maxLength: 3
   orders.relative-ref:
     subscribe:
       operationId: onRelativeRef

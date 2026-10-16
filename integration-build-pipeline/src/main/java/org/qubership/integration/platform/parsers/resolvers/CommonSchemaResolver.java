@@ -64,6 +64,10 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     protected String getResolvedSchema(String schemaRef, ObjectNode resolvedSchemaOriginal, Map<String, JsonNode> schemaRefs) {
         ObjectNode resolvedSchema = resolvedSchemaOriginal.deepCopy();
         ObjectNode definitions = OBJECT_MAPPER.createObjectNode();
+        // A schema's own definitions stay beside the components it references.
+        if (resolvedSchema.get(DEFINITIONS_NODE_NAME) instanceof ObjectNode ownDefinitions) {
+            definitions.setAll(ownDefinitions);
+        }
         schemaRefs.forEach(definitions::set);
         try {
             resolvedSchema.set(DEFINITIONS_NODE_NAME, OBJECT_MAPPER.readTree(OBJECT_MAPPER.writeValueAsString(definitions)));

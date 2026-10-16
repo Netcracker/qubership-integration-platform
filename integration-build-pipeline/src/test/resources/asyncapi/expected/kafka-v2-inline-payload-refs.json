@@ -157,6 +157,35 @@
       "type": "object"
     }
   },
+  "orders.one-of-local-definitions": {
+    "event": {
+      "$id": "http://system.catalog/schemas/event",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "Address": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "Code": {
+          "maxLength": 3,
+          "type": "string"
+        }
+      },
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/Address"
+        },
+        "code": {
+          "$ref": "#/definitions/Code"
+        }
+      },
+      "type": "object"
+    }
+  },
   "orders.one-of-payload": {
     "payload": {
       "$id": "http://system.catalog/schemas/payload",
