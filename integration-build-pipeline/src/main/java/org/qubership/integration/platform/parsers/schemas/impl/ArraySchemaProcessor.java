@@ -72,7 +72,11 @@ public class ArraySchemaProcessor extends DefaultSchemaProcessor implements Sche
         arraySchemaNode.set(TYPE_NODE_NAME, ARRAY_TYPE_NODE);
 
         try {
-            arraySchemaNode.set(ITEMS_NODE_NAME, mapper.readTree(processedSchemaPair.getRight()));
+            ObjectNode itemsNode = (ObjectNode) mapper.readTree(processedSchemaPair.getRight());
+            // An $id inside items would make #/definitions references resolve against the item, not the root.
+            putIfNotNull(arraySchemaNode, SCHEMA_ID_NODE_NAME, itemsNode.remove(SCHEMA_ID_NODE_NAME));
+            putIfNotNull(arraySchemaNode, SCHEMA_HEADER_NODE_NAME, itemsNode.remove(SCHEMA_HEADER_NODE_NAME));
+            arraySchemaNode.set(ITEMS_NODE_NAME, itemsNode);
             processedSchemaPair.setRight(mapper.writeValueAsString(arraySchemaNode));
         } catch (JsonProcessingException e) {
             log.error("Error during converting content string schema to JSON", e);
