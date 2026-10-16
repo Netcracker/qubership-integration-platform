@@ -50,6 +50,7 @@ class MicroDomainResourcesBuildServiceTest {
 
     private static final String RESOURCE_TEXT = "---\nkind: Deployment\n";
     private static final String DEFAULT_IMAGE = "cip/micro-engine:test";
+    private static final String DEFAULT_LIMIT_MEMORY = "1280Mi";
 
     private final ChainReader chainReader = mock(ChainReader.class);
     private final IntegrationSystemReader integrationSystemReader = mock(IntegrationSystemReader.class);
@@ -73,7 +74,7 @@ class MicroDomainResourcesBuildServiceTest {
         resourceBuildService,
         resourceWriteService,
         buildContextFactory,
-        new ResourceBuildOptionsFactory(DEFAULT_IMAGE));
+        new ResourceBuildOptionsFactory(DEFAULT_IMAGE, DEFAULT_LIMIT_MEMORY));
 
     @TempDir
     private Path sourceRoot;
