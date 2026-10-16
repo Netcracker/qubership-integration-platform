@@ -14,6 +14,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import org.eclipse.microprofile.context.ManagedExecutor;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,7 @@ class OpenChainTurnContextFactoryTest {
   private CatalogRestClient catalogRestClient;
   private OpenChainTurnPlanner turnPlanner;
   private LastAssistantTurnStore lastTurnStore;
+  private ManagedExecutor executor;
   private OpenChainTurnContextFactory factory;
 
   @BeforeEach
@@ -60,6 +63,7 @@ class OpenChainTurnContextFactoryTest {
     catalogRestClient = mock(CatalogRestClient.class);
     turnPlanner = mock(OpenChainTurnPlanner.class);
     lastTurnStore = new LastAssistantTurnStore();
+    executor = ManagedExecutor.builder().build();
     when(turnPlanner.plan(anyString(), anyString(), anyString()))
         .thenReturn(
             new Capture(
@@ -77,7 +81,27 @@ class OpenChainTurnContextFactoryTest {
             mapper,
             catalogRestClient,
             turnPlanner,
-            lastTurnStore);
+            lastTurnStore,
+            executor);
+  }
+
+  @Test
+  void catalogReadsPropagateContextClassLoader() {
+    ClassLoader marker = new ClassLoader(OpenChainTurnContextFactoryTest.class.getClassLoader()) {};
+    AtomicReference<ClassLoader> loaderOnRead = new AtomicReference<>();
+    when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
+    when(factsService.load(CHAIN_A))
+        .thenAnswer(
+            invocation -> {
+              loaderOnRead.set(Thread.currentThread().getContextClassLoader());
+              return facts(CHAIN_A);
+            });
+    Thread.currentThread().setContextClassLoader(marker);
+
+    factory.build(request("what is in this chain?"), CONVERSATION_ID);
+
+    assertEquals(marker, loaderOnRead.get());
+    Thread.currentThread().setContextClassLoader(OpenChainTurnContextFactoryTest.class.getClassLoader());
   }
 
   @Test
