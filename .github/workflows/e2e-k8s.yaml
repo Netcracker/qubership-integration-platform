@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     permissions:
+      actions: read
       contents: read
       packages: read
     steps:
@@ -133,18 +134,50 @@ jobs:
         working-directory: e2e
         run: npm run reconcile
 
+      # Earlier runs on this branch, which mark a failed test new or still failing in the summary and
+      # the email. A run without the e2e-outcomes artifact is passed over, and a failed fetch costs
+      # the history, not the run.
+      - name: Fetch the run history
+        if: ${{ always() && hashFiles('e2e/test-results/report.json') != '' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HISTORY_DIR: ${{ runner.temp }}/history
+          HISTORY_RUNS: "10"
+        run: |
+          mkdir -p "$HISTORY_DIR"
+          for id in $(gh run list -R "$GITHUB_REPOSITORY" --workflow e2e-k8s.yaml --branch "$GITHUB_REF_NAME" \
+              --status completed --limit 30 --json databaseId --jq '.[].databaseId'); do
+            [ "$(ls "$HISTORY_DIR" | wc -l)" -ge "$HISTORY_RUNS" ] && break
+            gh run download "$id" -R "$GITHUB_REPOSITORY" -n e2e-outcomes -D "$HISTORY_DIR/$id" > /dev/null 2>&1 ||
+              rm -rf "${HISTORY_DIR:?}/$id"
+          done
+          echo "Fetched the outcomes of $(ls "$HISTORY_DIR" | wc -l) earlier runs"
+
       # A run that fails before the suite has no test-results directory to summarize.
       - name: Write the step summary
         id: summary
         if: ${{ always() }}
         working-directory: e2e
+        env:
+          E2E_HISTORY_DIR: ${{ runner.temp }}/history
         run: |
           if [ -d test-results ]; then
             npm run --silent run-summary
             cat test-results/summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # The next run reads this run's history from here.
+      - name: Upload the outcomes
+        if: ${{ always() && hashFiles('e2e/test-results/outcomes.json') != '' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: e2e-outcomes
+          path: e2e/test-results/outcomes.json
+          retention-days: 30
+
       - name: Upload the report
+        id: report
         if: ${{ always() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -183,6 +216,7 @@ jobs:
           kubectl logs -n camel-k deploy/camel-k-operator --all-containers > camel-k-operator.log 2>&1
 
       - name: Upload the cluster dump
+        id: cluster
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -191,24 +225,21 @@ jobs:
           retention-days: 14
 
       # The subject names the failed tests, or else the first global error, or else the step that
-      # failed first. Without a checkout there is no script to write the email.
+      # failed first, which the jobs API names. Without a checkout there is no script to write the email.
       - name: Write the failure email
         id: email
         if: ${{ failure() && (github.event_name == 'schedule' || inputs.email) }}
         env:
-          FAILED_STEP: >-
-            ${{ steps.java.outcome == 'failure' && 'Set up Java'
-            || steps.node.outcome == 'failure' && 'Set up Node.js'
-            || steps.tools.outcome == 'failure' && 'Install kind and istioctl'
-            || steps.versions.outcome == 'failure' && 'Print tool versions'
-            || steps.bootstrap.outcome == 'failure' && 'Bootstrap the cluster'
-            || steps.root-deps.outcome == 'failure' && 'Install root dependencies'
-            || steps.e2e-deps.outcome == 'failure' && 'Install e2e dependencies'
-            || steps.chromium.outcome == 'failure' && 'Install Chromium'
-            || steps.suite.outcome == 'failure' && 'Run the suite'
-            || steps.reconcile.outcome == 'failure' && 'Reconcile the coverage registry'
-            || 'a step after the suite' }}
-        run: node e2e/support/run-email.mjs e2e/test-results >> "$GITHUB_OUTPUT"
+          GH_TOKEN: ${{ github.token }}
+          E2E_HISTORY_DIR: ${{ runner.temp }}/history
+          REPORT_URL: ${{ steps.report.outputs.artifact-url }}
+          CLUSTER_URL: ${{ steps.cluster.outputs.artifact-url }}
+        run: |
+          FAILED_STEP=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" \
+            --jq '[.jobs[] | select(.status == "in_progress") | .steps[] | select(.conclusion == "failure") | .name][0] // empty') || true
+          echo "First failed step: ${FAILED_STEP:-none named}"
+          export FAILED_STEP="${FAILED_STEP:-a step the run page names}"
+          node e2e/support/run-email.mjs e2e/test-results >> "$GITHUB_OUTPUT"
 
       - name: Email the failure
         if: ${{ failure() && (github.event_name == 'schedule' || inputs.email) }}

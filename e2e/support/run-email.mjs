@@ -6,8 +6,10 @@
  *     node support/run-email.mjs [<dir>] >> "$GITHUB_OUTPUT"   # dir defaults to test-results/
  *
  * The links come from the variables GitHub Actions sets (`GITHUB_SERVER_URL`, `GITHUB_REPOSITORY`,
- * `GITHUB_SHA`, `GITHUB_REF_NAME`, `GITHUB_RUN_ID`, `GITHUB_EVENT_NAME`). The subject names the failed
- * tests, or else the first error raised outside any test, or else the step `FAILED_STEP` names.
+ * `GITHUB_SHA`, `GITHUB_REF_NAME`, `GITHUB_RUN_ID`, `GITHUB_EVENT_NAME`) and from the artifact links
+ * the workflow passes (`REPORT_URL`, `CLUSTER_URL`). The subject names the failed tests, or else the
+ * first error raised outside any test, or else the step `FAILED_STEP` names. The earlier runs under
+ * `E2E_HISTORY_DIR` mark each failed test as new or as still failing.
  *
  * The HTML is laid out with tables and inline styles only, because Gmail drops a `<style>` block in
  * many of its clients and Outlook renders with Word.
@@ -15,7 +17,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readIfPresent, stripAnsi } from "./run-summary.mjs";
+import { eachTest, knownDefectIn, readIfPresent, shortDate, stripAnsi, utcDate } from "./run-report.mjs";
+import { fixedSince, historyOf, readHistory, testKey } from "./run-history.mjs";
 
 export const HTML_FILE = "email.html";
 export const TEXT_FILE = "email.txt";
@@ -25,32 +28,24 @@ export const LINE_CHARS = 200;
 const WORKFLOW_FILE = ".github/workflows/e2e-k8s.yaml";
 
 /**
- * @typedef {{ message?: string, location?: { file: string, line: number } }} ReportError
- * @typedef {{ errors?: ReportError[] }} TestResult
- * @typedef {{ type: string, description?: string }} Annotation
- * @typedef {{ projectName: string, status: string, annotations?: Annotation[], results: TestResult[] }} ReportTest
- * @typedef {{ title: string, file: string, line: number, tests: ReportTest[] }} ReportSpec
- * @typedef {{ title: string, specs?: ReportSpec[], suites?: ReportSuite[] }} ReportSuite
- * @typedef {{ name: string, metadata?: { dependencies?: string[] } }} ReportProject
- * @typedef {{ target?: string, gitCommit?: { subject?: string } }} ReportMetadata
- * @typedef {{ rootDir: string, metadata?: ReportMetadata, projects?: ReportProject[] }} ReportConfig
- * @typedef {{ startTime?: string, duration?: number, expected: number, unexpected: number, flaky: number, skipped: number }} ReportStats
- * @typedef {{ config: ReportConfig, suites: ReportSuite[], errors: ReportError[], stats: ReportStats }} Report
+ * @typedef {import("./run-report.mjs").Report} Report
+ * @typedef {import("./run-history.mjs").Outcomes} Outcomes
+ * @typedef {import("./run-history.mjs").History} History
  * @typedef {{ status: string }} LastRun
  * @typedef {{ startedAt?: string, target?: string, commit?: { sha?: string, branch?: string }, absent?: { name: string, reason: string }[] }} Stack
  * @typedef {Record<string, string | undefined>} Env
  *
  * @typedef {{ text: string, href?: string }} Link
  * @typedef {{ lines: string[], cut: boolean }} Excerpt
- * @typedef {{ project: string, title: string, location: Link, failedAt?: Link, error: Excerpt, retry: string }} FailedCase
+ * @typedef {{ project: string, title: string, location: Link, failedAt?: Link, error: Excerpt, retry: string, history?: History, sameCommit?: boolean }} FailedCase
  * @typedef {{ name: string, skipped: number }} IdleProject
  * @typedef {{ cause: string[], projects: IdleProject[] }} NotRun
  * @typedef {{ passed: number, failed: number, flaky: number, skipped: number, known: number, total: number }} Counts
  * @typedef {"failed" | "warning" | "passed"} Tone
  * @typedef {{
- *   tone: Tone, title: string, verdict: string, repo?: string, branch?: string, commit?: Link, commitSubject?: string,
+ *   tone: Tone, title: string, verdict: string, trend?: string, repo?: string, branch?: string, commit?: Link, commitSubject?: string,
  *   trigger: string, started?: string, duration?: string, target: string, counts?: Counts,
- *   runUrl?: string, artifactsUrl?: string, readmeUrl?: string, failed: FailedCase[],
+ *   runUrl?: string, artifactsUrl?: string, clusterUrl?: string, readmeUrl?: string, failed: FailedCase[],
  *   failedProjects: string[], errors: Excerpt[], failedStep?: string, notRun: NotRun[],
  *   dependenciesKnown: boolean, absent: { name: string, reason: string }[]
  * }} Email
@@ -96,38 +91,12 @@ const shortList = (names) => (names.length <= 2 ? joined(names) : `${names.slice
  */
 const plural = (count, noun) => `${count} ${count === 1 ? noun : `${noun}s`}`;
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** @param {string} iso */
-function utcDate(iso) {
-  const date = new Date(iso);
-  const time = `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
-  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}, ${time} UTC`;
-}
-
 /** @param {number} ms */
 function duration(ms) {
   const minutes = Math.round(ms / 60_000);
   if (minutes < 1) return `${Math.round(ms / 1000)} s`;
   if (minutes < 60) return `${minutes} min`;
   return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
-}
-
-/**
- * @param {Report} report
- * @param {(spec: ReportSpec, test: ReportTest, titles: string[]) => void} visit
- */
-function eachTest(report, visit) {
-  /**
-   * @param {ReportSuite} suite
-   * @param {string[]} titles
-   */
-  const walk = (suite, titles) => {
-    for (const spec of suite.specs ?? []) for (const test of spec.tests) visit(spec, test, titles);
-    for (const child of suite.suites ?? []) walk(child, [...titles, child.title]);
-  };
-  // The file-level suite's title is the file, so only `describe` titles join the spec's.
-  for (const suite of report.suites) walk(suite, []);
 }
 
 /**
@@ -165,10 +134,10 @@ function notRunOf(report, perProject) {
 }
 
 /**
- * @param {{ report?: Report, lastRun?: LastRun, stack?: Stack, env?: Env }} run
+ * @param {{ report?: Report, lastRun?: LastRun, stack?: Stack, history?: Outcomes[], env?: Env }} run
  * @returns {Email}
  */
-export function emailOf({ report, lastRun, stack, env = {} }) {
+export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
   const server = env.GITHUB_SERVER_URL ?? "https://github.com";
   const repo = env.GITHUB_REPOSITORY;
   const sha = env.GITHUB_SHA ?? stack?.commit?.sha;
@@ -188,25 +157,28 @@ export function emailOf({ report, lastRun, stack, env = {} }) {
   let known = 0;
   if (report) {
     const e2eDir = path.dirname(report.config.rootDir);
-    eachTest(report, (spec, test, titles) => {
+    const isKnown = knownDefectIn(report);
+    eachTest(report, (spec, test, title) => {
       const project = perProject.get(test.projectName) ?? { total: 0, skipped: 0, failed: 0 };
       perProject.set(test.projectName, project);
       project.total++;
       if (test.status === "skipped") project.skipped++;
-      // A `test.fail()` case that failed the way it pins is `expected`, and it keeps the `fail` annotation.
-      if (test.status === "expected" && test.annotations?.some((each) => each.type === "fail")) known++;
+      if (isKnown(test)) known++;
       if (test.status !== "unexpected") return;
       project.failed++;
       const error = test.results.at(-1)?.errors?.[0];
       const thrown = error?.location && path.relative(e2eDir, error.location.file);
       failed.push({
         project: test.projectName,
-        title: [...titles, spec.title].join(" › "),
+        title,
         location: { text: `${spec.file}:${spec.line}`, href: blob(`specs/${spec.file}`, spec.line) },
         failedAt: thrown && error?.location ? { text: `${thrown}:${error.location.line}`, href: blob(thrown, error.location.line) } : undefined,
         error: excerpt(error?.message),
         retry: `npm run test:${target} -- --project=${test.projectName} --no-deps -g "${grepPattern(spec.title)}"`,
+        history: historyOf(testKey(test.projectName, spec.file, title), history),
       });
+      const last = failed.at(-1);
+      if (last?.history?.kind === "new") last.sameCommit = Boolean(sha) && last.history.previous.sha === sha;
     });
   }
   // Grouped by project, in the order the config declares the projects.
@@ -239,10 +211,12 @@ export function emailOf({ report, lastRun, stack, env = {} }) {
             : ["passed", "passed"];
   const event = env.GITHUB_EVENT_NAME;
   const started = stats?.startTime ?? stack?.startedAt;
+  // A run whose every failed test also failed the run before it says so in its title.
+  const still = failed.length > 0 && errors.length === 0 && failed.every((each) => each.history?.kind === "recurring");
   /** @type {Email} */
   const email = {
     tone,
-    title: `${event === "schedule" ? "E2E nightly" : "E2E run"} ${verdict}`,
+    title: `${event === "schedule" ? "E2E nightly" : "E2E run"} ${still ? "still failing" : verdict}`,
     verdict: "",
     repo,
     branch: env.GITHUB_REF_NAME ?? stack?.commit?.branch,
@@ -254,7 +228,8 @@ export function emailOf({ report, lastRun, stack, env = {} }) {
     target,
     counts,
     runUrl,
-    artifactsUrl: runUrl && `${runUrl}#artifacts`,
+    artifactsUrl: env.REPORT_URL || (runUrl && `${runUrl}#artifacts`),
+    clusterUrl: env.CLUSTER_URL || undefined,
     readmeUrl: blob("README.md") && `${blob("README.md")}#reproducing-one-case`,
     failed,
     failedProjects,
@@ -265,6 +240,7 @@ export function emailOf({ report, lastRun, stack, env = {} }) {
     absent: stack?.absent ?? [],
   };
   email.verdict = verdictOf(email, lastRun?.status === "timedout", Boolean(report));
+  email.trend = report && trendOf(email, fixedSince(report, history[0]).length, history[0]);
   return email;
 }
 
@@ -308,6 +284,50 @@ function verdictOf(email, timedOut, reported) {
   return `${passed}${flaky}${counts.skipped > 0 ? `, and ${counts.skipped} did not run` : ""}.`;
 }
 
+/**
+ * The failed tests against the run before this one, and the tests that run failed and this one
+ * passed. Nothing without an earlier run.
+ *
+ * @param {Email} email
+ * @param {number} fixed
+ * @param {Outcomes | undefined} previous
+ */
+function trendOf(email, fixed, previous) {
+  if (!previous) return undefined;
+  const total = email.failed.length;
+  const fresh = email.failed.filter((each) => each.history?.kind === "new").length;
+  const still = email.failed.filter((each) => each.history?.kind === "recurring").length;
+  const parts = [];
+  if (total > 0 && fresh === total) parts.push(total === 1 ? "It is new since the previous run." : "All of them are new since the previous run.");
+  else if (total > 0 && still === total) parts.push(total === 1 ? "It failed in the previous run too." : "All of them failed in the previous run too.");
+  else if (fresh > 0) parts.push(`${fresh} of them ${fresh === 1 ? "is" : "are"} new since the previous run.`);
+  if (fixed > 0) parts.push(`${plural(fixed, "test")} that the previous run failed ${fixed === 1 ? "passes" : "pass"} now.`);
+  return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
+/**
+ * How long a failed test has been failing, as the words around one link.
+ *
+ * @param {FailedCase} each
+ * @returns {{ before: string, link: Link, after: string } | undefined}
+ */
+function historyParts(each) {
+  const history = each.history;
+  if (!history) return undefined;
+  if (history.kind === "new") {
+    return {
+      before: "New since ",
+      link: { text: "the last run that ran it", href: history.previous.url },
+      after: each.sameCommit ? ", which ran the same commit" : "",
+    };
+  }
+  return {
+    before: `Failing for ${history.runs + 1} runs, since `,
+    link: { text: history.since.startedAt ? shortDate(history.since.startedAt) : "an earlier run", href: history.since.url },
+    after: history.always ? " or earlier" : "",
+  };
+}
+
 /** @param {Email} email */
 function headline(email) {
   const { counts } = email;
@@ -344,7 +364,7 @@ export function emailSubject(email) {
  * @param {Email} email
  */
 export function preheader(email) {
-  const verdict = /[.!?]$/.test(email.verdict) ? email.verdict : `${email.verdict}.`;
+  const verdict = (/[.!?]$/.test(email.verdict) ? email.verdict : `${email.verdict}.`) + (email.trend ? ` ${email.trend}` : "");
   const parts = [];
   if (email.counts && email.counts.total > 0) {
     parts.push(`${email.counts.passed} passed`);
@@ -447,6 +467,11 @@ function tiles(counts) {
 /** @param {FailedCase} each */
 function card(each) {
   const failedAt = each.failedAt ? `<br><span style="color:${MUTED};">failed at</span> ${anchor(each.failedAt)}` : "";
+  const parts = historyParts(each);
+  const color = each.history?.kind === "new" ? "#b42318" : "#475467";
+  const history = parts
+    ? `<div style="padding-top:6px;font-size:13px;line-height:19px;font-weight:600;color:${color};">${escapeHtml(parts.before)}${anchor(parts.link)}${escapeHtml(parts.after)}</div>`
+    : "";
   const error = each.error.lines.length > 0 ? [...each.error.lines, ...(each.error.cut ? ["…"] : [])] : ["(no error message)"];
   return (
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;"><tr><td style="padding-top:10px;">` +
@@ -454,6 +479,7 @@ function card(each) {
     `<tr><td style="padding:14px 16px;font-family:${SANS};">` +
     `<div style="font-size:15px;line-height:21px;font-weight:600;color:${TEXT};">${escapeHtml(each.title)}</div>` +
     `<div style="padding-top:4px;font-family:${MONO};font-size:12px;line-height:18px;word-break:break-word;overflow-wrap:anywhere;">${anchor(each.location)}${failedAt}</div>` +
+    history +
     `<div style="padding-top:10px;">${codeBox(error, RED_TINT, RED_INK)}</div>` +
     `<div style="padding-top:12px;font-size:12px;line-height:16px;font-weight:600;color:#475467;">Retry locally</div>` +
     `<div style="padding-top:4px;">${codeBox([each.retry], NIGHT, "#f2f4f7")}</div>` +
@@ -599,7 +625,7 @@ function header(email) {
     `<tr><td bgcolor="${band}" style="background-color:${band};padding:24px 28px;border-radius:8px 8px 0 0;font-family:${SANS};">` +
     (email.repo ? `<div style="font-size:12px;line-height:16px;font-weight:600;letter-spacing:0.04em;${soft}">${escapeHtml(email.repo)}</div>` : "") +
     `<div style="padding-top:6px;font-size:24px;line-height:30px;font-weight:700;${white}">${escapeHtml(email.title)}</div>` +
-    `<div style="padding-top:6px;font-size:17px;line-height:24px;font-weight:normal;${white}">${verdictHtml(email)}</div>` +
+    `<div style="padding-top:6px;font-size:17px;line-height:24px;font-weight:normal;${white}">${verdictHtml(email)}${email.trend ? ` ${escapeHtml(email.trend)}` : ""}</div>` +
     (ref ? `<div style="padding-top:14px;font-size:14px;line-height:20px;font-weight:600;${white}">${ref}</div>` : "") +
     (email.commitSubject ? `<div style="padding-top:2px;font-size:14px;line-height:20px;${white}">${escapeHtml(email.commitSubject)}</div>` : "") +
     `<div style="padding-top:8px;font-size:13px;line-height:18px;${soft}">${when(email).map(escapeHtml).join("<br>")}</div>` +
@@ -612,6 +638,7 @@ function actions(email) {
   if (!email.runUrl) return "";
   const links = [
     email.artifactsUrl && anchor({ text: "HTML report and artifacts", href: email.artifactsUrl }),
+    email.clusterUrl && anchor({ text: "Cluster dump", href: email.clusterUrl }),
     email.commit?.href && anchor({ text: `Commit ${email.commit.text}`, href: email.commit.href }),
   ].filter(Boolean);
   // mso-padding-alt gives Outlook, which ignores an anchor's padding, the same button.
@@ -677,7 +704,7 @@ const underlined = (text) => [text, "-".repeat(text.length)];
  * @returns {string}
  */
 export function emailText(email) {
-  const out = [email.verdict, ""];
+  const out = [email.trend ? `${email.verdict} ${email.trend}` : email.verdict, ""];
   if (email.repo) out.push(email.repo);
   /** @type {[string, string | undefined][]} */
   const facts = [
@@ -696,6 +723,7 @@ export function emailText(email) {
   if (email.runUrl) {
     out.push("", `Open the run: ${email.runUrl}`);
     if (email.artifactsUrl) out.push(`HTML report and artifacts: ${email.artifactsUrl}`);
+    if (email.clusterUrl) out.push(`Cluster dump: ${email.clusterUrl}`);
     if (email.commit?.href) out.push(`Commit ${email.commit.text}: ${email.commit.href}`);
   }
   /** @param {Excerpt} each */
@@ -714,6 +742,8 @@ export function emailText(email) {
       for (const each of cases) {
         out.push("", `  * ${each.title}`, `    ${each.location.text}${each.location.href ? `  ${each.location.href}` : ""}`);
         if (each.failedAt) out.push(`    failed at ${each.failedAt.text}`);
+        const parts = historyParts(each);
+        if (parts) out.push(`    ${parts.before}${parts.link.text}${parts.after}${parts.link.href ? `  ${parts.link.href}` : ""}`);
         out.push(...indented(each.error), "    Retry locally:", `      ${each.retry}`);
       }
     }
@@ -748,7 +778,7 @@ export function writeRunEmail(dir, env) {
   const report = readIfPresent(path.join(dir, "report.json"));
   const lastRun = readIfPresent(path.join(dir, ".last-run.json"));
   const stack = readIfPresent(path.join(dir, "stack.json"));
-  const email = emailOf({ report, lastRun, stack, env });
+  const email = emailOf({ report, lastRun, stack, history: readHistory(env.E2E_HISTORY_DIR), env });
   // A run that failed before the suite started has no directory yet.
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, HTML_FILE), emailHtml(email));

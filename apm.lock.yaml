@@ -140,7 +140,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:d3fa3e67694a1700e170d610ebb119b0cf12c813b1b8caf641946bae58ec5ba4
+  content_hash: sha256:0ac2b45d91d15ed9bdeedfc4d51a8e698b390b1c23b0d9b3df2701accf7775b1
 - kind: project-relative
   target: claude
   value: .claude/rules/engine.md
@@ -716,7 +716,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:097298c7170caa328e2b3ef6363f55cfe72439067e31de9a3ad85d756d2ebf82
+  content_hash: sha256:4fa87334bcf6345d7b72366d260b6f690347ed3c7c293d23009f85ee628ba567
 - kind: project-relative
   target: cursor
   value: .cursor/rules/engine.mdc
@@ -1310,7 +1310,7 @@ local_deployed_file_hashes:
   .claude/agents/npm-verifier.md: sha256:7e38e0a49cf43125b37569c0cf7cb8751588c0e14323320dd4cdf90ddf0a41ce
   .claude/rules/ci-fix.md: sha256:4de31150e369c45093fbfe099209e95118d30f19e3a8c23fd91d0b1cd332f559
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
-  .claude/rules/e2e.md: sha256:d3fa3e67694a1700e170d610ebb119b0cf12c813b1b8caf641946bae58ec5ba4
+  .claude/rules/e2e.md: sha256:0ac2b45d91d15ed9bdeedfc4d51a8e698b390b1c23b0d9b3df2701accf7775b1
   .claude/rules/engine.md: sha256:cbfa9096d6c97043ebbef90b567bb92f081cf11779eb826a2ca74bdd35de1cbc
   .claude/rules/infrastructure.md: sha256:e3a6104e6c97bcfc1f5bf92becc52952b2ff675a62eaab570418745d7c09f0f3
   .claude/rules/micro-engine.md: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
@@ -1349,7 +1349,7 @@ local_deployed_file_hashes:
   .cursor/agents/npm-verifier.md: sha256:7e38e0a49cf43125b37569c0cf7cb8751588c0e14323320dd4cdf90ddf0a41ce
   .cursor/rules/ci-fix.mdc: sha256:35cf16a1ad4a3ff02b5531f2ae3d6c4347de83155ab29cbde7800d81fe13664f
   .cursor/rules/docs-authoring.mdc: sha256:04274aa51cc097ea37ababc82b6fe050cbfb15dc4fff8bc37b81e50f2568f52c
-  .cursor/rules/e2e.mdc: sha256:097298c7170caa328e2b3ef6363f55cfe72439067e31de9a3ad85d756d2ebf82
+  .cursor/rules/e2e.mdc: sha256:4fa87334bcf6345d7b72366d260b6f690347ed3c7c293d23009f85ee628ba567
   .cursor/rules/engine.mdc: sha256:54766be92b6ee3275dddda3e65ac1fb0647d58de9b02dc8f3baa471b1ecbd251
   .cursor/rules/infrastructure.mdc: sha256:978552f5b7ae87f97c40e22652f54816bfd030e9ebee79d05b1acf65dd290fd5
   .cursor/rules/micro-engine.mdc: sha256:e5cb84edf324e260668f4fa95e299cfdff96b9998402f491973286c6a6fddf38
