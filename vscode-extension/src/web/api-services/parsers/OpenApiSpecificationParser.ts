@@ -106,13 +106,10 @@ export class OpenApiSpecificationParser {
     openApiData: OpenApiData,
     specificationId: string,
   ): any[] {
-    // Create full CIP specification using CipSpecificationGenerator
-    const cipSpec = CipSpecificationGenerator.createCipSpecificationFromOpenApi(
+    const operations = CipSpecificationGenerator.buildOperationsFromOpenApi(
       openApiData,
-      "specification",
       specificationId,
     );
-    const operations = cipSpec.content?.operations || [];
 
     return operations.map((operation: any) => ({
       ...operation,

@@ -514,7 +514,7 @@ export function activate(context: ExtensionContext): void {
   setupFileWatchers(context);
 
   // Register CIP Explorer provider
-  const cipProvider = new CipExplorerProvider(context);
+  const cipProvider = new CipExplorerProvider();
   globalCipProvider = cipProvider;
 
   context.subscriptions.push(

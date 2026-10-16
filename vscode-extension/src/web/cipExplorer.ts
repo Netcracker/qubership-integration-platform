@@ -15,8 +15,10 @@ export interface CipExplorerItem {
   type: "category" | "service" | "chain" | "element";
 }
 
-let globalCipExplorerProvider: CipExplorerProvider | null = null;
-
+// `FileStat.type` is a bitmask, so a link to a file stats as `File | SymbolicLink`. The
+// `FileType.File` comparisons below mask that off; the `FileType.Directory` ones compare strictly
+// on purpose, because masking them would make both traversals descend into a linked directory and
+// a link cycle would then recurse without bound. `fileApiImpl.ts` keeps the same split.
 export class CipExplorerProvider implements vscode.TreeDataProvider<CipExplorerItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<
     CipExplorerItem | undefined | null | void
@@ -24,10 +26,6 @@ export class CipExplorerProvider implements vscode.TreeDataProvider<CipExplorerI
   readonly onDidChangeTreeData: vscode.Event<
     CipExplorerItem | undefined | null | void
   > = this._onDidChangeTreeData.event;
-
-  constructor(private context: vscode.ExtensionContext) {
-    globalCipExplorerProvider = this;
-  }
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
@@ -134,7 +132,7 @@ export class CipExplorerProvider implements vscode.TreeDataProvider<CipExplorerI
 
       const ext = FILE_EXTENSIONS;
       for (const [name, type] of entries) {
-        if (type === vscode.FileType.File && name.endsWith(ext.chain)) {
+        if ((type & vscode.FileType.File) !== 0 && name.endsWith(ext.chain)) {
           try {
             const fileUri = vscode.Uri.joinPath(folderUri, name);
             console.log(`CIP Explorer: Found chain file: ${name}`);
@@ -213,7 +211,7 @@ export class CipExplorerProvider implements vscode.TreeDataProvider<CipExplorerI
       const ext = FILE_EXTENSIONS;
       for (const [name, type] of entries) {
         if (
-          type === vscode.FileType.File &&
+          (type & vscode.FileType.File) !== 0 &&
           (name.endsWith(ext.service) ||
             name.endsWith(ext.contextService) ||
             name.endsWith(ext.mcpService))

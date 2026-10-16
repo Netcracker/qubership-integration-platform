@@ -2,13 +2,13 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import * as yaml from "yaml";
 import Ajv from "ajv";
-import { getApiResponse } from "../../response";
 import { CipExplorerItem, CipExplorerProvider } from "../../cipExplorer";
 import {
   FIXTURES,
   SCHEMA,
   SUITE_TIMEOUT,
   activateExtension,
+  callRouter,
   closeAllEditors,
   copyFolder,
   expectCustomEditor,
@@ -44,13 +44,6 @@ function assertValidChain(ajv: Ajv, document: any): void {
   assert.strictEqual(document.$schema, CHAIN_SCHEMA);
   const valid = ajv.validate(CHAIN_SCHEMA, document);
   assert.ok(valid, `the saved chain fails chain.schema.yaml: ${ajv.errorsText()}`);
-}
-
-// Calls the router in the test bundle's copy of the modules with a message shaped the way the webview
-// sends one. The wiring from the webview to the running extension's router (`enrichWebview`) is not
-// exercised.
-async function callRouter(type: string, payload: unknown, documentUri: vscode.Uri): Promise<unknown> {
-  return getApiResponse({ requestId: crypto.randomUUID(), type, payload } as any, documentUri);
 }
 
 suite("Chain file round trip", function () {
@@ -155,7 +148,8 @@ suite("Explorer tree", function () {
 
   suiteSetup(async () => {
     await activateExtension();
-    explorer = new CipExplorerProvider(useExtensionModules());
+    useExtensionModules();
+    explorer = new CipExplorerProvider();
 
     const chain = await readYaml(workspaceUri(FIXTURES.chain));
     await writeYaml(`${project}/chains/${chainId}/${chainId}.chain.cip.yaml`, {

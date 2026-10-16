@@ -28,6 +28,7 @@ export class AsyncApiV3Normalizer {
   static normalize(v3: AsyncApiV3Data): AsyncApiData {
     const channels: Record<string, AsyncApiChannel> = {};
     const v3Channels = v3.channels ?? {};
+    const declaredOperations = new Set<AsyncApiOperationObject>();
 
     if (v3.operations) {
       for (const [operationKey, v3Op] of Object.entries(v3.operations)) {
@@ -52,6 +53,7 @@ export class AsyncApiV3Normalizer {
           v3Channels,
         );
         v2Op.action = v3Op.action;
+        declaredOperations.add(v2Op);
 
         if (v3Op.action === ACTION_SEND) {
           v2Channel.publish = v2Op;
@@ -59,7 +61,13 @@ export class AsyncApiV3Normalizer {
           v2Channel.subscribe = v2Op;
         }
 
-        this.normalizeReplyOperation(operationKey, v3Op, v3Channels, channels);
+        this.normalizeReplyOperation(
+          operationKey,
+          v3Op,
+          v3Channels,
+          channels,
+          declaredOperations,
+        );
       }
     }
 
@@ -145,7 +153,8 @@ export class AsyncApiV3Normalizer {
     return {
       summary: v3Op.summary,
       operationId: v3Op.operationId ?? operationKey,
-      maasClassifierName: v3Op["x-maas-classifier-name"],
+      maasClassifierName:
+        v3Op["x-maas-classifier-name"] ?? v3Channel["x-maas-classifier-name"],
       message: this.convertMessages(v3Op, v3Channel, v3Channels),
     };
   }
@@ -329,6 +338,7 @@ export class AsyncApiV3Normalizer {
     v3Op: AsyncApiV3Operation,
     v3Channels: Record<string, AsyncApiV3Channel>,
     channels: Record<string, AsyncApiChannel>,
+    declaredOperations: ReadonlySet<AsyncApiOperationObject | undefined>,
   ): void {
     const reply = v3Op.reply;
     const replyRef = reply?.channel?.$ref;
@@ -351,6 +361,7 @@ export class AsyncApiV3Normalizer {
       summary: v3Op.summary ? `${v3Op.summary} (reply)` : "reply",
       operationId: `${baseId}Reply`,
       action: v3Op.action === ACTION_SEND ? ACTION_RECEIVE : ACTION_SEND,
+      maasClassifierName: replyV3Channel?.["x-maas-classifier-name"],
     };
 
     if (reply.messages && reply.messages.length > 0) {
@@ -359,9 +370,12 @@ export class AsyncApiV3Normalizer {
       replyOp.message = this.convertChannelMessages(replyV3Channel.messages);
     }
 
+    // The generated reply never replaces an operation declared on the reply channel.
     if (v3Op.action === ACTION_SEND) {
-      replyV2Channel.subscribe = replyOp;
-    } else {
+      if (!declaredOperations.has(replyV2Channel.subscribe)) {
+        replyV2Channel.subscribe = replyOp;
+      }
+    } else if (!declaredOperations.has(replyV2Channel.publish)) {
       replyV2Channel.publish = replyOp;
     }
   }

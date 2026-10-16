@@ -67,6 +67,25 @@ export class CipSpecificationGenerator {
     fileName: string,
     specificationId: string,
   ): any {
+    return this.buildSpecification(
+      specificationId,
+      openApiSpec.info?.version || "1.0.0",
+      openApiSpec.info?.version || "1.0.0",
+      this.buildOperationsFromOpenApi(openApiSpec, specificationId),
+      fileName,
+      openApiSpec,
+    );
+  }
+
+  /**
+   * The operations alone, for the import, which writes its own specification document around them.
+   * Taking the whole specification for its `content.operations` also mints a
+   * `specificationSources[].id` that reaches no file.
+   */
+  static buildOperationsFromOpenApi(
+    openApiSpec: any,
+    specificationId: string,
+  ): any[] {
     // Determine OpenAPI version and convert Swagger 2.0 to OpenAPI 3.0 if needed
     const isOpenApi3 =
       openApiSpec.openapi && openApiSpec.openapi.startsWith("3.");
@@ -105,14 +124,7 @@ export class CipSpecificationGenerator {
       }
     }
 
-    return this.buildSpecification(
-      specificationId,
-      openApiSpec.info?.version || "1.0.0",
-      openApiSpec.info?.version || "1.0.0",
-      operations,
-      fileName,
-      openApiSpec,
-    );
+    return operations;
   }
 
   /**

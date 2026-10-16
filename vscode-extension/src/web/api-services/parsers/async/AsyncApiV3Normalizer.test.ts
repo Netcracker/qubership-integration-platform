@@ -1,6 +1,6 @@
 import { detectAsyncApiVersion } from "./asyncApiVersion";
 import { AsyncApiV3Normalizer } from "./AsyncApiV3Normalizer";
-import { AsyncApiV3Data } from "../parserTypes";
+import { AsyncApiV3Data, AsyncApiV3Operation } from "../parserTypes";
 
 function v3(operation: Record<string, any>): AsyncApiV3Data {
   return {
@@ -60,6 +60,37 @@ describe("AsyncApiV3Normalizer", () => {
     expect(op.action).toBe("send");
     expect(op.message?.payload).toEqual({ type: "object" });
   });
+
+  it.each([
+    ["receiver", "sender"],
+    ["sender", "receiver"],
+  ])(
+    "keeps the operation declared on the reply channel (%s first)",
+    (first, second) => {
+      const declared: Record<string, AsyncApiV3Operation> = {
+        receiver: {
+          action: "receive",
+          channel: { $ref: "#/channels/replies" },
+        },
+        sender: {
+          action: "send",
+          channel: { $ref: "#/channels/ch" },
+          reply: { channel: { $ref: "#/channels/replies" } },
+        },
+      };
+      const spec = v3({});
+      spec.channels!.replies = { address: "reply/topic" };
+      spec.operations = {
+        [first]: declared[first],
+        [second]: declared[second],
+      };
+
+      const result = AsyncApiV3Normalizer.normalize(spec);
+      expect(result.channels["reply/topic"].subscribe!.operationId).toBe(
+        "receiver",
+      );
+    },
+  );
 
   it("rejects the v2 keyword 'publish' used as a v3 action", () => {
     expect(() =>

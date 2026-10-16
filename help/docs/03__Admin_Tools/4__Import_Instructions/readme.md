@@ -43,7 +43,7 @@ After navigation to "Import Instructions" tab, system initially displays a table
 At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table. To find a particular entity by its id or name, specify criteria in search field and click "**Enter**".
   - ![20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Id**.
-  - ![20](img/filter.svg) - opens the pop-up, that allows to apply filtering to the table.
+  - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter instructions by **Id**, **Action**, **Overridden By**, **Labels**, and **Modified At**.
   - ![20](img/delete.svg) - deletes the import instruction(s), selected via checkbox.
   - ![21](img/cloud-download.svg) - downloads full list of the import instructions.
   - ![20](img/cloud-upload.svg) - opens pop-up, that allows to upload import instructions.

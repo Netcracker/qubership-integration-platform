@@ -22,6 +22,7 @@ import {
 import { EnvironmentService } from "./EnvironmentService";
 import { SystemService } from "./SystemService";
 import { fileApi } from "../response/file/fileApiProvider";
+import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationParser";
 import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from "./parsers/ContentParser";
@@ -323,16 +324,11 @@ export class SpecificationImportService {
   private async detectImportingProtocol(
     files: File[],
   ): Promise<ApiSpecificationType | null> {
-    let fallbackProtocol: ApiSpecificationType | null = null;
     for (const file of files) {
       const extension = this.getFileExtension(file.name);
       const extensionBasedProtocol = this.detectProtocolByExtension(extension);
       if (extensionBasedProtocol) {
-        if (extensionBasedProtocol === ApiSpecificationType.ASYNC) {
-          fallbackProtocol = fallbackProtocol ?? ApiSpecificationType.ASYNC;
-        } else {
-          return extensionBasedProtocol;
-        }
+        return extensionBasedProtocol;
       }
 
       const content = await this.readFileContent(file);
@@ -356,7 +352,7 @@ export class SpecificationImportService {
       }
     }
 
-    return fallbackProtocol;
+    return null;
   }
 
   /**
@@ -676,11 +672,14 @@ export class SpecificationImportService {
 
         const parsedContent = ContentParser.parseContent(content);
         if (parsedContent && typeof parsedContent === "object") {
-          if (
-            parsedContent.openapi ||
-            parsedContent.swagger ||
-            parsedContent.asyncapi
-          ) {
+          if (parsedContent.asyncapi) {
+            // Normalized rather than raw: `extractEnvironmentCandidates` reads a server's `url`,
+            // which only the 2.x shape carries, where a 3.0 document declares `host` and
+            // `pathname`. The catalog normalizes before it maps servers to environments
+            // (`AsyncapiSpecificationParser.toSystemModel`), and this is the same step.
+            return await AsyncApiSpecificationParser.parseAsyncApiContent(content);
+          }
+          if (parsedContent.openapi || parsedContent.swagger) {
             return parsedContent;
           }
           if (parsedContent.type === "WSDL") {
@@ -958,6 +957,7 @@ export class SpecificationImportService {
       case ".wsdl":
         return ApiSpecificationType.SOAP;
       case ".graphql":
+      case ".graphqls":
       case ".gql":
         return ApiSpecificationType.GRAPHQL;
       case ".proto":

@@ -200,7 +200,7 @@
   },
   "scripts": {
     "test": "npm run test:unit",
-    "test:integration": "npm run compile-web && vscode-test-web --browserType=chromium --headless --quality insiders --commit c718b461a175300ec6f4949c808291d2149f3f8d --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js src/web/test/workspace",
+    "test:integration": "npm run compile-web && vscode-test-web --browserType=chromium --headless --quality insiders --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js src/web/test/workspace",
     "test:unit": "jest -c jest.config.cjs",
     "test:unit:coverage": "jest -c jest.config.cjs --coverage",
     "prepublishOnly": "rimraf dist && npm run build",

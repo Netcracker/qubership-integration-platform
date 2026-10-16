@@ -1,0 +1,53 @@
+asyncapi: 3.0.0
+info:
+  title: Kafka Reply Slot API
+  version: 1.0.0
+servers:
+  production:
+    host: kafka.example.com:9092
+    protocol: kafka
+channels:
+  requests:
+    address: order/request
+    messages:
+      Request:
+        payload:
+          type: string
+  replies:
+    address: order/reply
+    messages:
+      Reply:
+        payload:
+          type: string
+  payments:
+    address: payment/request
+  refunds:
+    address: refund/request
+  sharedReplies:
+    address: shared/reply
+operations:
+  receiveOrderReply:
+    action: receive
+    channel:
+      $ref: '#/channels/replies'
+  sendOrderRequest:
+    action: send
+    channel:
+      $ref: '#/channels/requests'
+    reply:
+      channel:
+        $ref: '#/channels/replies'
+  sendPaymentRequest:
+    action: send
+    channel:
+      $ref: '#/channels/payments'
+    reply:
+      channel:
+        $ref: '#/channels/sharedReplies'
+  sendRefundRequest:
+    action: send
+    channel:
+      $ref: '#/channels/refunds'
+    reply:
+      channel:
+        $ref: '#/channels/sharedReplies'
