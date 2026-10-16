@@ -7,6 +7,8 @@ CHART="${ROOT}/qip-dev"
 RENDERED="$(mktemp)"
 trap 'rm -f "$RENDERED"' EXIT
 
+helm lint "$CHART"
+
 # Default-off render must succeed with an empty public URL (localhost fallback at runtime).
 helm template qip-dev "$CHART" > "$RENDERED"
 
@@ -23,6 +25,8 @@ trap 'rm -f "$RENDERED" "$ENABLE_RENDERED"' EXIT
 helm template qip-dev "$CHART" \
     --set global.qip.ai.a2aEnabled=true \
     --set global.qip.ai.a2aPublicBaseUrl=https://ai.example.com \
+    --set-string global.qip.ai.minioEndpoint=https://storage.example.com \
+    --set-string global.qip.ai.minioCredentialsSecret=custom-storage \
     > "$ENABLE_RENDERED"
 if ! grep -Fq 'QIP_AI_A2A_PUBLIC_BASE_URL: "https://ai.example.com"' "$ENABLE_RENDERED"; then
     echo "FAIL: missing configured public Agent Card URL in enable render" >&2
@@ -33,6 +37,14 @@ if ! grep -Fq 'QIP_AI_A2A_ENABLED: "true"' "$ENABLE_RENDERED"; then
     exit 1
 fi
 echo "OK: enable with public URL renders Agent Card base URL"
+
+if ! grep -Fq 'MINIO_ENDPOINT: "https://storage.example.com"' "$ENABLE_RENDERED" ||
+    ! grep -A4 'name: MINIO_ACCESS_KEY$' "$ENABLE_RENDERED" | grep -Fq 'name: "custom-storage"' ||
+    ! grep -A4 'name: MINIO_SECRET_KEY$' "$ENABLE_RENDERED" | grep -Fq 'name: "custom-storage"'; then
+    echo "FAIL: configured MinIO endpoint or credentials Secret is missing" >&2
+    exit 1
+fi
+echo "OK: configured MinIO endpoint and credentials Secret"
 
 assert_contains() {
     local needle="$1"
@@ -59,6 +71,13 @@ assert_contains 'jdbc:postgresql://qip-dev-postgres:5432/ai_a2a' 'ConfigMap JDBC
 assert_contains 'QUARKUS_DATASOURCE_JDBC_URL' 'datasource JDBC env'
 assert_contains 'QUARKUS_DATASOURCE_USERNAME' 'datasource username env'
 assert_contains 'QUARKUS_DATASOURCE_PASSWORD' 'datasource password env'
+assert_contains 'MINIO_ENDPOINT: "http://minio:9000"' 'default MinIO endpoint'
+assert_contains 'name: MINIO_ENDPOINT' 'MinIO endpoint env'
+assert_contains 'name: MINIO_ACCESS_KEY' 'MinIO access key env'
+assert_contains 'name: MINIO_SECRET_KEY' 'MinIO secret key env'
+assert_contains 'name: "minio-credentials"' 'existing MinIO credentials Secret reference'
+assert_contains 'key: accessKey' 'MinIO access key Secret entry'
+assert_contains 'key: secretKey' 'MinIO secret key Secret entry'
 assert_contains 'name: qip-dev-postgres-auth' 'existing postgres Secret reference'
 assert_contains 'QIP_AI_A2A_ENABLED' 'A2A feature flag env'
 assert_contains 'location = /api/v1/chat {' 'chat endpoint without a trailing slash'

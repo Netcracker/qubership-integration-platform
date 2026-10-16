@@ -6,6 +6,45 @@ import {
 } from "../../src/ai/modelProviders/sseParsing.ts";
 
 describe("parseCipSseBlock", () => {
+  it.each([
+    "before\ndata: value\nafter",
+    "before\nevent: example\nafter",
+    "data: payload",
+    "event: token",
+    "\ndata: data: value\n\nevent: example\n",
+  ])("preserves framing-like payload lines: %j", (content) => {
+    const frame = [
+      "event: token",
+      ...content.split("\n").map((line) => `data: ${line}`),
+    ].join("\n");
+    const nested = frame
+      .split("\n")
+      .map((line) => `data: ${line}`)
+      .join("\n");
+    for (const wire of [frame, nested]) {
+      expect(parseCipSseBlock(wire)).toEqual([
+        { type: "delta", contentDelta: content },
+      ]);
+    }
+  });
+
+  it("preserves the server user position in turn metadata", () => {
+    expect(
+      parseCipSseBlock(
+        'event: meta\ndata: {"conversationId":"c","userMessageIndex":6}\n',
+      ),
+    ).toEqual([{ type: "meta", conversationId: "c", userMessageIndex: 6 }]);
+  });
+
+  it.each([-1, 0.5, "4", null])(
+    "ignores invalid server user positions: %j",
+    (userMessageIndex) => {
+      const chunks = parseCipSseBlock(
+        `event: meta\ndata: ${JSON.stringify({ conversationId: "c", userMessageIndex })}\n`,
+      );
+      expect(chunks).toEqual([{ type: "meta", conversationId: "c" }]);
+    },
+  );
   it("should deliver catalog changes independently of chat text", () => {
     expect(
       parseCipSseBlock(

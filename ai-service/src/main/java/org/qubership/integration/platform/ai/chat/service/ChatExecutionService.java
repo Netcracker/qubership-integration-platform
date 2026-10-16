@@ -278,7 +278,7 @@ public class ChatExecutionService {
     return Multi.createBy()
         .concatenating()
         .streams(
-            Multi.createFrom().item(ChatEvent.meta(conversationId)), routed)
+            Multi.createFrom().item(new ChatEvent.Meta(conversationId, true, sourceInput.messageIndex())), routed)
         .onItem()
         .invoke(event -> {
           if (event instanceof ChatEvent.Token token && token.text() != null) {
@@ -492,11 +492,15 @@ public class ChatExecutionService {
    */
   static String toSse(ChatEvent event, ObjectMapper objectMapper) {
     return switch (event) {
-      case ChatEvent.Meta m ->
-          "event: meta\ndata: "
-              + json(objectMapper, Map.of("conversationId", m.conversationId(),
-                  "supportsCatalogChangeEvents", m.supportsCatalogChangeEvents()))
-              + "\n\n";
+      case ChatEvent.Meta m -> {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("conversationId", m.conversationId());
+        metadata.put("supportsCatalogChangeEvents", m.supportsCatalogChangeEvents());
+        if (m.userMessageIndex() != null) {
+          metadata.put("userMessageIndex", m.userMessageIndex());
+        }
+        yield "event: meta\ndata: " + json(objectMapper, metadata) + "\n\n";
+      }
       case ChatEvent.Token t -> TOKEN_EVENT_PREFIX + dataEscape(t.text()) + "\n\n";
       case ChatEvent.Error e -> "event: error\ndata: " + dataEscape(e.message()) + "\n\n";
       case ChatEvent.Step s ->

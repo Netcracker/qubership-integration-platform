@@ -9,11 +9,14 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportService;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogSpecificationImporter;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
@@ -29,12 +32,17 @@ public class ApiHubExistingCatalogBinder {
 
   private final CatalogSystemReadTool catalogReadTool;
   private final ConversationCatalogCache catalogCache;
+  private final ApiHubMcpTools apiHubMcpTools;
+  private final CatalogRestClient catalogRestClient;
 
   @Inject
   public ApiHubExistingCatalogBinder(
-      CatalogSystemReadTool catalogReadTool, ConversationCatalogCache catalogCache) {
+      CatalogSystemReadTool catalogReadTool, ConversationCatalogCache catalogCache,
+      ApiHubMcpTools apiHubMcpTools, @RestClient CatalogRestClient catalogRestClient) {
     this.catalogReadTool = Objects.requireNonNull(catalogReadTool, "catalogReadTool");
     this.catalogCache = catalogCache;
+    this.apiHubMcpTools = apiHubMcpTools;
+    this.catalogRestClient = catalogRestClient;
   }
 
   /**
@@ -53,6 +61,7 @@ public class ApiHubExistingCatalogBinder {
 
     String wantedOperationId = CatalogStrings.blankToNull(refs.operationId());
     List<ResolvedCatalogBinding> matches = new ArrayList<>();
+    byte[] document = null;
 
     for (CatalogRestClient.SystemDto system : systems) {
       if (system == null || CatalogStrings.blankToNull(system.id()) == null) {
@@ -70,6 +79,13 @@ public class ApiHubExistingCatalogBinder {
           continue;
         }
         if (!specificationGroupAgrees(refs, system.id(), spec)) {
+          continue;
+        }
+        if (document == null) {
+          document = apiHubMcpTools.fetchApiHubDocument(
+              refs.packageId(), refs.version(), refs.documentSlug(), refs.resolvedApiType()).content();
+        }
+        if (!CatalogSpecificationImporter.sameDocument(document, catalogRestClient.getModelSource(spec.id()))) {
           continue;
         }
         String operationId =

@@ -294,9 +294,7 @@ export function parseCipSseBlock(block: string): StreamingChunk[] {
     return [];
   }
 
-  const payload = dataLines
-    .filter((line) => !line.startsWith("event:") && !line.startsWith("data:"))
-    .join("\n");
+  const payload = dataLines.join("\n");
 
   switch (eventType) {
     case "meta": {
@@ -304,12 +302,18 @@ export function parseCipSseBlock(block: string): StreamingChunk[] {
         const parsed = JSON.parse(payload) as {
           conversationId?: unknown;
           supportsCatalogChangeEvents?: unknown;
+          userMessageIndex?: unknown;
         };
         if (typeof parsed.conversationId === "string") {
           return [
             {
               type: "meta",
               conversationId: parsed.conversationId,
+              ...(typeof parsed.userMessageIndex === "number" &&
+              Number.isInteger(parsed.userMessageIndex) &&
+              parsed.userMessageIndex >= 0
+                ? { userMessageIndex: parsed.userMessageIndex }
+                : {}),
               ...(typeof parsed.supportsCatalogChangeEvents === "boolean"
                 ? {
                     supportsCatalogChangeEvents:

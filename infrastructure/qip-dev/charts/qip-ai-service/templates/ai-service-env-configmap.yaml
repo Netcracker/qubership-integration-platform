@@ -11,6 +11,7 @@ data:
   QUARKUS_HTTP_PORT: "8080"
   CATALOG_URL: "http://{{ .Release.Name }}-runtime-catalog:8080"
   STORAGE_INIT_BUCKET_ON_STARTUP: "false"
+  MINIO_ENDPOINT: {{ .Values.global.qip.ai.minioEndpoint | quote }}
   # Shared PostgreSQL; logical database ai_a2a (prompt 02 property names — do not rename).
   QUARKUS_DATASOURCE_JDBC_URL: "jdbc:postgresql://{{ .Release.Name }}-postgres:5432/ai_a2a"
   # Runtime A2A rollout flag (default off). Quarkus maps QIP_AI_A2A_ENABLED → qip.ai.a2a.enabled.

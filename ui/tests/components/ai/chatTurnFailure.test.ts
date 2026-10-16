@@ -157,7 +157,11 @@ describe("server transcript excludes error variants", () => {
   it("omits error-variant assistants from the server message list", () => {
     const user0: ChatMessage = { role: "user", content: "hello" };
     const error0 = buildTurnFailureMessage("Invalid API key");
-    const user1: ChatMessage = { role: "user", content: "retry" };
+    const user1: ChatMessage = {
+      role: "user",
+      content: "retry",
+      serverMessageIndex: 1,
+    };
     const messages = [user0, error0, user1];
 
     expect(toServerMessageList(messages)).toEqual([user0, user1]);

@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
@@ -11,6 +14,7 @@ import org.qubership.integration.platform.ai.integration.catalog.client.Specific
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -25,6 +29,7 @@ import java.util.List;
 public class CatalogSpecificationImporter {
 
   private static final Logger LOG = Logger.getLogger(CatalogSpecificationImporter.class);
+  private static final ObjectMapper DOCUMENT_MAPPER = new YAMLMapper();
   private static final Duration POLL_INTERVAL = Duration.ofMillis(400);
   private static final Duration POLL_TIMEOUT = Duration.ofMinutes(2);
 
@@ -81,7 +86,7 @@ public class CatalogSpecificationImporter {
       if (accepted == null || CatalogStrings.blankToNull(accepted.id()) == null) {
         throw new IllegalStateException("Catalog import returned no import id");
       }
-      return finishImport(systemId, accepted);
+      return finishImport(systemId, accepted, openapiBytes);
     } finally {
       deleteTempFile(tempFile);
     }
@@ -116,7 +121,7 @@ public class CatalogSpecificationImporter {
       if (accepted == null || CatalogStrings.blankToNull(accepted.id()) == null) {
         throw new IllegalStateException("Catalog import returned no import id");
       }
-      return finishImport(systemId, accepted);
+      return finishImport(systemId, accepted, openapiBytes);
     } finally {
       deleteTempFile(tempFile);
     }
@@ -156,12 +161,12 @@ public class CatalogSpecificationImporter {
     }
   }
 
-  private ImportOutcome finishImport(String systemId, ImportSpecificationDto accepted) {
+  private ImportOutcome finishImport(String systemId, ImportSpecificationDto accepted, byte[] content) {
     String importId = accepted.id();
     String specificationGroupId = accepted.specificationGroupId();
     waitForImportDone(importId);
 
-    String specificationId = resolveSpecificationId(systemId, specificationGroupId);
+    String specificationId = resolveSpecificationId(systemId, specificationGroupId, content);
     LOG.infof(
         "Catalog spec import done: importId=%s groupId=%s specId=%s systemId=%s",
         importId,
@@ -198,7 +203,7 @@ public class CatalogSpecificationImporter {
     }
   }
 
-  private String resolveSpecificationId(String systemId, String specificationGroupId) {
+  private String resolveSpecificationId(String systemId, String specificationGroupId, byte[] content) {
     List<CatalogRestClient.SpecificationDto> models =
         catalogRestClient.getApiSpecifications(systemId);
     if (models == null || models.isEmpty()) {
@@ -209,16 +214,31 @@ public class CatalogSpecificationImporter {
       for (CatalogRestClient.SpecificationDto model : models) {
         if (model != null
             && specificationGroupId.equals(model.specificationGroupId())
-            && CatalogStrings.blankToNull(model.id()) != null) {
+            && CatalogStrings.blankToNull(model.id()) != null
+            && sameDocument(content, catalogRestClient.getModelSource(model.id()))) {
           return model.id();
         }
       }
     }
-    CatalogRestClient.SpecificationDto first = models.get(0);
-    if (first == null || CatalogStrings.blankToNull(first.id()) == null) {
-      throw new IllegalStateException(
-          "Catalog models list has no usable specification id for systemId=" + systemId);
+    throw new IllegalStateException(
+        "Imported specification source was not found in group=" + specificationGroupId + " systemId=" + systemId);
+  }
+
+  public static boolean sameDocument(byte[] uploadedContent, String existingSource) {
+    if (uploadedContent == null || existingSource == null) {
+      return false;
     }
-    return first.id();
+    try {
+      JsonNode uploaded = DOCUMENT_MAPPER.readTree(uploadedContent);
+      JsonNode existing = DOCUMENT_MAPPER.readTree(existingSource);
+      return uploaded != null && uploaded.equals(existing);
+    } catch (Exception ignored) {
+      String uploaded = new String(uploadedContent, StandardCharsets.UTF_8);
+      return normalizeText(uploaded).equals(normalizeText(existingSource));
+    }
+  }
+
+  private static String normalizeText(String value) {
+    return value.replace("\r\n", "\n").replace('\r', '\n').trim();
   }
 }

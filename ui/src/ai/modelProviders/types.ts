@@ -78,6 +78,8 @@ export interface ChatMessage {
   id?: string;
   role: ChatRole;
   content: string;
+  /** Position of this user input in the server transcript, including approval commands. */
+  serverMessageIndex?: number;
   /** When set to "error", the bubble is a turn-failure notice for the UI only. */
   variant?: ChatMessageVariant;
   /** Technical detail shown under the user-facing summary for error variants. */
@@ -182,6 +184,7 @@ export interface StreamingChunk {
   transportError?: boolean;
   contentDelta?: string;
   conversationId?: string;
+  userMessageIndex?: number;
   step?: ActivityStepPayload;
   decision?: ChatDecision;
   supportsCatalogChangeEvents?: boolean;

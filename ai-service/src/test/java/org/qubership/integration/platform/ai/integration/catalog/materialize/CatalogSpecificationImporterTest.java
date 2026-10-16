@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -43,6 +44,7 @@ class CatalogSpecificationImporterTest {
         .thenReturn(
             List.of(
                 new CatalogRestClient.SpecificationDto("spec-1", "Service Catalog", "group-1", "sys-1")));
+    when(catalogRestClient.getModelSource("spec-1")).thenReturn(new String(payload, StandardCharsets.UTF_8));
 
     CatalogSpecificationImporter.ImportOutcome outcome =
         importer.importOpenApiDocument("sys-1", "Service Catalog", null, payload, "openapi.json");
@@ -54,5 +56,25 @@ class CatalogSpecificationImporterTest {
         .importSpecificationGroup(
             eq("sys-1"), eq("Service Catalog"), isNull(), any(SpecificationFileForm.class));
     verify(importRestClient).getImportStatus("imp-1");
+  }
+
+  @Test
+  void resolvesTheImportedSourceInsteadOfTheFirstVersionInTheGroup() {
+    byte[] payload = "{\"openapi\":\"3.0.0\",\"info\":{\"version\":\"2\"}}".getBytes(StandardCharsets.UTF_8);
+    when(importRestClient.importSpecification(eq("group-1"), any()))
+        .thenReturn(new ImportSpecificationDto("imp-2", null, null, false, "group-1"));
+    when(importRestClient.getImportStatus("imp-2"))
+        .thenReturn(new ImportSpecificationDto("imp-2", null, null, true, "group-1"));
+    when(catalogRestClient.getApiSpecifications("sys-1")).thenReturn(List.of(
+        new CatalogRestClient.SpecificationDto("old", "API", "group-1", "sys-1"),
+        new CatalogRestClient.SpecificationDto("new", "API", "group-1", "sys-1")));
+    when(catalogRestClient.getModelSource("old")).thenReturn("{\"openapi\":\"3.0.0\",\"info\":{\"version\":\"1\"}}");
+    when(catalogRestClient.getModelSource("new")).thenReturn("openapi: 3.0.0\ninfo:\n  version: '2'\n");
+
+    assertEquals("new", importer.importOpenApiDocumentIntoGroup("sys-1", "group-1", payload, "api.json").specificationId());
+
+    when(catalogRestClient.getModelSource("new")).thenReturn("{}");
+    assertThrows(IllegalStateException.class,
+        () -> importer.importOpenApiDocumentIntoGroup("sys-1", "group-1", payload, "api.json"));
   }
 }

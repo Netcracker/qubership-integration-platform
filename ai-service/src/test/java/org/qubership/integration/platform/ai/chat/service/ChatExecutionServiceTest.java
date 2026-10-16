@@ -94,6 +94,48 @@ class ChatExecutionServiceTest {
   }
 
   @ParameterizedTest
+  @ValueSource(ints = {1, 2, 3})
+  void reportsArchivedUserPositionsAcrossApprovalCommands(int approvals) throws Exception {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("answer")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+    when(decisions.apply(anyString(), any())).thenReturn(Multi.createFrom().item(ChatEvent.token("approved")));
+    ChatExecutionService execution = service(router, decisions);
+    ChatRequest first = new ChatRequest();
+    first.setConversationId(CONVERSATION_ID);
+    first.setMessage("continue");
+    var initial = execution.streamV1Sse(first).collect().asList().await().indefinitely();
+    assertEquals(0, new ObjectMapper().readTree(initial.getFirst().split("data: ", 2)[1].trim())
+        .get("userMessageIndex").intValue());
+
+    for (int i = 0; i < approvals; i++) {
+      ChatRequest approval = new ChatRequest();
+      approval.setConversationId(CONVERSATION_ID);
+      ChatDecisionCommand command = new ChatDecisionCommand();
+      command.setAction("approve");
+      command.setArtifactType("design");
+      approval.setDecision(command);
+      execution.streamV1Sse(approval).collect().asList().await().indefinitely();
+    }
+
+    ChatRequest next = new ChatRequest();
+    next.setConversationId(CONVERSATION_ID);
+    next.setMessage("continue");
+    var frames = execution.streamV1Sse(next).collect().asList().await().indefinitely();
+    int userIndex = 2 * (approvals + 1);
+    assertEquals(userIndex, new ObjectMapper().readTree(frames.getFirst().split("data: ", 2)[1].trim())
+        .get("userMessageIndex").intValue());
+    assertEquals(List.of(
+        new ConversationService.UserMessagePosition(0, "continue"),
+        new ConversationService.UserMessagePosition(userIndex, "continue")),
+        conversations.getUserMessagePositions(CONVERSATION_ID));
+    conversations.truncateAfter(CONVERSATION_ID, userIndex - 1);
+    assertEquals(userIndex, conversations.getMessages(CONVERSATION_ID).size());
+    assertEquals("approved", conversations.getMessages(CONVERSATION_ID).getLast().content());
+  }
+
+  @ParameterizedTest
   @MethodSource("deployChainCardActions")
   void deployChainCardActionsRunAsScenarioWithDeployChainHint(String action) {
     ScenarioRouter router = mock(ScenarioRouter.class);

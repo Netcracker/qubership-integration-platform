@@ -9,6 +9,7 @@ import {
 import {
   resetConversation,
   truncateConversation,
+  resolveServerMessageIndexes,
 } from "../../../src/components/ai/conversationTurnApi.ts";
 import { getHeadersForContext } from "../../../src/api/rest/requestHeadersInterceptor.ts";
 
@@ -89,5 +90,73 @@ describe.each([
       .mockRejectedValue(new Error("Unreadable body"));
     fetchMock.mockResolvedValue(response);
     await expect(call()).rejects.toThrow(`${name} failed with status 500`);
+  });
+});
+
+describe("legacy conversation positions", () => {
+  it("loads authenticated server positions for repeated saved user messages", async () => {
+    const messages = [
+      { role: "user" as const, content: "continue" },
+      { role: "assistant" as const, content: "answer" },
+      { role: "user" as const, content: "continue" },
+    ];
+    fetchMock.mockResolvedValue(
+      Response.json([
+        { messageIndex: 0, content: "continue" },
+        { messageIndex: 4, content: "continue" },
+      ]),
+    );
+    const indexed = await resolveServerMessageIndexes(
+      "https://ai.example.test/",
+      "conversation/one",
+      messages,
+      2,
+    );
+    expect(indexed[2].serverMessageIndex).toBe(4);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://ai.example.test/api/v1/chat/conversations/conversation%2Fone/user-messages",
+      {
+        headers: { Authorization: "Bearer test-token" },
+      },
+    );
+    expect(messages[2]).not.toHaveProperty("serverMessageIndex");
+  });
+
+  it("keeps positions supplied by SSE without fetching history", async () => {
+    const messages = [
+      { role: "user" as const, content: "next", serverMessageIndex: 6 },
+    ];
+    expect(
+      await resolveServerMessageIndexes(
+        "https://ai.example.test",
+        "c",
+        messages,
+        0,
+      ),
+    ).toBe(messages);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unmatched legacy history without changing local messages", async () => {
+    const messages = [{ role: "user" as const, content: "missing" }];
+    fetchMock.mockResolvedValue(Response.json([]));
+    await expect(
+      resolveServerMessageIndexes("https://ai.example.test", "c", messages, 0),
+    ).rejects.toThrow("does not match");
+    expect(messages[0]).not.toHaveProperty("serverMessageIndex");
+  });
+
+  it("reports failures to read the archived history", async () => {
+    fetchMock.mockResolvedValue(
+      new Response("History unavailable", { status: 503 }),
+    );
+    await expect(
+      resolveServerMessageIndexes(
+        "https://ai.example.test",
+        "c",
+        [{ role: "user", content: "old" }],
+        0,
+      ),
+    ).rejects.toThrow("History unavailable");
   });
 });

@@ -3,12 +3,15 @@ package org.qubership.integration.platform.ai.chat.rest;
 import io.smallrye.common.annotation.Blocking;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Map;
+import java.util.List;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ConversationTurnReset;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -32,6 +35,15 @@ public class ConversationTurnResource {
       ConversationService conversationService, ConversationTurnReset turnReset) {
     this.conversationService = conversationService;
     this.turnReset = turnReset;
+  }
+
+  @GET
+  @Path("/user-messages")
+  @Blocking
+  @Produces(MediaType.APPLICATION_JSON)
+  public List<ConversationService.UserMessagePosition> userMessages(
+      @PathParam("conversationId") String conversationId) {
+    return conversationService.getUserMessagePositions(conversationId);
   }
 
   @POST
