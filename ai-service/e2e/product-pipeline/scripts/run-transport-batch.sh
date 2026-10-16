@@ -8,35 +8,35 @@ mkdir -p "$OUT/reports" "$OUT/logs"
 SUMMARY="$OUT/summary.md"
 
 if [[ ! -f "$SUMMARY" ]]; then
-  {
-    echo "# Transport parity runs — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo
-    echo "Stack: qip-ai-service 8094, certified Knowledge Package, evaluator 8100."
-    echo "APIHub MCP is assumed down; scenarios avoid it."
-    echo
-    echo "| scenario | transport | terminal | chain id | element types | gate | evaluator |"
-    echo "|---|---|---|---|---|---|---|"
-  } >"$SUMMARY"
+    {
+        echo "# Transport parity runs — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo
+        echo "Stack: qip-ai-service 8094, certified Knowledge Package, evaluator 8100."
+        echo "APIHub MCP is assumed down; scenarios avoid it."
+        echo
+        echo "| scenario | transport | terminal | chain id | element types | gate | evaluator |"
+        echo "|---|---|---|---|---|---|---|"
+    } > "$SUMMARY"
 fi
 
 run_one() {
-  local scenario="$1" transport="$2" rep="$3"
-  local tag="${scenario}.${transport}.r${rep}"
-  local report="$OUT/reports/${tag}.json"
-  local log="$OUT/logs/${tag}.log"
+    local scenario="$1" transport="$2" rep="$3"
+    local tag="${scenario}.${transport}.r${rep}"
+    local report="$OUT/reports/${tag}.json"
+    local log="$OUT/logs/${tag}.log"
 
-  echo "=== ${tag}"
-  PRODUCT_PIPELINE_POLL_TIMEOUT_SEC=1200 \
-    "$DIR/run-product-scenario.sh" \
-      --scenario "$scenario" \
-      --rep "$rep" \
-      --base-url http://localhost:8094 \
-      --evaluator-url http://localhost:8100 \
-      --transport "$transport" \
-      --report "$report" >"$log" 2>&1
-  local rc=$?
+    echo "=== ${tag}"
+    PRODUCT_PIPELINE_POLL_TIMEOUT_SEC=1200 \
+        "$DIR/run-product-scenario.sh" \
+        --scenario "$scenario" \
+        --rep "$rep" \
+        --base-url http://localhost:8094 \
+        --evaluator-url http://localhost:8100 \
+        --transport "$transport" \
+        --report "$report" > "$log" 2>&1
+    local rc=$?
 
-  python3 - "$report" "$log" "$scenario" "$transport" "$rc" "$SUMMARY" <<'PY'
+    python3 - "$report" "$log" "$scenario" "$transport" "$rc" "$SUMMARY" << 'PY'
 import json
 import sys
 
@@ -72,9 +72,9 @@ PY
 }
 
 for scenario in "$@"; do
-  for transport in chat a2a; do
-    run_one "$scenario" "$transport" 1
-  done
+    for transport in chat a2a; do
+        run_one "$scenario" "$transport" 1
+    done
 done
 
 echo "summary: $SUMMARY"

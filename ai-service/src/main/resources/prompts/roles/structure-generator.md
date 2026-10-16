@@ -31,7 +31,7 @@ Editing a chain that already exists:
   **captureChainEditSubgraph**, never captureChainStructure: an edit captures what it adds, not the
   chain it would become.
 - A wrap names the container and one branch per child it has. The existing elements that move into a
-  branch are named only as ids, in that branch's moveExisting.
+  branch are named only as IDs, in that branch's moveExisting.
 - An insertion or a replacement names no container and puts its new elements in the top-level body.
 - Never restate, reparent, drop, or reconnect an existing element. Leaving it out is what keeps it
   as it is. Java places what you captured and reconnects the chain around it.

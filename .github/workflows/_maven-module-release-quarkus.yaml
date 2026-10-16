@@ -117,6 +117,14 @@ jobs:
       contents: read
       packages: write
     steps:
+      - name: Validate build context
+        id: context
+        env:
+          MODULE: ${{ inputs.module }}
+        run: |
+          [[ "$MODULE" =~ ^[a-z][a-z0-9-]*$ ]] || exit 1
+          echo "path=$MODULE" >> "$GITHUB_OUTPUT"
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -138,7 +146,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@263435318d21b1cebf2d2e320790d09e67da8b2c # v6.18.0
         with:
-          context: ${{ inputs.module }}
+          context: ${{ steps.context.outputs.path }}
           file: ${{ inputs.module }}/Dockerfile
           push: true
           tags: |
@@ -162,8 +170,11 @@ jobs:
           path: ${{ inputs.module }}/target/quarkus-app
 
       - name: Build local image and smoke health
+        env:
+          MODULE: ${{ inputs.module }}
+          VERSION: ${{ inputs.version }}
         run: |
-          docker build -t qip-${{ inputs.module }}-smoke:${{ inputs.version }} ${{ inputs.module }}
+          docker build -t "qip-${MODULE}-smoke:${VERSION}" "$MODULE"
           cid=$(docker run -d -p 18094:8080 \
             -e QUARKUS_HTTP_PORT=8080 \
             -e LLM_API_KEY=smoke \
@@ -171,8 +182,8 @@ jobs:
             -e LLM_CHAT_MODEL=smoke \
             -e CATALOG_URL=http://localhost:9 \
             -e STORAGE_INIT_BUCKET_ON_STARTUP=false \
-            qip-${{ inputs.module }}-smoke:${{ inputs.version }})
-          for i in $(seq 1 30); do
+            "qip-${MODULE}-smoke:${VERSION}")
+          for ((attempt = 0; attempt < 30; attempt++)); do
             if curl -sf http://localhost:18094/q/health; then
               docker rm -f "$cid"
               exit 0

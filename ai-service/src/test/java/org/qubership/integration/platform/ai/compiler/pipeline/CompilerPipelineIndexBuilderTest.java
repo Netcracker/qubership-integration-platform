@@ -19,6 +19,7 @@ class CompilerPipelineIndexBuilderTest {
   private final CompilerPipelineIndexBuilder builder = new CompilerPipelineIndexBuilder();
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void buildsDependencyAwareSchemaV2() {
     CompilerPipelineIndex index = buildProductionIndex();
 
@@ -62,6 +63,7 @@ class CompilerPipelineIndexBuilderTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void assemblerAndValidatorsUseTypedArtifactsNotCatalogProse() {
     CompilerPipelineIndex index = buildProductionIndex();
 
@@ -81,6 +83,7 @@ class CompilerPipelineIndexBuilderTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void prefersAddonTypedArtifactsOverCatalogHumanLabels() {
     CompilerPipelineIndex index = buildProductionIndex();
 

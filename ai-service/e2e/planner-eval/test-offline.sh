@@ -33,13 +33,13 @@ jq -e '
     and all((.minimumOccurrences // [])[].pattern;
       . as $pattern | (try ("sample" | test($pattern)) catch null) != null)
   )
-' "${CASES_FILE}" >/dev/null
+' "${CASES_FILE}" > /dev/null
 
 while IFS= read -r relative_path; do
-  [[ -f "${DIR}/${relative_path}" ]] || {
-    echo "FAIL: missing planner-eval file ${relative_path}" >&2
-    exit 1
-  }
+    [[ -f "${DIR}/${relative_path}" ]] || {
+        echo "FAIL: missing planner-eval file ${relative_path}" >&2
+        exit 1
+    }
 done < <(jq -r '.cases[] | .inputFile, (.repairEvidenceFile // empty)' "${CASES_FILE}")
 
 echo "PASS: planner-eval runners and cases"

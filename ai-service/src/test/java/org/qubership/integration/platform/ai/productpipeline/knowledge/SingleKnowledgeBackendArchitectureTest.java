@@ -69,11 +69,16 @@ class SingleKnowledgeBackendArchitectureTest {
                 "src/test/java/org/qubership/integration/platform/ai/knowledge/runtime")));
     assertFalse(Files.isDirectory(AI_SERVICE.resolve("src/test/resources/knowledge-runtime-fixture")));
     assertFalse(Files.isDirectory(SKILLS.resolve("knowledge-package/default")));
+    assertFalse(Files.exists(SKILLS.resolve("scripts/sync-knowledge.sh")));
+  }
+
+  @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
+  void certifiedPackKeepsItsKnowledgeSource() {
     assertTrue(Files.isDirectory(SKILLS.resolve("knowledge/default")));
     assertTrue(
         Files.isRegularFile(
             SKILLS.resolve("knowledge/default/ai/GENERATOR_CONTRACTS.md")));
-    assertFalse(Files.exists(SKILLS.resolve("scripts/sync-knowledge.sh")));
   }
 
   @Test

@@ -43,7 +43,9 @@ def blocksOutDir = new File(outDir, 'blocks')
 def localBlocksDir = new File(project.basedir, 'src/main/resources/prompts/blocks')
 if (localBlocksDir.isDirectory()) {
     localBlocksDir.eachFileRecurse { file ->
-        if (!file.isFile() || !file.name.endsWith('.md')) return
+        if (!file.isFile() || !file.name.endsWith('.md')) {
+            return
+        }
         def relative = localBlocksDir.toPath().relativize(file.toPath()).toString()
         def outFile = new File(blocksOutDir, relative)
         outFile.parentFile.mkdirs()

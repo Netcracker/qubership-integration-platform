@@ -2,7 +2,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from package_fixtures import mutate_fixture
 from qip_knowledge_sidecar.app import create_app
 

@@ -26,7 +26,7 @@ e2e_require_cmds curl python3
 payload_file="$(mktemp)"
 trap 'rm -f "$payload_file"' EXIT
 
-python3 - "$TASK_ID" "$MESSAGE" "$STRUCTURED" >"$payload_file" <<'PY'
+python3 - "$TASK_ID" "$MESSAGE" "$STRUCTURED" > "$payload_file" << 'PY'
 import json
 import sys
 import uuid
@@ -62,20 +62,20 @@ PY
 e2e_info "a2a JSON-RPC SendMessage ${BASE_URL}/rpc"
 
 http_code="$(
-  curl -sS --max-time "${E2E_A2A_TURN_TIMEOUT_SEC}" \
-    -o "$OUT_JSON" -w '%{http_code}' \
-    -X POST "${BASE_URL}/rpc" \
-    -H 'Content-Type: application/json' \
-    -H 'A2A-Version: 1.0' \
-    -d @"$payload_file"
+    curl -sS --max-time "${E2E_A2A_TURN_TIMEOUT_SEC}" \
+        -o "$OUT_JSON" -w '%{http_code}' \
+        -X POST "${BASE_URL}/rpc" \
+        -H 'Content-Type: application/json' \
+        -H 'A2A-Version: 1.0' \
+        -d @"$payload_file"
 )"
 
 if [[ "$http_code" != "200" ]]; then
-  e2e_fail "a2a turn returned HTTP ${http_code}: $(head -c 400 "$OUT_JSON")"
+    e2e_fail "a2a turn returned HTTP ${http_code}: $(head -c 400 "$OUT_JSON")"
 fi
 
-if jq -e '.error != null' "$OUT_JSON" >/dev/null; then
-  e2e_fail "a2a SendMessage returned JSON-RPC error: $(head -c 400 "$OUT_JSON")"
+if jq -e '.error != null' "$OUT_JSON" > /dev/null; then
+    e2e_fail "a2a SendMessage returned JSON-RPC error: $(head -c 400 "$OUT_JSON")"
 fi
 
 NEW_TASK_ID="$(python3 -c '
@@ -86,7 +86,7 @@ print(task.get("id") or "")
 ' "$OUT_JSON")"
 
 if [[ -z "$NEW_TASK_ID" ]]; then
-  e2e_fail "a2a response carried no task id: $(head -c 400 "$OUT_JSON")"
+    e2e_fail "a2a response carried no task id: $(head -c 400 "$OUT_JSON")"
 fi
 
 printf '%s' "$NEW_TASK_ID"

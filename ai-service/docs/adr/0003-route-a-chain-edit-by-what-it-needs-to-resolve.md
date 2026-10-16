@@ -52,7 +52,7 @@ a decision, so a one-line script fix gets exactly one. Conflating the two is wha
 the operation" into a ceremony.
 
 Resolution is a loop, and it looks up before it asks. A reader who says "change the operation" and
-names none cannot answer "which id?" -- they do not know the ids. The element already carries its
+names none cannot answer "which id?" -- they do not know the IDs. The element already carries its
 current operation, and therefore its system, which bounds the search: offer the one candidate that
 fits, or list the few that do, or say plainly that there are none. Only then the card, which already
 renders "now" beside "after", and only then the write.

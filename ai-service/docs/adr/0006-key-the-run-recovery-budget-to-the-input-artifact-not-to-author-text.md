@@ -35,7 +35,7 @@ the run-layer identity.
 
 Author-initiated and automatic reopens are written under distinct journal prefixes. The
 automatic budget counts only the automatic prefix. The owner-already-reopened membership
-test counts both, and still reads the legacy `causal reopen of ` prefix, because it asks
+test counts both, and still reads the legacy `causal reopen of` prefix, because it asks
 whether an owner has seen this defect, not who sent the command.
 
 This does not supersede ADR 0005. The capture ledger still bounds a turn by the rejection.

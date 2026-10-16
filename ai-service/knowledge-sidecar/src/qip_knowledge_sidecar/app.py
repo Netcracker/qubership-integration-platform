@@ -9,7 +9,6 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from knowledge_sdk import KnowledgeSDK
-
 from qip_knowledge_sidecar.models import (
     ContextQueryRequest,
     ContextQueryResponse,
@@ -44,7 +43,7 @@ def _close_quietly(sdk: KnowledgeSDK | None) -> None:
         return
     try:
         sdk.close()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         pass
 
 
@@ -91,7 +90,9 @@ def _ref(value: PackageRef) -> PackageRefModel:
 
 
 def create_app(package_path: Path | None = None) -> FastAPI:
-    resolved_package = package_path or Path(os.getenv("QIP_KNOWLEDGE_PATH", "/knowledge"))
+    resolved_package = package_path or Path(
+        os.getenv("QIP_KNOWLEDGE_PATH", "/knowledge")
+    )
     state = AppState()
 
     @asynccontextmanager
@@ -109,7 +110,7 @@ def create_app(package_path: Path | None = None) -> FastAPI:
         yield
         _close_quietly(state.sdk)
 
-    app = FastAPI(lifespan=lifespan)
+    app = FastAPI(lifespan=lifespan)  # pylint: disable=redefined-outer-name
 
     @app.exception_handler(RuntimeErrorResponse)
     async def runtime_error_handler(
@@ -149,9 +150,7 @@ def create_app(package_path: Path | None = None) -> FastAPI:
         if package.ref.package_checksum != expected_checksum:
             raise RuntimeErrorResponse(
                 code="KNOWLEDGE_PACKAGE_PIN_MISMATCH",
-                message=(
-                    "expectedPackageChecksum does not match the active package"
-                ),
+                message=("expectedPackageChecksum does not match the active package"),
                 status=409,
                 retryable=False,
             )
@@ -178,9 +177,11 @@ def create_app(package_path: Path | None = None) -> FastAPI:
     )
     def exact(request: ExactQueryRequest) -> ExactQueryResponse:
         package, adapter = pinned(request.expectedPackageChecksum)
-        return ExactQueryResponse(
-            packageRef=_ref(package.ref),
-            object=adapter.exact(request.id),
+        return ExactQueryResponse.model_validate(
+            dict(
+                packageRef=_ref(package.ref),
+                object=adapter.exact(request.id),
+            )
         )
 
     @app.post(
@@ -190,12 +191,14 @@ def create_app(package_path: Path | None = None) -> FastAPI:
     )
     def filter_query(request: FilterQueryRequest) -> SearchQueryResponse:
         package, adapter = pinned(request.expectedPackageChecksum)
-        return SearchQueryResponse(
-            packageRef=_ref(package.ref),
-            objects=adapter.filter(
-                type_name=request.type,
-                limit=request.limit,
-            ),
+        return SearchQueryResponse.model_validate(
+            dict(
+                packageRef=_ref(package.ref),
+                objects=adapter.filter(
+                    type_name=request.type,
+                    limit=request.limit,
+                ),
+            )
         )
 
     @app.post(
@@ -207,9 +210,11 @@ def create_app(package_path: Path | None = None) -> FastAPI:
         request: RelationsQueryRequest,
     ) -> RelationsQueryResponse:
         package, adapter = pinned(request.expectedPackageChecksum)
-        return RelationsQueryResponse(
-            packageRef=_ref(package.ref),
-            relations=adapter.relations(request.id, request.kinds),
+        return RelationsQueryResponse.model_validate(
+            dict(
+                packageRef=_ref(package.ref),
+                relations=adapter.relations(request.id, request.kinds),
+            )
         )
 
     @app.post(
@@ -227,11 +232,13 @@ def create_app(package_path: Path | None = None) -> FastAPI:
             max_objects=request.maxObjects,
             max_chars=request.maxChars,
         )
-        return ContextQueryResponse(
-            packageRef=_ref(package.ref),
-            capabilities=value.capabilities,
-            objects=value.objects,
-            contentChars=value.content_chars,
+        return ContextQueryResponse.model_validate(
+            dict(
+                packageRef=_ref(package.ref),
+                capabilities=value.capabilities,
+                objects=value.objects,
+                contentChars=value.content_chars,
+            )
         )
 
     return app

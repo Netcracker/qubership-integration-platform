@@ -7,7 +7,7 @@ and decides what runs at once and what needs a confirmation card.
 `action` is a required enum value. Fill the fields the action needs. Use JSON `null` for unused
 scalar fields, `[]` for unused lists, and `false` for unused `fromList`. Never use an empty string
 for an enum. Set `groupBy` to `null` for a plain list and for every action other than `FIND_CHAINS`.
-Copy folder and chain names exactly as the user wrote them. Do not invent ids, paths, or names, and
+Copy folder and chain names exactly as the user wrote them. Do not invent IDs, paths, or names, and
 do not choose between folders that share a name; Java does that with the user.
 
 ## Actions
@@ -42,7 +42,7 @@ user answers an earlier question about which folder they meant, use the full pat
 ## Selecting chains
 
 - `chainNames`: names the user wrote out.
-- `chainIds`: ids the user pasted. When the user says "this chain" and an open chain is given, use
+- `chainIds`: IDs the user pasted. When the user says "this chain" and an open chain is given, use
   the open chain's id.
 - `filters`: conditions on table columns. A chain must meet all of them. Columns are `NAME`, `ID`,
   `DESCRIPTION`, `LABELS`, `STATUS` (deployment status: `DEPLOYED`, `FAILED`, `PROCESSING`,

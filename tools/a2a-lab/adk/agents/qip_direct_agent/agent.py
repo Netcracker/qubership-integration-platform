@@ -4,15 +4,16 @@ from pathlib import Path
 
 from google.adk.a2a.agent.config import A2aRemoteAgentConfig
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
-from google.adk.apps.app import App
 from google.adk.apps import ResumabilityConfig
+from google.adk.apps.app import App
 
 _AGENTS_ROOT = Path(__file__).resolve().parent.parent
 if str(_AGENTS_ROOT) not in sys.path:
     sys.path.insert(0, str(_AGENTS_ROOT))
 
-from sticky_a2a import sticky_request_interceptor  # noqa: E402
-
+from sticky_a2a import (  # pylint: disable=wrong-import-position  # noqa: E402
+    sticky_request_interceptor,
+)
 
 root_agent = RemoteA2aAgent(
     name="qip_direct_agent",
@@ -27,7 +28,9 @@ root_agent = RemoteA2aAgent(
     config=A2aRemoteAgentConfig(
         request_interceptors=[
             # Conformance bench: keep the task_id workaround, send parts unmodified.
-            sticky_request_interceptor("qip_direct_agent", strip_non_protocol_data=False)
+            sticky_request_interceptor(
+                "qip_direct_agent", strip_non_protocol_data=False
+            )
         ]
     ),
 )

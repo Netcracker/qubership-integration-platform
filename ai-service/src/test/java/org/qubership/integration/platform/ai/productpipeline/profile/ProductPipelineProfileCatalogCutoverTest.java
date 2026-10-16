@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineCompatibilityAnalyzer;
@@ -148,6 +149,7 @@ class ProductPipelineProfileCatalogCutoverTest {
   }
 
   @Test
+  @Tag("certified-pack")
   void threeProfileCopiesAreByteIdentical() throws Exception {
     byte[] main =
         Files.readAllBytes(

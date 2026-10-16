@@ -35,7 +35,7 @@ catalog resolution, and defaults.
   On an explicit IDS choice, persist true or false with captureRequirementDraft or updateRequirementDraft
   before acknowledging it. Preserve that choice across later edits. Say IDS is skipped only when the tool's
   accepted draft records idsRequested=false; a prose acknowledgement does not record a choice.
-  When the user names a folder for the chain, keep its `PARAMETER` fact and also set
+  When the usernames a folder for the chain, keep its `PARAMETER` fact and also set
   `settings.targetFolderPath` to the folder exactly as written; the chain is created there.
 - Capture `elementIntent` for explicitly requested elements, hooks, names, or literal values:
   `elementRef` is a stable local reference; `elementType` is the existing compiler key.
@@ -84,13 +84,13 @@ catalog resolution, and defaults.
   requirements; that is a user edit rather than an automatic repair.
   During automatic repair, keep accepted elementIntent unchanged. Capture additional source-backed settings in addFacts
   on the same elementRef. For an author amendment to a child under a null elementIntent, cite
-  the existing /facts/<factId>/elementIntent parent path, not its nonexistent child path.
+  the existing /facts/`<factId>`/elementIntent parent path, not its nonexistent child path.
 - If a business choice is unclear, save the known interactions and facts before asking the
   question. Keep the undecided capability absent and record the choice in `openQuestions`.
   Never end a create or design request with a clarification when no draft has been saved.
   Reuse an existing questionId or edit it through updateQuestions. Use STAY while awaiting its
   answer. Do not guess a method or change accepted flow, facts, or capabilities to ask a question.
-- When the user names an entry event or HTTP request and a subsequent call, include those as
+- When the usernames an entry event or HTTP request and a subsequent call, include those as
   separate interactions with a transition in the first capture. If the result reports missing
   entry or flow order that the user already supplied, correct the draft before asking the user.
 - `flow.interactions` contains only exchanges with another actor: an entry trigger or an external

@@ -116,6 +116,18 @@ class QipKnowledgePackBuildGeneratorTest {
 
     var supportMatrix = repository.loadElementSupportMatrix();
     assertFalse(supportMatrix.elements().isEmpty());
+
+    CompilerContract contract =
+        new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+    assertEquals(contract.contractVersion(), repository.loadManifest().compilerContractVersion());
+    assertEquals(contract.sha256(), repository.loadManifest().compilerContractSha256());
+    assertTrue(repository.loadManifest().addonSha256().containsKey("cip-design-executor"));
+    assertTrue(repository.loadManifest().addonSha256().containsKey("cip-structure-generator"));
+  }
+  @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
+  void certifiedPackSupportsCatalogElements() throws Exception {
+    var supportMatrix = QipKnowledgePackTestSupport.installPack().repository().loadElementSupportMatrix();
     assertEquals(ElementSupportStatus.UNSUPPORTED, supportMatrix.require("scs-sender").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("reuse-reference").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("condition").status());
@@ -140,11 +152,6 @@ class QipKnowledgePackBuildGeneratorTest {
         supportMatrix.require("header-modification").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("reuse").status());
 
-    CompilerContract contract =
-        new ClasspathCompilerContractRepository().require(CompilerContract.V1);
-    assertEquals(contract.contractVersion(), repository.loadManifest().compilerContractVersion());
-    assertEquals(contract.sha256(), repository.loadManifest().compilerContractSha256());
-    assertTrue(repository.loadManifest().addonSha256().containsKey("cip-design-executor"));
-    assertTrue(repository.loadManifest().addonSha256().containsKey("cip-structure-generator"));
   }
+
 }

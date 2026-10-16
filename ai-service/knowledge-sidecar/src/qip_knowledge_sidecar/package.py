@@ -4,10 +4,9 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, NoReturn
+from typing import Any, Literal, NoReturn
 
 import yaml
-
 
 CAPABILITY_FILES = (
     "capabilities/capability-catalog.yaml",
@@ -30,7 +29,7 @@ class PackageRef:
     knowledge_version: str
     schema_version: str
     package_checksum: str
-    certification_status: str
+    certification_status: Literal["CERTIFIED"]
     certification_digest: str
 
 
@@ -58,8 +57,6 @@ def _yaml_mapping(path: Path, *, code: str) -> dict[str, Any]:
             code=code,
             name=path.name,
         )
-    except PackageEligibilityError:
-        raise
     except (OSError, UnicodeError, yaml.YAMLError) as error:
         _fail(code, f"Cannot read {path.name}: {error}")
 
@@ -209,10 +206,7 @@ def validate_package(package: Path) -> ValidatedPackage:
         name="capability_relations",
     )
     if not token_map or not all(
-        isinstance(token, str)
-        and token
-        and isinstance(capability, str)
-        and capability
+        isinstance(token, str) and token and isinstance(capability, str) and capability
         for token, capability in token_map.items()
     ):
         _fail(capability_code, "token_to_capability has invalid entries")
@@ -229,8 +223,7 @@ def validate_package(package: Path) -> ValidatedPackage:
     if missing_relations:
         _fail(
             capability_code,
-            "Capabilities have no relation entry: "
-            + ", ".join(missing_relations),
+            "Capabilities have no relation entry: " + ", ".join(missing_relations),
         )
     for capability, relation in relation_map.items():
         value = _mapping(
@@ -240,8 +233,7 @@ def validate_package(package: Path) -> ValidatedPackage:
         )
         contains = value.get("contains")
         if not isinstance(contains, list) or not all(
-            isinstance(object_id, str) and object_id
-            for object_id in contains
+            isinstance(object_id, str) and object_id for object_id in contains
         ):
             _fail(
                 capability_code,
@@ -299,8 +291,6 @@ def validate_package(package: Path) -> ValidatedPackage:
                         f"Duplicate canonical ID: {object_id}",
                     )
                 seen.add(object_id)
-    except PackageEligibilityError:
-        raise
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         _fail("KNOWLEDGE_INTEGRITY_FAILURE", f"Invalid objects.jsonl: {error}")
     if len(seen) != expected_count:
@@ -312,9 +302,13 @@ def validate_package(package: Path) -> ValidatedPackage:
     package_key = certified_package.get("key")
     knowledge_version = manifest.get("knowledge_version")
     schema_version = manifest.get("schema_version")
-    if not all(
-        isinstance(value, str) and value
-        for value in (package_key, knowledge_version, schema_version)
+    if (
+        not isinstance(package_key, str)
+        or not package_key
+        or not isinstance(knowledge_version, str)
+        or not knowledge_version
+        or not isinstance(schema_version, str)
+        or not schema_version
     ):
         _fail("KNOWLEDGE_MANIFEST_INVALID", "Package identity is incomplete")
     ref = PackageRef(

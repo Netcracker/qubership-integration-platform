@@ -57,7 +57,9 @@ class ElementTestCoverageTest(unittest.TestCase):
 
     def test_loads_supported_and_both_live_test_lanes(self):
         self.write_fixture()
-        self.assertEqual(load_supported_elements(self.matrix), {"file-write", "split-2"})
+        self.assertEqual(
+            load_supported_elements(self.matrix), {"file-write", "split-2"}
+        )
         self.assertEqual(
             load_regression_coverage(self.suites)["file-write"],
             ["regression:skill-a/file-case"],

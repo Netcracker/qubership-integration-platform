@@ -43,12 +43,30 @@ mvn clean package -DskipTests
 ```
 
 Maven detects a certified manifest in `integration-platform-skills`, validates the export, regenerates the Java skill
-and addon indexes, and stages the runtime package in `ai-service/target/knowledge-runtime`. The build rejects
+and addon indices, and stages the runtime package in `ai-service/target/knowledge-runtime`. The build rejects
 incompatible schemas, invalid certification, checksum mismatches, duplicate object IDs, and invalid capability maps.
 
 If the certified manifest is absent, Maven skips private index generation. An empty `integration-platform-skills`
 directory does not activate the private build. The public service starts, but CREATE remains unavailable without its
 skills and Knowledge Package.
+
+### Run the tests
+
+The default tests generate a synthetic compiler pack under `target/public-pack-fixture` and write its indices to
+`target/test-classes`. These fixtures contain no private assets and are excluded from the service JAR. Existing
+integration tests still require Docker for PostgreSQL.
+
+To verify a public-source build, run from `ai-service`:
+
+```bash
+./mvnw clean verify -Dgpg.skip=true -Dqip.ai.qipknowledge.build.skip=true
+```
+
+Checks of the certified distribution's text and declarations run separately and fail if the distribution is absent:
+
+```bash
+./mvnw clean test -Pcertified-pack-tests -Dgpg.skip=true
+```
 
 ## 3. Configure credentials
 

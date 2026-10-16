@@ -14,7 +14,6 @@ from knowledge_sdk import (
     to_ir,
 )
 
-
 T = TypeVar("T")
 
 
@@ -122,9 +121,9 @@ class RuntimeAdapter:
                 encoding="utf-8"
             )
         )
-        self._token_to_capability: dict[str, str] = index[
-            "capability_index"
-        ]["token_to_capability"]
+        self._token_to_capability: dict[str, str] = index["capability_index"][
+            "token_to_capability"
+        ]
         self._relations_by_capability: dict[str, dict[str, Any]] = {
             name.casefold(): value
             for name, value in relations["capability_relations"].items()
@@ -146,9 +145,7 @@ class RuntimeAdapter:
         limit: int,
     ) -> list[dict[str, Any]]:
         types = (
-            [KnowledgeObjectType.coerce(type_name)]
-            if type_name is not None
-            else None
+            [KnowledgeObjectType.coerce(type_name)] if type_name is not None else None
         )
         values = unwrap(
             self._sdk.search(
@@ -187,9 +184,7 @@ class RuntimeAdapter:
         max_objects: int,
         max_chars: int,
     ) -> RuntimeContext:
-        text = " ".join(
-            [request_text, capability_id, phase, *element_types]
-        ).lower()
+        text = " ".join([request_text, capability_id, phase, *element_types]).lower()
         tokens = set(TOKEN_PATTERN.findall(text))
         if phase.upper() == "GENERATOR":
             tokens.update(("generator", "mapping", "rule"))

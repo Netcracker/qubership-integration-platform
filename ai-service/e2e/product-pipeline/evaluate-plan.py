@@ -28,7 +28,9 @@ def validate_score(payload: dict[str, Any]) -> dict[str, Any]:
         if value < 0 or value > 5:
             raise ValueError(f"{key} out of range: {value}")
     evidence = payload.get("evidence")
-    if not isinstance(evidence, list) or not all(isinstance(item, str) and item for item in evidence):
+    if not isinstance(evidence, list) or not all(
+        isinstance(item, str) and item for item in evidence
+    ):
         raise ValueError("evidence must be a nonempty list of nonempty strings")
     return {key: payload[key] for key in DIMENSIONS} | {"evidence": list(evidence)}
 

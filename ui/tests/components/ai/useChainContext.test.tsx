@@ -70,3 +70,59 @@ it("preserves the visible context but refuses to send stale data after a failed 
   expect(view.result.current?.chain.name).toBe("Initial");
   await expect(view.result.current!.getFreshContext!()).rejects.toBe(failure);
 });
+
+it("refreshes the visible context through its public refresh action", async () => {
+  const view = renderHook(() => useChainContext());
+  await waitFor(() => expect(view.result.current?.chain.name).toBe("Initial"));
+  mockGetChain.mockResolvedValueOnce(chain("Refreshed"));
+  await act(async () => {
+    await view.result.current!.refresh();
+  });
+  expect(view.result.current?.compactSchema.chainName).toBe("Refreshed");
+});
+
+it("rejects a failed manual refresh instead of returning stale context", async () => {
+  const view = renderHook(() => useChainContext());
+  await waitFor(() => expect(view.result.current?.chain.name).toBe("Initial"));
+  mockGetChain.mockRejectedValueOnce("offline");
+  await act(async () => {
+    await expect(view.result.current!.refresh()).rejects.toBe("offline");
+  });
+  await expect(view.result.current!.getFreshContext!()).rejects.toThrow(
+    "offline",
+  );
+  expect(view.result.current?.chain.name).toBe("Initial");
+});
+
+it("retries a failed catalog refresh through the notification action", async () => {
+  const view = renderHook(() => useChainContext());
+  await waitFor(() => expect(view.result.current?.chain.name).toBe("Initial"));
+  mockGetChain.mockRejectedValueOnce("offline");
+  await act(async () =>
+    publishCatalogChange({ chainIds: ["a"], chainsListChanged: false }),
+  );
+  await waitFor(() => expect(mockFailed).toHaveBeenCalled());
+  mockGetChain.mockResolvedValueOnce(chain("Recovered"));
+  await act(async () => {
+    mockFailed.mock.calls[0][2]();
+  });
+  await waitFor(() =>
+    expect(view.result.current?.chain.name).toBe("Recovered"),
+  );
+  expect((await view.result.current!.getFreshContext!()).chain.name).toBe(
+    "Recovered",
+  );
+});
+
+it("discards an old context after leaving the chain page", async () => {
+  const view = renderHook(() => useChainContext());
+  await waitFor(() => expect(view.result.current?.chain.name).toBe("Initial"));
+  const previous = view.result.current!;
+  await act(async () => {
+    history.pushState(null, "", "/services");
+  });
+  expect(view.result.current).toBeNull();
+  await expect(previous.getFreshContext!()).rejects.toThrow(
+    "The open chain context is not available.",
+  );
+});

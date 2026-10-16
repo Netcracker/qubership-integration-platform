@@ -6,12 +6,12 @@ E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PRODUCT_DIR="${E2E_DIR}/product-pipeline"
 
 fail() {
-  echo "FAIL: $*" >&2
-  exit 1
+    echo "FAIL: $*" >&2
+    exit 1
 }
 
 pass() {
-  echo "PASS: $*"
+    echo "PASS: $*"
 }
 
 echo "=== product CREATE offline entry ==="
@@ -53,35 +53,35 @@ jq -e '
     and .value.terminalState == "CHAIN_MATERIALIZED"
     and .value.retainCatalogChain == true
   )
-' "${PRODUCT_DIR}/scenarios.json" >/dev/null \
-  || fail "every active CREATE scenario except exhaustHalt must pin create-chain@2 CHAIN_MATERIALIZED retain=true"
+' "${PRODUCT_DIR}/scenarios.json" > /dev/null ||
+    fail "every active CREATE scenario except exhaustHalt must pin create-chain@2 CHAIN_MATERIALIZED retain=true"
 jq -e '
   .["product-create-chain-recovery-exhausted-halt"]
   | .status == "active"
     and .terminalState == "WAITING_FOR_INPUT"
     and .retainCatalogChain == false
     and .recovery.exhaustHalt == true
-' "${PRODUCT_DIR}/scenarios.json" >/dev/null \
-  || fail "exhausted-halt CREATE scenario must pin WAITING_FOR_INPUT retain=false"
+' "${PRODUCT_DIR}/scenarios.json" > /dev/null ||
+    fail "exhausted-halt CREATE scenario must pin WAITING_FOR_INPUT retain=false"
 jq -e '
   ([to_entries[].value.pipeline] | index("create-plan-v1") == null)
   and ([to_entries[].value.pipeline] | index("design-first") == null)
   and ([to_entries[].value.pipeline] | index("structure-e2e") == null)
   and ([to_entries[].value.tier] | index("design-first") == null)
   and ([to_entries[].value.tier] | index("structure-e2e") == null)
-' "${PRODUCT_DIR}/scenarios.json" >/dev/null \
-  || fail "product scenarios must not include create-plan/design-first/structure-e2e"
+' "${PRODUCT_DIR}/scenarios.json" > /dev/null ||
+    fail "product scenarios must not include create-plan/design-first/structure-e2e"
 pass "create-chain@2 scenarios plus exhausted-halt terminal"
 
 echo "=== create-chain@1 backward-compat path remains ==="
 AI_ROOT="$(cd "${PRODUCT_DIR}/../.." && pwd)"
-[[ -f "${AI_ROOT}/src/main/resources/product-pipelines/profiles/create-chain-v1.yaml" ]] \
-  || fail "create-chain@1 profile YAML must remain on the classpath"
-[[ -f "${AI_ROOT}/src/test/java/org/qubership/integration/platform/ai/productpipeline/create/CreateChainProductPipelineRestartIT.java" ]] \
-  || fail "CreateChainProductPipelineRestartIT must cover historical create-chain@1 restarts"
+[[ -f "${AI_ROOT}/src/main/resources/product-pipelines/profiles/create-chain-v1.yaml" ]] ||
+    fail "create-chain@1 profile YAML must remain on the classpath"
+[[ -f "${AI_ROOT}/src/test/java/org/qubership/integration/platform/ai/productpipeline/create/CreateChainProductPipelineRestartIT.java" ]] ||
+    fail "CreateChainProductPipelineRestartIT must cover historical create-chain@1 restarts"
 rg -q 'create-chain@1|profileVersion.*"1"|CREATE_PROFILE_VERSION.*"1"|assertEquals\("1", resumed\.runManifest\(\)\.profileVersion' \
-  "${AI_ROOT}/src/test/java/org/qubership/integration/platform/ai/productpipeline/create/CreateChainProductPipelineRestartIT.java" \
-  || fail "restart IT must exercise create-chain@1 bindings"
+    "${AI_ROOT}/src/test/java/org/qubership/integration/platform/ai/productpipeline/create/CreateChainProductPipelineRestartIT.java" ||
+    fail "restart IT must exercise create-chain@1 bindings"
 pass "create-chain@1 profile + restart IT present"
 
 echo "=== product contract suites ==="

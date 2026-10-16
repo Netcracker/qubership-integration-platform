@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 import yaml
 
-
-CAPABILITY_FILES = {
+CAPABILITY_FILES: dict[str, Any] = {
     "capability-catalog.yaml": {
         "catalog": {"extraction_version": "1.0", "count": 1},
         "capabilities": [
@@ -97,9 +97,7 @@ def write_package(root: Path, *, key: str, object_id: str, alias: str) -> Path:
             "format": "markdown",
             "document": f"fixtures/{key}.md",
             "section_id": key,
-            "hash": "sha256:" + (
-                "1" * 64 if key == "package-a" else "2" * 64
-            ),
+            "hash": "sha256:" + ("1" * 64 if key == "package-a" else "2" * 64),
             "knowledge_version": knowledge_version,
         },
     }
@@ -184,9 +182,7 @@ def mutate_fixture(package: Path, mutation: str) -> None:
         with (package / "objects.jsonl").open("ab") as stream:
             stream.write(b" ")
     elif mutation == "uncertified":
-        certification = json.loads(
-            (package / "runtime-certification.yaml").read_text()
-        )
+        certification = json.loads((package / "runtime-certification.yaml").read_text())
         certification["certification"]["status"] = "REJECTED"
         (package / "runtime-certification.yaml").write_text(
             json.dumps(certification, sort_keys=True),
@@ -203,9 +199,7 @@ def mutate_fixture(package: Path, mutation: str) -> None:
         rewrite_checksums(package)
     elif mutation == "malformed_canonical_ir":
         row = json.loads((package / "objects.jsonl").read_text())
-        row["relations"] = [
-            {"from": row["id"], "to": "CIP:RULE-000001"}
-        ]
+        row["relations"] = [{"from": row["id"], "to": "CIP:RULE-000001"}]
         (package / "objects.jsonl").write_text(
             json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n",
             encoding="utf-8",

@@ -33,7 +33,7 @@ _Avoid_: diff, delta (use GraphPatch/patch)
 
 **Reconcile** (`ChainReconcileService.compare`):
 Write-then-verify check that compares a `ChainPlanGraph` this run just materialized against a
-freshly-read catalog snapshot of the *same* chain, to confirm the write landed correctly.
+freshly-read catalog snapshot of the _same_ chain, to confirm the write landed correctly.
 **Not** a mechanism for comparing a new proposal against a pre-existing, previously-deployed chain
 — despite the name, it has no use in importing/patching an existing chain.
 _Avoid_: using "reconcile" to mean "compare against an existing user chain"
@@ -97,7 +97,7 @@ CDI mechanism (`@ForScenario(COMPARE_AND_PATCH)`, same shape as `ChainQuestionSc
 CREATE product pipeline -- `isCreateOwnedScenario` does not list it.
 
 **Causal reopen**:
-Returning a run to the stage that *produced* the defective input artifact, not to the stage that
+Returning a run to the stage that _produced_ the defective input artifact, not to the stage that
 observed the failure. The owning stage emits a new candidate; the previous Decision card binding
 is stale until the user accepts the new one.
 _Avoid_: go back one step, retry previous stage, silent rewrite of an approved plan
@@ -167,7 +167,7 @@ _Avoid_: asking the author for retry policy when the schema already defines it
 
 **Halt question**:
 A typed message at a pause that asks about the run rather than instructing it. A model tells the
-two apart, so the decision holds in the language of the conversation; the regex plan-question path
+two apart, so the decision holds in the language of the conversation; the regular expression plan-question path
 is English-only and never reaches here. Three outcomes: an answer, a message that was not a
 question, and an inability to answer. An unanswerable turn produces a card that says no explanation
 is available and keeps the raw evidence; it is never treated as an instruction. The answer is
@@ -196,7 +196,7 @@ An invariant broken inside the service, as opposed to a model reply the contract
 capability that emits the wrong number of completion signals, an artifact kind the profile never
 declared, or a throwable nothing classified. It halts recoverably like every other outcome. The
 card carries the run identifier the author hands to support and offers only End run and keep
-report, because re-entering the stage meets the same defect. Stage ids stay in technical details.
+report, because re-entering the stage meets the same defect. Stage IDs stay in technical details.
 _Avoid_: contract failure for a service defect, a Retry that cannot work, terminal FAILED
 
 **Causal reopen window** (decided):
@@ -220,7 +220,7 @@ gate the run actually waits at. This replaced approval by prose: matching an Eng
 ever matched it. Any new user confirmation belongs here, not in a phrase the user has to type.
 `CREATE_ACTION` states the underlying rule: writing to the catalog is "the one irreversible step,
 never a model's to take". Recovery cards use the same Decision card surface with server-owned
-`recovery` metadata and semantic actions. Internal pipeline stage ids are not user actions.
+`recovery` metadata and semantic actions. Internal pipeline stage IDs are not user actions.
 _Avoid_: approval prose, "type yes to confirm", stage-id recovery buttons
 
 **DEPLOY_CHAIN** (decided, does not exist yet):
@@ -273,7 +273,7 @@ cascades in the catalog to its chains and their deployments. Chains are deleted 
 because the catalog's bulk delete reports success when some chains failed. A label edit is applied
 to the chain's labels as read when it runs, because the catalog replaces the ordinary label set
 (technical labels survive). Export never passes through the server: its card carries the chain
-ids, and the browser runs the chains page export dialog and download. Not an open-chain scenario:
+IDs, and the browser runs the chains page export dialog and download. Not an open-chain scenario:
 an unfinished CREATE run keeps the turn. Java writes no prose for the author: each turn ends in
 English facts that `ChainListReplyAgent` words in the author's language, and Java puts the data
 (numbered list, counts, the chains a card changes) under that text unchanged. When the reply agent

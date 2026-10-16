@@ -9,7 +9,6 @@ from typing import Any, Protocol
 
 import httpx
 from pydantic import ValidationError
-
 from qip_e2e_evaluator.models import (
     PROVIDER_TIMEOUT_SECONDS,
     RETRY_PAUSE_SECONDS,
@@ -44,7 +43,7 @@ class HttpPostClient(Protocol):
         self,
         url: str,
         *,
-        json: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,  # pylint: disable=redefined-outer-name
         headers: dict[str, str] | None = None,
         timeout: float | None = None,
     ) -> httpx.Response: ...
@@ -57,7 +56,9 @@ def normalize_base_url(url: str) -> str:
     return normalized
 
 
-def _resolve_value(environ: Mapping[str, str], evaluator_key: str, fallback_key: str) -> str:
+def _resolve_value(
+    environ: Mapping[str, str], evaluator_key: str, fallback_key: str
+) -> str:
     value = environ.get(evaluator_key, "").strip()
     if value:
         return value
@@ -81,16 +82,16 @@ def evaluate_with_provider(
     http_client: HttpPostClient | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> ScoreResponse:
-    client = http_client if http_client is not None else httpx.Client()
-    owns_client = http_client is None
+    if http_client is not None:
+        return _evaluate_with_retries(http_client, settings, messages, sleep)
+    client = httpx.Client()
     try:
         return _evaluate_with_retries(client, settings, messages, sleep)
     finally:
-        if owns_client:
-            client.close()
+        client.close()
 
 
-def _evaluate_with_retries(
+def _evaluate_with_retries(  # type: ignore[return]  # Each attempt returns, retries, or raises.
     client: HttpPostClient,
     settings: LlmSettings,
     messages: list[dict[str, str]],

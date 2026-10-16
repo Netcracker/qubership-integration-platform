@@ -16,31 +16,31 @@ CHAIN_NAME="${4:?chain name}"
 e2e_require_cmds curl jq python3
 
 jq -e --arg s "$SCENARIO" '.[$s].seed.elements | type == "array" and length > 0' \
-  "$SCENARIOS_FILE" >/dev/null \
-  || e2e_fail "scenario ${SCENARIO} is missing seed.elements"
+    "$SCENARIOS_FILE" > /dev/null ||
+    e2e_fail "scenario ${SCENARIO} is missing seed.elements"
 
 seed_json="$(jq -c --arg s "$SCENARIO" '.[$s].seed' "$SCENARIOS_FILE")"
-description="$(jq -r '.description // "COMPARE_AND_PATCH e2e seed"' <<<"$seed_json")"
+description="$(jq -r '.description // "COMPARE_AND_PATCH e2e seed"' <<< "$seed_json")"
 
 create_body="$(jq -nc --arg n "$CHAIN_NAME" --arg d "$description" \
-  '{name: $n, description: $d, labels: []}')"
+    '{name: $n, description: $d, labels: []}')"
 chain_json="$(mktemp)"
 trap 'rm -f "$chain_json"' EXIT
 
 http_code="$(
-  curl -sS -o "$chain_json" -w '%{http_code}' \
-    -X POST "${CATALOG_URL}/v1/chains" \
-    -H 'Content-Type: application/json' \
-    -d "$create_body"
+    curl -sS -o "$chain_json" -w '%{http_code}' \
+        -X POST "${CATALOG_URL}/v1/chains" \
+        -H 'Content-Type: application/json' \
+        -d "$create_body"
 )"
-[[ "$http_code" == "200" || "$http_code" == "201" ]] \
-  || e2e_fail "POST /v1/chains returned HTTP ${http_code}: $(head -c 400 "$chain_json")"
+[[ "$http_code" == "200" || "$http_code" == "201" ]] ||
+    e2e_fail "POST /v1/chains returned HTTP ${http_code}: $(head -c 400 "$chain_json")"
 
 chain_id="$(jq -r '.id // empty' "$chain_json")"
 [[ -n "$chain_id" ]] || e2e_fail "catalog create chain returned no id: $(head -c 400 "$chain_json")"
 e2e_info "seeded chain ${chain_id} name=${CHAIN_NAME}"
 
-python3 - "$CATALOG_URL" "$chain_id" "$seed_json" <<'PY'
+python3 - "$CATALOG_URL" "$chain_id" "$seed_json" << 'PY'
 import json
 import sys
 import urllib.error

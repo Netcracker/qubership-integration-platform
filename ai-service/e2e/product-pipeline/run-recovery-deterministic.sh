@@ -30,5 +30,5 @@ RECOVERY_TESTS+="MaterializationCapabilityTest#"
 RECOVERY_TESTS+="configuredRecoveryFaultStopsBeforeTheFirstCatalogWrite"
 
 mvn -pl ai-service \
-  -Dtest="${RECOVERY_TESTS}" \
-  test
+    -Dtest="${RECOVERY_TESTS}" \
+    test

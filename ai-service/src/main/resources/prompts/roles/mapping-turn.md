@@ -22,7 +22,7 @@ phrases such as `request mapping` or `sourcePath` are not required.
 - `CLARIFICATION`: a friendly name matches several transitions or none, an add collides with an
   existing target writer, or the author asked to add or remove a flow hop. Put a short reason
   code in `clarificationReason` (`AMBIGUOUS_TRANSITION`, `MISSING_TRANSITION`, `TARGET_CONFLICT`,
-  `ZERO_MATCH`, `MULTI_MATCH`, `OMITTED_TRANSITION`, or `FLOW_CHANGE`) and candidate ids in
+  `ZERO_MATCH`, `MULTI_MATCH`, `OMITTED_TRANSITION`, or `FLOW_CHANGE`) and candidate IDs in
   `candidates`.
 
 ## Query
@@ -48,7 +48,7 @@ renames the writer. Put rule removals in `deleteRules`. Put whole-intent removal
 Emit `addIntents` only for transitions whose mapping the current author message describes. Leave
 every unmentioned flow transition out of the result.
 
-`sourceRef` and `targetRef` must be approved interaction ids from the flow listing. A unique
+`sourceRef` and `targetRef` must be approved interaction IDs from the flow listing. A unique
 operation name may stand in for that id. Do not emit a replacement list of intents that already
 exist; emit only new work against the current state.
 

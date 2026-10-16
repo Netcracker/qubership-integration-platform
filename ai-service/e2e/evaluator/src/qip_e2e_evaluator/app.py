@@ -8,7 +8,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-
 from qip_e2e_evaluator.client import (
     EvaluatorClientError,
     LlmSettings,
@@ -35,7 +34,9 @@ def _default_rubric_path() -> Path:
     container_path = Path("/app/semantic-rubric.md")
     if container_path.is_file():
         return container_path
-    return Path(__file__).resolve().parents[3] / "product-pipeline" / "semantic-rubric.md"
+    return (
+        Path(__file__).resolve().parents[3] / "product-pipeline" / "semantic-rubric.md"
+    )
 
 
 def _resolve_rubric_path(explicit: Path | None) -> Path:
@@ -63,14 +64,18 @@ def create_app(
 ) -> FastAPI:
     resolved_rubric_path = _resolve_rubric_path(rubric_path)
     rubric_cache: dict[str, str | None] = {"text": None}
-    evaluate_fn = client_factory if client_factory is not None else evaluate_with_provider
+    evaluate_fn = (
+        client_factory if client_factory is not None else evaluate_with_provider
+    )
 
     def _get_rubric_text() -> str:
-        if rubric_cache["text"] is None:
-            rubric_cache["text"] = resolved_rubric_path.read_text(encoding="utf-8")
-        return rubric_cache["text"]
+        text = rubric_cache["text"]
+        if text is None:
+            text = resolved_rubric_path.read_text(encoding="utf-8")
+            rubric_cache["text"] = text
+        return text
 
-    app = FastAPI()
+    app = FastAPI()  # pylint: disable=redefined-outer-name
 
     @app.get("/health", response_model=None)
     def health():
@@ -101,7 +106,7 @@ def create_app(
                 status_code=exc.http_status,
                 content=ErrorBody(code=exc.code, message=exc.message).model_dump(),
             )
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             elapsed = time.monotonic() - started_at
             logger.exception(
                 "Unexpected evaluate error for scenario %s elapsed=%.3fs",

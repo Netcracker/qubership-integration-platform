@@ -1,9 +1,10 @@
+# pytest injects fixtures by parameter name.
+# pylint: disable=redefined-outer-name
 import json
 from typing import Any
 
 import httpx
 import pytest
-
 from qip_e2e_evaluator.client import (
     EvaluatorClientError,
     LlmSettings,
@@ -65,7 +66,10 @@ def _client_for_responses(responses: list[httpx.Response]) -> RecordingClient:
 
 
 def test_normalize_base_url_strips_trailing_slash_and_chat_completions():
-    assert normalize_base_url("https://api.example.com/v1/") == "https://api.example.com/v1"
+    assert (
+        normalize_base_url("https://api.example.com/v1/")
+        == "https://api.example.com/v1"
+    )
     assert (
         normalize_base_url("https://api.example.com/v1/chat/completions")
         == "https://api.example.com/v1"

@@ -6,7 +6,7 @@ Rules:
 - Include exactly one entry for every targetNodeId in the runtime's required or missing script node list.
 - For an explicit edit, use the supplied original body and preserve logic unrelated to the requested change.
 - Each scripts entry must include both targetNodeId and script.
-- Do not invent node ids that are not in that list.
+- Do not invent node IDs that are not in that list.
 - Do not add, remove, update, or rename nodes.
 - Do not add, remove, or update edges.
 - Do not change chain metadata.
@@ -33,7 +33,7 @@ Rules:
   exchange.in.headers.put('CamelHttpResponseCode', 500)
   exchange.in.body = groovy.json.JsonOutput.toJson([error: exception?.message])
 
-Example tool argument (replace ids and body as needed):
+Example tool argument (replace IDs and body as needed):
 {
   "patchId": "script-body",
   "scripts": [

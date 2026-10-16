@@ -154,10 +154,10 @@ streams, stream failures, persistence failures, protocol errors.
 - Historical SSE replay is not provided; reconnect uses Get Task then live subscribe.
 - Local caller profile only for this horizon.
 - Implementation-blocked recovery is covered by focused facade/protocol tests, not this runbook's
-  mandatory E2E list.
+  mandatory end-to-end list.
 - Command fingerprints omit `taskId`/`contextId` so SDK-stamped IDs stay compatible with lost-initial
   retries; receipts bind `messageId` to `taskId`.
-- Launch E2E gates mock the create-chain facade; they prove REST/SSE/JDBC, not live LLM or S3
+- Launch end-to-end gates mock the create-chain facade; they prove REST/SSE/JDBC, not live LLM or S3
   materialization.
 - Before enabling A2A for real clients, close enable-path gaps tracked in
   `.superpowers/sdd/a2a-remediation-plan.md` (incremental SSE, reviewable artifact payloads without

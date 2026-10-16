@@ -1,9 +1,10 @@
+# pytest injects fixtures by parameter name.
+# pylint: disable=redefined-outer-name
 import json
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
 from qip_e2e_evaluator.app import create_app
 from qip_e2e_evaluator.client import EvaluatorClientError, LlmSettings
 from qip_e2e_evaluator.models import ScoreResponse
@@ -62,7 +63,9 @@ def rubric_path(tmp_path: Path) -> Path:
     return path
 
 
-def test_health_ok_when_config_complete(monkeypatch: pytest.MonkeyPatch, rubric_path: Path):
+def test_health_ok_when_config_complete(
+    monkeypatch: pytest.MonkeyPatch, rubric_path: Path
+):
     _configure_env(monkeypatch)
     client = TestClient(create_app(rubric_path=rubric_path))
 
@@ -72,7 +75,9 @@ def test_health_ok_when_config_complete(monkeypatch: pytest.MonkeyPatch, rubric_
     assert response.json() == {"status": "ok", "model": "configured"}
 
 
-def test_health_unhealthy_when_key_missing(monkeypatch: pytest.MonkeyPatch, rubric_path: Path):
+def test_health_unhealthy_when_key_missing(
+    monkeypatch: pytest.MonkeyPatch, rubric_path: Path
+):
     _clear_llm_env(monkeypatch)
     monkeypatch.setenv("LLM_BASE_URL", "https://api.example.com/v1")
     monkeypatch.setenv("LLM_CHAT_MODEL", "gpt-test")
@@ -92,7 +97,9 @@ def test_evaluate_success_with_fake_provider(
 ):
     _configure_env(monkeypatch)
 
-    def fake_factory(_settings: LlmSettings, _messages: list[dict[str, str]]) -> ScoreResponse:
+    def fake_factory(
+        _settings: LlmSettings, _messages: list[dict[str, str]]
+    ) -> ScoreResponse:
         return _valid_score()
 
     client = TestClient(

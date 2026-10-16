@@ -18,12 +18,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
 import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
 
+@Tag("certified-pack")
 class CompilerContractKnowledgeAlignmentTest {
 
   private static final String IDS_COMPILER_EXTRACTION =

@@ -4,13 +4,13 @@
 > Do not invent endpoints, service calls, parameters, mappings, response codes, assumptions, identifiers, or
 > configuration values. Omit unsupported rows or sections instead of completing them with plausible examples.
 
-**Document ID:** <generate_document_id>
-**Version:** <current_version>
-**Document Date:** <current_date>
-**System ID:** <system_id>
+**Document ID:** `<generate_document_id>`
+**Version:** `<current_version>`
+**Document Date:** `<current_date>`
+**System ID:** `<system_id>`
 **Owner:** —
 **Approval Status:** —
-**JIRA Link:** —
+**Jira Link:** —
 
 ---
 
@@ -18,8 +18,8 @@
 
 | Field | Value |
 |-------|-------|
-| Integration ID | <generate_document_id> |
-| System | <3rdPartySystemName> |
+| Integration ID | `<generate_document_id>` |
+| System | `<3rdPartySystemName>` |
 | Domain | — |
 | Functional Capabilities | — |
 | Design Items | — |
@@ -31,7 +31,7 @@
 
 | Version | Date | Author | Description of Changes |
 |---------|------|--------|------------------------|
-| <current_version> | <current_date> | <user_name> | <comment> |
+| `<current_version>` | `<current_date>` | `<user_name>` | `<comment>` |
 
 ---
 
@@ -39,7 +39,7 @@
 
 | # | Name | Description |
 |---|------|-------------|
-| 1 | <IA_id> | Reference to <3rdPartySystemName> IA |
+| 1 | `<IA_id>` | Reference to `<3rdPartySystemName>` IA |
 
 ---
 
@@ -53,7 +53,7 @@
 | CIM | Customer Information System |
 | SOAP | Simple Object Access Protocol |
 | HTTP | Hypertext Transfer Protocol |
-| <3rdPartySystemAbbreviation> | <3rdPartySystemName> |
+| `<3rdPartySystemAbbreviation>` | `<3rdPartySystemName>` |
 
 ---
 
@@ -61,56 +61,56 @@
 
 ### Document Purpose
 
-This document is intended to define and describe integrations and interfaces design as supported by Netcracker in order to communicate with <3rdPartySystemName> in scope of the <project_name> project.
+This document is intended to define and describe integrations and interfaces design as supported by Netcracker in order to communicate with `<3rdPartySystemName>` in scope of the `<project_name>` project.
 
 ### Document Objectives
 
 The objectives of the document to provide a high level understanding of:
 
 - Integration process describing interaction between Netcracker functional modules and Integration layer.
-- Process of calling 3rd party API's and methods.
-- Data mapping between functional model and integration methods/API's.
+- Process of calling third-party APIs and methods.
+- Data mapping between functional model and integration methods/APIs.
 - Integration interface configuration.
 - Response handling rules.
 - Error handling process.
 
 ### Intended Audience
 
-This document is intended for nominated business, 3rd party vendors and IT representatives to verify alignment of the proposed solution with the requirements of Trappist program as well as for further use by system developers and by test teams.
+This document is intended for nominated business, third-party vendors and IT representatives to verify alignment of the proposed solution with the requirements of Trappist program as well as for further use by system developers and by test teams.
 
 ### Assumptions
 
 | # | Description | Status |
 |---|-------------|--------|
-| <assumption_id> | <requirement-backed assumption> | <status> |
+| `<assumption_id>` | `<requirement-backed assumption>` | `<status>` |
 
 ### Out of Scope
 
 | # | Description |
 |---|-------------|
-| <out_of_scope_id> | <requirement-backed exclusion> |
+| `<out_of_scope_id>` | `<requirement-backed exclusion>` |
 
 ---
 
 ## Technical Design
 
-This design document describes the interface for the integration scenarios between Netcracker and <3rdPartySystemName> system.
+This design document describes the interface for the integration scenarios between Netcracker and `<3rdPartySystemName>` system.
 
 ### Authentication & Authorization
 
-<authentification>
+`<authentification>`
 
 ### Integration Scenarios
 
-Integration Scenarios will be same as defined in IA: <3rdPartySystemName> Scenarios
+Integration Scenarios will be same as defined in IA: `<3rdPartySystemName>` Scenarios
 
 ---
 
 ## Integration Process
 
-### Integration flow for CIP Chain - <Process Name>
+### Integration flow for CIP Chain - `<Process Name>`
 
-<description_of_the_process>
+`<description_of_the_process>`
 
 Process flow is demonstrated in the form of interaction diagram as follows:
 
@@ -136,27 +136,27 @@ sequenceDiagram
 
 | Process Step | Description |
 |--------------|-------------|
-| 1 | <step_name and description> |
+| 1 | `<step_name and description>` |
 
 ---
 
 ## Data Mapping
 
-### Operation: <Operation Name>
+### Operation: `<Operation Name>`
 
-This covers the mapping of <System Name> interface attributes with upstream or internal system.
+This covers the mapping of `<System Name>` interface attributes with upstream or internal system.
 
 **Path:** `<method> <path>`
 
-This covers the mapping of Operation Name interface exposed by <System Name> for <description_of_operation>
+This covers the mapping of Operation Name interface exposed by `<System Name>` for `<description_of_operation>`
 
 #### Request Mapping
 
 | Request Parameter | Description | Type | Mandatory | Provided By |
 |-------------------|-------------|------|-----------|-------------|
-| <field> | <field_description> | <field_type> | <field_mandatoriness> | TBD |
+| `<field>` | `<field_description>` | `<field_type>` | `<field_mandatoriness>` | TBD |
 
-<request_sample>
+`<request_sample>`
 
 #### Response Mapping
 
@@ -164,17 +164,17 @@ This covers the mapping of Operation Name interface exposed by <System Name> for
 
 | Name | Description | Length | Type | Occurrence | Mandatory | Transformation Logic |
 |------|-------------|--------|------|------------|-----------|----------------------|
-| <field> | <field_description> | <field_length> | <field_type> | <field_occurencee> | <field_mandatoriness> | TBD |
+| `<field>` | `<field_description>` | `<field_length>` | `<field_type>` | `<field_occurencee>` | `<field_mandatoriness>` | TBD |
 
-<success_response_sample>
+`<success_response_sample>`
 
 **Error Response**
 
 | Response Parameter | Description | Type | Mandatory | Provided By |
 |--------------------|-------------|------|-----------|-------------|
-| <field> | <field_description> | <field_type> | <field_mandatoriness> | <provider> |
+| `<field>` | `<field_description>` | `<field_type>` | `<field_mandatoriness>` | `<provider>` |
 
-<error_response_sample>
+`<error_response_sample>`
 
 ---
 
@@ -183,9 +183,9 @@ This covers the mapping of Operation Name interface exposed by <System Name> for
 Error handling supports retrying failed requests based on the predefined configuration or forwarding errors to the
 caller for resolution.
 
-### Error Codes - <3rdPartySystemName> (<Operation Name>)
+### Error Codes - `<3rdPartySystemName>` (`<Operation Name>`)
 
-| Operation | Error from <3rdPartySystemName> | Error Description | Error Type | Occurred When | Technical Resolution | Ownership | Frequency | Notes |
+| Operation | Error from `<3rdPartySystemName>` | Error Description | Error Type | Occurred When | Technical Resolution | Ownership | Frequency | Notes |
 |-----------|----------------------|-------------------|------------|---------------|------------------------|-----------|-----------|-------|
 
 ---
@@ -198,7 +198,7 @@ This section describes the logging considerations to be taken care for various o
 
 | Attribute Name | API name | Masked | Example |
 |----------------|----------|--------|---------|
-| <pii_field> | <Operation Name> | Y (<Show only last 2 digits and mask the remaining by using x>) |
+| `<pii_field>` | `<Operation Name>` | Y (`<Show only last 2 digits and mask the remaining by using x>`) | |
 
 ---
 
@@ -228,4 +228,4 @@ Following are the open questions applicable for this design:
 
 | # | Description | Author | Date | Owner | Jira Ticket | Status |
 |---|-------------|--------|------|-------|-------------|--------|
-| <question_id> | <description> | <author> | <date> | <owner> | <jira_ticket> | <status> |
+| `<question_id>` | `<description>` | `<author>` | `<date>` | `<owner>` | `<jira_ticket>` | `<status>` |

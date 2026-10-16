@@ -54,6 +54,9 @@
         <qip.ai.qipknowledge.addon-pack-root></qip.ai.qipknowledge.addon-pack-root>
         <qip.ai.qipknowledge.knowledge-overlay></qip.ai.qipknowledge.knowledge-overlay>
         <qip.ai.qipknowledge.output-root>${project.build.outputDirectory}/qipknowledge</qip.ai.qipknowledge.output-root>
+        <qip.test.pack-root>${project.build.directory}/public-pack-fixture/integration-platform-skills</qip.test.pack-root>
+        <qip.test.excluded-groups>certified-pack</qip.test.excluded-groups>
+        <qip.test.groups></qip.test.groups>
     </properties>
 
     <repositories>
@@ -360,6 +363,20 @@
                 <version>3.5.0</version>
                 <executions>
                     <execution>
+                        <id>generate-test-pack</id>
+                        <phase>process-test-classes</phase>
+                        <goals><goal>java</goal></goals>
+                        <configuration>
+                            <skip>${maven.test.skip}</skip>
+                            <classpathScope>test</classpathScope>
+                            <mainClass>org.qubership.integration.platform.ai.qipknowledge.pack.PublicQipKnowledgePackFixture</mainClass>
+                            <arguments>
+                                <argument>${project.build.directory}/public-pack-fixture</argument>
+                                <argument>${project.build.testOutputDirectory}/qipknowledge</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>fetch-qip-schemas</id>
                         <phase>generate-resources</phase>
                         <goals>
@@ -478,12 +495,15 @@
                 <configuration>
                     <!-- Attach Mockito as a Java agent so the inline mock maker works on Java 21
                          without local -Dnet.bytebuddy.experimental / self-attach workarounds. -->
+                    <excludedGroups>${qip.test.excluded-groups}</excludedGroups>
+                    <groups>${qip.test.groups}</groups>
                     <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*IT.java</include>
                     </includes>
                     <systemPropertyVariables>
+                        <qip.test.pack-root>${qip.test.pack-root}</qip.test.pack-root>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
                     </systemPropertyVariables>
@@ -506,6 +526,41 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>certified-pack-tests</id>
+            <properties>
+                <qip.test.pack-root>${project.basedir}/../integration-platform-skills</qip.test.pack-root>
+
+                <qip.test.excluded-groups></qip.test.excluded-groups>
+                <qip.test.groups>certified-pack</qip.test.groups>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>generate-test-pack</id>
+                                <configuration>
+                                    <mainClass>org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator</mainClass>
+                                    <arguments combine.self="override">
+                                        <argument>${qip.test.pack-root}</argument>
+                                        <argument>${project.build.testOutputDirectory}/qipknowledge</argument>
+                                    </arguments>
+                                    <systemProperties>
+                                        <systemProperty>
+                                            <key>qip.ai.qipknowledge.addon-pack-root</key>
+                                            <value>${qip.test.pack-root}/addons</value>
+                                        </systemProperty>
+                                    </systemProperties>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>schemas-from-download</id>
             <properties>

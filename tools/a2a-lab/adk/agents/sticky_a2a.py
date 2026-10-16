@@ -42,7 +42,9 @@ def latest_remote_ids(
         nested = metadata.get(A2A_METADATA_PREFIX + "response")
         if isinstance(nested, dict):
             task_id = _as_nonblank(nested.get("id") or nested.get("taskId"))
-            context_id = _as_nonblank(nested.get("contextId") or nested.get("context_id"))
+            context_id = _as_nonblank(
+                nested.get("contextId") or nested.get("context_id")
+            )
             if task_id or context_id:
                 return task_id, context_id
     return None, None
@@ -108,7 +110,9 @@ def sticky_request_interceptor(
 
 def _has_text_part(message: Message) -> bool:
     return any(
-        part.HasField("text") and part.text.strip() and not _is_transfer_narration(part.text)
+        part.HasField("text")
+        and part.text.strip()
+        and not _is_transfer_narration(part.text)
         for part in message.parts
     )
 
@@ -123,7 +127,9 @@ def _is_transfer_narration(text: str) -> bool:
     text = text.strip()
     if text == "For context:":
         return True
-    return text.startswith("[") and ("called tool" in text or "tool returned result" in text)
+    return text.startswith("[") and (
+        "called tool" in text or "tool returned result" in text
+    )
 
 
 def _latest_user_clarify_text(ctx: InvocationContext) -> Optional[str]:
