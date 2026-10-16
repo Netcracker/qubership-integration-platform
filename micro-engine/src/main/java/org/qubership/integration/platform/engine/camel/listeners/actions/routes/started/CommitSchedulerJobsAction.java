@@ -7,14 +7,15 @@ import org.qubership.integration.platform.engine.camel.listeners.EventProcessing
 import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteStarted;
 import org.qubership.integration.platform.engine.service.QuartzSchedulerService;
 
+// A poll consumer, such as an SFTP trigger, schedules its job when it starts, after RouteAddedEvent.
 @OnRouteStarted
 @ApplicationScoped
-public class ResetSchedulersProxyOnStartAction implements EventProcessingAction<CamelEvent.RouteStartedEvent> {
+public class CommitSchedulerJobsAction implements EventProcessingAction<CamelEvent.RouteStartedEvent> {
     @Inject
     QuartzSchedulerService quartzSchedulerService;
 
     @Override
     public void process(CamelEvent.RouteStartedEvent event) throws Exception {
-        quartzSchedulerService.resetSchedulersProxy();
+        quartzSchedulerService.commitScheduledJobs();
     }
 }
