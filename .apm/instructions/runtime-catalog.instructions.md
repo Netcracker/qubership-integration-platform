@@ -113,8 +113,9 @@ Chain definition (UI/import) → Runtime Catalog compiles → Camel XML (Handleb
 ### Verifying a change through the API
 
 The end-to-end suite covers the API against a running stack: its typed client
-`e2e/support/catalog.ts` holds the calls that work, and a behavior reproduced through the API
-gets its regression case in `e2e/specs/api/`. Load the `e2e-spec-authoring` skill before writing one.
+`e2e/support/catalog.ts` holds the calls that work. When the `e2e-decision` instruction calls for
+an end-to-end case, it goes in `e2e/specs/api/`. Load the `e2e-spec-authoring` skill before writing
+one.
 
 Exercise a change in four directions: once, twice (including into an entity that already
 exists), from several threads at once, and with edge inputs (blank, forbidden characters,
