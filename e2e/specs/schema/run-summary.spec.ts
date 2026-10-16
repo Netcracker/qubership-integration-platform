@@ -1,6 +1,5 @@
 /**
- * The run summary the CI step summary and the failure email carry, read off reports trimmed from a
- * green and a red CI run.
+ * The run summary the CI step summary carries, read off reports trimmed from a green and a red CI run.
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -11,7 +10,6 @@ import {
   FAILED_TESTS_LIMIT,
   SUMMARY_FILE,
   failedTests,
-  failureOf,
   summaryMarkdown,
   writeRunSummary,
 } from "../../support/run-summary.mjs";
@@ -43,7 +41,7 @@ function failingSpec(report: ReturnType<typeof readRun>["report"]) {
 test("a green run gets its status and counts and no failed list", { tag: ["@infra", "@tier2"] }, () => {
   const dir = copyRun("green");
 
-  expect(writeRunSummary(dir)).toBeUndefined();
+  writeRunSummary(dir);
   const summary = fs.readFileSync(path.join(dir, SUMMARY_FILE), "utf8");
   expect(summary).toContain("Status: **passed**");
   expect(summary).toContain("| 944 | 0 | 0 | 0 |");
@@ -54,7 +52,7 @@ test("a green run gets its status and counts and no failed list", { tag: ["@infr
 test("a red run lists each failed test with its project, location, title, and first error line", { tag: ["@infra", "@tier2"] }, () => {
   const dir = copyRun("red");
 
-  expect(writeRunSummary(dir)).toBe("1 of 944 tests");
+  writeRunSummary(dir);
   const summary = fs.readFileSync(path.join(dir, SUMMARY_FILE), "utf8");
   expect(summary).toContain("Status: **failed**");
   expect(summary).toContain("| 895 | 1 | 0 | 48 |");
@@ -121,38 +119,20 @@ test("global errors appear with their ANSI colors stripped", { tag: ["@infra", "
   );
 });
 
-test("without a failed test, the failure the email names is the first global error", { tag: ["@infra", "@tier2"] }, () => {
-  const { report } = readRun("green");
-  expect(failureOf(report)).toBeUndefined();
-
-  report.errors = [
-    { message: "\u001b[31mError: Command failed: helm upgrade --install qip\u001b[39m\n    at provision" },
-    { message: "Error: a second one" },
-  ];
-  expect(failureOf(report)).toBe("Error: Command failed: helm upgrade --install qip");
-
-  const { report: red } = readRun("red");
-  red.errors = report.errors;
-  expect(failureOf(red), "a failed test wins over a global error").toBe("1 of 944 tests");
-});
-
 test("a missing run file leaves out only its own sections", { tag: ["@infra", "@tier2"] }, () => {
   const onlyLastRun = copyRun("red", [".last-run.json"]);
-  expect(writeRunSummary(onlyLastRun)).toBeUndefined();
+  writeRunSummary(onlyLastRun);
   expect(fs.readFileSync(path.join(onlyLastRun, SUMMARY_FILE), "utf8")).toBe("Status: **failed**\n");
 
   const noStack = copyRun("green", ["report.json"]);
-  expect(writeRunSummary(noStack)).toBeUndefined();
+  writeRunSummary(noStack);
   const summary = fs.readFileSync(path.join(noStack, SUMMARY_FILE), "utf8");
   expect(summary).not.toContain("Status:");
   expect(summary).toContain("| 944 | 0 | 0 | 0 |");
 });
 
-test("the script prints the failure as a step output, and nothing for a green run", { tag: ["@infra", "@tier2"] }, () => {
+test("the script writes the summary and prints nothing", { tag: ["@infra", "@tier2"] }, () => {
   const red = copyRun("red");
-  expect(execFileSync(process.execPath, [SCRIPT, red], { encoding: "utf8" })).toBe("failure=1 of 944 tests\n");
-  expect(fs.existsSync(path.join(red, SUMMARY_FILE))).toBe(true);
-
-  const green = copyRun("green");
-  expect(execFileSync(process.execPath, [SCRIPT, green], { encoding: "utf8" })).toBe("");
+  expect(execFileSync(process.execPath, [SCRIPT, red], { encoding: "utf8" })).toBe("");
+  expect(fs.readFileSync(path.join(red, SUMMARY_FILE), "utf8")).toContain("### Failed tests");
 });

@@ -13,6 +13,7 @@
     "test:k8s": "CIP_TARGET=k8s playwright test",
     "release-check": "node support/release-check.mjs",
     "run-summary": "node support/run-summary.mjs",
+    "run-email": "node support/run-email.mjs",
     "report": "playwright show-report",
     "check-types": "tsc --noEmit",
     "reconcile": "node --experimental-strip-types registry/reconcile.mjs",

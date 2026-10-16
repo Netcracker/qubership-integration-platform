@@ -224,14 +224,17 @@ the run uses the nightly value. The dispatch input `email` makes a failed manual
 failure email as well. Start with the job's step summary, which `support/run-summary.mjs` writes: it
 shows the run status, the test counts, up to 50 failed tests with their project, `file:line`, title,
 and first error line, the errors raised outside any test, and the projects left out on this target.
-A failed nightly run mails the same summary and the run link to the addresses in the repository
-variable `EMAIL_TO`, which the email step needs. Every run uploads the `e2e-report` artifact:
-`playwright-report/`, `test-results/`, the `.e2e-k8s-` state files, and `.e2e-ui-server.log`. A
-failed or cancelled run also uploads `e2e-cluster`: the workloads and events of every namespace, a
-description of each pod in `qip-e2e`, the camel-k Integrations, and the logs of those pods'
-containers, istiod, and the camel-k operator. The dump runs after the suite, so it holds a micro
-domain's pod only because a failed micro case keeps the run's micro domains (see [Reading a
-failure](#reading-a-failure)).
+A failed nightly run mails a report to the addresses in the repository variable `EMAIL_TO`, which
+the email step needs. `support/run-email.mjs` writes it: a one-sentence verdict, the test counts
+with the known defects that struck counted apart, links to the run and the commit, up to 20
+failed tests with the first lines of their error and the command that reruns each, the projects a
+failed project kept from running, and the errors raised outside any test. Every run uploads the
+`e2e-report` artifact: `playwright-report/`, `test-results/`, the `.e2e-k8s-` state files, and
+`.e2e-ui-server.log`. A failed or cancelled run also uploads `e2e-cluster`: the workloads and events
+of every namespace, a description of each pod in `qip-e2e`, the camel-k Integrations, and the logs
+of those pods' containers, istiod, and the camel-k operator. The dump runs after the suite, so it
+holds a micro domain's pod only because a failed micro case keeps the run's micro domains (see
+[Reading a failure](#reading-a-failure)).
 
 No pull request check runs the suite. `npm run check-types` and `--project=schema` need no stack;
 run them before pushing, as `AGENTS.md` describes.
@@ -285,6 +288,8 @@ E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
   and the `cases.md` that `npm run reconcile` writes.
 - `npm run run-summary [-- <dir>]` writes the CI step summary to `summary.md` in `<dir>`, by
   default `test-results/`, so you can read it for a local run or a downloaded `e2e-report`.
+  `npm run run-email [-- <dir>]` writes the failure email beside it, to `email.html` and
+  `email.txt`; without the `GITHUB_*` variables the workflow sets, it carries no links.
 - `--debug` runs a case under the Playwright Inspector, one step at a time; `--headed` shows the
   browser of a `ui` case; `--ui` opens Playwright's UI mode. Combine each with `--no-deps` and a kept
   corpus, as above, so the seed does not run again.
