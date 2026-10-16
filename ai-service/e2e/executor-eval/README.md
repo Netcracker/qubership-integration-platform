@@ -39,7 +39,7 @@ ai-service/e2e/executor-eval/run-executor-eval.sh \
 The report retains every request and response. `summary.json` fails unless the endpoint reports
 `plannerInvoked=false`, all expected owners ran, required graph element types exist, and every
 compiler validation pass is valid. Cases may also require exact catalog identities on named
-service-call nodes and exact mapping intent ids on generated transform nodes.
+service-call nodes and exact mapping intent IDs on generated transform nodes.
 
 Validate fixtures and runner syntax without starting the service or spending model tokens:
 
@@ -54,7 +54,7 @@ duplicate, extra, and misdirected bindings, plus orphan, duplicate, misplaced, a
 mapping intents. Tests marked `KNOWN DEFECT` characterize current fail-open behavior so it can be
 reproduced before a fix and changed into a regression assertion with the fix.
 
-Run the bounded local pre-release sample after rebuilding and starting `qip-ai-service`:
+Run the bounded local prerelease sample after rebuilding and starting `qip-ai-service`:
 
 ```bash
 ai-service/e2e/executor-eval/run-pre-release-sample.sh

@@ -14,7 +14,7 @@ public final class QipKnowledgePackFixturePaths {
   private QipKnowledgePackFixturePaths() {}
 
   public static Path packRoot() {
-    return resolveRepoPath(PACK_DIR);
+    return resolveRepoPath(System.getProperty("qip.test.pack-root", "target/public-pack-fixture/" + PACK_DIR));
   }
 
   public static Path addonRoot() {

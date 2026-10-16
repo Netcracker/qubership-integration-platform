@@ -119,9 +119,7 @@ def _http_endpoint_in_text(haystack: str, method: str, path: str) -> bool:
     return pattern.search(haystack) is not None
 
 
-def _required_fact_present(
-    fact: str, haystack: str, decoded: dict[str, Any]
-) -> bool:
+def _required_fact_present(fact: str, haystack: str, decoded: dict[str, Any]) -> bool:
     if fact in haystack:
         return True
     parts = _http_endpoint_parts(fact)
@@ -398,8 +396,7 @@ def build_report(
         )
     object_ids = raw_context.get("objectIds")
     if not isinstance(object_ids, list) or not all(
-        isinstance(object_id, str) and object_id.strip()
-        for object_id in object_ids
+        isinstance(object_id, str) and object_id.strip() for object_id in object_ids
     ):
         raise ValueError("knowledgeContext.objectIds must be an array of IDs")
     if len(object_ids) != len(dict.fromkeys(object_ids)):
@@ -458,18 +455,30 @@ def build_report(
     if isinstance(approval, dict):
         approval_target_hash = approval.get("targetContentHash")
     if expected_terminal_state == "PLAN_APPROVED":
-        if not isinstance(approval_target_hash, str) or not approval_target_hash.strip():
-            raise ValueError("PLAN_APPROVED evidence missing APPROVAL_RECORD.targetContentHash")
+        if (
+            not isinstance(approval_target_hash, str)
+            or not approval_target_hash.strip()
+        ):
+            raise ValueError(
+                "PLAN_APPROVED evidence missing APPROVAL_RECORD.targetContentHash"
+            )
         if approval_target_hash.strip().lower() == "live":
             raise ValueError("approvalTargetHash must not be a placeholder")
-    elif isinstance(approval_target_hash, str) and approval_target_hash.strip().lower() == "live":
+    elif (
+        isinstance(approval_target_hash, str)
+        and approval_target_hash.strip().lower() == "live"
+    ):
         raise ValueError("approvalTargetHash must not be a placeholder")
     else:
-        approval_target_hash = approval_target_hash if isinstance(approval_target_hash, str) else ""
+        approval_target_hash = (
+            approval_target_hash if isinstance(approval_target_hash, str) else ""
+        )
 
     approved_plan_hash = evidence.get("approvedPlanContentHash")
     if not isinstance(approved_plan_hash, str) or not approved_plan_hash.strip():
-        approved_plan_hash = approval_target_hash if isinstance(approval_target_hash, str) else ""
+        approved_plan_hash = (
+            approval_target_hash if isinstance(approval_target_hash, str) else ""
+        )
 
     materialization = _first_decoded(decoded, "MATERIALIZATION_RESULT")
     snapshot = _first_decoded(decoded, "CATALOG_CHAIN_SNAPSHOT")
@@ -492,7 +501,9 @@ def build_report(
 
     graph_patches: list[dict[str, Any]] = []
     for key, value in decoded.items():
-        if not (key.startswith("GRAPH_PATCH_ARTIFACT#") or key == "GRAPH_PATCH_ARTIFACT"):
+        if not (
+            key.startswith("GRAPH_PATCH_ARTIFACT#") or key == "GRAPH_PATCH_ARTIFACT"
+        ):
             continue
         if isinstance(value, dict):
             graph_patches.append(value)
@@ -503,9 +514,15 @@ def build_report(
     compiler_package_digest = evidence.get("compilerPackageDigest") or pin.get(
         "compilerPackageDigest"
     )
-    pipeline_index_digest = evidence.get("pipelineIndexDigest") or pin.get("pipelineIndexDigest")
-    resolved_dag = pin.get("resolvedDag") if isinstance(pin.get("resolvedDag"), dict) else {}
-    resolved_dag_digest = evidence.get("resolvedDagDigest") or resolved_dag.get("digest")
+    pipeline_index_digest = evidence.get("pipelineIndexDigest") or pin.get(
+        "pipelineIndexDigest"
+    )
+    resolved_dag = pin.get("resolvedDag")
+    if not isinstance(resolved_dag, dict):
+        resolved_dag = {}
+    resolved_dag_digest = evidence.get("resolvedDagDigest") or resolved_dag.get(
+        "digest"
+    )
     compiler_pipeline_digest = (
         pipeline_index_digest
         if isinstance(pipeline_index_digest, str) and pipeline_index_digest.strip()
@@ -522,7 +539,9 @@ def build_report(
         if not _required_fact_present(fact, haystack, decoded)
     ]
     present_forbidden = [
-        fact for fact in forbidden_facts if _forbidden_fact_present(fact, forbidden_haystack)
+        fact
+        for fact in forbidden_facts
+        if _forbidden_fact_present(fact, forbidden_haystack)
     ]
 
     kinds = evidence.get("committedArtifactKinds") or []
@@ -559,7 +578,9 @@ def build_report(
         "profileVersion": str(profile_version),
         **knowledge_report_fields,
         "validationVerdict": validation_verdict,
-        "approvalTargetHash": approval_target_hash if isinstance(approval_target_hash, str) else "",
+        "approvalTargetHash": (
+            approval_target_hash if isinstance(approval_target_hash, str) else ""
+        ),
         "approvedPlanContentHash": approved_plan_hash,
         "compilerPackageDigest": compiler_package_digest or "",
         "pipelineIndexDigest": pipeline_index_digest or "",

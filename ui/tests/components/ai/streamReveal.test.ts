@@ -1,8 +1,9 @@
-import { describe, expect, it } from "@jest/globals";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import {
   STREAM_REVEAL_CHUNK_CHARS,
   nextStreamRevealChunk,
   revealStreamText,
+  waitForNextPaint,
 } from "../../../src/components/ai/streamReveal.ts";
 
 describe("nextStreamRevealChunk", () => {
@@ -82,5 +83,42 @@ describe("revealStreamText", () => {
     );
     expect(written).toEqual([pending]);
     expect(waits).toBe(0);
+  });
+});
+
+describe("waitForNextPaint", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  it("continues when animation frames are unavailable", async () => {
+    jest.useFakeTimers();
+    const ready = waitForNextPaint();
+    await jest.advanceTimersByTimeAsync(16);
+    await expect(ready).resolves.toBeUndefined();
+  });
+
+  it("continues after the background-tab timeout and cancels the suspended frame", async () => {
+    jest.useFakeTimers();
+    const request = jest.fn<typeof requestAnimationFrame>().mockReturnValue(7);
+    const cancel = jest.fn<typeof cancelAnimationFrame>();
+    Object.defineProperty(globalThis, "requestAnimationFrame", {
+      value: request,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, "cancelAnimationFrame", {
+      value: cancel,
+      configurable: true,
+    });
+    try {
+      const ready = waitForNextPaint();
+      await jest.advanceTimersByTimeAsync(32);
+      await expect(ready).resolves.toBeUndefined();
+      expect(cancel).toHaveBeenCalledWith(7);
+    } finally {
+      Reflect.deleteProperty(globalThis, "requestAnimationFrame");
+      Reflect.deleteProperty(globalThis, "cancelAnimationFrame");
+    }
   });
 });

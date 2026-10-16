@@ -230,7 +230,7 @@ Both actions continue the same Task. The pending-action discriminator determines
 | 05 | Send Streaming Message and Subscribe to Task | 02, 03, 04 | 06 |
 | 06 | Exact approvals and public artifact projection | 02, 03, 04 | 05 |
 | 07 | Browser regression, database wiring, security seam, and feature flag | 02, 03, 04 | 05, 06 |
-| 08 | E2E launch gates, deployment checks, and rollback runbook | 05, 06, 07 | None |
+| 08 | end-to-end launch gates, deployment checks, and rollback runbook | 05, 06, 07 | None |
 
 ## Delivery risks
 
@@ -291,7 +291,7 @@ green.
 ### Day 3: launch proof
 
 - Complete 08 against the assembled branch.
-- Run the four mandatory A2A E2E scenarios plus the browser regression scenario.
+- Run the four mandatory A2A end-to-end scenarios plus the browser regression scenario.
 - Run the browser regression gate and existing product-pipeline suites.
 - Verify the feature flag rollback and restart path in the target deployment environment.
 - For an existing PostgreSQL volume, create `ai_a2a` once and pass the database-exists preflight before deployment.
@@ -401,4 +401,4 @@ Implement these workstreams in dependency order:
 5. Streaming
 6. Approval and artifacts
 7. Browser, database, security, and rollout
-8. E2E launch gates
+8. end-to-end launch gates

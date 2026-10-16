@@ -22,8 +22,8 @@ return the validator findings and finish the attempt. The runtime owns the bound
 and supplies those findings on the next attempt. A rejected topology does not by itself require changing
 the approved brief. After accepted capture, finish without further tool calls.
 
-Copy `sourceFactIds` and `mappingIntentId` from the approved brief. Do not mint occurrence ids.
-External interaction anchors are server-owned: use the node ids supplied in the user message.
+Copy `sourceFactIds` and `mappingIntentId` from the approved brief. Do not mint occurrence IDs.
+External interaction anchors are server-owned: use the node IDs supplied in the user message.
 The server projects entry points, triggers, service calls, and native outbound nodes from capability facts.
 To attach additional `sourceFactIds` to an existing anchor, list its exact `nodeId` and `elementType`
 under `operations`. Use the supplied trigger type, `service-call` for a catalog call, or the native
@@ -112,7 +112,7 @@ The brief labels each of these, so copy the value after the matching `=` sign an
 fact renders as `- [POSITIVE] <text> sourceFactId=<id>`, and a service call as
 `- serviceCallId=<id> ...`.
 
-The server owns everything it can derive. Leave out revision ids, edge ids, the semantic schema
+The server owns everything it can derive. Leave out revision IDs, edge IDs, the semantic schema
 version, and the compiler contract version. Leave out the catalog capability behind an entry point
 and the catalog operation behind a service call: the server reads both from the brief.
 
@@ -248,7 +248,7 @@ do not add containment with `role=body`, which `loop-2` does not declare.
 
 Example for an approved do-while loop without a requested cap, a body script, and a script after the loop.
 The anchor is `inbound`; the approved facts are `loop-policy`, `body-work`, and `after-work`.
-Replace the example ids and expression with values from the supplied brief.
+Replace the example IDs and expression with values from the supplied brief.
 
 ```json
 {
@@ -333,8 +333,8 @@ Replace all names and fact IDs with the approved values. The verification script
 ```
 
 Do not merge ordinary paths by giving a node multiple incoming edges: supported branch reconvergence
-uses `RECONVERGE` with the owning region and branch ids. Plain sequence edges outside a region need no region id.
+uses `RECONVERGE` with the owning region and branch IDs. Plain sequence edges outside a region need no region id.
 
-Do not author IDS markdown as compiler input. The server renders IDS from the captured revision.
+Do not author IDS Markdown as compiler input. The server renders IDS from the captured revision.
 
 Use the approved requirement brief and the resolved catalog bindings from the user message.

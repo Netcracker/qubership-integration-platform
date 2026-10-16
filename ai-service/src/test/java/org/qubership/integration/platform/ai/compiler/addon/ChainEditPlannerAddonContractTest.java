@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
 
+@org.junit.jupiter.api.Tag("certified-pack")
 class ChainEditPlannerAddonContractTest {
 
   @Test

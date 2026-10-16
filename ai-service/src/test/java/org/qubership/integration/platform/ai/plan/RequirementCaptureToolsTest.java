@@ -1124,7 +1124,8 @@ class RequirementCaptureToolsTest {
         base.openQuestions(), base.settings());
     var binding = new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
         "3", "submit", "submit", "Task API submit", "sys", "group", "spec", "operation",
-        "http", "POST", "/tasks", "2026.1", java.time.Instant.now(), "catalog-read:operation");
+        "http", "POST", "/tasks", "2026.1",
+        java.time.Instant.parse("2026-10-16T04:37:48.187484941Z"), "catalog-read:operation");
     when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString()))
         .thenReturn(List.of(), List.of(binding));
     String chat = "finish-resolved-" + UUID.randomUUID();

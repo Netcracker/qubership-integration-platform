@@ -130,6 +130,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinMarksStructureGeneratorRuntimeReady() {
     CompilerRunPin pin = resolveProductionCreateChainPin();
 
@@ -151,6 +152,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinSchedulesPatternSelectorAfterSeed() {
     CompilerRunPin pin = resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
     CompilerDerivedPlanningScheduler scheduler =
@@ -165,6 +167,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinIncludesQuartzSchedulerInClosure() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -186,6 +189,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinIncludesTransformationInClosure() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -207,6 +211,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinIncludesHttpTriggerEndpointInClosure() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -237,6 +242,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinIncludesMcpTriggerInClosure() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -274,6 +280,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinIncludesSftpTriggerInClosure() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -310,6 +317,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinIncludesFileOperationsInClosure() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -340,6 +348,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinOwnsNativeKafkaAndRabbitTriggerIdentityOnMessaging() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -380,6 +389,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinOwnsKafkaSenderConfigurationOnServiceCallGenerator() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -410,6 +420,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinOwnsHttpSenderRuntimeOptionsOnServiceCallGenerator() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
@@ -448,6 +459,7 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  @org.junit.jupiter.api.Tag("certified-pack")
   void productionCreateChainPinDeniesTopologyOnSpecializedGenerators() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);

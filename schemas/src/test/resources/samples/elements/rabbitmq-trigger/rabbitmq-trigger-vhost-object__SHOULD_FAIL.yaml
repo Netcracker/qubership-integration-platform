@@ -7,4 +7,4 @@ properties:
   addresses: localhost
   exchange: orders
   queues: orders
-  vhost: {name: orders}
+  vhost: { name: orders }

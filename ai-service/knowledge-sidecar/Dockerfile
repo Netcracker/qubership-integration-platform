@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir \
       pydantic==2.11.7 \
       PyYAML==6.0.2 \
       httpx==0.28.1 \
-      pyarrow \
+      pyarrow==25.0.0 \
   && pip install --no-cache-dir -e . \
   && chmod a-w /knowledge
 

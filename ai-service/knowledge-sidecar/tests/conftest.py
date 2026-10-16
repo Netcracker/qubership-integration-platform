@@ -1,13 +1,14 @@
+# pytest injects fixtures by parameter name.
+# pylint: disable=redefined-outer-name
 import os
+import shutil
 from collections.abc import Iterator
 from pathlib import Path
-import shutil
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from knowledge_sdk import KnowledgeSDK
-
 from package_fixtures import mutate_fixture, rewrite_checksums, write_package
 from qip_knowledge_sidecar.app import create_app
 from qip_knowledge_sidecar.runtime import RuntimeAdapter

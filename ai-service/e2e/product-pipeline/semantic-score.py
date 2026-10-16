@@ -7,7 +7,6 @@ import json
 import sys
 from typing import Any
 
-
 DIMENSIONS = (
     "intentFidelity",
     "completeness",
@@ -26,7 +25,9 @@ def validate_score(payload: dict[str, Any]) -> dict[str, Any]:
         if value < 0 or value > 5:
             raise ValueError(f"{key} out of range: {value}")
     evidence = payload.get("evidence")
-    if not isinstance(evidence, list) or not all(isinstance(item, str) for item in evidence):
+    if not isinstance(evidence, list) or not all(
+        isinstance(item, str) for item in evidence
+    ):
         raise ValueError("evidence must be a list of strings")
     return {key: payload[key] for key in DIMENSIONS} | {"evidence": list(evidence)}
 
@@ -41,7 +42,9 @@ def median(values: list[int]) -> float:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scores-file", required=True, help="JSON array of score objects")
+    parser.add_argument(
+        "--scores-file", required=True, help="JSON array of score objects"
+    )
     parser.add_argument("--min-median", type=float, default=3.0)
     parser.add_argument("--min-score", type=int, default=2)
     args = parser.parse_args()

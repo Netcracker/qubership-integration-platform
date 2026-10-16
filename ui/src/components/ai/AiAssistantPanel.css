@@ -270,7 +270,7 @@
 .ai-message__error-detail {
   margin-bottom: 0 !important;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .ai-message__actions {
@@ -612,11 +612,11 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+  border: 1px solid var(--vscode-widget-border, rgb(128 128 128 / 35%));
   border-radius: 6px;
   background: var(
     --vscode-editor-inactiveSelectionBackground,
-    rgba(128, 128, 128, 0.08)
+    rgb(128 128 128 / 8%)
   );
   overflow: visible;
   padding: 0 4px 4px;
@@ -652,7 +652,7 @@ button.ai-activity-inline__row:not(:disabled) {
 }
 
 button.ai-activity-inline__row:not(:disabled):hover {
-  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.12));
+  background: var(--vscode-list-hoverBackground, rgb(128 128 128 / 12%));
 }
 
 .ai-activity-inline__row--child {
@@ -661,7 +661,7 @@ button.ai-activity-inline__row:not(:disabled):hover {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  border-top: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+  border-top: 1px solid var(--vscode-widget-border, rgb(128 128 128 / 20%));
   animation: ai-chat-in 0.4s ease both;
 }
 
@@ -783,7 +783,7 @@ button.ai-activity-inline__row:not(:disabled):hover {
   text-transform: uppercase;
   letter-spacing: 0.02em;
   color: var(--vscode-descriptionForeground, #9ca3af);
-  background: var(--vscode-badge-background, rgba(128, 128, 128, 0.2));
+  background: var(--vscode-badge-background, rgb(128 128 128 / 20%));
 }
 
 .ai-activity-inline__badge--skill {
@@ -840,7 +840,7 @@ button.ai-activity-inline__row:not(:disabled):hover {
 }
 
 .ai-activity-inline__summary:hover {
-  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.12));
+  background: var(--vscode-list-hoverBackground, rgb(128 128 128 / 12%));
   color: inherit;
 }
 

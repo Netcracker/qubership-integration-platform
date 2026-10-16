@@ -1035,7 +1035,8 @@ public class RequirementDraftStore {
 
   private static MemoryRuntime memoryRuntime() {
     InMemoryArtifactBlobStore blobStore = new InMemoryArtifactBlobStore();
-    ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule())
+        .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     Clock clock = Clock.systemUTC();
     return new MemoryRuntime(
         new CompilationArtifacts(blobStore, objectMapper, clock),

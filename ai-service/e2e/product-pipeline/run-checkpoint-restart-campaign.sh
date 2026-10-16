@@ -8,7 +8,7 @@ LEVEL="deterministic"
 REPORT_DIR="${REPORT_DIR:-/tmp/rocky-checkpoint-restart-$(date +%Y%m%d-%H%M%S)}"
 
 usage() {
-  cat <<'EOF'
+    cat << 'EOF'
 Usage: run-checkpoint-restart-campaign.sh [--level focused|deterministic|full] [--report-dir DIR]
 
   focused       Restart backend and UI tests only.
@@ -21,33 +21,33 @@ EOF
 }
 
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --level)
-      LEVEL="${2:?missing level}"
-      shift 2
-      ;;
-    --report-dir)
-      REPORT_DIR="${2:?missing report directory}"
-      shift 2
-      ;;
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Unknown argument: $1" >&2
-      usage >&2
-      exit 2
-      ;;
-  esac
+    case "$1" in
+        --level)
+            LEVEL="${2:?missing level}"
+            shift 2
+            ;;
+        --report-dir)
+            REPORT_DIR="${2:?missing report directory}"
+            shift 2
+            ;;
+        --help | -h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
 done
 
 case "${LEVEL}" in
-  focused|deterministic|full) ;;
-  *)
-    echo "Unsupported level: ${LEVEL}" >&2
-    exit 2
-    ;;
+    focused | deterministic | full) ;;
+    *)
+        echo "Unsupported level: ${LEVEL}" >&2
+        exit 2
+        ;;
 esac
 
 mkdir -p "${REPORT_DIR}"
@@ -58,74 +58,74 @@ FOCUSED_TESTS+="ProvidedIdsFlowOrchestratorTest,LatestIterationJpaInstanceOperat
 FOCUSED_TESTS+="CreateChainApplicationFacadeTest,ChatDecisionServiceTest,ChatExecutionServiceTest"
 
 mvn -pl ai-service \
-  -Dqip.ai.qipknowledge.build.skip=true \
-  -Dtest="${FOCUSED_TESTS}" \
-  test 2>&1 | tee "${REPORT_DIR}/focused-backend.log"
+    -Dqip.ai.qipknowledge.build.skip=true \
+    -Dtest="${FOCUSED_TESTS}" \
+    test 2>&1 | tee "${REPORT_DIR}/focused-backend.log"
 
 (
-  cd ui
-  npm test -- \
-    --runInBand \
-    tests/components/ai/AiDecisionCard.test.tsx \
-    tests/components/ai/chatDecisionUtils.test.ts
+    cd ui
+    npm test -- \
+        --runInBand \
+        tests/components/ai/AiDecisionCard.test.tsx \
+        tests/components/ai/chatDecisionUtils.test.ts
 ) 2>&1 | tee "${REPORT_DIR}/focused-ui.log"
 
 (
-  cd ui
-  npx eslint \
-    src/components/ai/AiDecisionCard.tsx \
-    src/components/ai/chatDecisionUtils.ts \
-    tests/components/ai/AiDecisionCard.test.tsx \
-    tests/components/ai/chatDecisionUtils.test.ts
+    cd ui
+    npx eslint \
+        src/components/ai/AiDecisionCard.tsx \
+        src/components/ai/chatDecisionUtils.ts \
+        tests/components/ai/AiDecisionCard.test.tsx \
+        tests/components/ai/chatDecisionUtils.test.ts
 ) 2>&1 | tee "${REPORT_DIR}/focused-ui-lint.log"
 
 if [[ "${LEVEL}" == "deterministic" || "${LEVEL}" == "full" ]]; then
-  "${DIR}/run-recovery-deterministic.sh" \
-    2>&1 | tee "${REPORT_DIR}/recovery-deterministic.log"
+    "${DIR}/run-recovery-deterministic.sh" \
+        2>&1 | tee "${REPORT_DIR}/recovery-deterministic.log"
 
-  EXPANDED_TESTS="BindingMappingContractInvestigationTest,"
-  EXPANDED_TESTS+="ChainSemanticMappingPlacementInvestigationTest,ScopedBindingMappingCompileTest,"
-  EXPANDED_TESTS+="ResolvedServiceCallBindingTest,ServiceCallBindingResolverTest,CreateRunBindingStoreTest,"
-  EXPANDED_TESTS+="CatalogBindingMatcherTest,DefaultExecutorCatalogBindingAdapterTest,"
-  EXPANDED_TESTS+="DefaultChainSemanticGraphCompilerTest,DefaultChainSemanticRevisionValidatorTest,"
-  EXPANDED_TESTS+="ChainSemanticCaptureAdapterTest,BranchingSemanticRegionTest,ScopedSemanticRegionTest,"
-  EXPANDED_TESTS+="SemanticMaterializationParityTest,BranchAndMultipleEntryMappingCompileTest,"
-  EXPANDED_TESTS+="IndependentMappingBoundaryCompileTest,MappingCaptureValidatorTest,MappingContractGateTest,"
-  EXPANDED_TESTS+="MappingExecutionSiteValidatorTest,MappingGenerationPipelineTest,MappingGeneratorContextTest,"
-  EXPANDED_TESTS+="MappingMechanismSelectorTest,MappingParityValidatorTest,MappingSiteReconciliationTest,"
-  EXPANDED_TESTS+="ScriptMappingCompileTest,SecureGroovyMappingCompilerTest,MappingBoundarySchemaResolverTest,"
-  EXPANDED_TESTS+="RequirementBriefCoverageValidatorTest,ExecutorEvalFixtureTest"
+    EXPANDED_TESTS="BindingMappingContractInvestigationTest,"
+    EXPANDED_TESTS+="ChainSemanticMappingPlacementInvestigationTest,ScopedBindingMappingCompileTest,"
+    EXPANDED_TESTS+="ResolvedServiceCallBindingTest,ServiceCallBindingResolverTest,CreateRunBindingStoreTest,"
+    EXPANDED_TESTS+="CatalogBindingMatcherTest,DefaultExecutorCatalogBindingAdapterTest,"
+    EXPANDED_TESTS+="DefaultChainSemanticGraphCompilerTest,DefaultChainSemanticRevisionValidatorTest,"
+    EXPANDED_TESTS+="ChainSemanticCaptureAdapterTest,BranchingSemanticRegionTest,ScopedSemanticRegionTest,"
+    EXPANDED_TESTS+="SemanticMaterializationParityTest,BranchAndMultipleEntryMappingCompileTest,"
+    EXPANDED_TESTS+="IndependentMappingBoundaryCompileTest,MappingCaptureValidatorTest,MappingContractGateTest,"
+    EXPANDED_TESTS+="MappingExecutionSiteValidatorTest,MappingGenerationPipelineTest,MappingGeneratorContextTest,"
+    EXPANDED_TESTS+="MappingMechanismSelectorTest,MappingParityValidatorTest,MappingSiteReconciliationTest,"
+    EXPANDED_TESTS+="ScriptMappingCompileTest,SecureGroovyMappingCompilerTest,MappingBoundarySchemaResolverTest,"
+    EXPANDED_TESTS+="RequirementBriefCoverageValidatorTest,ExecutorEvalFixtureTest"
 
-  mvn -pl ai-service \
-    -Dqip.ai.qipknowledge.build.skip=true \
-    -Dtest="${EXPANDED_TESTS}" \
-    test 2>&1 | tee "${REPORT_DIR}/binding-mapping-expanded.log"
+    mvn -pl ai-service \
+        -Dqip.ai.qipknowledge.build.skip=true \
+        -Dtest="${EXPANDED_TESTS}" \
+        test 2>&1 | tee "${REPORT_DIR}/binding-mapping-expanded.log"
 
-  ai-service/e2e/executor-eval/test-offline.sh \
-    2>&1 | tee "${REPORT_DIR}/executor-eval-offline.log"
-  "${DIR}/test-live-runner-contracts.sh" \
-    2>&1 | tee "${REPORT_DIR}/live-runner-contracts.log"
-  "${DIR}/test-quality-gate-offline.sh" \
-    2>&1 | tee "${REPORT_DIR}/quality-gate-offline.log"
+    ai-service/e2e/executor-eval/test-offline.sh \
+        2>&1 | tee "${REPORT_DIR}/executor-eval-offline.log"
+    "${DIR}/test-live-runner-contracts.sh" \
+        2>&1 | tee "${REPORT_DIR}/live-runner-contracts.log"
+    "${DIR}/test-quality-gate-offline.sh" \
+        2>&1 | tee "${REPORT_DIR}/quality-gate-offline.log"
 fi
 
 if [[ "${LEVEL}" == "full" ]]; then
-  PERSISTENCE_TESTS="DurableCreateChainFlowInstanceIT#"
-  PERSISTENCE_TESTS+="restartFlowWaitsForActivationBeforeExecutingAStage+"
-  PERSISTENCE_TESTS+="scanAllRestoresALoopedInstanceWaitingAtAHumanGate,"
-  PERSISTENCE_TESTS+="DurableFlowSuspendRestartIT#"
-  PERSISTENCE_TESTS+="suspendsPersistsRestoresAndResumesOnlyTheCorrelatedInstance"
+    PERSISTENCE_TESTS="DurableCreateChainFlowInstanceIT#"
+    PERSISTENCE_TESTS+="restartFlowWaitsForActivationBeforeExecutingAStage+"
+    PERSISTENCE_TESTS+="scanAllRestoresALoopedInstanceWaitingAtAHumanGate,"
+    PERSISTENCE_TESTS+="DurableFlowSuspendRestartIT#"
+    PERSISTENCE_TESTS+="suspendsPersistsRestoresAndResumesOnlyTheCorrelatedInstance"
 
-  mvn -pl ai-service \
-    -DskipITs=false \
-    -Dqip.ai.qipknowledge.build.skip=true \
-    -Dtest="${PERSISTENCE_TESTS}" \
-    test 2>&1 | tee "${REPORT_DIR}/flow-persistence.log"
+    mvn -pl ai-service \
+        -DskipITs=false \
+        -Dqip.ai.qipknowledge.build.skip=true \
+        -Dtest="${PERSISTENCE_TESTS}" \
+        test 2>&1 | tee "${REPORT_DIR}/flow-persistence.log"
 fi
 
 COMMIT="$(git rev-parse HEAD)"
 FINISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-cat > "${REPORT_DIR}/summary.json" <<EOF
+cat > "${REPORT_DIR}/summary.json" << EOF
 {
   "campaign": "checkpoint-restart",
   "commit": "${COMMIT}",

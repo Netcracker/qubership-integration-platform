@@ -9,8 +9,9 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-
-TOP_LEVEL_SCALAR = re.compile(r"^([A-Za-z][A-Za-z0-9]*):\s*([^#\n]+?)\s*$", re.MULTILINE)
+TOP_LEVEL_SCALAR = re.compile(
+    r"^([A-Za-z][A-Za-z0-9]*):\s*([^#\n]+?)\s*$", re.MULTILINE
+)
 
 
 def load_supported_elements(matrix_path: Path) -> set[str]:
@@ -43,7 +44,11 @@ def load_product_coverage(scenarios_path: Path) -> dict[str, list[str]]:
     for scenario_id, scenario in scenarios.items():
         if scenario.get("status") != "active":
             continue
-        suffix = " [known-failure]" if scenario.get("liveTest", {}).get("knownFailure") else ""
+        suffix = (
+            " [known-failure]"
+            if scenario.get("liveTest", {}).get("knownFailure")
+            else ""
+        )
         for element_type in scenario.get("catalog", {}).get("requiredTypes", []):
             coverage[element_type].append(f"product:{scenario_id}{suffix}")
     return coverage
@@ -118,7 +123,9 @@ def main(argv: list[str] | None = None) -> int:
         and all("[known-failure]" in item for item in coverage[element_type])
     )
     if known_failures:
-        print(f"Supported elements covered only by known-failing tests: {', '.join(known_failures)}")
+        print(
+            f"Supported elements covered only by known-failing tests: {', '.join(known_failures)}"
+        )
         if args.fail_on_known_failure:
             return 1
     return 0

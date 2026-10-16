@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from package_fixtures import mutate_fixture
 from qip_knowledge_sidecar.package import PackageEligibilityError, validate_package
 

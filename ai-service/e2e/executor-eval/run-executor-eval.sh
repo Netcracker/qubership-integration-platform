@@ -11,102 +11,126 @@ SELECTED_CASE=""
 TIMEOUT_SEC="${EXECUTOR_EVAL_TIMEOUT_SEC:-1800}"
 
 usage() {
-  cat >&2 <<'EOF'
+    cat >&2 << 'EOF'
 Usage: run-executor-eval.sh \
   --runs <positive integer> \
   --report-dir <directory> \
   [--base-url <URL>] \
   [--case <id>]
 EOF
-  exit 2
+    exit 2
 }
 
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --runs) RUNS="${2:?}"; shift 2 ;;
-    --report-dir) REPORT_DIR="${2:?}"; shift 2 ;;
-    --base-url) BASE_URL="${2:?}"; shift 2 ;;
-    --case) SELECTED_CASE="${2:?}"; shift 2 ;;
-    -h|--help) usage ;;
-    *) echo "Unknown option: $1" >&2; usage ;;
-  esac
+    case "$1" in
+        --runs)
+            RUNS="${2:?}"
+            shift 2
+            ;;
+        --report-dir)
+            REPORT_DIR="${2:?}"
+            shift 2
+            ;;
+        --base-url)
+            BASE_URL="${2:?}"
+            shift 2
+            ;;
+        --case)
+            SELECTED_CASE="${2:?}"
+            shift 2
+            ;;
+        -h | --help) usage ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage
+            ;;
+    esac
 done
 
 [[ -n "${RUNS}" && -n "${REPORT_DIR}" ]] || usage
 [[ "${RUNS}" =~ ^[1-9][0-9]*$ ]] || {
-  echo "FAIL: --runs must be a positive integer" >&2
-  exit 2
+    echo "FAIL: --runs must be a positive integer" >&2
+    exit 2
 }
-command -v curl >/dev/null
-command -v jq >/dev/null
-jq -e '.cases | type == "array" and length > 0' "${CASES_FILE}" >/dev/null
+command -v curl > /dev/null
+command -v jq > /dev/null
+jq -e '.cases | type == "array" and length > 0' "${CASES_FILE}" > /dev/null
 
 if [[ -n "${SELECTED_CASE}" ]]; then
-  jq -e --arg id "${SELECTED_CASE}" '.cases | any(.id == $id)' "${CASES_FILE}" >/dev/null \
-    || { echo "FAIL: unknown executor case ${SELECTED_CASE}" >&2; exit 2; }
+    jq -e --arg id "${SELECTED_CASE}" '.cases | any(.id == $id)' "${CASES_FILE}" > /dev/null ||
+        {
+            echo "FAIL: unknown executor case ${SELECTED_CASE}" >&2
+            exit 2
+        }
 fi
 
 mkdir -p "${REPORT_DIR}/runs"
 results_file="${REPORT_DIR}/results.jsonl"
-: >"${results_file}"
+: > "${results_file}"
 
 case_ids() {
-  if [[ -n "${SELECTED_CASE}" ]]; then
-    printf '%s\n' "${SELECTED_CASE}"
-  else
-    jq -r '.cases[].id' "${CASES_FILE}"
-  fi
+    if [[ -n "${SELECTED_CASE}" ]]; then
+        printf '%s\n' "${SELECTED_CASE}"
+    else
+        jq -r '.cases[].id' "${CASES_FILE}"
+    fi
 }
 
 while IFS= read -r case_id; do
-  input_relative="$(jq -r --arg id "${case_id}" '.cases[] | select(.id == $id) | .inputFile' "${CASES_FILE}")"
-  planner_relative="$(jq -r --arg id "${case_id}" '.cases[] | select(.id == $id) | .plannerResponseFile' "${CASES_FILE}")"
-  required_skills="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredPlannedSkills' "${CASES_FILE}")"
-  required_executed="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredExecutedSkills' "${CASES_FILE}")"
-  required_types="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredGraphTypes' "${CASES_FILE}")"
-  minimum_types="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .minimumGraphTypeOccurrences // []' "${CASES_FILE}")"
-  required_mappings="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredMappingIntentIds // []' "${CASES_FILE}")"
-  expected_bindings="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .expectedCatalogBindings // []' "${CASES_FILE}")"
-  input_path="${DIR}/${input_relative}"
-  planner_path="${DIR}/${planner_relative}"
-  [[ -f "${input_path}" ]] || { echo "FAIL: missing executor input ${input_path}" >&2; exit 1; }
-  [[ -f "${planner_path}" ]] || { echo "FAIL: missing planner response ${planner_path}" >&2; exit 1; }
+    input_relative="$(jq -r --arg id "${case_id}" '.cases[] | select(.id == $id) | .inputFile' "${CASES_FILE}")"
+    planner_relative="$(jq -r --arg id "${case_id}" '.cases[] | select(.id == $id) | .plannerResponseFile' "${CASES_FILE}")"
+    required_skills="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredPlannedSkills' "${CASES_FILE}")"
+    required_executed="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredExecutedSkills' "${CASES_FILE}")"
+    required_types="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredGraphTypes' "${CASES_FILE}")"
+    minimum_types="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .minimumGraphTypeOccurrences // []' "${CASES_FILE}")"
+    required_mappings="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredMappingIntentIds // []' "${CASES_FILE}")"
+    expected_bindings="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .expectedCatalogBindings // []' "${CASES_FILE}")"
+    input_path="${DIR}/${input_relative}"
+    planner_path="${DIR}/${planner_relative}"
+    [[ -f "${input_path}" ]] || {
+        echo "FAIL: missing executor input ${input_path}" >&2
+        exit 1
+    }
+    [[ -f "${planner_path}" ]] || {
+        echo "FAIL: missing planner response ${planner_path}" >&2
+        exit 1
+    }
 
-  rep=1
-  while [[ "${rep}" -le "${RUNS}" ]]; do
-    run_dir="${REPORT_DIR}/runs/${case_id}/rep-${rep}"
-    mkdir -p "${run_dir}"
-    request_path="${run_dir}/request.json"
-    response_path="${run_dir}/response.json"
-    conversation_id="executor-eval-${case_id}-${rep}-$(date +%s)-$$"
+    rep=1
+    while [[ "${rep}" -le "${RUNS}" ]]; do
+        run_dir="${REPORT_DIR}/runs/${case_id}/rep-${rep}"
+        mkdir -p "${run_dir}"
+        request_path="${run_dir}/request.json"
+        response_path="${run_dir}/response.json"
+        conversation_id="executor-eval-${case_id}-${rep}-$(date +%s)-$$"
 
-    jq \
-      --arg conversationId "${conversation_id}" \
-      --rawfile plannerResponse "${planner_path}" \
-      '. + {conversationId:$conversationId,plannerResponse:$plannerResponse}' \
-      "${input_path}" >"${request_path}"
+        jq \
+            --arg conversationId "${conversation_id}" \
+            --rawfile plannerResponse "${planner_path}" \
+            '. + {conversationId:$conversationId,plannerResponse:$plannerResponse}' \
+            "${input_path}" > "${request_path}"
 
-    echo "==> executor case=${case_id} rep=${rep}" >&2
-    set +e
-    curl -fsS --max-time "${TIMEOUT_SEC}" \
-      -H 'Content-Type: application/json' \
-      --data-binary "@${request_path}" \
-      "${BASE_URL}/api/v1/harness/executor-run" >"${response_path}"
-    curl_rc=$?
-    set -e
+        echo "==> executor case=${case_id} rep=${rep}" >&2
+        set +e
+        curl -fsS --max-time "${TIMEOUT_SEC}" \
+            -H 'Content-Type: application/json' \
+            --data-binary "@${request_path}" \
+            "${BASE_URL}/api/v1/harness/executor-run" > "${response_path}"
+        curl_rc=$?
+        set -e
 
-    if [[ "${curl_rc}" -ne 0 ]] || ! jq -e 'type == "object"' "${response_path}" >/dev/null 2>&1; then
-      jq -n --arg message "executor request failed with curl exit code ${curl_rc}" \
-        '{status:"TRANSPORT_ERROR",message:$message}' >"${response_path}"
-    fi
+        if [[ "${curl_rc}" -ne 0 ]] || ! jq -e 'type == "object"' "${response_path}" > /dev/null 2>&1; then
+            jq -n --arg message "executor request failed with curl exit code ${curl_rc}" \
+                '{status:"TRANSPORT_ERROR",message:$message}' > "${response_path}"
+        fi
 
-    evaluation="$(jq -c \
-      --argjson requiredSkills "${required_skills}" \
-      --argjson requiredExecuted "${required_executed}" \
-      --argjson requiredTypes "${required_types}" \
-      --argjson minimumTypes "${minimum_types}" \
-      --argjson requiredMappings "${required_mappings}" \
-      --argjson expectedBindings "${expected_bindings}" '
+        evaluation="$(jq -c \
+            --argjson requiredSkills "${required_skills}" \
+            --argjson requiredExecuted "${required_executed}" \
+            --argjson requiredTypes "${required_types}" \
+            --argjson minimumTypes "${minimum_types}" \
+            --argjson requiredMappings "${required_mappings}" \
+            --argjson expectedBindings "${expected_bindings}" '
         def prop($node; $key):
           ([$node.properties[]? | select(.key == $key) | .value][0] // null);
         . as $response
@@ -163,16 +187,16 @@ while IFS= read -r case_id; do
           }
       ' "${response_path}")"
 
-    jq -nc \
-      --arg caseId "${case_id}" \
-      --argjson repetition "${rep}" \
-      --arg request "${request_path}" \
-      --arg response "${response_path}" \
-      --argjson evaluation "${evaluation}" \
-      '{caseId:$caseId,repetition:$repetition,request:$request,response:$response} + $evaluation' \
-      >>"${results_file}"
-    rep=$((rep + 1))
-  done
+        jq -nc \
+            --arg caseId "${case_id}" \
+            --argjson repetition "${rep}" \
+            --arg request "${request_path}" \
+            --arg response "${response_path}" \
+            --argjson evaluation "${evaluation}" \
+            '{caseId:$caseId,repetition:$repetition,request:$request,response:$response} + $evaluation' \
+            >> "${results_file}"
+        rep=$((rep + 1))
+    done
 done < <(case_ids)
 
 jq -s '
@@ -185,7 +209,7 @@ jq -s '
       verdict: (if all($results[]; .passed) then "PASS" else "FAIL" end),
       results: $results
     }
-' "${results_file}" >"${REPORT_DIR}/summary.json"
+' "${results_file}" > "${REPORT_DIR}/summary.json"
 
 jq . "${REPORT_DIR}/summary.json"
 [[ "$(jq -r '.verdict' "${REPORT_DIR}/summary.json")" == "PASS" ]]

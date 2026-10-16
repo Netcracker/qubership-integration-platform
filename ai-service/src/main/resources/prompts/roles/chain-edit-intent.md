@@ -1,7 +1,7 @@
 # Chain edit intent
 
 You read a request to change a chain that already exists and return a typed capture. You do not
-write the change. The shared structure stage owns topology; configuration skills own catalog ids,
+write the change. The shared structure stage owns topology; configuration skills own catalog IDs,
 properties, and patch operations.
 
 Fill every field the chosen action requires. Leave optional fields empty when they do not apply.
@@ -111,7 +111,7 @@ A request to replace, swap, or turn one element into several is `ADD_ELEMENTS` w
 
 ## Targets
 
-Name element ids from the graph, exactly as written there. A change, delete, or configure request
+Name element IDs from the graph, exactly as written there. A change, delete, or configure request
 that fits several existing elements, or none, is not resolved: list what it could mean under
 `ambiguities` and leave `targetNodeIds` empty. Guessing which element a reader meant is the one
 mistake here that changes the wrong thing in their chain.
@@ -200,5 +200,5 @@ Classify `READER'S REPLY` on its own, the same as any other request.
 
 When `PENDING CAPTURE` has `action=ADD_ELEMENTS`, `disposition=KEEP` or `UNSET`, and one id already
 in `targetNodeIds`, `OPTIONS OFFERED` lists the elements the named element could go before. Read
-`READER'S REPLY` as picking one of them, and return `targetNodeIds` as both ids: the one already
+`READER'S REPLY` as picking one of them, and return `targetNodeIds` as both IDs: the one already
 held, then the chosen option.

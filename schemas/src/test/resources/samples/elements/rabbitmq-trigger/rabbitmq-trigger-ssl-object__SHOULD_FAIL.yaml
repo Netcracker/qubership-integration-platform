@@ -7,4 +7,4 @@ properties:
   addresses: localhost
   exchange: orders
   queues: orders
-  sslProtocol: {version: TLSv1.2}
+  sslProtocol: { version: TLSv1.2 }

@@ -5,12 +5,12 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 fail() {
-  echo "FAIL: $*" >&2
-  exit 1
+    echo "FAIL: $*" >&2
+    exit 1
 }
 
 pass() {
-  echo "PASS: $*"
+    echo "PASS: $*"
 }
 
 SCENARIO_SH="${DIR}/run-product-scenario.sh"
@@ -20,17 +20,17 @@ EVAL_PY="${DIR}/evaluate-plan.py"
 BUILD_PY="${DIR}/build-report-from-evidence.py"
 
 echo "=== chat API must use POST /api/v1/chat SSE ==="
-rg -q 'chat-turn\.sh' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must call chat-turn.sh"
-rg -q '/api/v1/chat/conversations"' "${SCENARIO_SH}" \
-  && fail "run-product-scenario.sh must not create conversations via nonexistent endpoint"
-rg -q '/messages"' "${SCENARIO_SH}" \
-  && fail "run-product-scenario.sh must not POST /messages"
+rg -q 'chat-turn\.sh' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must call chat-turn.sh"
+rg -q '/api/v1/chat/conversations"' "${SCENARIO_SH}" &&
+    fail "run-product-scenario.sh must not create conversations via nonexistent endpoint"
+rg -q '/messages"' "${SCENARIO_SH}" &&
+    fail "run-product-scenario.sh must not POST /messages"
 pass "chat endpoint contract"
 
 echo "=== product runner resolves shared helpers via SCRIPTS_DIR ==="
-rg -qF '${DIR}/scripts' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must set SCRIPTS_DIR to product-pipeline/scripts"
+rg -qF '${DIR}/scripts' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must set SCRIPTS_DIR to product-pipeline/scripts"
 SCRIPTS_DIR="${DIR}/scripts"
 [[ -f "${SCRIPTS_DIR}/chat-turn.sh" ]] || fail "missing ${SCRIPTS_DIR}/chat-turn.sh"
 [[ -f "${SCRIPTS_DIR}/a2a-turn.sh" ]] || fail "missing ${SCRIPTS_DIR}/a2a-turn.sh"
@@ -44,49 +44,48 @@ pass "shared helper paths and deleted CREATE-only harness"
 
 echo "=== A2A runner uses the advertised JSON-RPC interface ==="
 A2A_TURN_SH="${SCRIPTS_DIR}/a2a-turn.sh"
-rg -q '"method": "SendMessage"' "${A2A_TURN_SH}" \
-  || fail "a2a-turn.sh must call the A2A 1.0 SendMessage method"
-rg -q '"\$\{BASE_URL\}/rpc"' "${A2A_TURN_SH}" \
-  || fail "a2a-turn.sh must use the advertised /rpc endpoint"
-rg -q '"skillId": "create-chain@2"' "${A2A_TURN_SH}" \
-  || fail "a2a-turn.sh must select create-chain@2"
-rg -qF 'result.get("task")' "${A2A_TURN_SH}" \
-  || fail "a2a-turn.sh must read the JSON-RPC result.task envelope"
-! rg -q '/message:send' "${A2A_TURN_SH}" \
-  || fail "a2a-turn.sh must not call the unavailable REST message endpoint"
+rg -q '"method": "SendMessage"' "${A2A_TURN_SH}" ||
+    fail "a2a-turn.sh must call the A2A 1.0 SendMessage method"
+rg -q '"\$\{BASE_URL\}/rpc"' "${A2A_TURN_SH}" ||
+    fail "a2a-turn.sh must use the advertised /rpc endpoint"
+rg -q '"skillId": "create-chain@2"' "${A2A_TURN_SH}" ||
+    fail "a2a-turn.sh must select create-chain@2"
+rg -qF 'result.get("task")' "${A2A_TURN_SH}" ||
+    fail "a2a-turn.sh must read the JSON-RPC result.task envelope"
+! rg -q '/message:send' "${A2A_TURN_SH}" ||
+    fail "a2a-turn.sh must not call the unavailable REST message endpoint"
 pass "A2A JSON-RPC transport contract"
 
-
 echo "=== quality gate must deploy Compose without legacy runtime selectors ==="
-rg -q 'docker compose' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must invoke docker compose for live deploy"
-rg -q "QIP_CREATE""_RUNTIME" "${GATE_SH}" \
-  && fail "run-quality-gate.sh must not require removed runtime selector after cutover"
-rg -q "QIP_CREATE_PRODUCT""_PROFILE_ID" "${GATE_SH}" \
-  && fail "run-quality-gate.sh must not require removed profile id selector after cutover"
-rg -q "QIP_CREATE_PRODUCT""_PROFILE_VERSION" "${GATE_SH}" \
-  && fail "run-quality-gate.sh must not require removed profile version selector after cutover"
-rg -q -- '--knowledge-package' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must accept --knowledge-package"
-! rg -q -- '--expected-tier|--full-package' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must not expose removed FULL/SLIM selectors"
+rg -q 'docker compose' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must invoke docker compose for live deploy"
+rg -q "QIP_CREATE""_RUNTIME" "${GATE_SH}" &&
+    fail "run-quality-gate.sh must not require removed runtime selector after cutover"
+rg -q "QIP_CREATE_PRODUCT""_PROFILE_ID" "${GATE_SH}" &&
+    fail "run-quality-gate.sh must not require removed profile id selector after cutover"
+rg -q "QIP_CREATE_PRODUCT""_PROFILE_VERSION" "${GATE_SH}" &&
+    fail "run-quality-gate.sh must not require removed profile version selector after cutover"
+rg -q -- '--knowledge-package' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must accept --knowledge-package"
+! rg -q -- '--expected-tier|--full-package' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must not expose removed FULL/SLIM selectors"
 ! rg -q -- \
-  '--knowledge-artifact-root|--runs-per-tier|resolve_artifact_id|sync_compose_product_pins' \
-  "${GATE_SH}" "${SCENARIO_SH}" \
-  || fail "legacy artifact-root / runs-per-tier selectors must be absent"
-test ! -f "${DIR}/prepare-native-knowledge-artifact.sh" \
-  || fail "prepare-native-knowledge-artifact.sh must be deleted"
+    '--knowledge-artifact-root|--runs-per-tier|resolve_artifact_id|sync_compose_product_pins' \
+    "${GATE_SH}" "${SCENARIO_SH}" ||
+    fail "legacy artifact-root / runs-per-tier selectors must be absent"
+test ! -f "${DIR}/prepare-native-knowledge-artifact.sh" ||
+    fail "prepare-native-knowledge-artifact.sh must be deleted"
 pass "compose deploy contract"
 
 echo "=== quality gate must support --compose-overlay ==="
-rg -q -- '--compose-overlay' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must parse --compose-overlay"
-rg -q 'COMPOSE_OVERLAY' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must define COMPOSE_OVERLAY"
-rg -q 'compose_cmd' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must route docker compose through compose_cmd"
-rg -q -- '-f "\$\{COMPOSE_FILE\}" -f "\$\{COMPOSE_OVERLAY\}"' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must pass a second -f when COMPOSE_OVERLAY is set"
+rg -q -- '--compose-overlay' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must parse --compose-overlay"
+rg -q 'COMPOSE_OVERLAY' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must define COMPOSE_OVERLAY"
+rg -q 'compose_cmd' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must route docker compose through compose_cmd"
+rg -q -- '-f "\$\{COMPOSE_FILE\}" -f "\$\{COMPOSE_OVERLAY\}"' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must pass a second -f when COMPOSE_OVERLAY is set"
 pass "compose overlay contract"
 
 echo "=== recovery scenario must prove causal plan repair before materialization ==="
@@ -99,30 +98,29 @@ jq -e '
     and $s.recovery.automaticOnly == true
     and $s.recovery.faultPlan == "design-plan-validation=CONTRACT_SHAPE:1"
     and (($s.recovery.followUp | type) == "string" and ($s.recovery.followUp | length) > 0)
-' "${DIR}/scenarios.json" >/dev/null \
-  || fail "recovery scenario must define the injected fault and causal owner"
-[[ "$(jq -r '."product-create-chain-recovery-exhausted-halt".recovery.faultPlan' "${DIR}/scenarios.json")" \
-    == "design-execution=MISSING_REQUIRED_PROPERTY:2" ]] \
-  || fail "exhausted recovery scenario must inject the same defect twice"
-rg -q 'QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX' "${GATE_SH}" \
-  || fail "quality gate must scope the recovery fault to the selected chain prefix"
-rg -q -- '--no-build --no-deps --force-recreate qip-ai-service' "${GATE_SH}" \
-  || fail "skip-deploy must recreate qip-ai-service so the recovery-fault prefix reaches the container"
-[[ "$(rg -c 'path: \.env\.local' "${ROOT:-${DIR}/../../..}/infrastructure/docker-compose.yml")" -ge 2 ]] \
-  || fail "AI service and evaluator must load the documented optional .env.local overrides"
-rg -q -- '--scenario' "${GATE_SH}" \
-  || fail "quality gate must support running the recovery scenario in isolation"
-rg -q 'action:"revise"' "${SCENARIO_SH}" \
-  || fail "product runner must send a typed revise decision"
-rg -q 'causal reopen of' "${SCENARIO_SH}" \
-  || fail "product runner must assert the causal reopen transition"
-rg -q 'MATERIALIZATION_REQUEST.*MATERIALIZATION_RESULT.*CATALOG_CHAIN_SNAPSHOT' "${SCENARIO_SH}" \
-  || fail "product runner must reject materialization artifacts before revision"
+' "${DIR}/scenarios.json" > /dev/null ||
+    fail "recovery scenario must define the injected fault and causal owner"
+[[ "$(jq -r '."product-create-chain-recovery-exhausted-halt".recovery.faultPlan' "${DIR}/scenarios.json")" == "design-execution=MISSING_REQUIRED_PROPERTY:2" ]] ||
+    fail "exhausted recovery scenario must inject the same defect twice"
+rg -q 'QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX' "${GATE_SH}" ||
+    fail "quality gate must scope the recovery fault to the selected chain prefix"
+rg -q -- '--no-build --no-deps --force-recreate qip-ai-service' "${GATE_SH}" ||
+    fail "skip-deploy must recreate qip-ai-service so the recovery-fault prefix reaches the container"
+[[ "$(rg -c 'path: \.env\.local' "${ROOT:-${DIR}/../../..}/infrastructure/docker-compose.yml")" -ge 2 ]] ||
+    fail "AI service and evaluator must load the documented optional .env.local overrides"
+rg -q -- '--scenario' "${GATE_SH}" ||
+    fail "quality gate must support running the recovery scenario in isolation"
+rg -q 'action:"revise"' "${SCENARIO_SH}" ||
+    fail "product runner must send a typed revise decision"
+rg -q 'causal reopen of' "${SCENARIO_SH}" ||
+    fail "product runner must assert the causal reopen transition"
+rg -q 'MATERIALIZATION_REQUEST.*MATERIALIZATION_RESULT.*CATALOG_CHAIN_SNAPSHOT' "${SCENARIO_SH}" ||
+    fail "product runner must reject materialization artifacts before revision"
 pass "recovery scenario contract"
 
 echo "=== recovery verifier keeps the detector after reopening its owner ==="
-rg -q 'stageErrorFailedStageId == \$fault' "${SCENARIO_SH}" \
-  || fail "recovery verifier must read the original detector from structured failure evidence"
+rg -q 'stageErrorFailedStageId == \$fault' "${SCENARIO_SH}" ||
+    fail "recovery verifier must read the original detector from structured failure evidence"
 jq -e --arg fault "design-execution" '
   any(.attempts[]?;
     ((.failureEvidence // "") | contains("E2E recovery fault"))
@@ -130,7 +128,7 @@ jq -e --arg fault "design-execution" '
       .stageId == $fault
       or (try ((.failureEvidence // "") | fromjson | .stageErrorFailedStageId == $fault)
           catch false)))
-' <<'EOF' >/dev/null
+' << 'EOF' > /dev/null
 {
   "attempts": [
     {
@@ -156,63 +154,80 @@ jq -e '
     and $s.recovery.faultStage == "design-execution"
     and $s.recovery.ownerStage == "design-planning"
     and (($s.recovery.followUp | type) == "string" and ($s.recovery.followUp | length) > 0)
-' "${DIR}/scenarios.json" >/dev/null \
-  || fail "exhausted-halt scenario must pin WAITING_FOR_INPUT retain=false with a recovery fault"
-rg -q 'exhaustHalt' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must read recovery.exhaustHalt"
-rg -q 'WAITING_FOR_INPUT' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must accept WAITING_FOR_INPUT as an exhausted-halt terminal"
-rg -q 'e2e_assert_observable_sse_output' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must fail a command that produced no SSE output"
-rg -q 'e2e_assert_observable_sse_output' "${DIR}/scripts/lib.sh" \
-  || fail "lib.sh must assert observable SSE output"
-rg -q 'E2E recovery fault' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must detect the injected recovery fault"
-rg -q 'implement_sent=0' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must reset Implement after an automatic reopen"
-rg -q 'stop-with-report' "${DIR}/assert-product-run.sh" \
-  || fail "assert-product-run.sh must assert stop-with-report on an exhausted halt card"
-rg -q 'haltGate|haltPrompt|haltActions' "${BUILD_PY}" \
-  || fail "build-report-from-evidence.py must expose the halt card"
-rg -q 'exhaustHalt != true' "${GATE_SH}" \
-  || fail "quality gate must skip exhaustHalt from the default CREATE set"
-rg -q -- '--scenario' "${GATE_SH}" \
-  || fail "quality gate must support running the exhausted-halt scenario in isolation"
+' "${DIR}/scenarios.json" > /dev/null ||
+    fail "exhausted-halt scenario must pin WAITING_FOR_INPUT retain=false with a recovery fault"
+rg -q 'exhaustHalt' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must read recovery.exhaustHalt"
+rg -q 'WAITING_FOR_INPUT' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must accept WAITING_FOR_INPUT as an exhausted-halt terminal"
+rg -q 'e2e_assert_observable_sse_output' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must fail a command that produced no SSE output"
+rg -q 'e2e_assert_observable_sse_output' "${DIR}/scripts/lib.sh" ||
+    fail "lib.sh must assert observable SSE output"
+rg -q 'E2E recovery fault' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must detect the injected recovery fault"
+rg -q 'implement_sent=0' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must reset Implement after an automatic reopen"
+rg -q 'stop-with-report' "${DIR}/assert-product-run.sh" ||
+    fail "assert-product-run.sh must assert stop-with-report on an exhausted halt card"
+rg -q 'haltGate|haltPrompt|haltActions' "${BUILD_PY}" ||
+    fail "build-report-from-evidence.py must expose the halt card"
+rg -q 'exhaustHalt != true' "${GATE_SH}" ||
+    fail "quality gate must skip exhaustHalt from the default CREATE set"
+rg -q -- '--scenario' "${GATE_SH}" ||
+    fail "quality gate must support running the exhausted-halt scenario in isolation"
 pass "exhausted halt scenario contract"
 
 echo "=== live reports must be built from evidence ==="
 [[ -f "${BUILD_PY}" ]] || fail "build-report-from-evidence.py is required"
-rg -q 'build-report-from-evidence\.py' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must call build-report-from-evidence.py"
+rg -q 'build-report-from-evidence\.py' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must call build-report-from-evidence.py"
 rg -q 'objectSetDigest.: .live.|approvalTargetHash.: .live.' \
-  "${SCENARIO_SH}" \
-  && fail "run-product-scenario.sh must not hardcode live placeholder digests/hashes"
+    "${SCENARIO_SH}" &&
+    fail "run-product-scenario.sh must not hardcode live placeholder digests/hashes"
 pass "evidence-backed report builder present"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
+(
+    # shellcheck disable=SC2329 # Invoked by the sourced log helper.
+    docker() {
+        if [[ "$1" == "ps" ]]; then
+            printf '%s\n' "${E2E_CONTAINER}"
+        else
+            printf '%s\n' 'stdout evidence'
+            printf '%s\n' 'stderr evidence' >&2
+        fi
+    }
+    source "${DIR}/scripts/lib.sh"
+    e2e_fetch_logs "${TMP}/captured-container.log"
+)
+rg -qx 'stdout evidence' "${TMP}/captured-container.log" || fail "container stdout was lost"
+rg -qx 'stderr evidence' "${TMP}/captured-container.log" || fail "container stderr was lost"
+pass "container log capture keeps stdout and stderr"
+
 echo "=== evaluate-plan fail-closed ==="
 python3 -m py_compile "${EVAL_PY}" "${BUILD_PY}"
 missing_plan="$(mktemp "${TMP}/missing-XXXXXX.json")"
-cat >"${missing_plan}" <<'EOF'
+cat > "${missing_plan}" << 'EOF'
 {"scenarioId":"x","requiredFacts":["GET /x"],"forbiddenFacts":[],"terminalState":"PLAN_APPROVED","requirementFacts":["GET /x"]}
 EOF
 set +e
 python3 "${EVAL_PY}" \
-  --evaluator-url "http://127.0.0.1:9" \
-  --report "${missing_plan}" \
-  --out "${TMP}/score.json" 2>"${TMP}/eval.err"
+    --evaluator-url "http://127.0.0.1:9" \
+    --report "${missing_plan}" \
+    --out "${TMP}/score.json" 2> "${TMP}/eval.err"
 rc=$?
 set -e
 [[ "${rc}" -ne 0 ]] || fail "evaluate-plan.py must fail when ImplementationPlan is missing"
-rg -qi 'ImplementationPlan|decodedPlan|missing decoded' "${TMP}/eval.err" \
-  || fail "evaluate-plan.py must mention missing plan"
+rg -qi 'ImplementationPlan|decodedPlan|missing decoded' "${TMP}/eval.err" ||
+    fail "evaluate-plan.py must mention missing plan"
 pass "evaluate-plan fails closed without plan"
 
 echo "=== build-report-from-evidence uses real PlanValidationResult findings ==="
 ev="${TMP}/evidence.json"
-cat >"${ev}" <<'EOF'
+cat > "${ev}" << 'EOF'
 {
   "conversationId": "c1",
   "currentState": "PLAN_APPROVED",
@@ -288,33 +303,33 @@ cat >"${ev}" <<'EOF'
 }
 EOF
 python3 "${BUILD_PY}" \
-  --evidence "${ev}" \
-  --scenario-id product-greetings \
-  --rep 1 \
-  --required-facts '["GET /greetings"]' \
-  --forbidden-facts '[]' \
-  --expected-terminal-state PLAN_APPROVED \
-  --expects-approval true \
-  --out "${TMP}/report.json"
+    --evidence "${ev}" \
+    --scenario-id product-greetings \
+    --rep 1 \
+    --required-facts '["GET /greetings"]' \
+    --forbidden-facts '[]' \
+    --expected-terminal-state PLAN_APPROVED \
+    --expects-approval true \
+    --out "${TMP}/report.json"
 jq -e '.knowledgePackage.packageKey == "fixture@1.0.0"' \
-  "${TMP}/report.json" >/dev/null
+    "${TMP}/report.json" > /dev/null
 jq -e '
   .knowledgeContext.packageChecksum
       == .knowledgePackage.packageChecksum
   and .knowledgeContext.objectIds == ["CIP:GEN-000049"]
   and .knowledgeContext.contentChars == 120
-' "${TMP}/report.json" >/dev/null
-jq -e '.runtimeMode == "product"' "${TMP}/report.json" >/dev/null
-jq -e '.validationVerdict == "PASS"' "${TMP}/report.json" >/dev/null
-jq -e '.approvalEligible == true' "${TMP}/report.json" >/dev/null
-jq -e '.approvalTargetHash == "hash-1"' "${TMP}/report.json" >/dev/null
-jq -e '.decodedPlan.goal == "greetings"' "${TMP}/report.json" >/dev/null
-jq -e '.requirementFacts | length > 0' "${TMP}/report.json" >/dev/null
+' "${TMP}/report.json" > /dev/null
+jq -e '.runtimeMode == "product"' "${TMP}/report.json" > /dev/null
+jq -e '.validationVerdict == "PASS"' "${TMP}/report.json" > /dev/null
+jq -e '.approvalEligible == true' "${TMP}/report.json" > /dev/null
+jq -e '.approvalTargetHash == "hash-1"' "${TMP}/report.json" > /dev/null
+jq -e '.decodedPlan.goal == "greetings"' "${TMP}/report.json" > /dev/null
+jq -e '.requirementFacts | length > 0' "${TMP}/report.json" > /dev/null
 pass "evidence report builder for eligible plan"
 
 echo "=== mismatched knowledgeContext.packageRef must fail ==="
 mismatch_ev="${TMP}/mismatch-knowledge.json"
-python3 - "${ev}" "${mismatch_ev}" <<'PY'
+python3 - "${ev}" "${mismatch_ev}" << 'PY'
 import json
 import pathlib
 import sys
@@ -327,24 +342,23 @@ pathlib.Path(sys.argv[2]).write_text(json.dumps(src))
 PY
 set +e
 python3 "${BUILD_PY}" \
-  --evidence "${mismatch_ev}" \
-  --scenario-id product-greetings \
-  --rep 1 \
-  --required-facts '["GET /greetings"]' \
-  --forbidden-facts '[]' \
-  --expected-terminal-state PLAN_APPROVED \
-  --expects-approval true \
-  --out "${TMP}/mismatch-report.json" 2>"${TMP}/mismatch.err"
+    --evidence "${mismatch_ev}" \
+    --scenario-id product-greetings \
+    --rep 1 \
+    --required-facts '["GET /greetings"]' \
+    --forbidden-facts '[]' \
+    --expected-terminal-state PLAN_APPROVED \
+    --expects-approval true \
+    --out "${TMP}/mismatch-report.json" 2> "${TMP}/mismatch.err"
 mismatch_rc=$?
 set -e
 [[ "${mismatch_rc}" -ne 0 ]] || fail "builder must reject mismatched packageRef checksum"
-rg -q 'knowledgeContext.packageRef must equal runManifest.knowledgePackage' "${TMP}/mismatch.err" \
-  || fail "builder must report packageRef equality failure"
+rg -q 'knowledgeContext.packageRef must equal runManifest.knowledgePackage' "${TMP}/mismatch.err" ||
+    fail "builder must report packageRef equality failure"
 pass "mismatched packageRef rejected"
 
-
 echo "=== blocker findings make approvalEligible false ==="
-cat >"${ev}" <<'EOF'
+cat > "${ev}" << 'EOF'
 {
   "conversationId": "c2",
   "currentState": "FAILED",
@@ -416,25 +430,25 @@ cat >"${ev}" <<'EOF'
 }
 EOF
 python3 "${BUILD_PY}" \
-  --evidence "${ev}" \
-  --scenario-id fixture-validation-failure \
-  --rep 1 \
-  --required-facts '["VALIDATION_FAILURE","else.condition"]' \
-  --forbidden-facts '["PLAN_APPROVED"]' \
-  --expected-terminal-state FAILED \
-  --expects-approval true \
-  --out "${TMP}/failed-report.json"
-jq -e '.validationVerdict == "FAIL"' "${TMP}/failed-report.json" >/dev/null
-jq -e '.approvalEligible == false' "${TMP}/failed-report.json" >/dev/null
-jq -e '.runtimeMode == "product"' "${TMP}/failed-report.json" >/dev/null
-jq -e '.missingRequiredFacts == []' "${TMP}/failed-report.json" >/dev/null
+    --evidence "${ev}" \
+    --scenario-id fixture-validation-failure \
+    --rep 1 \
+    --required-facts '["VALIDATION_FAILURE","else.condition"]' \
+    --forbidden-facts '["PLAN_APPROVED"]' \
+    --expected-terminal-state FAILED \
+    --expects-approval true \
+    --out "${TMP}/failed-report.json"
+jq -e '.validationVerdict == "FAIL"' "${TMP}/failed-report.json" > /dev/null
+jq -e '.approvalEligible == false' "${TMP}/failed-report.json" > /dev/null
+jq -e '.runtimeMode == "product"' "${TMP}/failed-report.json" > /dev/null
+jq -e '.missingRequiredFacts == []' "${TMP}/failed-report.json" > /dev/null
 # expectsApproval must not force eligibility
-jq -e '.approvalEligible == false' "${TMP}/failed-report.json" >/dev/null
+jq -e '.approvalEligible == false' "${TMP}/failed-report.json" > /dev/null
 pass "blocker findings drive eligibility from evidence"
 
 echo "=== inventing verdict fields must not be required ==="
 bad="${TMP}/bad-evidence.json"
-cat >"${bad}" <<'EOF'
+cat > "${bad}" << 'EOF'
 {
   "conversationId": "c3",
   "currentState": "PLAN_APPROVED",
@@ -489,13 +503,13 @@ cat >"${bad}" <<'EOF'
 EOF
 set +e
 python3 "${BUILD_PY}" \
-  --evidence "${bad}" \
-  --scenario-id product-greetings \
-  --rep 1 \
-  --required-facts '[]' \
-  --forbidden-facts '[]' \
-  --expected-terminal-state PLAN_APPROVED \
-  --out "${TMP}/bad-report.json" 2>"${TMP}/bad.err"
+    --evidence "${bad}" \
+    --scenario-id product-greetings \
+    --rep 1 \
+    --required-facts '[]' \
+    --forbidden-facts '[]' \
+    --expected-terminal-state PLAN_APPROVED \
+    --out "${TMP}/bad-report.json" 2> "${TMP}/bad.err"
 bad_rc=$?
 set -e
 [[ "${bad_rc}" -ne 0 ]] || fail "builder must reject PLAN_VALIDATION_RESULT without findings"
@@ -503,7 +517,7 @@ rg -qi 'findings' "${TMP}/bad.err" || fail "builder must require findings"
 pass "fake verdict payload rejected"
 
 echo "=== WAITING_FOR_INPUT does not require PLAN_VALIDATION_RESULT ==="
-cat >"${ev}" <<'EOF'
+cat > "${ev}" << 'EOF'
 {
   "conversationId": "c-wait",
   "runId": "run-wait",
@@ -551,16 +565,16 @@ cat >"${ev}" <<'EOF'
 }
 EOF
 python3 "${BUILD_PY}" \
-  --evidence "${ev}" \
-  --scenario-id product-ambiguous-waiting \
-  --rep 1 \
-  --required-facts '[]' \
-  --forbidden-facts '[]' \
-  --expected-terminal-state WAITING_FOR_INPUT \
-  --out "${TMP}/wait-report.json"
-jq -e '.terminalState == "WAITING_FOR_INPUT"' "${TMP}/wait-report.json" >/dev/null
-jq -e '.validationVerdict == "SKIPPED"' "${TMP}/wait-report.json" >/dev/null
-jq -e '.approvalEligible == false' "${TMP}/wait-report.json" >/dev/null
+    --evidence "${ev}" \
+    --scenario-id product-ambiguous-waiting \
+    --rep 1 \
+    --required-facts '[]' \
+    --forbidden-facts '[]' \
+    --expected-terminal-state WAITING_FOR_INPUT \
+    --out "${TMP}/wait-report.json"
+jq -e '.terminalState == "WAITING_FOR_INPUT"' "${TMP}/wait-report.json" > /dev/null
+jq -e '.validationVerdict == "SKIPPED"' "${TMP}/wait-report.json" > /dev/null
+jq -e '.approvalEligible == false' "${TMP}/wait-report.json" > /dev/null
 pass "WAITING_FOR_INPUT report without plan validation"
 
 echo "=== exhausted halt report asserts card text, actions, and surviving artifacts ==="
@@ -572,47 +586,47 @@ jq '
       "toStatus": "WAITING_FOR_INPUT",
       "reason": "__GATE:recovery-repeated__That stage is not a candidate for this defect. Allowed stages: design-planning.__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
     }]
-' "${ev}" >"${halt_ev}"
+' "${ev}" > "${halt_ev}"
 python3 "${BUILD_PY}" \
-  --evidence "${halt_ev}" \
-  --scenario-id product-create-chain-recovery-exhausted-halt \
-  --rep 1 \
-  --required-facts '[]' \
-  --forbidden-facts '[]' \
-  --expected-terminal-state WAITING_FOR_INPUT \
-  --out "${TMP}/halt-report.json"
+    --evidence "${halt_ev}" \
+    --scenario-id product-create-chain-recovery-exhausted-halt \
+    --rep 1 \
+    --required-facts '[]' \
+    --forbidden-facts '[]' \
+    --expected-terminal-state WAITING_FOR_INPUT \
+    --out "${TMP}/halt-report.json"
 jq -e '
   .terminalState == "WAITING_FOR_INPUT"
   and .haltGate == "recovery-repeated"
   and .haltGuard == "NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
   and (.haltPrompt | contains("That stage is not a candidate for this defect."))
   and (.haltActions | index("stop-with-report") != null)
-' "${TMP}/halt-report.json" >/dev/null \
-  || fail "builder must expose the exhausted halt card"
+' "${TMP}/halt-report.json" > /dev/null ||
+    fail "builder must expose the exhausted halt card"
 bash "${DIR}/assert-product-run.sh" "${TMP}/halt-report.json"
 pass "exhausted halt card report contract"
 
 echo "=== live runner continues discovery WAITING_FOR_INPUT ==="
-rg -q 'discoveryAnswers' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must read discoveryAnswers from scenarios.json"
-rg -q 'discovery_answer' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must send per-scenario discovery answers"
+rg -q 'discoveryAnswers' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must read discoveryAnswers from scenarios.json"
+rg -q 'discovery_answer' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must send per-scenario discovery answers"
 jq -e '
   [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
   | all(.value | has("discoveryAnswers"))
-' "${DIR}/scenarios.json" >/dev/null \
-  || fail "active CREATE scenarios must declare discoveryAnswers"
+' "${DIR}/scenarios.json" > /dev/null ||
+    fail "active CREATE scenarios must declare discoveryAnswers"
 for phrase in \
-  'Capture READY_FOR_PLAN' \
-  'Use platform defaults' \
-  'revise the requirement draft before approval'; do
-  if jq -e --arg p "${phrase}" '
+    'Capture READY_FOR_PLAN' \
+    'Use platform defaults' \
+    'revise the requirement draft before approval'; do
+    if jq -e --arg p "${phrase}" '
     [to_entries[] | select((.value.status // "active") == "active")
       | (.value.prompt // ""), (.value.discoveryAnswers // [])[]]
     | any(test($p; "i"))
-  ' "${DIR}/scenarios.json" >/dev/null; then
-    fail "active scenarios must not embed process phrase: ${phrase}"
-  fi
+  ' "${DIR}/scenarios.json" > /dev/null; then
+        fail "active scenarios must not embed process phrase: ${phrase}"
+    fi
 done
 pass "discovery WAITING_FOR_INPUT continue contract"
 
@@ -621,63 +635,63 @@ COMPOSE_FILE="${ROOT}/infrastructure/docker-compose.yml"
 EVALUATOR_DOCKERFILE="${ROOT}/ai-service/e2e/evaluator/Dockerfile"
 
 echo "=== compose and properties use one package path ==="
-rg -q 'QIP_KNOWLEDGE_PATH' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must set QIP_KNOWLEDGE_PATH"
-rg -q 'QIP_KNOWLEDGE_HOST_PATH' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must mount QIP_KNOWLEDGE_HOST_PATH"
-! rg -q 'QIP_KNOWLEDGE_(FULL|SLIM)_PATH' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must not retain FULL/SLIM package paths"
+rg -q 'QIP_KNOWLEDGE_PATH' "${COMPOSE_FILE}" ||
+    fail "docker-compose.yml must set QIP_KNOWLEDGE_PATH"
+rg -q 'QIP_KNOWLEDGE_HOST_PATH' "${COMPOSE_FILE}" ||
+    fail "docker-compose.yml must mount QIP_KNOWLEDGE_HOST_PATH"
+! rg -q 'QIP_KNOWLEDGE_(FULL|SLIM)_PATH' "${COMPOSE_FILE}" ||
+    fail "docker-compose.yml must not retain FULL/SLIM package paths"
 ! rg -q \
-  'QIP_KNOWLEDGE_ARTIFACT_ROOT|QIP_KNOWLEDGE_ARTIFACT_ID|QIP_KNOWLEDGE_PROFILE' \
-  "${COMPOSE_FILE}" "${GATE_SH}" "${ROOT}/ai-service/src/main/resources/application.properties" \
-  || fail "legacy knowledge artifact root/id/profile must be absent from compose/gate/properties"
+    'QIP_KNOWLEDGE_ARTIFACT_ROOT|QIP_KNOWLEDGE_ARTIFACT_ID|QIP_KNOWLEDGE_PROFILE' \
+    "${COMPOSE_FILE}" "${GATE_SH}" "${ROOT}/ai-service/src/main/resources/application.properties" ||
+    fail "legacy knowledge artifact root/id/profile must be absent from compose/gate/properties"
 pass "package path contract"
 
 echo "=== compose evaluator sidecar contract ==="
 [[ -f "${COMPOSE_FILE}" ]] || fail "missing ${COMPOSE_FILE}"
-rg -q 'qip-e2e-evaluator' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must define qip-e2e-evaluator"
-rg -q 'profiles: \[ai-e2e\]|profiles:\s*\[ai-e2e\]' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must use ai-e2e profile for evaluator"
-rg -q '"8100:8099"' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must map evaluator port 8100:8099"
-rg -q 'read_only: true' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must set read_only on evaluator"
-rg -q 'ai-service-dev\.env' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must reference ai-service-dev.env for evaluator"
+rg -q 'qip-e2e-evaluator' "${COMPOSE_FILE}" ||
+    fail "docker-compose.yml must define qip-e2e-evaluator"
+rg -q 'profiles: \[ai-e2e\]|profiles:\s*\[ai-e2e\]' "${COMPOSE_FILE}" ||
+    fail "docker-compose.yml must use ai-e2e profile for evaluator"
+rg -q '"8100:8099"' "${COMPOSE_FILE}" ||
+    fail "docker-compose.yml must map evaluator port 8100:8099"
+rg -q 'read_only: true' "${COMPOSE_FILE}" ||
+    fail "docker-compose.yml must set read_only on evaluator"
+rg -q 'ai-service-dev\.env' "${COMPOSE_FILE}" ||
+    fail "docker-compose.yml must reference ai-service-dev.env for evaluator"
 pass "compose evaluator sidecar contract"
 
 echo "=== evaluator Dockerfile contract ==="
 [[ -f "${EVALUATOR_DOCKERFILE}" ]] || fail "missing ${EVALUATOR_DOCKERFILE}"
-rg -q 'FROM python:3\.12' "${EVALUATOR_DOCKERFILE}" \
-  || fail "evaluator Dockerfile must pin Python 3.12"
-rg -q '^USER evaluator' "${EVALUATOR_DOCKERFILE}" \
-  || fail "evaluator Dockerfile must run as USER evaluator"
+rg -q 'FROM python:3\.12' "${EVALUATOR_DOCKERFILE}" ||
+    fail "evaluator Dockerfile must pin Python 3.12"
+rg -q '^USER evaluator' "${EVALUATOR_DOCKERFILE}" ||
+    fail "evaluator Dockerfile must run as USER evaluator"
 pass "evaluator Dockerfile contract"
 
 echo "=== evaluate-plan caller timeout ==="
-rg -q 'timeout=135' "${EVAL_PY}" \
-  || fail "evaluate-plan.py must use timeout=135 for evaluator HTTP calls"
+rg -q 'timeout=135' "${EVAL_PY}" ||
+    fail "evaluate-plan.py must use timeout=135 for evaluator HTTP calls"
 pass "evaluate-plan caller timeout"
 
 echo "=== quality gate evaluator URL precedence ==="
-rg -q '127\.0\.0\.1:9' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must define stub evaluator URL 127.0.0.1:9"
-rg -q 'resolve_evaluator_url' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must define resolve_evaluator_url"
-rg -q 'ai-e2e' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must reference ai-e2e profile for evaluator"
-rg -q 'qip-e2e-evaluator' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must start qip-e2e-evaluator when auto-resolving URL"
+rg -q '127\.0\.0\.1:9' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must define stub evaluator URL 127.0.0.1:9"
+rg -q 'resolve_evaluator_url' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must define resolve_evaluator_url"
+rg -q 'ai-e2e' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must reference ai-e2e profile for evaluator"
+rg -q 'qip-e2e-evaluator' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must start qip-e2e-evaluator when auto-resolving URL"
 pass "quality gate evaluator URL precedence markers"
 
 echo "=== quality gate fails closed on semantic rejection ==="
-rg -q '\(\$semantic.failed // false\) != true' "${GATE_SH}" \
-  || fail "quality-gate verdict must reject semantic.failed=true"
+rg -q '\(\$semantic.failed // false\) != true' "${GATE_SH}" ||
+    fail "quality-gate verdict must reject semantic.failed=true"
 pass "quality gate fails closed on semantic rejection"
 
 echo "=== quality gate returns FAIL for low semantic scores ==="
-cat >"${TMP}/low-semantic-score.json" <<'EOF'
+cat > "${TMP}/low-semantic-score.json" << 'EOF'
 {
   "intentFidelity": 4,
   "completeness": 2,
@@ -688,48 +702,48 @@ cat >"${TMP}/low-semantic-score.json" <<'EOF'
 EOF
 set +e
 PRODUCT_PIPELINE_STUB_MODE=1 \
-PRODUCT_PIPELINE_STUB_SCORE_FILE="${TMP}/low-semantic-score.json" \
-bash "${GATE_SH}" \
-  --runs 1 \
-  --scenario product-create-chain-greetings \
-  --report-dir "${TMP}/low-semantic-gate" \
-  --base-url "http://127.0.0.1:9" >/dev/null 2>&1
+    PRODUCT_PIPELINE_STUB_SCORE_FILE="${TMP}/low-semantic-score.json" \
+    bash "${GATE_SH}" \
+    --runs 1 \
+    --scenario product-create-chain-greetings \
+    --report-dir "${TMP}/low-semantic-gate" \
+    --base-url "http://127.0.0.1:9" > /dev/null 2>&1
 low_semantic_rc=$?
 set -e
-[[ "${low_semantic_rc}" -ne 0 ]] \
-  || fail "quality gate must exit nonzero for low semantic scores"
+[[ "${low_semantic_rc}" -ne 0 ]] ||
+    fail "quality gate must exit nonzero for low semantic scores"
 jq -e '.verdict == "FAIL" and .semantic.failed == true' \
-  "${TMP}/low-semantic-gate/summary.json" >/dev/null \
-  || fail "quality gate must record semantic failure in its summary"
+    "${TMP}/low-semantic-gate/summary.json" > /dev/null ||
+    fail "quality gate must record semantic failure in its summary"
 pass "quality gate rejects low semantic scores"
 
 echo "=== run-product-scenario still requires --evaluator-url ==="
 set +e
 bash "${SCENARIO_SH}" \
-  --scenario product-greetings \
-  --rep 1 \
-  --base-url "http://127.0.0.1:9" \
-  --report "${TMP}/missing-eval-report.json" 2>"${TMP}/missing-eval.err"
+    --scenario product-greetings \
+    --rep 1 \
+    --base-url "http://127.0.0.1:9" \
+    --report "${TMP}/missing-eval-report.json" 2> "${TMP}/missing-eval.err"
 missing_eval_rc=$?
 set -e
-[[ "${missing_eval_rc}" -eq 2 ]] \
-  || fail "run-product-scenario.sh must exit 2 when --evaluator-url is omitted"
-rg -q -- '--evaluator-url' "${TMP}/missing-eval.err" \
-  || fail "run-product-scenario.sh usage must mention --evaluator-url"
+[[ "${missing_eval_rc}" -eq 2 ]] ||
+    fail "run-product-scenario.sh must exit 2 when --evaluator-url is omitted"
+rg -q -- '--evaluator-url' "${TMP}/missing-eval.err" ||
+    fail "run-product-scenario.sh usage must mention --evaluator-url"
 pass "run-product-scenario requires --evaluator-url"
 
 echo "=== resolve_evaluator_url docker stub precedence ==="
 STUB_BIN="${TMP}/stub-bin"
 mkdir -p "${STUB_BIN}"
 DOCKER_STUB_LOG="${TMP}/docker-invocations.log"
-: >"${DOCKER_STUB_LOG}"
-cat >"${STUB_BIN}/docker" <<'EOF'
+: > "${DOCKER_STUB_LOG}"
+cat > "${STUB_BIN}/docker" << 'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${DOCKER_STUB_LOG:?}"
 exit 0
 EOF
 chmod +x "${STUB_BIN}/docker"
-cat >"${STUB_BIN}/curl" <<'EOF'
+cat > "${STUB_BIN}/curl" << 'EOF'
 #!/usr/bin/env bash
 if [[ "$*" == *"/health"* ]]; then
   exit 0
@@ -739,63 +753,64 @@ EOF
 chmod +x "${STUB_BIN}/curl"
 
 resolve_contract() {
-  local stub_mode="$1"
-  local evaluator_url="${2:-}"
-  local -a env_args=(
-    PATH="${STUB_BIN}:${PATH}"
-    DOCKER_STUB_LOG="${DOCKER_STUB_LOG}"
-    PRODUCT_PIPELINE_STUB_MODE="${stub_mode}"
-    PRODUCT_PIPELINE_CONTRACT_RESOLVE_ONLY=1
-  )
-  : >"${DOCKER_STUB_LOG}"
-  if [[ -n "${evaluator_url}" ]]; then
-    env_args+=(EVALUATOR_URL="${evaluator_url}")
-    env "${env_args[@]}" bash "${GATE_SH}" \
-      --runs 1 \
-      --report-dir "${TMP}/resolve-report" \
-      --base-url "http://127.0.0.1:9"
-    return
-  fi
-  env -u EVALUATOR_URL "${env_args[@]}" bash "${GATE_SH}" \
-    --runs 1 \
-    --report-dir "${TMP}/resolve-report" \
-    --base-url "http://127.0.0.1:9"
+    local stub_mode="$1"
+    local evaluator_url="${2:-}"
+    local -a env_args=(
+        PATH="${STUB_BIN}:${PATH}"
+        DOCKER_STUB_LOG="${DOCKER_STUB_LOG}"
+        PRODUCT_PIPELINE_STUB_MODE="${stub_mode}"
+        PRODUCT_PIPELINE_CONTRACT_RESOLVE_ONLY=1
+    )
+    : > "${DOCKER_STUB_LOG}"
+    if [[ -n "${evaluator_url}" ]]; then
+        env_args+=(EVALUATOR_URL="${evaluator_url}")
+        env "${env_args[@]}" bash "${GATE_SH}" \
+            --runs 1 \
+            --report-dir "${TMP}/resolve-report" \
+            --base-url "http://127.0.0.1:9"
+        return
+    fi
+    env -u EVALUATOR_URL "${env_args[@]}" bash "${GATE_SH}" \
+        --runs 1 \
+        --report-dir "${TMP}/resolve-report" \
+        --base-url "http://127.0.0.1:9"
 }
 
 out="$(resolve_contract 1 "")"
-[[ "${out}" == *"EVALUATOR_URL=http://127.0.0.1:9"* ]] \
-  || fail "stub mode must resolve to 127.0.0.1:9"
-[[ ! -s "${DOCKER_STUB_LOG}" ]] \
-  || fail "stub mode must not invoke docker for evaluator"
+[[ "${out}" == *"EVALUATOR_URL=http://127.0.0.1:9"* ]] ||
+    fail "stub mode must resolve to 127.0.0.1:9"
+[[ ! -s "${DOCKER_STUB_LOG}" ]] ||
+    fail "stub mode must not invoke docker for evaluator"
 
 out="$(resolve_contract 0 "http://eval.example/evaluate")"
-[[ "${out}" == *"EVALUATOR_URL=http://eval.example/evaluate"* ]] \
-  || fail "explicit evaluator URL must be preserved"
-[[ ! -s "${DOCKER_STUB_LOG}" ]] \
-  || fail "explicit evaluator URL must not invoke docker"
+[[ "${out}" == *"EVALUATOR_URL=http://eval.example/evaluate"* ]] ||
+    fail "explicit evaluator URL must be preserved"
+[[ ! -s "${DOCKER_STUB_LOG}" ]] ||
+    fail "explicit evaluator URL must not invoke docker"
 
 out="$(resolve_contract 0 "")"
-[[ "${out}" == *"EVALUATOR_URL=http://localhost:8100/evaluate"* ]] \
-  || fail "missing URL must default to local evaluator endpoint"
-[[ -s "${DOCKER_STUB_LOG}" ]] \
-  || fail "missing URL must invoke docker to start local evaluator"
-rg -q -- '--profile' "${DOCKER_STUB_LOG}" \
-  && rg -q 'ai-e2e' "${DOCKER_STUB_LOG}" \
-  && rg -q 'qip-e2e-evaluator' "${DOCKER_STUB_LOG}" \
-  || fail "auto-start must use ai-e2e profile and qip-e2e-evaluator"
+[[ "${out}" == *"EVALUATOR_URL=http://localhost:8100/evaluate"* ]] ||
+    fail "missing URL must default to local evaluator endpoint"
+[[ -s "${DOCKER_STUB_LOG}" ]] ||
+    fail "missing URL must invoke docker to start local evaluator"
+if ! { rg -q -- '--profile' "${DOCKER_STUB_LOG}" &&
+    rg -q 'ai-e2e' "${DOCKER_STUB_LOG}" &&
+    rg -q 'qip-e2e-evaluator' "${DOCKER_STUB_LOG}"; }; then
+    fail "auto-start must use ai-e2e profile and qip-e2e-evaluator"
+fi
 pass "resolve_evaluator_url docker stub precedence"
 
 SCENARIOS_FILE="${DIR}/scenarios.json"
 ASSERT_SH="${DIR}/assert-product-run.sh"
 
 echo "=== WAITING_FOR_IMPLEMENT causes one Implement <approvedPlanContentHash> turn ==="
-rg -q 'WAITING_FOR_IMPLEMENT' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must handle WAITING_FOR_IMPLEMENT"
-rg -q 'Implement ' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must send Implement <hash> turn"
-rg -q 'targetContentHash|approvedPlanContentHash' "${SCENARIO_SH}" \
-  || fail "run-product-scenario.sh must read approved plan hash from evidence"
-python3 - "${SCENARIO_SH}" <<'PY'
+rg -q 'WAITING_FOR_IMPLEMENT' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must handle WAITING_FOR_IMPLEMENT"
+rg -q 'Implement ' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must send Implement <hash> turn"
+rg -q 'targetContentHash|approvedPlanContentHash' "${SCENARIO_SH}" ||
+    fail "run-product-scenario.sh must read approved plan hash from evidence"
+python3 - "${SCENARIO_SH}" << 'PY'
 import pathlib
 import sys
 
@@ -821,47 +836,47 @@ PY
 pass "WAITING_FOR_IMPLEMENT Implement turn contract"
 
 echo "=== CHAIN_MATERIALIZED requires materialization evidence kinds ==="
-rg -q 'CHAIN_MATERIALIZED' "${ASSERT_SH}" \
-  || fail "assert-product-run.sh must assert CHAIN_MATERIALIZED"
+rg -q 'CHAIN_MATERIALIZED' "${ASSERT_SH}" ||
+    fail "assert-product-run.sh must assert CHAIN_MATERIALIZED"
 for kind in MATERIALIZATION_RESULT CATALOG_CHAIN_SNAPSHOT RECONCILE_RESULT; do
-  rg -q "${kind}" "${ASSERT_SH}" \
-    || fail "assert-product-run.sh must require ${kind} for CHAIN_MATERIALIZED"
+    rg -q "${kind}" "${ASSERT_SH}" ||
+        fail "assert-product-run.sh must require ${kind} for CHAIN_MATERIALIZED"
 done
-rg -q 'materializedChainId' "${ASSERT_SH}" \
-  || fail "assert-product-run.sh must require materializedChainId"
-rg -q 'reconcileMatches|matches' "${ASSERT_SH}" \
-  || fail "assert-product-run.sh must check reconcile verdict"
+rg -q 'materializedChainId' "${ASSERT_SH}" ||
+    fail "assert-product-run.sh must require materializedChainId"
+rg -q 'reconcileMatches|matches' "${ASSERT_SH}" ||
+    fail "assert-product-run.sh must check reconcile verdict"
 pass "CHAIN_MATERIALIZED evidence kinds contract"
 
 echo "=== create-chain greetings scenario and APPLICABLE script patch ==="
-jq -e '."product-create-chain-greetings".pipeline == "create-chain-v1"' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "product-create-chain-greetings must use create-chain-v1"
-jq -e '."product-create-chain-greetings".terminalState == "CHAIN_MATERIALIZED"' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "product-create-chain-greetings must terminate at CHAIN_MATERIALIZED"
-jq -e '."product-create-chain-greetings".profileId == "create-chain"' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "product-create-chain-greetings must set profileId=create-chain"
-jq -e '."product-create-chain-greetings".retainCatalogChain == true' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "product-create-chain-greetings must retain catalog chains (no teardown)"
-jq -e '."product-create-chain-greetings".uniqueChainNamePrefix == "AiCreateSmoke"' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "product-create-chain-greetings must use AiCreateSmoke unique name prefix"
-rg -q 'UNIQUE_CHAIN_NAME|uniqueChainNamePrefix|retainCatalogChain' "${DIR}/run-product-scenario.sh" \
-  || fail "run-product-scenario.sh must expand unique chain names and retain catalog chains"
-rg -q 'cip-script-generator' "${ASSERT_SH}" \
-  || fail "assert-product-run.sh must assert APPLICABLE cip-script-generator GraphPatchArtifact"
-rg -q 'APPLICABLE|applicability' "${ASSERT_SH}" \
-  || fail "assert-product-run.sh must check GraphPatchArtifact applicability"
+jq -e '."product-create-chain-greetings".pipeline == "create-chain-v1"' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "product-create-chain-greetings must use create-chain-v1"
+jq -e '."product-create-chain-greetings".terminalState == "CHAIN_MATERIALIZED"' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "product-create-chain-greetings must terminate at CHAIN_MATERIALIZED"
+jq -e '."product-create-chain-greetings".profileId == "create-chain"' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "product-create-chain-greetings must set profileId=create-chain"
+jq -e '."product-create-chain-greetings".retainCatalogChain == true' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "product-create-chain-greetings must retain catalog chains (no teardown)"
+jq -e '."product-create-chain-greetings".uniqueChainNamePrefix == "AiCreateSmoke"' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "product-create-chain-greetings must use AiCreateSmoke unique name prefix"
+rg -q 'UNIQUE_CHAIN_NAME|uniqueChainNamePrefix|retainCatalogChain' "${DIR}/run-product-scenario.sh" ||
+    fail "run-product-scenario.sh must expand unique chain names and retain catalog chains"
+rg -q 'cip-script-generator' "${ASSERT_SH}" ||
+    fail "assert-product-run.sh must assert APPLICABLE cip-script-generator GraphPatchArtifact"
+rg -q 'APPLICABLE|applicability' "${ASSERT_SH}" ||
+    fail "assert-product-run.sh must check GraphPatchArtifact applicability"
 pass "create-chain greetings GraphPatch contract"
 
 echo "=== all active create-chain scenarios retain catalog ==="
 for create_chain_scenario in \
-  product-create-chain-greetings \
-  product-create-chain-dual-trigger-greetings \
-  product-create-chain-error-handling \
-  product-create-chain-lang-router \
-  product-create-chain-page-walker \
-  product-create-chain-ambiguous-waiting \
-  product-create-chain-multi-turn-revision; do
-  jq -e --arg s "${create_chain_scenario}" '
+    product-create-chain-greetings \
+    product-create-chain-dual-trigger-greetings \
+    product-create-chain-error-handling \
+    product-create-chain-lang-router \
+    product-create-chain-page-walker \
+    product-create-chain-ambiguous-waiting \
+    product-create-chain-multi-turn-revision; do
+    jq -e --arg s "${create_chain_scenario}" '
     .[$s].pipeline == "create-chain-v1"
     and .[$s].terminalState == "CHAIN_MATERIALIZED"
     and .[$s].profileId == "create-chain"
@@ -869,21 +884,21 @@ for create_chain_scenario in \
     and .[$s].retainCatalogChain == true
     and (.[$s].uniqueChainNamePrefix | type == "string" and length > 0)
     and ((.[$s].catalog.requiredTypes // []) | length > 0)
-  ' "${SCENARIOS_FILE}" >/dev/null \
-    || fail "${create_chain_scenario} must be create-chain@2 with retain + catalog types"
+  ' "${SCENARIOS_FILE}" > /dev/null ||
+        fail "${create_chain_scenario} must be create-chain@2 with retain + catalog types"
 done
 jq -e '."product-create-chain-error-handling".uniqueChainNamePrefix == "AiCreateEhSmoke"' \
-  "${SCENARIOS_FILE}" >/dev/null \
-  || fail "EH create-chain must use AiCreateEhSmoke prefix"
+    "${SCENARIOS_FILE}" > /dev/null ||
+    fail "EH create-chain must use AiCreateEhSmoke prefix"
 jq -e '."product-create-chain-lang-router".uniqueChainNamePrefix == "AiCreateRouteSmoke"' \
-  "${SCENARIOS_FILE}" >/dev/null \
-  || fail "lang-router create-chain must use AiCreateRouteSmoke prefix"
+    "${SCENARIOS_FILE}" > /dev/null ||
+    fail "lang-router create-chain must use AiCreateRouteSmoke prefix"
 jq -e '."product-create-chain-error-handling".catalog.requiredTypes | index("try-catch-finally-2") != null' \
-  "${SCENARIOS_FILE}" >/dev/null \
-  || fail "EH create-chain catalog must require try-catch-finally-2"
+    "${SCENARIOS_FILE}" > /dev/null ||
+    fail "EH create-chain catalog must require try-catch-finally-2"
 jq -e '."product-create-chain-lang-router".catalog.requiredTypes | index("if") != null' \
-  "${SCENARIOS_FILE}" >/dev/null \
-  || fail "lang-router create-chain catalog must require if"
+    "${SCENARIOS_FILE}" > /dev/null ||
+    fail "lang-router create-chain catalog must require if"
 pass "create-chain EH and lang-router retain catalog contract"
 
 echo "=== split scenarios run in the default gate ==="
@@ -894,41 +909,41 @@ jq -e '
     and .["product-create-chain-async-split"].status == "active"
     and (.["product-create-chain-async-split"].liveTest.manualOnly != true)
     and (.["product-create-chain-async-split"].liveTest.knownFailure == null)
-' "${DIR}/scenarios.json" >/dev/null \
-  || fail "split scenarios must be active without known-failure markers"
-rg -q 'liveTest.manualOnly != true' "${GATE_SH}" \
-  || fail "default quality gate must skip manual-only live tests"
+' "${DIR}/scenarios.json" > /dev/null ||
+    fail "split scenarios must be active without known-failure markers"
+rg -q 'liveTest.manualOnly != true' "${GATE_SH}" ||
+    fail "default quality gate must skip manual-only live tests"
 pass "split scenarios in default gate"
 
 echo "=== stub mode never starts Docker ==="
-rg -q 'PRODUCT_PIPELINE_STUB_MODE' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must honor stub mode"
-rg -q 'SKIP deploy|stub mode' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must skip Compose in stub mode"
+rg -q 'PRODUCT_PIPELINE_STUB_MODE' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must honor stub mode"
+rg -q 'SKIP deploy|stub mode' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must skip Compose in stub mode"
 pass "stub mode docker skip markers"
 
 echo "=== gate run records a compiler pipeline digest ==="
-rg -q 'compilerPackageDigest|pipelineIndexDigest|compilerPipelineDigest' "${BUILD_PY}" \
-  || fail "build-report-from-evidence.py must expose compiler pipeline digest"
-rg -q 'compilerPackageDigest|pipelineIndexDigest|compilerPipelineDigest' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must compare compiler digests within a gate run"
+rg -q 'compilerPackageDigest|pipelineIndexDigest|compilerPipelineDigest' "${BUILD_PY}" ||
+    fail "build-report-from-evidence.py must expose compiler pipeline digest"
+rg -q 'compilerPackageDigest|pipelineIndexDigest|compilerPipelineDigest' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must compare compiler digests within a gate run"
 pass "compiler pipeline digest contract"
 
 echo "=== expected run count equals selected scenarios times repetitions ==="
-rg -q 'SCENARIO_IDS\[@\]' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must derive EXPECTED_TOTAL from selected scenarios"
-rg -q 'expected 5 active' "${GATE_SH}" \
-  && fail "run-quality-gate.sh must not hard-require exactly five scenarios"
-rg -q '\[\[ "\$\{#SCENARIO_IDS\[@\]\}" -eq 5 \]\]' "${GATE_SH}" \
-  && fail "run-quality-gate.sh must not require exactly five scenarios"
+rg -q 'SCENARIO_IDS\[@\]' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must derive EXPECTED_TOTAL from selected scenarios"
+rg -q 'expected 5 active' "${GATE_SH}" &&
+    fail "run-quality-gate.sh must not hard-require exactly five scenarios"
+rg -q '\[\[ "\$\{#SCENARIO_IDS\[@\]\}" -eq 5 \]\]' "${GATE_SH}" &&
+    fail "run-quality-gate.sh must not require exactly five scenarios"
 pass "dynamic expected run count contract"
 
 echo "=== gate deploy recreates qip-ai-service but not evaluator ==="
-rg -q 'force-recreate' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must force-recreate product services"
-rg -q 'qip-ai-service' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must recreate qip-ai-service"
-python3 - "${GATE_SH}" <<'PY'
+rg -q 'force-recreate' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must force-recreate product services"
+rg -q 'qip-ai-service' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must recreate qip-ai-service"
+python3 - "${GATE_SH}" << 'PY'
 import pathlib
 import re
 import sys
@@ -948,8 +963,8 @@ PY
 pass "knowledge package recreate contract"
 
 echo "=== create-chain@2 scenario pins (new CREATE) ==="
-rg -q 'profileId|create-chain' "${GATE_SH}" \
-  || fail "gate must read scenario profileId including create-chain"
+rg -q 'profileId|create-chain' "${GATE_SH}" ||
+    fail "gate must read scenario profileId including create-chain"
 jq -e '
   [to_entries[] | select(
     (.value.status // "active") == "active"
@@ -964,24 +979,24 @@ jq -e '
     and .value.terminalState == "CHAIN_MATERIALIZED"
     and .value.retainCatalogChain == true
   )
-' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "active create-chain@2 scenarios other than exhaustHalt must pin CHAIN_MATERIALIZED retain=true"
+' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "active create-chain@2 scenarios other than exhaustHalt must pin CHAIN_MATERIALIZED retain=true"
 legacy_create_plan="$(printf '%s-%s' create plan-v1)"
 for legacy in "${legacy_create_plan}" design-first structure-e2e; do
-  if jq -e --arg p "${legacy}" '[.. | strings] | index($p) != null' "${SCENARIOS_FILE}" >/dev/null; then
-    fail "product scenarios must not mention ${legacy}"
-  fi
+    if jq -e --arg p "${legacy}" '[.. | strings] | index($p) != null' "${SCENARIOS_FILE}" > /dev/null; then
+        fail "product scenarios must not mention ${legacy}"
+    fi
 done
 pass "create-chain@2 scenario pin contract"
 
 echo "=== create-chain@2 design-input GENERATE choice ==="
-rg -q 'design-input|Generate full IDS|designInputChoice' "${DIR}/run-product-scenario.sh" \
-  || fail "run-product-scenario.sh must answer design-input WAITING_FOR_INPUT"
+rg -q 'design-input|Generate full IDS|designInputChoice' "${DIR}/run-product-scenario.sh" ||
+    fail "run-product-scenario.sh must answer design-input WAITING_FOR_INPUT"
 jq -e '
   [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
   | all(.value.designInputChoice == "Generate full IDS")
-' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "active CREATE scenarios must default designInputChoice to Generate full IDS"
+' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "active CREATE scenarios must default designInputChoice to Generate full IDS"
 pass "create-chain@2 design-input GENERATE contract"
 
 echo "=== compare-and-patch product scenarios ==="
@@ -994,27 +1009,27 @@ SEED_SH="${DIR}/scripts/seed-catalog-chain.sh"
 bash -n "${PATCH_SH}"
 bash -n "${ASSERT_PATCH_SH}"
 bash -n "${SEED_SH}"
-rg -q 'chat-turn\.sh' "${PATCH_SH}" \
-  || fail "run-patch-scenario.sh must call chat-turn.sh"
+rg -q 'chat-turn\.sh' "${PATCH_SH}" ||
+    fail "run-patch-scenario.sh must call chat-turn.sh"
 if rg -q '/api/v1/harness' "${PATCH_SH}" "${SEED_SH}"; then
-  fail "patch e2e must not call the thin harness"
+    fail "patch e2e must not call the thin harness"
 fi
-rg -q 'E2E_CHAT_ATTACHMENT|e2e_chain_attachment' "${PATCH_SH}" \
-  || fail "run-patch-scenario.sh must send the open-chain attachment"
-rg -q 'apply-chain-patch|e2e_extract_apply_chain_patch_decision' "${PATCH_SH}" \
-  || fail "run-patch-scenario.sh must answer the apply-chain-patch decision card"
-rg -q 'E2E_CHAT_ATTACHMENT' "${DIR}/scripts/chat-turn.sh" \
-  || fail "chat-turn.sh must send E2E_CHAT_ATTACHMENT"
-rg -q 'E2E_CHAT_DECISION_JSON' "${DIR}/scripts/chat-turn.sh" \
-  || fail "chat-turn.sh must send E2E_CHAT_DECISION_JSON"
-rg -q 'E2E_CHAT_ATTACHMENT_KEYS_JSON' "${DIR}/scripts/chat-turn.sh" \
-  || fail "chat-turn.sh must send uploaded attachmentObjectKeys"
-rg -q 'e2e_extract_apply_chain_patch_decision' "${DIR}/scripts/lib.sh" \
-  || fail "lib.sh must extract apply-chain-patch decision cards"
-rg -q 'compare-and-patch' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must dispatch compare-and-patch scenarios"
-rg -q 'run-patch-scenario.sh' "${GATE_SH}" \
-  || fail "run-quality-gate.sh must invoke run-patch-scenario.sh"
+rg -q 'E2E_CHAT_ATTACHMENT|e2e_chain_attachment' "${PATCH_SH}" ||
+    fail "run-patch-scenario.sh must send the open-chain attachment"
+rg -q 'apply-chain-patch|e2e_extract_apply_chain_patch_decision' "${PATCH_SH}" ||
+    fail "run-patch-scenario.sh must answer the apply-chain-patch decision card"
+rg -q 'E2E_CHAT_ATTACHMENT' "${DIR}/scripts/chat-turn.sh" ||
+    fail "chat-turn.sh must send E2E_CHAT_ATTACHMENT"
+rg -q 'E2E_CHAT_DECISION_JSON' "${DIR}/scripts/chat-turn.sh" ||
+    fail "chat-turn.sh must send E2E_CHAT_DECISION_JSON"
+rg -q 'E2E_CHAT_ATTACHMENT_KEYS_JSON' "${DIR}/scripts/chat-turn.sh" ||
+    fail "chat-turn.sh must send uploaded attachmentObjectKeys"
+rg -q 'e2e_extract_apply_chain_patch_decision' "${DIR}/scripts/lib.sh" ||
+    fail "lib.sh must extract apply-chain-patch decision cards"
+rg -q 'compare-and-patch' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must dispatch compare-and-patch scenarios"
+rg -q 'run-patch-scenario.sh' "${GATE_SH}" ||
+    fail "run-quality-gate.sh must invoke run-patch-scenario.sh"
 jq -e '
   [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "compare-and-patch")]
   | length == 6
@@ -1025,28 +1040,28 @@ jq -e '
     and ((.value.prompts | type) == "array" and (.value.prompts | length) > 0)
     and ((.value.seed.elements | type) == "array" and (.value.seed.elements | length) > 0)
   )
-' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "exactly six active compare-and-patch CHAIN_PATCHED retain scenarios required"
-jq -e '."product-patch-chain-multi-turn".prompts | length == 2' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "multi-turn patch scenario must send two separate prompts"
-jq -e '."product-patch-chain-try-catch".status == "active"' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "try-catch wrap patch must stay active after live validation"
-jq -e '."product-patch-chain-replace-subgraph".status == "active"' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "replace-subgraph patch must stay active after the wrap scenario passed"
-jq -e '."product-patch-chain-replace-subgraph".catalog.minTypeCounts.script == 2' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "replace-subgraph patch must require two scripts after the swap"
+' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "exactly six active compare-and-patch CHAIN_PATCHED retain scenarios required"
+jq -e '."product-patch-chain-multi-turn".prompts | length == 2' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "multi-turn patch scenario must send two separate prompts"
+jq -e '."product-patch-chain-try-catch".status == "active"' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "try-catch wrap patch must stay active after live validation"
+jq -e '."product-patch-chain-replace-subgraph".status == "active"' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "replace-subgraph patch must stay active after the wrap scenario passed"
+jq -e '."product-patch-chain-replace-subgraph".catalog.minTypeCounts.script == 2' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "replace-subgraph patch must require two scripts after the swap"
 jq -e '
   [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "compare-and-patch")]
   | all(.value.prompts | all((contains("open catalog chain") | not)))
-' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "active patch prompts must look like a UI change request, not an open-chain classifier cue"
+' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "active patch prompts must look like a UI change request, not an open-chain classifier cue"
 pass "compare-and-patch product scenario contract"
 
 echo "=== apply-chain-patch decision extraction ==="
 # shellcheck source=scripts/lib.sh
 source "${DIR}/scripts/lib.sh"
 sse_fix="${TMP}/patch-decision.sse"
-cat >"${sse_fix}" <<'EOF'
+cat > "${sse_fix}" << 'EOF'
 event: meta
 data: {"conversationId":"conv-patch"}
 
@@ -1058,16 +1073,16 @@ data: conv-patch
 EOF
 got=""
 if ! got="$(e2e_extract_apply_chain_patch_decision "${sse_fix}")"; then
-  fail "extractor missed apply-chain-patch card"
+    fail "extractor missed apply-chain-patch card"
 fi
 jq -e '.action == "apply-chain-patch" and .artifactHash == "sha256:abc" and .artifactType == "CHAIN_PATCH"' \
-  <<<"${got}" >/dev/null \
-  || fail "extractor must bind apply-chain-patch to the card hash"
+    <<< "${got}" > /dev/null ||
+    fail "extractor must bind apply-chain-patch to the card hash"
 pass "apply-chain-patch decision extraction"
 
 echo "=== uploaded specification decision extraction ==="
 sse_upload="${TMP}/uploaded-spec-decision.sse"
-cat >"${sse_upload}" <<'EOF'
+cat > "${sse_upload}" << 'EOF'
 event: decision
 data: {"revision":12,"actions":["import-specification","cancel"],"artifactType":"uploaded-specs-import-proposal","artifactHash":"sha256:upload"}
 
@@ -1076,7 +1091,7 @@ data: conv-upload
 EOF
 if ! upload_decision="$(e2e_extract_uploaded_spec_import_decision \
     "${sse_upload}" '{"e2e/orders.yaml":"EXTERNAL","e2e/payments.yaml":"EXTERNAL"}')"; then
-  fail "extractor missed uploaded specification import card"
+    fail "extractor missed uploaded specification import card"
 fi
 jq -e '
   .action == "import-specification"
@@ -1086,8 +1101,8 @@ jq -e '
   and .specSystemTypes["e2e/orders.yaml"] == "EXTERNAL"
   and .specSystemTypes["e2e/payments.yaml"] == "EXTERNAL"
   and (.specSystemTypes | length) == 2
-' <<<"${upload_decision}" >/dev/null \
-  || fail "extractor must bind every uploaded object key and system type to the card"
+' <<< "${upload_decision}" > /dev/null ||
+    fail "extractor must bind every uploaded object key and system type to the card"
 pass "uploaded specification decision extraction"
 
 echo "=== uploaded OpenAPI scenario covers import, binding, mapping, and materialization ==="
@@ -1108,12 +1123,12 @@ jq -e '
       .type == "service-call" and .key == "integrationOperationPath" and .equals == "/orders")
     and any($s.catalog.properties[];
       .type == "script" and .key == "script" and .contains == "customerId")
-' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "uploaded OpenAPI scenario must cover import, catalog binding, field mapping, and materialization"
-rg -q '/api/v1/storage/objects' "${SCENARIO_SH}" \
-  || fail "product runner must upload the OpenAPI fixture through object storage"
-rg -q 'e2e_extract_uploaded_spec_import_decision' "${SCENARIO_SH}" \
-  || fail "product runner must answer the exact import-specification decision card"
+' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "uploaded OpenAPI scenario must cover import, catalog binding, field mapping, and materialization"
+rg -q '/api/v1/storage/objects' "${SCENARIO_SH}" ||
+    fail "product runner must upload the OpenAPI fixture through object storage"
+rg -q 'e2e_extract_uploaded_spec_import_decision' "${SCENARIO_SH}" ||
+    fail "product runner must answer the exact import-specification decision card"
 pass "uploaded OpenAPI end-to-end scenario contract"
 
 echo "=== two uploaded OpenAPI specifications keep distinct operation bindings ==="
@@ -1142,18 +1157,18 @@ jq -e '
       and (.containsProperties.script | index("paymentId") != null))
     and any($s.catalog.distinctProperties[];
       .key == "integrationSpecificationId" and .minDistinct == 2)
-' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "two-spec scenario must assert distinct specifications and exact operation/path pairs"
-[[ -f "${DIR}/fixtures/rocky-orders-openapi.yaml" ]] \
-  || fail "missing Rocky Orders OpenAPI fixture"
-[[ -f "${DIR}/fixtures/rocky-payments-openapi.yaml" ]] \
-  || fail "missing Rocky Payments OpenAPI fixture"
-rg -q 'uploadedSpecs' "${SCENARIO_SH}" \
-  || fail "product runner must accept multiple uploaded specifications"
-rg -q 'propertySets' "${SCRIPTS_DIR}/assert-catalog.sh" \
-  || fail "catalog assertions must keep properties paired on one element"
-rg -q 'distinctProperties' "${SCRIPTS_DIR}/assert-catalog.sh" \
-  || fail "catalog assertions must prove separate imported specifications"
+' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "two-spec scenario must assert distinct specifications and exact operation/path pairs"
+[[ -f "${DIR}/fixtures/rocky-orders-openapi.yaml" ]] ||
+    fail "missing Rocky Orders OpenAPI fixture"
+[[ -f "${DIR}/fixtures/rocky-payments-openapi.yaml" ]] ||
+    fail "missing Rocky Payments OpenAPI fixture"
+rg -q 'uploadedSpecs' "${SCENARIO_SH}" ||
+    fail "product runner must accept multiple uploaded specifications"
+rg -q 'propertySets' "${SCRIPTS_DIR}/assert-catalog.sh" ||
+    fail "catalog assertions must keep properties paired on one element"
+rg -q 'distinctProperties' "${SCRIPTS_DIR}/assert-catalog.sh" ||
+    fail "catalog assertions must prove separate imported specifications"
 pass "two uploaded OpenAPI specifications keep distinct operation bindings"
 
 echo "=== three uploaded OpenAPI specifications keep distinct operation bindings ==="
@@ -1183,10 +1198,10 @@ jq -e '
       and .containsProperties.integrationOperationId == "createRockyFulfillment"
       and .properties.integrationOperationPath == "/fulfillments")
     and ($s.catalog.distinctProperties | all(.minDistinct == 3))
-' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "three-spec scenario must assert three distinct specifications and exact operation/path pairs"
-[[ -f "${DIR}/fixtures/rocky-fulfillment-openapi.yaml" ]] \
-  || fail "missing Rocky Fulfillment OpenAPI fixture"
+' "${SCENARIOS_FILE}" > /dev/null ||
+    fail "three-spec scenario must assert three distinct specifications and exact operation/path pairs"
+[[ -f "${DIR}/fixtures/rocky-fulfillment-openapi.yaml" ]] ||
+    fail "missing Rocky Fulfillment OpenAPI fixture"
 pass "three uploaded OpenAPI specifications keep distinct operation bindings"
 
 echo "=== chat-turn payload includes attachment keys, attachment, and decision ==="
@@ -1195,8 +1210,8 @@ attachment_text='## Current Chain: Demo (ID: chain-42)'
 attachment_keys_text='["e2e/orders.yaml"]'
 decision_text='{"action":"apply-chain-patch","artifactType":"CHAIN_PATCH","artifactHash":"sha256:abc","revision":0}'
 python3 - \
-  "-" "change the script" "" "${attachment_text}" \
-  "${attachment_keys_text}" "${decision_text}" >"${payload_out}" <<'PY'
+    "-" "change the script" "" "${attachment_text}" \
+    "${attachment_keys_text}" "${decision_text}" > "${payload_out}" << 'PY'
 import json
 import sys
 
@@ -1220,28 +1235,28 @@ jq -e '
   and .decision.action == "apply-chain-patch"
   and .decision.artifactHash == "sha256:abc"
   and (has("scenarioHint") | not)
-' "${payload_out}" >/dev/null \
-  || fail "chat payload must carry attachment keys, attachment, and decision without a scenario hint"
+' "${payload_out}" > /dev/null ||
+    fail "chat payload must carry attachment keys, attachment, and decision without a scenario hint"
 pass "chat-turn attachment keys, attachment, and decision payload"
 
 echo "=== create-chain@1 backward-compat remains loadable ==="
 AI_SVC_ROOT="$(cd "${DIR}/../.." && pwd)"
-[[ -f "${AI_SVC_ROOT}/src/main/resources/product-pipelines/profiles/create-chain-v1.yaml" ]] \
-  || fail "create-chain-v1.yaml must remain for historical bindings"
-[[ -f "${AI_SVC_ROOT}/src/main/resources/product-pipelines/profiles/create-chain-v2.yaml" ]] \
-  || fail "create-chain-v2.yaml must exist for new CREATE"
+[[ -f "${AI_SVC_ROOT}/src/main/resources/product-pipelines/profiles/create-chain-v1.yaml" ]] ||
+    fail "create-chain-v1.yaml must remain for historical bindings"
+[[ -f "${AI_SVC_ROOT}/src/main/resources/product-pipelines/profiles/create-chain-v2.yaml" ]] ||
+    fail "create-chain-v2.yaml must exist for new CREATE"
 rg -q 'assertEquals\("1", resumed\.runManifest\(\)\.profileVersion|create-chain@1' \
-  "${AI_SVC_ROOT}/src/test/java/org/qubership/integration/platform/ai/productpipeline/create/CreateChainProductPipelineRestartIT.java" \
-  || fail "CreateChainProductPipelineRestartIT must cover create-chain@1 restart"
+    "${AI_SVC_ROOT}/src/test/java/org/qubership/integration/platform/ai/productpipeline/create/CreateChainProductPipelineRestartIT.java" ||
+    fail "CreateChainProductPipelineRestartIT must cover create-chain@1 restart"
 pass "create-chain@1 backward-compat contract"
 
 echo "=== forbidden facts ignore negation phrases and skill metadata ==="
-rg -q '_forbidden_haystack|_positive_fact_texts' "${BUILD_PY}" \
-  || fail "build-report-from-evidence.py must use a dedicated forbidden-facts haystack"
-rg -q 'Generator ownership versus topology' "${DIR}/semantic-rubric.md" \
-  || fail "semantic rubric must distinguish generator ownership from service-call topology"
+rg -q '_forbidden_haystack|_positive_fact_texts' "${BUILD_PY}" ||
+    fail "build-report-from-evidence.py must use a dedicated forbidden-facts haystack"
+rg -q 'Generator ownership versus topology' "${DIR}/semantic-rubric.md" ||
+    fail "semantic rubric must distinguish generator ownership from service-call topology"
 neg_ev="${TMP}/forbidden-negation-evidence.json"
-cat >"${neg_ev}" <<'EOF'
+cat > "${neg_ev}" << 'EOF'
 {
   "conversationId": "c-forbid-neg",
   "currentState": "CHAIN_MATERIALIZED",
@@ -1377,18 +1392,18 @@ cat >"${neg_ev}" <<'EOF'
 }
 EOF
 python3 "${BUILD_PY}" \
-  --evidence "${neg_ev}" \
-  --scenario-id product-create-chain-greetings \
-  --rep 1 \
-  --required-facts '["GET /greetings"]' \
-  --forbidden-facts '["service-call","APIHub"]' \
-  --expected-terminal-state CHAIN_MATERIALIZED \
-  --out "${TMP}/forbidden-negation-report.json"
-jq -e '.presentForbiddenFacts == []' "${TMP}/forbidden-negation-report.json" >/dev/null \
-  || fail "negation phrases and skill metadata must not set presentForbiddenFacts"
+    --evidence "${neg_ev}" \
+    --scenario-id product-create-chain-greetings \
+    --rep 1 \
+    --required-facts '["GET /greetings"]' \
+    --forbidden-facts '["service-call","APIHub"]' \
+    --expected-terminal-state CHAIN_MATERIALIZED \
+    --out "${TMP}/forbidden-negation-report.json"
+jq -e '.presentForbiddenFacts == []' "${TMP}/forbidden-negation-report.json" > /dev/null ||
+    fail "negation phrases and skill metadata must not set presentForbiddenFacts"
 
 pos_ev="${TMP}/forbidden-positive-evidence.json"
-python3 - "${neg_ev}" "${pos_ev}" <<'PY'
+python3 - "${neg_ev}" "${pos_ev}" << 'PY'
 import json
 import pathlib
 import sys
@@ -1403,18 +1418,18 @@ src["decodedArtifacts"]["CHAIN_PLAN_GRAPH#g1"]["nodes"].append(
 pathlib.Path(sys.argv[2]).write_text(json.dumps(src))
 PY
 python3 "${BUILD_PY}" \
-  --evidence "${pos_ev}" \
-  --scenario-id product-create-chain-greetings \
-  --rep 1 \
-  --required-facts '["GET /greetings"]' \
-  --forbidden-facts '["service-call","APIHub"]' \
-  --expected-terminal-state CHAIN_MATERIALIZED \
-  --out "${TMP}/forbidden-positive-report.json"
-jq -e '.presentForbiddenFacts == ["service-call"]' "${TMP}/forbidden-positive-report.json" >/dev/null \
-  || fail "real service-call topology must set presentForbiddenFacts"
+    --evidence "${pos_ev}" \
+    --scenario-id product-create-chain-greetings \
+    --rep 1 \
+    --required-facts '["GET /greetings"]' \
+    --forbidden-facts '["service-call","APIHub"]' \
+    --expected-terminal-state CHAIN_MATERIALIZED \
+    --out "${TMP}/forbidden-positive-report.json"
+jq -e '.presentForbiddenFacts == ["service-call"]' "${TMP}/forbidden-positive-report.json" > /dev/null ||
+    fail "real service-call topology must set presentForbiddenFacts"
 
 script_key_ev="${TMP}/forbidden-script-key-evidence.json"
-python3 - "${neg_ev}" "${script_key_ev}" <<'PY'
+python3 - "${neg_ev}" "${script_key_ev}" << 'PY'
 import json
 import pathlib
 import sys
@@ -1428,22 +1443,22 @@ catalog["elements"] = [element for element in catalog["elements"] if element.get
 pathlib.Path(sys.argv[2]).write_text(json.dumps(src))
 PY
 python3 "${BUILD_PY}" \
-  --evidence "${script_key_ev}" \
-  --scenario-id product-create-chain-greetings \
-  --rep 1 \
-  --required-facts '["GET /greetings"]' \
-  --forbidden-facts '["script"]' \
-  --expected-terminal-state CHAIN_MATERIALIZED \
-  --out "${TMP}/forbidden-script-key-report.json"
-jq -e '.presentForbiddenFacts == []' "${TMP}/forbidden-script-key-report.json" >/dev/null \
-  || fail "description fields must not be mistaken for script topology"
+    --evidence "${script_key_ev}" \
+    --scenario-id product-create-chain-greetings \
+    --rep 1 \
+    --required-facts '["GET /greetings"]' \
+    --forbidden-facts '["script"]' \
+    --expected-terminal-state CHAIN_MATERIALIZED \
+    --out "${TMP}/forbidden-script-key-report.json"
+jq -e '.presentForbiddenFacts == []' "${TMP}/forbidden-script-key-report.json" > /dev/null ||
+    fail "description fields must not be mistaken for script topology"
 pass "forbidden facts negation vs topology contract"
 
 echo "=== required HTTP endpoint facts tolerate split method/path ==="
-rg -q '_required_fact_present|_structured_http_endpoints|_http_endpoint_in_text' "${BUILD_PY}" \
-  || fail "build-report-from-evidence.py must match METHOD /path beyond literal substring"
+rg -q '_required_fact_present|_structured_http_endpoints|_http_endpoint_in_text' "${BUILD_PY}" ||
+    fail "build-report-from-evidence.py must match METHOD /path beyond literal substring"
 split_ev="${TMP}/required-split-endpoint-evidence.json"
-python3 - "${neg_ev}" "${split_ev}" <<'PY'
+python3 - "${neg_ev}" "${split_ev}" << 'PY'
 import json
 import pathlib
 import sys
@@ -1475,29 +1490,29 @@ src["decodedArtifacts"]["NORMALIZED_DESIGN_FLOW#f1"] = {
 pathlib.Path(sys.argv[2]).write_text(json.dumps(src))
 PY
 python3 "${BUILD_PY}" \
-  --evidence "${split_ev}" \
-  --scenario-id product-create-chain-greetings \
-  --rep 1 \
-  --required-facts '["GET /greetings","script"]' \
-  --forbidden-facts '["service-call","APIHub"]' \
-  --expected-terminal-state CHAIN_MATERIALIZED \
-  --out "${TMP}/required-split-endpoint-report.json"
-jq -e '.missingRequiredFacts == []' "${TMP}/required-split-endpoint-report.json" >/dev/null \
-  || fail "split METHOD/path + structured trigger must satisfy GET /greetings"
+    --evidence "${split_ev}" \
+    --scenario-id product-create-chain-greetings \
+    --rep 1 \
+    --required-facts '["GET /greetings","script"]' \
+    --forbidden-facts '["service-call","APIHub"]' \
+    --expected-terminal-state CHAIN_MATERIALIZED \
+    --out "${TMP}/required-split-endpoint-report.json"
+jq -e '.missingRequiredFacts == []' "${TMP}/required-split-endpoint-report.json" > /dev/null ||
+    fail "split METHOD/path + structured trigger must satisfy GET /greetings"
 # Contiguous literal still works (baseline fixture).
 python3 "${BUILD_PY}" \
-  --evidence "${neg_ev}" \
-  --scenario-id product-create-chain-greetings \
-  --rep 1 \
-  --required-facts '["GET /greetings"]' \
-  --forbidden-facts '[]' \
-  --expected-terminal-state CHAIN_MATERIALIZED \
-  --out "${TMP}/required-literal-endpoint-report.json"
-jq -e '.missingRequiredFacts == []' "${TMP}/required-literal-endpoint-report.json" >/dev/null \
-  || fail "literal GET /greetings must still satisfy required facts"
+    --evidence "${neg_ev}" \
+    --scenario-id product-create-chain-greetings \
+    --rep 1 \
+    --required-facts '["GET /greetings"]' \
+    --forbidden-facts '[]' \
+    --expected-terminal-state CHAIN_MATERIALIZED \
+    --out "${TMP}/required-literal-endpoint-report.json"
+jq -e '.missingRequiredFacts == []' "${TMP}/required-literal-endpoint-report.json" > /dev/null ||
+    fail "literal GET /greetings must still satisfy required facts"
 # Missing path must still fail.
 miss_ev="${TMP}/required-missing-endpoint-evidence.json"
-python3 - "${split_ev}" "${miss_ev}" <<'PY'
+python3 - "${split_ev}" "${miss_ev}" << 'PY'
 import json
 import pathlib
 import sys
@@ -1512,16 +1527,16 @@ src["decodedArtifacts"]["REQUIREMENT_BRIEF#r1"] = {
 pathlib.Path(sys.argv[2]).write_text(json.dumps(src))
 PY
 python3 "${BUILD_PY}" \
-  --evidence "${miss_ev}" \
-  --scenario-id product-create-chain-greetings \
-  --rep 1 \
-  --required-facts '["GET /greetings"]' \
-  --forbidden-facts '[]' \
-  --expected-terminal-state CHAIN_MATERIALIZED \
-  --out "${TMP}/required-missing-endpoint-report.json"
+    --evidence "${miss_ev}" \
+    --scenario-id product-create-chain-greetings \
+    --rep 1 \
+    --required-facts '["GET /greetings"]' \
+    --forbidden-facts '[]' \
+    --expected-terminal-state CHAIN_MATERIALIZED \
+    --out "${TMP}/required-missing-endpoint-report.json"
 jq -e '.missingRequiredFacts == ["GET /greetings"]' \
-  "${TMP}/required-missing-endpoint-report.json" >/dev/null \
-  || fail "absent endpoint evidence must keep GET /greetings missing"
+    "${TMP}/required-missing-endpoint-report.json" > /dev/null ||
+    fail "absent endpoint evidence must keep GET /greetings missing"
 pass "required HTTP endpoint split-path contract"
 
 echo "ALL live runner contracts PASS"

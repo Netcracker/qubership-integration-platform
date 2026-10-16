@@ -1,6 +1,5 @@
 import pytest
 from pydantic import ValidationError
-
 from qip_e2e_evaluator.models import EvaluateRequest, ScoreResponse
 
 

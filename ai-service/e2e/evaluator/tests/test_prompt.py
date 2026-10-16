@@ -14,7 +14,7 @@ def _req(**overrides) -> EvaluateRequest:
         plan={"goal": "Create greetings chain", "steps": []},
     )
     payload.update(overrides)
-    return EvaluateRequest(**payload)
+    return EvaluateRequest.model_validate(payload)
 
 
 def test_prompt_includes_rubric_facts_plan_and_complexity_direction():

@@ -13,7 +13,7 @@ REPORT_PATH=""
 TRANSPORT="chat"
 
 usage() {
-  cat >&2 <<'EOF'
+    cat >&2 << 'EOF'
 Usage: run-product-scenario.sh \
   --scenario <id> --rep <n> \
   --base-url <url> --evaluator-url <url> \
@@ -22,35 +22,62 @@ Usage: run-product-scenario.sh \
 --transport picks how turns are sent. Both transports drive the same scenario to the same
 durable terminal state and assert the same evidence, so a divergence names the transport.
 EOF
-  exit 2
+    exit 2
 }
 
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --scenario) SCENARIO_ID="${2:?}"; shift 2 ;;
-    --rep) REP="${2:?}"; shift 2 ;;
-    --base-url) BASE_URL="${2:?}"; shift 2 ;;
-    --evaluator-url) EVALUATOR_URL="${2:?}"; shift 2 ;;
-    --report) REPORT_PATH="${2:?}"; shift 2 ;;
-    --transport) TRANSPORT="${2:?}"; shift 2 ;;
-    -h|--help) usage ;;
-    *) echo "Unknown option: $1" >&2; usage ;;
-  esac
+    case "$1" in
+        --scenario)
+            SCENARIO_ID="${2:?}"
+            shift 2
+            ;;
+        --rep)
+            REP="${2:?}"
+            shift 2
+            ;;
+        --base-url)
+            BASE_URL="${2:?}"
+            shift 2
+            ;;
+        --evaluator-url)
+            EVALUATOR_URL="${2:?}"
+            shift 2
+            ;;
+        --report)
+            REPORT_PATH="${2:?}"
+            shift 2
+            ;;
+        --transport)
+            TRANSPORT="${2:?}"
+            shift 2
+            ;;
+        -h | --help) usage ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage
+            ;;
+    esac
 done
 
 [[ -n "${SCENARIO_ID}" && -n "${REP}" && -n "${BASE_URL}" ]] || usage
 [[ -n "${EVALUATOR_URL}" && -n "${REPORT_PATH}" ]] || usage
 case "${TRANSPORT}" in
-  chat|a2a) ;;
-  *)
-    echo "FAIL: --transport must be chat or a2a" >&2
-    exit 2
-    ;;
+    chat | a2a) ;;
+    *)
+        echo "FAIL: --transport must be chat or a2a" >&2
+        exit 2
+        ;;
 esac
 SCENARIOS_FILE="${DIR}/scenarios.json"
-[[ -f "${SCENARIOS_FILE}" ]] || { echo "FAIL: missing scenarios.json" >&2; exit 1; }
-jq -e --arg s "${SCENARIO_ID}" '.[$s]' "${SCENARIOS_FILE}" >/dev/null \
-  || { echo "FAIL: unknown scenario ${SCENARIO_ID}" >&2; exit 1; }
+[[ -f "${SCENARIOS_FILE}" ]] || {
+    echo "FAIL: missing scenarios.json" >&2
+    exit 1
+}
+jq -e --arg s "${SCENARIO_ID}" '.[$s]' "${SCENARIOS_FILE}" > /dev/null ||
+    {
+        echo "FAIL: unknown scenario ${SCENARIO_ID}" >&2
+        exit 1
+    }
 
 prompt="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].prompt // empty' "${SCENARIOS_FILE}")"
 expected_state="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].terminalState // empty' "${SCENARIOS_FILE}")"
@@ -62,10 +89,10 @@ profile_version="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].profileVersion // "1"' 
 # Default GENERATE. Script-only briefs are handled deterministically inside design-input
 # (no SERVICE_CALL / APIHub binding invented for HTTP trigger + script flows).
 design_input_choice="$(jq -r --arg s "${SCENARIO_ID}" \
-  '.[$s].designInputChoice // "Generate full IDS"' "${SCENARIOS_FILE}")"
+    '.[$s].designInputChoice // "Generate full IDS"' "${SCENARIOS_FILE}")"
 discovery_answers_json="$(jq -c --arg s "${SCENARIO_ID}" '.[$s].discoveryAnswers // []' "${SCENARIOS_FILE}")"
 design_input_answers_json="$(jq -c --arg s "${SCENARIO_ID}" \
-  '.[$s].designInputAnswers // []' "${SCENARIOS_FILE}")"
+    '.[$s].designInputAnswers // []' "${SCENARIOS_FILE}")"
 uploaded_specs_json="$(jq -c --arg s "${SCENARIO_ID}" '
   if .[$s].uploadedSpecs then .[$s].uploadedSpecs
   elif .[$s].uploadedSpec then [.[$s].uploadedSpec]
@@ -82,103 +109,129 @@ recovery_follow_up="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.followUp //
 recovery_exhaust_halt="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.exhaustHalt // false' "${SCENARIOS_FILE}")"
 recovery_automatic_only="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.automaticOnly // false' "${SCENARIOS_FILE}")"
 recovery_fault_stages_json="$(jq -c --arg s "${SCENARIO_ID}" \
-  '.[$s].recovery.faultStages // (if .[$s].recovery.faultStage then [.[$s].recovery.faultStage] else [] end)' \
-  "${SCENARIOS_FILE}")"
+    '.[$s].recovery.faultStages // (if .[$s].recovery.faultStage then [.[$s].recovery.faultStage] else [] end)' \
+    "${SCENARIOS_FILE}")"
 recovery_owner_stages_json="$(jq -c --arg s "${SCENARIO_ID}" \
-  '.[$s].recovery.ownerStages // (if .[$s].recovery.ownerStage then [.[$s].recovery.ownerStage] else [] end)' \
-  "${SCENARIOS_FILE}")"
+    '.[$s].recovery.ownerStages // (if .[$s].recovery.ownerStage then [.[$s].recovery.ownerStage] else [] end)' \
+    "${SCENARIOS_FILE}")"
 catalog_url="${E2E_CATALOG_URL:-http://localhost:8091}"
 pipeline="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].pipeline // empty' "${SCENARIOS_FILE}")"
-[[ "${pipeline}" == "create-chain-v1" ]] \
-  || { echo "FAIL: scenario ${SCENARIO_ID} pipeline must be create-chain-v1 (got ${pipeline})" >&2; exit 1; }
-[[ -n "${profile_id}" && "${profile_id}" == "create-chain" ]] \
-  || { echo "FAIL: scenario ${SCENARIO_ID} profileId must be create-chain" >&2; exit 1; }
+[[ "${pipeline}" == "create-chain-v1" ]] ||
+    {
+        echo "FAIL: scenario ${SCENARIO_ID} pipeline must be create-chain-v1 (got ${pipeline})" >&2
+        exit 1
+    }
+[[ -n "${profile_id}" && "${profile_id}" == "create-chain" ]] ||
+    {
+        echo "FAIL: scenario ${SCENARIO_ID} profileId must be create-chain" >&2
+        exit 1
+    }
 # Active gate scenarios pin create-chain@2 (new CREATE cutover). Historical @1 coverage
 # lives in CreateChainProductPipelineRestartIT and the offline @1 profile contract.
-[[ -n "${profile_version}" && "${profile_version}" == "2" ]] \
-  || { echo "FAIL: scenario ${SCENARIO_ID} profileVersion must be 2 (new CREATE)" >&2; exit 1; }
+[[ -n "${profile_version}" && "${profile_version}" == "2" ]] ||
+    {
+        echo "FAIL: scenario ${SCENARIO_ID} profileVersion must be 2 (new CREATE)" >&2
+        exit 1
+    }
 if [[ "${recovery_exhaust_halt}" == "true" ]]; then
-  [[ -n "${expected_state}" && "${expected_state}" == "WAITING_FOR_INPUT" ]] \
-    || { echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires terminalState WAITING_FOR_INPUT" >&2; exit 1; }
-  [[ "${retain_catalog_chain}" == "false" ]] \
-    || { echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires retainCatalogChain=false" >&2; exit 1; }
-  [[ -n "${recovery_fault_stage}" && -n "${recovery_follow_up}" ]] \
-    || { echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires recovery.faultStage and recovery.followUp" >&2; exit 1; }
+    [[ -n "${expected_state}" && "${expected_state}" == "WAITING_FOR_INPUT" ]] ||
+        {
+            echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires terminalState WAITING_FOR_INPUT" >&2
+            exit 1
+        }
+    [[ "${retain_catalog_chain}" == "false" ]] ||
+        {
+            echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires retainCatalogChain=false" >&2
+            exit 1
+        }
+    [[ -n "${recovery_fault_stage}" && -n "${recovery_follow_up}" ]] ||
+        {
+            echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires recovery.faultStage and recovery.followUp" >&2
+            exit 1
+        }
 else
-  [[ -n "${expected_state}" && "${expected_state}" == "CHAIN_MATERIALIZED" ]] \
-    || { echo "FAIL: scenario ${SCENARIO_ID} terminalState must be CHAIN_MATERIALIZED" >&2; exit 1; }
-  [[ "${retain_catalog_chain}" == "true" ]] \
-    || { echo "FAIL: scenario ${SCENARIO_ID} retainCatalogChain must be true" >&2; exit 1; }
+    [[ -n "${expected_state}" && "${expected_state}" == "CHAIN_MATERIALIZED" ]] ||
+        {
+            echo "FAIL: scenario ${SCENARIO_ID} terminalState must be CHAIN_MATERIALIZED" >&2
+            exit 1
+        }
+    [[ "${retain_catalog_chain}" == "true" ]] ||
+        {
+            echo "FAIL: scenario ${SCENARIO_ID} retainCatalogChain must be true" >&2
+            exit 1
+        }
 fi
-[[ -n "${prompt}" ]] || { echo "FAIL: scenario ${SCENARIO_ID} missing prompt" >&2; exit 1; }
-if [[ -n "${recovery_fault_stage}" && "${recovery_automatic_only}" != "true" \
-    && "${TRANSPORT}" != "chat" ]]; then
-  echo "FAIL: recovery scenario currently requires chat transport for the typed revise decision" >&2
-  exit 2
+[[ -n "${prompt}" ]] || {
+    echo "FAIL: scenario ${SCENARIO_ID} missing prompt" >&2
+    exit 1
+}
+if [[ -n "${recovery_fault_stage}" && "${recovery_automatic_only}" != "true" &&
+    "${TRANSPORT}" != "chat" ]]; then
+    echo "FAIL: recovery scenario currently requires chat transport for the typed revise decision" >&2
+    exit 2
 fi
-if [[ "$(jq 'length' <<<"${uploaded_specs_json}")" -gt 0 && "${TRANSPORT}" != "chat" ]]; then
-  echo "FAIL: uploaded specification scenarios require chat transport" >&2
-  exit 2
+if [[ "$(jq 'length' <<< "${uploaded_specs_json}")" -gt 0 && "${TRANSPORT}" != "chat" ]]; then
+    echo "FAIL: uploaded specification scenarios require chat transport" >&2
+    exit 2
 fi
-
 
 mkdir -p "$(dirname "${REPORT_PATH}")"
 run_dir="$(dirname "${REPORT_PATH}")"
 run_stamp="$(date -u +%Y%m%dT%H%M%S)"
 unique_chain_name=""
 if [[ -n "${unique_prefix}" ]]; then
-  unique_chain_name="${unique_prefix}.${run_stamp}.r${REP}"
-  prompt="${prompt//\{\{UNIQUE_CHAIN_NAME\}\}/${unique_chain_name}}"
-  printf '%s\n' "${unique_chain_name}" >"${run_dir}/unique-chain-name.txt"
+    unique_chain_name="${unique_prefix}.${run_stamp}.r${REP}"
+    prompt="${prompt//\{\{UNIQUE_CHAIN_NAME\}\}/${unique_chain_name}}"
+    printf '%s\n' "${unique_chain_name}" > "${run_dir}/unique-chain-name.txt"
 fi
 # Retention is intentional for catalog inspection — never delete created chains here.
 printf 'retainCatalogChain=%s uniqueChainName=%s\n' \
-  "${retain_catalog_chain}" "${unique_chain_name}" >"${run_dir}/catalog-retention.txt"
+    "${retain_catalog_chain}" "${unique_chain_name}" > "${run_dir}/catalog-retention.txt"
 
 if [[ "${PRODUCT_PIPELINE_STUB_MODE:-0}" == "1" ]]; then
-  conversation_id="stub-${SCENARIO_ID}-${REP}"
-  run_id="${conversation_id}-${profile_id}-${profile_version}"
-  stub_facts="$(jq -c 'if length > 0 then . else ["CREATE"] end' <<<"${required_json}")"
-  stub_approval_eligible="true"
-  stub_validation_verdict="PASS"
-  stub_approval_hash="stub-hash"
-  stub_kinds='[]'
-  stub_chain_id=""
-  stub_reconcile="null"
-  stub_patches='[]'
-  stub_compiler_digest="stub-compiler-pipeline-digest"
-  if [[ "${expected_state}" == "PLAN_APPROVED" ]]; then
-    stub_kinds='["IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT","APPROVAL_RECORD","REQUIREMENT_BRIEF"]'
-  elif [[ "${expected_state}" == "WAITING_FOR_APPROVAL" ]]; then
-    stub_kinds='["REQUIREMENT_BRIEF","IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT"]'
-  elif [[ "${expected_state}" == "CHAIN_MATERIALIZED" ]]; then
-    stub_kinds='["IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT","APPROVAL_RECORD","REQUIREMENT_BRIEF","GRAPH_PATCH_ARTIFACT","MATERIALIZATION_RESULT","CATALOG_CHAIN_SNAPSHOT","RECONCILE_RESULT"]'
-    stub_chain_id="stub-chain-${SCENARIO_ID}"
-    stub_reconcile="true"
-    stub_patches='[{"ownerCapabilityId":"cip-script-generator","applicability":"APPLICABLE","baseGraphDigest":"base-stub","resultGraphDigest":"result-stub","operationCount":1}]'
-  elif [[ "${expected_state}" == "WAITING_FOR_INPUT" ]]; then
-    stub_kinds='["REQUIREMENT_BRIEF","IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT","APPROVAL_RECORD"]'
+    conversation_id="stub-${SCENARIO_ID}-${REP}"
+    run_id="${conversation_id}-${profile_id}-${profile_version}"
+    stub_facts="$(jq -c 'if length > 0 then . else ["CREATE"] end' <<< "${required_json}")"
     stub_approval_eligible="true"
     stub_validation_verdict="PASS"
     stub_approval_hash="stub-hash"
-  elif [[ "${expected_state}" == "FAILED" ]]; then
-    stub_kinds='["REQUIREMENT_BRIEF","PLAN_VALIDATION_RESULT"]'
-    stub_approval_eligible="false"
-    stub_validation_verdict="FAIL"
-    stub_approval_hash=""
-    stub_facts="$(jq -c '. + ["VALIDATION_FAILURE","else.condition"] | unique' <<<"${stub_facts}")"
-  fi
-  stub_halt_gate=""
-  stub_halt_guard=""
-  stub_halt_prompt=""
-  stub_halt_actions='[]'
-  if [[ "${recovery_exhaust_halt}" == "true" ]]; then
-    stub_halt_gate="recovery-repeated"
-    stub_halt_guard="NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
-    stub_halt_prompt="That stage is not a candidate for this defect."
-    stub_halt_actions='["stop-with-report"]'
-  fi
-  cat >"${REPORT_PATH}" <<EOF
+    stub_kinds='[]'
+    stub_chain_id=""
+    stub_reconcile="null"
+    stub_patches='[]'
+    stub_compiler_digest="stub-compiler-pipeline-digest"
+    if [[ "${expected_state}" == "PLAN_APPROVED" ]]; then
+        stub_kinds='["IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT","APPROVAL_RECORD","REQUIREMENT_BRIEF"]'
+    elif [[ "${expected_state}" == "WAITING_FOR_APPROVAL" ]]; then
+        stub_kinds='["REQUIREMENT_BRIEF","IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT"]'
+    elif [[ "${expected_state}" == "CHAIN_MATERIALIZED" ]]; then
+        stub_kinds='["IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT","APPROVAL_RECORD","REQUIREMENT_BRIEF","GRAPH_PATCH_ARTIFACT","MATERIALIZATION_RESULT","CATALOG_CHAIN_SNAPSHOT","RECONCILE_RESULT"]'
+        stub_chain_id="stub-chain-${SCENARIO_ID}"
+        stub_reconcile="true"
+        stub_patches='[{"ownerCapabilityId":"cip-script-generator","applicability":"APPLICABLE","baseGraphDigest":"base-stub","resultGraphDigest":"result-stub","operationCount":1}]'
+    elif [[ "${expected_state}" == "WAITING_FOR_INPUT" ]]; then
+        stub_kinds='["REQUIREMENT_BRIEF","IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT","APPROVAL_RECORD"]'
+        stub_approval_eligible="true"
+        stub_validation_verdict="PASS"
+        stub_approval_hash="stub-hash"
+    elif [[ "${expected_state}" == "FAILED" ]]; then
+        stub_kinds='["REQUIREMENT_BRIEF","PLAN_VALIDATION_RESULT"]'
+        stub_approval_eligible="false"
+        stub_validation_verdict="FAIL"
+        stub_approval_hash=""
+        stub_facts="$(jq -c '. + ["VALIDATION_FAILURE","else.condition"] | unique' <<< "${stub_facts}")"
+    fi
+    stub_halt_gate=""
+    stub_halt_guard=""
+    stub_halt_prompt=""
+    stub_halt_actions='[]'
+    if [[ "${recovery_exhaust_halt}" == "true" ]]; then
+        stub_halt_gate="recovery-repeated"
+        stub_halt_guard="NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
+        stub_halt_prompt="That stage is not a candidate for this defect."
+        stub_halt_actions='["stop-with-report"]'
+    fi
+    cat > "${REPORT_PATH}" << EOF
 {
   "scenarioId": "${SCENARIO_ID}",
   "rep": ${REP},
@@ -201,12 +254,12 @@ if [[ "${PRODUCT_PIPELINE_STUB_MODE:-0}" == "1" ]]; then
     "contentChars": 120
   },
   "materializedElementTypes": $(
-    if [[ "${SCENARIO_ID}" == "product-create-chain-error-handling" ]]; then
-      echo '["catch-2","try-2","try-catch-finally-2"]'
-    else
-      echo '[]'
-    fi
-  ),
+        if [[ "${SCENARIO_ID}" == "product-create-chain-error-handling" ]]; then
+            echo '["catch-2","try-2","try-catch-finally-2"]'
+        else
+            echo '[]'
+        fi
+    ),
   "validationVerdict": "${stub_validation_verdict}",
   "approvalTargetHash": "${stub_approval_hash}",
   "approvedPlanContentHash": "${stub_approval_hash}",
@@ -232,12 +285,12 @@ if [[ "${PRODUCT_PIPELINE_STUB_MODE:-0}" == "1" ]]; then
   "decodedPlan": {"goal": "stub", "steps": []},
   "requirementFacts": ${stub_facts},
   "validationFindings": $(
-    if [[ "${expected_state}" == "FAILED" ]]; then
-      echo '[{"code":"EXCLUSION","message":"else.condition","blocker":true}]'
-    else
-      echo '[]'
-    fi
-  ),
+        if [[ "${expected_state}" == "FAILED" ]]; then
+            echo '[{"code":"EXCLUSION","message":"else.condition","blocker":true}]'
+        else
+            echo '[]'
+        fi
+    ),
   "prompt": $(jq -Rn --arg p "${prompt}" '$p'),
   "haltGate": "${stub_halt_gate}",
   "haltGuard": "${stub_halt_guard}",
@@ -246,30 +299,33 @@ if [[ "${PRODUCT_PIPELINE_STUB_MODE:-0}" == "1" ]]; then
   "stub": true
 }
 EOF
-  jq '{conversationId, runId, currentState: .terminalState, committedArtifactKinds, stub: true}' \
-    "${REPORT_PATH}" >"${run_dir}/evidence.json"
+    jq '{conversationId, runId, currentState: .terminalState, committedArtifactKinds, stub: true}' \
+        "${REPORT_PATH}" > "${run_dir}/evidence.json"
 
-  if [[ "${expected_state}" == "PLAN_APPROVED" || "${expected_state}" == "CHAIN_MATERIALIZED" ]]; then
-    scores_path="${run_dir}/semantic-scores.json"
-    python3 "${DIR}/evaluate-plan.py" \
-      --evaluator-url "${EVALUATOR_URL}" \
-      --report "${REPORT_PATH}" \
-      --out "${scores_path}" || true
-  fi
+    if [[ "${expected_state}" == "PLAN_APPROVED" || "${expected_state}" == "CHAIN_MATERIALIZED" ]]; then
+        scores_path="${run_dir}/semantic-scores.json"
+        python3 "${DIR}/evaluate-plan.py" \
+            --evaluator-url "${EVALUATOR_URL}" \
+            --report "${REPORT_PATH}" \
+            --out "${scores_path}" || true
+    fi
 
-  report_pv="$(jq -r '.profileVersion // empty' "${REPORT_PATH}")"
-  [[ "${report_pv}" == "${profile_version}" ]] \
-    || { echo "FAIL: report profileVersion=${report_pv} expected ${profile_version}" >&2; exit 1; }
-  bash "${DIR}/assert-product-run.sh" "${REPORT_PATH}"
-  exit 0
+    report_pv="$(jq -r '.profileVersion // empty' "${REPORT_PATH}")"
+    [[ "${report_pv}" == "${profile_version}" ]] ||
+        {
+            echo "FAIL: report profileVersion=${report_pv} expected ${profile_version}" >&2
+            exit 1
+        }
+    bash "${DIR}/assert-product-run.sh" "${REPORT_PATH}"
+    exit 0
 fi
 
 # Live path: drive POST /api/v1/chat (SSE) and durable evidence endpoint.
-command -v curl >/dev/null
-command -v jq >/dev/null
+command -v curl > /dev/null
+command -v jq > /dev/null
 [[ -f "${SCRIPTS_DIR}/chat-turn.sh" ]] || {
-  echo "FAIL: missing ${SCRIPTS_DIR}/chat-turn.sh" >&2
-  exit 1
+    echo "FAIL: missing ${SCRIPTS_DIR}/chat-turn.sh" >&2
+    exit 1
 }
 # shellcheck source=scripts/lib.sh
 source "${SCRIPTS_DIR}/lib.sh"
@@ -288,32 +344,32 @@ uploaded_spec_object_keys_json='[]'
 uploaded_spec_system_types_json='{}'
 uploaded_spec_uploads_json='[]'
 
-last_a2a_response=""
-
 send_turn() {
-  local label="$1"
-  local text="$2"
-  local structured="${3:-}"
-  local decision="${4:-}"
-  if [[ "${TRANSPORT}" == "a2a" ]]; then
-    local out_json="${sse_dir}/${label}.json"
-    conversation_id="$(
-      bash "${SCRIPTS_DIR}/a2a-turn.sh" \
-        "${BASE_URL}" "${conversation_id}" "${text}" "${out_json}" "${structured}"
-    )"
-    last_a2a_response="${out_json}"
-  else
-    local out_sse="${sse_dir}/${label}.sse"
-    conversation_id="$(
-      bash "${SCRIPTS_DIR}/chat-turn.sh" \
-        "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}" "" "${decision}"
-    )"
-    if [[ "${recovery_exhaust_halt}" == "true" ]]; then
-      e2e_assert_observable_sse_output "${out_sse}" "${label}"
+    local label="$1"
+    local text="$2"
+    local structured="${3:-}"
+    local decision="${4:-}"
+    if [[ "${TRANSPORT}" == "a2a" ]]; then
+        local out_json="${sse_dir}/${label}.json"
+        conversation_id="$(
+            bash "${SCRIPTS_DIR}/a2a-turn.sh" \
+                "${BASE_URL}" "${conversation_id}" "${text}" "${out_json}" "${structured}"
+        )"
+    else
+        local out_sse="${sse_dir}/${label}.sse"
+        conversation_id="$(
+            bash "${SCRIPTS_DIR}/chat-turn.sh" \
+                "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}" "" "${decision}"
+        )"
+        if [[ "${recovery_exhaust_halt}" == "true" ]]; then
+            e2e_assert_observable_sse_output "${out_sse}" "${label}"
+        fi
     fi
-  fi
-  [[ -n "${conversation_id}" && "${conversation_id}" != "-" ]] \
-    || { echo "FAIL: turn did not return conversationId" >&2; exit 1; }
+    [[ -n "${conversation_id}" && "${conversation_id}" != "-" ]] ||
+        {
+            echo "FAIL: turn did not return conversationId" >&2
+            exit 1
+        }
 }
 
 # Reads the approve descriptor the Task advertises, so the runner approves the exact revision it
@@ -322,11 +378,12 @@ send_turn() {
 # It reads the current Task rather than the last response: message:send can return while the Task
 # is still WORKING, and that response carries no pending action.
 a2a_pending_approve() {
-  local snapshot="${sse_dir}/task-$(date +%s).json"
-  curl -fsS --max-time 30 \
-    -H 'A2A-Version: 1.0' \
-    "${BASE_URL}/tasks/${conversation_id}" >"${snapshot}" 2>/dev/null || return 1
-  python3 - "${snapshot}" <<'PY'
+    local snapshot
+    snapshot="${sse_dir}/task-$(date +%s).json"
+    curl -fsS --max-time 30 \
+        -H 'A2A-Version: 1.0' \
+        "${BASE_URL}/tasks/${conversation_id}" > "${snapshot}" 2> /dev/null || return 1
+    python3 - "${snapshot}" << 'PY'
 import json
 import sys
 
@@ -348,56 +405,68 @@ PY
 
 uploaded_spec_index=0
 while IFS= read -r uploaded_spec; do
-  [[ -n "${uploaded_spec}" ]] || continue
-  uploaded_spec_fixture="$(jq -r '.fixture // empty' <<<"${uploaded_spec}")"
-  uploaded_spec_system_type="$(jq -r '.systemType // "EXTERNAL"' <<<"${uploaded_spec}")"
-  [[ -n "${uploaded_spec_fixture}" ]] \
-    || { echo "FAIL: uploaded specification fixture must be non-blank" >&2; exit 1; }
-  uploaded_spec_path="${DIR}/${uploaded_spec_fixture}"
-  [[ -f "${uploaded_spec_path}" ]] \
-    || { echo "FAIL: uploaded specification fixture not found: ${uploaded_spec_path}" >&2; exit 1; }
-  uploaded_spec_index=$((uploaded_spec_index + 1))
-  upload_response="${run_dir}/uploaded-spec-upload-${uploaded_spec_index}.json"
-  upload_prefix="e2e/${SCENARIO_ID}/${run_stamp}-r${REP}"
-  curl -fsS --max-time 60 \
-    -X POST "${BASE_URL}/api/v1/storage/objects" \
-    -F "file=@${uploaded_spec_path}" \
-    -F "prefix=${upload_prefix}" >"${upload_response}"
-  uploaded_spec_object_key="$(jq -r '.objectKey // empty' "${upload_response}")"
-  [[ -n "${uploaded_spec_object_key}" ]] \
-    || { echo "FAIL: storage upload returned no objectKey for ${uploaded_spec_fixture}" >&2; exit 1; }
-  uploaded_spec_object_keys_json="$(jq -c --arg key "${uploaded_spec_object_key}" '. + [$key]' \
-    <<<"${uploaded_spec_object_keys_json}")"
-  uploaded_spec_system_types_json="$(jq -c \
-    --arg key "${uploaded_spec_object_key}" --arg systemType "${uploaded_spec_system_type}" \
-    '. + {($key): $systemType}' <<<"${uploaded_spec_system_types_json}")"
-  uploaded_spec_uploads_json="$(jq -c \
-    --arg fixture "${uploaded_spec_fixture}" \
-    --arg objectKey "${uploaded_spec_object_key}" \
-    --arg systemType "${uploaded_spec_system_type}" \
-    '. + [{fixture: $fixture, objectKey: $objectKey, systemType: $systemType}]' \
-    <<<"${uploaded_spec_uploads_json}")"
-done < <(jq -c '.[]' <<<"${uploaded_specs_json}")
+    [[ -n "${uploaded_spec}" ]] || continue
+    uploaded_spec_fixture="$(jq -r '.fixture // empty' <<< "${uploaded_spec}")"
+    uploaded_spec_system_type="$(jq -r '.systemType // "EXTERNAL"' <<< "${uploaded_spec}")"
+    [[ -n "${uploaded_spec_fixture}" ]] ||
+        {
+            echo "FAIL: uploaded specification fixture must be non-blank" >&2
+            exit 1
+        }
+    uploaded_spec_path="${DIR}/${uploaded_spec_fixture}"
+    [[ -f "${uploaded_spec_path}" ]] ||
+        {
+            echo "FAIL: uploaded specification fixture not found: ${uploaded_spec_path}" >&2
+            exit 1
+        }
+    uploaded_spec_index=$((uploaded_spec_index + 1))
+    upload_response="${run_dir}/uploaded-spec-upload-${uploaded_spec_index}.json"
+    upload_prefix="e2e/${SCENARIO_ID}/${run_stamp}-r${REP}"
+    curl -fsS --max-time 60 \
+        -X POST "${BASE_URL}/api/v1/storage/objects" \
+        -F "file=@${uploaded_spec_path}" \
+        -F "prefix=${upload_prefix}" > "${upload_response}"
+    uploaded_spec_object_key="$(jq -r '.objectKey // empty' "${upload_response}")"
+    [[ -n "${uploaded_spec_object_key}" ]] ||
+        {
+            echo "FAIL: storage upload returned no objectKey for ${uploaded_spec_fixture}" >&2
+            exit 1
+        }
+    uploaded_spec_object_keys_json="$(jq -c --arg key "${uploaded_spec_object_key}" '. + [$key]' \
+        <<< "${uploaded_spec_object_keys_json}")"
+    uploaded_spec_system_types_json="$(jq -c \
+        --arg key "${uploaded_spec_object_key}" --arg systemType "${uploaded_spec_system_type}" \
+        '. + {($key): $systemType}' <<< "${uploaded_spec_system_types_json}")"
+    uploaded_spec_uploads_json="$(jq -c \
+        --arg fixture "${uploaded_spec_fixture}" \
+        --arg objectKey "${uploaded_spec_object_key}" \
+        --arg systemType "${uploaded_spec_system_type}" \
+        '. + [{fixture: $fixture, objectKey: $objectKey, systemType: $systemType}]' \
+        <<< "${uploaded_spec_uploads_json}")"
+done < <(jq -c '.[]' <<< "${uploaded_specs_json}")
 
-if [[ "$(jq 'length' <<<"${uploaded_spec_object_keys_json}")" -gt 0 ]]; then
-  export E2E_CHAT_ATTACHMENT_KEYS_JSON="${uploaded_spec_object_keys_json}"
+if [[ "$(jq 'length' <<< "${uploaded_spec_object_keys_json}")" -gt 0 ]]; then
+    export E2E_CHAT_ATTACHMENT_KEYS_JSON="${uploaded_spec_object_keys_json}"
 fi
 
 send_turn "01-prompt" "${prompt}"
 unset E2E_CHAT_ATTACHMENT_KEYS_JSON || true
 
-if [[ "$(jq 'length' <<<"${uploaded_spec_object_keys_json}")" -gt 0 ]]; then
-  upload_decision="$(
-    e2e_extract_uploaded_spec_import_decision \
-      "${sse_dir}/01-prompt.sse" "${uploaded_spec_system_types_json}"
-  )" || { echo "FAIL: uploaded specification import decision card not found" >&2; exit 1; }
-  jq -n \
-    --argjson uploads "${uploaded_spec_uploads_json}" \
-    --argjson specSystemTypes "${uploaded_spec_system_types_json}" \
-    --argjson decision "${upload_decision}" \
-    '{uploads: $uploads, specSystemTypes: $specSystemTypes, decision: $decision}' \
-    >"${run_dir}/uploaded-spec.json"
-  send_turn "02-import-specification" "" "" "${upload_decision}"
+if [[ "$(jq 'length' <<< "${uploaded_spec_object_keys_json}")" -gt 0 ]]; then
+    upload_decision="$(
+        e2e_extract_uploaded_spec_import_decision \
+            "${sse_dir}/01-prompt.sse" "${uploaded_spec_system_types_json}"
+    )" || {
+        echo "FAIL: uploaded specification import decision card not found" >&2
+        exit 1
+    }
+    jq -n \
+        --argjson uploads "${uploaded_spec_uploads_json}" \
+        --argjson specSystemTypes "${uploaded_spec_system_types_json}" \
+        --argjson decision "${upload_decision}" \
+        '{uploads: $uploads, specSystemTypes: $specSystemTypes, decision: $decision}' \
+        > "${run_dir}/uploaded-spec.json"
+    send_turn "02-import-specification" "" "" "${upload_decision}"
 fi
 
 # Overall poll cap (was hard-coded 600s). Stuck planning without plan artifacts
@@ -410,232 +479,244 @@ evidence=""
 discovery_continues=0
 planning_stall_since=""
 planning_stall_fingerprint=""
-while (( SECONDS < deadline )); do
-  evidence="$(curl -fsS "${BASE_URL}/api/v1/chat/conversations/${conversation_id}/product-pipeline" || true)"
-  current_state="$(jq -r '.currentState // empty' <<<"${evidence}")"
-  latest_wait_reason="$(jq -r '
+while ((SECONDS < deadline)); do
+    evidence="$(curl -fsS "${BASE_URL}/api/v1/chat/conversations/${conversation_id}/product-pipeline" || true)"
+    current_state="$(jq -r '.currentState // empty' <<< "${evidence}")"
+    latest_wait_reason="$(jq -r '
     [.transitions[]? | select(.toStatus == "WAITING_FOR_INPUT") | .reason // ""]
     | last // empty
-  ' <<<"${evidence}")"
-  recovery_fault_injected="$(jq -r '
+  ' <<< "${evidence}")"
+    recovery_fault_injected="$(jq -r '
     if any(.attempts[]?; ((.failureEvidence // "") | contains("E2E recovery fault")))
     then "1" else "0" end
-  ' <<<"${evidence}")"
-  if [[ "${recovery_exhaust_halt}" == "true" \
-      && "${current_state}" == "WAITING_FOR_INPUT" \
-      && "${latest_wait_reason}" == *"__GATE:recovery-repeated__"* \
-      && "${latest_wait_reason}" == *"__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET"* ]]; then
-    break
-  fi
-  if [[ "${recovery_exhaust_halt}" != "true" && "${current_state}" == "${expected_state}" ]]; then
-    break
-  fi
-  if [[ "${current_state}" == "FAILED" || "${current_state}" == "CANCELLED" ]]; then
-    echo "FAIL: durable state=${current_state} before expected ${expected_state}" >&2
-    break
-  fi
+  ' <<< "${evidence}")"
+    if [[ "${recovery_exhaust_halt}" == "true" &&
+        "${current_state}" == "WAITING_FOR_INPUT" &&
+        "${latest_wait_reason}" == *"__GATE:recovery-repeated__"* &&
+        "${latest_wait_reason}" == *"__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET"* ]]; then
+        break
+    fi
+    if [[ "${recovery_exhaust_halt}" != "true" && "${current_state}" == "${expected_state}" ]]; then
+        break
+    fi
+    if [[ "${current_state}" == "FAILED" || "${current_state}" == "CANCELLED" ]]; then
+        echo "FAIL: durable state=${current_state} before expected ${expected_state}" >&2
+        break
+    fi
 
-  # Abort when planning stays RUNNING with no IMPLEMENTATION_PLAN /
-  # PLAN_VALIDATION_RESULT and no revision/stage progress for N seconds.
-  stage_id="$(jq -r '.attempts[-1].stageId // empty' <<<"${evidence}")"
-  attempt_outcome="$(jq -r '.attempts[-1].outcome // empty' <<<"${evidence}")"
-  run_revision="$(jq -r '.runRevision // empty' <<<"${evidence}")"
-  has_plan_kind="$(jq -r '
+    # Abort when planning stays RUNNING with no IMPLEMENTATION_PLAN /
+    # PLAN_VALIDATION_RESULT and no revision/stage progress for N seconds.
+    stage_id="$(jq -r '.attempts[-1].stageId // empty' <<< "${evidence}")"
+    attempt_outcome="$(jq -r '.attempts[-1].outcome // empty' <<< "${evidence}")"
+    run_revision="$(jq -r '.runRevision // empty' <<< "${evidence}")"
+    has_plan_kind="$(jq -r '
     ((.committedArtifactKinds // []) | map(select(. == "IMPLEMENTATION_PLAN" or . == "PLAN_VALIDATION_RESULT")) | length) as $n
     | if $n > 0 then "1" else "0" end
-  ' <<<"${evidence}")"
-  if [[ "${current_state}" == "RUNNING" \
-      && ("${stage_id}" == "planning" || "${stage_id}" == "design-planning") \
-      && "${attempt_outcome}" == "RUNNING" \
-      && "${has_plan_kind}" == "0" ]]; then
-    fingerprint="${run_revision}|${stage_id}|${attempt_outcome}"
-    if [[ "${fingerprint}" != "${planning_stall_fingerprint}" ]]; then
-      planning_stall_fingerprint="${fingerprint}"
-      planning_stall_since="${SECONDS}"
-    elif [[ -n "${planning_stall_since}" ]] \
-        && (( SECONDS - planning_stall_since >= PRODUCT_PIPELINE_PLANNING_STALL_SEC )); then
-      echo "FAIL: planning stall: RUNNING without IMPLEMENTATION_PLAN/PLAN_VALIDATION_RESULT for ${PRODUCT_PIPELINE_PLANNING_STALL_SEC}s (runRevision=${run_revision})" >&2
-      break
+  ' <<< "${evidence}")"
+    if [[ "${current_state}" == "RUNNING" &&
+        ("${stage_id}" == "planning" || "${stage_id}" == "design-planning") &&
+        "${attempt_outcome}" == "RUNNING" &&
+        "${has_plan_kind}" == "0" ]]; then
+        fingerprint="${run_revision}|${stage_id}|${attempt_outcome}"
+        if [[ "${fingerprint}" != "${planning_stall_fingerprint}" ]]; then
+            planning_stall_fingerprint="${fingerprint}"
+            planning_stall_since="${SECONDS}"
+        elif [[ -n "${planning_stall_since}" ]] &&
+            ((SECONDS - planning_stall_since >= PRODUCT_PIPELINE_PLANNING_STALL_SEC)); then
+            echo "FAIL: planning stall: RUNNING without IMPLEMENTATION_PLAN/PLAN_VALIDATION_RESULT for ${PRODUCT_PIPELINE_PLANNING_STALL_SEC}s (runRevision=${run_revision})" >&2
+            break
+        fi
+    else
+        planning_stall_since=""
+        planning_stall_fingerprint=""
     fi
-  else
-    planning_stall_since=""
-    planning_stall_fingerprint=""
-  fi
 
-  chat_card=""
-  chat_approve_decision=""
-  if [[ "${TRANSPORT}" == "chat" \
-      && ( "${current_state}" == "WAITING_FOR_APPROVAL" || "${current_state}" == "WAITING_FOR_INPUT" ) ]]; then
-    chat_card="$(curl -fsS "${BASE_URL}/api/v1/chat/${conversation_id}/decision" || true)"
-    chat_approve_decision="$(jq -c --argjson implement "${expects_implement}" '
+    chat_card=""
+    chat_approve_decision=""
+    if [[ "${TRANSPORT}" == "chat" &&
+        ("${current_state}" == "WAITING_FOR_APPROVAL" || "${current_state}" == "WAITING_FOR_INPUT") ]]; then
+        chat_card="$(curl -fsS "${BASE_URL}/api/v1/chat/${conversation_id}/decision" || true)"
+        chat_approve_decision="$(jq -c --argjson implement "${expects_implement}" '
       select(.kind == "approve")
       | (if $implement and (.actions | index("approve-and-create")) != null then "approve-and-create"
          elif (.actions | index("approve")) != null then "approve" else null end) as $action
       | select($action != null)
       | {action:$action, artifactType, artifactHash, revision}
-    ' <<<"${chat_card}")"
-  fi
+    ' <<< "${chat_card}")"
+    fi
 
-  if [[ "${current_state}" == "WAITING_FOR_APPROVAL" && "${expects_approval}" == "true" ]]; then
-    if [[ -n "${recovery_fault_stage}" && "${stage_id}" == "${recovery_owner_stage}" \
-        && "${recovery_revise_sent}" -eq 1 ]]; then
-      recovery_reopened_approval_seen=1
-    fi
-    if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 \
-        && "${recovery_fault_injected}" == "1" ]]; then
-      # Automatic reopen returns to the owner for approval. Reset Implement so the next
-      # execution can park after the owner-already-reopened guard.
-      implement_sent=0
-    fi
-    if [[ "${TRANSPORT}" == "a2a" ]]; then
-      approve_data="$(a2a_pending_approve || true)"
-      if [[ -z "${approve_data}" ]]; then
-        # The durable run flips to WAITING_FOR_APPROVAL before the transport persists the
-        # input-required snapshot. Let the next poll find the descriptor.
-        sleep 2
-        continue
-      fi
-      send_turn "agree-$(date +%s)" "" "${approve_data}"
-    else
-      if [[ -z "${chat_approve_decision}" ]]; then
-        sleep 2
-        continue
-      fi
-      send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
-    fi
-  elif [[ "${current_state}" == "WAITING_FOR_IMPLEMENT" && "${expects_implement}" == "true" \
-      && "${TRANSPORT}" != "a2a" ]]; then
-    if [[ "${implement_sent}" -eq 0 ]]; then
-      approved_hash="$(jq -r '
+    if [[ "${current_state}" == "WAITING_FOR_APPROVAL" && "${expects_approval}" == "true" ]]; then
+        if [[ -n "${recovery_fault_stage}" && "${stage_id}" == "${recovery_owner_stage}" &&
+            "${recovery_revise_sent}" -eq 1 ]]; then
+            recovery_reopened_approval_seen=1
+        fi
+        if [[ "$(jq 'length' <<< "${recovery_fault_stages_json}")" -gt 0 &&
+        "${recovery_fault_injected}" == "1" ]]; then
+            # Automatic reopen returns to the owner for approval. Reset Implement so the next
+            # execution can park after the owner-already-reopened guard.
+            implement_sent=0
+        fi
+        if [[ "${TRANSPORT}" == "a2a" ]]; then
+            approve_data="$(a2a_pending_approve || true)"
+            if [[ -z "${approve_data}" ]]; then
+                # The durable run flips to WAITING_FOR_APPROVAL before the transport persists the
+                # input-required snapshot. Let the next poll find the descriptor.
+                sleep 2
+                continue
+            fi
+            send_turn "agree-$(date +%s)" "" "${approve_data}"
+        else
+            if [[ -z "${chat_approve_decision}" ]]; then
+                sleep 2
+                continue
+            fi
+            send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
+        fi
+    elif [[ "${current_state}" == "WAITING_FOR_IMPLEMENT" && "${expects_implement}" == "true" &&
+        "${TRANSPORT}" != "a2a" ]]; then
+        if [[ "${implement_sent}" -eq 0 ]]; then
+            approved_hash="$(jq -r '
         ([.attempts[]?
           | select(.stageId == "design-planning" and .outcome == "SUCCEEDED")
           | .outputs[]?
           | select(.kind == "IMPLEMENTATION_PLAN")
           | .contentHash][-1] // empty)
-      ' <<<"${evidence}")"
-      [[ -n "${approved_hash}" && "${approved_hash}" != "null" ]] \
-        || { echo "FAIL: WAITING_FOR_IMPLEMENT missing approved plan hash" >&2; break; }
-      [[ -n "${run_revision}" && "${run_revision}" != "null" ]] \
-        || { echo "FAIL: WAITING_FOR_IMPLEMENT missing runRevision" >&2; break; }
-      # Free-form "Implement" is not a creation command. Name the approved plan on the card.
-      implement_decision="$(jq -nc \
-        --arg hash "${approved_hash}" \
-        --argjson revision "${run_revision}" \
-        '{action:"create-chain",artifactType:"implementation-plan",artifactHash:$hash,revision:$revision}')"
-      send_turn "implement-$(date +%s)" "Implement ${approved_hash}" "" "${implement_decision}"
-      implement_sent=1
-    fi
-  elif [[ "${recovery_automatic_only}" != "true" \
-      && "${current_state}" == "WAITING_FOR_INPUT" && -n "${recovery_fault_stage}" \
-      && ( "${stage_id}" == "${recovery_fault_stage}" \
-        || ( "${recovery_exhaust_halt}" == "true" && "${recovery_fault_injected}" == "1" ) ) ]]; then
-    if [[ "${recovery_follow_up_sent}" -eq 0 ]]; then
-      if jq -e '
+      ' <<< "${evidence}")"
+            [[ -n "${approved_hash}" && "${approved_hash}" != "null" ]] ||
+                {
+                    echo "FAIL: WAITING_FOR_IMPLEMENT missing approved plan hash" >&2
+                    break
+                }
+            [[ -n "${run_revision}" && "${run_revision}" != "null" ]] ||
+                {
+                    echo "FAIL: WAITING_FOR_IMPLEMENT missing runRevision" >&2
+                    break
+                }
+            # Free-form "Implement" is not a creation command. Name the approved plan on the card.
+            implement_decision="$(jq -nc \
+                --arg hash "${approved_hash}" \
+                --argjson revision "${run_revision}" \
+                '{action:"create-chain",artifactType:"implementation-plan",artifactHash:$hash,revision:$revision}')"
+            send_turn "implement-$(date +%s)" "Implement ${approved_hash}" "" "${implement_decision}"
+            implement_sent=1
+        fi
+    elif [[ "${recovery_automatic_only}" != "true" &&
+        "${current_state}" == "WAITING_FOR_INPUT" && -n "${recovery_fault_stage}" &&
+        ("${stage_id}" == "${recovery_fault_stage}" ||
+        ("${recovery_exhaust_halt}" == "true" && "${recovery_fault_injected}" == "1")) ]]; then
+        if [[ "${recovery_follow_up_sent}" -eq 0 ]]; then
+            if jq -e '
         ((.committedArtifactKinds // [])
           | any(. == "MATERIALIZATION_REQUEST" or . == "MATERIALIZATION_RESULT" or . == "CATALOG_CHAIN_SNAPSHOT"))
         or ((.attempts // []) | any(.stageId == "materialization"))
-      ' <<<"${evidence}" >/dev/null; then
-        echo "FAIL: recovery fault occurred after materialization had already started" >&2
-        break
-      fi
-      recovery_pre_materialization_clean=1
-      send_turn "recovery-follow-up-$(date +%s)" "${recovery_follow_up}"
-      recovery_follow_up_sent=1
-    elif [[ "${recovery_exhaust_halt}" != "true" && "${recovery_revise_sent}" -eq 0 ]]; then
-      [[ -n "${run_revision}" && "${run_revision}" != "null" ]] \
-        || { echo "FAIL: recovery decision missing runRevision" >&2; break; }
-      recovery_decision="$(jq -nc --argjson revision "${run_revision}" \
-        '{action:"revise",revision:$revision}')"
-      send_turn "recovery-revise-$(date +%s)" "" "" "${recovery_decision}"
-      recovery_revise_sent=1
-      implement_sent=0
-    fi
-  elif [[ "${current_state}" == "WAITING_FOR_INPUT" \
-      && ( "${expected_state}" != "WAITING_FOR_INPUT" || "${recovery_exhaust_halt}" == "true" ) ]]; then
-    if [[ "${TRANSPORT}" == "chat" && -n "${chat_card}" \
-        && "${recovery_automatic_only}" == "true" && "${recovery_fault_injected}" == "1" \
-        && "${recovery_revise_sent}" -eq 0 ]] \
-        && jq -e '.actions | index("rebuild-plan") != null' <<<"${chat_card}" >/dev/null; then
-      rebuild_decision="$(jq -c '{action:"rebuild-plan", revision}' <<<"${chat_card}")"
-      send_turn "rebuild-plan-$(date +%s)" "" "" "${rebuild_decision}"
-      recovery_revise_sent=1
-      implement_sent=0
-      continue
-    fi
-    if [[ -n "${chat_approve_decision}" && "${expects_approval}" == "true" ]]; then
-      send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
-      continue
-    fi
-    if [[ "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* && "${TRANSPORT}" == "chat" ]]; then
-      case "${design_input_choice}" in
-        "Generate full IDS") ids_action="yes" ;;
-        "Derive minimal IDS") ids_action="no" ;;
-        *) echo "FAIL: unsupported designInputChoice ${design_input_choice}" >&2; break ;;
-      esac
-      ids_decision="$(jq -c --arg action "${ids_action}" '
+      ' <<< "${evidence}" > /dev/null; then
+                echo "FAIL: recovery fault occurred after materialization had already started" >&2
+                break
+            fi
+            recovery_pre_materialization_clean=1
+            send_turn "recovery-follow-up-$(date +%s)" "${recovery_follow_up}"
+            recovery_follow_up_sent=1
+        elif [[ "${recovery_exhaust_halt}" != "true" && "${recovery_revise_sent}" -eq 0 ]]; then
+            [[ -n "${run_revision}" && "${run_revision}" != "null" ]] ||
+                {
+                    echo "FAIL: recovery decision missing runRevision" >&2
+                    break
+                }
+            recovery_decision="$(jq -nc --argjson revision "${run_revision}" \
+                '{action:"revise",revision:$revision}')"
+            send_turn "recovery-revise-$(date +%s)" "" "" "${recovery_decision}"
+            recovery_revise_sent=1
+            implement_sent=0
+        fi
+    elif [[ "${current_state}" == "WAITING_FOR_INPUT" &&
+        ("${expected_state}" != "WAITING_FOR_INPUT" || "${recovery_exhaust_halt}" == "true") ]]; then
+        if [[ "${TRANSPORT}" == "chat" && -n "${chat_card}" &&
+            "${recovery_automatic_only}" == "true" && "${recovery_fault_injected}" == "1" &&
+            "${recovery_revise_sent}" -eq 0 ]] &&
+            jq -e '.actions | index("rebuild-plan") != null' <<< "${chat_card}" > /dev/null; then
+            rebuild_decision="$(jq -c '{action:"rebuild-plan", revision}' <<< "${chat_card}")"
+            send_turn "rebuild-plan-$(date +%s)" "" "" "${rebuild_decision}"
+            recovery_revise_sent=1
+            implement_sent=0
+            continue
+        fi
+        if [[ -n "${chat_approve_decision}" && "${expects_approval}" == "true" ]]; then
+            send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
+            continue
+        fi
+        if [[ "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* && "${TRANSPORT}" == "chat" ]]; then
+            case "${design_input_choice}" in
+                "Generate full IDS") ids_action="yes" ;;
+                "Derive minimal IDS") ids_action="no" ;;
+                *)
+                    echo "FAIL: unsupported designInputChoice ${design_input_choice}" >&2
+                    break
+                    ;;
+            esac
+            ids_decision="$(jq -c --arg action "${ids_action}" '
         select((.actions | index($action)) != null) | {action:$action, revision}
-      ' <<<"${chat_card}")"
-      if [[ -z "${ids_decision}" ]]; then
-        sleep 2
-        continue
-      fi
-      send_turn "ids-choice-$(date +%s)" "" "" "${ids_decision}"
-      design_input_sent=1
-      continue
-    fi
-    # The IDS choice can arrive during discovery, before design-input starts.
-    if [[ "${stage_id}" == "design-input" || "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* ]]; then
-      # design-input asks the IDS question first and can follow up, for example for data-mapping
-      # intents. Answer the follow-ups from designInputAnswers rather than calling a second
-      # question a failure.
-      #
-      # The durable state says WAITING_FOR_INPUT for both a question and an approval, so on A2A ask
-      # the Task what it actually wants. Answering an approval prompt with prose burns a scripted
-      # answer and leaves the stage waiting.
-      if [[ "${TRANSPORT}" == "a2a" ]]; then
-        approve_data="$(a2a_pending_approve || true)"
-        if [[ -n "${approve_data}" ]]; then
-          send_turn "design-input-approve-$(date +%s)" "" "${approve_data}"
-          sleep 2
-          continue
+      ' <<< "${chat_card}")"
+            if [[ -z "${ids_decision}" ]]; then
+                sleep 2
+                continue
+            fi
+            send_turn "ids-choice-$(date +%s)" "" "" "${ids_decision}"
+            design_input_sent=1
+            continue
         fi
-      fi
-      if [[ "${design_input_sent}" -eq 0 ]]; then
-        send_turn "design-input-$(date +%s)" "${design_input_choice}"
-        design_input_sent=1
-      else
-        follow_up="$(jq -nr --argjson idx "$((design_input_sent - 1))" \
-          --argjson answers "${design_input_answers_json}" '$answers[$idx] // empty')"
-        if [[ -z "${follow_up}" ]]; then
-          echo "FAIL: design-input asked again and designInputAnswers is exhausted for ${SCENARIO_ID}" >&2
-          break
+        # The IDS choice can arrive during discovery, before design-input starts.
+        if [[ "${stage_id}" == "design-input" || "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* ]]; then
+            # design-input asks the IDS question first and can follow up, for example for data-mapping
+            # intents. Answer the follow-ups from designInputAnswers rather than calling a second
+            # question a failure.
+            #
+            # The durable state says WAITING_FOR_INPUT for both a question and an approval, so on A2A ask
+            # the Task what it actually wants. Answering an approval prompt with prose burns a scripted
+            # answer and leaves the stage waiting.
+            if [[ "${TRANSPORT}" == "a2a" ]]; then
+                approve_data="$(a2a_pending_approve || true)"
+                if [[ -n "${approve_data}" ]]; then
+                    send_turn "design-input-approve-$(date +%s)" "" "${approve_data}"
+                    sleep 2
+                    continue
+                fi
+            fi
+            if [[ "${design_input_sent}" -eq 0 ]]; then
+                send_turn "design-input-$(date +%s)" "${design_input_choice}"
+                design_input_sent=1
+            else
+                follow_up="$(jq -nr --argjson idx "$((design_input_sent - 1))" \
+                    --argjson answers "${design_input_answers_json}" '$answers[$idx] // empty')"
+                if [[ -z "${follow_up}" ]]; then
+                    echo "FAIL: design-input asked again and designInputAnswers is exhausted for ${SCENARIO_ID}" >&2
+                    break
+                fi
+                send_turn "design-input-$(date +%s)" "${follow_up}"
+                design_input_sent=$((design_input_sent + 1))
+            fi
+        else
+            discovery_answer="$(jq -nr --argjson idx "${discovery_continues}" \
+                --argjson answers "${discovery_answers_json}" '$answers[$idx] // empty')"
+            if [[ -z "${discovery_answer}" ]]; then
+                echo "FAIL: discovery still WAITING_FOR_INPUT; add discoveryAnswers to scenarios.json for ${SCENARIO_ID}" >&2
+                break
+            fi
+            discovery_continues=$((discovery_continues + 1))
+            send_turn "continue-${discovery_continues}" "${discovery_answer}"
         fi
-        send_turn "design-input-$(date +%s)" "${follow_up}"
-        design_input_sent=$((design_input_sent + 1))
-      fi
-    else
-      discovery_answer="$(jq -nr --argjson idx "${discovery_continues}" \
-        --argjson answers "${discovery_answers_json}" '$answers[$idx] // empty')"
-      if [[ -z "${discovery_answer}" ]]; then
-        echo "FAIL: discovery still WAITING_FOR_INPUT; add discoveryAnswers to scenarios.json for ${SCENARIO_ID}" >&2
-        break
-      fi
-      discovery_continues=$((discovery_continues + 1))
-      send_turn "continue-${discovery_continues}" "${discovery_answer}"
     fi
-  fi
-  sleep 2
+    sleep 2
 done
 
 evidence="$(curl -fsS "${BASE_URL}/api/v1/chat/conversations/${conversation_id}/product-pipeline")"
-printf '%s\n' "${evidence}" >"${run_dir}/evidence.json"
+printf '%s\n' "${evidence}" > "${run_dir}/evidence.json"
 
-if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
-  if [[ "${recovery_automatic_only}" == "true" ]]; then
-    jq -e \
-      --argjson faults "${recovery_fault_stages_json}" \
-      --argjson owners "${recovery_owner_stages_json}" \
-      --argjson rebuilt "${recovery_revise_sent}" '
+if [[ "$(jq 'length' <<< "${recovery_fault_stages_json}")" -gt 0 ]]; then
+    if [[ "${recovery_automatic_only}" == "true" ]]; then
+        jq -e \
+            --argjson faults "${recovery_fault_stages_json}" \
+            --argjson owners "${recovery_owner_stages_json}" \
+            --argjson rebuilt "${recovery_revise_sent}" '
       . as $doc
       | all($faults[]; . as $fault
           | any($doc.attempts[]?;
@@ -655,14 +736,14 @@ if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
           | unique | length >= 2) else true end)
       and ((["MATERIALIZATION_RESULT", "CATALOG_CHAIN_SNAPSHOT", "RECONCILE_RESULT"]
         - ($doc.committedArtifactKinds // [])) | length == 0)
-    ' <<<"${evidence}" >/dev/null || {
-      echo "FAIL: final evidence does not prove every automatic recovery and materialization" >&2
-      exit 1
-    }
-    jq \
-      --argjson faults "${recovery_fault_stages_json}" \
-      --argjson owners "${recovery_owner_stages_json}" \
-      --argjson rebuilt "${recovery_revise_sent}" '{
+    ' <<< "${evidence}" > /dev/null || {
+            echo "FAIL: final evidence does not prove every automatic recovery and materialization" >&2
+            exit 1
+        }
+        jq \
+            --argjson faults "${recovery_fault_stages_json}" \
+            --argjson owners "${recovery_owner_stages_json}" \
+            --argjson rebuilt "${recovery_revise_sent}" '{
       automaticOnly: true,
       rebuildPlanConfirmed: ($rebuilt == 1),
       faultStages: $faults,
@@ -674,13 +755,13 @@ if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
           or ((.reason // "") | startswith("causal reopen of ")))],
       materializedChainId,
       reconcileMatches
-    }' <<<"${evidence}" >"${run_dir}/recovery.json"
-  elif [[ "${recovery_exhaust_halt}" == "true" ]]; then
-    [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_pre_materialization_clean}" -eq 1 ]] || {
-      echo "FAIL: exhausted-halt recovery did not send the follow-up before materialization" >&2
-      exit 1
-    }
-    jq -e '
+    }' <<< "${evidence}" > "${run_dir}/recovery.json"
+    elif [[ "${recovery_exhaust_halt}" == "true" ]]; then
+        [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_pre_materialization_clean}" -eq 1 ]] || {
+            echo "FAIL: exhausted-halt recovery did not send the follow-up before materialization" >&2
+            exit 1
+        }
+        jq -e '
       any(.attempts[]?; ((.failureEvidence // "") | contains("E2E recovery fault")))
       and (([.transitions[]? | select(.toStatus == "WAITING_FOR_INPUT") | .reason // ""] | last // "")
         | contains("__GATE:recovery-repeated__"))
@@ -691,25 +772,25 @@ if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
       and ((.committedArtifactKinds // [])
         | any(. == "MATERIALIZATION_RESULT" or . == "CATALOG_CHAIN_SNAPSHOT")
         | not)
-    ' <<<"${evidence}" >/dev/null || {
-      echo "FAIL: final evidence does not prove an exhausted halt with the approved brief and plan" >&2
-      exit 1
-    }
-    jq --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '{
+    ' <<< "${evidence}" > /dev/null || {
+            echo "FAIL: final evidence does not prove an exhausted halt with the approved brief and plan" >&2
+            exit 1
+        }
+        jq --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '{
       exhaustHalt: true,
       faultStage: $fault,
       ownerStage: $owner,
       haltReason: ([.transitions[]? | select(.toStatus == "WAITING_FOR_INPUT") | .reason // ""] | last // ""),
       committedArtifactKinds
-    }' <<<"${evidence}" >"${run_dir}/recovery.json"
-  else
-    [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_revise_sent}" -eq 1 \
-        && "${recovery_reopened_approval_seen}" -eq 1 \
-        && "${recovery_pre_materialization_clean}" -eq 1 ]] || {
-      echo "FAIL: recovery flow did not complete follow-up, revise, reopen approval, and pre-materialization checks" >&2
-      exit 1
-    }
-    jq -e --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '
+    }' <<< "${evidence}" > "${run_dir}/recovery.json"
+    else
+        [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_revise_sent}" -eq 1 &&
+            "${recovery_reopened_approval_seen}" -eq 1 &&
+            "${recovery_pre_materialization_clean}" -eq 1 ]] || {
+            echo "FAIL: recovery flow did not complete follow-up, revise, reopen approval, and pre-materialization checks" >&2
+            exit 1
+        }
+        jq -e --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '
       any(.attempts[]?;
         ((.failureEvidence // "") | contains("E2E recovery fault"))
         and (
@@ -723,11 +804,11 @@ if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
       and ([.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash] | unique | length >= 2)
       and ((["MATERIALIZATION_RESULT", "CATALOG_CHAIN_SNAPSHOT", "RECONCILE_RESULT"]
         - (.committedArtifactKinds // [])) | length == 0)
-    ' <<<"${evidence}" >/dev/null || {
-      echo "FAIL: final evidence does not prove causal plan repair and materialization" >&2
-      exit 1
-    }
-    jq --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '{
+    ' <<< "${evidence}" > /dev/null || {
+            echo "FAIL: final evidence does not prove causal plan repair and materialization" >&2
+            exit 1
+        }
+        jq --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '{
       faultStage: $fault,
       ownerStage: $owner,
       planContentHashes: ([.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash] | unique),
@@ -737,66 +818,75 @@ if [[ "$(jq 'length' <<<"${recovery_fault_stages_json}")" -gt 0 ]]; then
         or ((.reason // "") | startswith("causal reopen of " + $owner)))],
       materializedChainId,
       reconcileMatches
-    }' <<<"${evidence}" >"${run_dir}/recovery.json"
-  fi
+    }' <<< "${evidence}" > "${run_dir}/recovery.json"
+    fi
 fi
 
 python3 "${DIR}/build-report-from-evidence.py" \
-  --evidence "${run_dir}/evidence.json" \
-  --scenario-id "${SCENARIO_ID}" \
-  --rep "${REP}" \
-  --required-facts "${required_json}" \
-  --forbidden-facts "${forbidden_json}" \
-  --expected-terminal-state "${expected_state}" \
-  --expects-approval "${expects_approval}" \
-  --out "${REPORT_PATH}"
+    --evidence "${run_dir}/evidence.json" \
+    --scenario-id "${SCENARIO_ID}" \
+    --rep "${REP}" \
+    --required-facts "${required_json}" \
+    --forbidden-facts "${forbidden_json}" \
+    --expected-terminal-state "${expected_state}" \
+    --expects-approval "${expects_approval}" \
+    --out "${REPORT_PATH}"
 
 current_state="$(jq -r '.terminalState // empty' "${REPORT_PATH}")"
 if [[ "${current_state}" == "PLAN_APPROVED" || "${current_state}" == "CHAIN_MATERIALIZED" ]]; then
-  if [[ "${current_state}" == "CHAIN_MATERIALIZED" ]]; then
-    chain_id="$(jq -r '.materializedChainId // empty' "${REPORT_PATH}")"
-    reconcile="$(jq -r '.reconcileMatches // empty' "${REPORT_PATH}")"
-    [[ -n "${chain_id}" ]] || { echo "FAIL: blank materializedChainId" >&2; exit 1; }
-    [[ "${reconcile}" == "true" ]] || { echo "FAIL: reconcileMatches must be true" >&2; exit 1; }
-    printf '%s\n' "${chain_id}" >"${run_dir}/materialized-chain-id.txt"
-    # Prove the chain exists in runtime-catalog. Do not delete — retention is intentional.
-    catalog_json="$(mktemp)"
-    if curl -fsS "${catalog_url}/v1/chains/${chain_id}" >"${catalog_json}"; then
-      catalog_name="$(jq -r '.name // .content.name // empty' "${catalog_json}")"
-      printf 'catalogChainId=%s catalogChainName=%s retained=true\n' \
-        "${chain_id}" "${catalog_name}" | tee "${run_dir}/catalog-chain.txt"
-      if [[ "${retain_catalog_chain}" == "true" ]]; then
-        echo "INFO: retainCatalogChain=true — leaving chain ${chain_id} in catalog (no teardown)"
-      fi
-      if [[ -f "${SCENARIOS_FILE}" ]] \
-          && jq -e --arg s "${SCENARIO_ID}" '.[$s].catalog' "${SCENARIOS_FILE}" >/dev/null 2>&1; then
-        bash "${SCRIPTS_DIR}/assert-catalog.sh" \
-          "${SCENARIOS_FILE}" "${SCENARIO_ID}" "${catalog_url}" "${chain_id}"
-      fi
-    else
-      echo "FAIL: catalog GET /v1/chains/${chain_id} failed" >&2
-      rm -f "${catalog_json}"
-      exit 1
+    if [[ "${current_state}" == "CHAIN_MATERIALIZED" ]]; then
+        chain_id="$(jq -r '.materializedChainId // empty' "${REPORT_PATH}")"
+        reconcile="$(jq -r '.reconcileMatches // empty' "${REPORT_PATH}")"
+        [[ -n "${chain_id}" ]] || {
+            echo "FAIL: blank materializedChainId" >&2
+            exit 1
+        }
+        [[ "${reconcile}" == "true" ]] || {
+            echo "FAIL: reconcileMatches must be true" >&2
+            exit 1
+        }
+        printf '%s\n' "${chain_id}" > "${run_dir}/materialized-chain-id.txt"
+        # Prove the chain exists in runtime-catalog. Do not delete — retention is intentional.
+        catalog_json="$(mktemp)"
+        if curl -fsS "${catalog_url}/v1/chains/${chain_id}" > "${catalog_json}"; then
+            catalog_name="$(jq -r '.name // .content.name // empty' "${catalog_json}")"
+            printf 'catalogChainId=%s catalogChainName=%s retained=true\n' \
+                "${chain_id}" "${catalog_name}" | tee "${run_dir}/catalog-chain.txt"
+            if [[ "${retain_catalog_chain}" == "true" ]]; then
+                echo "INFO: retainCatalogChain=true — leaving chain ${chain_id} in catalog (no teardown)"
+            fi
+            if [[ -f "${SCENARIOS_FILE}" ]] &&
+                jq -e --arg s "${SCENARIO_ID}" '.[$s].catalog' "${SCENARIOS_FILE}" > /dev/null 2>&1; then
+                bash "${SCRIPTS_DIR}/assert-catalog.sh" \
+                    "${SCENARIOS_FILE}" "${SCENARIO_ID}" "${catalog_url}" "${chain_id}"
+            fi
+        else
+            echo "FAIL: catalog GET /v1/chains/${chain_id} failed" >&2
+            rm -f "${catalog_json}"
+            exit 1
+        fi
+        rm -f "${catalog_json}"
     fi
-    rm -f "${catalog_json}"
-  fi
-  set +e
-  python3 "${DIR}/evaluate-plan.py" \
-    --evaluator-url "${EVALUATOR_URL}" \
-    --report "${REPORT_PATH}" \
-    --out "${run_dir}/semantic-scores.json"
-  eval_rc=$?
-  set -e
-  if [[ "${eval_rc}" -ne 0 ]]; then
-    if [[ "${current_state}" == "CHAIN_MATERIALIZED" && "${retain_catalog_chain}" == "true" ]]; then
-      echo "WARN: evaluator failed after CHAIN_MATERIALIZED + catalog retention; continuing to assert durable success" >&2
-    else
-      exit "${eval_rc}"
+    set +e
+    python3 "${DIR}/evaluate-plan.py" \
+        --evaluator-url "${EVALUATOR_URL}" \
+        --report "${REPORT_PATH}" \
+        --out "${run_dir}/semantic-scores.json"
+    eval_rc=$?
+    set -e
+    if [[ "${eval_rc}" -ne 0 ]]; then
+        if [[ "${current_state}" == "CHAIN_MATERIALIZED" && "${retain_catalog_chain}" == "true" ]]; then
+            echo "WARN: evaluator failed after CHAIN_MATERIALIZED + catalog retention; continuing to assert durable success" >&2
+        else
+            exit "${eval_rc}"
+        fi
     fi
-  fi
 fi
 
 report_pv="$(jq -r '.profileVersion // empty' "${REPORT_PATH}")"
-[[ "${report_pv}" == "${profile_version}" ]] \
-  || { echo "FAIL: report profileVersion=${report_pv} expected ${profile_version}" >&2; exit 1; }
+[[ "${report_pv}" == "${profile_version}" ]] ||
+    {
+        echo "FAIL: report profileVersion=${report_pv} expected ${profile_version}" >&2
+        exit 1
+    }
 bash "${DIR}/assert-product-run.sh" "${REPORT_PATH}"

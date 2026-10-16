@@ -1,5 +1,4 @@
 import pytest
-
 from qip_knowledge_sidecar.runtime import (
     RuntimeAdapter,
     RuntimeErrorResponse,
@@ -17,7 +16,9 @@ def test_exact_preserves_canonical_ir(runtime: RuntimeAdapter) -> None:
 
 
 @pytest.mark.parametrize("unknown_id", ["GEN-04", "VR-EH-001", "missing-id"])
-def test_exact_does_not_infer_identity(runtime: RuntimeAdapter, unknown_id: str) -> None:
+def test_exact_does_not_infer_identity(
+    runtime: RuntimeAdapter, unknown_id: str
+) -> None:
     with pytest.raises(RuntimeErrorResponse) as raised:
         runtime.exact(unknown_id)
     assert raised.value.code == "KNOWLEDGE_NOT_FOUND"
@@ -35,7 +36,13 @@ def test_context_uses_compiled_capability_mapping(runtime: RuntimeAdapter) -> No
     ids = {item["id"] for item in result.objects}
     assert "CIP:GEN-000049" in ids
     assert result.content_chars <= 20_000
-    assert set(result.capabilities) >= {"error", "handling", "generator", "mapping", "rule"}
+    assert set(result.capabilities) >= {
+        "error",
+        "handling",
+        "generator",
+        "mapping",
+        "rule",
+    }
 
 
 def test_filter_uses_the_upstream_type_contract(runtime: RuntimeAdapter) -> None:

@@ -1,3 +1,5 @@
+# inspector_source is a commit-pinned BuildKit context in docker-compose.a2a-lab.yml.
+# hadolint ignore=DL3006
 FROM inspector_source AS inspector-source
 
 FROM node:22-alpine AS frontend-builder
@@ -14,7 +16,7 @@ RUN npm rebuild esbuild && npm run build
 FROM python:3.12-slim
 
 WORKDIR /app
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir uv==0.9.10
 
 COPY --from=inspector-source /pyproject.toml /uv.lock ./
 RUN uv sync --no-cache \

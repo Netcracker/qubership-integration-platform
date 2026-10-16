@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.evidence.ConversationEvidenceStore;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
@@ -24,6 +25,7 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowl
 class RequirementAnalysisKnowledgeContractTest {
 
   @Test
+  @Tag("certified-pack")
   void skillDeclaresPinnedKnowledgeClientContractInsteadOfMarkdownPaths() throws Exception {
     Path skill = resolveSkillMarkdown();
     String markdown = Files.readString(skill);
@@ -44,6 +46,7 @@ class RequirementAnalysisKnowledgeContractTest {
   }
 
   @Test
+  @Tag("certified-pack")
   void failureFieldsOnTheSameResponseStayOnTheInlineResponsePath() throws Exception {
     String skill = Files.readString(resolveSkillMarkdown());
     String prompt =
