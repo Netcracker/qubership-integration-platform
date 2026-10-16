@@ -41,8 +41,8 @@ export type AppConfig = {
 const appConfigValue: AppConfig = {
   appName: import.meta.env.VITE_API_APP,
   apiGateway: import.meta.env.VITE_GATEWAY,
-  aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL as string | undefined,
-  aiAssistantName: import.meta.env.VITE_AI_ASSISTANT_NAME as string | undefined,
+  aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL,
+  aiAssistantName: import.meta.env.VITE_AI_ASSISTANT_NAME,
   icons: {},
   dev: import.meta.env.DEV,
 };
@@ -245,16 +245,12 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
     config.appName = appName;
   }
 
-  const aiServiceUrl = import.meta.env.VITE_AI_SERVICE_URL as
-    | string
-    | undefined;
+  const aiServiceUrl = import.meta.env.VITE_AI_SERVICE_URL;
   if (aiServiceUrl) {
     config.aiServiceUrl = aiServiceUrl;
   }
 
-  const aiAssistantName = import.meta.env.VITE_AI_ASSISTANT_NAME as
-    | string
-    | undefined;
+  const aiAssistantName = import.meta.env.VITE_AI_ASSISTANT_NAME;
   if (aiAssistantName) {
     config.aiAssistantName = aiAssistantName;
   }

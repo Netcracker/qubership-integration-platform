@@ -208,7 +208,7 @@ List only configuration parameters stated in the approved brief or supplied evid
 
 | Sl.Num. | Parameter Name | Default Value | Notes |
 |---------|----------------|---------------|-------|
-| 1 | URL | Example: https://server:port/ | — |
+| 1 | URL | Example: `https://server:port/` | — |
 | 2 | Number of Retries | 3 | In case of connection error/timeout |
 | 3 | Delay between retries (in sec) | 10 secs | Delay between each command retry |
 
