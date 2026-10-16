@@ -185,7 +185,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:8a30060543edb292874f1e53f5ac48849200f6fbdc2ff0e244ae292b4a80d28b
+  content_hash: sha256:42540838847273144feafdc635b66aca480158a618731a6db8717658cb89c35a
 - kind: project-relative
   target: claude
   value: .claude/rules/monorepo.md
@@ -842,7 +842,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:bee8806d56e1dbb0c6e8acf3c20994156a6adf1803045f7bbaa3d5d9a1138d56
+  content_hash: sha256:bed58065a57ebec2e840a44bfe507d6c7cba432a402038f74475a1fcb66dcf76
 - kind: project-relative
   target: cursor
   value: .cursor/rules/monorepo.mdc
@@ -1499,7 +1499,7 @@ local_deployed_file_hashes:
   .claude/rules/e2e.md: sha256:c690ae04fb4154c29b783328aafac31b210d8413091aec5f6df6946c8653e9e6
   .claude/rules/engine.md: sha256:49c8e084d2c42e6e4b29d66701b1a60ff8ef434509d629e5c4575ee9eb534d05
   .claude/rules/infrastructure.md: sha256:efb728a4036c2fc362571fb9b3c2f13e5ef92a7c2d16c91b63be7f93b6c43950
-  .claude/rules/micro-engine.md: sha256:8a30060543edb292874f1e53f5ac48849200f6fbdc2ff0e244ae292b4a80d28b
+  .claude/rules/micro-engine.md: sha256:42540838847273144feafdc635b66aca480158a618731a6db8717658cb89c35a
   .claude/rules/monorepo.md: sha256:9e393f942810b4fc4d0f623aca67a2d0f2183e0f58ee1cd038eb73d643eb481d
   .claude/rules/qip-working-agreements.md: sha256:72257161852f5f17451a59e3f6c816f49cdbdf8da37b39b3b82840e2fd30b799
   .claude/rules/runtime-catalog.md: sha256:b2d68a020122887ffde40d5edf580dec7e87ddccebcabf1aefb80abb746dce6e
@@ -1544,7 +1544,7 @@ local_deployed_file_hashes:
   .cursor/rules/e2e.mdc: sha256:0ead390cfda4328f10716842766d483d830cf1074c49a82efdc388f7ae3045bd
   .cursor/rules/engine.mdc: sha256:7f00df29855402bfb0fbfda1ec1df9e75a8d371eb0392eb89746ec2dbb9640a9
   .cursor/rules/infrastructure.mdc: sha256:3ad74ec858c9e0c5c43b22eedcd6e7404e8acbf962090f19f787031770bfb08e
-  .cursor/rules/micro-engine.mdc: sha256:bee8806d56e1dbb0c6e8acf3c20994156a6adf1803045f7bbaa3d5d9a1138d56
+  .cursor/rules/micro-engine.mdc: sha256:bed58065a57ebec2e840a44bfe507d6c7cba432a402038f74475a1fcb66dcf76
   .cursor/rules/monorepo.mdc: sha256:b338024786a301a3788fec92cd5e247f9cd723b70d6beee34bbb22d11117b94e
   .cursor/rules/qip-working-agreements.mdc: sha256:f4f9c8835673f5ed8a17fc3c591dc8ae5aea3982220ff0e82262d9ac1aa41c11
   .cursor/rules/runtime-catalog.mdc: sha256:defe67ea9231a3d08379fdf8c6492ccf9332706190e4544d8bb0949f3875600d
