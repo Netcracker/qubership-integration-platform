@@ -55,16 +55,21 @@ public class ContextStorageService {
     public void storeValue(String contextKey, String contextValue, String contextServiceId, String contextId, long ttl) {
         Optional<ContextSystemRecords> oldRecord = contextStorageRepository.findByContextServiceIdAndContextId(contextServiceId, contextId);
         ContextData existingContext = contextKeyExits(contextKey, contextValue, contextServiceId, contextId);
-        ContextSystemRecords contextSystemRecords = ContextSystemRecords.builder()
-                .id(oldRecord.isPresent() ? oldRecord.get().getId() : UUID.randomUUID().toString())
-                .value(objectMapper.convertValue(existingContext, JsonNode.class))
+        JsonNode value = objectMapper.convertValue(existingContext, JsonNode.class);
+        Timestamp now = Timestamp.from(Instant.now());
+        Timestamp expiresAt = Timestamp.from(Instant.now().plusSeconds(ttl));
+        oldRecord.ifPresentOrElse(stored -> {
+            stored.setValue(value);
+            stored.setExpiresAt(expiresAt);
+            stored.setUpdatedAt(now);
+        }, () -> contextStorageRepository.persist(ContextSystemRecords.builder()
+                .value(value)
                 .contextServiceId(contextServiceId)
                 .contextId(contextId)
-                .createdAt(oldRecord.isPresent() ? oldRecord.get().getCreatedAt() : Timestamp.from(Instant.now()))
-                .expiresAt(Timestamp.from(Instant.now().plusSeconds(ttl)))
-                .updatedAt(Timestamp.from(Instant.now()))
-                .build();
-        contextStorageRepository.getEntityManager().merge(contextSystemRecords);
+                .createdAt(now)
+                .expiresAt(expiresAt)
+                .updatedAt(now)
+                .build()));
         log.debug("Value stored successfully for contextKey: {}, contextServiceId: {}, contextId: {}", contextKey, contextServiceId, contextId);
     }
 
