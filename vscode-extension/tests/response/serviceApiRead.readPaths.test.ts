@@ -120,7 +120,7 @@ describe("the service read paths over the workspace fixtures", () => {
     await expect(read.getService(workspaceUri(CHAIN_FILE), SERVICE_ID)).resolves.toMatchObject({
       id: SERVICE_ID,
       name: "e2e-service-roundtrip-internal",
-      integrationSystemType: "INTERNAL",
+      type: "INTERNAL",
       protocol: "http",
     });
   });
@@ -229,7 +229,6 @@ describe("the service read paths over the workspace fixtures", () => {
     expect(groups[0]).toMatchObject({
       id: GROUP_ID,
       name: "orders",
-      parentId: SERVICE_ID,
       systemId: SERVICE_ID,
       synchronization: false,
       chains: [],
@@ -294,7 +293,6 @@ describe("the service read paths over the workspace fixtures", () => {
       name: "1.0.0",
       version: "1.0.0",
       deprecated: false,
-      parentId: GROUP_ID,
       specificationGroupId: GROUP_ID,
       systemId: SERVICE_ID,
       chains: [],
