@@ -1,13 +1,17 @@
 package org.qubership.integration.platform.engine.util.builders;
 
+import com.netcracker.cloud.security.core.utils.k8s.impl.UrlCache;
 import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpClientInterceptor;
 import jakarta.enterprise.inject.spi.CDI;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.http.HttpClientConfigurer;
+import org.apache.hc.client5.http.impl.ChainElement;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.qubership.integration.platform.engine.camel.client.M2MFallbackHandler;
 import org.qubership.integration.platform.engine.service.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
 import org.qubership.integration.platform.engine.service.testing.EndpointInfo;
@@ -28,6 +32,7 @@ public class HttpClientConfigurerBuilder {
     private String path;
     private Boolean reuseEstablishedConnection;
     private String protocol;
+    private Boolean m2mEnabled;
 
     public HttpClientConfigurerBuilder() {
         cId = "";
@@ -71,10 +76,17 @@ public class HttpClientConfigurerBuilder {
         return this;
     }
 
+    public HttpClientConfigurerBuilder m2mEnabled(Boolean m2mEnabled) {
+        this.m2mEnabled = m2mEnabled;
+        return this;
+    }
+
     public HttpClientConfigurer build() {
         MetricTagsHelper metricTagsHelper = CDI.current().select(MetricTagsHelper.class).get();
         MetricsStore metricsStore = CDI.current().select(MetricsStore.class).get();
         Optional<TestingService> testingService = InjectUtil.injectOptional(CDI.current().select(TestingService.class));
+        boolean m2mFallbackInterceptorEnabled = ConfigProvider.getConfig()
+            .getValue("cip.chains.http-client.m2m.fallback-interceptor.enabled", boolean.class);
 
         EndpointInfo endpointInfo = EndpointInfo.builder()
                 .elementId(eId)
@@ -83,6 +95,13 @@ public class HttpClientConfigurerBuilder {
                 .build();
 
         return clientBuilder -> {
+            if (m2mFallbackInterceptorEnabled && m2mEnabled) {
+                UrlCache m2mUrlCache = CDI.current().select(UrlCache.class).get();
+
+                clientBuilder.addExecInterceptorAfter(
+                    ChainElement.PROTOCOL.name(), "m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
+            }
+
             if (metricsStore.isMetricsEnabled()) {
                 MicrometerHttpClientInterceptor interceptor = new MicrometerHttpClientInterceptor(
                         metricsStore.getMeterRegistry(),

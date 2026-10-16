@@ -83,6 +83,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
         if (StringUtils.isEmpty(token)) {
             throw new IllegalStateException("M2M token is empty");
         }
+        log.info("M2M TOKEN: {}", token);
 
         return ClassicRequestBuilder.copy(initialRequest)
                 .setHeader("Authorization", "Bearer " + token)
