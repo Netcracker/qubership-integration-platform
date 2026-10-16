@@ -95,7 +95,7 @@ export function stubLabelUtils() {
   };
 }
 
-import type { IntegrationSystem } from "../../src/web/api-services/servicesTypes";
+import type { IntegrationSystem } from "@netcracker/qip-ui";
 import { IntegrationSystemType } from "../../src/web/api-services/servicesTypes";
 
 export function buildSystem(
@@ -104,8 +104,10 @@ export function buildSystem(
   return {
     id: "sys-1",
     name: "Test System",
+    description: "",
     activeEnvironmentId: "",
-    integrationSystemType: IntegrationSystemType.EXTERNAL,
+    type: IntegrationSystemType.EXTERNAL,
+    internalServiceName: "",
     protocol: "HTTP",
     extendedProtocol: "",
     specification: "",
