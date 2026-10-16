@@ -33,6 +33,7 @@ import { useSessionsFilter } from "../../src/hooks/filter/useSessionsFilter.ts";
 import type { EntityFilterModel } from "../../src/components/table/filter/filterTypes.ts";
 
 let capturedConfirmOnOk: (() => void | Promise<void>) | undefined;
+let capturedConfirmContent: unknown;
 
 jest.mock("../../src/api/api.ts", () => ({
   api: {
@@ -186,7 +187,11 @@ jest.mock("../../src/misc/download-utils.ts", () => ({
 }));
 
 jest.mock("../../src/misc/confirm-utils.ts", () => ({
-  confirmAndRun: (opts: { onOk: () => void | Promise<void> }) => {
+  confirmAndRun: (opts: {
+    content: unknown;
+    onOk: () => void | Promise<void>;
+  }) => {
+    capturedConfirmContent = opts.content;
     capturedConfirmOnOk = opts.onOk;
   },
 }));
@@ -282,6 +287,7 @@ describe("Sessions", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     capturedConfirmOnOk = undefined;
+    capturedConfirmContent = undefined;
     mockUseParams.mockReturnValue({ chainId: "chain-1" });
     mockUseSessionsFilter.mockImplementation(
       jest.requireActual<
@@ -474,30 +480,102 @@ describe("Sessions", () => {
     expect(mockDeleteSessions).toHaveBeenCalledWith(["d1"]);
   });
 
-  test("delete all sessions calls api.deleteSessionsByChainId", async () => {
-    mockDeleteSessionsByChainId.mockResolvedValue(undefined);
+  test.each([
+    ["with a chainId", { chainId: "chain-1" }],
+    ["without a chainId", {}],
+  ])(
+    "delete of every loaded session %s deletes those sessions only",
+    async (_page, params: { chainId?: string }) => {
+      mockUseParams.mockReturnValue(params);
+      mockDeleteSessions.mockResolvedValue(undefined);
+      await renderWithSessions([
+        baseSession({ id: "a1" }),
+        baseSession({ id: "a2" }),
+      ]);
+
+      const headerRow = screen.getAllByRole("row")[0];
+      fireEvent.click(within(headerRow).getByRole("checkbox"));
+      fireEvent.click(
+        screen.getByTestId("protected-btn-delete-selected-sessions"),
+      );
+      await act(async () => {
+        await capturedConfirmOnOk!();
+      });
+
+      expect(mockDeleteSessions).toHaveBeenCalledWith(["a1", "a2"]);
+      expect(mockDeleteSessionsByChainId).not.toHaveBeenCalled();
+    },
+  );
+
+  test("a correlation group key stays out of the selection that delete counts and sends", async () => {
+    mockDeleteSessions.mockResolvedValue(undefined);
     await renderWithSessions([
-      baseSession({ id: "a1" }),
-      baseSession({ id: "a2" }),
+      baseSession({ id: "g-child-1", correlationId: "group-1" }),
+      baseSession({ id: "g-child-2", correlationId: "group-1" }),
     ]);
 
-    // Select all via header checkbox
-    const headerRow = screen.getAllByRole("row")[0];
-    const headerCheckbox = within(headerRow).getByRole("checkbox");
-    fireEvent.click(headerCheckbox);
-
-    // Click delete
+    fireEvent.click(
+      within(screen.getByRole("row", { name: /^group-1/ })).getByRole(
+        "checkbox",
+      ),
+    );
+    fireEvent.click(
+      within(screen.getByRole("row", { name: /g-child-1/ })).getByRole(
+        "checkbox",
+      ),
+    );
+    fireEvent.click(
+      within(screen.getByRole("row", { name: /g-child-2/ })).getByRole(
+        "checkbox",
+      ),
+    );
     fireEvent.click(
       screen.getByTestId("protected-btn-delete-selected-sessions"),
     );
-
-    expect(capturedConfirmOnOk).toBeDefined();
     await act(async () => {
       await capturedConfirmOnOk!();
     });
 
-    expect(mockDeleteSessionsByChainId).toHaveBeenCalledWith("chain-1");
-    expect(mockDeleteSessions).not.toHaveBeenCalled();
+    expect(capturedConfirmContent).toBe(
+      "Are you sure you want to delete 2 session(s)?",
+    );
+    expect(mockDeleteSessions).toHaveBeenCalledWith(["g-child-1", "g-child-2"]);
+  });
+
+  test("a delete reloads the sessions from offset 0 and clears the selection", async () => {
+    mockDeleteSessions.mockResolvedValue(undefined);
+    await renderWithSessions([
+      baseSession({ id: "r1" }),
+      baseSession({ id: "r2" }),
+    ]);
+    mockGetSessions
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "r2" }), baseSession({ id: "r3" })],
+        offset: 2,
+      })
+      .mockResolvedValueOnce({ sessions: [], offset: 2 });
+
+    fireEvent.click(
+      within(screen.getByRole("row", { name: /r1/ })).getByRole("checkbox"),
+    );
+    fireEvent.click(
+      screen.getByTestId("protected-btn-delete-selected-sessions"),
+    );
+    await act(async () => {
+      await capturedConfirmOnOk!();
+    });
+
+    expect(await screen.findByText("r3")).toBeInTheDocument();
+    expect(screen.queryByText("r1")).not.toBeInTheDocument();
+    expect(mockGetSessions).toHaveBeenNthCalledWith(
+      3,
+      "chain-1",
+      { filterRequestList: [], searchString: "" },
+      { offset: 0 },
+    );
+    expect(
+      within(screen.getByRole("row", { name: /r2/ })).getByRole("checkbox"),
+    ).not.toBeChecked();
   });
 
   test("delete does nothing when no rows selected", async () => {
