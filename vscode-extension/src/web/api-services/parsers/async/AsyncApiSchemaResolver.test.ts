@@ -122,4 +122,42 @@ describe("AsyncApiSchemaResolver", () => {
     expect(schema.definitions.Shared.properties.fromMessage).toBeDefined();
     expect(schema.definitions.Shared.properties.fromSchema).toBeUndefined();
   });
+
+  // The backend fails the import on a message alias, so the shared fixture cannot carry this case.
+  it("resolves a message that is an alias of another message", () => {
+    const aliasComponents = {
+      messages: {
+        Alias: { $ref: "#/components/messages/Real" },
+        Real: { payload: { $ref: "#/components/schemas/Item" } },
+      },
+      schemas: components.schemas,
+    };
+
+    const { schema } = resolver.resolveRef(
+      "#/components/messages/Alias",
+      aliasComponents,
+    )!;
+    expect(schema.payload).toBeUndefined();
+    expect(schema.$ref).toBe("#/definitions/Item");
+    expect(schema.definitions.Item).toBeDefined();
+  });
+
+  // The backend's payload model has no `definitions`, so the shared fixture cannot carry this case.
+  it("keeps the definitions an inline payload declares", () => {
+    const { schema } = resolver.resolveSchema(
+      "payload",
+      {
+        type: "object",
+        properties: {
+          code: { $ref: "#/definitions/Code" },
+          item: { $ref: "#/components/schemas/Item" },
+        },
+        definitions: { Code: { type: "string", maxLength: 3 } },
+      },
+      components,
+    );
+    expect(schema.properties.code.$ref).toBe("#/definitions/Code");
+    expect(schema.definitions.Code).toEqual({ type: "string", maxLength: 3 });
+    expect(schema.definitions.Item).toBeDefined();
+  });
 });

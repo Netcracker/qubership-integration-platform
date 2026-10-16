@@ -22,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.resolvers.CommonSchemaResolver;
 import org.qubership.integration.platform.parsers.resolvers.SchemaResolver;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 
@@ -40,9 +42,17 @@ public class AsyncApiSchemaResolver extends CommonSchemaResolver implements Sche
 
         convertPayloadToSchemaNode(schemaNode);
 
-        resolveInlineRef(schemaNode, currentComponentsNode);
+        return resolveSchemaNode(schemaRef, schemaNode, currentComponentsNode);
+    }
 
-        Map<String, JsonNode> schemaRefs = getNestedRefs(schemaNode, currentComponentsNode, "asyncapi", Collections.emptyList());
+    public String resolveSchema(String name, ObjectNode schemaNode, JsonNode componentsNode) {
+        return resolveSchemaNode(encodeName(name), schemaNode, componentsNode.deepCopy());
+    }
+
+    private String resolveSchemaNode(String schemaRef, ObjectNode schemaNode, JsonNode componentsNode) {
+        resolveInlineRef(schemaNode, componentsNode);
+
+        Map<String, JsonNode> schemaRefs = getNestedRefs(schemaNode, componentsNode, "asyncapi", Collections.emptyList());
 
         return getResolvedSchema(schemaRef, schemaNode, schemaRefs);
     }
@@ -52,11 +62,19 @@ public class AsyncApiSchemaResolver extends CommonSchemaResolver implements Sche
             return;
         }
         String ref = schemaNode.get(REF_FIELD_NAME).asText();
+        if (!ref.startsWith(COMPONENTS_REF_PREFIX)) {
+            return;
+        }
         String path = ref.replace(COMPONENTS_PREFIX, "");
         JsonNode resolved = componentsNode.at(path);
         if (!resolved.isMissingNode() && resolved.isObject()) {
             schemaNode.removeAll();
             schemaNode.setAll(((ObjectNode) resolved).deepCopy());
         }
+    }
+
+    // The name becomes part of the $id URI, and a message name is free text.
+    private static String encodeName(String name) {
+        return URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20").replace("*", "%2A").replace("%7E", "~");
     }
 }

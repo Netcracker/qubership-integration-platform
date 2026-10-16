@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.parsers.model.asyncapi.AsyncapiSpecification;
@@ -15,7 +17,9 @@ import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSchema
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -400,6 +404,35 @@ class KafkaSpecificationResolverTest {
         JsonNode node = resolver.getSpecificationJsonNode("my.topic", channel, op);
         assertEquals("my.topic", node.get("topic").asText());
         assertEquals("my-classifier", node.get("maasClassifierName").asText());
+    }
+
+    private static final String INLINE_PAYLOAD_REFS = "asyncapi/v2/kafka-v2-inline-payload-refs.yaml";
+    // The vscode-extension resolves the same fixture against the same expected file.
+    private static final String INLINE_PAYLOAD_REFS_EXPECTED = "asyncapi/expected/kafka-v2-inline-payload-refs.json";
+
+    static Stream<String> inlinePayloadRefsChannels() throws IOException {
+        List<String> channels = new ArrayList<>();
+        new YAMLMapper().readTree(readResource(INLINE_PAYLOAD_REFS_EXPECTED)).fieldNames().forEachRemaining(channels::add);
+        return channels.stream();
+    }
+
+    @ParameterizedTest
+    @MethodSource("inlinePayloadRefsChannels")
+    void setUpOperationMessagesMatchesTheExpectedSchemas(String channelName) throws IOException {
+        AsyncapiSpecification spec = readYaml(INLINE_PAYLOAD_REFS);
+        JsonNode expected = yamlMapper.readTree(readResource(INLINE_PAYLOAD_REFS_EXPECTED)).get(channelName);
+
+        ParsedOperation operation = ParsedOperationImpl.builder().build();
+        resolver.setUpOperationMessages(operation, spec.getChannels().get(channelName).getSubscribe(), spec.getComponents());
+
+        assertEquals(expected, yamlMapper.valueToTree(operation.getResponseSchemas()));
+    }
+
+    private static String readResource(String path) throws IOException {
+        try (InputStream is = KafkaSpecificationResolverTest.class.getClassLoader().getResourceAsStream(path)) {
+            assertNotNull(is, "Resource not found: " + path);
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     private AsyncapiSpecification readYaml(String path) throws IOException {
