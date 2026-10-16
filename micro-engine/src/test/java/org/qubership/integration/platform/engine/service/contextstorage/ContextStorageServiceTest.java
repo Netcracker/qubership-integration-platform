@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.service.contextstorage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
@@ -47,11 +48,15 @@ class ContextStorageServiceTest {
     @Mock
     private ContextStorageRepository repository;
 
+    private EntityManager entityManager;
+
     ObjectMapper mapper;
 
     @BeforeEach
     void setUp() {
         repository = mock(ContextStorageRepository.class);
+        entityManager = mock(EntityManager.class);
+        when(repository.getEntityManager()).thenReturn(entityManager);
         mapper = ObjectMappers.getObjectMapper();
         service = new ContextStorageService(repository, mapper);
     }
@@ -66,7 +71,7 @@ class ContextStorageServiceTest {
         service.storeValue("k1", "v1", "svc", "ctx", ttl);
 
         ArgumentCaptor<ContextSystemRecords> captor = ArgumentCaptor.forClass(ContextSystemRecords.class);
-        verify(repository).persist(captor.capture());
+        verify(entityManager).merge(captor.capture());
 
         ContextSystemRecords saved = captor.getValue();
         assertNotNull(saved.getId());
@@ -109,7 +114,7 @@ class ContextStorageServiceTest {
         service.storeValue("b", "NEW", "svc", "ctx", 120);
 
         ArgumentCaptor<ContextSystemRecords> captor = ArgumentCaptor.forClass(ContextSystemRecords.class);
-        verify(repository).persist(captor.capture());
+        verify(entityManager).merge(captor.capture());
 
         ContextSystemRecords saved = captor.getValue();
         assertEquals("fixed-id", saved.getId());
@@ -248,6 +253,8 @@ class ContextStorageServiceTest {
     void storeValueShouldCreateNewContextWhenExistingRecordValueIsNull() {
         ContextStorageRepository repo = mock(ContextStorageRepository.class);
         ObjectMapper mapper = new ObjectMapper();
+        EntityManager em = mock(EntityManager.class);
+        when(repo.getEntityManager()).thenReturn(em);
         ContextStorageService service = new ContextStorageService(repo, mapper);
 
         ContextSystemRecords old = mock(ContextSystemRecords.class);
@@ -262,7 +269,7 @@ class ContextStorageServiceTest {
         service.storeValue("k1", "v1", "svc", "ctx", 60);
 
         ArgumentCaptor<ContextSystemRecords> captor = ArgumentCaptor.forClass(ContextSystemRecords.class);
-        verify(repo).persist(captor.capture());
+        verify(em).merge(captor.capture());
 
         ContextSystemRecords saved = captor.getValue();
         assertEquals("fixed-id", saved.getId());

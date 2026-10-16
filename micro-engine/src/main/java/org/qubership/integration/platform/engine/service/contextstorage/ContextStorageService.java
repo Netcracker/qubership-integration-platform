@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.errorhandling.ContextStorageException;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ContextSystemRecords;
@@ -50,6 +51,7 @@ public class ContextStorageService {
         this.objectMapper = objectMapper;
     }
 
+    @Transactional
     public void storeValue(String contextKey, String contextValue, String contextServiceId, String contextId, long ttl) {
         Optional<ContextSystemRecords> oldRecord = contextStorageRepository.findByContextServiceIdAndContextId(contextServiceId, contextId);
         ContextData existingContext = contextKeyExits(contextKey, contextValue, contextServiceId, contextId);
@@ -62,7 +64,7 @@ public class ContextStorageService {
                 .expiresAt(Timestamp.from(Instant.now().plusSeconds(ttl)))
                 .updatedAt(Timestamp.from(Instant.now()))
                 .build();
-        contextStorageRepository.persist(contextSystemRecords);
+        contextStorageRepository.getEntityManager().merge(contextSystemRecords);
         log.debug("Value stored successfully for contextKey: {}, contextServiceId: {}, contextId: {}", contextKey, contextServiceId, contextId);
     }
 
@@ -93,6 +95,7 @@ public class ContextStorageService {
         }
     }
 
+    @Transactional
     public void deleteOldRecords() {
         try {
             List<ContextSystemRecords> oldRecords  = contextStorageRepository.findAllByExpiresAtBefore(Timestamp.from(Instant.now()));
