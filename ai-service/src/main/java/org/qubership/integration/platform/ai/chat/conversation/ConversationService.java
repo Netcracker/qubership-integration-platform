@@ -65,6 +65,29 @@ public class ConversationService {
     return document.activeTurns().stream().map(Turn::message).toList();
   }
 
+  public record UserMessagePosition(int messageIndex, String content) {}
+
+  public List<UserMessagePosition> getUserMessagePositions(String conversationId) {
+    List<Turn> turns = archive.read(conversationId).activeTurns();
+    List<UserMessagePosition> positions = new ArrayList<>();
+    for (int i = 0; i < turns.size(); i++) {
+      Turn turn = turns.get(i);
+      if (turn.message().role() != ConversationMessage.Role.USER) {
+        continue;
+      }
+      var submitted = turn.metadata();
+      if (submitted != null && submitted.has("submitted")) {
+        submitted = submitted.get("submitted");
+      }
+      if (submitted != null && submitted.hasNonNull("decision")) {
+        continue;
+      }
+      positions.add(new UserMessagePosition(i,
+          turn.rawText() == null ? turn.message().content() : turn.rawText()));
+    }
+    return positions;
+  }
+
   /** Keeps the inclusive prefix and fences callbacks from the prior reset generation. */
   public void truncateAfter(String conversationId, int afterMessageIndex) {
     archive.update(conversationId, doc -> new Document(1, UUID.randomUUID().toString(),

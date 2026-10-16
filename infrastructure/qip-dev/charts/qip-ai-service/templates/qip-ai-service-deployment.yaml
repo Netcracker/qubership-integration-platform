@@ -74,6 +74,21 @@ spec:
                 configMapKeyRef:
                   name: {{ .Release.Name }}-ai-service-env
                   key: QUARKUS_DATASOURCE_JDBC_URL
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: MINIO_ENDPOINT
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.qip.ai.minioCredentialsSecret | quote }}
+                  key: accessKey
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.qip.ai.minioCredentialsSecret | quote }}
+                  key: secretKey
             - name: QUARKUS_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:

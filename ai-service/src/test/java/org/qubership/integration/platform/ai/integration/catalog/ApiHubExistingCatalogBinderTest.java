@@ -8,11 +8,18 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubDocumentPayload;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
@@ -78,7 +85,12 @@ class ApiHubExistingCatalogBinderTest {
                     "/partyManagement/v5/partyManagement/v5/party/search",
                     "spec-1")));
 
-    ApiHubExistingCatalogBinder binder = new ApiHubExistingCatalogBinder(read, cache);
+    var hub = mock(ApiHubMcpTools.class);
+    var catalog = mock(CatalogRestClient.class);
+    when(hub.fetchApiHubDocument(any(), any(), any(), any()))
+        .thenReturn(new ApiHubDocumentPayload("{}".getBytes(StandardCharsets.UTF_8), "api.json"));
+    when(catalog.getModelSource("spec-1")).thenReturn("{}");
+    ApiHubExistingCatalogBinder binder = new ApiHubExistingCatalogBinder(read, cache, hub, catalog);
     ApiHubRequirementRefs refs =
         new ApiHubRequirementRefs(
             "S.ProdCat.PartyMgmt",
@@ -97,5 +109,25 @@ class ApiHubExistingCatalogBinderTest {
     assertEquals(
         "partyManagement-v5-partyManagement-v5-party-search-post",
         binding.get().integrationOperationId());
+  }
+
+  @ParameterizedTest
+  @CsvSource({"v2, api", "v1, other-document"})
+  void doesNotBindAnApiHubCandidateToDifferentCatalogContent(String version, String documentId) {
+    var read = mock(CatalogSystemReadTool.class);
+    var catalog = mock(CatalogRestClient.class);
+    var hub = mock(ApiHubMcpTools.class);
+    when(read.searchCatalogSystems(anyString())).thenReturn(
+        List.of(new CatalogRestClient.SystemDto("sys", "Orders", "EXTERNAL", null)));
+    when(read.getApiSpecifications("sys")).thenReturn(
+        List.of(new CatalogRestClient.SpecificationDto("old-v1", "Orders", "sys-Shared", "sys")));
+    when(catalog.getModelSource("old-v1")).thenReturn("{\"schema\":\"old\"}");
+    when(hub.fetchApiHubDocument("pkg", version, documentId, "rest")).thenReturn(
+        new ApiHubDocumentPayload("{\"schema\":\"new\"}".getBytes(StandardCharsets.UTF_8), "api.json"));
+    var binder = new ApiHubExistingCatalogBinder(read, mock(ConversationCatalogCache.class), hub, catalog);
+    var refs = new ApiHubRequirementRefs("pkg", version, "get-items", documentId, "rest", "Orders", "Shared");
+
+    assertTrue(binder.resolve("regression", refs).isEmpty());
+    verify(read, never()).listCatalogOperations(any(), any(), any());
   }
 }

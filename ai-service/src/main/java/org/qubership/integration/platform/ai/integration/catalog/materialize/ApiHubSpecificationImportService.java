@@ -72,14 +72,6 @@ public class ApiHubSpecificationImportService {
     ResolvedSystem system = findOrCreateSystem(conversationId, systemName, systemType);
     ensureDefaultEnvironment(system.id(), system.type(), systemName);
 
-    Optional<ApiHubSpecificationImportResult> reused =
-        reuseExistingCatalogSpecification(
-            conversationId, system.id(), system.type(), groupName, refs);
-    if (reused.isPresent()) {
-      internalAsyncMaasEnvironmentConfigurer.configure(system.id());
-      return reused.get();
-    }
-
     ApiHubDocumentPayload document =
         apiHubMcpTools.fetchApiHubDocument(
             refs.packageId(),
@@ -87,55 +79,31 @@ public class ApiHubSpecificationImportService {
             refs.documentSlug(),
             refs.resolvedApiType());
 
+    List<CatalogRestClient.SpecificationDto> specs = catalogRestClient.getApiSpecifications(system.id());
+    List<CatalogRestClient.SpecificationDto> candidates = specs == null ? List.of() : specs.stream()
+        .filter(spec -> spec != null && CatalogStrings.blankToNull(spec.id()) != null
+            && belongsToSpecificationGroup(spec, system.id(), groupName.trim()))
+        .toList();
+    for (CatalogRestClient.SpecificationDto spec : candidates) {
+      if (CatalogSpecificationImporter.sameDocument(document.content(), catalogRestClient.getModelSource(spec.id()))) {
+        var reused = populateCacheAndResolveOperation(conversationId, refs, system.id(), system.type(),
+            groupName, spec.id(), spec.specificationGroupId(), null);
+        internalAsyncMaasEnvironmentConfigurer.configure(system.id());
+        return reused;
+      }
+    }
+
     CatalogSpecificationImporter.ImportOutcome imported =
-        catalogSpecificationImporter.importOpenApiDocument(
-            system.id(), groupName, null, document.content(), document.fileName());
+        candidates.isEmpty()
+            ? catalogSpecificationImporter.importOpenApiDocument(
+                system.id(), groupName, null, document.content(), document.fileName())
+            : catalogSpecificationImporter.importOpenApiDocumentIntoGroup(
+                system.id(), candidates.getFirst().specificationGroupId(), document.content(), document.fileName());
 
     ApiHubSpecificationImportResult result =
         finalizeImport(conversationId, refs, system.id(), system.type(), groupName, imported);
     internalAsyncMaasEnvironmentConfigurer.configure(system.id());
     return result;
-  }
-
-  private Optional<ApiHubSpecificationImportResult> reuseExistingCatalogSpecification(
-      String conversationId,
-      String systemId,
-      String systemType,
-      String groupName,
-      ApiHubRequirementRefs refs) {
-    List<CatalogRestClient.SpecificationDto> specs =
-        catalogRestClient.getApiSpecifications(systemId);
-    if (specs == null || specs.isEmpty()) {
-      return Optional.empty();
-    }
-    String trimmedGroup = groupName.trim();
-    for (CatalogRestClient.SpecificationDto spec : specs) {
-      if (spec == null || CatalogStrings.blankToNull(spec.id()) == null) {
-        continue;
-      }
-      if (!belongsToSpecificationGroup(spec, systemId, trimmedGroup)) {
-        continue;
-      }
-      LOG.infof(
-          "IMPORT_SPECIFICATION: reusing existing catalog specification specId=%s systemId=%s"
-              + " specificationGroup=%s specName=%s conversationId=%s",
-          spec.id(),
-          systemId,
-          trimmedGroup,
-          spec.name(),
-          conversationId);
-      return Optional.of(
-          populateCacheAndResolveOperation(
-              conversationId,
-              refs,
-              systemId,
-              systemType,
-              groupName,
-              spec.id(),
-              spec.specificationGroupId(),
-              null));
-    }
-    return Optional.empty();
   }
 
   /**

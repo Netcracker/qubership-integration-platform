@@ -90,6 +90,7 @@ import { useActivityStore } from "./activity/activityStore.ts";
 import {
   resetConversation,
   truncateConversation,
+  resolveServerMessageIndexes,
 } from "./conversationTurnApi.ts";
 import {
   shouldShowErrorToastForAbort,
@@ -99,6 +100,7 @@ import {
   sliceMessagesForRegenerate,
   toServerAfterMessageIndex,
   visibleToFullMessageIndex,
+  withServerMessageIndex,
 } from "./conversationTurnIndex.ts";
 import type { ChainPlanStatusDto } from "../../api/ai/chainPlanClient.ts";
 import {
@@ -482,6 +484,16 @@ export const AiAssistant: React.FC = () => {
             chunk.supportsCatalogChangeEvents === true;
           activeConversationId = chunk.conversationId;
           sessionStore.updateConversationId(sessionId, chunk.conversationId);
+          if (
+            !requestPayload.decision &&
+            chunk.userMessageIndex !== undefined
+          ) {
+            currentMessages = withServerMessageIndex(
+              currentMessages,
+              chunk.userMessageIndex,
+            );
+            sessionStore.updateSessionMessages(sessionId, currentMessages);
+          }
           return;
         }
 
@@ -650,11 +662,26 @@ export const AiAssistant: React.FC = () => {
       let supportsCatalogChangeEvents = false;
       let receivedDone = false;
       let serverError = false;
+      let indexedRequestMessages = requestMessages;
       const interruptionState = interruptionRefreshRef.current;
       const onChunk = (chunk: StreamingChunk) => {
-        if (chunk.type === "meta")
+        if (chunk.type === "meta") {
           supportsCatalogChangeEvents =
             chunk.supportsCatalogChangeEvents === true;
+          if (
+            !requestPayload.decision &&
+            chunk.userMessageIndex !== undefined
+          ) {
+            indexedRequestMessages = withServerMessageIndex(
+              indexedRequestMessages,
+              chunk.userMessageIndex,
+            );
+            sessionStore.updateSessionMessages(
+              sessionId,
+              ensureAssistantPlaceholder(indexedRequestMessages),
+            );
+          }
+        }
         if (chunk.type === "catalog-changed" && chunk.catalogChange)
           publishCatalogChange(chunk.catalogChange);
         if (chunk.type === "done") receivedDone = true;
@@ -678,7 +705,10 @@ export const AiAssistant: React.FC = () => {
 
       const durationMs = Math.round(performance.now() - start);
 
-      const responseTail = getResponseTail(requestMessages, response.messages);
+      const responseTail = getResponseTail(
+        indexedRequestMessages,
+        response.messages,
+      );
       const lastAssistantFromResponse = [...responseTail]
         .reverse()
         .find((m): m is ChatMessage => m.role === "assistant");
@@ -687,7 +717,7 @@ export const AiAssistant: React.FC = () => {
         lastAssistantFromResponse?.content.trim() ?? "";
 
       let finalMessages: ChatMessage[] = [
-        ...requestMessages.filter((m) => (m.role as string) !== "tool"),
+        ...indexedRequestMessages.filter((m) => (m.role as string) !== "tool"),
         ...(mergedAssistantContent
           ? [{ role: "assistant" as const, content: mergedAssistantContent }]
           : []),
@@ -1406,20 +1436,31 @@ export const AiAssistant: React.FC = () => {
 
       const serviceUrl = getAiServiceUrl();
       const conversationId = session.conversationId;
+      let indexedMessages = session.messages;
       if (conversationId && serviceUrl) {
         try {
+          indexedMessages = await resolveServerMessageIndexes(
+            serviceUrl,
+            conversationId,
+            session.messages,
+            fullIndex,
+          );
           await truncateConversation(
             serviceUrl,
             conversationId,
-            toServerAfterMessageIndex(session.messages, fullIndex),
+            toServerAfterMessageIndex(indexedMessages, fullIndex),
           );
         } catch (err) {
           console.error("[AiAssistant] Edit truncate failed", err);
+          notificationService.requestFailed(
+            "Failed to edit the conversation",
+            err,
+          );
           return;
         }
       }
 
-      const sliced = sliceMessagesForEdit(session.messages, fullIndex);
+      const sliced = sliceMessagesForEdit(indexedMessages, fullIndex);
       const userMessage = session.messages[fullIndex];
       sessionStore.updateSessionMessages(currentSessionId, sliced);
       setInputValue(userMessage.content);
@@ -1433,6 +1474,7 @@ export const AiAssistant: React.FC = () => {
       refreshSessions,
       sessionStore,
       scrollToBottom,
+      notificationService,
     ],
   );
 
@@ -1458,21 +1500,32 @@ export const AiAssistant: React.FC = () => {
 
       const serviceUrl = getAiServiceUrl();
       const conversationId = session.conversationId;
+      let indexedMessages = session.messages;
       if (conversationId && serviceUrl) {
         try {
+          indexedMessages = await resolveServerMessageIndexes(
+            serviceUrl,
+            conversationId,
+            session.messages,
+            userFullIndex,
+          );
           await truncateConversation(
             serviceUrl,
             conversationId,
-            toServerAfterMessageIndex(session.messages, userFullIndex),
+            toServerAfterMessageIndex(indexedMessages, userFullIndex),
           );
         } catch (err) {
           console.error("[AiAssistant] Regenerate truncate failed", err);
+          notificationService.requestFailed(
+            "Failed to regenerate the answer",
+            err,
+          );
           return;
         }
       }
 
       const baseMessages = sliceMessagesForRegenerate(
-        session.messages,
+        indexedMessages,
         userFullIndex,
       );
       sessionStore.updateSessionMessages(currentSessionId, baseMessages);
@@ -1495,6 +1548,7 @@ export const AiAssistant: React.FC = () => {
       refreshSessions,
       sendToProvider,
       sessionStore,
+      notificationService,
     ],
   );
 

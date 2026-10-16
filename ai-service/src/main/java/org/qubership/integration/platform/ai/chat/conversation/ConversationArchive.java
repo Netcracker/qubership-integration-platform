@@ -42,7 +42,7 @@ public class ConversationArchive {
     }
   }
 
-  public record Input(String turnId, String generation) {}
+  public record Input(String turnId, String generation, int messageIndex) {}
 
   private final ArtifactBlobStore blobs;
   private final ObjectMapper mapper;
@@ -83,7 +83,7 @@ public class ConversationArchive {
     String id = UUID.randomUUID().toString();
     Turn turn = new Turn(id, ConversationMessage.user(rawText), rawText, metadata, "RECEIVED", null);
     Document updated = update(conversationId, doc -> append(doc, turn));
-    return new Input(id, updated.generation());
+    return new Input(id, updated.generation(), updated.activeTurnIds().indexOf(id));
   }
 
   public void resolveInput(String conversationId, Input input, String effectiveText) {

@@ -16,13 +16,18 @@ function isVisibleChatMessage(message: ChatMessage): boolean {
   if (isMetaSystemMessage(message)) {
     return false;
   }
-  if (message.role === "assistant" && message.content.trim() === "No response from model") {
+  if (
+    message.role === "assistant" &&
+    message.content.trim() === "No response from model"
+  ) {
     return false;
   }
   return message.role === "user" || message.role === "assistant";
 }
 
-function isServerRoleMessage(message: ChatMessage): message is ServerRoleMessage {
+function isServerRoleMessage(
+  message: ChatMessage,
+): message is ServerRoleMessage {
   if (isErrorVariantMessage(message)) {
     return false;
   }
@@ -33,32 +38,74 @@ export function getVisibleChatMessages(messages: ChatMessage[]): ChatMessage[] {
   return messages.filter(isVisibleChatMessage);
 }
 
-/** Server transcript = user + assistant only (no __META__ / error / system placeholders). */
-export function toServerMessageList(messages: ChatMessage[]): ServerRoleMessage[] {
+/** User and assistant UI messages without local metadata or error notices. */
+export function toServerMessageList(
+  messages: ChatMessage[],
+): ServerRoleMessage[] {
   return messages.filter(isServerRoleMessage);
 }
 
 /**
  * Map a UI list index of a user bubble to the inclusive server index of that user message.
  */
-export function toServerUserIndex(messages: ChatMessage[], uiIndex: number): number {
+export function toServerUserIndex(
+  messages: ChatMessage[],
+  uiIndex: number,
+): number {
   const target = messages[uiIndex];
   if (!target || target.role !== "user") {
     throw new Error("UI index is not a user message");
   }
 
-  let serverIndex = 0;
-  for (let i = 0; i <= uiIndex; i += 1) {
-    const message = messages[i];
-    if (isServerRoleMessage(message)) {
-      if (i === uiIndex) {
-        return serverIndex;
-      }
-      serverIndex += 1;
-    }
+  if (target.serverMessageIndex === undefined) {
+    throw new Error("The server position of this message is not available.");
   }
+  return target.serverMessageIndex;
+}
 
-  throw new Error("UI index is not a user message");
+export function withServerMessageIndex(
+  messages: ChatMessage[],
+  serverMessageIndex: number,
+): ChatMessage[] {
+  const userIndex = findUserIndexAtOrBefore(messages, messages.length - 1);
+  return messages.map((message, index) =>
+    index === userIndex ? { ...message, serverMessageIndex } : message,
+  );
+}
+
+export function restoreServerMessageIndexes(
+  messages: ChatMessage[],
+  positions: unknown,
+): ChatMessage[] {
+  const mismatch = () =>
+    new Error(
+      "The saved conversation does not match the server history. Start a new session before editing.",
+    );
+  const users = messages.filter(
+    (message) => message.role === "user" && isServerRoleMessage(message),
+  );
+  if (!Array.isArray(positions) || positions.length !== users.length) {
+    throw mismatch();
+  }
+  let next = 0;
+  return messages.map((message) => {
+    if (message.role !== "user" || !isServerRoleMessage(message))
+      return message;
+    const position: unknown = positions[next++];
+    if (!position || typeof position !== "object") throw mismatch();
+    const { messageIndex, content } = position as Record<string, unknown>;
+    if (
+      typeof messageIndex !== "number" ||
+      !Number.isInteger(messageIndex) ||
+      messageIndex < 0 ||
+      content !== message.content ||
+      (message.serverMessageIndex !== undefined &&
+        message.serverMessageIndex !== messageIndex)
+    ) {
+      throw mismatch();
+    }
+    return { ...message, serverMessageIndex: messageIndex };
+  });
 }
 
 /**
@@ -86,10 +133,7 @@ export function visibleToFullMessageIndex(
   if (!target) {
     return -1;
   }
-  return fullMessages.findIndex(
-    (message) =>
-      message.role === target.role && message.content === target.content,
-  );
+  return fullMessages.indexOf(target);
 }
 
 export function findUserIndexAtOrBefore(

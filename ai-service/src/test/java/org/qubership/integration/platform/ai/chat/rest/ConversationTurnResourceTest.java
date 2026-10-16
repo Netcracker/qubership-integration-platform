@@ -8,6 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import jakarta.ws.rs.core.Response;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ConversationTurnReset;
@@ -85,6 +87,26 @@ class ConversationTurnResourceTest {
 
     assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
     verify(turnReset).fullReset(eq(CONVERSATION_ID));
+  }
+
+  @Test
+  void restoresRawUserPositionsWithoutCountingApprovalCommandsAsVisibleMessages() {
+    var archive = conversationService.archive();
+    var mapper = new ObjectMapper();
+    var ordinary = archive.beginInput(CONVERSATION_ID, "continue", null);
+    archive.resolveInput(CONVERSATION_ID, ordinary, "expanded attachment content");
+    archive.appendAssistant(CONVERSATION_ID, ordinary.generation(), "Approve?", null, "COMPLETE");
+    var command = mapper.createObjectNode().put("action", "approve");
+    var approval = archive.beginInput(CONVERSATION_ID, "", mapper.createObjectNode().set("decision", command));
+    archive.resolveInput(CONVERSATION_ID, approval, "approval marker", command);
+    archive.appendAssistant(CONVERSATION_ID, approval.generation(), "done", null, "COMPLETE");
+    var clarification = archive.beginInput(CONVERSATION_ID, "approve", mapper.createObjectNode().putNull("decision"));
+    archive.resolveInput(CONVERSATION_ID, clarification, "typed approval marker", command);
+
+    assertEquals(List.of(
+        new ConversationService.UserMessagePosition(0, "continue"),
+        new ConversationService.UserMessagePosition(4, "approve")), resource.userMessages(CONVERSATION_ID));
+    verifyNoInteractions(turnReset);
   }
 
   private void seedMessages(String... contents) {

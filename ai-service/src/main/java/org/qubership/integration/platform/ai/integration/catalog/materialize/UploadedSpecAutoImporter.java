@@ -1,11 +1,7 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -28,7 +24,6 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 public class UploadedSpecAutoImporter {
 
   private static final Logger LOG = Logger.getLogger(UploadedSpecAutoImporter.class);
-  private static final ObjectMapper DOCUMENT_MAPPER = new YAMLMapper();
   private static final String DEFAULT_ENVIRONMENT = "default";
   private static final String SYSTEM_TYPE_INTERNAL = "INTERNAL";
 
@@ -231,7 +226,7 @@ public class UploadedSpecAutoImporter {
         if (existingSource == null) {
           throw new IllegalStateException("Catalog returned no specification source");
         }
-        if (sameDocument(uploadedContent, existingSource)) {
+        if (CatalogSpecificationImporter.sameDocument(uploadedContent, existingSource)) {
           return Optional.of(candidate);
         }
       } catch (RuntimeException e) {
@@ -249,23 +244,4 @@ public class UploadedSpecAutoImporter {
     }
     return Optional.empty();
   }
-
-  private static boolean sameDocument(byte[] uploadedContent, String existingSource) {
-    if (uploadedContent == null || existingSource == null) {
-      return false;
-    }
-    try {
-      JsonNode uploaded = DOCUMENT_MAPPER.readTree(uploadedContent);
-      JsonNode existing = DOCUMENT_MAPPER.readTree(existingSource);
-      return uploaded != null && uploaded.equals(existing);
-    } catch (Exception ignored) {
-      String uploaded = new String(uploadedContent, StandardCharsets.UTF_8);
-      return normalizeText(uploaded).equals(normalizeText(existingSource));
-    }
-  }
-
-  private static String normalizeText(String value) {
-    return value.replace("\r\n", "\n").replace('\r', '\n').trim();
-  }
-
 }

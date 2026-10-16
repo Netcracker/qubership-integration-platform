@@ -205,9 +205,13 @@ public sealed interface ChatEvent {
   String IMPORT_MARKER = "Import the API Hub specification";
 
   /** Stream metadata emitted once at the start of an SSE turn. */
-  record Meta(String conversationId, boolean supportsCatalogChangeEvents) implements ChatEvent {
+  record Meta(String conversationId, boolean supportsCatalogChangeEvents, Integer userMessageIndex) implements ChatEvent {
     public Meta(String conversationId) {
-      this(conversationId, true);
+      this(conversationId, true, null);
+    }
+
+    public Meta(String conversationId, boolean supportsCatalogChangeEvents) {
+      this(conversationId, supportsCatalogChangeEvents, null);
     }
   }
 

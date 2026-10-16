@@ -8,11 +8,32 @@ import io.smallrye.config.SmallRyeConfigBuilder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AppConfigTest {
+
+  @Test
+  void resolvesProductionStorageSettingsFromDeploymentEnvironment() throws Exception {
+    Properties properties = new Properties();
+    try (var input = java.nio.file.Files.newInputStream(java.nio.file.Path.of("src/main/resources/application.properties"))) {
+      properties.load(input);
+    }
+    var config = new SmallRyeConfigBuilder().addDefaultInterceptors().withProfile("prod")
+        .withSources(new PropertiesConfigSource(properties, "production-properties"),
+            new PropertiesConfigSource(Map.of(
+                "MINIO_ENDPOINT", "https://storage.example.com",
+                "MINIO_ACCESS_KEY", "test-access",
+                "MINIO_SECRET_KEY", "test-secret"), "deployment-environment"))
+        .build();
+
+    assertEquals("https://storage.example.com", config.getValue("quarkus.s3.endpoint-override", String.class));
+    assertEquals("test-access", config.getValue("quarkus.s3.aws.credentials.static-provider.access-key-id", String.class));
+    assertEquals("test-secret", config.getValue("quarkus.s3.aws.credentials.static-provider.secret-access-key", String.class));
+  }
 
   @ParameterizedTest
   @NullAndEmptySource

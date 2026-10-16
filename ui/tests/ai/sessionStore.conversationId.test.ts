@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import { beforeEach, describe, expect, it } from "@jest/globals";
+import { restoreServerMessageIndexes } from "../../src/components/ai/conversationTurnIndex.ts";
 
 describe("ChatSessionStore conversationId (A1)", () => {
   beforeEach(() => {
@@ -13,6 +14,70 @@ describe("ChatSessionStore conversationId (A1)", () => {
     const mod = await import("../../src/ai/sessions/sessionStore.ts");
     return mod.getChatSessionStore();
   }
+
+  it("backfills a saved legacy session with repeated inputs and persists their positions", async () => {
+    jest.useFakeTimers();
+    try {
+      localStorage.setItem(
+        "qip_ai_chat_sessions",
+        JSON.stringify([
+          {
+            id: "legacy",
+            title: "Old conversation",
+            mode: "ask",
+            createdAt: 1,
+            updatedAt: 1,
+            conversationId: "c",
+            messages: [
+              { role: "user", content: "continue" },
+              { role: "assistant", content: "answer" },
+              { role: "user", content: "continue" },
+            ],
+          },
+        ]),
+      );
+      const store = await loadStore();
+      const messages = store.getSession("legacy")!.messages;
+      expect(messages[2].serverMessageIndex).toBeUndefined();
+      store.updateSessionMessages(
+        "legacy",
+        restoreServerMessageIndexes(messages, [
+          { messageIndex: 0, content: "continue" },
+          { messageIndex: 6, content: "continue" },
+        ]),
+      );
+      jest.runOnlyPendingTimers();
+      jest.resetModules();
+      const restored = await loadStore();
+      expect(
+        restored
+          .getSession("legacy")!
+          .messages.filter((m) => m.role === "user")
+          .map((m) => m.serverMessageIndex),
+      ).toEqual([0, 6]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("restores server positions after saving and reloading a session", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = await loadStore();
+      const session = store.createSession();
+      store.updateSessionMessages(session.id, [
+        { role: "user", content: "continue", serverMessageIndex: 6 },
+      ]);
+      jest.runOnlyPendingTimers();
+      jest.resetModules();
+      const restored = await loadStore();
+      expect(
+        restored.getSession(session.id)?.messages[0].serverMessageIndex,
+      ).toBe(6);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 
   it("should mint and persist conversationId before first send when missing", async () => {
     const store = await loadStore();

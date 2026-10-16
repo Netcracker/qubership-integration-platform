@@ -71,6 +71,11 @@ helm upgrade camel-k camel-k/camel-k -n camel-k --version <chart version> --set-
 
 ## Values for the platform services
 
+The AI service uses an existing MinIO or S3-compatible endpoint. Set `global.qip.ai.minioEndpoint` and
+`global.qip.ai.minioCredentialsSecret` before deployment. Their defaults are `http://minio:9000` and
+`minio-credentials`. The Secret must exist in the release namespace with `accessKey` and `secretKey` entries.
+Provision the `qip-ai-storage` bucket separately; the chart keeps bucket initialization disabled.
+
 `qip-engine`, `qip-runtime-catalog`, `qip-sessions-management`, and `qip-testing-service` each take
 these values under their own key. Every one is optional, and the defaults render the manifests the
 chart rendered before the value existed.

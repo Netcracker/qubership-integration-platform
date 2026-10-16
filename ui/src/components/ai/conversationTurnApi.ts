@@ -1,5 +1,9 @@
 import { getHeadersForContext } from "../../api/rest/requestHeadersInterceptor.ts";
-import { buildTruncateBody } from "./conversationTurnIndex.ts";
+import {
+  buildTruncateBody,
+  restoreServerMessageIndexes,
+} from "./conversationTurnIndex.ts";
+import type { ChatMessage } from "../../ai/modelProviders/types.ts";
 
 function getBearerHeader(
   serviceUrl: string,
@@ -13,6 +17,28 @@ function getBearerHeader(
     return {};
   }
   return { Authorization: auth };
+}
+
+export async function resolveServerMessageIndexes(
+  serviceUrl: string,
+  conversationId: string,
+  messages: ChatMessage[],
+  userIndex: number,
+): Promise<ChatMessage[]> {
+  if (messages[userIndex]?.serverMessageIndex !== undefined) return messages;
+  const base = serviceUrl.replace(/\/$/, "");
+  const path = `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/user-messages`;
+  const response = await fetch(`${base}${path}`, {
+    headers: getBearerHeader(serviceUrl, path),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(
+      text ||
+        `Conversation history request failed with status ${response.status}`,
+    );
+  }
+  return restoreServerMessageIndexes(messages, await response.json());
 }
 
 export async function truncateConversation(

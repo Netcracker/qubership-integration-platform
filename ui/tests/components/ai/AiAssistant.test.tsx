@@ -25,7 +25,9 @@ import {
 import {
   resetConversation,
   truncateConversation,
+  resolveServerMessageIndexes,
 } from "../../../src/components/ai/conversationTurnApi.ts";
+import { restoreServerMessageIndexes } from "../../../src/components/ai/conversationTurnIndex.ts";
 import { publishCatalogChange } from "../../../src/misc/catalog-change-events.ts";
 import type {
   ChatDecision,
@@ -83,6 +85,7 @@ jest.mock("../../../src/api/ai/chainPlanClient.ts", () => ({
 jest.mock("../../../src/components/ai/conversationTurnApi.ts", () => ({
   resetConversation: jest.fn(),
   truncateConversation: jest.fn(),
+  resolveServerMessageIndexes: jest.fn(),
 }));
 jest.mock("../../../src/misc/catalog-change-events.ts", () => ({
   publishCatalogChange: jest.fn(),
@@ -240,6 +243,9 @@ beforeEach(() => {
   jest.mocked(fetchChainPlanStatus).mockResolvedValue(null);
   jest.mocked(resetConversation).mockResolvedValue(undefined);
   jest.mocked(truncateConversation).mockResolvedValue(undefined);
+  jest
+    .mocked(resolveServerMessageIndexes)
+    .mockImplementation(async (_url, _conversation, messages) => messages);
   jest.mocked(downloadChainsExport).mockResolvedValue(undefined);
   jest.mocked(applyChainModificationProposal).mockResolvedValue(undefined);
   stream.mockImplementation(async (_request, emit) => {
@@ -434,7 +440,7 @@ describe("AiAssistant", () => {
 
   it("edits a visible user message after truncating the server transcript", async () => {
     const id = seed([
-      { role: "user", content: "Original request" },
+      { role: "user", content: "Original request", serverMessageIndex: 0 },
       { role: "assistant", content: "Original reply" },
     ]);
     await open();
@@ -460,7 +466,7 @@ describe("AiAssistant", () => {
 
   it("regenerates from the preceding user turn and retains attachment keys", async () => {
     const id = seed([
-      { role: "user", content: "Original request" },
+      { role: "user", content: "Original request", serverMessageIndex: 0 },
       { role: "assistant", content: "Original reply" },
     ]);
     store.updateSessionLastAttachmentObjectKeys(id, ["design.md"]);
@@ -491,6 +497,145 @@ describe("AiAssistant", () => {
     expect(store.getSession(id)?.lastAttachmentObjectKeys).toBeUndefined();
     expect(store.getSession(id)?.lastAttachmentUrls).toBeUndefined();
   });
+
+  it.each([true, false])(
+    "records server positions in streaming mode %s",
+    async (streaming) => {
+      provider.capabilities.supportsStreaming = streaming;
+      const id = seed([
+        { role: "user", content: "original", serverMessageIndex: 0 },
+        { role: "assistant", content: "done" },
+      ]);
+      stream.mockImplementation(async (_request, emit) => {
+        emit({ type: "meta", conversationId: "conv-1", userMessageIndex: 4 });
+        emit({ type: "delta", contentDelta: "new answer" });
+        emit({ type: "done", conversationId: "conv-1" });
+      });
+      progress.mockImplementation(async (request, emit) => {
+        emit({ type: "meta", conversationId: "conv-1", userMessageIndex: 4 });
+        emit({ type: "done", conversationId: "conv-1" });
+        return {
+          messages: [
+            ...request.messages,
+            { role: "assistant", content: "new answer" },
+          ],
+          conversationId: "conv-1",
+        };
+      });
+      await open();
+      await send("next");
+      const users = store
+        .getSession(id)!
+        .messages.filter((m) => m.role === "user");
+      expect(users.map((m) => m.serverMessageIndex)).toEqual([0, 4]);
+    },
+  );
+
+  it("does not assign an approval input's position to the preceding user bubble", async () => {
+    const id = seed([
+      { role: "user", content: "original", serverMessageIndex: 0 },
+    ]);
+    jest.mocked(fetchOpenDecision).mockResolvedValue(decision());
+    stream.mockImplementation(async (_request, emit) => {
+      emit({ type: "meta", conversationId: "conv-1", userMessageIndex: 2 });
+      emit({ type: "delta", contentDelta: "approved" });
+      emit({ type: "done", conversationId: "conv-1" });
+    });
+    await open();
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(stream).toHaveBeenCalledTimes(1));
+    expect(
+      store.getSession(id)!.messages.find((m) => m.role === "user")!
+        .serverMessageIndex,
+    ).toBe(0);
+  });
+
+  it.each(["edit", "regenerate"])(
+    "restores legacy positions before %s of a repeated message",
+    async (action) => {
+      const id = seed([
+        { role: "user", content: "continue" },
+        { role: "assistant", content: "same answer" },
+        { role: "user", content: "continue" },
+        { role: "assistant", content: "same answer" },
+      ]);
+      jest
+        .mocked(resolveServerMessageIndexes)
+        .mockImplementation(async (_url, _conversation, messages) =>
+          restoreServerMessageIndexes(messages, [
+            { messageIndex: 0, content: "continue" },
+            { messageIndex: 6, content: "continue" },
+          ]),
+        );
+      await open();
+      if (action === "edit") {
+        fireEvent.click(
+          screen.getAllByRole("button", {
+            name: "Edit message and send again",
+          })[1],
+        );
+      } else {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Regenerate this answer" }),
+        );
+      }
+      await waitFor(() =>
+        expect(truncateConversation).toHaveBeenCalledWith(
+          "http://ai.test",
+          "conv-1",
+          5,
+        ),
+      );
+      await waitFor(() =>
+        expect(store.getSession(id)!.messages[0].serverMessageIndex).toBe(0),
+      );
+      expect(store.getSession(id)!.messages[1].content).toBe("same answer");
+      if (action === "edit") {
+        expect(store.getSession(id)!.messages).toHaveLength(2);
+        expect(
+          screen.getByPlaceholderText("Ask Rocky about this chain..."),
+        ).toHaveValue("continue");
+      } else {
+        await waitFor(() => expect(stream).toHaveBeenCalledTimes(1));
+        expect(
+          stream.mock.calls[0][0].messages.filter((m) => m.role === "user"),
+        ).toHaveLength(2);
+      }
+    },
+  );
+
+  it.each(["edit", "regenerate"])(
+    "preserves a mismatched legacy history during %s",
+    async (action) => {
+      const id = seed([
+        { role: "user", content: "old" },
+        { role: "assistant", content: "keep this" },
+      ]);
+      jest
+        .mocked(resolveServerMessageIndexes)
+        .mockRejectedValue(
+          new Error(
+            "The saved conversation does not match the server history.",
+          ),
+        );
+      await open();
+      const before = store.getSession(id)!.messages;
+      fireEvent.click(
+        screen.getByRole("button", {
+          name:
+            action === "edit"
+              ? "Edit message and send again"
+              : "Regenerate this answer",
+        }),
+      );
+      await waitFor(() =>
+        expect(resolveServerMessageIndexes).toHaveBeenCalledTimes(1),
+      );
+      expect(truncateConversation).not.toHaveBeenCalled();
+      expect(stream).not.toHaveBeenCalled();
+      expect(store.getSession(id)!.messages).toEqual(before);
+    },
+  );
 
   it("creates and deletes chats through the panel controls", async () => {
     await open();
@@ -596,7 +741,7 @@ describe("AiAssistant", () => {
 
   it("keeps the original transcript when server truncation fails", async () => {
     const id = seed([
-      { role: "user", content: "Original request" },
+      { role: "user", content: "Original request", serverMessageIndex: 0 },
       { role: "assistant", content: "Original reply" },
     ]);
     jest
@@ -904,7 +1049,7 @@ describe("AiAssistant", () => {
 
   it("keeps the transcript when regeneration is rejected by the server", async () => {
     const id = seed([
-      { role: "user", content: "Original request" },
+      { role: "user", content: "Original request", serverMessageIndex: 0 },
       { role: "assistant", content: "Original reply" },
     ]);
     jest
