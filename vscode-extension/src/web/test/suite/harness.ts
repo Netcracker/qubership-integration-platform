@@ -178,14 +178,14 @@ export async function expectCustomEditor(viewType: string, uri: vscode.Uri): Pro
 }
 
 // Waits until the active tab is the webview panel titled `title`. The host prefixes a panel's view
-// type, so a `qipWebView` panel reports `mainThreadWebview-qipWebView`. Every panel the extension
+// type, so a `cipWebView` panel reports `mainThreadWebview-cipWebView`. Every panel the extension
 // opens carries that one view type, so the title tells them apart.
 export async function expectWebviewPanel(title: string): Promise<void> {
   const tab = await waitFor(() => (activeTab()?.label === title ? activeTab() : undefined), `the "${title}" tab`).catch(
     () => assert.fail(`expected the "${title}" panel, got ${activeTab()?.label}: ${describeInput(activeTab()?.input)}`),
   );
   assert.ok(tab.input instanceof vscode.TabInputWebview, `expected a webview, got ${describeInput(tab.input)}`);
-  assert.match(tab.input.viewType, /qipWebView$/);
+  assert.match(tab.input.viewType, /cipWebView$/);
 }
 
 export function describeInput(input: unknown): string {

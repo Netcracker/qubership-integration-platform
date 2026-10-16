@@ -95,35 +95,6 @@ export function stubLabelUtils() {
   };
 }
 
-export function stubProjectConfigService(
-  configOverrides: Record<string, any> = {},
-) {
-  return {
-    ProjectConfigService: {
-      getConfig: jest.fn().mockReturnValue({
-        schemaUrls: { service: "", specification: "", specificationGroup: "" },
-        extensions: {
-          service: ".qip-service.yaml",
-          specification: ".spec.yaml",
-        },
-        ...configOverrides,
-      }),
-      getInstance: jest.fn().mockReturnValue({
-        setContext: jest.fn(),
-        loadWorkspaceConfig: jest.fn().mockResolvedValue(undefined),
-        getAllConfigs: jest.fn().mockReturnValue([]),
-        buildDefaultConfig: jest.fn().mockReturnValue({
-          extensions: {
-            chain: ".qip-chain.yaml",
-            service: ".qip-service.yaml",
-          },
-        }),
-      }),
-    },
-    CONFIG_FILENAME: "qip-config.yaml",
-  };
-}
-
 import type { IntegrationSystem } from "../../src/web/api-services/servicesTypes";
 import { IntegrationSystemType } from "../../src/web/api-services/servicesTypes";
 

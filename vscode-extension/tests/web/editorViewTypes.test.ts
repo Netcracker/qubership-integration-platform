@@ -16,15 +16,6 @@ jest.mock("vscode", () => {
   };
 });
 
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn(() => ({
-    chain: ".chain.cip.yaml",
-    service: ".service.cip.yaml",
-    contextService: ".context-service.cip.yaml",
-    mcpService: ".mcp-service.cip.yaml",
-  })),
-}));
-
 describe("editorViewTypes", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -35,11 +26,19 @@ describe("editorViewTypes", () => {
     test("returns chain editor for chain files", () => {
       const uri = Uri.file("/workspace/chains/chain-1.chain.cip.yaml");
 
-      expect(getEditorViewTypeForUri(uri)).toBe("qip.chainFile.editor");
+      expect(getEditorViewTypeForUri(uri)).toBe("cip.chainFile.editor");
     });
 
     test("throws when no editor matches the file extension", () => {
       const uri = Uri.file("/workspace/readme.txt");
+
+      expect(() => getEditorViewTypeForUri(uri)).toThrow(
+        "Unable to find an editor for document",
+      );
+    });
+
+    test("throws for a legacy .qip.yaml chain file", () => {
+      const uri = Uri.file("/workspace/chains/chain-1.chain.qip.yaml");
 
       expect(() => getEditorViewTypeForUri(uri)).toThrow(
         "Unable to find an editor for document",
@@ -56,7 +55,7 @@ describe("editorViewTypes", () => {
       expect(mockExecuteCommand).toHaveBeenCalledWith(
         "vscode.openWith",
         uri,
-        "qip.chainFile.editor",
+        "cip.chainFile.editor",
       );
     });
   });

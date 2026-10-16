@@ -33,7 +33,7 @@ import {
 } from "../../../../mapper/expressions/references.ts";
 
 const MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_ID =
-  "qip-mapper-transformation-expression";
+  "cip-mapper-transformation-expression";
 
 const MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_CONFIGURATION: languages.LanguageConfiguration =
   {};
@@ -815,7 +815,7 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
 
   return (
     <Editor
-      className="qip-editor"
+      className="cip-editor"
       wrapperProps={{ "data-testid": "mapper-expression-editor" }}
       value={value}
       language={MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_ID}

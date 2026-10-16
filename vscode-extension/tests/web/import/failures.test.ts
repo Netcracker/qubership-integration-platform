@@ -167,7 +167,7 @@ describe("a refused specification import", () => {
       // `ui/src/components/services/modals/ImportSpecificationsModal.tsx` drops `".zip"` where the
       // api is the extension's, which is what keeps the product from inviting this file. The case
       // stays because the webview is not the only sender: `getApiResponse` takes the message from
-      // anything that can post one, including the node library's `QipExtensionAPI`.
+      // anything that can post one, including an extension that loads this package as a library.
       const serviceFileUri = seedServiceDocument({ id: SERVICE_ID });
       const seeded = workspaceTree();
 

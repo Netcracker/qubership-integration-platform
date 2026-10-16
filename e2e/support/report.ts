@@ -328,7 +328,7 @@ function headerSection(header: StackHeader | null, report: JsonReport): string[]
       lines.push(
         `> **Support containers whose configuration changed after they were created:** ` +
           `${header.provision.staleSupport.join(", ")}. The compose file, or a path it mounts into ` +
-          `them — \`infrastructure/init-db\`, \`infrastructure/opensearch/opensearch.yml\` — was ` +
+          `them — \`infrastructure/docker/init-db\`, \`infrastructure/docker/opensearch/opensearch.yml\` — was ` +
           `written since. Left as they were found: their data lives in the container, so recreating ` +
           `one discards this stack's chains, sessions or deployments. Recreate by hand if the ` +
           `change concerns them: ` +

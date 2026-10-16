@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { QipExplorerProvider } from "../../qipExplorer";
+import { CipExplorerProvider } from "../../cipExplorer";
 import {
   FIXTURES,
   SCHEMA,
@@ -34,10 +34,10 @@ import {
 } from "./harness";
 
 const EDITORS = [
-  { viewType: "qip.chainFile.editor", fixture: FIXTURES.chain },
-  { viewType: "qip.serviceFile.editor", fixture: FIXTURES.service },
-  { viewType: "qip.contextServiceFile.editor", fixture: FIXTURES.contextService },
-  { viewType: "qip.mcpServiceFile.editor", fixture: FIXTURES.mcpService },
+  { viewType: "cip.chainFile.editor", fixture: FIXTURES.chain },
+  { viewType: "cip.serviceFile.editor", fixture: FIXTURES.service },
+  { viewType: "cip.contextServiceFile.editor", fixture: FIXTURES.contextService },
+  { viewType: "cip.mcpServiceFile.editor", fixture: FIXTURES.mcpService },
 ];
 
 // The ids the golden files carry in place of the one a create command generates.
@@ -113,7 +113,7 @@ suite("Custom editors", function () {
         assert.fail(`expected the "chain diff" tab, got ${activeTab()?.label}: ${describeInput(activeTab()?.input)}`),
       );
       assert.ok(!(tab.input instanceof vscode.TabInputTextDiff), "expected the chain editor, got a text diff");
-      assert.strictEqual((tab.input as { viewType?: string }).viewType, "qip.chainFile.editor");
+      assert.strictEqual((tab.input as { viewType?: string }).viewType, "cip.chainFile.editor");
     } finally {
       await closeAllEditors();
       await vscode.workspace.fs.delete(workspaceUri(copy));
@@ -127,10 +127,10 @@ suite("Create commands", function () {
   suiteSetup(activateExtension);
   teardown(closeAllEditors);
 
-  test("qip.createChain writes a chain named by the prompt into a folder named by its id", async () => {
+  test("cip.createChain writes a chain named by the prompt into a folder named by its id", async () => {
     const folder = await newRootDirectory(() =>
       withPrompts({ showInputBox: () => "vsc-created-chain" }, () =>
-        vscode.commands.executeCommand("qip.createChain"),
+        vscode.commands.executeCommand("cip.createChain"),
       ),
     );
     try {
@@ -150,12 +150,12 @@ suite("Create commands", function () {
   // `createEmptyChain(true)` writes into the folder above the workspace. This host mounts the
   // workspace at the root of its filesystem, where `Uri.joinPath(root, "..")` resolves to the root
   // again, so the chain lands in the workspace and this host cannot tell the two create commands
-  // apart. Only the dismissed prompt is pinned here, then: `qip.createService` writes nothing when
+  // apart. Only the dismissed prompt is pinned here, then: `cip.createService` writes nothing when
   // its name prompt is dismissed, and this command falls back to a name.
-  test('qip.createChainParent names the chain "New Chain" when the name prompt is dismissed', async () => {
+  test('cip.createChainParent names the chain "New Chain" when the name prompt is dismissed', async () => {
     const folder = await newRootDirectory(() =>
       withPrompts({ showInputBox: () => undefined }, () =>
-        vscode.commands.executeCommand("qip.createChainParent"),
+        vscode.commands.executeCommand("cip.createChainParent"),
       ),
     );
     try {
@@ -176,7 +176,7 @@ suite("Create commands", function () {
   ];
 
   for (const { pick, suffix, schema } of SERVICE_TYPES) {
-    test(`qip.createService writes a ${pick} service as *${suffix}`, async () => {
+    test(`cip.createService writes a ${pick} service as *${suffix}`, async () => {
       const answers: Record<string, string> = {
         "Enter new service name": `vsc-created-${pick.toLowerCase()}`,
         "Enter MCP service identifier": "vscCreatedMcp",
@@ -188,7 +188,7 @@ suite("Create commands", function () {
             showInputBox: (options) => answers[options?.prompt ?? ""],
             showQuickPick: (items) => items.find((item) => item.value === pick),
           },
-          () => vscode.commands.executeCommand("qip.createService"),
+          () => vscode.commands.executeCommand("cip.createService"),
         ),
       );
       try {
@@ -216,14 +216,14 @@ suite("Create commands", function () {
     });
   }
 
-  test("qip.createService writes nothing when the name prompt is dismissed", async () => {
+  test("cip.createService writes nothing when the name prompt is dismissed", async () => {
     const before = await listTree(workspaceRoot());
     await withPrompts(
       {
         showInputBox: () => undefined,
         showQuickPick: (items) => items.find((item) => item.value === "INTERNAL"),
       },
-      () => vscode.commands.executeCommand("qip.createService"),
+      () => vscode.commands.executeCommand("cip.createService"),
     );
     assert.deepStrictEqual(await listTree(workspaceRoot()), before);
   });
@@ -237,10 +237,10 @@ suite("Delete commands", function () {
 
   // Each case deletes its own copy, so the fixtures stay intact for the suites that follow.
   const CASES = [
-    { command: "qip.deleteChain", fixture: FIXTURES.chain, copy: "chains/delete-chain" },
-    { command: "qip.deleteService", fixture: FIXTURES.service, copy: "services/delete-service" },
-    { command: "qip.deleteService", fixture: FIXTURES.contextService, copy: "services/delete-context" },
-    { command: "qip.deleteService", fixture: FIXTURES.mcpService, copy: "services/delete-mcp" },
+    { command: "cip.deleteChain", fixture: FIXTURES.chain, copy: "chains/delete-chain" },
+    { command: "cip.deleteService", fixture: FIXTURES.service, copy: "services/delete-service" },
+    { command: "cip.deleteService", fixture: FIXTURES.contextService, copy: "services/delete-context" },
+    { command: "cip.deleteService", fixture: FIXTURES.mcpService, copy: "services/delete-mcp" },
   ];
 
   for (const { command, fixture, copy } of CASES) {
@@ -278,13 +278,13 @@ suite("Delete commands", function () {
     });
   }
 
-  test("qip.deleteChain deletes nothing when the confirmation is dismissed", async () => {
+  test("cip.deleteChain deletes nothing when the confirmation is dismissed", async () => {
     const copy = "chains/keep-me";
     await copyFolder(folderOf(FIXTURES.chain), copy);
     try {
       const before = await listTree(workspaceUri(copy));
       await withPrompts({ showWarningMessage: () => undefined }, () =>
-        vscode.commands.executeCommand("qip.deleteChain", {
+        vscode.commands.executeCommand("cip.deleteChain", {
           fileUri: workspaceUri(`${copy}/${fileNameOf(FIXTURES.chain)}`),
           label: "keep-me",
         }),
@@ -303,9 +303,9 @@ suite("Open commands", function () {
   teardown(closeAllEditors);
 
   for (const fixture of [FIXTURES.chain, FIXTURES.service]) {
-    test(`qip.openInTextEditor opens ${suffixOf(fixture)} as text`, async () => {
+    test(`cip.openInTextEditor opens ${suffixOf(fixture)} as text`, async () => {
       const uri = workspaceUri(fixture);
-      await vscode.commands.executeCommand("qip.openInTextEditor", { fileUri: uri });
+      await vscode.commands.executeCommand("cip.openInTextEditor", { fileUri: uri });
       const input = await waitFor(() => activeTab()?.input, "the text tab");
       assert.ok(input instanceof vscode.TabInputText, `expected a text editor, got ${describeInput(input)}`);
       assert.strictEqual(input.uri.toString(), uri.toString());
@@ -314,16 +314,16 @@ suite("Open commands", function () {
   }
 
   for (const { viewType, fixture } of EDITORS) {
-    test(`qip.revealInExplorer opens ${suffixOf(fixture)} in ${viewType}`, async () => {
-      await vscode.commands.executeCommand("qip.revealInExplorer", { fileUri: workspaceUri(fixture) });
+    test(`cip.revealInExplorer opens ${suffixOf(fixture)} in ${viewType}`, async () => {
+      await vscode.commands.executeCommand("cip.revealInExplorer", { fileUri: workspaceUri(fixture) });
       await expectCustomEditor(viewType, workspaceUri(fixture));
     });
   }
 
   // The command takes no argument and raises no prompt: it opens the editor on no document at all.
-  test("qip.open opens the offline chain editor webview", async () => {
-    await vscode.commands.executeCommand("qip.open");
-    await expectWebviewPanel("QIP Offline Chain Editor");
+  test("cip.open opens the offline chain editor webview", async () => {
+    await vscode.commands.executeCommand("cip.open");
+    await expectWebviewPanel("CIP Offline Chain Editor");
   });
 });
 
@@ -341,38 +341,38 @@ suite("Export image commands", function () {
 
   // The panel is awaited inside the capture, because `errorsFrom` restores the popup as soon as its
   // callback resolves: a message raised while the panel opens would otherwise go unrecorded.
-  test("qip.exportImages opens the export webview for the chain it is given", async () => {
+  test("cip.exportImages opens the export webview for the chain it is given", async () => {
     const errors = await errorsFrom(async () => {
-      await vscode.commands.executeCommand("qip.exportImages", workspaceUri(FIXTURES.chain).toString(), { outputDir });
-      await expectWebviewPanel("QIP Export Images");
+      await vscode.commands.executeCommand("cip.exportImages", workspaceUri(FIXTURES.chain).toString(), { outputDir });
+      await expectWebviewPanel("CIP Export Images");
     });
     assert.deepStrictEqual(errors, []);
   });
 
-  test("qip.exportImages reports a missing output directory and opens nothing", async () => {
-    const errors = await errorsFrom(() => vscode.commands.executeCommand("qip.exportImages", undefined, {}));
+  test("cip.exportImages reports a missing output directory and opens nothing", async () => {
+    const errors = await errorsFrom(() => vscode.commands.executeCommand("cip.exportImages", undefined, {}));
     assert.deepStrictEqual(errors, ["outputDir is required"]);
     await holdsFor(async () => assert.deepStrictEqual(openTabLabels(), []), 1000);
   });
 
   // The payload carries a chain id per path, so the handler parses every path before the panel opens.
-  test("qip.exportImages reports a path it cannot read as a chain and opens nothing", async () => {
+  test("cip.exportImages reports a path it cannot read as a chain and opens nothing", async () => {
     const absent = workspaceUri("chains/absent.chain.cip.yaml");
     const errors = await errorsFrom(() =>
-      vscode.commands.executeCommand("qip.exportImages", absent.toString(), { outputDir }),
+      vscode.commands.executeCommand("cip.exportImages", absent.toString(), { outputDir }),
     );
     assert.strictEqual(errors.length, 1, `expected one message, got ${JSON.stringify(errors)}`);
-    assert.match(errors[0], /^Failed to export QIP chain images: /);
+    assert.match(errors[0], /^Failed to export CIP chain images: /);
     assert.ok(errors[0].includes(absent.toString()), `the message does not name the file: ${errors[0]}`);
     await holdsFor(async () => assert.deepStrictEqual(openTabLabels(), []), 1000);
   });
 
-  test("qip.exportImagesFromExplorer asks for an output folder, then opens the export webview", async () => {
+  test("cip.exportImagesFromExplorer asks for an output folder, then opens the export webview", async () => {
     let asked: vscode.OpenDialogOptions | undefined;
     const errors = await errorsFrom(
       async () => {
-        await vscode.commands.executeCommand("qip.exportImagesFromExplorer");
-        await expectWebviewPanel("QIP Export Images");
+        await vscode.commands.executeCommand("cip.exportImagesFromExplorer");
+        await expectWebviewPanel("CIP Export Images");
       },
       {
         showOpenDialog: (options) => {
@@ -386,9 +386,9 @@ suite("Export image commands", function () {
     assert.strictEqual(asked?.canSelectFiles, false);
   });
 
-  test("qip.exportImagesFromExplorer opens nothing when the folder dialog is dismissed", async () => {
+  test("cip.exportImagesFromExplorer opens nothing when the folder dialog is dismissed", async () => {
     await withPrompts({ showOpenDialog: () => undefined }, () =>
-      vscode.commands.executeCommand("qip.exportImagesFromExplorer"),
+      vscode.commands.executeCommand("cip.exportImagesFromExplorer"),
     );
     await holdsFor(async () => assert.deepStrictEqual(openTabLabels(), []), 1000);
   });
@@ -399,12 +399,12 @@ suite("Explorer commands", function () {
 
   const chainId = "7c3a1f58-6b24-4d0e-9f31-5a8c2e4b7d16";
   const chainPath = `refreshed/${chainId}/${chainId}.chain.cip.yaml`;
-  let explorer: QipExplorerProvider;
+  let explorer: CipExplorerProvider;
 
   suiteSetup(async () => {
     await activateExtension();
     useExtensionModules();
-    explorer = new QipExplorerProvider();
+    explorer = new CipExplorerProvider();
   });
 
   teardown(closeAllEditors);
@@ -413,10 +413,10 @@ suite("Explorer commands", function () {
   // has no API, so the case pins what is reachable: the command is registered, `refresh` fires the
   // event the tree view redraws on, and the tree data is read from the filesystem rather than from a
   // cache, so a file written behind the explorer is listed on the next read.
-  test("qip.refreshExplorer is registered, and a refresh fires the event and re-reads the files", async () => {
+  test("cip.refreshExplorer is registered, and a refresh fires the event and re-reads the files", async () => {
     const commands = await vscode.commands.getCommands(true);
-    assert.ok(commands.includes("qip.refreshExplorer"), "qip.refreshExplorer is not registered");
-    await vscode.commands.executeCommand("qip.refreshExplorer");
+    assert.ok(commands.includes("cip.refreshExplorer"), "cip.refreshExplorer is not registered");
+    await vscode.commands.executeCommand("cip.refreshExplorer");
 
     const fired: unknown[] = [];
     const subscription = explorer.onDidChangeTreeData((event) => fired.push(event));

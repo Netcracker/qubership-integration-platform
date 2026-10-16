@@ -48,7 +48,7 @@ Java 21 is required. Checkstyle is enforced with zero violations allowed.
 - `properties/` — `@ConfigurationProperties` records for OpenSearch, sessions bulk config, internal services
 - `exception/` — `GlobalExceptionHandler` with custom exceptions mapping to HTTP status codes
 
-**Data flow:** OpenSearch stores `SessionElementElastic` documents in index `qip-elements-{namespace}-session-elements`. `SessionService` aggregates elements by sessionId using OpenSearch collapse with inner_hits. MapStruct mappers convert to API DTOs.
+**Data flow:** OpenSearch stores `SessionElementElastic` documents in index `cip-elements-{namespace}-session-elements`. `SessionService` aggregates elements by sessionId using OpenSearch collapse with inner_hits. MapStruct mappers convert to API DTOs.
 
 **Key domain concepts:**
 - **Session** — complete record of an integration flow execution (metadata + list of elements)
@@ -93,7 +93,7 @@ This service handles **session observability** in the Qubership Integration Plat
 
 | Service | Protocol | What For |
 |---|---|---|
-| **OpenSearch** | HTTP (`OPENSEARCH_*` env vars) | Primary data store. Sessions stored in index `qip-elements-{namespace}-session-elements`. |
+| **OpenSearch** | HTTP (`OPENSEARCH_*` env vars) | Primary data store. Sessions stored in index `cip-elements-{namespace}-session-elements`. |
 | **Runtime Catalog** | REST (`GET /v1/chains/names`) | Resolve chainId → chainName for display in session listings |
 | **Consul** | REST | Externalized configuration at `config/{NAMESPACE}/` |
 

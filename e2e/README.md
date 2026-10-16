@@ -95,7 +95,7 @@ environment flags, so two runs against one stack cannot both be correct, and not
 fails the run at config load, and the message names both.
 
 ```bash
-npm run test:compose   # the Docker Compose stack from infrastructure/docker-compose.yml
+npm run test:compose   # the Docker Compose stack from infrastructure/docker/docker-compose.yml
 npm run test:k8s       # a local Kubernetes cluster, namespace qip-e2e
 ```
 
@@ -121,7 +121,7 @@ records the target and lists every project and spec file the target leaves out, 
 
 **The Kubernetes target.** You install the cluster and what runs cluster-wide once, as
 [the Kubernetes target page](k8s/README.md) describes, and the suite owns namespace `qip-e2e`. It
-builds the images from the checkout, installs `infrastructure/qip-dev` with
+builds the images from the checkout, installs `infrastructure/helm/qip-dev` with
 `e2e/k8s/values.e2e.yaml`, and waits until every service answers. Each service answers on a fixed
 host port: 30080 for the proxy, 30091 for runtime-catalog, 30092 for the classic engine, 30093 for
 sessions-management, and 30095 for the testing service.
@@ -272,7 +272,7 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers`, `brokers-seed`, `brokers-seed-teardown` and `brokers-restart` from the run, for a faster local pass that skips the broker overlays. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
-| `CIP_COMPOSE_FILE`        | `infrastructure/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
+| `CIP_COMPOSE_FILE`        | `infrastructure/docker/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
 | `CIP_PROXY_URL`           | `http://localhost:8080`              | The nginx front door, and the whole `/api/` surface.                                 |
 | `CIP_CATALOG_URL`         | `http://localhost:8091`              | runtime-catalog, direct.                                                             |
 | `CIP_ENGINE_URL`          | `http://localhost:8092`              | The engine, direct, and where a seeded chain is called.                              |
@@ -402,7 +402,7 @@ Before any project starts, the run brings the stack to this checkout and prints 
 
 It starts what is missing or unhealthy and rebuilds a service whose sources are newer than the image
 its container runs. A running container that is already current is never recreated, so a stack you
-are debugging survives a run. A change to `infrastructure/docker-compose.yml` or to an env file a
+are debugging survives a run. A change to `infrastructure/docker/docker-compose.yml` or to an env file a
 service reads recreates the container instead of rebuilding it, which costs seconds:
 
 ```text
@@ -411,7 +411,7 @@ service reads recreates the container instead of rebuilding it, which costs seco
 
 Every container the run creates, recreates, or starts is followed by an nginx reload, because the
 proxy resolves `proxy_pass http://engine:8080` once, at config load. A change under
-`infrastructure/nginx/` reloads it too. `test-results/stack.json` records the commit, the version
+`infrastructure/docker/nginx/` reloads it too. `test-results/stack.json` records the commit, the version
 and build time each service reports, the image every container runs, and what provisioning did; the
 run header is rendered from it.
 
@@ -439,7 +439,7 @@ deletes the run's topology and its `/upload/<run>` SFTP tree, then stops and rem
 containers. A kept corpus (`E2E_KEEP=1`) keeps them, and so does a teardown that left residue.
 
 The engine runs with `CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED=false` in
-`infrastructure/docker-compose.yml`, because the pub/sub pre-deploy check always reaches the real
+`infrastructure/docker/docker-compose.yml`, because the pub/sub pre-deploy check always reaches the real
 Google endpoint rather than the emulator. So `specs/brokers/missing-target.spec.ts` covers a missing
 Kafka topic and a missing RabbitMQ queue and exchange, and a missing pub/sub topic is an uncovered
 gap.
@@ -500,7 +500,7 @@ recreate the service first and delete the file second; deleting the file alone l
 running with nothing naming it:
 
 ```bash
-docker compose -f ../infrastructure/docker-compose.yml up -d --force-recreate qip-runtime-catalog
+docker compose -f ../infrastructure/docker/docker-compose.yml up -d --force-recreate qip-runtime-catalog
 rm .e2e-overrides.json
 ```
 

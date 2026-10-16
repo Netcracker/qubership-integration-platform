@@ -139,7 +139,7 @@ Build with `-am`, for the reason `maven-verifier` gives.
 mvn -B -f "$WT/pom.xml" -pl runtime-catalog -am package -DskipTests -Dgpg.skip=true -Dmaven.javadoc.skip=true
 ls "$WT"/runtime-catalog/target/qip-runtime-catalog-*-exec.jar          # exactly one file, or the COPY glob fails
 docker tag infrastructure-qip-runtime-catalog infrastructure-qip-runtime-catalog:pre-<N>
-docker compose -f "$WT/infrastructure/docker-compose.yml" up -d --build --no-deps qip-runtime-catalog
+docker compose -f "$WT/infrastructure/docker/docker-compose.yml" up -d --build --no-deps qip-runtime-catalog
 ```
 
 `--no-deps` keeps compose from recreating `postgreSQL`, which has no named volume: a recreate
@@ -278,7 +278,7 @@ form.
 - **Helm.** Render before and after and diff the render:
 
   ```bash
-  helm template qip "$WT/infrastructure/qip-dev" > "$TMP/after.yaml"
+  helm template qip "$WT/infrastructure/helm/qip-dev" > "$TMP/after.yaml"
   diff "$TMP/before.yaml" "$TMP/after.yaml"
   ```
 

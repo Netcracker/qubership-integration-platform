@@ -314,7 +314,7 @@ export const Script: React.FC<ScriptProps> = ({
     <Container {...props}>
       <Editor
         height="100%"
-        className="qip-editor"
+        className="cip-editor"
         wrapperProps={{ "data-testid": "script-editor" }}
         value={value}
         language={mode}

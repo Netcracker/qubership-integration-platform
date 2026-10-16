@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @QuarkusComponentTest
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 @TestConfigProperty(key = "cip.metrics.enabled", value = "true")
-@TestConfigProperty(key = "cip.opensearch.index.elements.name", value = "qip-elements-local")
+@TestConfigProperty(key = "cip.opensearch.index.elements.name", value = "cip-elements-local")
 class SessionsMetricsServiceProducerTest {
 
     @Inject
@@ -43,7 +43,7 @@ class SessionsMetricsServiceProducerTest {
         );
 
         assertNotNull(result);
-        assertEquals("qip-elements-local", fieldValue(result, "indexName"));
+        assertEquals("cip-elements-local", fieldValue(result, "indexName"));
         assertSame(metricsStore, fieldValue(result, "metricsStore"));
         assertSame(openSearchClientSupplier, fieldValue(result, "openSearchClientSupplier"));
         assertSame(checkpointRepository, fieldValue(result, "checkpointRepository"));

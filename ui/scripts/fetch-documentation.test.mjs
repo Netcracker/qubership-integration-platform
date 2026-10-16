@@ -20,7 +20,7 @@ const docs = {
 // Runs the real script in a temporary working directory that holds a small
 // doc tree and a config with the given documentation fields.
 function runFetch(t, documentation) {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "qip-doc-"));
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "cip-doc-"));
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
 
   for (const [file, content] of Object.entries(docs)) {

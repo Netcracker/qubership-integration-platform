@@ -26,7 +26,8 @@ import { AsyncApiSpecificationParser } from "./parsers/AsyncApiSpecificationPars
 import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from "./parsers/ContentParser";
-import { ProjectConfigService } from "../services/ProjectConfigService";
+import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
+import { CIP_SCHEMA_URLS } from "../services/cipSchemas";
 import { SpecificationValidator } from "./SpecificationValidator";
 import { ApiSpecificationType } from "./importApiTypes";
 import { normalizePath } from "./pathUtils";
@@ -384,14 +385,13 @@ export class SpecificationImportService {
         }
 
         // Create specification file with operations using existing architecture
-        const config = ProjectConfigService.getConfig();
-        const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${config.extensions.specification}`;
+        const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${FILE_EXTENSIONS.specification}`;
         const specFileUri = Uri.joinPath(baseFolder, specFileName);
 
-        // Create QIP specification using operations from SpecificationProcessorService
-        const qipSpecification = {
+        // Create CIP specification using operations from SpecificationProcessorService
+        const cipSpecification = {
           id: specification.id,
-          $schema: config.schemaUrls.specification,
+          $schema: CIP_SCHEMA_URLS.SPECIFICATION,
           name: specification.name,
           content: {
             deprecated: specification.deprecated,
@@ -417,7 +417,7 @@ export class SpecificationImportService {
         };
 
         // Disable anchors to avoid "Excessive alias count" error when parsing large specifications
-        const yamlContent = yaml.stringify(qipSpecification, {
+        const yamlContent = yaml.stringify(cipSpecification, {
           aliasDuplicateObjects: false,
         });
         const bytes = new TextEncoder().encode(yamlContent);

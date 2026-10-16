@@ -3,5 +3,5 @@ kubernetes:
     token: asd
     namespace: local
   variables-secret:
-    name: qip-secured-variables-v2
-    label: qip-variable-type
+    name: cip-secured-variables-v2
+    label: cip-variable-type

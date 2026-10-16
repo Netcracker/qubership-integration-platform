@@ -32,8 +32,7 @@ jest.mock("axios-rate-limit", () => ({
 }));
 
 jest.mock("../../../src/appConfig", () => ({
-  getConfig: () => ({ apiGateway: "http://localhost", appName: "test" }),
-  getAppName: () => "test",
+  getConfig: () => ({ apiGateway: "http://localhost" }),
 }));
 
 import { RestApi } from "../../../src/api/rest/restApi";

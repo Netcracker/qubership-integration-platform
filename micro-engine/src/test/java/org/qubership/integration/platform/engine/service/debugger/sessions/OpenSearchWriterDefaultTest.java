@@ -51,7 +51,7 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class OpenSearchWriterDefaultTest {
 
-    private static final String INDEX_NAME = "qip-elements-local";
+    private static final String INDEX_NAME = "cip-elements-local";
     private static final String SESSION_ELEMENTS_INDEX = INDEX_NAME + "-session-elements";
     private static final String NORMALIZED_SESSION_ELEMENTS_INDEX = "normalized-session-elements";
 

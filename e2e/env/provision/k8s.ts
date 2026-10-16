@@ -353,7 +353,7 @@ export function helmArguments(options: {
 }): string[] {
   const { root, choice, devServerHost, tags } = options;
   const args = [
-    "upgrade", "--install", RELEASE, path.join(root, "infrastructure/qip-dev"),
+    "upgrade", "--install", RELEASE, path.join(root, "infrastructure/helm/qip-dev"),
     "-n", NAMESPACE,
     "-f", path.join(root, "e2e/k8s/values.e2e.yaml"),
     "--set-string", `global.qip.ui.resolver=${choice.resolver}`,

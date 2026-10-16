@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class DefaultSecretPolicyServiceTest {
-    private static final String DEFAULT_SECRET = "qip-secured-variables-v2";
+    private static final String DEFAULT_SECRET = "cip-secured-variables-v2";
     private static final String NAMED_SECRET = "my-named-secret";
 
     @Mock

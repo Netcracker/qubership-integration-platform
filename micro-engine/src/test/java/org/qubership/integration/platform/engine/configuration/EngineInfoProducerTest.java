@@ -29,7 +29,7 @@ class EngineInfoProducerTest {
         ApplicationConfiguration applicationConfiguration = mock(ApplicationConfiguration.class);
         InetAddress inetAddress = mock(InetAddress.class);
 
-        when(applicationConfiguration.getDeploymentName()).thenReturn("qip-engine-v1");
+        when(applicationConfiguration.getDeploymentName()).thenReturn("cip-engine-v1");
         when(inetAddress.getHostAddress()).thenReturn("127.0.0.1");
 
         try (MockedStatic<InetAddress> inetAddressMockedStatic = mockStatic(InetAddress.class)) {
@@ -39,7 +39,7 @@ class EngineInfoProducerTest {
 
             assertEquals("default", engineInfo.getDomain());
             assertEquals(DomainType.MICRO, engineInfo.getDomainType());
-            assertEquals("qip-engine-v1", engineInfo.getEngineDeploymentName());
+            assertEquals("cip-engine-v1", engineInfo.getEngineDeploymentName());
             assertEquals("127.0.0.1", engineInfo.getHost());
         }
     }
@@ -51,7 +51,7 @@ class EngineInfoProducerTest {
 
         ApplicationConfiguration applicationConfiguration = mock(ApplicationConfiguration.class);
 
-        when(applicationConfiguration.getDeploymentName()).thenReturn("qip-engine-v1");
+        when(applicationConfiguration.getDeploymentName()).thenReturn("cip-engine-v1");
 
         try (MockedStatic<InetAddress> inetAddressMockedStatic = mockStatic(InetAddress.class)) {
             inetAddressMockedStatic.when(InetAddress::getLocalHost)
@@ -61,7 +61,7 @@ class EngineInfoProducerTest {
 
             assertEquals("default", engineInfo.getDomain());
             assertEquals(DomainType.MICRO, engineInfo.getDomainType());
-            assertEquals("qip-engine-v1", engineInfo.getEngineDeploymentName());
+            assertEquals("cip-engine-v1", engineInfo.getEngineDeploymentName());
             assertEquals("", engineInfo.getHost());
         }
     }

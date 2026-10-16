@@ -1,7 +1,7 @@
 // The OpenAPI specification import, driven end to end through the router over the Jest fake of
 // `vscode`, as `tests/web/import/soap.test.ts` drives the SOAP one: the router case,
 // `SpecificationImportApiHandler`, `SpecificationImportService`, `OpenApiSpecificationParser`,
-// `QipSpecificationGenerator`, `SpecificationGroupService`, `EnvironmentService` and
+// `CipSpecificationGenerator`, `SpecificationGroupService`, `EnvironmentService` and
 // `SystemService`, with the real `VSCodeFileApi` writing into the fake's filesystem. The case
 // asserts the files that end up on disk, byte for byte, against the golden tree in
 // `src/web/test/golden/import/openapi/`.
@@ -19,14 +19,14 @@
 // after the server's `description`.
 //
 // Until #1081 the count was four: `createOperationsFromOpenApi` took the whole specification
-// `createQipSpecificationFromOpenApi` builds, read `content.operations` off it and threw the rest
+// `createCipSpecificationFromOpenApi` builds, read `content.operations` off it and threw the rest
 // away, including a `specificationSources[].id` that reached no file. It now calls
 // `buildOperationsFromOpenApi`, and the count is what the written document carries.
 //
 // The golden was generated from this fixture and then read against it by hand:
 //
 //   - three operations, in the order the document declares them: `listOrders` and `createOrder`
-//     under `/orders`, then `getOrder` under `/orders/{orderId}`. `createQipSpecificationFromOpenApi`
+//     under `/orders`, then `getOrder` under `/orders/{orderId}`. `createCipSpecificationFromOpenApi`
 //     walks `paths` and then each path item's methods, keeping the document's own order
 //   - `name` is the `operationId`, `method` is the method uppercased and `path` is the template as
 //     written. No operation here omits `operationId`, so `generateOperationId` is not reached

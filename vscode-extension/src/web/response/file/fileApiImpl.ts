@@ -4,17 +4,16 @@ import * as vscode from "vscode";
 import * as yaml from "yaml";
 import * as path from "path";
 import { LibraryData } from "@netcracker/qip-ui";
-import { QipFileType } from "../serviceApiUtils";
+import { CipFileType } from "../serviceApiUtils";
 import { FileFilter } from "../fileFilteringUtils";
+import { FILE_EXTENSIONS, extractFilename } from "./fileExtensions";
 import {
-  getExtensionsForFile,
-  extractFilename,
-  FileExtensionsConfig,
-} from "./fileExtensions";
+  CONF_MODEL_BASE_URL,
+  CIP_SCHEMA_URLS,
+} from "../../services/cipSchemas";
 import { Chain as ChainSchema } from "@netcracker/qip-schemas";
 import { ContentParser } from "../../api-services/parsers/ContentParser";
 import { ServiceNormalizer } from "../../api-services/ServiceNormalizer";
-import { ProjectConfigService } from "../../services/ProjectConfigService";
 import { FileCacheService } from "../../services/FileCacheService";
 import {
   CHAIN_ROUTES,
@@ -37,13 +36,6 @@ export class VSCodeFileApi implements FileApi {
     this.context = context;
   }
 
-  private getExtensionsForContext(currentFileUri?: Uri) {
-    if (currentFileUri) {
-      return getExtensionsForFile(extractFilename(currentFileUri));
-    }
-    return getExtensionsForFile();
-  }
-
   getRootDirectory(): Uri {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -53,7 +45,7 @@ export class VSCodeFileApi implements FileApi {
   }
 
   async findFileByNavigationPath(path: string): Promise<Uri> {
-    const extensions = this.getExtensionsForContext();
+    const extensions = FILE_EXTENSIONS;
     let extension: string | undefined = undefined;
 
     for (const regexp of SERVICE_ROUTES) {
@@ -164,14 +156,14 @@ export class VSCodeFileApi implements FileApi {
       // itself: both callers propagate it to the consumer unchanged. The wording covers any `stat`
       // failure, since the code is not read here.
       vscode.window.showErrorMessage(
-        `Cannot read the chain file or folder: ${baseUri.fsPath}. Refresh the QIP explorer and open the chain again.`,
+        `Cannot read the chain file or folder: ${baseUri.fsPath}. Refresh the CIP explorer and open the chain again.`,
       );
       throw err;
     }
     if ((stat.type & vscode.FileType.File) !== 0) {
       return baseUri;
     }
-    const extensions = this.getExtensionsForContext(baseUri);
+    const extensions = FILE_EXTENSIONS;
     const files = await this.getFilesByExtensionInDirectory(
       baseUri,
       extensions.chain,
@@ -196,7 +188,7 @@ export class VSCodeFileApi implements FileApi {
     result: T[],
   ): Promise<void> {
     const entries = await readDirectory(folderUri);
-    const extensions = this.getExtensionsForContext(folderUri);
+    const extensions = FILE_EXTENSIONS;
 
     for (const [name, type] of entries) {
       if (
@@ -253,7 +245,7 @@ export class VSCodeFileApi implements FileApi {
       return uri;
     }
 
-    const extensions = getExtensionsForFile();
+    const extensions = FILE_EXTENSIONS;
     const typesToTry = [
       extensions.mcpService,
       extensions.contextService,
@@ -353,7 +345,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid chain file content");
     } catch (e) {
       console.error(
-        `Chain file ${fileUri} can't be parsed from QIP Extension API`,
+        `Chain file ${fileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -466,7 +458,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid service file content");
     } catch (e) {
       console.error(
-        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        `Service file ${serviceFileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -483,7 +475,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid service file content or service ID mismatch");
     } catch (e) {
       console.error(
-        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        `Service file ${serviceFileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -503,7 +495,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid service file content or service ID mismatch");
     } catch (e) {
       console.error(
-        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        `Service file ${serviceFileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -520,7 +512,7 @@ export class VSCodeFileApi implements FileApi {
       throw Error("Invalid service file content or service ID mismatch");
     } catch (e) {
       console.error(
-        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        `Service file ${serviceFileUri} can't be parsed from CIP Extension API`,
         e,
       );
       throw e;
@@ -623,13 +615,12 @@ export class VSCodeFileApi implements FileApi {
 
       await createDirectory(folderUri);
 
-      const config = ProjectConfigService.getConfig();
       const chainFileUri = vscode.Uri.joinPath(
         folderUri,
-        `${chainId}${config.extensions.chain}`,
+        `${chainId}${FILE_EXTENSIONS.chain}`,
       );
       const chain = {
-        $schema: config.schemaUrls.chain,
+        $schema: CIP_SCHEMA_URLS.CHAIN,
         id: chainId,
         name: chainName,
         content: {},
@@ -745,12 +736,10 @@ export class VSCodeFileApi implements FileApi {
 
       const serviceId = crypto.randomUUID();
 
-      const config = ProjectConfigService.getConfig();
-
       const service =
         serviceType.value === "CONTEXT"
           ? {
-              $schema: config.schemaUrls.contextService,
+              $schema: `${CONF_MODEL_BASE_URL}context-service`,
               id: serviceId,
               name: serviceName.trim(),
               content: {
@@ -759,7 +748,7 @@ export class VSCodeFileApi implements FileApi {
             }
           : serviceType.value === "MCP"
             ? {
-                $schema: config.schemaUrls.mcpService,
+                $schema: `${CONF_MODEL_BASE_URL}mcp-service`,
                 id: serviceId,
                 name: serviceName.trim(),
                 content: {
@@ -769,7 +758,7 @@ export class VSCodeFileApi implements FileApi {
                 },
               }
             : {
-                $schema: config.schemaUrls.service,
+                $schema: CIP_SCHEMA_URLS.SERVICE,
                 id: serviceId,
                 name: serviceName.trim(),
                 content: {
@@ -785,10 +774,10 @@ export class VSCodeFileApi implements FileApi {
 
       const extension =
         serviceType.value === "CONTEXT"
-          ? config.extensions.contextService
+          ? FILE_EXTENSIONS.contextService
           : serviceType.value === "MCP"
-            ? config.extensions.mcpService
-            : config.extensions.service;
+            ? FILE_EXTENSIONS.mcpService
+            : FILE_EXTENSIONS.service;
 
       // Create service file (folder will be created automatically)
       const serviceFolderUri = vscode.Uri.joinPath(
@@ -812,30 +801,29 @@ export class VSCodeFileApi implements FileApi {
   async getFileType(fileUri: Uri): Promise<string> {
     try {
       const stat = await vscode.workspace.fs.stat(fileUri);
-      const extensions: FileExtensionsConfig =
-        this.getExtensionsForContext(fileUri);
+      const extensions = FILE_EXTENSIONS;
 
       if ((stat.type & vscode.FileType.File) !== 0) {
         const name = extractFilename(fileUri);
         if (name.endsWith(extensions.mcpService)) {
-          return QipFileType.MCP_SERVICE;
+          return CipFileType.MCP_SERVICE;
         }
         if (name.endsWith(extensions.contextService)) {
-          return QipFileType.CONTEXT_SERVICE;
+          return CipFileType.CONTEXT_SERVICE;
         }
         if (name.endsWith(extensions.specificationGroup)) {
-          return QipFileType.SPECIFICATION_GROUP;
+          return CipFileType.SPECIFICATION_GROUP;
         }
         if (name.endsWith(extensions.specification)) {
-          return QipFileType.SPECIFICATION;
+          return CipFileType.SPECIFICATION;
         }
         if (name.endsWith(extensions.service)) {
-          return QipFileType.SERVICE;
+          return CipFileType.SERVICE;
         }
         if (name.endsWith(extensions.chain)) {
-          return QipFileType.CHAIN;
+          return CipFileType.CHAIN;
         }
-        return QipFileType.UNKNOWN;
+        return CipFileType.UNKNOWN;
       }
 
       // Directory: infer by contents
@@ -847,20 +835,20 @@ export class VSCodeFileApi implements FileApi {
       );
 
       if (hasServiceFile) {
-        return QipFileType.SERVICE;
+        return CipFileType.SERVICE;
       }
       if (hasChainFile) {
-        return QipFileType.CHAIN;
+        return CipFileType.CHAIN;
       }
       if (this.hasFileWithExtension(entries, extensions.mcpService)) {
-        return QipFileType.MCP_SERVICE;
+        return CipFileType.MCP_SERVICE;
       }
       if (this.hasFileWithExtension(entries, extensions.contextService)) {
-        return QipFileType.CONTEXT_SERVICE;
+        return CipFileType.CONTEXT_SERVICE;
       }
-      return QipFileType.FOLDER;
+      return CipFileType.FOLDER;
     } catch (e) {
-      return QipFileType.UNKNOWN;
+      return CipFileType.UNKNOWN;
     }
   }
 
@@ -871,17 +859,17 @@ export class VSCodeFileApi implements FileApi {
 
   async getDirectoriesToRemove(fileUri: Uri): Promise<Uri[]> {
     const fileType = await this.getFileType(fileUri);
-    const qipFileType = fileType as unknown as QipFileType;
+    const cipFileType = fileType as unknown as CipFileType;
     if (
-      qipFileType === QipFileType.CHAIN ||
-      qipFileType === QipFileType.SERVICE ||
-      qipFileType === QipFileType.CONTEXT_SERVICE ||
-      qipFileType === QipFileType.MCP_SERVICE
+      cipFileType === CipFileType.CHAIN ||
+      cipFileType === CipFileType.SERVICE ||
+      cipFileType === CipFileType.CONTEXT_SERVICE ||
+      cipFileType === CipFileType.MCP_SERVICE
     ) {
       const directory = await this.getParentDirectoryUri(fileUri);
       const haveResourceFolder =
-        qipFileType === QipFileType.CHAIN ||
-        qipFileType === QipFileType.SERVICE;
+        cipFileType === CipFileType.CHAIN ||
+        cipFileType === CipFileType.SERVICE;
       return directory.fsPath === this.getRootDirectory().fsPath
         ? []
         : [
@@ -916,7 +904,7 @@ export class VSCodeFileApi implements FileApi {
   }
 
   async getSpecificationGroupFiles(serviceFileUri: Uri): Promise<string[]> {
-    const extensions = this.getExtensionsForContext(serviceFileUri);
+    const extensions = FILE_EXTENSIONS;
     return await this.getFilesByExtension(
       serviceFileUri,
       extensions.specificationGroup,
@@ -924,7 +912,7 @@ export class VSCodeFileApi implements FileApi {
   }
 
   async getSpecificationFiles(serviceFileUri: Uri): Promise<string[]> {
-    const extensions = this.getExtensionsForContext(serviceFileUri);
+    const extensions = FILE_EXTENSIONS;
     return await this.getFilesByExtension(
       serviceFileUri,
       extensions.specification,

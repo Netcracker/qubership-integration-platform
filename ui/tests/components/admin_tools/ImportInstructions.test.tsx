@@ -204,7 +204,7 @@ describe("ImportInstructions", () => {
     jest.clearAllMocks();
     mockApi.getImportInstructions.mockResolvedValue(sampleInstructions);
     mockApi.exportImportInstructions.mockResolvedValue(
-      new File(["content"], "qip-import-instructions.yaml"),
+      new File(["content"], "cip-import-instructions.yaml"),
     );
     mockDraggerFileContent = "yaml";
     mockRandomUUIDIndex = 0;

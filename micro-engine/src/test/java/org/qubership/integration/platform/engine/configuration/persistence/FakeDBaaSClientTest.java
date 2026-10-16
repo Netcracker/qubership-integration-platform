@@ -48,7 +48,6 @@ class FakeDBaaSClientTest {
     @BeforeEach
     void setUp() {
         client = new FakeDBaaSClient();
-        client.appPrefix = "qip";
         client.openSearchProperties = openSearchProperties;
         client.postgresProperties = postgresProperties;
     }
@@ -194,7 +193,7 @@ class FakeDBaaSClientTest {
         );
 
         OpensearchIndexConnection connection = database.getConnectionProperties();
-        assertEquals("qip", connection.getResourcePrefix());
+        assertEquals("cip", connection.getResourcePrefix());
         assertEquals("", connection.getUsername());
         assertEquals("", connection.getPassword());
     }

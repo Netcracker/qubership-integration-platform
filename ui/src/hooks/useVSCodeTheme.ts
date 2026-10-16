@@ -239,7 +239,7 @@ export const useVSCodeTheme = () => {
       if (!isVSCodeWebview) {
         if (theme.colors && Object.keys(theme.colors).length > 0) {
           console.log(
-            "QIP UI: Applying fallback colors for browser mode:",
+            "CIP UI: Applying fallback colors for browser mode:",
             Object.keys(theme.colors).length,
           );
           Object.entries(theme.colors).forEach(([key, value]) => {
@@ -250,7 +250,7 @@ export const useVSCodeTheme = () => {
           });
         } else {
           console.log(
-            "QIP UI: No VSCode colors received for browser mode, using stylesheet fallbacks",
+            "CIP UI: No VSCode colors received for browser mode, using stylesheet fallbacks",
           );
         }
       }

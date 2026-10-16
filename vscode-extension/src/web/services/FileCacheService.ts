@@ -1,6 +1,10 @@
 import { Uri } from "vscode";
-import { ProjectConfigService } from "./ProjectConfigService";
-import { extractFilename } from "../response/file/fileExtensions";
+import {
+  FILE_EXTENSIONS,
+  extractFilename,
+} from "../response/file/fileExtensions";
+
+const CACHE_TTL_MS = 60000;
 
 interface CacheEntry {
   uri: Uri;
@@ -25,18 +29,8 @@ export class FileCacheService {
     return FileCacheService.instance;
   }
 
-  private getTTL(): number {
-    try {
-      const config = ProjectConfigService.getConfig();
-      return config.cache?.ttl ?? 60000;
-    } catch {
-      return 60000;
-    }
-  }
-
   private isExpired(entry: CacheEntry): boolean {
-    const ttl = this.getTTL();
-    return Date.now() - entry.timestamp > ttl;
+    return Date.now() - entry.timestamp > CACHE_TTL_MS;
   }
 
   private setUri(id: string, uri: Uri, cache: Map<string, CacheEntry>) {
@@ -149,28 +143,20 @@ export class FileCacheService {
   }
 
   invalidateByUri(uri: Uri): void {
-    try {
-      const filename = extractFilename(uri);
-      const config = ProjectConfigService.getConfig();
+    const filename = extractFilename(uri);
 
-      if (filename.endsWith(config.extensions.service)) {
-        this.invalidateByUriInCache(this.serviceCache, uri);
-      } else if (filename.endsWith(config.extensions.contextService)) {
-        this.invalidateByUriInCache(this.contextServiceCache, uri);
-      } else if (filename.endsWith(config.extensions.mcpService)) {
-        this.invalidateByUriInCache(this.mcpServiceCache, uri);
-      } else if (filename.endsWith(config.extensions.chain)) {
-        this.invalidateByUriInCache(this.chainCache, uri);
-      } else if (filename.endsWith(config.extensions.specificationGroup)) {
-        this.invalidateByUriInCache(this.specificationGroupCache, uri);
-      } else if (filename.endsWith(config.extensions.specification)) {
-        this.invalidateByUriInCache(this.specificationCache, uri);
-      }
-    } catch (error) {
-      console.error(
-        "[FileCacheService] Error invalidating cache by URI:",
-        error,
-      );
+    if (filename.endsWith(FILE_EXTENSIONS.service)) {
+      this.invalidateByUriInCache(this.serviceCache, uri);
+    } else if (filename.endsWith(FILE_EXTENSIONS.contextService)) {
+      this.invalidateByUriInCache(this.contextServiceCache, uri);
+    } else if (filename.endsWith(FILE_EXTENSIONS.mcpService)) {
+      this.invalidateByUriInCache(this.mcpServiceCache, uri);
+    } else if (filename.endsWith(FILE_EXTENSIONS.chain)) {
+      this.invalidateByUriInCache(this.chainCache, uri);
+    } else if (filename.endsWith(FILE_EXTENSIONS.specificationGroup)) {
+      this.invalidateByUriInCache(this.specificationGroupCache, uri);
+    } else if (filename.endsWith(FILE_EXTENSIONS.specification)) {
+      this.invalidateByUriInCache(this.specificationCache, uri);
     }
   }
 
@@ -192,24 +178,18 @@ export class FileCacheService {
       return null;
     }
 
-    try {
-      const config = ProjectConfigService.getConfig();
-
-      if (extension === config.extensions.service) {
-        return this.getServiceUri(id);
-      } else if (extension === config.extensions.contextService) {
-        return this.getContextServiceUri(id);
-      } else if (extension === config.extensions.mcpService) {
-        return this.getMCPServiceUri(id);
-      } else if (extension === config.extensions.chain) {
-        return this.getChainUri(id);
-      } else if (extension === config.extensions.specificationGroup) {
-        return this.getSpecificationGroupUri(id);
-      } else if (extension === config.extensions.specification) {
-        return this.getSpecificationUri(id);
-      }
-    } catch (error) {
-      console.error("[FileCacheService] Error getting file URI:", error);
+    if (extension === FILE_EXTENSIONS.service) {
+      return this.getServiceUri(id);
+    } else if (extension === FILE_EXTENSIONS.contextService) {
+      return this.getContextServiceUri(id);
+    } else if (extension === FILE_EXTENSIONS.mcpService) {
+      return this.getMCPServiceUri(id);
+    } else if (extension === FILE_EXTENSIONS.chain) {
+      return this.getChainUri(id);
+    } else if (extension === FILE_EXTENSIONS.specificationGroup) {
+      return this.getSpecificationGroupUri(id);
+    } else if (extension === FILE_EXTENSIONS.specification) {
+      return this.getSpecificationUri(id);
     }
 
     return null;
@@ -220,24 +200,18 @@ export class FileCacheService {
       return;
     }
 
-    try {
-      const config = ProjectConfigService.getConfig();
-
-      if (extension === config.extensions.service) {
-        this.setServiceUri(id, uri);
-      } else if (extension === config.extensions.contextService) {
-        this.setContextServiceUri(id, uri);
-      } else if (extension === config.extensions.mcpService) {
-        this.setMCPServiceUri(id, uri);
-      } else if (extension === config.extensions.chain) {
-        this.setChainUri(id, uri);
-      } else if (extension === config.extensions.specificationGroup) {
-        this.setSpecificationGroupUri(id, uri);
-      } else if (extension === config.extensions.specification) {
-        this.setSpecificationUri(id, uri);
-      }
-    } catch (error) {
-      console.error("[FileCacheService] Error setting file URI:", error);
+    if (extension === FILE_EXTENSIONS.service) {
+      this.setServiceUri(id, uri);
+    } else if (extension === FILE_EXTENSIONS.contextService) {
+      this.setContextServiceUri(id, uri);
+    } else if (extension === FILE_EXTENSIONS.mcpService) {
+      this.setMCPServiceUri(id, uri);
+    } else if (extension === FILE_EXTENSIONS.chain) {
+      this.setChainUri(id, uri);
+    } else if (extension === FILE_EXTENSIONS.specificationGroup) {
+      this.setSpecificationGroupUri(id, uri);
+    } else if (extension === FILE_EXTENSIONS.specification) {
+      this.setSpecificationUri(id, uri);
     }
   }
 

@@ -48,7 +48,7 @@ class ControlPlaneServiceImplTest {
 
     private static final String NAMESPACE = "test-namespace";
     private static final String BLUE_GREEN_VERSION = "v1";
-    private static final String GATEWAY_ROUTES_PREFIX = "/qip-routes";
+    private static final String GATEWAY_ROUTES_PREFIX = "/cip-routes";
     private static final String CAMEL_ROUTES_PREFIX = "/routes";
     private static final String DEPLOYMENT = "engine-deployment";
     private static final String EGRESS_GATEWAY = "egress-gateway";

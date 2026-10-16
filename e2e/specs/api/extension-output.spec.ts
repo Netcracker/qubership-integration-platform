@@ -9,8 +9,8 @@
  * - the fixture chain after an `updateChain` change, zipped with the fixture's Groovy resource
  *   from `vscode-extension/src/web/test/workspace/`;
  * - the fixture context and MCP services after a name change;
- * - a chain from `qip.createChain`;
- * - an `EXTERNAL`, a `CONTEXT`, and an `MCP` service from `qip.createService`, one per import
+ * - a chain from `cip.createChain`;
+ * - an `EXTERNAL`, a `CONTEXT`, and an `MCP` service from `cip.createService`, one per import
  *   endpoint.
  *
  * A created file carries no `migrations`, so the catalog reads it as current and runs no migration on
