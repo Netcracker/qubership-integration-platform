@@ -32,7 +32,11 @@
  * entries with no extension involved.
  *
  * This is a catalog round trip; the VS Code extension takes no part in it. Whether the catalog
- * imports what the extension writes is `specs/api/extension-output.spec.ts`.
+ * imports what the extension writes is `specs/api/extension-output.spec.ts`. That spec leaves the
+ * extension's INTERNAL service golden out for the sake of this case: both files sit in the
+ * parallel-safe `api` project, and a one-document service imported under this case's `INTERNAL` id
+ * would race the exact 3-row import and 11-entry export asserted below, while each teardown deleted
+ * the other's subject. The extension's own integration suite checks that golden instead.
  */
 import fs from "node:fs";
 import path from "node:path";

@@ -1,9 +1,9 @@
 /**
  * `pubsub-trigger` and `pubsub-sender`, against `fixtures/brokers/pubsub-*`, over the Google Cloud
- * Pub/Sub emulator (`infrastructure/docker-compose.pubsub.yml`).
+ * Pub/Sub emulator (`infrastructure/docker/docker-compose.pubsub.yml`).
  *
  * `CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED=false` on the `qip-engine` service (the base
- * `infrastructure/docker-compose.yml`) is what makes any of this deployable at all:
+ * `infrastructure/docker/docker-compose.yml`) is what makes any of this deployable at all:
  * `PubSubConnectionCheckAction` builds its own admin client from `serviceAccountKey` with no
  * emulator endpoint, so against the emulator it always reaches real googleapis and fails
  * `UNAUTHENTICATED`. `serviceAccountKey` stays schema-required regardless, so every fixture carries

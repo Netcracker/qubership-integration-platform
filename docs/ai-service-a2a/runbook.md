@@ -31,8 +31,8 @@ preflight passes. Do not add a recurring Helm Job that creates databases.
 
 On a new PostgreSQL PVC, chart init SQL creates `ai_a2a` before Flyway runs:
 
-- `infrastructure/init-db/init.sql`
-- `infrastructure/qip-dev/charts/postgres/templates/postgres-config.yaml`
+- `infrastructure/docker/init-db/init.sql`
+- `infrastructure/helm/qip-dev/charts/postgres/templates/postgres-config.yaml`
 
 Verify after Postgres is Ready:
 
@@ -65,8 +65,8 @@ this path.
 Local dry-run (no cluster):
 
 ```bash
-./infrastructure/qip-dev/tests/assert-a2a-helm-wiring.sh
-./infrastructure/qip-dev/tests/verify-a2a-db-bootstrap.sh
+./infrastructure/helm/qip-dev/tests/assert-a2a-helm-wiring.sh
+./infrastructure/helm/qip-dev/tests/verify-a2a-db-bootstrap.sh
 ```
 
 `verify-a2a-db-bootstrap.sh` exercises both paths on disposable Postgres containers: fresh-volume

@@ -1,4 +1,4 @@
-# Values for the e2e suite's install of infrastructure/qip-dev into namespace
+# Values for the e2e suite's install of infrastructure/helm/qip-dev into namespace
 # qip-e2e. The provisioner adds the image tags, the micro-engine image, the host
 # ports, and the cluster-specific resolver and dev-server host on the command
 # line.
@@ -19,7 +19,7 @@ global:
 
 # Recreate on every service: under a rolling update the old pod keeps serving
 # while the new one starts, and a restart spec would see no downtime.
-# The environment and the catalog's JVM sizes match infrastructure/docker-compose.yml.
+# The environment and the catalog's JVM sizes match infrastructure/docker/docker-compose.yml.
 # The engine runs with more heap and Metaspace than that file gives it.
 qip-engine:
   strategy:

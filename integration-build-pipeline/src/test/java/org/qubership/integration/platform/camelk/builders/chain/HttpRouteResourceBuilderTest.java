@@ -55,7 +55,7 @@ class HttpRouteResourceBuilderTest {
                 yamlMapper, routesGetterService,
                 publicNamingStrategy, privateNamingStrategy, serviceNamingStrategy,
                 new K8sNameValidator());
-        ReflectionTestUtils.setField(builder, "baseRoutePrefix", "/qip-routes");
+        ReflectionTestUtils.setField(builder, "baseRoutePrefix", "/cip-routes");
         ReflectionTestUtils.setField(builder, "publicGatewayName", "public-gateway");
         ReflectionTestUtils.setField(builder, "privateGatewayName", "private-gateway");
         ReflectionTestUtils.setField(builder, "domainLabel", "my-domain-label");
@@ -93,7 +93,7 @@ class HttpRouteResourceBuilderTest {
 
         assertTrue(result.contains("my-domain-v1-s1-chain-public-routes"));
         assertFalse(result.contains("my-domain-v1-s1-chain-private-routes"));
-        assertTrue(result.contains("/qip-routes/a"));
+        assertTrue(result.contains("/cip-routes/a"));
         assertTrue(result.contains("public-gateway"));
         assertTrue(result.contains("request: 5000ms"));
     }
@@ -155,7 +155,7 @@ class HttpRouteResourceBuilderTest {
         // SnakeYAML always quotes a scalar containing flow-indicator characters ("[", "]",
         // "^"), regardless of MINIMIZE_QUOTES, since an unquoted plain scalar with those
         // characters would not round-trip as this exact string.
-        assertTrue(result.contains("value: \"/qip-routes/orders/[^/]+/?\""));
+        assertTrue(result.contains("value: \"/cip-routes/orders/[^/]+/?\""));
     }
 
     @Test
@@ -184,9 +184,9 @@ class HttpRouteResourceBuilderTest {
                 .readAll();
         assertEquals(2, httpRoutes.size());
         assertEquals("my-domain-v1-s1-chain-public-routes", httpRoutes.get(0).at("/metadata/name").asText());
-        assertEquals(List.of("/qip-routes/a"), rulePaths(httpRoutes.get(0)));
+        assertEquals(List.of("/cip-routes/a"), rulePaths(httpRoutes.get(0)));
         assertEquals("my-domain-v1-s2-chain-public-routes", httpRoutes.get(1).at("/metadata/name").asText());
-        assertEquals(List.of("/qip-routes/b"), rulePaths(httpRoutes.get(1)));
+        assertEquals(List.of("/cip-routes/b"), rulePaths(httpRoutes.get(1)));
     }
 
     @Test

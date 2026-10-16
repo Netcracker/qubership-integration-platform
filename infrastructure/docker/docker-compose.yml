@@ -1,0 +1,415 @@
+name: infrastructure
+
+services:
+  ###### QIP
+  qip-runtime-catalog:
+    build:
+      context: ../../runtime-catalog
+      dockerfile: Dockerfile
+    container_name: qip-runtime-catalog
+    read_only: true
+    ports:
+      - "8091:8080"
+      - "5006:5005"
+    env_file: "qip-dev.env"
+    command:
+      [
+        "/opt/java/openjdk/bin/java",
+        "-Xmx642m",
+        "-XX:MetaspaceSize=320m",
+        "-XX:MaxMetaspaceSize=320m",
+        "-XX:MaxDirectMemorySize=64m",
+        "-XX:+ExitOnOutOfMemoryError",
+        "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+        "-Djava.security.egd=file:/dev/./urandom",
+        "-Dfile.encoding=UTF-8",
+        "-Dspring.profiles.active=development",
+        "-jar",
+        "/app/qip-runtime-catalog.jar",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail localhost:8080/actuator/health || exit 1",
+        ]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    networks:
+      default:
+        aliases:
+          - runtime-catalog
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  qip-engine:
+    build:
+      context: ../../engine
+      dockerfile: Dockerfile
+    container_name: qip-engine
+    read_only: true
+    ports:
+      - "8092:8080"
+      - "5007:5005"
+    env_file:
+      - "qip-dev.env"
+      - "engine-dev.env"
+    environment:
+      # The pubsub check builds its own admin client from `serviceAccountKey` with no emulator
+      # endpoint, so against the local emulator it always reaches real googleapis and fails
+      # UNAUTHENTICATED. Off until the check itself learns about the emulator.
+      CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED: "false"
+    # Each connector a chain uses loads its library's classes into Metaspace once: with Kafka,
+    # RabbitMQ, Pub/Sub and SFTP in use the engine needs more than 224m, and redeploys add nothing.
+    command:
+      [
+        "/opt/java/openjdk/bin/java",
+        "-Xmx832m",
+        "-XX:MetaspaceSize=384m",
+        "-XX:MaxMetaspaceSize=384m",
+        "-XX:MaxDirectMemorySize=224m",
+        "-XX:+ExitOnOutOfMemoryError",
+        "-XX:+HeapDumpOnOutOfMemoryError",
+        "-XX:HeapDumpPath=/tmp/leak.hprof",
+        "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+        "-Djava.security.egd=file:/dev/./urandom",
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "-Dfile.encoding=UTF-8",
+        "-Dspring.profiles.active=development",
+        "-jar",
+        "/app/qip-engine.jar",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail localhost:8080/actuator/health || exit 1",
+        ]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    volumes:
+      - ./kafka-ssl/client:/app/cert/defaultsslcertificate
+    networks:
+      default:
+        aliases:
+          - engine
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  qip-sessions-management:
+    build:
+      context: ../../sessions-management
+      dockerfile: Dockerfile
+    container_name: qip-sessions-management
+    read_only: true
+    ports:
+      - "8093:8080"
+      - "5008:5005"
+    env_file: "qip-dev.env"
+    command:
+      [
+        "/opt/java/openjdk/bin/java",
+        "-Xmx416m",
+        "-XX:MetaspaceSize=192m",
+        "-XX:MaxMetaspaceSize=192m",
+        "-XX:MaxDirectMemorySize=64m",
+        "-XX:+ExitOnOutOfMemoryError",
+        "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+        "-Djava.security.egd=file:/dev/./urandom",
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "-Dfile.encoding=UTF-8",
+        "-Dspring.profiles.active=development",
+        "-jar",
+        "/app/qip-sessions-management.jar",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail localhost:8080/actuator/health || exit 1",
+        ]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    networks:
+      default:
+        aliases:
+          - sessions-management
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  qip-knowledge-sidecar:
+    build:
+      context: ../../ai-service/knowledge-sidecar
+      dockerfile: Dockerfile
+    container_name: qip-knowledge-sidecar
+    profiles: [ai]
+    read_only: true
+    environment:
+      QIP_KNOWLEDGE_PATH: /knowledge
+    volumes:
+      - ${QIP_KNOWLEDGE_HOST_PATH:-../../ai-service/target/knowledge-runtime}:/knowledge:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/v1/health/live')\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      default:
+        aliases:
+          - knowledge-sidecar
+
+  qip-e2e-evaluator:
+    build:
+      context: ../../ai-service
+      dockerfile: e2e/evaluator/Dockerfile
+    container_name: qip-e2e-evaluator
+    profiles: [ai-e2e]
+    read_only: true
+    ports:
+      - "8100:8099"
+    env_file:
+      - path: ai-service-dev.env
+      - path: ../.env.local
+        required: false
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health')\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      default:
+        aliases:
+          - e2e-evaluator
+
+  qip-ai-service:
+    build:
+      context: ../../ai-service
+      dockerfile: Dockerfile
+    container_name: qip-ai-service
+    profiles: [ai]
+    ports:
+      - "8094:8080"
+    env_file:
+      - path: ai-service-dev.env
+      - path: ../.env.local
+        required: false
+    environment:
+      QIP_AI_A2A_PUBLIC_BASE_URL: ${QIP_AI_A2A_PUBLIC_BASE_URL:-http://localhost:8094}
+      QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX: ${QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX:-}
+      QIP_E2E_RECOVERY_FAULT_PLAN: ${QIP_E2E_RECOVERY_FAULT_PLAN:-}
+      QIP_KNOWLEDGE_SIDECAR_URL: http://knowledge-sidecar:8095
+      QUARKUS_DATASOURCE_JDBC_URL: ${QUARKUS_DATASOURCE_JDBC_URL:-jdbc:postgresql://postgres:5432/ai_a2a}
+      QUARKUS_DATASOURCE_USERNAME: ${QUARKUS_DATASOURCE_USERNAME:-postgres}
+      QUARKUS_DATASOURCE_PASSWORD: ${QUARKUS_DATASOURCE_PASSWORD:-postgres}
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl --silent --fail localhost:8080/q/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+    networks:
+      default:
+        aliases:
+          - ai-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      qip-runtime-catalog:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      qip-knowledge-sidecar:
+        condition: service_healthy
+
+  minio:
+    profiles: [ai]
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 15s
+    volumes:
+      - minio-data:/data
+    networks:
+      default:
+        aliases:
+          - minio
+  qip-testing-service:
+    build:
+      context: ../../testing-service
+      dockerfile: Dockerfile
+    container_name: qip-testing-service
+    read_only: true
+    ports:
+      - "8095:8080"
+    environment:
+      CIP_TESTING_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
+      CIP_TESTING_CATALOG_ADDRESS: "http://runtime-catalog:8080"
+      CIP_TESTING_ENGINE_ADDRESS: "http://engine:8080"
+      # The installation-wide flag every service reads. It defaults to production,
+      # which hides the Testing section in the UI, and a local stack is not one.
+      PRODUCTION_MODE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    networks:
+      default:
+        aliases:
+          - testing-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ui-proxy:
+    image: nginx:latest
+    container_name: ui-proxy
+    ports:
+      - 8080:8080
+    volumes:
+      - ./nginx:/etc/nginx/
+    depends_on:
+      qip-runtime-catalog:
+        condition: service_started
+      qip-sessions-management:
+        condition: service_started
+      qip-engine:
+        condition: service_started
+      qip-testing-service:
+        condition: service_started
+
+  #    ###### AI Assistant (optional, activated by `--profile ai`)
+  #    qip-ai-assistant:
+  #        build:
+  #          context: ../../ai-assistant
+  #          dockerfile: Dockerfile
+  #        container_name: qip-ai-assistant
+  #        profiles: [ai]
+  #        ports:
+  #        - "8094:8094"
+  #        environment:
+  #          CIP_AI_SERVICE_PORT: "8094"
+  #          CIP_AI_LOG_LEVEL: "INFO"
+  #          CIP_AI_LOG_FORMAT: "json"
+  #          CIP_AI_LLM_PROVIDER: "${CIP_AI_LLM_PROVIDER:-gemini}"
+  #          CIP_AI_GEMINI_API_KEY: "${CIP_AI_GEMINI_API_KEY:-}"
+  #          CIP_AI_GEMINI_MODEL: "${CIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
+  #          CIP_AI_OPENROUTER_API_KEY: "${CIP_AI_OPENROUTER_API_KEY:-}"
+  #          CIP_AI_OPENROUTER_MODEL: "${CIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
+  #          CIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
+  #          CIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
+  #        command:
+  #        - "/bin/sh"
+  #        - "-c"
+  #        - "alembic upgrade head && exec qip-ai"
+  #        healthcheck:
+  #            test: ["CMD-SHELL", "curl --silent --fail localhost:8094/health || exit 1"]
+  #            interval: 15s
+  #            timeout: 10s
+  #            retries: 10
+  #            start_period: 30s
+  #        networks:
+  #            default:
+  #                aliases:
+  #                - ai-assistant
+  #        depends_on:
+  #            postgres:
+  #                condition: service_healthy
+  #            qip-runtime-catalog:
+  #                condition: service_started
+
+  ###### 3rd party services
+
+  postgres:
+    image: postgres
+    container_name: postgreSQL
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 15s
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
+
+  opensearch:
+    image: opensearchproject/opensearch:2.19.6
+    container_name: opensearch
+    ports:
+      - 9200:9200
+      - 9300:9300
+    environment:
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - discovery.type=single-node
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail localhost:9200/_cluster/health || exit 1",
+        ]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 15s
+    volumes:
+      - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+
+  consul:
+    image: hashicorp/consul:1.15.4
+    container_name: consul
+    volumes:
+      - ./consul/server.json:/consul/config/server.json:ro
+      - ./consul/consul-acl.json:/consul/config/consul-acl.json
+    ports:
+      - "8500:8500"
+      - "8600:8600/tcp"
+      - "8600:8600/udp"
+    command: "agent -bootstrap-expect=1"
+
+volumes:
+  minio-data:

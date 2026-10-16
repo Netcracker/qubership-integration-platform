@@ -3,10 +3,7 @@ spring:
     deployment_version: ${DEPLOYMENT_VERSION:v1}
     # Host of the DTO library URL the generated integrations-config carries. A Maven build has no
     # catalog of its own, so this names the runtime-catalog service the engine resolves against.
-    cloud_service_name: ${CIP_CATALOG_SERVICE_NAME:qip-runtime-catalog}-${spring.application.deployment_version}
-
-app:
-  prefix: qip
+    cloud_service_name: ${CIP_CATALOG_SERVICE_NAME:cip-runtime-catalog}-${spring.application.deployment_version}
 
 camel:
   constants:
@@ -23,7 +20,7 @@ protoc:
 cip:
   access-control:
     resource-type:
-      chain: QIP-CHAIN
+      chain: CIP-CHAIN
   istio:
     host-resources:
       enabled: ${CIP_ISTIO_HOST_RESOURCES_ENABLED:true}
@@ -33,10 +30,10 @@ cip:
       egress-gateway: ${CIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
     routes:
       public:
-        v1-prefix: /api/v1/${app.prefix}/engine
+        v1-prefix: /api/v1/cip/engine
   chains:
     external-routes:
-      base-path: /${app.prefix}-routes
+      base-path: /cip-routes
   gateway:
     egress:
       name: egress-gateway
@@ -52,10 +49,10 @@ cip:
     legacy-format: false
   cr:
     labels:
-      domain: ${app.prefix}-domain
+      domain: cip-domain
       bg-version: bg-version
     naming:
-      prefix: ${app.prefix}-engine-
+      prefix: cip-engine-
       chains-configuration:
         suffix: -src-cfg
       service-monitor:

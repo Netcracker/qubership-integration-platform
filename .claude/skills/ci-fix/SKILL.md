@@ -62,7 +62,7 @@ actionlint .github/workflows/<file>.yaml                 # if installed
 without installing it:
 
 ```bash
-cut -d= -f1 infrastructure/qip-dev.env | diff - <(cut -d= -f1 infrastructure/qip-dev.env | sort)
+cut -d= -f1 infrastructure/docker/qip-dev.env | diff - <(cut -d= -f1 infrastructure/docker/qip-dev.env | sort)
 ```
 
 When the fix is a change to `FILTER_REGEX_EXCLUDE` in `.github/super-linter.env`,

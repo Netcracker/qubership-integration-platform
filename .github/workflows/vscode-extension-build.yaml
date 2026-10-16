@@ -92,6 +92,8 @@ jobs:
         working-directory: vscode-extension
         run: npm run test:unit:coverage
 
+      # Uploaded before the integration step, so that an integration failure still leaves the
+      # coverage report to read.
       - name: Upload coverage report
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -99,6 +101,16 @@ jobs:
           path: vscode-extension/coverage/lcov.info
           if-no-files-found: warn
           retention-days: 1
+
+      # The host is the current VS Code insiders build, which the extension needs for its
+      # proposed APIs. A failure while downloading it points at that build, not at the code:
+      # re-pin --commit <sha> in the test:integration script to unblock the gate. So does a failure
+      # in src/web/test/suite/file-system.test.ts, whose cases measure the host; its header carries
+      # the same route. A failure while launching chromium points at the runner image instead: add
+      # `npx playwright install-deps chromium` as a step before this one.
+      - name: Run integration tests
+        working-directory: vscode-extension
+        run: npm run test:integration
 
   sonar:
     needs: npm-build

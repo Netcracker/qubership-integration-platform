@@ -196,7 +196,7 @@ right now, so a controller added to a service fails a run.
 11. **Call a chain on the engine, never through the proxy.** `http://localhost:8092/routes/…`, not
     `http://localhost:8080/…`. No nginx `location` matches `/routes/`, so a request through the
     proxy falls through to the SPA and answers **200 with `index.html`** whatever the chain did. A
-    chain also answers on `/qip-routes/{contextPath}`, and the suite addresses `/routes`.
+    chain also answers on `/cip-routes/{contextPath}`, and the suite addresses `/routes`.
 12. **An endpoint that answers 202 is polled for its artifact, never for `done`.** A gRPC import
     reports `done: true` with a null library id, and a root-layout archive imports nothing and
     reports success. `Catalog.awaitSpecificationImport` stops on the specifications and their

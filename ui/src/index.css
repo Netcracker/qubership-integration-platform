@@ -156,7 +156,7 @@ h1 {
   }
 }
 
-.qip-editor {
+.cip-editor {
   min-width: 0;
   min-height: 0;
   border: solid 1px var(--vscode-border, lightgrey);
@@ -165,9 +165,9 @@ h1 {
   position: relative;
 }
 
-.qip-editor .monaco-editor,
-.qip-editor .monaco-editor-background,
-.qip-editor .monaco-editor .overflow-guard {
+.cip-editor .monaco-editor,
+.cip-editor .monaco-editor-background,
+.cip-editor .monaco-editor .overflow-guard {
   border-radius: 4px;
 }
 

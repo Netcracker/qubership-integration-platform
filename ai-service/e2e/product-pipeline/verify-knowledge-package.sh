@@ -4,7 +4,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${DIR}/../../.." && pwd)"
-COMPOSE_FILE="${ROOT}/infrastructure/docker-compose.yml"
+COMPOSE_FILE="${ROOT}/infrastructure/docker/docker-compose.yml"
 KNOWLEDGE_PACKAGE="${1:-}"
 [[ -n "${KNOWLEDGE_PACKAGE}" && -d "${KNOWLEDGE_PACKAGE}" ]] || {
     echo "Usage: verify-knowledge-package.sh <knowledge-export-directory>" >&2

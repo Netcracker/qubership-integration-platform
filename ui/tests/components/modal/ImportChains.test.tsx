@@ -81,7 +81,7 @@ const classicDomain: EngineDomain = {
   id: "default",
   name: "Default",
   replicas: 1,
-  namespace: "qip",
+  namespace: "cip",
   type: DomainType.CLASSIC,
 };
 

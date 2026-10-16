@@ -12,7 +12,7 @@ import { Uri } from "vscode";
 import * as vscode from "vscode";
 import { fileApi } from "./file/fileApiProvider";
 import { LabelUtils } from "../api-services/LabelUtils";
-import { getExtensionsForUri } from "./file/fileExtensions";
+import { FILE_EXTENSIONS } from "./file/fileExtensions";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 
@@ -38,7 +38,7 @@ export async function getService(
   let actualServiceFileUri = serviceFileUri;
   let service: any = await getMainService(serviceFileUri);
   if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
+    const ext = FILE_EXTENSIONS;
     actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
     service = await getMainService(actualServiceFileUri);
 
@@ -77,7 +77,7 @@ export async function getContextService(
   serviceId: string,
 ): Promise<ContextSystem> {
   // A chain asks for the context services its elements use, which live in their own files.
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   const contextServiceFileUri = serviceFileUri.path.endsWith(ext.contextService)
     ? serviceFileUri
     : await fileApi.findFileById(serviceId, ext.contextService);
@@ -97,7 +97,7 @@ export async function getContextService(
 export async function getContextServices(
   serviceFileUri: Uri,
 ): Promise<ContextSystem[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   if (serviceFileUri.path.endsWith(ext.contextService)) {
     const service: any = await getMainService(serviceFileUri);
     if (!service) {
@@ -120,7 +120,7 @@ export async function getContextServices(
 export async function getMcpServices(
   serviceFileUri: Uri,
 ): Promise<MCPSystem[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   if (serviceFileUri.path.endsWith(ext.mcpService)) {
     const service: any = await getMainService(serviceFileUri);
     if (!service) {
@@ -165,7 +165,7 @@ export async function getEnvironment(
   let service: any = await getMainService(serviceFileUri);
 
   if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
+    const ext = FILE_EXTENSIONS;
     actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
     service = await getMainService(actualServiceFileUri);
 
@@ -188,7 +188,7 @@ export async function getEnvironments(
   let service: any = await getMainService(serviceFileUri);
 
   if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
+    const ext = FILE_EXTENSIONS;
     actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
     service = await getMainService(actualServiceFileUri);
 
@@ -243,7 +243,7 @@ export async function getApiSpecifications(
   currentFile: Uri,
   serviceId: string,
 ): Promise<SpecificationGroup[]> {
-  const ext = getExtensionsForUri(currentFile);
+  const ext = FILE_EXTENSIONS;
   const serviceFileUri = currentFile.path.endsWith(ext.service)
     ? currentFile
     : await fileApi.findFileById(serviceId, ext.service);
@@ -326,7 +326,7 @@ export async function getSpecificationModel(
   groupId: string,
 ): Promise<Specification[]> {
   let actualServiceFileUri = serviceFileUri;
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
 
   if (!serviceFileUri.path.endsWith(ext.service)) {
     try {
@@ -385,7 +385,7 @@ export async function getOperations(
   serviceFileUri: Uri,
   modelId: string,
 ): Promise<SystemOperation[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   let actualServiceFileUri = serviceFileUri;
 
   const parts = modelId.split("-");
@@ -442,7 +442,7 @@ export async function getOperationInfo(
     const service: any = await getMainService(serviceFileUri);
 
     if (service.id !== serviceId) {
-      const ext = getExtensionsForUri(serviceFileUri);
+      const ext = FILE_EXTENSIONS;
       try {
         actualServiceFileUri = await fileApi.findFileById(
           serviceId,
@@ -596,7 +596,7 @@ async function getChainsUsingSpecification(
 export async function getServices(
   serviceFileUri: Uri,
 ): Promise<IntegrationSystem[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   if (serviceFileUri.path.endsWith(ext.service)) {
     const service: any = await getMainService(serviceFileUri);
     if (!service) {

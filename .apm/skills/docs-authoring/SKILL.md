@@ -116,7 +116,7 @@ than to a one-to-one file. Use this to find the affected page(s):
   mechanics belong in `ui/docs/DOCUMENTATION_INTEGRATION.md`, not in
   `help/docs/`.
 - `infrastructure/**` → no `help/docs/` coverage. Documented only in
-  `infrastructure/README.md` and the ADRs under `infrastructure/docs/adr/`.
+  `infrastructure/docker/README.md` and the ADRs under `infrastructure/docs/adr/`.
 
 ## Documentation style
 

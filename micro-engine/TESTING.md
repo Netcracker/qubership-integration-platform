@@ -122,7 +122,7 @@ use its production import services and snapshot persistence. The bundle is writt
 containing both modules; no additional test artifact needs to be installed.
 
 Test configurations use the layout
-`testConfigurations/<folder>/<name>/<chainId>/<chainId>.chain.qip.yaml`.
+`testConfigurations/<folder>/<name>/<chainId>/<chainId>.chain.cip.yaml`.
 Use `folder` and `name` from the tested element's `description.yaml` or `description.yml`.
 For example, the `choice` chain belongs under `routing/condition/<chainId>/`.
 Keep each chain's `resources/` directory beside its YAML file. An element directory can

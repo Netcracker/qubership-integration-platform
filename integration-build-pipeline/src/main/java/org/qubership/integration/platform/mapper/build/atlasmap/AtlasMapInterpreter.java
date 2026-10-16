@@ -41,9 +41,9 @@ import org.qubership.integration.platform.mapper.build.expressions.FieldKind;
 import org.qubership.integration.platform.mapper.build.expressions.ToAtlasMapExpressionConverter;
 import org.qubership.integration.platform.mapper.build.metadata.DataFormat;
 import org.qubership.integration.platform.mapper.build.metadata.MetadataUtils;
-import org.qubership.integration.platform.mapper.model.atlasmap.action.QIPDefaultValueAction;
-import org.qubership.integration.platform.mapper.model.atlasmap.action.QIPDictionaryAction;
-import org.qubership.integration.platform.mapper.model.atlasmap.action.QIPFormatDateTimeAction;
+import org.qubership.integration.platform.mapper.model.atlasmap.action.CIPDefaultValueAction;
+import org.qubership.integration.platform.mapper.model.atlasmap.action.CIPDictionaryAction;
+import org.qubership.integration.platform.mapper.model.atlasmap.action.CIPFormatDateTimeAction;
 import org.qubership.integration.platform.mapper.model.atlasmap.characteristic.PropertyCharacteristics;
 import org.qubership.integration.platform.mapper.model.datatypes.TypeKind;
 import org.qubership.integration.platform.mapper.model.datatypes.ValueExtractor;
@@ -72,7 +72,7 @@ import static java.util.Objects.isNull;
 @Service
 @MappingInterpretation("AtlasMap")
 public class AtlasMapInterpreter implements org.qubership.integration.platform.mapper.build.MappingInterpreter {
-    private static final String MAPPING_NAME = "QIP_Mapping_Configuration";
+    private static final String MAPPING_NAME = "CIP_Mapping_Configuration";
     private static final String SERIALIZE_CONFIGURATION_ERROR_MESSAGE = "Unable to serialize Atlas Map configuration.";
     private static final String MAPPING_CREATION_ERROR_MESSAGE = "Unable to create mapping for action: ";
     private static final String EMPTY_FIELDS_ERROR_MESSAGE = "Cannot define input or output fields.";
@@ -777,11 +777,11 @@ public class AtlasMapInterpreter implements org.qubership.integration.platform.m
             switch (transformationType) {
                 case DEFAULT_VALUE -> {
                     String defaultValue = transformation.getParameters().get(0);
-                    QIPDefaultValueAction qipDefaultValueAction = new QIPDefaultValueAction(defaultValue);
-                    actions.add(qipDefaultValueAction);
+                    CIPDefaultValueAction defaultValueAction = new CIPDefaultValueAction(defaultValue);
+                    actions.add(defaultValueAction);
                 }
                 case FORMAT_DATE_TIME -> {
-                    QIPFormatDateTimeAction qipFormatDateTimeAction = new QIPFormatDateTimeAction(
+                    CIPFormatDateTimeAction formatDateTimeAction = new CIPFormatDateTimeAction(
                             Boolean.valueOf(transformation.getParameters().get(0)),
                             transformation.getParameters().get(1),
                             transformation.getParameters().get(2),
@@ -791,7 +791,7 @@ public class AtlasMapInterpreter implements org.qubership.integration.platform.m
                             transformation.getParameters().get(6),
                             transformation.getParameters().get(7)
                     );
-                    actions.add(qipFormatDateTimeAction);
+                    actions.add(formatDateTimeAction);
                 }
                 case DICTIONARY -> {
                     List<String> params = transformation.getParameters();
@@ -801,8 +801,8 @@ public class AtlasMapInterpreter implements org.qubership.integration.platform.m
                             .skip(1)
                             .map(org.qubership.integration.platform.mapper.build.DictionaryEntryParser::parse)
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                    QIPDictionaryAction qipDictionaryAction = new QIPDictionaryAction(defaultValue, lookupTable);
-                    actions.add(qipDictionaryAction);
+                    CIPDictionaryAction dictionaryAction = new CIPDictionaryAction(defaultValue, lookupTable);
+                    actions.add(dictionaryAction);
                 }
                 case CONDITIONAL -> {
                     setConditionalExpression(action.getTransformation().getParameters(), processedMapping);

@@ -35,7 +35,7 @@ class KubeOperatorTest {
 
     private static final String GROUP = "gateway.networking.k8s.io";
     private static final String VERSION = "v1";
-    private static final String NAMESPACE = "qip";
+    private static final String NAMESPACE = "cip";
     private static final String PLURAL = "httproutes";
     private static final String NAME = "engine-service-chain-public-routes";
 
@@ -141,7 +141,7 @@ class KubeOperatorTest {
                 + "    - matches:\n"
                 + "        - path:\n"
                 + "            type: PathPrefix\n"
-                + "            value: /qip-routes/a\n";
+                + "            value: /cip-routes/a\n";
         List<Object> parsed = Yaml.loadAll(httpRouteYaml);
         assertEquals(1, parsed.size());
         Object resource = parsed.get(0);

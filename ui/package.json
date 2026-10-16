@@ -18,8 +18,8 @@
       "import": "./dist-lib/index.bundled.es.js",
       "types": "./dist-lib/types/index.d.ts"
     },
-    "./qip-ui.css": "./dist-lib/qip-ui.css",
-    "./dist-lib/qip-ui.css": "./dist-lib/qip-ui.css",
+    "./cip-ui.css": "./dist-lib/cip-ui.css",
+    "./dist-lib/cip-ui.css": "./dist-lib/cip-ui.css",
     "./scripts/fetch-documentation": "./scripts/fetch-documentation.mjs",
     "./scripts/build-doc-index": "./scripts/build-doc-index.mjs"
   },

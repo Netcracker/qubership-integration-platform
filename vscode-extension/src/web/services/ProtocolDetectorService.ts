@@ -203,29 +203,17 @@ export class ProtocolDetectorService {
   }
 
   /**
-   * Extracts archives (in browser environment, returns files as-is)
+   * Passes every file through, archives included. The backend counterpart,
+   * `MultipartFileUtils.extractArchives`, unpacks a zip; the extension has no unpacker, so an
+   * archive reaches the protocol detection as one binary file and is refused there. The import
+   * modal offers no `.zip` in this context for that reason.
    */
   static async extractArchives(files: File[]): Promise<File[]> {
     if (!files || files.length === 0) {
       return [];
     }
 
-    const processedFiles: File[] = [];
-
-    for (const file of files) {
-      if (!file) {
-        continue;
-      }
-
-      if (this.isArchiveFile(file.name)) {
-        // In browser environment, archives are not extracted
-        processedFiles.push(file);
-      } else {
-        processedFiles.push(file);
-      }
-    }
-
-    return processedFiles;
+    return files.filter((file) => !!file);
   }
 
   /**

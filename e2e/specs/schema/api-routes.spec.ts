@@ -16,7 +16,7 @@ import { test, expect } from "@playwright/test";
 import { API_ROUTES, NOT_PROXIED, UNCLAIMED_API_PATH, apiPath } from "../../env/api-routes.js";
 import { repoRoot } from "../../env/host.js";
 
-const CONFIG = path.resolve(repoRoot(), "infrastructure/nginx/routes.conf");
+const CONFIG = path.resolve(repoRoot(), "infrastructure/docker/nginx/routes.conf");
 const lines = fs.readFileSync(CONFIG, "utf-8").split("\n");
 
 /** One `location ~` or `location ~*` block, as nginx will try it. */

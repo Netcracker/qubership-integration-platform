@@ -72,28 +72,6 @@ jest.mock("vscode", () => {
   };
 }, { virtual: true });
 
-jest.mock("../../../../src/web/services/ProjectConfigService", () => ({
-  ProjectConfigService: {
-    getConfig: jest.fn().mockReturnValue({
-      extensions: {
-        chain: ".chain.cip.yaml",
-        service: ".service.cip.yaml",
-        contextService: ".context-service.cip.yaml",
-        mcpService: ".mcp-service.cip.yaml",
-        specificationGroup: ".specification-group.cip.yaml",
-        specification: ".specification.cip.yaml",
-      },
-      schemaUrls: {},
-      cache: { ttl: 60000 },
-    }),
-    getInstance: jest.fn().mockReturnValue({
-      setContext: jest.fn(),
-      loadWorkspaceConfig: jest.fn().mockResolvedValue(undefined),
-    }),
-  },
-  CONFIG_FILENAME: "qip-config.yaml",
-}));
-
 jest.mock("../../../../src/web/services/FileCacheService", () => ({
   FileCacheService: {
     getInstance: jest.fn().mockReturnValue({
@@ -111,7 +89,7 @@ jest.mock("../../../../src/web/services/FileCacheService", () => ({
 
 import * as vscode from "vscode";
 import { VSCodeFileApi } from "../../../../src/web/response/file/fileApiImpl";
-import { QipFileType } from "../../../../src/web/response/serviceApiUtils";
+import { CipFileType } from "../../../../src/web/response/serviceApiUtils";
 
 describe("VSCodeFileApi – new functionality from 91a8a539", () => {
   let api: VSCodeFileApi;
@@ -361,7 +339,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
       const svcUri = createMockUri("/workspace/service/service.service.cip.yaml");
       const serviceDir = createMockUri("/workspace/service");
       const resourcesDir = createMockUri("/workspace/service/resources");
-      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.SERVICE);
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(CipFileType.SERVICE);
       jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(serviceDir);
       jest.spyOn(api, "getRootDirectory").mockReturnValue(createMockUri("/workspace"));
       mockJoinPath.mockReturnValue(resourcesDir);
@@ -374,7 +352,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
 
     test("returns [] when file type is UNKNOWN", async () => {
       const unknownUri = createMockUri("/workspace/unknown.txt");
-      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.UNKNOWN);
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(CipFileType.UNKNOWN);
 
       const result = await api.getDirectoriesToRemove(unknownUri);
 
@@ -386,7 +364,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
       const chainDir = createMockUri("/workspace/chains/my-chain");
       const resourcesDir = createMockUri("/workspace/chains/my-chain/resources");
 
-      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.CHAIN);
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(CipFileType.CHAIN);
       // getParentDirectoryUri returns chainDir
       jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(chainDir);
       // getRootDirectory returns /workspace (different object)
@@ -403,7 +381,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
       const chainFileUri = createMockUri("/workspace/my.chain.cip.yaml");
       const rootUri = createMockUri("/workspace");
 
-      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.CHAIN);
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(CipFileType.CHAIN);
       // Make getParentDirectoryUri return same reference as getRootDirectory
       // To achieve reference equality, mock getRootDirectory to return rootUri and getParentDirectoryUri to return same object
       jest.spyOn(api, "getRootDirectory").mockReturnValue(rootUri);
@@ -421,7 +399,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
       const root = createMockUri("/workspace");
 
       const getParentSpy = jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(parentDir);
-      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.CHAIN);
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(CipFileType.CHAIN);
       jest.spyOn(api, "getRootDirectory").mockReturnValue(root);
 
       await api.getDirectoriesToRemove(chainFileUri);
@@ -433,7 +411,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
     test("returns [directory] for CONTEXT_SERVICE not at workspace root (without resources)", async () => {
       const svcUri = createMockUri("/workspace/context/my-ctx.context-service.cip.yaml");
       const serviceDir = createMockUri("/workspace/context/my-ctx");
-      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.CONTEXT_SERVICE);
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(CipFileType.CONTEXT_SERVICE);
       jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(serviceDir);
       jest.spyOn(api, "getRootDirectory").mockReturnValue(createMockUri("/workspace"));
 
@@ -446,7 +424,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
     test("returns [directory] for MCP_SERVICE not at workspace root (without resources)", async () => {
       const svcUri = createMockUri("/workspace/mcp/my-mcp.mcp-service.cip.yaml");
       const serviceDir = createMockUri("/workspace/mcp/my-mcp");
-      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.MCP_SERVICE);
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(CipFileType.MCP_SERVICE);
       jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(serviceDir);
       jest.spyOn(api, "getRootDirectory").mockReturnValue(createMockUri("/workspace"));
 
@@ -466,7 +444,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
 
       const fileType = await api.getFileType(groupUri);
 
-      expect(fileType).toBe(QipFileType.SPECIFICATION_GROUP);
+      expect(fileType).toBe(CipFileType.SPECIFICATION_GROUP);
     });
 
     test("returns SPECIFICATION for specification config file", async () => {
@@ -477,7 +455,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
 
       const fileType = await api.getFileType(specUri);
 
-      expect(fileType).toBe(QipFileType.SPECIFICATION);
+      expect(fileType).toBe(CipFileType.SPECIFICATION);
     });
   });
 });

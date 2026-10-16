@@ -77,6 +77,12 @@ public class LiveExchangesService {
     }
 
     public void killLiveExchangeById(String deploymentId, String exchangeId) {
+        boolean deployed = camelContext.getRegistry().findByType(DeploymentInfo.class).stream()
+                .anyMatch(deploymentInfo -> deploymentId.equals(deploymentInfo.getId()));
+        if (!deployed) {
+            throw new EntityNotFoundException("No deployment found for id " + deploymentId);
+        }
+
         Exchange exchange = camelContext.getInflightRepository().browse().stream()
                 .filter(inflightExchange -> MetadataUtil.getBean(inflightExchange.getExchange(), DeploymentInfo.class)
                         .getId().equals(deploymentId))

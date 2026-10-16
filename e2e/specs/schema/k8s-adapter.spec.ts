@@ -226,7 +226,7 @@ test("the Helm arguments carry the tags, the catalog's micro-image annotation, t
     tags,
   });
   expect(desktop.slice(0, 7)).toEqual([
-    "upgrade", "--install", "qip", "/repo/infrastructure/qip-dev", "-n", "qip-e2e", "-f",
+    "upgrade", "--install", "qip", "/repo/infrastructure/helm/qip-dev", "-n", "qip-e2e", "-f",
   ]);
   expect(desktop).toContain("/repo/e2e/k8s/values.e2e.yaml");
   expect(desktop).toContain("qip-engine.image.tag=e2e-bbbbbbbbbbbb");

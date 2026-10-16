@@ -16,21 +16,13 @@
 
 package org.qubership.integration.platform.engine.errorhandling.errorcode;
 
-import lombok.Setter;
-
 public class ErrorCodePrefix {
-
-    @Setter
-    public static String codePrefix;
+    private static final String CODE_PREFIX = "CIP";
 
     private ErrorCodePrefix() {
     }
 
     public static String getCodePrefix() {
-        if (codePrefix == null) {
-            throw new IllegalStateException("Code prefix is not initialized");
-        } else {
-            return codePrefix;
-        }
+        return CODE_PREFIX;
     }
 }

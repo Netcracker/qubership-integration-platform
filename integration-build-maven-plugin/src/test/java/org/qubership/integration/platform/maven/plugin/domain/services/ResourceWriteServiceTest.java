@@ -23,11 +23,11 @@ class ResourceWriteServiceTest {
         ---
         kind: Deployment
         metadata:
-          name: qip-engine-default
+          name: cip-engine-default
         ---
         kind: Service
         metadata:
-          name: qip-engine-default
+          name: cip-engine-default
         """;
 
     private final ResourceWriteService resourceWriteService = new ResourceWriteService(new YAMLMapper());
@@ -43,7 +43,7 @@ class ResourceWriteServiceTest {
             ---
             kind: ServiceMonitor
             metadata:
-              name: qip-engine-default
+              name: cip-engine-default
             spec:
               namespaceSelector:
                 matchNames:
@@ -52,7 +52,7 @@ class ResourceWriteServiceTest {
 
         resourceWriteService.writeResources(directory.toString(), templated, writtenFiles::add);
 
-        Path written = directory.resolve("ServiceMonitor-qip-engine-default.yaml");
+        Path written = directory.resolve("ServiceMonitor-cip-engine-default.yaml");
         assertTrue(Files.exists(written));
         assertTrue(Files.readString(written).contains("{{ .Release.Namespace }}"),
             "the template must survive into the file; only the parse input is stripped");
@@ -68,14 +68,14 @@ class ResourceWriteServiceTest {
             ---
             kind: ConfigMap
             metadata:
-              name: qip-engine-default
+              name: cip-engine-default
             data:
               content: "{{ %s"
             """.formatted("x".repeat(4000));
 
         resourceWriteService.writeResources(directory.toString(), unterminated, writtenFiles::add);
 
-        assertTrue(Files.exists(directory.resolve("ConfigMap-qip-engine-default.yaml")));
+        assertTrue(Files.exists(directory.resolve("ConfigMap-cip-engine-default.yaml")));
     }
 
     @Test
@@ -84,8 +84,8 @@ class ResourceWriteServiceTest {
 
         resourceWriteService.writeResources(outputDirectory.toString(), DEPLOYMENT_AND_SERVICE, writtenFiles::add);
 
-        Path deployment = outputDirectory.resolve("Deployment-qip-engine-default.yaml");
-        Path service = outputDirectory.resolve("Service-qip-engine-default.yaml");
+        Path deployment = outputDirectory.resolve("Deployment-cip-engine-default.yaml");
+        Path service = outputDirectory.resolve("Service-cip-engine-default.yaml");
         try (Stream<Path> files = Files.list(outputDirectory)) {
             assertEquals(2, files.count());
         }
@@ -98,7 +98,7 @@ class ResourceWriteServiceTest {
         resourceWriteService.writeResources(directory.toString(), DEPLOYMENT_AND_SERVICE, writtenFiles::add);
 
         assertEquals(
-            List.of("Deployment-qip-engine-default.yaml", "Service-qip-engine-default.yaml"),
+            List.of("Deployment-cip-engine-default.yaml", "Service-cip-engine-default.yaml"),
             writtenFiles.stream().map(File::getName).sorted().toList());
         writtenFiles.forEach(file -> assertTrue(file.exists()));
     }
@@ -107,7 +107,7 @@ class ResourceWriteServiceTest {
     void keepsTheDocumentSeparatorInEachFile(@TempDir Path directory) throws IOException {
         resourceWriteService.writeResources(directory.toString(), DEPLOYMENT_AND_SERVICE, writtenFiles::add);
 
-        String content = Files.readString(directory.resolve("Deployment-qip-engine-default.yaml"));
+        String content = Files.readString(directory.resolve("Deployment-cip-engine-default.yaml"));
         assertTrue(content.startsWith("---"));
     }
 
@@ -127,7 +127,7 @@ class ResourceWriteServiceTest {
         String resources = """
             ---
             metadata:
-              name: qip-engine-default
+              name: cip-engine-default
             """;
 
         RuntimeException exception = assertThrows(RuntimeException.class,
@@ -143,7 +143,7 @@ class ResourceWriteServiceTest {
             kind: Deployment
             metadata:
               labels:
-                app: qip
+                app: cip
             """;
 
         RuntimeException exception = assertThrows(RuntimeException.class,

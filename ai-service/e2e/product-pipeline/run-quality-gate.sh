@@ -5,7 +5,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${DIR}/../../.." && pwd)"
 SCENARIOS_FILE="${DIR}/scenarios.json"
-COMPOSE_FILE="${ROOT}/infrastructure/docker-compose.yml"
+COMPOSE_FILE="${ROOT}/infrastructure/docker/docker-compose.yml"
 COMPOSE_OVERLAY=""
 STUB_EVALUATOR_URL="http://127.0.0.1:9"
 LOCAL_EVALUATOR_URL="http://localhost:8100/evaluate"

@@ -36,7 +36,7 @@
  * put `protoc` into the catalog image — but GraphQL needs no binary toolchain in the path a
  * mutation check has to reason about, and a smaller schema. The cost is one-shot rather than per
  * import: measured, the first GraphQL import after a restart costs the catalog +12-16 MB of
- * Metaspace and the second +0.35 MB, whatever the schema's size. `infrastructure/docker-compose.yml`
+ * Metaspace and the second +0.35 MB, whatever the schema's size. `infrastructure/docker/docker-compose.yml`
  * caps the catalog at 320m, which is what makes this case's two imports affordable; at the 192m it
  * used to run under, the first one killed it.
  *

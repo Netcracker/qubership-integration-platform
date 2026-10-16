@@ -15,6 +15,110 @@ describe("ChatSessionStore conversationId (A1)", () => {
     return mod.getChatSessionStore();
   }
 
+  const legacySession = {
+    id: "legacy",
+    title: "Saved chat",
+    mode: "ask",
+    createdAt: 1,
+    updatedAt: 2,
+    conversationId: "saved-conversation",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: "continue",
+        serverMessageIndex: 6,
+      },
+    ],
+    lastAttachmentObjectKeys: ["saved-attachment"],
+  };
+
+  it("migrates legacy chats and the active session without changing their contents", async () => {
+    localStorage.setItem(
+      "qip_ai_chat_sessions",
+      JSON.stringify([legacySession]),
+    );
+    localStorage.setItem("qip_ai_last_active_session_id", legacySession.id);
+
+    const store = await loadStore();
+    expect(store.getSession(legacySession.id)).toEqual(legacySession);
+    expect(store.resolveDefaultSessionId(store.getAllSessions())).toBe(
+      legacySession.id,
+    );
+    expect(JSON.parse(localStorage.getItem("cip_ai_chat_sessions")!)).toEqual([
+      legacySession,
+    ]);
+    expect(localStorage.getItem("cip_ai_last_active_session_id")).toBe(
+      legacySession.id,
+    );
+    expect(localStorage.getItem("qip_ai_chat_sessions")).toBeNull();
+    expect(localStorage.getItem("qip_ai_last_active_session_id")).toBeNull();
+
+    jest.resetModules();
+    expect((await loadStore()).getSession(legacySession.id)).toEqual(
+      legacySession,
+    );
+  });
+
+  it("keeps current CIP chats and their active session when merging legacy history", async () => {
+    const current = {
+      ...legacySession,
+      title: "Current chat",
+      conversationId: "current-conversation",
+    };
+    const additional = { ...legacySession, id: "another-legacy-chat" };
+    localStorage.setItem(
+      "qip_ai_chat_sessions",
+      JSON.stringify([legacySession, additional]),
+    );
+    localStorage.setItem("qip_ai_last_active_session_id", additional.id);
+    localStorage.setItem("cip_ai_chat_sessions", JSON.stringify([current]));
+    localStorage.setItem("cip_ai_last_active_session_id", current.id);
+
+    const store = await loadStore();
+    expect(store.getAllSessions()).toEqual([current, additional]);
+    expect(store.resolveDefaultSessionId(store.getAllSessions())).toBe(
+      current.id,
+    );
+  });
+
+  it("imports legacy chats when current CIP history is empty and keeps deletions after reload", async () => {
+    localStorage.setItem(
+      "qip_ai_chat_sessions",
+      JSON.stringify([legacySession]),
+    );
+    localStorage.setItem("cip_ai_chat_sessions", "[]");
+    const store = await loadStore();
+    expect(store.getSession(legacySession.id)).toEqual(legacySession);
+    store.deleteSession(legacySession.id);
+
+    jest.resetModules();
+    expect((await loadStore()).getAllSessions()).toEqual([]);
+  });
+
+  it("keeps legacy history when storage rejects the migration write", async () => {
+    const serialized = JSON.stringify([legacySession]);
+    localStorage.setItem("qip_ai_chat_sessions", serialized);
+    const write = jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementationOnce(() => {
+        throw new DOMException("Storage is full", "QuotaExceededError");
+      });
+    try {
+      await loadStore();
+      expect(write).toHaveBeenCalled();
+      expect(localStorage.getItem("qip_ai_chat_sessions")).toBe(serialized);
+      expect(localStorage.getItem("cip_ai_chat_sessions")).toBeNull();
+    } finally {
+      write.mockRestore();
+    }
+
+    jest.resetModules();
+    expect((await loadStore()).getSession(legacySession.id)).toEqual(
+      legacySession,
+    );
+  });
+
   it("backfills a saved legacy session with repeated inputs and persists their positions", async () => {
     jest.useFakeTimers();
     try {
@@ -198,7 +302,7 @@ describe("ChatSessionStore conversationId (A1)", () => {
     const secondTab = await loadStore();
     const newer = secondTab.createSession();
     window.dispatchEvent(
-      new StorageEvent("storage", { key: "qip_ai_chat_sessions" }),
+      new StorageEvent("storage", { key: "cip_ai_chat_sessions" }),
     );
     expect(firstTab.getSession(newer.id)).not.toBeNull();
   });

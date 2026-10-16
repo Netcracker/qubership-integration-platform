@@ -8,4 +8,3 @@ export * from "./chainDiffEditor";
 export * from "./exportImagesHandler";
 export * from "./exportImageUtils";
 export * from "./exportImageTypes";
-export { QipExtensionAPI } from "./extension";

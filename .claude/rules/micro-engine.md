@@ -42,11 +42,11 @@ The `quarkus-maven-plugin` `build`/`generate-code` goals and `camel-component-ma
 
 Single Java root package `org.qubership.integration.platform.engine` (artifact and source share the `engine` namespace with the Spring engine), under `src/main/java`:
 
-- `camel/` — custom Camel integration: `components/` (`servlet`, `kafka`, `rabbitmq`, `pubsub`, `graphql`, `directvm`, `context`), `processors/`, `reifiers/`, `dsl/`, `converters/`, `idempotency/`, `metrics/`, `history/`, `listeners/`, `ContextCustomizer`, `QipCustomClassResolver`.
+- `camel/` — custom Camel integration: `components/` (`servlet`, `kafka`, `rabbitmq`, `pubsub`, `graphql`, `directvm`, `context`), `processors/`, `reifiers/`, `dsl/`, `converters/`, `idempotency/`, `metrics/`, `history/`, `listeners/`, `ContextCustomizer`, `CipCustomClassResolver`.
 - `consul/` — Consul KV client (`ConsulClientSupplierProducer`, `ConsulSessionService`), deployment/library/state polling under `updates/` with `parsers/`.
 - `service/` — runtime services: `debugger/` (session recording + `ChainLogger`), `CheckpointSessionService`/`CheckpointRestService`, `LiveExchangesService`, `QuartzSchedulerService`, `BlueGreenSchedulerControllerService`/`BlueGreenStateService`, `ExternalLibraryService`, `VariablesService`, `IdempotencyRecordService`, `contextstorage/`, `groovy/`.
 - `rest/v1/controller/` — JAX-RS endpoints (`RestApiConstants.V1_ROUTE_PREFIX = /v1/engine`, public prefix `/api/v1/cip/engine`): `SessionController`, `LiveExchangesController` (`/live-exchanges/{deploymentId}/{exchangeId}`), `CheckpointSessionController` (`/sessions/{sessionId}/retry`, `/checkpoint-elements/.../retry`, `/sessions/failed`); paired `dto/` + MapStruct `mapper/`.
-- `opensearch/` — session-element index client (index `qip-elements-{namespace}`, optional Kafka/MaaS write path).
+- `opensearch/` — session-element index client (index `cip-elements-{namespace}`, optional Kafka/MaaS write path).
 - `persistence/` — Hibernate ORM Panache entities (`...persistence.shared.entity`, schema `engine`).
 - Also: `configuration/`, `consul/`, `kafka/`, `jms/`, `maas/`, `kubernetes/`, `controlplane/`, `scheduler/`, `state/`, `registry/`, `interceptors/`, `errorhandling/`, `forms/`, `security/`, `metadata/`, `mapper/`, `util/`.
 
@@ -72,7 +72,7 @@ The micro-engine is the cloud-native (Quarkus) execution engine that runs deploy
 | Consul | HTTP (Vert.x consul client) | Poll deployment/library/runtime-config/state KV under `config/{namespace}`; fetch chains, common variables; publish engine state |
 | Runtime Catalog | REST | Fetch chain deployment descriptors; download compiled external-library JARs |
 | PostgreSQL 14 | JDBC (Hibernate ORM Panache + Flyway) | Checkpoints/session/idempotency/context storage (`engine` schema, `engine_checkpoints_db`); Quartz scheduler (`engine_qrtz_db`) |
-| OpenSearch 2.19 | HTTP (`opensearch-java`), optional Kafka | Record session element traces to index `qip-elements-{namespace}` |
+| OpenSearch 2.19 | HTTP (`opensearch-java`), optional Kafka | Record session element traces to index `cip-elements-{namespace}` |
 | Kafka / RabbitMQ / Google Pub/Sub | Camel (`camel-quarkus-kafka`/`-amqp`/`-spring-rabbitmq`/`-google-pubsub`), MaaS client | Messaging endpoints inside integration chains; optional MaaS-managed brokers and blue-green consumers |
 | Control Plane / Kubernetes | REST, K8s client | Route registration (egress/ingress) and reading secured-variable secrets |
 

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { Uri } from "vscode";
-import { getExtensionsForUri } from "./response/file/fileExtensions";
+import { FILE_EXTENSIONS } from "./response/file/fileExtensions";
 
 export type EditorViewTypes = {
   chain: string;
@@ -10,16 +10,16 @@ export type EditorViewTypes = {
 };
 
 const DEFAULT_EDITOR_VIEW_TYPES: EditorViewTypes = {
-  chain: "qip.chainFile.editor",
-  service: "qip.serviceFile.editor",
-  contextService: "qip.contextServiceFile.editor",
-  mcpService: "qip.mcpServiceFile.editor",
+  chain: "cip.chainFile.editor",
+  service: "cip.serviceFile.editor",
+  contextService: "cip.contextServiceFile.editor",
+  mcpService: "cip.mcpServiceFile.editor",
 };
 
 let editorViewTypes: EditorViewTypes = { ...DEFAULT_EDITOR_VIEW_TYPES };
 
 export function getEditorViewTypeForUri(uri: Uri): string {
-  const fileExtensions = getExtensionsForUri(uri);
+  const fileExtensions = FILE_EXTENSIONS;
   const filePath = uri.path;
 
   if (filePath.endsWith(fileExtensions.chain)) {
