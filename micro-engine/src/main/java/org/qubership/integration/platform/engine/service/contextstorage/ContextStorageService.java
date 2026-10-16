@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.errorhandling.ContextStorageException;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ContextSystemRecords;
@@ -50,19 +51,25 @@ public class ContextStorageService {
         this.objectMapper = objectMapper;
     }
 
+    @Transactional
     public void storeValue(String contextKey, String contextValue, String contextServiceId, String contextId, long ttl) {
         Optional<ContextSystemRecords> oldRecord = contextStorageRepository.findByContextServiceIdAndContextId(contextServiceId, contextId);
         ContextData existingContext = contextKeyExits(contextKey, contextValue, contextServiceId, contextId);
-        ContextSystemRecords contextSystemRecords = ContextSystemRecords.builder()
-                .id(oldRecord.isPresent() ? oldRecord.get().getId() : UUID.randomUUID().toString())
-                .value(objectMapper.convertValue(existingContext, JsonNode.class))
+        JsonNode value = objectMapper.convertValue(existingContext, JsonNode.class);
+        Timestamp now = Timestamp.from(Instant.now());
+        Timestamp expiresAt = Timestamp.from(Instant.now().plusSeconds(ttl));
+        oldRecord.ifPresentOrElse(stored -> {
+            stored.setValue(value);
+            stored.setExpiresAt(expiresAt);
+            stored.setUpdatedAt(now);
+        }, () -> contextStorageRepository.persist(ContextSystemRecords.builder()
+                .value(value)
                 .contextServiceId(contextServiceId)
                 .contextId(contextId)
-                .createdAt(oldRecord.isPresent() ? oldRecord.get().getCreatedAt() : Timestamp.from(Instant.now()))
-                .expiresAt(Timestamp.from(Instant.now().plusSeconds(ttl)))
-                .updatedAt(Timestamp.from(Instant.now()))
-                .build();
-        contextStorageRepository.persist(contextSystemRecords);
+                .createdAt(now)
+                .expiresAt(expiresAt)
+                .updatedAt(now)
+                .build()));
         log.debug("Value stored successfully for contextKey: {}, contextServiceId: {}, contextId: {}", contextKey, contextServiceId, contextId);
     }
 
@@ -93,6 +100,7 @@ public class ContextStorageService {
         }
     }
 
+    @Transactional
     public void deleteOldRecords() {
         try {
             List<ContextSystemRecords> oldRecords  = contextStorageRepository.findAllByExpiresAtBefore(Timestamp.from(Instant.now()));
