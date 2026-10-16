@@ -3,279 +3,67 @@ paths:
   - "vscode-extension/**"
 ---
 
-### Project Overview
+### Project overview
 
-CIP VS Code Extension (`@netcracker/qip-vscode-extension`, v1.0.6) — an **offline, web-based** VS Code
-extension for visually editing QIP chains and services stored as local `*.cip.yaml` files. It embeds
-`@netcracker/qip-ui` (`^1.0.0`) as a webview bundle and validates against `@netcracker/qip-schemas`. Built as
-a **web extension** (runs in the `webworker` extension host — no Node runtime, no network). Stack: TypeScript
-`^5.9.3`, VS Code Extension API (`engines.vscode: ^1.120.0`), webpack `^5.99.7`, Jest `^29.7.0`. Ships as an
-npm package to GitHub Packages (`@netcracker:registry=https://npm.pkg.github.com/`); it is NOT published to
-the VS Code Marketplace.
+`@netcracker/qip-vscode-extension` is an offline web extension for editing QIP chains and services stored as local
+`*.cip.yaml` files. It runs in the `webworker` extension host, with no Node runtime and no network, and reaches the
+files only through `vscode.workspace.fs`. The webview embeds `@netcracker/qip-ui`, and documents are validated against
+`@netcracker/qip-schemas`. The package ships to GitHub Packages as an npm library, not to the VS Code Marketplace.
 
-### Build & Test Commands
+### Build and test commands
 
 ```bash
-# Full build (run from repo root or vscode-extension/): builds upstream deps then webpack
-npm run build               # = prepare-deps + compile-web
-
-# Upstream workspace artifacts the webpack build copies in (run automatically by build):
-npm run prepare-deps        # build @netcracker/qip-schemas + qip-ui build:lib:bundled & build:lib:types
-
-# Webpack (web extension bundle + node library bundle)
-npm run compile-web         # webpack (dev)
-npm run watch-web           # webpack --watch
-npm run package-web         # webpack --mode production (used by vscode:prepublish)
-
-# Tests
-npm test                    # = test:unit
-npm run test:unit           # jest -c jest.config.cjs (mocks `vscode` via tests/__mocks__)
-npm run test:unit:coverage  # jest --coverage → coverage/; lcov.info is what the Sonar gate reads
-npm run test:integration    # @vscode/test-web in headless chromium on the current insiders build; mounts src/web/test/workspace
-
-# Lint / types
-npm run lint                # eslint --fix src
-npm run check-types         # tsc --noEmit
-
-# Manual smoke run in browser host
-npm run run-in-browser      # vscode-test-web --browserType=chromium
+npm run build               # prepare-deps (schemas, qip-ui library bundle) + compile-web
+npm run compile-web         # webpack alone, once the upstream workspaces are built
+npm run watch-web
+npm run test:unit
+npm run test:unit:coverage
+npm run test:integration
+npm run lint
+npm run check-types
+npm run run-in-browser      # manual smoke run in a browser host
 ```
-
-The webpack config fails fast if `ui/dist-lib/index.bundled.es.js` or `schemas/assets/` are missing — build the upstream workspaces first (`prepare-deps` does this).
 
 ### Architecture
 
-Two webpack outputs (`webpack.config.js` exports an array):
+`webpack.config.js` exports two bundles. The web extension, `src/web/extension.ts` → `dist/web/extension.js`, targets
+`webworker` and also bundles the integration-test entry. The library, `src/web/index.ts` → `dist/node/index.js`, is
+CommonJS for downstream apps that embed the extension's modules; `src/web/index.ts` is its export list.
 
-1. **Web extension** — entry `src/web/extension.ts` → `dist/web/extension.js` (`target: webworker`, single chunk; `vscode` external; `assert`/`process` polyfilled). Also bundles the integration test entry `src/web/test/suite/index.ts`.
-2. **Node library** — entry `src/web/index.ts` → `dist/node/index.js` (`commonjs2`), exposing the response/services/api-services modules for programmatic embedding.
+`copy-webpack-plugin` copies `ui/dist-lib` into `dist/web/qip-ui/`. `getWebviewContent` in `extension.ts` loads
+`index.bundled.es.js`, which embeds React, and falls back to `index.es.js` with an esm.sh import map for React when the
+bundled file is missing, so a build without `build:lib:bundled` needs network access.
 
-**Webview embedding:** `copy-webpack-plugin` copies `qip-ui/dist-lib/**` (excluding `types/` and `.d.ts`) into `dist/web/qip-ui/`, and `qip-schemas/assets` into `dist/web/qip-schemas/assets`. At runtime `getWebviewContent` (in `extension.ts`) generates the webview HTML, preferring `index.bundled.es.js` (React embedded); it falls back to `index.es.js` + an esm.sh `<importmap>` for React if the bundled file is absent.
+`package.json` registers one custom editor per CIP file type. `getEditorViewTypeForUri` in `editorViewTypes.ts` maps a
+URI to its view type for every caller that opens a document, so a new editor type needs an entry there only.
 
-**Custom editors & commands:** `package.json` registers four custom text editors, one per file pattern:
-`cip.chainFile.editor` (`*.chain.cip.yaml`), `cip.serviceFile.editor` (`*.service.cip.yaml`),
-`cip.contextServiceFile.editor` (`*.context-service.cip.yaml`), and `cip.mcpServiceFile.editor`
-(`*.mcp-service.cip.yaml`). A `*.qip.yaml` file does not open in them. It also registers a `cip-main` explorer
-tree view and eleven commands (`cip.open`, `cip.createChain`, `cip.createService`, delete/reveal, etc.). The chain editor additionally supports an inline diff
-view (proposed `customEditorDiffs` API).
-`editorViewTypes.ts:getEditorViewTypeForUri` resolves a URI to its view type for `openDocumentInEditor`, which
-`cip.revealInExplorer` and the `navigateInNewTab` handler in `extension.ts` call. A new editor type needs an entry
-there only.
+### Project structure
 
-### Project Structure
+Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from
+`@netcracker/qip-schemas`. File extensions are the `FILE_EXTENSIONS` constant in
+`src/web/response/file/fileExtensions.ts`, and schema URLs come from `src/web/services/cipSchemas.ts`.
 
-Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions are the `FILE_EXTENSIONS` constant in `src/web/response/file/fileExtensions.ts`, and schema URLs come from `src/web/services/cipSchemas.ts`.
+### Tests
 
-### Conventions
-
-- **Conventional Commits** required (enforced in CI on PR titles and commit messages).
-- **Apache License 2.0** — existing source files carry the NetCracker copyright header; new files do not need it.
-- `tsconfig.json`: `strict`, `module/moduleResolution: Node16`, target `ES2020`, libs `ES2020`+`WebWorker`.
 - Four test levels: **1** Jest over the `tests/fake-vscode/` fake, no host; **2** mocha in `@vscode/test-web` over the
   real `workspace.fs` (`src/web/test/suite/`); **3** the catalog importing a golden
   (`e2e/specs/api/extension-output.spec.ts`); **4** the webview DOM, out of scope. A behavior the host cannot produce,
   a symbolic link for one, can only be pinned at level 1.
-- Jest reads `vscode` through `tests/__mocks__/vscode.ts`, which forwards the fake in `tests/fake-vscode/`: an
-  in-memory `workspace.fs`, a `Uri` that joins paths, `workspaceFolders`, `FileType`, the five window prompts the
-  layer raises, and the tree-view types `cipExplorer.ts` builds its items from. Seed a tree with `seedWorkspace`,
-  address it with `workspaceUri` and read it back with `workspaceTree`, so a case asserts the file tree rather than the
-  calls that produced it. A seed entry carries its own `FileType`, which is the only way to reach
-  `FileType.SymbolicLink`: the level-2 host has no member that creates a link. It implements the six filesystem methods
-  the layer calls; `workspace.fs.copy`, `workspace.getConfiguration` and `window.withProgress` with `ProgressLocation`
-  are left out, so a case that needs one adds it. The prompts resolve undefined, the answer a dismissed prompt gives;
-  a case that needs an answer stubs it with `mockResolvedValueOnce`. **Reset contract:** call `resetWorkspace()` from a
-  `beforeEach`, because `clearMocks: true` clears recorded calls and not module state. `bindFileApi` in
-  `tests/fake-vscode/fileApi.ts` puts the layer's file API over the fake, as `useExtensionModules` does at level 2. A
-  suite that passes its own factory to `jest.mock("vscode", …)` overrides the mapping and loads none of this.
-- Unit tests live beside `api-services/` (`*.test.ts`) and under `tests/`. Integration tests under `src/web/test/` run
-  in a real chromium web host and are excluded from Jest. The `npm-build` job of `vscode-extension-build.yaml` runs
-  both suites, Jest with coverage and then `npm run test:integration`; `npm run release-check` in `e2e/` runs the
-  integration suite after the Playwright one.
-- Coverage is reported rather than gated by Jest: `jest.config.cjs` sets no `coverageThreshold`, and neither
-  `ui/jest.config.ts` nor `schemas/jest.config.ts` does. The `npm-build` job uploads `coverage/` and the `sonar` job
-  feeds `coverage/lcov.info` to SonarCloud with `-Dsonar.qualitygate.wait=true`, so a coverage condition is enforced
-  there and nowhere else.
-- The rule against mocking the file API in a disk-state test is about **faithfulness, not layering**. Modelling an
-  unreadable file as a rejection from `parseFile` is fine — the real one logs and rethrows. Stubbing `getFileType` to
-  reject was not, because the real one catches everything and answers `UNKNOWN`. The same rule binds the fake's
-  filesystem: every answer it gives comes from the level-2 measurements in
-  `src/web/test/suite/file-system.test.ts`. The API documentation does not lead you to expect several of the host's
-  answers: `delete` resolves for a missing path, `delete` removes a non-empty directory whole without `recursive`,
-  `readDirectory` reports the write order rather than a sorted one, and `writeFile` and `createDirectory` create every
-  missing parent. The fake reproduces each of them. The fake implements no `copy`, because the layer calls none, and
-  the suite pins only what `harness.ts` uses it for: a whole-folder copy, and `overwrite` over an existing target. A
-  `FileSystemError`'s `message` is the bare `uri.toString()`, so a message that names a path composes it.
-- `FileStat.type` is a bitmask, so a symlink to a file stats as `File | SymbolicLink`. The eight `File` comparisons in
-  `fileApiImpl.ts` and `cipExplorer.ts` mask it off (`(type & vscode.FileType.File) !== 0`) and the five `Directory`
-  comparisons compare strictly; a new comparison follows the same split, and each file carries the reason above its
-  class. Masking `Directory` would make the traversals descend into a linked directory, so a link cycle recurses
-  without bound, and would turn the public `deleteFile` from deleting the link into reading through it.
-- Node `>=22` (root monorepo `engines`).
+- Jest cases live under `tests/` and beside their sources in `src/web/api-services/` and `src/web/services/`. Level-2
+  specs live in `src/web/test/suite/`, which Jest ignores.
+- Jest maps `vscode` to the fake in `tests/fake-vscode/`, an in-memory filesystem. Seed it with `seedWorkspace`,
+  address it with `workspaceUri`, and assert the result with `workspaceTree`, so a case checks the file tree rather
+  than the calls that produced it. Call `resetWorkspace()` from a `beforeEach`: `clearMocks` clears recorded calls,
+  not module state. A suite that passes its own factory to `jest.mock("vscode", …)` replaces the fake entirely.
+- A stub or a fake answer reproduces what the real code does. The real `getFileType` catches every error and returns
+  `UNKNOWN`, so a stub that rejects tests a path no caller reaches. The fake's filesystem answers come from the host
+  measurements in `src/web/test/suite/file-system.test.ts`, so a change to the fake starts there.
+- `FileStat.type` is a bitmask: mask `File` (`(type & vscode.FileType.File) !== 0`) and compare `Directory` strictly,
+  so a traversal does not descend into a linked directory.
+- Level-2 specs use mocha's `tdd` interface: write `suite` and `test`, because a `describe` throws at import and aborts
+  the whole run.
+- `test:integration` serves the host on port 3000. Where that port is taken, the run hangs with `listen EADDRINUSE`
+  after webpack finishes; run the script's command by hand with `--port <free>`.
 
-### Integration tests
-
-- Specs are `src/web/test/suite/*.test.ts`, bundled by webpack through `require.context` in `index.ts`, never
-  `tests/`, which Jest owns. `index.ts` sets up mocha's `tdd` interface, so write `suite`/`test`: a `describe`
-  throws at import and aborts the whole run.
-- `test:integration` runs `--headless` and opens `src/web/test/workspace/`, files exported by the catalog. The host
-  keeps writes in memory; a spec that writes or deletes works on files of its own, a copy (`copyFolder` in
-  `harness.ts`) or new files (`writeYaml`), and removes them in a teardown hook or a `finally`.
-- The script pins the host quality with `--quality insiders` and no `--commit`: `enabledApiProposals` carries
-  `customEditorDiffs`, which only insiders builds ship, and tracking the current build reports a proposed-API change
-  early rather than at release. `src/web/test/suite/file-system.test.ts` logs the build its measured answers came from
-  on every run (`1.142.0-insider`, `appHost web` at the time of writing), so no sha has to stand for that. Where the
-  gate turns red on a download, or on a host answer that suite measured, re-pin `--commit <sha>` to unblock it and
-  raise the host change as its own issue.
-- `vscode-test-web` serves the host on port 3000 and the script passes no `--port`, so a run on a
-  machine where something else holds 3000 hangs with `uncaughtException Error: listen EADDRINUSE`
-  after webpack has already finished. Run the command from `test:integration` by hand with
-  `--port <free>` to get the suite's result; the script is left alone, because CI runs it on a
-  clean runner.
-- The chromium the host runs in is the one `@playwright/browser-chromium` installs during `npm ci`. Its host table
-  rejects an unlisted distribution, so on `ubuntu26.04` Playwright 1.60 printed
-  `Playwright does not support chromium on ubuntu26.04` and left no browser to launch; 1.64 lists it. A newer runner
-  image hits this again, and the answer is to bump `playwright`, `playwright-core` and `@playwright/browser-chromium`
-  together.
-- The test bundle carries its own copy of the extension's modules. Call `useExtensionModules` from `harness.ts`
-  before calling one, such as `getApiResponse`, so that copy has a file API. The `vscode` API object is shared, so a
-  stub on `vscode.window` supplies the input the extension's prompts return.
-- A spec sends `getApiResponse` the message the webview would, so the wiring in `enrichWebview` from the webview to
-  the running extension's router is not exercised. In this host the embedded UI does not use that wiring anyway:
-  it detects VS Code by the `vscode-webview:` protocol, and VS Code for the Web serves the webview over HTTP, so it
-  sends nothing. The webview DOM is out of scope.
-- `src/web/test/golden/` holds the eight files the extension wrote, and the specs that write them compare the bytes.
-  `harness.ts` says how to regenerate one: copy the text a failing comparison reports into the file.
-  `golden/import/{soap,grpc,graphql,openapi,asyncapi}/` holds twenty-one more, one tree per protocol the import
-  detects; the Jest cases in `tests/web/import/` write those, not a level-2 spec. `require.context` in `harness.ts` is
-  `require.context("../golden", false, /\.cip\.yaml$/)`, and the `false` makes it non-recursive, so the `import/`
-  tree is invisible to the level-2 bundle. The end-to-end suite imports all but the INTERNAL service, plus all five
-  import trees, into the catalog (`e2e/specs/api/extension-output.spec.ts`), so a change to what the extension writes
-  updates the golden file in the same commit and runs that spec too. On a cluster whose istiod
-  lacks `PILOT_ENABLE_ALPHA_GATEWAY_API=true`, run that spec with `E2E_PROVISION=never`: these cases only POST an
-  archive, and provisioning otherwise refuses the whole run over the egress routes the `runtime` specs need.
-- The document schemas under `schemas/src/main/resources/conf-model/` are bundled as text by a webpack
-  `asset/source` rule, so a spec validates a saved file against the checked-in sources.
-
-### Specification import tests
-
-The webview's specification import is covered at level 1, by the Jest cases in `tests/web/import/`, and the goldens
-those cases write are imported into the catalog at level 3. Level 2 is excluded on purpose: its unique value is the
-real `workspace.fs` semantics, which the fake reproduces, and stubbing `crypto.randomUUID` inside the browser host
-buys no new information. The fixtures live in this module, in `tests/fixtures/specifications/`, and the level-3
-archive is built from the golden tree, so no file is added under `e2e/fixtures/`.
-
-- A case posts the webview's own message through `getApiResponse(message, serviceFileUri, context)`. The second
-  argument is the **service file** URI and not its folder: `getBaseFolder` throws `Service file must be selected`
-  unless `fileApi.getFileType` reports `SERVICE` for it, then writes into its parent directory. The third is
-  required, because `handleImportSpecificationGroup` throws `ExtensionContext is required for import operations`
-  without one; `{} as ExtensionContext` satisfies it. Routing the message rather than constructing
-  `SpecificationImportService` directly drags the router case, `SpecificationImportApiHandler`,
-  `ImportProgressTracker`, the parser and the writer into one assertion.
-- `tests/helpers/importHarness.ts` carries the pieces an import case needs, and which case needs which varies. All
-  seven files in `tests/web/import/` import `resetImportWorkspace(prefix)` for the reset contract, a fixture as a
-  `SerializedFile`, and the messages `window.showErrorMessage` received. The five golden cases add a golden directory
-  as a tree and the tree `workspaceTree()` reports for a service folder holding it, and build the router message
-  inline; `failures.test.ts` and `importSession.test.ts` add `postImportGroup` for the routed request and
-  `serializedFile` for a document written inline, as does the `.graphqls` case in `graphql.test.ts`. A successful
-  case asserts the dialog list is empty, because the import logs and swallows failures that a regression could
-  promote to a dialog without changing a byte on disk.
-- `importSpecification` and `getImportSpecificationResult` are the sibling router cases, pinned in
-  `tests/web/import/importSession.test.ts`. The modal polls the result after every import
-  (`ImportSpecificationsModal.tsx`), so `Import session … not found. It may have expired or been cleaned up.` is on a
-  product path. `importSpecification` adds a specification to a group that already exists and creates no environment,
-  because only `importSpecificationGroup` hands `runImport` an `afterImport` hook; both derive the same specification
-  id from the system, the group name and the version, so a second import into one group replaces the first document
-  and leaves the first source copy beside its own.
-- The request is plain data. `SerializedFile` in `importApiTypes.ts` is
-  `{ name, size, type, lastModified, content: ArrayBuffer }`, which is what the webview posts. `Blob` and `File`
-  exist in Jest's `node` environment, and `window.withProgress`, which the fake does not implement, is off this path.
-- The seeded service document has a three-part contract, and `tests/helpers/seedServiceDocument.ts` honors all three.
-  `content.protocol` equals the protocol being imported or is absent, because
-  `SpecificationValidator.validateSpecificationProtocol` runs ahead of `ensureSystemProtocol` and otherwise throws
-  `Protocol mismatch`. `content.migrations` is the quoted string `"[100, 101, 102]"`, because
-  `MigrationFieldStrategy.getVersions` parses it with `.asText()` and a YAML list yields an empty version set, which
-  the catalog refuses with `Failed to retrieve migration data` (#1004). `environments` is omitted, and that key
-  decides whether an environment is created at all: `ServiceNormalizer` supplies `[]` for an absent key and
-  `ensureInternalEnvironment` creates one only over an empty list, so a seed carrying one environment with a real
-  address makes it a no-op.
-- Three `crypto.randomUUID()` calls are the only non-determinism on the path, and `freezeSourceIds(prefix)` in
-  `tests/helpers/` covers all three with one counter: the `importId` in `runImport`, which no file carries, one
-  `specificationSources[].id` per posted file in the order the files are posted, and the environment id in
-  `EnvironmentService.createEnvironment`, which the service file also carries as `activeEnvironmentId`. Pin the order
-  the files are posted in, or the golden disagrees with the case half the time. Every other id is derived: a
-  specification id is `${systemId}-${groupName}-${version}` with `version` falling back to `1.0.0`, a group id is
-  `${system.id}-${name}`, an operation id is `${specificationId}-${name}`. No clock value reaches a written file, so
-  the helper leaves `Date.now()` alone. Each protocol uses its own service id and its own prefix, because the three
-  goldens are imported into one catalog in parallel.
-- `ServiceNormalizer` fills defaults into every written service file: `description: ""`, `activeEnvironmentId` (`""`
-  where no environment was created), `extendedProtocol`, `specification: ""`, `environments` and `labels`. A golden is
-  the normalized document, not the seed plus one field. Every protocol but GraphQL writes the service file twice, once from
-  the `saveSystem` call in `ensureSystemProtocol` and once for the environment, and the specification lands before
-  its group file. GraphQL writes it once, because its document declares no server and no fallback candidate applies.
-- Regenerate an import golden by printing what the case wrote — `console.log(workspaceTree())` after the import — and
-  writing each entry into `src/web/test/golden/import/<protocol>/` at its path relative to the service folder, which
-  is the layout the level-3 archive walk expects. The copies under `resources/` have to stay byte-identical to
-  `tests/fixtures/specifications/`, which each case asserts on its own, so an edit to a fixture rewrites that copy and
-  the `sourceHash` beside it in the specification document. A whole tree is compared through one
-  `workspaceTree()`/`goldenTree()` assertion, so expect the first failure after a parser change to be a tree diff.
-- `runImport` resolves where a caller might expect a rejection. Its `catch` logs, calls `window.showErrorMessage` and
-  returns `{ id, specificationGroupId, done: true, warningMessage }`, with `specificationGroupId` empty for a refusal
-  raised before the group exists. Three messages reject, each raised ahead of `runImport`: `Invalid import request: …`
-  and `System with id … not found` in `importSpecificationGroup`, and `Specification group with id … not found` in
-  `importSpecification`, which checks the system as well. `Unsupported specification format…`, `Protocol mismatch…`,
-  `Specification type is not allowed for … system: …` and
-  `Failed to save specification files: Service file must be selected` all arrive as text on a resolved result, so a
-  case that expects a rejection for one of them asserts a behavior the code does not have.
-- Four branches have no product path, so no case pins them, and `tests/web/import/failures.test.ts` names the same
-  four in its header: `resolveSpecificationSourceFile` returning `undefined`, which only an empty file list produces
-  and `validateImportRequest` has already refused, together with the warn-and-`continue` above it;
-  `Failed to convert file …`, which needs a detached `ArrayBuffer` that `postMessage` cannot deliver;
-  `No base folder available`, behind a `getBaseFolder` typed `Promise<Uri>` that throws rather than answering
-  `undefined`; and `ensureInternalEnvironment`'s update arm, which needs a seeded environment with an empty address.
-- The picker's list depends on which backend is running. `detectImportingProtocol` reads the extension through
-  `detectProtocolByExtension`, whose table knows `.wsdl`, `.graphql`, `.graphqls`, `.gql` and `.proto`, and then falls
-  through to the content: `isWsdlContent` matches either WSDL namespace in the first 512 bytes, and
-  `detectProtocolFromParsedContent` reads `openapi`, `swagger` or `asyncapi` out of parsed JSON or YAML, which is the
-  only way an OpenAPI or AsyncAPI document is detected at all. A table hit is answered directly: the `ASYNC`
-  fallback `detectImportingProtocol` used to keep was unreachable, because the table returns `SOAP`, `GRAPHQL`,
-  `GRPC` or `null` (#1081). A `.graphqls` is a second table away as well, in `SpecificationProcessorService.detectTypeByExtension`,
-  which decides the specification type after the protocol. `SUPPORTED_EXTENSIONS` in
-  `ui/src/components/services/modals/ImportSpecificationsModal.tsx` drops `".zip"` where `isVsCodeContext` holds,
-  because `ProtocolDetectorService.extractArchives` unpacks nothing where the backend's
-  `MultipartFileUtils.extractArchives` reads a zip's entries; the list keeps `".xsd"`, which imports only as a WSDL
-  dependency. `ui/tests/components/services/ImportSpecificationsModal.test.tsx` pins both halves of that list.
-- Five files counted in the import pipeline have no reachable caller, so a unit case on one raises a number without
-  covering a path anyone walks: `SpecificationParserService`, forwarded from `api-services/index.ts` and called
-  nowhere; `FileConversionService`, imported only by it; `FileParserService`; most of `ProtocolDetectorService`, whose
-  only external call anywhere is `extractArchives`; and most of `SpecificationValidator`, whose only external call is
-  `validateSpecificationProtocol`. They hold the module's measured coverage down, which is a fact about
-  the code rather than a gap in the suite.
-- Two singletons outlive `resetWorkspace()`. `resetImportWorkspace` calls
-  `FileCacheService.getInstance().clearAll()` for that reason, so call it from every import case's `beforeEach` rather
-  than repeating the four lines. `ImportProgressTracker.getInstance()` accumulates sessions with no reset method, keyed
-  by the frozen `importId`, so a second case in one file overwrites the first rather than reading it; leave it without
-  one.
-- A parser unit case can live in either of two roots, both listed in `testMatch`. The five pre-existing suites are
-  beside their source, under `src/web/api-services/parsers/`; the three written for the import pipeline,
-  `SoapSchemaGenerator.test.ts`, `GraphQLSpecificationParser.test.ts` and `WsdlParser.test.ts`, are under
-  `tests/api-services/parsers/`. Reading a fixture does not decide which root:
-  `AsyncApiSpecificationParser.test.ts` sits beside its source and reads `tests/fixtures/asyncapi/`, while the three
-  under `tests/` import nothing from `tests/` and build every WSDL and SDL inline. Nothing enforces a split, so put a
-  new case wherever its neighbors are.
-- `tests/api-services/SpecificationImportService.test.ts` mocks the services around the import and holds one case:
-  that `validateAllowedSystemProtocol` is called with the system type and the detected protocol, an interaction no
-  filesystem case can see. Its stubbed sibling, which asserted only that a throw from that validator resolved with
-  some `warningMessage`, was deleted — `tests/web/import/failures.test.ts` pins the same refusal over the fake
-  filesystem with the real validator, naming the exact message, the untouched tree and the dialog text. A case about
-  what the user is told, or about what lands on disk, belongs in `tests/web/import/`; a case about which collaborator
-  the service calls, or about an answer only a stub can produce, belongs in the mock-based file.
-
-### Platform Context
-
-This module is the offline visual editor for QIP chains and services — a standalone VS Code web extension with no backend. See `README.md` for the repository layout.
-
-Unlike the backend services, this extension performs **no backend or network communication**: it operates entirely on local `*.cip.yaml` files via `vscode.workspace.fs`. It consumes/embeds:
-
-- **`@netcracker/qip-ui`** — the React visual editor, loaded as a library bundle into the webview (`dist/web/qip-ui/`); the webview and extension host communicate only via `postMessage`.
-- **`@netcracker/qip-schemas`** — JSON Schema definitions used for validation; `assets/` copied into `dist/web/qip-schemas/`.
-Build order across workspaces matters: `schemas` build → `qip-ui` `build:lib:bundled`/`build:lib:types` → this extension's `compile-web` (the `build` script chains all three).
+When you write or change a Jest or integration test, a golden, or a specification import case, load the
+`vscode-extension-testing` skill.
