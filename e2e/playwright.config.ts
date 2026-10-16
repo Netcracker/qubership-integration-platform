@@ -262,5 +262,9 @@ export default defineConfig<PlaywrightTestOptions, PlaywrightWorkerOptions & Sui
     // assertion diff and the source line, and no request URL, response body, or engine log.
     trace: "retain-on-failure",
   },
-  projects: suiteProjects(targetSetup()),
+  // The JSON report leaves `dependencies` out, and the failure email names the project that kept another from running.
+  projects: suiteProjects(targetSetup()).map((project) => ({
+    ...project,
+    metadata: { ...project.metadata, dependencies: project.dependencies ?? [] },
+  })),
 });

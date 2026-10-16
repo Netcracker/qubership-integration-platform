@@ -1,14 +1,9 @@
 /**
  * Writes `test-results/summary.md` from the run's `report.json`, `.last-run.json`, and `stack.json`,
- * for the CI step summary and the failure email. A missing file leaves its sections out.
+ * for the CI step summary. A missing file leaves its sections out. `run-email.mjs` writes the
+ * failure email from the same files.
  *
- *     npm run --silent run-summary [-- <dir>] >> "$GITHUB_OUTPUT"   # dir defaults to test-results/
- *
- * Stdout carries what the failure email names in its subject, as one `failure=<text>` line in the
- * `$GITHUB_OUTPUT` format, so the workflow reads it as a step output and no second file is needed:
- * the failed and total test counts, or else the first line of the first error raised outside any
- * test (a provisioning failure, the global timeout). It prints nothing when `report.json` is
- * missing or shows neither, and the workflow then names the failed step.
+ *     npm run run-summary [-- <dir>]   # dir defaults to test-results/
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -31,7 +26,7 @@ export const FAILED_TESTS_LIMIT = 50;
  */
 
 /** @param {string} text */
-const stripAnsi = (text) => text.replace(/\u001b\[[0-9;]*m/g, "");
+export const stripAnsi = (text) => text.replace(/\u001b\[[0-9;]*m/g, "");
 
 /** @param {string} text */
 const cell = (text) => text.replace(/\|/g, "\\|");
@@ -120,25 +115,12 @@ export function summaryMarkdown({ report, lastRun, stack }) {
  * @param {string} file
  * @returns {any}
  */
-const readIfPresent = (file) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : undefined);
+export const readIfPresent = (file) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : undefined);
 
 /**
- * What the failure email names: the failed and total test counts, or else the first global error.
- *
- * @param {Report} report
- * @returns {string | undefined}
- */
-export function failureOf(report) {
-  const { expected, unexpected, flaky, skipped } = report.stats;
-  if (unexpected > 0) return `${unexpected} of ${expected + unexpected + flaky + skipped} tests`;
-  return firstLine(report.errors[0]) || undefined;
-}
-
-/**
- * Writes the summary into `dir` and returns what the failure email names.
+ * Writes the summary into `dir`.
  *
  * @param {string} dir
- * @returns {string | undefined}
  */
 export function writeRunSummary(dir) {
   /** @type {Report | undefined} */
@@ -146,11 +128,9 @@ export function writeRunSummary(dir) {
   const lastRun = readIfPresent(path.join(dir, ".last-run.json"));
   const stack = readIfPresent(path.join(dir, "stack.json"));
   fs.writeFileSync(path.join(dir, SUMMARY_FILE), summaryMarkdown({ report, lastRun, stack }));
-  return report && failureOf(report);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dir = process.argv[2] ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../test-results");
-  const failure = writeRunSummary(dir);
-  if (failure) console.log(`failure=${failure}`);
+  writeRunSummary(dir);
 }

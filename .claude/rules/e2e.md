@@ -59,10 +59,10 @@ or to a tree the `schema` project reads:
 and the import-file migration classes under `integration-build-pipeline/`. The rest of the suite
 provisions a Compose stack or a cluster namespace and expects to own it for the length of the run.
 
-The job's step summary comes from `support/run-summary.mjs`, which also prints the `failure` step
-output. A failed scheduled run, or a failed dispatch with the `email` input set, mails that summary
-through the org email action to `vars.EMAIL_TO`, with the failure, or else the first failed step, in
-the subject.
+The job's step summary comes from `support/run-summary.mjs`. A failed scheduled run, or a failed
+dispatch with the `email` input set, mails an HTML report that `support/run-email.mjs` writes
+through the org email action to `vars.EMAIL_TO`, with the failed tests, or else the first error
+outside any test, or else the first failed step, in the subject.
 
 ### Provisioning
 

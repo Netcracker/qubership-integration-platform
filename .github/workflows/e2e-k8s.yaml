@@ -133,15 +133,14 @@ jobs:
         working-directory: e2e
         run: npm run reconcile
 
-      # The script prints what the failure email names as a step output. A run that fails before the
-      # suite has no test-results directory to summarize.
+      # A run that fails before the suite has no test-results directory to summarize.
       - name: Write the step summary
         id: summary
         if: ${{ always() }}
         working-directory: e2e
         run: |
           if [ -d test-results ]; then
-            npm run --silent run-summary >> "$GITHUB_OUTPUT"
+            npm run --silent run-summary
             cat test-results/summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -191,15 +190,14 @@ jobs:
           path: ${{ runner.temp }}/cluster/
           retention-days: 14
 
-      # The subject names the failed tests or the first global error, or else the step that failed first.
+      # The subject names the failed tests, or else the first global error, or else the step that
+      # failed first. Without a checkout there is no script to write the email.
       - name: Write the failure email
         id: email
         if: ${{ failure() && (github.event_name == 'schedule' || inputs.email) }}
         env:
-          FAILURE: ${{ steps.summary.outputs.failure }}
           FAILED_STEP: >-
-            ${{ steps.checkout.outcome == 'failure' && 'Checkout'
-            || steps.java.outcome == 'failure' && 'Set up Java'
+            ${{ steps.java.outcome == 'failure' && 'Set up Java'
             || steps.node.outcome == 'failure' && 'Set up Node.js'
             || steps.tools.outcome == 'failure' && 'Install kind and istioctl'
             || steps.versions.outcome == 'failure' && 'Print tool versions'
@@ -210,19 +208,7 @@ jobs:
             || steps.suite.outcome == 'failure' && 'Run the suite'
             || steps.reconcile.outcome == 'failure' && 'Reconcile the coverage registry'
             || 'a step after the suite' }}
-          REF: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BODY: ${{ runner.temp }}/email.md
-        run: |
-          echo "subject=E2E nightly failed: ${FAILURE:-$FAILED_STEP} ($REF @ ${SHA:0:7})" >> "$GITHUB_OUTPUT"
-          {
-            echo "Logs and the \`e2e-report\` artifact: $RUN_URL"
-            echo
-            if [ -f e2e/test-results/summary.md ]; then
-              cat e2e/test-results/summary.md
-            fi
-          } > "$BODY"
+        run: node e2e/support/run-email.mjs e2e/test-results >> "$GITHUB_OUTPUT"
 
       - name: Email the failure
         if: ${{ failure() && (github.event_name == 'schedule' || inputs.email) }}
@@ -236,7 +222,7 @@ jobs:
           EMAIL_TO: ${{ vars.EMAIL_TO }}
         with:
           subject: ${{ steps.email.outputs.subject }}
-          # The action converts only html-body from Markdown; body is the plain-text part.
-          body: file://${{ runner.temp }}/email.md
-          html-body: file://${{ runner.temp }}/email.md
-          convert-markdown: "true"
+          body: file://${{ github.workspace }}/e2e/test-results/email.txt
+          html-body: file://${{ github.workspace }}/e2e/test-results/email.html
+          # The action runs html-body through showdown for any non-empty value, "false" included.
+          convert-markdown: ""
