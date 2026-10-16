@@ -38,6 +38,7 @@ import type {
 } from "../../../src/ai/modelProviders/types.ts";
 import { useChainContext } from "../../../src/components/ai/useChainContext.ts";
 import { downloadChainsExport } from "../../../src/misc/chain-export.ts";
+import { mockStorageQuota } from "../../helpers/storageQuota.ts";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -266,6 +267,45 @@ beforeEach(() => {
 });
 
 describe("AiAssistant", () => {
+  it("sends the first request from a new chat when existing history fills storage", async () => {
+    const serialized = JSON.stringify([
+      {
+        id: "large-history",
+        title: "Saved chat",
+        mode: "ask",
+        createdAt: 1,
+        updatedAt: 1,
+        messages: [
+          { role: "assistant", content: "Saved requirements. ".repeat(1000) },
+        ],
+      },
+    ]);
+    localStorage.setItem("cip_ai_chat_sessions", serialized);
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: "cip_ai_chat_sessions" }),
+    );
+    const quota = mockStorageQuota(
+      "cip_ai_chat_sessions".length + serialized.length + 64,
+    );
+    try {
+      await open();
+      fireEvent.click(screen.getByRole("button", { name: "New chat" }));
+      await send();
+      expect(stream).toHaveBeenCalledTimes(1);
+      expect(
+        await screen.findByText("Created the greeting chain"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Chat session not found/),
+      ).not.toBeInTheDocument();
+      expect(store.getSession("large-history")?.messages[0].content).toBe(
+        "Saved requirements. ".repeat(1000),
+      );
+    } finally {
+      quota.mockRestore();
+    }
+  });
+
   it("streams a response into the mounted conversation and names the session", async () => {
     await open();
     await send();
