@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import io.quarkus.runtime.Startup;
+import io.quarkus.arc.Unremovable;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -37,6 +37,7 @@ import java.util.stream.Stream;
 
 @Slf4j
 @ApplicationScoped
+@Unremovable
 public class TruststoreConfiguration {
     @ConfigProperty(name = "cip.local-truststore.store.path")
     String storeFilePath;
@@ -56,7 +57,6 @@ public class TruststoreConfiguration {
     private static final String JAVA_DEFAULT_TRUSTSTORE = "/lib/security/cacerts";
     private static final String JAVA_DEFAULT_TRUSTSTORE_PASSWORD = "changeit";
 
-    @Startup
     public void buildTruststore() {
         try {
             KeyStore keyStore = getDefaultTrustStore();
