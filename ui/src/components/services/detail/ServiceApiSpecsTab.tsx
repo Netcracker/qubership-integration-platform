@@ -351,8 +351,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
       return;
     }
     const model = (models ?? []).find((m) => m.id === specId);
-    const ops = model?.operations;
-    setOperations(Array.isArray(ops) ? ops : ops ? [ops] : []);
+    setOperations(model?.operations ?? []);
   }, [specId, models]);
 
   const serviceGroupsTable = useServicesTreeTable<ServiceEntity>({

@@ -1,4 +1,5 @@
-import { Environment, EnvironmentRequest } from "./servicesTypes";
+import type { Environment } from "@netcracker/qip-ui";
+import { EnvironmentServiceRequest } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
 import { SystemService } from "./SystemService";
@@ -35,7 +36,9 @@ export class EnvironmentService {
   /**
    * Create a new environment
    */
-  async createEnvironment(request: EnvironmentRequest): Promise<Environment> {
+  async createEnvironment(
+    request: EnvironmentServiceRequest,
+  ): Promise<Environment> {
     try {
       // Get system protocol for default properties
       const { systemId } = request;
@@ -99,7 +102,7 @@ export class EnvironmentService {
   async updateEnvironment(
     systemId: string,
     environmentId: string,
-    updates: Partial<EnvironmentRequest>,
+    updates: Partial<EnvironmentServiceRequest>,
   ): Promise<Environment | null> {
     try {
       const system = await this.systemService.getRawServiceById(systemId);

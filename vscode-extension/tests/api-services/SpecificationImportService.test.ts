@@ -108,7 +108,7 @@ describe("SpecificationImportService – validateAllowedSystemProtocol in runImp
 
   test("calls validateAllowedSystemProtocol with system type and detected protocol", async () => {
     mockGetSystemById.mockResolvedValue(
-      buildSystem({ integrationSystemType: IntegrationSystemType.IMPLEMENTED }),
+      buildSystem({ type: IntegrationSystemType.IMPLEMENTED }),
     );
     mockCreateSpecificationGroup.mockResolvedValue({
       id: "grp-1",
