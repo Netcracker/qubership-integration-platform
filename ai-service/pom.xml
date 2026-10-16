@@ -25,7 +25,7 @@
     </scm>
 
     <properties>
-        <revision>0.5.0</revision>
+        <revision>1.5.1</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
