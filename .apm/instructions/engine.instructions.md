@@ -21,7 +21,7 @@ mvn -pl engine spring-boot:run                   # development profile, JDWP deb
 
 Checkstyle runs in the `compile` phase and allows zero violations. Its rules live in
 `checkstyle/src/main/resources/checkstyle.xml`: no tab characters, no Cyrillic characters, and imports grouped as
-third-party, then `java.*`, then static, sorted alphabetically with a blank line between groups. Star imports are
+third-party, then `java.*`, then static, sorted alphabetically with an empty line between groups. Star imports are
 allowed.
 
 ### Architecture

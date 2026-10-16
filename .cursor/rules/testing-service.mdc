@@ -105,8 +105,8 @@ caller that can answer without a query returns early, as `testsRunsService.start
 ### Save-time validation
 
 A matcher that cannot be built (a bad regular expression, an unparseable JSON sample, a missing parameter, or an entity
-name no request can carry) is a 400 at save time and degrades at run time. `matcherViolations` builds every matcher,
-disabled ones included, on create, update, and import. At run time `Call` skips a mock carrying one, and the executor
+name no request can carry) is a 400 at save time and degrades at runtime. `matcherViolations` builds every matcher,
+disabled ones included, on create, update, and import. At runtime `Call` skips a mock carrying one, and the executor
 records an unbuildable rule as a validation error, because a row stored before these checks still has to be served.
 
 - `getJsonSchema` installs a loader that refuses every reference outside the schema, because the library default
