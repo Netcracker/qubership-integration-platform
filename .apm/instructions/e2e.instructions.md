@@ -60,8 +60,9 @@ and the import-file migration classes under `integration-build-pipeline/`. The r
 provisions a Compose stack or a cluster namespace and expects to own it for the length of the run.
 
 The job's step summary comes from `support/run-summary.mjs`, which also prints the `failure` step
-output. A failed scheduled run mails that summary through the org email action to `vars.EMAIL_TO`,
-with the failure, or else the first failed step, in the subject.
+output. A failed scheduled run, or a failed dispatch with the `email` input set, mails that summary
+through the org email action to `vars.EMAIL_TO`, with the failure, or else the first failed step, in
+the subject.
 
 ### Provisioning
 

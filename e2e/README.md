@@ -220,17 +220,18 @@ the console output only, and the command does not run `npm run reconcile`.
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
 manual dispatch from the Actions tab. The dispatch input `workers` sets `E2E_WORKERS`; left empty,
-the run uses the nightly value. Start with the job's step summary, which `support/run-summary.mjs`
-writes: it shows the run status, the test counts, up to 50 failed tests with their project,
-`file:line`, title, and first error line, the errors raised outside any test, and the projects left
-out on this target. A failed nightly run mails the same summary and the run link to the addresses
-in the repository variable `EMAIL_TO`; until a repository admin creates it, the email step fails on
-a run that has already failed. Every run uploads the `e2e-report` artifact: `playwright-report/`,
-`test-results/`, the `.e2e-k8s-` state files, and `.e2e-ui-server.log`. A failed or cancelled run
-also uploads `e2e-cluster`: the workloads and events of every namespace, a description of each pod
-in `qip-e2e`, the camel-k Integrations, and the logs of those pods' containers, istiod, and the
-camel-k operator. The dump runs after the suite, so it holds a micro domain's pod only because a
-failed micro case keeps the run's micro domains (see [Reading a failure](#reading-a-failure)).
+the run uses the nightly value. The dispatch input `email` makes a failed manual run send the
+failure email as well. Start with the job's step summary, which `support/run-summary.mjs` writes: it
+shows the run status, the test counts, up to 50 failed tests with their project, `file:line`, title,
+and first error line, the errors raised outside any test, and the projects left out on this target.
+A failed nightly run mails the same summary and the run link to the addresses in the repository
+variable `EMAIL_TO`, which the email step needs. Every run uploads the `e2e-report` artifact:
+`playwright-report/`, `test-results/`, the `.e2e-k8s-` state files, and `.e2e-ui-server.log`. A
+failed or cancelled run also uploads `e2e-cluster`: the workloads and events of every namespace, a
+description of each pod in `qip-e2e`, the camel-k Integrations, and the logs of those pods'
+containers, istiod, and the camel-k operator. The dump runs after the suite, so it holds a micro
+domain's pod only because a failed micro case keeps the run's micro domains (see [Reading a
+failure](#reading-a-failure)).
 
 No pull request check runs the suite. `npm run check-types` and `--project=schema` need no stack;
 run them before pushing, as `AGENTS.md` describes.

@@ -11,6 +11,11 @@ on:
         description: Playwright workers (E2E_WORKERS); empty uses the nightly value
         required: false
         type: string
+      email:
+        description: Email a failure to vars.EMAIL_TO, as the nightly run does
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -189,7 +194,7 @@ jobs:
       # The subject names the failed tests or the first global error, or else the step that failed first.
       - name: Write the failure email
         id: email
-        if: ${{ failure() && github.event_name == 'schedule' }}
+        if: ${{ failure() && (github.event_name == 'schedule' || inputs.email) }}
         env:
           FAILURE: ${{ steps.summary.outputs.failure }}
           FAILED_STEP: >-
@@ -220,7 +225,7 @@ jobs:
           } > "$BODY"
 
       - name: Email the failure
-        if: ${{ failure() && github.event_name == 'schedule' }}
+        if: ${{ failure() && (github.event_name == 'schedule' || inputs.email) }}
         uses: netcracker/qubership-workflow-hub/actions/email-action@0eefd4976131d113c986281eed8bc642b6da303d # v2.8.1
         env:
           EMAIL_SMTP_HOST: ${{ vars.EMAIL_SMTP_HOST }}
