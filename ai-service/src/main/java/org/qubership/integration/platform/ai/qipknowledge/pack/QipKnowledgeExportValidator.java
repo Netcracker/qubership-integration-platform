@@ -56,7 +56,15 @@ public final class QipKnowledgeExportValidator {
   }
 
   public static ExportMetadata validatePack(Path packRoot) {
-    return validate(packRoot.resolve(EXPORT_RELATIVE_PATH));
+    return validate(packRoot.resolve(exportRelativePath()));
+  }
+
+  static Path exportRelativePath() {
+    String configured = System.getProperty("qip.ai.qipknowledge.export-path");
+    if (configured != null && !configured.isBlank()) {
+      return Path.of(configured);
+    }
+    return EXPORT_RELATIVE_PATH;
   }
 
   public static ExportMetadata validate(Path exportRoot) {
@@ -65,7 +73,7 @@ public final class QipKnowledgeExportValidator {
 
     JsonNode manifest = readYaml(root.resolve("manifest.yaml"));
     requireText(manifest, "manifest_schema", "1.0");
-    requireText(manifest, "product", "CIP");
+    requireNonEmptyText(manifest, "product");
     requireText(manifest, "runtime_sdk_version", ">=1.0.0 <2.0");
     requireMajor(manifest, "schema_version", 1);
     requireMajor(manifest, "relation_schema_version", 1);
@@ -264,6 +272,10 @@ public final class QipKnowledgeExportValidator {
     } catch (NumberFormatException error) {
       throw new IllegalArgumentException(field + " is invalid: " + value, error);
     }
+  }
+
+  private static void requireNonEmptyText(JsonNode node, String field) {
+    requiredText(node, field);
   }
 
   private static String requiredText(JsonNode node, String field) {

@@ -35,9 +35,12 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeQueryContext;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.CompilerPipelinePolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -717,7 +720,16 @@ class CompilerRunPinResolverTest {
         "create-chain",
         "2",
         List.of(new ArtifactTypeRef("user-input", 1)),
-        List.of(),
+        List.of(
+            new ProfileStage(
+                "design-planning",
+                DesignPlanningCapability.CAPABILITY_ID,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                new RetryPolicy(0, 0L),
+                null)),
         new TerminalPolicy("planning", "PLAN_APPROVED"),
         List.of(),
         new CompilerPipelinePolicy(
