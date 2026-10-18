@@ -88,21 +88,15 @@ public class ArraySchemaProcessor extends DefaultSchemaProcessor implements Sche
     @Override
     public ObjectNode applySchemaType(String schemaAsString) {
         try {
-            JsonNode coreSchema = objectMapper.readTree(schemaAsString);
-
-            ObjectNode itemsNode = objectMapper.createObjectNode();
-            itemsNode.set(TYPE_NODE_NAME, coreSchema.get(TYPE_NODE_NAME));
-            putIfNotNull(itemsNode, PROPERTIES_FIELD_NAME, coreSchema.get(PROPERTIES_FIELD_NAME));
-            putIfNotNull(itemsNode, REQUIRED, coreSchema.get(REQUIRED));
-            putIfNotNull(itemsNode, ALL_OF, coreSchema.get(ALL_OF));
-            putIfNotNull(itemsNode, ONE_OF, coreSchema.get(ONE_OF));
-            putIfNotNull(itemsNode, ANY_OF, coreSchema.get(ANY_OF));
+            // The resolved component becomes items; $id, $schema and definitions move to the array root.
+            ObjectNode itemsNode = (ObjectNode) objectMapper.readTree(schemaAsString);
+            JsonNode definitions = itemsNode.remove(DEFINITIONS_NODE_NAME);
             ObjectNode resultSchema = objectMapper.createObjectNode();
-            resultSchema.set(SCHEMA_ID_NODE_NAME, coreSchema.get(SCHEMA_ID_NODE_NAME));
-            resultSchema.set(SCHEMA_HEADER_NODE_NAME, coreSchema.get(SCHEMA_HEADER_NODE_NAME));
+            resultSchema.set(SCHEMA_ID_NODE_NAME, itemsNode.remove(SCHEMA_ID_NODE_NAME));
+            resultSchema.set(SCHEMA_HEADER_NODE_NAME, itemsNode.remove(SCHEMA_HEADER_NODE_NAME));
             resultSchema.set(TYPE_NODE_NAME, ARRAY_TYPE_NODE);
             resultSchema.set(ITEMS_NODE_NAME, itemsNode);
-            resultSchema.set(DEFINITIONS_NODE_NAME, coreSchema.get(DEFINITIONS_NODE_NAME));
+            resultSchema.set(DEFINITIONS_NODE_NAME, definitions);
             return resultSchema;
         } catch (JsonProcessingException e) {
             log.error("Error during converting content string schema to JSON", e);

@@ -179,6 +179,41 @@ class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParse
     }
 
     @Test
+    void referenceAsMapValueIsResolvedIntoDefinitions() {
+        String spec = """
+                {
+                  "openapi": "3.0.3",
+                  "info": {"title": "Test 3.0", "version": "1.0.0"},
+                  "paths": {
+                    "/regions": {
+                      "post": {
+                        "operationId": "createRegions",
+                        "requestBody": {
+                          "content": {
+                            "application/json": {
+                              "schema": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Address"}}
+                            }
+                          }
+                        },
+                        "responses": {"204": {"description": "No content"}}
+                      }
+                    }
+                  },
+                  "components": {
+                    "schemas": {
+                      "Address": {"type": "object", "properties": {"city": {"type": "string"}}}
+                    }
+                  }
+                }
+                """;
+
+        JsonNode requestSchema = parse(spec).getOperations().getFirst().getRequestSchema().get("application/json");
+
+        assertEquals("#/definitions/Address", requestSchema.at("/additionalProperties/$ref").asText());
+        assertEquals("string", requestSchema.at("/definitions/Address/properties/city/type").asText());
+    }
+
+    @Test
     void externalReferenceInInlineSchemaIsKeptAsWritten() {
         String spec = """
                 {
@@ -293,5 +328,54 @@ class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParse
 
         assertEquals("array", responseSchema.at("/type").asText());
         assertEquals(Json.mapper().readTree(itemSchema), responseSchema.get("items"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "{\"type\": \"array\", \"items\": {\"$ref\": \"#/components/schemas/Address\"}}",
+        "{\"$ref\": \"#/components/schemas/Address\"}",
+        "{\"allOf\": [{\"$ref\": \"#/components/schemas/Address\"}, {\"type\": \"object\", \"properties\": {\"zip\": {\"type\": \"string\"}}}]}",
+        "{\"type\": \"object\", \"additionalProperties\": {\"$ref\": \"#/components/schemas/Address\"}}",
+        "{\"type\": \"string\", \"enum\": [\"A\", \"B\"]}",
+        "{\"type\": \"object\", \"description\": \"Strict\", \"additionalProperties\": false, \"properties\": {\"city\": {\"type\": \"string\"}}}"
+    })
+    void arrayOfReferencesKeepsItemComponent(String itemComponent) throws Exception {
+        String spec = """
+                {
+                  "openapi": "3.0.3",
+                  "info": {"title": "Test 3.0", "version": "1.0.0"},
+                  "paths": {
+                    "/items": {
+                      "get": {
+                        "operationId": "listItems",
+                        "responses": {
+                          "200": {
+                            "description": "OK",
+                            "content": {
+                              "application/json": {
+                                "schema": {"type": "array", "items": {"$ref": "#/components/schemas/Item"}}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "components": {
+                    "schemas": {
+                      "Item": %s,
+                      "Address": {"type": "object", "properties": {"city": {"type": "string"}}}
+                    }
+                  }
+                }
+                """.formatted(itemComponent);
+
+        JsonNode responseSchema = parse(spec).getOperations().getFirst().getResponseSchemas().get("200").get("application/json");
+
+        assertEquals("array", responseSchema.at("/type").asText());
+        assertEquals(Json.mapper().readTree(itemComponent.replace("#/components/schemas/", "#/definitions/")),
+                responseSchema.get("items"));
+        assertEquals(itemComponent.contains("$ref"), responseSchema.at("/definitions/Address").isObject());
+        assertEquals("http://json-schema.org/draft-07/schema#", responseSchema.at("/$schema").asText());
     }
 }

@@ -112,6 +112,10 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         if (hasObjectShape) {
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(PROPERTIES_FIELD_NAME), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME), modelType, refList);
+            // Resolves a $ref that is the map's value schema itself.
+            if (schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME) instanceof ObjectNode additionalProperties) {
+                getSchemaNodeProperties(componentsNode, result, OBJECT_MAPPER.createArrayNode().add(additionalProperties), modelType, refList);
+            }
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ALL_OF), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ANY_OF), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ONE_OF), modelType, refList);
