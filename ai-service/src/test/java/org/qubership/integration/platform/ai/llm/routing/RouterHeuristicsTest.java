@@ -9,6 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RouterHeuristicsTest {
 
   @Test
+  void importInAChainNameDoesNotTurnCreationIntoStandaloneImport() {
+    assertTrue(RouterHeuristics.tryFastResolve(
+        "\u0421\u043e\u0437\u0434\u0430\u0439 \u0446\u0435\u043f\u043e\u0447\u043a\u0443 VERIFY-IMPORT-CREATE-20261017 \u0441 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u043d\u043e\u0439 OpenAPI \u0441\u043f\u0435\u0446\u0438\u0444\u0438\u043a\u0430\u0446\u0438\u0435\u0439").isEmpty());
+  }
+
+  @Test
   void importThisSpecificationRoutesToImportSpecification() {
     assertEquals(
         ScenarioType.IMPORT_SPECIFICATION,
@@ -24,7 +30,7 @@ class RouterHeuristicsTest {
   }
 
   @Test
-  void idsPasteMentioningCatalogImportStillRoutesToImportSpecification() {
+  void chainRequestMentioningImportLeavesTheIntentToTheClassifier() {
     String idsPaste =
         """
         I need to create a new chain. I have a design for it
@@ -38,9 +44,7 @@ class RouterHeuristicsTest {
         | `*.specification.cip.yaml` | parentId → group id |
         """;
 
-    assertEquals(
-        ScenarioType.IMPORT_SPECIFICATION,
-        RouterHeuristics.tryFastResolve(idsPaste).orElseThrow());
+    assertTrue(RouterHeuristics.tryFastResolve(idsPaste).isEmpty());
   }
 
   @Test

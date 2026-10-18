@@ -24,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -102,6 +104,75 @@ class CompilerSkillRuntimeTest {
   private static final String SCRIPT_GENERATOR_ID = "cip-script-generator";
   private static final String VALIDATOR_ID = "plan-validator";
   private static final String CONVERSATION_ID = "conv-compiler-runtime";
+
+  @ParameterizedTest
+  @ValueSource(strings = {"cip-naming-generator", GENERATOR_ID})
+  void compilerRepairKeepsAuthorPlaceholdersLiteral(String capabilityId) {
+    String repair = "\nAuthor follow-up: Use {subrequesttype} task for order {orderId}."
+        + " Keep #{SERVICE_PASSWORD} and ${body.id} literal.";
+    when(generatorAgent.chat(eq(memoryId(capabilityId)), any())).thenAnswer(invocation -> {
+      String prompt = invocation.getArgument(1);
+      String rendered = io.quarkus.qute.Engine.builder().addDefaults()
+          .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+              .MustacheTemplateVariableStyleParserHook())
+          .build().parse(prompt).render();
+      assertTrue(rendered.contains(repair));
+      if (capabilityId.equals("cip-naming-generator")) {
+        var graph = greetingsGraph();
+        captureSession.accept(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID),
+            new NamingManifest(1, graph.chain().name(), graph.nodes().stream()
+                .collect(java.util.stream.Collectors.toMap(ChainPlanNode::nodeId, ChainPlanNode::label)),
+                List.of(), List.of()), "captured", "duplicate");
+      } else {
+        putGraphPatch(capabilityId, GraphPatchFixtures.wrapHttpTriggerFlow("http-trigger-1", "script-1"));
+      }
+      return Multi.createFrom().empty();
+    });
+    var context = new SkillRunContext(CONVERSATION_ID, capabilityId, QipKnowledgePackFixturePaths.PACK_DIR,
+        SkillSubgraph.BUILD_CHAIN, 3, false, "Preserve the approved flow.", repair);
+    var workspace = workspaceWithGraph(greetingsGraph());
+
+    runtime.runStreaming(context, workspace, capabilityId).collect().asList().await().indefinitely();
+
+    assertEquals(SkillRunStatus.COMPLETED,
+        runtime.resolveResultAfterStream(context, workspace, capabilityId).status());
+    verify(generatorAgent).chat(eq(memoryId(capabilityId)), any());
+  }
+
+  @Test
+  void namingRetryRendersSavedAttemptHistoryWithoutEvaluatingItsPlaceholders() {
+    String capabilityId = "cip-naming-generator";
+    var calls = new AtomicInteger();
+    when(generatorAgent.chat(eq(memoryId(capabilityId)), any())).thenAnswer(invocation -> {
+      String rendered = io.quarkus.qute.Engine.builder().addDefaults()
+          .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+              .MustacheTemplateVariableStyleParserHook())
+          .build().parse((String) invocation.getArgument(1)).render();
+      int call = calls.incrementAndGet();
+      if (call == 1) {
+        feedbackStore.beginProposal(CONVERSATION_ID, capabilityId, "captureNamingManifest",
+            Map.of("chainName", "{subRequestType} task for {orderId}"));
+        feedbackStore.recordPlanValidationFailure(CONVERSATION_ID, "Keep {subRequestType} literal.");
+      } else {
+        assertTrue(rendered.contains("{subRequestType}"));
+        var graph = greetingsGraph();
+        captureSession.accept(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID),
+            new NamingManifest(1, graph.chain().name(), graph.nodes().stream()
+                .collect(java.util.stream.Collectors.toMap(ChainPlanNode::nodeId, ChainPlanNode::label)),
+                List.of(), List.of()), "captured", "duplicate");
+      }
+      return Multi.createFrom().empty();
+    });
+    var context = runContext(capabilityId, 3);
+    var workspace = workspaceWithGraph(greetingsGraph());
+
+    runtime.runStreaming(context, workspace, capabilityId).collect().asList().await().indefinitely();
+    runtime.runStreaming(context, workspace, capabilityId).collect().asList().await().indefinitely();
+
+    assertEquals(3, calls.get());
+    assertEquals(SkillRunStatus.COMPLETED,
+        runtime.resolveResultAfterStream(context, workspace, capabilityId).status());
+  }
 
   @Mock private CompilerSkillAgent generatorAgent;
   @Mock private org.qubership.integration.platform.ai.llm.agent.HttpTriggerCaptureAgent httpTriggerAgent;
@@ -456,7 +527,11 @@ class CompilerSkillRuntimeTest {
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
     verify(generatorAgent).chat(eq(memoryId(GENERATOR_ID)), message.capture());
     assertTrue(message.getValue().contains(approvedTask));
-    assertTrue(message.getValue().contains(repair));
+    String rendered = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook())
+        .build().parse(message.getValue()).render();
+    assertTrue(rendered.contains(repair));
     assertTrue(message.getValue().contains("\"originRecordId\":\"http-trigger-1\""));
     assertTrue(message.getValue().contains("\"fieldPointer\":\"/parentNodeId\""));
     assertTrue(message.getValue().contains("rejected-candidate-value"));

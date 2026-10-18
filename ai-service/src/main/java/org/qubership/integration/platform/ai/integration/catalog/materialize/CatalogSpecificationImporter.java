@@ -231,6 +231,12 @@ public class CatalogSpecificationImporter {
     try {
       JsonNode uploaded = DOCUMENT_MAPPER.readTree(uploadedContent);
       JsonNode existing = DOCUMENT_MAPPER.readTree(existingSource);
+      if (uploaded != null && uploaded.path("info") instanceof com.fasterxml.jackson.databind.node.ObjectNode info) {
+        info.remove("title");
+      }
+      if (existing != null && existing.path("info") instanceof com.fasterxml.jackson.databind.node.ObjectNode info) {
+        info.remove("title");
+      }
       return uploaded != null && uploaded.equals(existing);
     } catch (Exception ignored) {
       String uploaded = new String(uploadedContent, StandardCharsets.UTF_8);

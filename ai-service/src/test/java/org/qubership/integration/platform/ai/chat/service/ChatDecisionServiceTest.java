@@ -87,6 +87,26 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
 
+  @Test
+  void activeCreateOwnsImportDecisionsAfterAnEarlierStandaloneRequest() {
+    var facade = mock(CreateChainApplicationFacade.class);
+    var snapshot = mock(CreateChainExecutionSnapshot.class);
+    when(snapshot.finished()).thenReturn(false);
+    when(facade.snapshot("chat")).thenReturn(Optional.of(snapshot));
+    var drafts = mock(RequirementDraftStore.class);
+    var service = new ChatDecisionService(facade, mock(ApprovalQuestionStore.class), drafts);
+    service.specificationImports = mock(org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline.class);
+    when(service.specificationImports.standaloneRequest("chat")).thenReturn(Optional.of(
+        new org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline.StandaloneRequest("old", "Import", false)));
+    var command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.IMPORT_INTERNAL_ACTION);
+    command.setArtifactType(UploadedSpecsApprovalHandler.ARTIFACT_TYPE);
+
+    service.rememberImportChoice("chat", command);
+
+    verify(drafts).rememberPreferredSystemType("chat", "INTERNAL");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION, ChatEvent.CANCEL_CHAIN_LIST_CHANGE_ACTION})
   void openDecisionKeepsTheChainListCardUntilItIsAnswered(String action) {

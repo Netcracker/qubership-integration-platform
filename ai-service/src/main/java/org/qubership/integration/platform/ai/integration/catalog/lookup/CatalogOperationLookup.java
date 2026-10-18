@@ -61,7 +61,8 @@ public class CatalogOperationLookup {
     if (chosen != null) {
       return new CatalogLookupResult.Exact(chosen.match());
     }
-    Scored titleMatch = specNamedLikeSystem(tied);
+    Scored titleMatch = tied.stream().map(candidate -> candidate.match().version()).distinct().count() > 1
+        ? null : specNamedLikeSystem(tied);
     if (titleMatch != null) {
       return new CatalogLookupResult.Exact(titleMatch.match());
     }
@@ -69,7 +70,8 @@ public class CatalogOperationLookup {
     for (Scored candidate : tied) {
       tiedIds.add(candidate.match().integrationOperationId());
     }
-    return new CatalogLookupResult.Ambiguous(List.copyOf(tiedIds));
+    return new CatalogLookupResult.Ambiguous(List.copyOf(tiedIds),
+        tied.stream().map(Scored::match).toList());
   }
 
   private List<Scored> score(
@@ -84,7 +86,8 @@ public class CatalogOperationLookup {
       for (CatalogRestClient.SpecificationDto spec : specs) {
         if (spec == null
             || CatalogStrings.blankToNull(spec.id()) == null
-            || CatalogStrings.blankToNull(spec.specificationGroupId()) == null) {
+            || CatalogStrings.blankToNull(spec.specificationGroupId()) == null
+            || query.release() != null && !query.release().equals(spec.version())) {
           continue;
         }
         List<CatalogRestClient.OperationDto> operations =

@@ -359,6 +359,7 @@ export const AiAssistant: React.FC = () => {
   // Reconcile on mount (for the session the store restores) and whenever the
   // active session switches to one the server tracks a conversation for.
   useEffect(() => {
+    ++decisionReconciliationGenerationRef.current;
     if (!open || !currentSessionId) return;
     const conversationId =
       sessionStore.getSession(currentSessionId)?.conversationId;

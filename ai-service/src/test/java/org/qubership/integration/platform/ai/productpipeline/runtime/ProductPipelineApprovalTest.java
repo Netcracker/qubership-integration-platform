@@ -178,6 +178,35 @@ class ProductPipelineApprovalTest {
   }
 
   @Test
+  void separatesPlanAndIdsAndDoesNotRepeatTheirReviewOnResume() {
+    String planText = "# Implementation plan: Orders\n\n1. Call orders";
+    String idsMarkdown = "# Integration Design Specification\n\nOrders flow.";
+    IdsDocument ids = new IdsDocument(
+        "1", IdsDocument.Mode.DERIVED, "brief-1", "source-hash", "flow-hash", "renderer@1", idsMarkdown);
+    List<ArtifactTypeRef> produces = List.of(
+        new ArtifactTypeRef("implementation-plan", 1), new ArtifactTypeRef("ids-document", 1));
+    WaitingForApprovalResult waiting = runToCandidate(
+        candidateOutcome(artifact(Kind.IMPLEMENTATION_PLAN, new ImplementationPlan(planText)),
+            artifact(Kind.IDS_DOCUMENT, ids)),
+        new ApprovalPolicy(new ArtifactTypeRef("implementation-plan", 1), produces), produces);
+
+    String review = waiting.signals().stream()
+        .filter(PipelineSignal.Message.class::isInstance)
+        .map(PipelineSignal.Message.class::cast)
+        .map(PipelineSignal.Message::text)
+        .collect(Collectors.joining());
+
+    assertTrue(review.contains("1. Call orders\n\n# Integration Design Specification"), review);
+    assertEquals(1, review.split("# Implementation plan:", -1).length - 1);
+    assertEquals(1, review.split("# Integration Design Specification", -1).length - 1);
+    List<PipelineSignal> resumed = runtime.startOrResume(
+        new StartOrResumeCommand("conv-approval", RUN_ID, profile, sampleManifest(RUN_ID)))
+        .collect().asList().await().indefinitely();
+    assertEquals(1, resumed.stream().filter(PipelineSignal.WaitingForApproval.class::isInstance).count());
+    assertFalse(resumed.stream().anyMatch(PipelineSignal.Message.class::isInstance));
+  }
+
+  @Test
   void surfacesIdsDownloadLinkWhenStorageAvailable() {
     String idsMarkdown = "# IDS\n\nBody for download.\n";
     IdsDocument ids =

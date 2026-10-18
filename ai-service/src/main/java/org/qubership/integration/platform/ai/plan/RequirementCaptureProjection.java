@@ -122,12 +122,12 @@ public final class RequirementCaptureProjection {
 
   public static List<PendingWork> pending(
       DraftInput input, List<CatalogBindingHint> bindings, Map<String, String> targets) {
-    return pending(input, bindings, targets, false);
+    return pending(input, bindings, targets, Set.of());
   }
 
   public static List<PendingWork> pending(
       DraftInput input, List<CatalogBindingHint> bindings, Map<String, String> targets,
-      boolean uploadedSpecifications) {
+      Set<String> uploadedSpecInteractions) {
     List<PendingWork> pending = new ArrayList<>();
     Map<String, CapabilityInput> capabilities = new HashMap<>();
     for (CapabilityInput capability : input.capabilities()) {
@@ -236,7 +236,7 @@ public final class RequirementCaptureProjection {
                   && capability.httpMode() == RequirementCaptureInput.HttpMode.CATALOG);
       if (needsCatalog && !bound.contains(id)
           && !blank(interaction.participant()) && !blank(interaction.operation())) {
-        pending.add(uploadedSpecifications
+        pending.add(uploadedSpecInteractions.contains(id)
             ? new PendingWork("UPLOADED_SPEC_IMPORT_REQUIRED", id, null,
                 "Import the uploaded API specifications before binding the operation for " + interaction.participant() + ".")
             : new PendingWork("OPERATION_LOOKUP_REQUIRED", id, null,

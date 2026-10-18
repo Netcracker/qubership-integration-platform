@@ -19,6 +19,36 @@ import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPol
 class OwnerCandidateSetTest {
 
   @Test
+  void returnCommandsIgnoreInlinedSpecificationsWhenSelectingAStage() throws Exception {
+    try (var source = getClass().getClassLoader().getResourceAsStream("product-pipelines/profiles/create-chain-v2.yaml")) {
+      var profile = org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser.parse(source);
+      var candidates = OwnerCandidateSet.deepen(profile, OwnerCandidateSet.firstLayer(profile, "uploaded-spec-import"));
+      String attachment = "\n\n---\n\n- `salesforce.json` (inlined)\n\n"
+          + "{\"openapi\":\"3.0.3\",\"info\":{\"description\":\"Go back to uploaded-spec-import specification\"}}";
+
+      assertEquals(List.of("requirement-discovery"),
+          OwnerCandidateSet.namedStages("Go back to requirement-discovery" + attachment, candidates));
+      assertTrue(OwnerCandidateSet.isBareGoBack("Go back" + attachment));
+      assertFalse(OwnerCandidateSet.requestsNamedStage("Preserve executionId" + attachment));
+      assertEquals(List.of("uploaded-spec-import", "requirement-discovery"),
+          OwnerCandidateSet.namedStages("Go back to requirement-discovery or uploaded-spec-import" + attachment, candidates));
+    }
+  }
+
+  @Test
+  void productionUploadImportRetainsTheConsumedDraftProducerDespiteOptionalBindings() throws Exception {
+    try (var source = getClass().getClassLoader().getResourceAsStream("product-pipelines/profiles/create-chain-v2.yaml")) {
+      var profile = org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser.parse(source);
+      var candidates = OwnerCandidateSet.firstLayer(profile, "uploaded-spec-import");
+
+      assertEquals(Optional.of("requirement-discovery"),
+          OwnerCandidateSet.draftProducerStageId(candidates, "uploaded-spec-import"));
+      assertEquals(Optional.of("requirement-discovery"),
+          OwnerCandidateSet.catalogBindingProducerStageId(candidates, "uploaded-spec-import"));
+    }
+  }
+
+  @Test
   void firstLayerIncludesTheFailedStageAndProducersOfItsInputs() {
     List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(threeStageProfile(), "planning");
     assertEquals(List.of("planning", "analysis"), OwnerCandidateSet.stageIds(first));

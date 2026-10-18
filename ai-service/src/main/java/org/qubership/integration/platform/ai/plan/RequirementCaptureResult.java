@@ -61,13 +61,13 @@ public record RequirementCaptureResult(
       boolean changed,
       List<RequirementCaptureEditor.Issue> editorIssues,
       RequirementDiscoveryDirective directive) {
-    return view(acceptedDraft, revision, accepted, changed, editorIssues, directive, false);
+    return view(acceptedDraft, revision, accepted, changed, editorIssues, directive, Set.of());
   }
 
   public static RequirementCaptureResult view(
       RequirementDraft acceptedDraft, Reference revision, boolean accepted, boolean changed,
       List<RequirementCaptureEditor.Issue> editorIssues, RequirementDiscoveryDirective directive,
-      boolean uploadedSpecifications) {
+      Set<String> uploadedSpecInteractions) {
     DraftInput draft = acceptedDraft == null ? null : acceptedDraft.authoredDraft();
     List<CaptureIssue> issues = editorIssues.stream()
         .map(issue -> new CaptureIssue(
@@ -84,7 +84,7 @@ public record RequirementCaptureResult(
     }
     List<RequirementCaptureProjection.PendingWork> pending =
         RequirementCaptureProjection.pending(draft, acceptedDraft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(acceptedDraft), uploadedSpecifications);
+            RequirementCaptureProjection.resolvedTargets(acceptedDraft), uploadedSpecInteractions);
     Readiness readiness = acceptedDraft.readyForPlan() ? Readiness.READY : Readiness.PARTIAL;
     NextAction action = nextAction(issues, pending, readiness, draft, directive);
     return new RequirementCaptureResult(

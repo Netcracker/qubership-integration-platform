@@ -257,7 +257,13 @@ public class ChatExecutionService {
           request.setOpenChainTurnContext(openChainTurnContextFactory.build(request, finalConversationId));
           Multi<ChatEvent> work = runsAsCommand(request)
               ? decisionService.apply(finalConversationId, request.getDecision())
-              : router.route(request, finalConversationId).onCompletion()
+              : router.route(request, finalConversationId)
+                  .onItem().invoke(event -> {
+                    if (event instanceof ChatEvent.Decision decision) {
+                      lastStreamedDecision.set(decision);
+                    }
+                  })
+                  .onCompletion()
                   .switchTo(() -> openGate(finalConversationId, lastStreamedDecision.get()));
           return ToolInvocationSink.propagateBinding(ToolInvocationSink.attachedContext(), work);
         });
@@ -287,7 +293,6 @@ public class ChatExecutionService {
               lastTurnKind.set(token.turnKind());
             }
           } else if (event instanceof ChatEvent.Decision decision) {
-            lastStreamedDecision.set(decision);
             conversationService.archive().saveAssistant(conversationId, sourceInput.generation(),
                 assistantTurnId, decision.question(), objectMapper.valueToTree(decision), "DECISION", sourceInput.turnId());
             lastTurnKind.compareAndSet(

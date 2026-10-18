@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -362,6 +363,20 @@ class DesignExecutionCapabilityTest {
 
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
     assertTrue(outcome.message().contains("NullPointerException"));
+    verifyNoInteractions(runner);
+  }
+
+  @Test
+  void templateRenderingFailureKeepsTechnicalClassificationAndOriginalCause() {
+    RuntimeException renderingFailure = assertThrows(io.quarkus.qute.TemplateException.class,
+        () -> io.quarkus.qute.Engine.builder().addDefaults().build().parse("{subRequestType}").render());
+    for (RuntimeException failure : List.of(renderingFailure, new RuntimeException("Compiler invocation failed", renderingFailure))) {
+      when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any())).thenThrow(failure);
+      StageOutcome outcome = execute(List.of(idsRef, revisionRef, reportRef, planRef, implementationRef,
+          manifestRef, idsApprovalRef, implementationApprovalRef));
+      assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, outcome.outcomeClass());
+      assertEquals(renderingFailure.getMessage(), outcome.message());
+    }
     verifyNoInteractions(runner);
   }
 

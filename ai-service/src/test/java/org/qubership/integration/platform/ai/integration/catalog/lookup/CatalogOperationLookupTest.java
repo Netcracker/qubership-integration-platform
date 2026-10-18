@@ -16,6 +16,28 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSys
 
 class CatalogOperationLookupTest {
 
+  @Test
+  void anExplicitReleaseSelectsItsOperationAndAnUnspecifiedReleaseKeepsBothCandidates() {
+    var finder = mock(CatalogSystemFinder.class);
+    var readTool = mock(CatalogSystemReadTool.class);
+    when(finder.narrow(any())).thenReturn(new CatalogSystemFinder.Narrowed.Systems(List.of(SALESFORCE)));
+    when(readTool.getApiSpecifications("sys-sf")).thenReturn(List.of(
+        new CatalogRestClient.SpecificationDto("spec-old", "1.0.0", "group", "sys-sf", "1.0.0"),
+        new CatalogRestClient.SpecificationDto("spec-new", "2.0.0", "group", "sys-sf", "2.0.0")));
+    when(readTool.listCatalogOperations("spec-old", "sys-sf", null)).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("old-op", "createTask", "POST", "/tasks", "spec-old")));
+    when(readTool.listCatalogOperations("spec-new", "sys-sf", null)).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("new-op", "createTask", "POST", "/tasks", "spec-new")));
+    var lookup = new CatalogOperationLookup(finder, readTool);
+
+    var pinned = assertInstanceOf(CatalogLookupResult.Exact.class,
+        lookup.resolve(new CatalogQuery("Salesforce WFM", null, "http", null, null, "createTask", "1.0.0")));
+    assertEquals("old-op", pinned.match().integrationOperationId());
+    var ambiguous = assertInstanceOf(CatalogLookupResult.Ambiguous.class,
+        lookup.resolve(new CatalogQuery("Salesforce WFM", null, "http", null, null, "createTask", null)));
+    assertEquals(List.of("1.0.0", "2.0.0"), ambiguous.candidates().stream().map(CatalogMatch::version).toList());
+  }
+
   private static final CatalogRestClient.SystemDto OM =
       new CatalogRestClient.SystemDto(
           "sys-om", "om-order-lifecycle-manager-WFMS", "INTERNAL", "kafka");

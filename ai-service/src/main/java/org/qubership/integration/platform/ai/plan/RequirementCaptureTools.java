@@ -42,14 +42,16 @@ public class RequirementCaptureTools {
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final RequirementTargetResolver targetResolver;
   private final CatalogFolders catalogFolders;
+  private final UploadedSpecOperations uploadedSpecs;
   @Inject org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService elementSchemas;
-  @Inject org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+  org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
   public RequirementCaptureTools(
       RequirementDraftStore store, RequirementDraftTool legacyBindingAdapter, ObjectMapper mapper,
       CaptureToolOutcomeGateway outcomeGateway, CaptureAttemptFeedbackStore feedbackStore,
-      RequirementTargetResolver targetResolver, CatalogFolders catalogFolders) {
+      RequirementTargetResolver targetResolver, CatalogFolders catalogFolders, UploadedSpecOperations uploadedSpecs,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
     this.store = store;
     this.legacyBindingAdapter = legacyBindingAdapter;
     this.mapper = mapper;
@@ -57,6 +59,15 @@ public class RequirementCaptureTools {
     this.feedbackStore = feedbackStore;
     this.targetResolver = targetResolver;
     this.catalogFolders = catalogFolders;
+    this.uploadedSpecs = uploadedSpecs;
+    this.conversations = conversations;
+  }
+
+  public RequirementCaptureTools(
+      RequirementDraftStore store, RequirementDraftTool legacyBindingAdapter, ObjectMapper mapper,
+      CaptureToolOutcomeGateway outcomeGateway, CaptureAttemptFeedbackStore feedbackStore,
+      RequirementTargetResolver targetResolver, CatalogFolders catalogFolders) {
+    this(store, legacyBindingAdapter, mapper, outcomeGateway, feedbackStore, targetResolver, catalogFolders, null, null);
   }
 
   public RequirementCaptureTools(
@@ -264,7 +275,7 @@ public class RequirementCaptureTools {
         : RequirementCaptureProjection.pending(
             draft.authoredDraft(),
             draft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(draft), hasUploadedSpecifications());
+            RequirementCaptureProjection.resolvedTargets(draft), uploadedSpecInteractions(draft));
     if (draft.readyForPlan() && pending.isEmpty()
         || RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending)) {
       return Optional.empty();
@@ -447,14 +458,12 @@ public class RequirementCaptureTools {
         .map(revision -> revision.reference()).orElse(null);
     return RequirementCaptureResult.view(
         draft, reference, accepted, changed, issues, store.turnDirective(ToolSession.resolveConversationId()),
-        hasUploadedSpecifications());
+        uploadedSpecInteractions(draft));
   }
 
-  private boolean hasUploadedSpecifications() {
-    String conversationId = ToolSession.resolveConversationId();
-    return conversations != null && conversationId != null
-        && org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles.hasSpecifications(
-            conversations.getAllowedAttachmentKeys(conversationId));
+  private java.util.Set<String> uploadedSpecInteractions(RequirementDraft draft) {
+    return uploadedSpecs == null ? java.util.Set.of()
+        : uploadedSpecs.pendingInteractionIds(ToolSession.resolveConversationId(), draft);
   }
 
   private List<Issue> withPreservedFacts(List<Issue> issues, RequirementDraft accepted, List<FactInput> facts) {

@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.chat.service;
 
+import org.qubership.integration.platform.ai.llm.scenario.ImportSpecificationScenario;
+import org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -16,6 +18,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
+import org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.llm.scenario.ChainListScenario;
@@ -61,6 +64,13 @@ public class ChatDecisionService {
 
   @Inject UploadedSpecsApprovalHandler uploadedSpecsApprovalHandler;
 
+  @Inject SpecificationImportPipeline specificationImports;
+
+  @Inject
+  @ForScenario(ScenarioType.IMPORT_SPECIFICATION)
+  ImportSpecificationScenario importScenario;
+  @Inject CatalogVersionSelection versionSelections;
+
   @Inject ProductPipelineArtifactStore artifactStore;
 
   @Inject ConversationService conversationService;
@@ -105,12 +115,23 @@ public class ChatDecisionService {
       }
     }
     var snapshot = facade.snapshot(conversationId);
+    if (specificationImports != null && (snapshot.isEmpty() || snapshot.get().finished())
+        && specificationImports.standaloneRequest(conversationId).isPresent()) {
+      return importScenario.openDecision(conversationId);
+    }
     Optional<ChatEvent.Decision> uploaded = snapshot
         .filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
             && PipelineGates.UPLOADED_SPECS_IMPORT.equals(clarify.gateId()))
         .flatMap(current -> uploadedSpecsDecision(conversationId));
     if (uploaded.isPresent()) {
       return uploaded;
+    }
+    var versionChoice = snapshot
+        .filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
+            && clarify.gateId().isBlank())
+        .flatMap(current -> catalogVersionDecision(conversationId, current.revision()));
+    if (versionChoice.isPresent()) {
+      return versionChoice;
     }
     Optional<ChatEvent.Decision> waiting =
         snapshot
@@ -190,6 +211,7 @@ public class ChatDecisionService {
    * record has been written yet.
    */
   private Optional<ChatEvent.Decision> uploadedSpecsDecision(String conversationId) {
+    if (facade.snapshot(conversationId).map(ExecutionSnapshot::finished).orElse(false)) return Optional.empty();
     if (uploadedSpecsApprovalHandler == null
         || !uploadedSpecsApprovalHandler.needsApproval(conversationId)) {
       return Optional.empty();
@@ -222,6 +244,32 @@ public class ChatDecisionService {
                     ChatEvent.importDecision(
                         draft.apiHubCandidate().packageId(),
                         importQuestion(conversationId, draft)));
+  }
+
+  private Optional<ChatEvent.Decision> catalogVersionDecision(String conversationId, long revision) {
+    if (versionSelections == null) return Optional.empty();
+    return versionSelections.pending(conversationId).map(pending -> {
+      var match = pending.proposal().recommendation();
+      String question = approvalQuestions.find(conversationId, pending.hash()).orElseGet(() -> {
+        String fallback = "Use the newest version " + match.version() + " of "
+            + match.systemName() + " / " + match.operationName() + "?";
+        String text = fallback;
+        if (promptAgent != null) {
+          try {
+            String authored = promptAgent.askStageApproval("catalog-operation-version", facade.responseLocale(conversationId),
+                "Recommend the newest matching specification version and ask the user to confirm it. State the service, operation, and version. "
+                    + "service=" + match.systemName() + ", operation=" + match.operationName()
+                    + ", version=" + match.version() + ", specificationId=" + match.specificationId());
+            if (authored != null && !authored.isBlank()) text = authored.strip();
+          } catch (RuntimeException error) {
+            LOG.warn("Could not author the catalog version question", error);
+          }
+        }
+        approvalQuestions.save(conversationId, pending.hash(), text);
+        return text;
+      });
+      return versionSelections.decision(pending, revision, question);
+    });
   }
 
   /**
@@ -398,6 +446,7 @@ public class ChatDecisionService {
     if (command == null) {
       return;
     }
+    if (standaloneImportPending(conversationId)) return;
     String action = command.getAction();
     if (ChatEvent.isImportAction(action)
         || (UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType())
@@ -411,6 +460,13 @@ public class ChatDecisionService {
     Objects.requireNonNull(conversationId, "conversationId");
     Objects.requireNonNull(command, "command");
     String action = command.getAction() == null ? "" : command.getAction();
+    if (UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType())
+        && standaloneImportPending(conversationId)) {
+      return importScenario.approve(conversationId, command);
+    }
+    if (CatalogVersionSelection.ARTIFACT_TYPE.equals(command.getArtifactType())) {
+      return selectCatalogVersion(conversationId, command);
+    }
     Optional<RestartCheckpoint> restartCheckpoint = RestartCheckpoint.fromActionId(action);
     if (restartCheckpoint.isPresent()) {
       return restartFromCheckpoint(
@@ -453,6 +509,31 @@ public class ChatDecisionService {
         .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
         .onCompletion()
         .switchTo(() -> createAfterApproval(conversationId));
+  }
+
+  private Multi<ChatEvent> selectCatalogVersion(String conversationId, ChatDecisionCommand command) {
+    var open = openDecision(conversationId);
+    if (open.isEmpty() || !CatalogVersionSelection.ARTIFACT_TYPE.equals(open.get().artifactType())
+        || !Objects.equals(open.get().artifactHash(), command.getArtifactHash())
+        || open.get().revision() != command.getRevision()
+        || !open.get().actions().contains(command.getAction())) {
+      return openGateEvents(conversationId);
+    }
+    var pending = versionSelections.pending(conversationId).orElseThrow();
+    if (ChatEvent.REQUEST_CHANGES_ACTION.equals(command.getAction())) {
+      versionSelections.dismiss(conversationId, pending);
+      return requestChanges(conversationId, command);
+    }
+    var match = versionSelections.confirm(conversationId, pending);
+    String input = "Use catalog operation " + match.integrationOperationId()
+        + " from specification " + match.specificationId() + ", version " + match.version()
+        + ", for interaction " + pending.proposal().interaction().interactionId()
+        + ". The author confirmed this exact version. Close its version-choice question and preserve other requirements.";
+    if (command.getComment() != null && !command.getComment().isBlank()) {
+      input += "\n\n" + command.getComment().strip();
+    }
+    return projectWithOpenGate(conversationId, facade.continueWithInput(
+        new ContinueCreateChainCommand(conversationId, input, UUID.randomUUID().toString(), InputOrigin.TRUSTED)));
   }
 
   private Multi<ChatEvent> restartFromCheckpoint(
@@ -765,6 +846,12 @@ public class ChatDecisionService {
     return projectWithOpenGate(
         conversationId,
         facade.start(new StartCreateChainCommand(conversationId, originalUserText(conversationId))));
+  }
+
+  private boolean standaloneImportPending(String conversationId) {
+    return specificationImports != null
+        && facade.snapshot(conversationId).map(ExecutionSnapshot::finished).orElse(true)
+        && specificationImports.standaloneRequest(conversationId).filter(request -> !request.completed()).isPresent();
   }
 
   /** Returns the last user-authored message, skipping the decision marker if present. */

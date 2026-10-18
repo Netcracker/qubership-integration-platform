@@ -35,6 +35,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactB
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.ImplementationPlanChatView;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -629,6 +630,34 @@ class DesignPlanningCapabilityTest {
     assertTrue(plan.planText().contains(endpoint), plan.planText());
     assertTrue(plan.planText().contains(behavior), plan.planText());
     assertTrue(plan.planText().contains(exclusion), plan.planText());
+  }
+
+  @Test
+  void rendererShowsFactTextWithoutCompilerMetadata() {
+    ChainSemanticRevision revision = sampleRevision();
+    DesignPlanReport report = new DesignPlanReport("1", validReport());
+    DesignExecutionPlan projection = new DesignPlanProjector().project(report, revision,
+        samplePin(revision, sampleDag(), Map.of(CipDesignPlannerAdapter.SKILL_ID, PINNED_SKILL_HASH),
+            Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash")));
+    RequirementElementIntent intent = new RequirementElementIntent(
+        "chain", "chain", RequirementElementIntent.Placement.CHAIN,
+        null, null, null, null, "Orders", List.of(), List.of());
+    RequirementFact fact = new RequirementFact("chain-name", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.PARAMETER, "", "Chain name: Orders.", "", "", "", "", "", "",
+        List.of(), null, intent);
+    RequirementBrief brief = sampleBrief().withFacts(List.of(fact));
+
+    String review = ImplementationPlanChatView.forChatReview(
+        new DesignImplementationPlanRenderer().render(report, projection, revision, brief).planText());
+
+    assertTrue(review.contains("## Approved requirement facts\n- Chain name: Orders."), review);
+    assertFalse(review.contains("sourceFactId="), review);
+    assertFalse(review.contains("kind=PARAMETER"), review);
+    assertFalse(review.contains("interactionIds="), review);
+    assertFalse(review.contains("RequirementElementIntent["), review);
+    String compilerInput = DesignPlanningCapability.buildPlannerInput(sampleIds(), revision, "2024.4", brief);
+    assertTrue(compilerInput.contains("sourceFactId=chain-name"), compilerInput);
+    assertTrue(compilerInput.contains("elementIntent=RequirementElementIntent["), compilerInput);
   }
 
   @Test

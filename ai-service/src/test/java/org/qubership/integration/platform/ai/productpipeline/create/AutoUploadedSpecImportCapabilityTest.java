@@ -2,6 +2,8 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
@@ -12,6 +14,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Uni;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -25,8 +29,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
@@ -48,10 +55,78 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Artifact
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 class AutoUploadedSpecImportCapabilityTest {
+
+  @Test
+  void newAuthorInputReturnsToRequirementsWithoutLosingSourceAuthority() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    var drafts = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
+    var initial = archive.beginInput("conv-1", "Create the task flow.", null);
+    archive.resolveInput("conv-1", initial, "Create the task flow.");
+    drafts.beginTurn("conv-1", "Create the task flow.");
+    drafts.put("conv-1", omWfmDraft());
+    var accepted = drafts.latestRevision("conv-1").orElseThrow().reference();
+    var followUp = archive.beginInput("conv-1", "Preserve executionId in the response.", null);
+    archive.resolveInput("conv-1", followUp, "Preserve executionId in the response.");
+
+    var completed = importedDraftOutcome(drafts, conversations);
+
+    assertEquals(StageOutcomeClass.MISSING_MANDATORY_INPUT, completed.outcome().outcomeClass(),
+        completed.outcome().message());
+    assertEquals(RecoveryCauseCode.MISSING_BRIEF_FACTS, completed.outcome().recoveryCause().causeCode());
+    assertTrue(completed.outcome().message().contains("Requirement inputs changed"));
+    assertEquals(accepted, drafts.latestRevision("conv-1").orElseThrow().reference());
+    assertNull(archive.read("conv-1").turns().stream().filter(turn -> turn.id().equals(followUp.turnId()))
+        .findFirst().orElseThrow().consumedDraftReference());
+  }
+
+  @Test
+  void incompleteImportedDraftIdentifiesTheRequirementProducer() {
+    var completed = importedDraftOutcome(admittingStore(), mock(ConversationService.class));
+
+    assertEquals(StageOutcomeClass.MISSING_MANDATORY_INPUT, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("Uploaded specifications were imported"));
+    assertNotNull(completed.outcome().recoveryCause());
+    assertEquals(RecoveryCauseCode.MISSING_BRIEF_FACTS, completed.outcome().recoveryCause().causeCode());
+    assertFalse(completed.outcome().recoveryCause().findings().isEmpty());
+  }
+
+  @Test
+  void draftWriteFailureKeepsItsCauseAfterSuccessfulImport() {
+    var drafts = admittingStore();
+    when(drafts.putIfCurrent(any(), any(), any()))
+        .thenThrow(new IllegalStateException("Requirement storage is unavailable."));
+
+    var completed = importedDraftOutcome(drafts, mock(ConversationService.class));
+
+    assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, completed.outcome().outcomeClass());
+    assertEquals("Requirement storage is unavailable.", completed.outcome().message());
+  }
+
+  private static CapabilitySignal.Completed importedDraftOutcome(
+      RequirementDraftStore drafts, ConversationService conversations) {
+    var gateway = mock(CatalogMutationGateway.class);
+    when(conversations.getAllowedAttachmentKeys("conv-1")).thenReturn(List.of("uploads/salesforce.json"));
+    var artifacts = mock(ProductPipelineArtifactStore.class);
+    var handler = new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    var matcher = mock(CatalogBindingMatcher.class);
+    when(gateway.importUploadedSpec(eq("conv-1"), any(), any()))
+        .thenReturn(Uni.createFrom().item(new UploadedSpecImportOutcome("uploads/salesforce.json",
+            "salesforce", "group", "spec", true)));
+    var approval = approvalRef();
+    stubApprovedRecord(artifacts, approval, handler.attachmentHash("conv-1"));
+    var capability = new AutoUploadedSpecImportCapability(gateway, conversations, artifacts, handler, matcher, drafts);
+    return run(capability, omWfmDraft(), List.of(approval));
+  }
 
   private static RequirementDraftStore admittingStore() {
     var store = mock(RequirementDraftStore.class);
@@ -359,7 +434,7 @@ class AutoUploadedSpecImportCapabilityTest {
   }
 
   @Test
-  void succeedsWhenOneImportFailsAndAnotherSucceeds() {
+  void reportsFailureWhenOneImportFailsAndAnotherSucceeds() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     ConversationService conversationService = mock(ConversationService.class);
     ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
@@ -395,7 +470,8 @@ class AutoUploadedSpecImportCapabilityTest {
 
     CapabilitySignal.Completed completed = run(capability, draft, List.of(approvalRef));
 
-    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
+    org.junit.jupiter.api.Assertions.assertTrue(completed.outcome().message().contains("uploads/orders-api.yaml"));
     verify(gateway)
         .importUploadedSpec(
             eq("conv-1"),
@@ -1206,7 +1282,7 @@ class AutoUploadedSpecImportCapabilityTest {
     assertTrue(
         updated.catalogBindings().stream()
             .noneMatch(binding -> "ambiguous-task".equals(binding.interactionId())));
-    verify(matcher, never()).match(any(), any(), any(), any());
+    verify(matcher).match("service-call", "Task Processing API", "processTask", "conv-1");
   }
 
   @Test
@@ -1439,6 +1515,42 @@ class AutoUploadedSpecImportCapabilityTest {
       CompilationArtifacts.Reference approvalRef,
       String hash) {
     stubApprovedRecord(artifactStore, approvalRef, hash, List.of());
+  }
+
+  @Test
+  void findsOmCallbackInTheCatalogAfterImportingSalesforce() {
+    var gateway = mock(CatalogMutationGateway.class);
+    var conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys("conv-1", List.of("uploads/salesforce.json"));
+    var artifacts = mock(ProductPipelineArtifactStore.class);
+    var handler = new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    var matcher = mock(CatalogBindingMatcher.class);
+    var capability = new AutoUploadedSpecImportCapability(gateway, conversations, artifacts, handler, matcher, admittingStore());
+    var draft = draft().withFlow(new RequirementFlow(List.of(
+        new Interaction("entry", Direction.INBOUND, "Caller", "GET /start", ""),
+        new Interaction("callback", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+        List.of(new Transition("entry", "callback"))))
+        .withFacts(List.of(RequirementFactFixtures.httpTriggerFact("entry", "GET", "/start")));
+    var draftRef = requirementDraftRef();
+    stubRequirementDraft(artifacts, draftRef, draft);
+    when(gateway.importUploadedSpec(eq("conv-1"), any(), any())).thenReturn(Uni.createFrom().item(
+        new UploadedSpecImportOutcome("uploads/salesforce.json", "salesforce", "sf-group", "sf-spec", true)));
+    // An identically named operation in Salesforce must not replace the OM callback.
+    when(matcher.matchImported(any(), any(), any(), any(), eq("onTaskResult"), eq("conv-1")))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(new CatalogMatch("salesforce", "sf-group", "sf-spec",
+            "sf-result", "Salesforce", "http", "POST", "/result", "onTaskResult", "catalog-read:sf")));
+    when(matcher.match("service-call", "OM", "onTaskResult", "conv-1"))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(new CatalogMatch("om", "om-group", "om-spec",
+            "om-result", "OM", "kafka", "subscribe", "om.results", "onTaskResult", "catalog-read:om")));
+    var approval = approvalRef();
+    stubApprovedRecord(artifacts, approval, handler.attachmentHash("conv-1"));
+
+    var completed = run(capability, draft, List.of(draftRef, approval));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass(), completed.outcome().message());
+    var updated = (RequirementDraft) completed.outcome().candidates().stream()
+        .filter(candidate -> candidate.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT).findFirst().orElseThrow().payload();
+    assertEquals("om-result", updated.catalogBinding("callback").orElseThrow().integrationOperationId());
   }
 
   private static void stubApprovedRecord(

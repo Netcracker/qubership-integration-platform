@@ -18,7 +18,7 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 
 /**
  * Imports a single uploaded API specification into the runtime catalog. The import is idempotent by
- * document content: an existing specification with the same parsed JSON or YAML tree is reused.
+ * document content, excluding the display title: an existing specification is reused.
  */
 @ApplicationScoped
 public class UploadedSpecAutoImporter {
@@ -56,6 +56,25 @@ public class UploadedSpecAutoImporter {
       String conversationId, UploadedSpecAttachment attachment, String systemType) {
     byte[] content = s3Service.readObjectBytes(attachment.s3Key());
     String specName = UploadedSpecTitleExtractor.resolveSpecName(content, attachment.filename());
+
+    for (var candidateSystem : catalogRestClient.searchSystems(new CatalogSystemSearchRequest(""))) {
+      var matching = findMatchingSpecificationInGroup(candidateSystem.id(), null, content);
+      if (matching.isPresent()) {
+        var existing = matching.get();
+        String requestedType = systemType == null || systemType.isBlank() ? SYSTEM_TYPE_INTERNAL : systemType.trim();
+        String catalogType = candidateSystem.type() == null || candidateSystem.type().isBlank()
+            ? SYSTEM_TYPE_INTERNAL : candidateSystem.type().trim();
+        ensureDefaultEnvironment(candidateSystem.id(), catalogType);
+        conversationCatalogCache.rememberSystems(conversationId, List.of(candidateSystem));
+        conversationCatalogCache.rememberActiveSystemId(conversationId, candidateSystem.id());
+        conversationCatalogCache.rememberSpecificationsForSystem(conversationId, candidateSystem.id(), List.of(existing));
+        internalAsyncMaasEnvironmentConfigurer.configure(candidateSystem.id());
+        LOG.infof("Reused uploaded specification by content conversationId=%s systemId=%s modelId=%s s3Key=%s",
+            conversationId, candidateSystem.id(), existing.id(), attachment.s3Key());
+        return new UploadedSpecImportOutcome(attachment.s3Key(), candidateSystem.id(), existing.specificationGroupId(),
+            existing.id(), true, !catalogType.equalsIgnoreCase(requestedType));
+      }
+    }
 
     CatalogRestClient.SystemDto system = findOrCreateSystem(specName, systemType);
     String catalogSystemType =
@@ -217,7 +236,7 @@ public class UploadedSpecAutoImporter {
                     s != null
                         && s.id() != null
                         && !s.id().isBlank()
-                        && specificationGroupId.equals(s.specificationGroupId()))
+                        && (specificationGroupId == null || specificationGroupId.equals(s.specificationGroupId())))
             .toList();
     boolean sourceReadFailed = false;
     for (CatalogRestClient.SpecificationDto candidate : candidates) {

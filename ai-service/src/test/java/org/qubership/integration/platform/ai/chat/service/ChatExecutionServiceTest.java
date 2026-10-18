@@ -21,6 +21,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -290,11 +291,19 @@ class ChatExecutionServiceTest {
     request.setConversationId(CONVERSATION_ID);
     request.setMessage("Deploy this chain");
 
-    List<String> frames = service(router, decisions).streamV1Sse(request)
-        .collect().asList().await().indefinitely();
+    var previousExecutor = io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultExecutor();
+    try (var worker = Executors.newSingleThreadScheduledExecutor()) {
+      io.smallrye.mutiny.infrastructure.Infrastructure.setDefaultExecutor(worker, false);
+      try {
+        List<String> frames = service(router, decisions).streamV1Sse(request)
+            .collect().asList().await().indefinitely();
 
-    assertEquals(changed ? 2 : 1,
-        frames.stream().filter(frame -> frame.startsWith("event: decision\n")).count());
+        assertEquals(changed ? 2 : 1,
+            frames.stream().filter(frame -> frame.startsWith("event: decision\n")).count());
+      } finally {
+        io.smallrye.mutiny.infrastructure.Infrastructure.setDefaultExecutor(previousExecutor, false);
+      }
+    }
   }
 
   @Test

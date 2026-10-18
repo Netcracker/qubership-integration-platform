@@ -333,7 +333,7 @@ public class RequirementDraftStore {
 
   public boolean putIfCurrent(String conversationId, WriteAuthority expected, RequirementDraft draft) {
     return withWriteAuthority(conversationId, () -> {
-      if (!isCurrentWrite(conversationId, expected)) {
+      if (!isCurrentWrite(conversationId, expected) || !currentSource(conversationId)) {
         return false;
       }
       put(conversationId, draft);

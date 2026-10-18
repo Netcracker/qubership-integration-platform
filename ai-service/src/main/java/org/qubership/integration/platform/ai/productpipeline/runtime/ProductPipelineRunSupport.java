@@ -1275,7 +1275,7 @@ public final class ProductPipelineRunSupport {
     if (result instanceof MappingTurnResult.Query
         || result instanceof MappingTurnResult.Clarification
         || result instanceof MappingTurnResult.ConfirmationRequired) {
-      return Optional.of(stayAfterMappingTurn(doc, mappingStayMessage(application)));
+      return Optional.of(stayAfterMappingTurn(doc, mappingReplyMessage(doc, command, application)));
     }
     return Optional.empty();
   }
@@ -1389,10 +1389,21 @@ public final class ProductPipelineRunSupport {
         .switchTo(() -> wait);
   }
 
-  private static String mappingStayMessage(MappingTurnApplication application) {
-    if (application.answer() != null && !application.answer().rendered().isBlank()) {
-      return application.answer().rendered();
+  private String mappingReplyMessage(
+      ProductPipelineRunDocument doc,
+      AcceptInputCommand command,
+      MappingTurnApplication application) {
+    if (application.answer() != null) {
+      PauseQuestionResult reply =
+          failureNarrative.answerApprovalQuestion(
+              command.runId(), responseLocaleOf(command.runId()), command.text(),
+              doc.run().currentStageId(), application.answer().rendered());
+      return reply.isAnswer() ? reply.answer() : FailureNarrative.NO_EXPLANATION_AVAILABLE;
     }
+    return mappingStayMessage(application);
+  }
+
+  private static String mappingStayMessage(MappingTurnApplication application) {
     return switch (application.result()) {
       case MappingTurnResult.Clarification clarification -> mappingClarificationMessage(clarification);
       case MappingTurnResult.ConfirmationRequired confirmation ->
@@ -1493,7 +1504,7 @@ public final class ProductPipelineRunSupport {
     if (result instanceof MappingTurnResult.Query
         || result instanceof MappingTurnResult.Clarification
         || result instanceof MappingTurnResult.ConfirmationRequired) {
-      return stayAfterMappingTurn(doc, mappingStayMessage(application));
+      return stayAfterMappingTurn(doc, mappingReplyMessage(doc, command, application));
     }
     return stayOnMappingGap(doc, command, brief, mappingGapStayReason(application));
   }
@@ -2131,7 +2142,7 @@ public final class ProductPipelineRunSupport {
       return structuralRepair.get();
     }
     if (!correction.applied()) {
-      return stayAfterMappingTurn(doc, mappingStayMessage(correction));
+      return stayAfterMappingTurn(doc, mappingReplyMessage(doc, command, correction));
     }
     boolean authored = artifactStore.history(command.runId(), Kind.REQUIREMENT_DRAFT).stream()
         .filter(revision -> revision.artifactId().equals(brief.approvedDraftReference()))
@@ -4675,7 +4686,7 @@ public final class ProductPipelineRunSupport {
       if (chatPlan.isBlank()) {
         return;
       }
-      emitted.add(new PipelineSignal.Message(chatPlan));
+      emitted.add(new PipelineSignal.Message(chatPlan + "\n\n"));
     } catch (RuntimeException ex) {
       // Scripted tests may store a Map stub with no readable plan text; nothing to surface.
       LOG.debugf(ex, "No readable plan text for review (runId=%s)", runId);

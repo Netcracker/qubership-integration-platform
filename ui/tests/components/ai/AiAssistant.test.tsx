@@ -685,6 +685,33 @@ describe("AiAssistant", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete chat" }));
     expect(store.getAllSessions().map((s) => s.id)).toEqual([first]);
   });
+
+  it("should keep the new chat empty when the previous chat decision arrives late", async () => {
+    const gate = decision();
+    const plan = "# Implementation plan: Previous chain";
+    const previousId = seed([
+      { role: "assistant", content: plan, decision: gate },
+    ]);
+    let resolveDecision!: (value: ChatDecision | null) => void;
+    const pending = new Promise<ChatDecision | null>((resolve) => {
+      resolveDecision = resolve;
+    });
+    jest.mocked(fetchOpenDecision).mockReturnValue(pending);
+    await open();
+    await waitFor(() => expect(fetchOpenDecision).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "New chat" }));
+    await waitFor(() =>
+      expect(screen.queryByText(plan)).not.toBeInTheDocument(),
+    );
+    await act(async () => resolveDecision(gate));
+
+    expect(screen.queryByText(plan)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(store.getSession(previousId)?.messages[0].content).toBe(plan);
+  });
   it("approves an active plan before sending the build command", async () => {
     seed([{ role: "user", content: "Design a chain" }]);
     const status = {

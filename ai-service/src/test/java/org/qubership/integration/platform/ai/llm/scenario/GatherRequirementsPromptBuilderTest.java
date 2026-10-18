@@ -2,6 +2,8 @@ package org.qubership.integration.platform.ai.llm.scenario;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -114,8 +116,9 @@ class GatherRequirementsPromptBuilderTest {
     assertFalse(input.contains("searchCatalogSystems, getApiSpecifications, and listCatalogOperations"));
   }
 
-  @Test
-  void savedUploadedOperationDoesNotProduceThePartialDraftContinuationBan() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void uploadedImportGuidanceOnlyAppliesToMatchingOperations(boolean matchingOperation) {
     var conversations = new ConversationService();
     conversations.registerAllowedAttachmentKeys("upload-chat", List.of("uploads/probe.json"));
     var input = new DraftInput(new FlowInput(List.of(
@@ -127,11 +130,19 @@ class GatherRequirementsPromptBuilderTest {
         List.of(), new DraftSettings(false, null));
     draftStore.put("upload-chat", RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash"));
     builder = new GatherRequirementsPromptBuilder(skillDocumentService, addonRepository, draftStore, conversations);
+    builder.uploadedSpecs = mock(org.qubership.integration.platform.ai.plan.UploadedSpecOperations.class);
+    when(builder.uploadedSpecs.pendingInteractionIds(anyString(), any()))
+        .thenReturn(matchingOperation ? java.util.Set.of("call") : java.util.Set.of());
     String prompt = builder.wrap("upload-chat", "Continue.", "en");
-    assertTrue(prompt.contains("<pending-uploaded-spec-import>"), prompt);
-    assertTrue(prompt.contains("nextAction=RUN_IMPORT"), prompt);
-    assertFalse(prompt.contains("<incomplete-requirement-draft>"), prompt);
-    assertFalse(prompt.contains("fill the missing fields before CONTINUE"), prompt);
+    if (matchingOperation) {
+      assertTrue(prompt.contains("<pending-uploaded-spec-import>"), prompt);
+      assertTrue(prompt.contains("nextAction=RUN_IMPORT"), prompt);
+      assertFalse(prompt.contains("<incomplete-requirement-draft>"), prompt);
+    } else {
+      assertFalse(prompt.contains("<pending-uploaded-spec-import>"), prompt);
+      assertTrue(prompt.contains("<incomplete-requirement-draft>"), prompt);
+      assertTrue(prompt.contains("fill the missing fields before CONTINUE"), prompt);
+    }
   }
 
   @Test

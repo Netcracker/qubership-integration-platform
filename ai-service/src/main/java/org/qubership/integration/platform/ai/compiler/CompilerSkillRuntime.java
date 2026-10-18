@@ -275,9 +275,10 @@ public class CompilerSkillRuntime {
       feedbackStore.endScope(conversationId, capabilityId);
     }
     String userMessage = buildUserMessage(conversationId, document, snapshot, activePlan, route);
-    userMessage += context.repairEvidence();
-    userMessage += org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(
-        feedbackStore.repairHistory(conversationId, capabilityId));
+    userMessage += org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping
+        .escapeForAiServiceUserMessage(context.repairEvidence()
+            + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(
+                feedbackStore.repairHistory(conversationId, capabilityId)));
     HttpTriggerCaptureSession.unbind(conversationId);
     if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {
       var revision = workspace.get(SkillArtifactType.CHAIN_SEMANTIC_REVISION)

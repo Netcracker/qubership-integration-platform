@@ -31,6 +31,11 @@ Available scenarios: GATHER_REQUIREMENTS, CREATE_CHAIN_PLAN, ASK_PLAN,
 ASK_CHAIN, IMPLEMENT_CHAIN, COMPARE_AND_PATCH, DEPLOY_CHAIN, MANAGE_CHAIN_LIST, CHAIN_TO_DESIGN,
 CREATE_TEST_CASES, CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
 
+- IMPORT_SPECIFICATION: Import an attached OpenAPI or AsyncAPI specification into the catalog.
+  This is a standalone task and does not require a chain draft or start chain creation. A request
+  to create a chain using an attachment remains GATHER_REQUIREMENTS; CREATE imports missing
+  specifications before planning. API Hub import decisions also use IMPORT_SPECIFICATION.
+
 - GATHER_REQUIREMENTS: The user is describing a new integration for the first time, mentions API
   calls, flow steps, or data mappings, phrases an IDS / "create design" request that should enter
   product CREATE, asks for architecture, pattern, or platform-behavior advice about a possible QIP

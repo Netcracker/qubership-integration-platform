@@ -38,28 +38,87 @@ import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 class CatalogFirstApiHubDiscoveryToolTest {
 
-  @Test
-  void uploadedSpecificationCatalogMissDoesNotSearchApiHub() throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void proposesTheNewestVersionAndRespectsTheConfirmedOrExplicitSelection(boolean explicitVersion) throws Exception {
+    var old = new CatalogMatch("sf", "group", "old", "old-op", "Salesforce WFM", "http",
+        "POST", "/tasks", "createTask", "catalog-read:old", "1.0.0");
+    var latest = new CatalogMatch("sf", "group", "latest", "latest-op", "Salesforce WFM", "http",
+        "POST", "/tasks", "createTask", "catalog-read:latest", "2.0.0");
+    var lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.Ambiguous(
+        List.of("old-op", "latest-op"), List.of(old, latest)));
+    var apiHub = mock(ApiHubMcpTools.class);
+    var drafts = new RequirementDraftStore();
+    var interaction = interaction("task", "Salesforce WFM", "createTask", "Create a task");
+    storeFlow(drafts, "versions", interaction);
+    var resolutions = new ConversationApiResolutions();
+    var resolver = tool(lookup, apiHub, resolutions, drafts);
+    var selections = new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection(
+        new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore(),
+        new ObjectMapper().findAndRegisterModules(), drafts, resolutions);
+    resolver.versionSelections = selections;
+    try (var ignored = ToolSession.open("versions")) {
+      var proposed = new ObjectMapper().readTree(resolver.resolveApiOperation("task", "", "", "", "http", ""));
+      assertEquals("CATALOG_VERSION_SELECTION_REQUIRED", proposed.path("status").asText());
+      assertEquals("latest-op", proposed.path("recommendedCatalogBinding").path("integrationOperationId").asText());
+      assertFalse(resolutions.forInteraction("versions", "task").orElseThrow().isResolved());
+      when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.Exact(latest));
+      assertEquals("CATALOG_VERSION_SELECTION_REQUIRED", new ObjectMapper().readTree(
+          resolver.resolveApiOperation("task", "", "", "", "http", "")).path("status").asText());
+      assertFalse(resolutions.forInteraction("versions", "task").orElseThrow().isResolved());
+      if (explicitVersion) {
+        when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.Exact(old));
+      } else {
+        selections.confirm("versions", selections.pending("versions").orElseThrow());
+      }
+      assertEquals("CATALOG_BOUND", new ObjectMapper().readTree(
+          resolver.resolveApiOperation("task", "", "", "", "http", explicitVersion ? "1.0.0" : "")).path("status").asText());
+    }
+    var queries = org.mockito.ArgumentCaptor.forClass(org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery.class);
+    verify(lookup, times(2)).resolve(queries.capture());
+    assertEquals(explicitVersion ? "1.0.0" : "2.0.0", queries.getAllValues().getLast().release());
+    if (!explicitVersion) assertEquals(List.of("latest-op"), queries.getAllValues().getLast().namedInRequest());
+    assertEquals(explicitVersion ? "old-op" : "latest-op",
+        resolutions.forInteraction("versions", "task").orElseThrow().binding().integrationOperationId());
+    assertEquals(explicitVersion ? "old-op" : "latest-op",
+        selections.confirmed("versions", interaction).orElseThrow().integrationOperationId());
+    assertTrue(selections.pending("versions").isEmpty());
+    verifyNoInteractions(apiHub);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void onlyAMatchingUploadedSpecificationDefersTheCatalogMiss(boolean matchingApi) throws Exception {
     var lookup = mock(CatalogOperationLookup.class);
     when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.None());
     var apiHub = mock(ApiHubMcpTools.class);
     when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any())).thenReturn("{}");
     var store = new RequirementDraftStore();
     storeCatalogBackedFlow(store, "uploaded-chat",
-        catalogInteraction("call-stock", "Uploaded API", "getInventory", "Read stock"));
+        catalogInteraction("call-stock", matchingApi ? "Uploaded API" : "Other API", "getInventory", "Read stock"));
     var resolver = tool(lookup, apiHub, store);
     var conversations = new org.qubership.integration.platform.ai.chat.conversation.ConversationService();
     conversations.registerAllowedAttachmentKeys("uploaded-chat",
         List.of("sessions/test/inventory.json", "sessions/test/audit.yaml"));
-    resolver.conversations = conversations;
+    var s3 = mock(org.qubership.integration.platform.ai.storage.S3Service.class);
+    when(s3.readObjectBytes(any())).thenReturn("""
+        {"info":{"title":"Uploaded API"},"paths":{"/probe":{"get":{"operationId":"getInventory"}}}}
+        """.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    resolver.uploadedSpecs = new UploadedSpecOperations(conversations, s3);
     try (var ignored = ToolSession.open("uploaded-chat")) {
       var response = new ObjectMapper().readTree(resolver.resolveApiOperation("call-stock", "GET", "/probe", "", "http", ""));
-      assertEquals("UPLOADED_SPEC_IMPORT_REQUIRED", response.path("status").asText());
-      assertEquals("RUN_IMPORT", response.path("nextAction").asText());
-      assertEquals("call-stock", response.path("interactionId").asText());
+      if (matchingApi) {
+        assertEquals("UPLOADED_SPEC_IMPORT_REQUIRED", response.path("status").asText());
+        assertEquals("RUN_IMPORT", response.path("nextAction").asText());
+        assertEquals("call-stock", response.path("interactionId").asText());
+      } else {
+        assertFalse(response.has("nextAction"));
+      }
     }
     verify(lookup).resolve(any());
-    verifyNoInteractions(apiHub);
+    if (matchingApi) verifyNoInteractions(apiHub);
+    else verify(apiHub).searchApiOperations(any(), any(), any(), any(), any(), any());
   }
 
   @ParameterizedTest
@@ -171,8 +230,10 @@ class CatalogFirstApiHubDiscoveryToolTest {
     try (ToolSession.Handle ignored = ToolSession.open("conv-exact")) {
       var resolver = tool(lookup, apiHub, store);
       if (uploaded) {
-        resolver.conversations = new org.qubership.integration.platform.ai.chat.conversation.ConversationService();
-        resolver.conversations.registerAllowedAttachmentKeys("conv-exact", List.of("uploads/probe.json"));
+        var conversations = new org.qubership.integration.platform.ai.chat.conversation.ConversationService();
+        conversations.registerAllowedAttachmentKeys("conv-exact", List.of("uploads/probe.json"));
+        resolver.uploadedSpecs = new UploadedSpecOperations(conversations,
+            mock(org.qubership.integration.platform.ai.storage.S3Service.class));
       }
       result = resolver.resolveApiOperation(
                   "call-stock", "GET", "/store/inventory", null, null, "2024.4");

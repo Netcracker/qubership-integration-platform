@@ -154,6 +154,7 @@ public class RequirementDraftTool {
   private final ConversationApiResolutions resolutions;
   private final ConversationService conversationService;
   private final CatalogOperationLookup catalogOperationLookup;
+  @Inject org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection versionSelections;
   private final CompositionCatalogBinder compositionBinder;
   private final McpSystemCatalogBinder mcpSystemCatalogBinder;
 
@@ -1898,6 +1899,12 @@ public class RequirementDraftTool {
       if (!intent.missingFields().isEmpty()) {
         continue;
       }
+      if (versionSelections != null
+          && versionSelections.awaitingConfirmation(conversationId, interaction).isPresent()) {
+        continue;
+      }
+      var selected = versionSelections == null ? Optional.<CatalogMatch>empty()
+          : versionSelections.confirmed(conversationId, interaction);
       CatalogLookupResult result =
           catalogOperationLookup.resolve(
               new CatalogQuery(
@@ -1907,8 +1914,13 @@ public class RequirementDraftTool {
                   intent.method(),
                   intent.path(),
                   intent.operationHint(),
-                  null,
-                  named));
+                  selected.map(CatalogMatch::version).orElse(null),
+                  selected.map(match -> List.of(match.integrationOperationId())).orElse(named)));
+      if (result instanceof CatalogLookupResult.Ambiguous ambiguous && versionSelections != null) {
+        versionSelections.propose(conversationId, interaction, ambiguous.candidates());
+        resolutions.remember(conversationId,
+            InteractionAssessment.ambiguous(interaction.interactionId(), intent, ambiguous.candidateIds()));
+      }
       if (!(result instanceof CatalogLookupResult.Exact exact)) {
         continue;
       }

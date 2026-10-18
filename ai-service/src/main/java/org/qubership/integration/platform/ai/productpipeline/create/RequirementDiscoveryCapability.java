@@ -70,6 +70,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private final ConversationService conversationService;
   private final CatalogBindingMatcher catalogBindingMatcher;
   @Inject CaptureAttemptFeedbackStore captureFeedback;
+  @Inject org.qubership.integration.platform.ai.plan.UploadedSpecOperations uploadedSpecs;
 
   @Inject
   public RequirementDiscoveryCapability(
@@ -521,13 +522,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
     // specs hand off the same way so import can bind catalog-backed interactions that are
     // not in the runtime catalog yet.
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
-    boolean pendingUploadedSpecHandoff =
-        hasAllowedUploadedSpecs(conversationId) && !draft.facts().isEmpty();
+    var uploadedInteractions = uploadedSpecs == null ? java.util.Set.<String>of()
+        : uploadedSpecs.pendingInteractionIds(conversationId, draft);
+    boolean pendingUploadedSpecHandoff = !uploadedInteractions.isEmpty() && !draft.facts().isEmpty();
     if (pendingUploadedSpecHandoff && draft.authoredDraft() != null) {
       pendingUploadedSpecHandoff = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection
           .onlyUploadedSpecImportsRemain(org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.pending(
               draft.authoredDraft(), draft.catalogBindings(),
-              org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.resolvedTargets(draft), true));
+              org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.resolvedTargets(draft), uploadedInteractions));
     }
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
       // Blank on purpose: the gather agent already streamed the clarifying question. Emitting an
@@ -681,18 +683,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
               CompilationArtifacts.Kind.CATALOG_BINDING_HINT, hint, List.of()));
     }
     return hints;
-  }
-
-  /**
-   * True when this conversation already has uploaded API specification keys. CREATE routing asks
-   * for import approval before the run starts, so keys here mean the import stage may bind them.
-   */
-  private boolean hasAllowedUploadedSpecs(String conversationId) {
-    if (conversationService == null || conversationId == null || conversationId.isBlank()) {
-      return false;
-    }
-    List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
-    return org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles.hasSpecifications(keys);
   }
 
   private Multi<ChatEvent> runGather(

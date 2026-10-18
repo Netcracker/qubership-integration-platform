@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -1425,6 +1426,9 @@ class RequirementDiscoveryCapabilityTest {
             },
             conversations);
 
+    capability.uploadedSpecs = mock(org.qubership.integration.platform.ai.plan.UploadedSpecOperations.class);
+    when(capability.uploadedSpecs.pendingInteractionIds(anyString(), any())).thenReturn(java.util.Set.of("call-wfm-create-task"));
+
     StageExecutionContext context =
         new StageExecutionContext(
             "run-uploaded-spec",
@@ -1477,6 +1481,8 @@ class RequirementDiscoveryCapabilityTest {
       store.finishTurn(chat, directive);
       return Multi.createFrom().empty();
     }, conversations);
+    capability.uploadedSpecs = mock(org.qubership.integration.platform.ai.plan.UploadedSpecOperations.class);
+    when(capability.uploadedSpecs.pendingInteractionIds(anyString(), any())).thenReturn(java.util.Set.of("alpha", "beta"));
     var outcome = capability.execute(new StageExecutionContext("uploaded-native-run", "uploaded-native",
         "requirement-discovery", "execution", "attempt", null, null, List.of(), Map.of("userText", "Create both calls.")))
         .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
@@ -1547,6 +1553,9 @@ class RequirementDiscoveryCapabilityTest {
             },
             conversations);
 
+    capability.uploadedSpecs = mock(org.qubership.integration.platform.ai.plan.UploadedSpecOperations.class);
+    when(capability.uploadedSpecs.pendingInteractionIds(anyString(), any())).thenReturn(java.util.Set.of("salesforce-create-task"));
+
     StageExecutionContext context =
         new StageExecutionContext(
             "run-uploaded-spec-unbound-flow",
@@ -1579,7 +1588,7 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   @Test
-  void approvedUploadedSpecsHandoffWhenFactsHaveNoUnboundServiceCall() {
+  void uploadedSpecsDoNotAuthorizeHandoffWithoutAMatchingOperation() {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft incomplete =
         new RequirementDraft(
@@ -1641,11 +1650,8 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
-    assertEquals(StageOutcomeClass.CANDIDATE, completed.get().outcome().outcomeClass());
-    assertEquals(1, completed.get().outcome().candidates().size());
-    assertEquals(
-        CompilationArtifacts.Kind.REQUIREMENT_DRAFT,
-        completed.get().outcome().candidates().get(0).kind());
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertTrue(completed.get().outcome().candidates().isEmpty());
   }
 
   @Test

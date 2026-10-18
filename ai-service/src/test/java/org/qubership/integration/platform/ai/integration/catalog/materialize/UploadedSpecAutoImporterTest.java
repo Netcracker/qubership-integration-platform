@@ -18,6 +18,32 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 
 class UploadedSpecAutoImporterTest {
 
+  @Test
+  void reusesTheExistingHierarchyWhenOnlyTheTitleChanges() {
+    var s3 = mock(S3Service.class);
+    var catalog = mock(CatalogRestClient.class);
+    var importer = mock(CatalogSpecificationImporter.class);
+    var cache = mock(ConversationCatalogCache.class);
+    when(s3.readObjectBytes("uploads/renamed.json")).thenReturn(
+        "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Renamed API\",\"version\":\"1.0\"}}".getBytes());
+    when(catalog.searchSystems(new org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemSearchRequest("")))
+        .thenReturn(List.of(new CatalogRestClient.SystemDto("system", "Original API", "INTERNAL", "http")));
+    when(catalog.getApiSpecifications("system")).thenReturn(List.of(
+        new CatalogRestClient.SpecificationDto("spec", "Original API", "group", "system", "1.0")));
+    when(catalog.getModelSource("spec")).thenReturn(
+        "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Original API\",\"version\":\"1.0\"}}");
+
+    var result = newImporter(s3, catalog, importer, cache).importSpec("chat",
+        new UploadedSpecAttachment("uploads/renamed.json", "renamed.json"));
+
+    assertEquals("system", result.systemId());
+    assertEquals("group", result.specificationGroupId());
+    assertEquals("spec", result.specificationId());
+    assertEquals(true, result.reused());
+    verify(catalog, never()).createSystem(any());
+    verifyNoInteractions(importer);
+  }
+
   private static UploadedSpecAutoImporter newImporter(
       S3Service s3,
       CatalogRestClient client,

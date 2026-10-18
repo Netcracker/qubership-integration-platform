@@ -1168,8 +1168,7 @@ class RequirementCaptureToolsTest {
   @ParameterizedTest
   @ValueSource(ints = {1, 2})
   void uploadedSpecificationsAdvanceUnboundCallsToImport(int count) throws Exception {
-    Harness h = harness();
-    h.tools().conversations = new ConversationService();
+    Harness h = uploadedHarness();
     h.tools().conversations.registerAllowedAttachmentKeys(h.conversationId(),
         count == 1 ? List.of("sessions/test/tasks.json")
             : List.of("sessions/test/tasks.json", "sessions/test/audit.yaml"));
@@ -1200,8 +1199,7 @@ class RequirementCaptureToolsTest {
 
   @Test
   void uploadedSpecificationDoesNotBypassAnUnansweredBusinessQuestion() throws Exception {
-    Harness h = harness();
-    h.tools().conversations = new ConversationService();
+    Harness h = uploadedHarness();
     h.tools().conversations.registerAllowedAttachmentKeys(h.conversationId(), List.of("sessions/test/tasks.json"));
     var base = readyHttpDraft();
     var input = new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst()),
@@ -1236,8 +1234,7 @@ class RequirementCaptureToolsTest {
 
   @Test
   void uploadedSpecificationDoesNotBypassAnIncompleteNativeEndpoint() throws Exception {
-    Harness h = harness();
-    h.tools().conversations = new ConversationService();
+    Harness h = uploadedHarness();
     h.tools().conversations.registerAllowedAttachmentKeys(h.conversationId(), List.of("sessions/test/tasks.json"));
     var base = readyHttpDraft();
     var input = new DraftInput(base.flow(), base.facts(), List.of(new CapabilityInput(
@@ -1478,17 +1475,38 @@ class RequirementCaptureToolsTest {
     }
   }
 
+  private static Harness uploadedHarness() {
+    var conversations = new ConversationService();
+    var s3 = mock(org.qubership.integration.platform.ai.storage.S3Service.class);
+    when(s3.readObjectBytes(anyString())).thenAnswer(call -> {
+      boolean audit = call.<String>getArgument(0).contains("audit");
+      return ("{\"info\":{\"title\":\"" + (audit ? "Audit API" : "Task API")
+          + "\"},\"paths\":{\"/tasks\":{\"post\":{\"operationId\":\""
+          + (audit ? "readAudit" : "submit") + "\"}}}}")
+          .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    });
+    return harness(conversations, s3);
+  }
+
   private static Harness harness() {
+    return harness(null, null);
+  }
+
+  private static Harness harness(ConversationService conversations,
+      org.qubership.integration.platform.ai.storage.S3Service s3) {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraftTool bindingAdapter = mock(RequirementDraftTool.class);
     when(bindingAdapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString()))
         .thenReturn(List.of());
     ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-    return new Harness(
-        store,
-        new RequirementCaptureTools(store, bindingAdapter, mapper),
-        mapper,
-        "capture-test-" + UUID.randomUUID());
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+        new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore());
+    var tools = conversations == null ? new RequirementCaptureTools(store, bindingAdapter, mapper)
+        : new RequirementCaptureTools(store, bindingAdapter, mapper,
+            new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+                feedback.fingerprintStore(), feedback), feedback, null, null,
+            new UploadedSpecOperations(conversations, s3), conversations);
+    return new Harness(store, tools, mapper, "capture-test-" + UUID.randomUUID());
   }
 
   private record Harness(

@@ -21,6 +21,17 @@ import static org.mockito.Mockito.when;
 
 class CatalogSpecificationImporterTest {
 
+  @Test
+  void comparesSpecificationsWithoutTheirDisplayTitle() {
+    byte[] uploaded = "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"New name\",\"version\":\"1.0\"},\"paths\":{}}".getBytes(StandardCharsets.UTF_8);
+    String existing = "openapi: 3.0.3\ninfo:\n  title: Old name\n  version: '1.0'\npaths: {}\n";
+    org.junit.jupiter.api.Assertions.assertTrue(CatalogSpecificationImporter.sameDocument(uploaded, existing));
+    org.junit.jupiter.api.Assertions.assertFalse(CatalogSpecificationImporter.sameDocument(uploaded,
+        existing.replace("'1.0'", "'2.0'")));
+    org.junit.jupiter.api.Assertions.assertFalse(CatalogSpecificationImporter.sameDocument(uploaded,
+        existing.replace("paths: {}", "paths: {/orders: {}}")));
+  }
+
   private CatalogImportRestClient importRestClient;
   private CatalogRestClient catalogRestClient;
   private CatalogSpecificationImporter importer;

@@ -161,8 +161,8 @@ public final class PipelineGates {
   }
 
   /** Text before a leftover inlined-attachment `---` divider; the whole string when none. */
-  private static String attachmentSeparatedHead(String text) {
-    if (text.isEmpty()) {
+  public static String attachmentSeparatedHead(String text) {
+    if (text == null || text.isEmpty()) {
       return "";
     }
     StringBuilder head = new StringBuilder();

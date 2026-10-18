@@ -168,6 +168,8 @@ is authoritative; do not answer in the language of the candidate and do not answ
 language of the message when the two differ.
 - Answer from the candidate evidence alone. Describe what it holds in ordinary language and stay \
 with what it states. Do not invent element names, values, or steps it does not carry.
+- Explain mapping behavior using field names and values. Omit internal mapping or artifact IDs, \
+rule statuses, and Java object representations. Answer the question without repeating the plan.
 - When the candidate does not cover what was asked, say so plainly, then name what it does cover.
 - Nothing is approved by answering. Do not tell the reader which button to click or which word to \
 type, and do not restate the approval request.

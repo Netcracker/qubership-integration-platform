@@ -46,7 +46,8 @@ public class CatalogFirstApiHubDiscoveryTool {
   private final ObjectMapper objectMapper;
   private final RequirementDraftStore draftStore;
   private final OperationSchemaLoader schemaLoader;
-  @Inject org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+  @Inject UploadedSpecOperations uploadedSpecs;
+  @Inject org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection versionSelections;
 
   @Inject
   public CatalogFirstApiHubDiscoveryTool(
@@ -79,11 +80,14 @@ public class CatalogFirstApiHubDiscoveryTool {
       optional narrowing hints. If status is CATALOG_BOUND, use its payloadContracts to update
       fieldMapping paths against the actual body fields, then recapture with that interactionId; do
       not copy catalog UUIDs by hand. If status is APIHUB_CANDIDATES, select one result with
-      selectApiHubCandidate using the same interactionId. If status is AMBIGUOUS, ask the reader
+      selectApiHubCandidate using the same interactionId. If status is CATALOG_VERSION_SELECTION_REQUIRED,
+      recommend recommendedCatalogBinding as the newest version. The reader confirms it on a decision
+      card; keep the interaction unbound until confirmation. If status is AMBIGUOUS, ask the reader
       to choose; never search API Hub for an ambiguous local catalog match. If status is
       INCOMPLETE, ask the reader for the fields listed in missingFields; do not guess them. On a
       catalog miss, the result is the API Hub search response and may contain multiple candidates.
-      With uploaded specs, a catalog miss returns UPLOADED_SPEC_IMPORT_REQUIRED and RUN_IMPORT.
+      A catalog miss for an operation declared in a matching uploaded specification returns
+      UPLOADED_SPEC_IMPORT_REQUIRED and RUN_IMPORT.
       Finish discovery with CONTINUE so the pipeline can import and bind those specs.
       """)
   public String resolveApiOperation(
@@ -117,6 +121,18 @@ public class CatalogFirstApiHubDiscoveryTool {
           conversationId, InteractionAssessment.incomplete(resolvedInteractionId, intent));
     }
 
+    var pendingVersion = versionSelections == null ? java.util.Optional.<CatalogMatch>empty()
+        : versionSelections.awaitingConfirmation(conversationId, interaction);
+    if (pendingVersion.isPresent() && CatalogStrings.blankToNull(release) == null) {
+      var assessment = InteractionAssessment.ambiguous(resolvedInteractionId, intent,
+          List.of(pendingVersion.get().integrationOperationId()));
+      conversationResolutions.remember(conversationId, assessment);
+      return encode(assessment, pendingVersion.get());
+    }
+
+    var selected = versionSelections == null ? java.util.Optional.<CatalogMatch>empty()
+        : versionSelections.confirmed(conversationId, interaction)
+            .filter(match -> CatalogStrings.blankToNull(release) == null || release.equals(match.version()));
     CatalogLookupResult result =
         catalogOperationLookup.resolve(
             new CatalogQuery(
@@ -126,8 +142,13 @@ public class CatalogFirstApiHubDiscoveryTool {
                 intent.method(),
                 intent.path(),
                 intent.operationHint(),
-                release,
-                namedInRequest(conversationId, intent)));
+                selected.map(CatalogMatch::version).orElse(release),
+                selected.map(match -> List.of(match.integrationOperationId()))
+                    .orElseGet(() -> namedInRequest(conversationId, intent))));
+    if (selected.isPresent() && (!(result instanceof CatalogLookupResult.Exact exact)
+        || !selected.get().integrationOperationId().equals(exact.match().integrationOperationId()))) {
+      return error("The confirmed catalog operation is unavailable. Choose a specification again.");
+    }
     if (result instanceof CatalogLookupResult.Exact exact) {
       if (CatalogOperationDirection.from(exact.match().protocol(), exact.match().method())
           .isEmpty()) {
@@ -136,16 +157,20 @@ public class CatalogFirstApiHubDiscoveryTool {
             InteractionAssessment.tooBroad(
                 resolvedInteractionId, intent, List.of("catalogOperationDirection")));
       }
+      if (versionSelections != null && CatalogStrings.blankToNull(release) != null) {
+        versionSelections.confirm(conversationId, interaction, exact.match());
+      }
       rememberCatalogEvidence(conversationId, exact.match());
       return remember(
           conversationId,
           InteractionAssessment.resolved(resolvedInteractionId, intent, exact.match()));
     }
     if (result instanceof CatalogLookupResult.Ambiguous ambiguous) {
-      return remember(
-          conversationId,
-          InteractionAssessment.ambiguous(
-              resolvedInteractionId, intent, ambiguous.candidateIds()));
+      var assessment = InteractionAssessment.ambiguous(resolvedInteractionId, intent, ambiguous.candidateIds());
+      conversationResolutions.remember(conversationId, assessment);
+      var recommendation = versionSelections == null ? java.util.Optional.<CatalogMatch>empty()
+          : versionSelections.propose(conversationId, interaction, ambiguous.candidates());
+      return encode(assessment, recommendation.orElse(null));
     }
     if (result instanceof CatalogLookupResult.TooBroad) {
       return remember(
@@ -153,9 +178,8 @@ public class CatalogFirstApiHubDiscoveryTool {
           InteractionAssessment.tooBroad(
               resolvedInteractionId, intent, List.of("systemHint")));
     }
-    if (conversations != null
-        && org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles.hasSpecifications(
-            conversations.getAllowedAttachmentKeys(conversationId))) {
+    if (uploadedSpecs != null && uploadedSpecs.pendingInteractionIds(
+        conversationId, draftStore.get(conversationId).orElse(null)).contains(resolvedInteractionId)) {
       ObjectNode pending = objectMapper.createObjectNode();
       pending.put("interactionId", resolvedInteractionId);
       pending.put("status", "UPLOADED_SPEC_IMPORT_REQUIRED");
@@ -214,6 +238,10 @@ public class CatalogFirstApiHubDiscoveryTool {
   }
 
   private String encode(InteractionAssessment assessment) {
+    return encode(assessment, null);
+  }
+
+  private String encode(InteractionAssessment assessment, CatalogMatch recommendation) {
     try {
       ObjectNode root = objectMapper.createObjectNode();
       root.put("interactionId", assessment.interactionId());
@@ -231,8 +259,11 @@ public class CatalogFirstApiHubDiscoveryTool {
           addPayloadContracts(root, match.integrationOperationId());
         }
         case AMBIGUOUS -> {
-          root.put("status", "AMBIGUOUS");
+          root.put("status", recommendation == null ? "AMBIGUOUS" : "CATALOG_VERSION_SELECTION_REQUIRED");
           root.putPOJO("candidateOperationIds", assessment.candidateOperationIds());
+          if (recommendation != null) {
+            root.putPOJO("recommendedCatalogBinding", recommendation);
+          }
         }
         case INCOMPLETE -> {
           root.put("status", "INCOMPLETE");

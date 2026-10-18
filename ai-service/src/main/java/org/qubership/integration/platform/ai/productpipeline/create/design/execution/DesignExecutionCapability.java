@@ -216,6 +216,11 @@ public class DesignExecutionCapability implements StageCapability {
               null,
               result.recoveryCause()));
     } catch (RuntimeException ex) {
+      for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+        if (cause instanceof io.quarkus.qute.TemplateException) {
+          return completedSignal(StageOutcome.technicalFailure(cause));
+        }
+      }
       var captureFailure = StageOutcome.captureFailure(ex);
       if (captureFailure.isPresent()) return completedSignal(captureFailure.get());
       if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(ex)) {

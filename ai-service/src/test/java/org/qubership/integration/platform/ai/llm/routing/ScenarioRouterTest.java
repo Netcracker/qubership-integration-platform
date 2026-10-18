@@ -75,6 +75,26 @@ class ScenarioRouterTest {
   }
 
   @Test
+  void standaloneImportUsesItsOwnHandlerInsteadOfStartingCreate() {
+    var selection = mock(CreateRunSelectionService.class);
+    var adapter = mock(ProductPipelineChatAdapter.class);
+    var handler = mock(ScenarioHandler.class);
+    when(handlers.get()).thenReturn(handler);
+    when(handler.handle(any(), eq(CONVERSATION_ID), eq(ScenarioType.IMPORT_SPECIFICATION)))
+        .thenReturn(io.smallrye.mutiny.Multi.createFrom().empty());
+    var productRouter = new ScenarioRouter(routerAgent, compilationRuntime.phaseResolver(),
+        mock(ConversationService.class), chainContextExtractor, requirementDraftStore, handlers, selection, adapter);
+    var request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
+
+    productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    verify(handler).handle(request, CONVERSATION_ID, ScenarioType.IMPORT_SPECIFICATION);
+    verify(selection, never()).selectOrCreate(anyString(), anyString());
+    org.mockito.Mockito.verifyNoInteractions(adapter);
+  }
+
+  @Test
   void createChainWithReadyDraftStaysOnCreateChainPlan() {
     requirementDraftStore.put(CONVERSATION_ID, RequirementFactFixtures.readyDraft("vision"));
     ChatRequest request = new ChatRequest();

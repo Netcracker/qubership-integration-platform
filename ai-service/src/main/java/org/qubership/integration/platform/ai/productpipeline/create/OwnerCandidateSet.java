@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
@@ -184,7 +185,7 @@ public final class OwnerCandidateSet {
     if (followUpText == null || followUpText.isBlank() || candidates == null) {
       return List.of();
     }
-    String haystack = normalize(followUpText);
+    String haystack = normalize(PipelineGates.attachmentSeparatedHead(followUpText));
     boolean goBack = requestsNamedStage(followUpText);
     List<String> matched = new ArrayList<>();
     for (OwnerCandidate candidate : candidates) {
@@ -203,7 +204,7 @@ public final class OwnerCandidateSet {
    * aliases including a bare {@code back}.
    */
   public static boolean requestsNamedStage(String followUpText) {
-    String haystack = normalize(followUpText);
+    String haystack = normalize(PipelineGates.attachmentSeparatedHead(followUpText));
     return containsPhrase(haystack, "go back")
         || containsPhrase(haystack, "back to")
         || containsPhrase(haystack, "return to")
@@ -277,7 +278,7 @@ public final class OwnerCandidateSet {
   }
 
   private static boolean hasExplicitStageTarget(String followUpText) {
-    return GO_BACK_TO_TARGET.matcher(normalize(followUpText)).find();
+    return GO_BACK_TO_TARGET.matcher(normalize(PipelineGates.attachmentSeparatedHead(followUpText))).find();
   }
 
   private static boolean namesCandidate(
@@ -548,7 +549,8 @@ public final class OwnerCandidateSet {
       for (int i = 0; i < consumerIndex; i++) {
         ProfileStage producer = profile.stages().get(i);
         if (produces(producer, consumed)) {
-          byId.putIfAbsent(producer.stageId(), candidateFor(producer));
+          byId.putIfAbsent(producer.stageId(), DRAFT_ARTIFACT_TYPES.contains(consumed.type())
+              ? new OwnerCandidate(producer.stageId(), consumed.type()) : candidateFor(producer));
         }
       }
     }

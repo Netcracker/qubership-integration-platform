@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -29,6 +32,7 @@ import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -38,6 +42,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 
@@ -62,7 +68,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       Pattern.compile(
           "(?i)^Uploaded (OPENAPI|ASYNCAPI) spec (.+) operation (\\S+) (?:channel|path) (.+)$");
 
-  private final CatalogMutationGateway catalogMutationGateway;
+  private final SpecificationImportPipeline importPipeline;
   private final ConversationService conversationService;
   private final ProductPipelineArtifactStore artifactStore;
   private final UploadedSpecsApprovalHandler uploadedSpecsApprovalHandler;
@@ -71,14 +77,13 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
 
   @Inject
   public AutoUploadedSpecImportCapability(
-      CatalogMutationGateway catalogMutationGateway,
+      SpecificationImportPipeline importPipeline,
       ConversationService conversationService,
       ProductPipelineArtifactStore artifactStore,
       UploadedSpecsApprovalHandler uploadedSpecsApprovalHandler,
       CatalogBindingMatcher catalogBindingMatcher,
       RequirementDraftStore draftStore) {
-    this.catalogMutationGateway =
-        Objects.requireNonNull(catalogMutationGateway, "catalogMutationGateway");
+    this.importPipeline = Objects.requireNonNull(importPipeline, "importPipeline");
     this.conversationService =
         Objects.requireNonNull(conversationService, "conversationService");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
@@ -86,6 +91,14 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         Objects.requireNonNull(uploadedSpecsApprovalHandler, "uploadedSpecsApprovalHandler");
     this.catalogBindingMatcher = catalogBindingMatcher;
     this.draftStore = draftStore;
+  }
+
+  public AutoUploadedSpecImportCapability(
+      CatalogMutationGateway gateway, ConversationService conversations, ProductPipelineArtifactStore artifacts,
+      UploadedSpecsApprovalHandler approvals, CatalogBindingMatcher matcher, RequirementDraftStore drafts) {
+    this(new SpecificationImportPipeline(
+        gateway, new InMemoryArtifactBlobStore(),
+        new ObjectMapper()), conversations, artifacts, approvals, matcher, drafts);
   }
 
   @Override
@@ -201,32 +214,16 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
             .map(RequirementDraft::resolvedPreferredSystemType)
             .orElse("INTERNAL");
     var writeAuthority = draftStore == null ? null : draftStore.writeAuthority(conversationId);
-    Uni<CapabilitySignal.Completed> importWork =
-        Multi.createFrom()
-            .iterable(attachments)
-            .onItem()
-            .transformToUniAndConcatenate(
-                attachment ->
-                    catalogMutationGateway
-                        .importUploadedSpec(
-                            conversationId,
-                            attachment,
-                            systemTypeForAttachment(
-                                attachment.s3Key(), specSystemTypes, fallbackType))
-                        .onFailure()
-                        .recoverWithItem(
-                            error -> {
-                              LOG.errorf(
-                                  error,
-                                  "Failed to import uploaded spec conversationId=%s s3Key=%s",
-                                  conversationId,
-                                  attachment.s3Key());
-                              return null;
-                            }))
-            .collect()
-            .asList()
-            .onItem()
-            .transform(outcomes -> importOutcome(context, outcomes, writeAuthority));
+    Uni<CapabilitySignal.Completed> importWork = importPipeline
+        .execute(conversationId, attachments, specSystemTypes, fallbackType)
+        .map(result -> {
+          if (!result.succeeded()) {
+            return completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+                "Imported " + result.imported().size() + " of " + result.items().size()
+                    + " uploaded API specifications. Failed files:\n" + result.failures()));
+          }
+          return succeeded(context, "Uploaded API specifications imported", result.imported(), writeAuthority);
+        });
 
     return Multi.createFrom()
         .uni(importWork)
@@ -250,10 +247,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
               return Multi.createFrom()
                   .items(
                       SkillActivitySupport.error(CAPABILITY_ID),
-                      completed(
-                          StageOutcome.of(
-                              StageOutcomeClass.NEEDS_INPUT,
-                              "Failed to import uploaded API specifications")));
+                      completed(StageOutcome.invocationFailure(error)));
             });
   }
 
@@ -265,38 +259,6 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         .map(ApprovalRecordV2::specSystemTypes)
         .filter(map -> map != null && !map.isEmpty())
         .orElse(Map.of());
-  }
-
-  private static String systemTypeForAttachment(
-      String s3Key, Map<String, String> specSystemTypes, String fallbackType) {
-    if (specSystemTypes == null || specSystemTypes.isEmpty()) {
-      return fallbackType;
-    }
-    String typed = specSystemTypes.get(s3Key);
-    if (typed == null || typed.isBlank()) {
-      return "INTERNAL";
-    }
-    return typed;
-  }
-
-  private CapabilitySignal.Completed importOutcome(
-      StageExecutionContext context, List<UploadedSpecImportOutcome> outcomes, RequirementDraftStore.WriteAuthority authority) {
-    long succeeded = outcomes.stream().filter(Objects::nonNull).count();
-    if (succeeded == 0) {
-      return completed(
-          StageOutcome.of(
-              StageOutcomeClass.NEEDS_INPUT, "Failed to import all uploaded API specifications"));
-    }
-    if (succeeded < outcomes.size()) {
-      LOG.warnf(
-          "Imported %d of %d uploaded specifications conversationId=%s",
-          succeeded,
-          outcomes.size(),
-          context.conversationId());
-    }
-    List<UploadedSpecImportOutcome> imported =
-        outcomes.stream().filter(Objects::nonNull).toList();
-    return succeeded(context, "Uploaded API specifications imported", imported, authority);
   }
 
   private Optional<CompilationArtifacts.Reference> findApprovalReference(
@@ -375,7 +337,8 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       return completed(
           StageOutcome.of(
               StageOutcomeClass.MISSING_MANDATORY_INPUT,
-              "requirement-draft is required after uploaded-spec import"));
+              "requirement-draft is required after uploaded-spec import",
+              RecoveryCause.of(RecoveryCauseCode.MISSING_BRIEF_FACTS)));
     }
     RequirementDraft updatedDraft = draft;
     FactRewrite rewrite =
@@ -383,8 +346,11 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     RequirementDraft rewrittenDraft = rewrite.draft();
     if (draftStore != null) {
       if (!draftStore.putIfCurrent(context.conversationId(), authority, rewrittenDraft)) {
-        return completed(StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
-            "Requirement inputs changed during import. Resume from the current admitted draft."));
+        return completed(StageOutcome.of(StageOutcomeClass.MISSING_MANDATORY_INPUT,
+            "Requirement inputs changed during import. Resume from the current admitted draft.",
+            new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+                List.of(new PlanValidationFinding("STALE_REQUIREMENT_SOURCE",
+                    "Admit the current author input before updating the imported requirement draft.", true)), "")));
       }
     }
     LOG.infof(
@@ -409,7 +375,9 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
               candidates,
               "Uploaded specifications were imported, but the requirement draft is not ready: "
                   + bindingError.get(),
-              null));
+              null,
+              new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+                  List.of(new PlanValidationFinding("INCOMPLETE_REQUIREMENT_DRAFT", bindingError.get(), true)), "")));
     }
     return completed(
         new StageOutcome(StageOutcomeClass.SUCCEEDED, candidates, message, null));
@@ -469,7 +437,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
           call.sourceFactId(),
           serviceName,
           operationQuery,
-          match.getClass().getSimpleName());
+          match == null ? "None" : match.getClass().getSimpleName());
       if (!(match instanceof CatalogBindingMatcher.MatchResult.Exact exact)) {
         rewrittenFacts.add(call);
         continue;
@@ -545,7 +513,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
           interaction.interactionId(),
           serviceName,
           operationQuery,
-          match.getClass().getSimpleName());
+          match == null ? "None" : match.getClass().getSimpleName());
       if (!(match instanceof CatalogBindingMatcher.MatchResult.Exact exact)) {
         continue;
       }
@@ -573,11 +541,8 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       String operationEvidence,
       String conversationId,
       List<UploadedSpecImportOutcome> imported) {
-    if (imported == null || imported.isEmpty()) {
-      return new CatalogBindingMatcher.MatchResult.None();
-    }
     List<CatalogMatch> matches = new ArrayList<>();
-    for (UploadedSpecImportOutcome outcome : imported) {
+    for (UploadedSpecImportOutcome outcome : imported == null ? List.<UploadedSpecImportOutcome>of() : imported) {
       if (outcome == null) {
         continue;
       }
@@ -595,9 +560,6 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         matches.addAll(ambiguous.matches());
       }
     }
-    if (matches.isEmpty()) {
-      return new CatalogBindingMatcher.MatchResult.None();
-    }
     if (serviceName != null) {
       List<CatalogMatch> named = matches.stream()
           .filter(match -> serviceName.equalsIgnoreCase(match.systemName())).toList();
@@ -606,9 +568,6 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
             : new CatalogBindingMatcher.MatchResult.Ambiguous(named);
       }
     }
-    if (matches.size() == 1) {
-      return new CatalogBindingMatcher.MatchResult.Exact(matches.getFirst());
-    }
     List<CatalogMatch> evidenceMatches =
         matches.stream()
             .filter(match -> operationEvidenceAgrees(operationEvidence, match))
@@ -616,6 +575,11 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     if (evidenceMatches.size() == 1) {
       return new CatalogBindingMatcher.MatchResult.Exact(evidenceMatches.getFirst());
     }
+    if (serviceName != null) {
+      return catalogBindingMatcher.match("service-call", serviceName, operationQuery, conversationId);
+    }
+    if (matches.isEmpty()) return new CatalogBindingMatcher.MatchResult.None();
+    if (matches.size() == 1) return new CatalogBindingMatcher.MatchResult.Exact(matches.getFirst());
     return new CatalogBindingMatcher.MatchResult.Ambiguous(List.copyOf(matches));
   }
 

@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.smallrye.mutiny.Multi;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
@@ -41,6 +42,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.FakeFailureNarrativeAgent;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation.TransitionRef;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -86,6 +89,7 @@ class MappingApprovalImpactTest {
   private ProductPipelineProfile profile;
   private Clock clock;
   private MappingTurnAdapter mappingAdapter;
+  private FakeFailureNarrativeAgent narrativeAgent;
 
   @BeforeEach
   void setUp() {
@@ -97,6 +101,8 @@ class MappingApprovalImpactTest {
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     profile = threeStageProfile();
     mappingAdapter = changeAdapter();
+    narrativeAgent = FakeFailureNarrativeAgent.owner("", "")
+        .answeringUnder("QUESTION", "Subject comes from the original name field.");
     support =
         CreateChainTestOrchestrator.supportBuilder(
                 runStore,
@@ -105,6 +111,7 @@ class MappingApprovalImpactTest {
                     List.of(analysisCapability(), planningCapability(), executionCapability())),
                 clock)
             .mappingTurnAdapter((brief, message) -> mappingAdapter.interpret(brief, message))
+            .failureNarrative(new FailureNarrative(narrativeAgent, 4, Duration.ofSeconds(2)))
             .build();
     runtime = new CreateChainTestOrchestrator(support, runStore);
   }
@@ -239,14 +246,38 @@ class MappingApprovalImpactTest {
     long revisionBefore = run().run().runRevision();
     ReferenceLike before = approvalBinding();
 
-    List<PipelineSignal> signals = type("Which transitions are pass-through?");
+    List<PipelineSignal> signals = type("Where does Subject come from?");
 
     assertStillAtPlanningApproval(revisionBefore, before);
-    assertTrue(
+    assertEquals(
+        List.of("Subject comes from the original name field."),
         signals.stream()
             .filter(PipelineSignal.Message.class::isInstance)
             .map(PipelineSignal.Message.class::cast)
-            .anyMatch(message -> message.text() != null && !message.text().isBlank()));
+            .map(PipelineSignal.Message::text)
+            .toList());
+    assertEquals(1, narrativeAgent.approvalQuestionCalls.get());
+    assertTrue(narrativeAgent.lastApprovalCandidate.get().contains("Subject"));
+    assertEquals(1, signals.stream().filter(PipelineSignal.WaitingForApproval.class::isInstance).count());
+    assertNoSupersession();
+  }
+
+  @Test
+  void unavailableMappingAnswerDoesNotExposeDiagnosticsOrChangeThePlan() {
+    waitAtPlanningApproval();
+    storeDownstreamArtifacts();
+    mappingAdapter = queryAdapter();
+    narrativeAgent.answeringUnder("INSTRUCTION", "");
+    long revisionBefore = run().run().runRevision();
+    ReferenceLike before = approvalBinding();
+
+    List<PipelineSignal> signals = type("Where does Subject come from?");
+
+    assertStillAtPlanningApproval(revisionBefore, before);
+    assertEquals(
+        List.of(FailureNarrative.NO_EXPLANATION_AVAILABLE),
+        signals.stream().filter(PipelineSignal.Message.class::isInstance)
+            .map(PipelineSignal.Message.class::cast).map(PipelineSignal.Message::text).toList());
     assertNoSupersession();
   }
 
@@ -437,7 +468,7 @@ class MappingApprovalImpactTest {
                 null,
                 null,
                 false,
-                MappingQuerySelector.Coverage.PASS_THROUGH));
+                MappingQuerySelector.Coverage.ANY));
   }
 
   private static StageCapability analysisCapability() {

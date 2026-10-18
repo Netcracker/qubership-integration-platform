@@ -137,8 +137,11 @@ public final class DesignImplementationPlanRenderer {
     }
     if (brief != null && !brief.facts().isEmpty()) {
       body.append('\n').append("## Approved requirement facts").append('\n');
-      body.append(org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText
-          .formatFacts(brief.facts())).append('\n');
+      for (var fact : brief.facts()) {
+        if (fact != null && !fact.text().isBlank()) {
+          body.append("- ").append(fact.text().trim()).append('\n');
+        }
+      }
     }
 
     if (!negativeConstraints.isEmpty()) {

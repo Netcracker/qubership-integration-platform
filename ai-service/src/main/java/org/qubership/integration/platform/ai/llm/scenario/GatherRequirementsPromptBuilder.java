@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
@@ -35,6 +36,7 @@ public class GatherRequirementsPromptBuilder {
   private final CompilerSkillAddonRepository addonRepository;
   private final RequirementDraftStore draftStore;
   private final ConversationService conversationService;
+  @Inject org.qubership.integration.platform.ai.plan.UploadedSpecOperations uploadedSpecs;
 
   @Inject
   public GatherRequirementsPromptBuilder(
@@ -63,7 +65,9 @@ public class GatherRequirementsPromptBuilder {
   public String wrap(String conversationId, String userMessage, String responseLocale) {
     Optional<RequirementDraft> draft =
         draftStore != null ? draftStore.get(conversationId) : Optional.empty();
-    String mandatory = currentDraftBlock(draft) + incompleteDraftBlock(draft, hasUploadedSpecifications(conversationId))
+    Set<String> uploadedInteractions = uploadedSpecs == null ? Set.of()
+        : uploadedSpecs.pendingInteractionIds(conversationId, draft.orElse(null));
+    String mandatory = currentDraftBlock(draft) + incompleteDraftBlock(draft, uploadedInteractions)
         + lastCaptureRejectionBlock(conversationId, draft)
         + sourceDialogueBlock(conversationId, userMessage)
         + "\nPinned response locale: " + normalizedLocale(responseLocale) + "\n";
@@ -292,7 +296,7 @@ public class GatherRequirementsPromptBuilder {
     return body.toString();
   }
 
-  private static String incompleteDraftBlock(Optional<RequirementDraft> draft, boolean uploadedSpecifications) {
+  private static String incompleteDraftBlock(Optional<RequirementDraft> draft, Set<String> uploadedInteractions) {
     if (draft.isEmpty()) {
       return "";
     }
@@ -302,7 +306,7 @@ public class GatherRequirementsPromptBuilder {
         : RequirementCaptureProjection.pending(
             current.authoredDraft(),
             current.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(current), uploadedSpecifications);
+            RequirementCaptureProjection.resolvedTargets(current), uploadedInteractions);
     if (RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending)) {
       return """
 

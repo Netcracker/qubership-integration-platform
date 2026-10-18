@@ -17,7 +17,7 @@ public final class RouterHeuristics {
 
   private static final Pattern IMPORT_SPECIFICATION =
       Pattern.compile(
-          "(?ius)\\b(import|upload)\\b.{0,120}\\b(specification|spec|api|openapi|swagger)\\b");
+          "(?ius)^\\s*(?:please\\s+)?(import|upload)\\b.{0,120}\\b(specification|spec|api|openapi|swagger)\\b");
 
   private static final Pattern IMPORT_SPECIFICATION_CONFIRM =
       Pattern.compile("(?ius)^\\s*import\\s+specification\\b");
