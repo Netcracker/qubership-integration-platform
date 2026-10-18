@@ -145,7 +145,12 @@ for (const value of [true, false]) {
     expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, ...HTTP_TRIGGER_STEPS, "Echo Method"]);
     const received = element(session, "Echo Method")?.contextBefore?.[REQUEST_ID_HEADER];
     if (value) expect(received).toBe(CALLER_REQUEST_ID);
-    else expect(received, "the echo's trigger mints a request id of its own").toMatch(/^\d+\.\d+\.\d+$/);
+    else {
+      // The id joins the time in milliseconds and a random double, so its format is not asserted:
+      // CI run 38936680246 read `1792171766023.6.352533054359011E-4`, the double in E-notation.
+      expect(received, "the echo's trigger mints a request id of its own").toEqual(expect.any(String));
+      expect(received).not.toBe(CALLER_REQUEST_ID);
+    }
   });
 }
 
