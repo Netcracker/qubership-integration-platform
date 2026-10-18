@@ -6,7 +6,7 @@
 #
 # Writes client/ca.crt (the engines trust it), server/kafka.crt, and server/kafka.key (unencrypted PKCS#8).
 #
-# Usage: infrastructure/kafka-ssl/generate.sh
+# Usage: infrastructure/docker/kafka-ssl/generate.sh
 
 set -euo pipefail
 

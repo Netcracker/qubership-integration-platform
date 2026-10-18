@@ -364,7 +364,7 @@ export function helmArguments(options: {
     args.push("--set", `${overlay}.enabled=${brokersEnabled()}`);
     args.push("--set", `${overlay}.${hostPortKey}=${BROKER_PORT[overlay].k8s}`);
   }
-  const certs = path.join(root, "infrastructure/kafka-ssl");
+  const certs = path.join(root, "infrastructure/docker/kafka-ssl");
   args.push(
     "--set-file", `kafka.tls.serverCert=${path.join(certs, "server/kafka.crt")}`,
     "--set-file", `kafka.tls.serverKey=${path.join(certs, "server/kafka.key")}`,

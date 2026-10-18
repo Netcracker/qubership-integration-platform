@@ -73,7 +73,7 @@ test("the broker port table matches the ports Compose publishes and kind maps", 
   const bootstrap = fs.readFileSync(path.join(repoRoot(), "e2e/k8s/bootstrap-cluster.sh"), "utf-8");
   for (const name of OVERLAY_NAMES) {
     const definition = overlayDefinition(name);
-    const file = path.join(repoRoot(), "infrastructure", definition.file);
+    const file = path.join(repoRoot(), "infrastructure", "docker", definition.file);
     const parsed = yaml.load(fs.readFileSync(file, "utf-8")) as { services: Record<string, { ports?: string[] }> };
     const published = (parsed.services[definition.primary].ports ?? []).map((each) => Number(each.split(":")[0]));
     const port = BROKER_PORT[name];

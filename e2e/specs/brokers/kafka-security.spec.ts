@@ -3,7 +3,7 @@
  * `fixtures/brokers/kafka-{trigger,sender}-security-*`.
  *
  * Each fixture connects to the listener of the Kafka overlay that serves its protocol (the listener
- * table is in `infrastructure/README.md`): `AUTH` (SASL_PLAINTEXT) on 29094, `TLS` (SSL) on 29095,
+ * table is in `infrastructure/docker/README.md`): `AUTH` (SASL_PLAINTEXT) on 29094, `TLS` (SSL) on 29095,
  * `AUTHTLS` (SASL_SSL) on 29096, and `TLS13` (SSL, TLSv1.3 only) on 29097, as user `e2e`. The server
  * certificate covers the name `kafka`, and both engines trust its CA through their certificate
  * directory, so hostname verification stays on. The cases publish and consume host-side over the

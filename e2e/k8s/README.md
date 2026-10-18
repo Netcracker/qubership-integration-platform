@@ -99,7 +99,7 @@ kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-s
 From the repository root:
 
 ```bash
-istioctl install -f infrastructure/qip-dev/istio.yaml
+istioctl install -f infrastructure/helm/qip-dev/istio.yaml
 ```
 
 The file takes the `minimal` profile and lowers the requests to 10m CPU and 100Mi for istiod and to
@@ -168,8 +168,8 @@ is missing or runs another version.
    not change alone. The catalog reads the micro image once, at startup, so its pod carries the
    micro tag as an annotation and restarts when that tag changes. The same command installs the
    brokers: `<broker>.enabled` for each of the four, their host ports, the Kafka TLS files from
-   `infrastructure/kafka-ssl/server/` through `--set-file`, the CA from
-   `infrastructure/kafka-ssl/client/ca.crt` as `qip-engine.trustedCerts`, and the
+   `infrastructure/docker/kafka-ssl/server/` through `--set-file`, the CA from
+   `infrastructure/docker/kafka-ssl/client/ca.crt` as `qip-engine.trustedCerts`, and the
    `qip-runtime-catalog.microDomainResources` and `microDomainEmptyDirs` values that mount it into
    a micro domain. Only the `enabled` switches follow `E2E_BROKERS`, so changing it between runs
    restarts no engine, catalog, or micro domain.

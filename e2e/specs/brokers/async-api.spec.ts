@@ -107,10 +107,7 @@ test(
 // /components/schemas/OrderShipped cannot be resolved".
 test(
   "an async-api-trigger validates a Kafka message against an inline payload that references a component",
-  {
-    tag: ["@engine", "@catalog", "@sessions", "@tier2", "@classic-only"],
-    annotation: { type: "classic-only", description: "the case builds and deploys its own chain on the classic engine's domain" },
-  },
+  { tag: ["@engine", "@catalog", "@sessions", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the case builds and deploys its own chain on the classic engine's domain" } },
   async ({ catalog, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 

@@ -520,7 +520,7 @@ queues, exchanges, and subscriptions end in `-micro` and whose SFTP tree is `/up
 so the two copies never consume each other's messages. A name a broker spec mints itself, such as
 a verification consumer group, is built from the chain's own address.
 
-On `k8s` the brokers are subcharts of `infrastructure/qip-dev`, and provisioning installs them with
+On `k8s` the brokers are subcharts of `infrastructure/helm/qip-dev`, and provisioning installs them with
 the release unless `E2E_BROKERS=0`. `brokers-seed` then only waits for each broker's rollout and
 host port, and teardown leaves the brokers running, because they belong to the release. The broker
 pods keep their data in an `emptyDir`, so a new pod starts empty. `brokers-restart` restarts the

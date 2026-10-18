@@ -349,17 +349,17 @@ test("the Helm arguments switch the brokers with E2E_BROKERS and keep everything
     "rabbitmq.nodePort=30672",
     "sftp.enabled=true",
     "sftp.nodePort=30022",
-    "kafka.tls.serverCert=/repo/infrastructure/kafka-ssl/server/kafka.crt",
-    "kafka.tls.serverKey=/repo/infrastructure/kafka-ssl/server/kafka.key",
+    "kafka.tls.serverCert=/repo/infrastructure/docker/kafka-ssl/server/kafka.crt",
+    "kafka.tls.serverKey=/repo/infrastructure/docker/kafka-ssl/server/kafka.key",
   ]);
   // Helm reads `\.` as a dot inside the key, so the Secret holds `ca.crt`.
-  expect(on).toContain("qip-engine.trustedCerts.ca\\.crt=/repo/infrastructure/kafka-ssl/client/ca.crt");
+  expect(on).toContain("qip-engine.trustedCerts.ca\\.crt=/repo/infrastructure/docker/kafka-ssl/client/ca.crt");
   expect(on).toContain(
     "qip-runtime-catalog.microDomainResources={secret:qip-engine-certs@/app/cert/defaultsslcertificate}",
   );
   expect(on).toContain("qip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}");
   // Each value file follows its flag: --set-file reads the path, --set would install the path itself.
-  for (const file of on.filter((each) => each.includes("/repo/infrastructure/kafka-ssl/"))) {
+  for (const file of on.filter((each) => each.includes("/repo/infrastructure/docker/kafka-ssl/"))) {
     expect(on[on.indexOf(file) - 1], file).toBe("--set-file");
   }
 

@@ -1,7 +1,7 @@
 {{- if .Values.enabled }}
 {{- $tls := .Values.tls.serverKey }}
 {{- $hostPort := .Values.loadBalancerPort | default .Values.nodePort | default 9092 }}
-# The listener layout of infrastructure/docker-compose.kafka.yml. Listener names avoid "SSL" and "SASL_":
+# The listener layout of infrastructure/docker/docker-compose.kafka.yml. Listener names avoid "SSL" and "SASL_":
 # cp-kafka's configure script would then demand JKS files.
 apiVersion: apps/v1
 kind: Deployment
