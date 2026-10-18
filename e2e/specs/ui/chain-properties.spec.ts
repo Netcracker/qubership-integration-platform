@@ -72,6 +72,9 @@ test("leaving the properties tab with an unsaved edit asks first, and discards t
   await unsaved.getByRole("button", { name: "Yes", exact: true }).click();
   await expect(unsaved).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/graph$`));
+  // The URL changes before the tab strip redraws, and a click on the tab that still reads as
+  // selected changes nothing: CI run 38936680246 stayed on Graph that way.
+  await expect(tabs.tab("Graph")).toHaveAttribute("aria-selected", "true");
   // Back on the tab, the form reads the saved chain again, so the edit is gone.
   await tabs.tab("Properties").click();
   await expect(name).toHaveValue(chain.name);
