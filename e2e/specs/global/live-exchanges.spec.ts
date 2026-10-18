@@ -38,7 +38,7 @@
  *   `LiveExchangeDTO`, field for field.
  * - **a kill is asynchronous and its effect is in the session, not in the status.** The engine sets
  *   a `ChainExecutionTerminatedException` on the exchange, so the step that was running finishes
- *   and the route then aborts: the caller gets **500 `QIP-0114`** and the recorded session gets
+ *   and the route then aborts: the caller gets **500 `CIP-0114`** and the recorded session gets
  *   `COMPLETED_WITH_ERRORS` with `Chain was interrupted manually` on the element that was in
  *   flight. That is what these cases assert.
  * - **the catalog does not answer 202 regardless of the outcome.** `sendKillExchangeRequest` maps
@@ -233,11 +233,11 @@ test("killing an exchange through the catalog interrupts the chain and the sessi
     expect(killed.status()).toBe(202);
 
     // The status says only that the request was dispatched, so the outcome is read off the chain
-    // and off the trace. `QIP-0114` is the engine's code for a session shut down by hand.
+    // and off the trace. `CIP-0114` is the engine's code for a session shut down by hand.
     const response = await call.answer;
     expect(response.status()).toBe(500);
     const body = (await response.json()) as { code: string; extra: { sessionId: string } };
-    expect(body.code).toBe("QIP-0114");
+    expect(body.code).toBe("CIP-0114");
     expect(body.extra.sessionId).toBe(listed.sessionId);
 
     const session = await sessions.byExternalId(call.token, { elements: 2 });

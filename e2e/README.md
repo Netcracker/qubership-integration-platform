@@ -431,7 +431,7 @@ you bisect.
   reproduces it under concurrent load alone, so if a different spec reading the same listing goes
   red, it is this entry and not a new finding.
 - **`specs/api/deployments.spec.ts`, once in three full runs.** One sample in the redeploy window
-  answered `500 QIP-0001`. The case tolerates up to ten such samples and refuses every other
+  answered `500 CIP-0001`. The case tolerates up to ten such samples and refuses every other
   non-200, so a red there means a status the window does not produce, or a window far wider than
   the one measured.
 - **`specs/runtime/plain-elements.spec.ts`, once.** The `split-async-2` case read one async branch

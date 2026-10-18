@@ -231,7 +231,7 @@ test("an uncaught exception answers the caller the platform's error body, naming
   const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "uncaught" } });
 
   // Measured rather than assumed, and none of it is what a reader would guess: the caller gets the
-  // platform's error contract, not the Groovy message. `QIP-0001` is
+  // platform's error contract, not the Groovy message. `CIP-0001` is
   // `ErrorCode.UNEXPECTED_BUSINESS_ERROR`, the reason and message are the enum's fixed wording, and
   // the exception the script threw appears nowhere in the response.
   expect(call.response.status()).toBe(500);
@@ -242,7 +242,7 @@ test("an uncaught exception answers the caller the platform's error body, naming
     message: string;
     extra: { sessionId: string; failedElementId: string };
   };
-  expect(body.code).toBe("QIP-0001");
+  expect(body.code).toBe("CIP-0001");
   expect(body.reason).toBe("Unexpected Business error");
   expect(body.message).toBe("Chain execution failed due to unexpected business error");
   // The half worth having: `extra` names the element that threw, and the fixture freezes its id.
@@ -276,7 +276,7 @@ test("a null pointer inside a script fails the chain the way any other exception
     extra: { failedElementId: string };
   };
   // The same error contract as a deliberate throw: nothing about a null pointer reaches the caller.
-  expect(body.code).toBe("QIP-0001");
+  expect(body.code).toBe("CIP-0001");
   expect(body.extra.failedElementId).toBe(chain.elements["Null Property"]);
 
   const session = await sessions.byExternalId(call.token, { elements: HTTP_TRIGGER_STEPS.length + 1 });

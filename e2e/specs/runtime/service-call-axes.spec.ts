@@ -72,7 +72,7 @@ interface MockedCase {
 const PAYLOAD = callToken("payload");
 
 const MOCKED_CASES: MockedCase[] = [
-  { axisPath: "handleValidationAction", value: "default", outcome: "fails the chain on an invalid response", status: 500, code: "QIP-0112", executionStatus: "COMPLETED_WITH_ERRORS", steps: ["Request attempt", VALIDATED] },
+  { axisPath: "handleValidationAction", value: "default", outcome: "fails the chain on an invalid response", status: 500, code: "CIP-0112", executionStatus: "COMPLETED_WITH_ERRORS", steps: ["Request attempt", VALIDATED] },
   { axisPath: "handleValidationAction", value: "script", outcome: "answers from the script on an invalid response", status: 500, reply: handlerReply("validation-script"), executionStatus: "COMPLETED_WITH_ERRORS", steps: ["Request attempt", VALIDATED, "Handle Validation Failure"] },
   { axisPath: "handleValidationAction", value: "mapper-2", outcome: "answers from the mapping on an invalid response", status: 500, reply: handlerReply("validation-mapper"), executionStatus: "COMPLETED_WITH_ERRORS", steps: ["Request attempt", VALIDATED, "Handle Validation Failure"] },
   { axisPath: "afterValidation/items/type", value: "responseValidation", outcome: "passes a conforming response through", status: 201, reply: MOCKED_BODY, executionStatus: "COMPLETED_NORMALLY", steps: ["Request attempt", VALIDATED], declares: false },

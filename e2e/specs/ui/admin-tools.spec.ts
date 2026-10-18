@@ -156,10 +156,10 @@ test("a live exchange is killed only after its termination is confirmed", { tag:
     // The row leaves once the kill is accepted, with no refresh.
     await expect(row).toHaveCount(0);
     expect(kills).toHaveLength(1);
-    // `QIP-0114` is the engine's code for a session ended by hand.
+    // `CIP-0114` is the engine's code for a session ended by hand.
     const response = await answer;
     expect(response.status()).toBe(500);
-    expect(((await response.json()) as { code: string }).code).toBe("QIP-0114");
+    expect(((await response.json()) as { code: string }).code).toBe("CIP-0114");
   } finally {
     await answer.catch(() => undefined);
   }

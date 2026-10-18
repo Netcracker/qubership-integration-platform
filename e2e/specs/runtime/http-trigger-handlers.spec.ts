@@ -31,10 +31,10 @@ const VALIDATION_STEP = "Handle Validation Failure";
 const FAILURE_STEP = "Failure response mapping";
 
 const CASES: HandlerCase[] = [
-  { axisPath: "handleValidationAction", value: "default", status: 400, code: "QIP-0100", steps: ["Validate Request"] },
+  { axisPath: "handleValidationAction", value: "default", status: 400, code: "CIP-0100", steps: ["Validate Request"] },
   { axisPath: "handleValidationAction", value: "script", status: 400, reply: handlerReply("validation-script"), steps: ["Validate Request", VALIDATION_STEP] },
   { axisPath: "handleValidationAction", value: "mapper-2", status: 400, reply: handlerReply("validation-mapper"), steps: ["Validate Request", VALIDATION_STEP] },
-  { axisPath: "handleChainFailureAction", value: "default", status: 500, code: "QIP-0001", steps: ["Validate Request", THROWING_STEP.name] },
+  { axisPath: "handleChainFailureAction", value: "default", status: 500, code: "CIP-0001", steps: ["Validate Request", THROWING_STEP.name] },
   { axisPath: "handleChainFailureAction", value: "script", status: 500, reply: handlerReply("failure-script"), steps: ["Validate Request", THROWING_STEP.name, FAILURE_STEP] },
   { axisPath: "handleChainFailureAction", value: "mapper-2", status: 500, reply: handlerReply("failure-mapper"), steps: ["Validate Request", THROWING_STEP.name, FAILURE_STEP] },
   // The callee's step lands inside the caller's session, under the handler's.

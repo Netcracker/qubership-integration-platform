@@ -31,7 +31,7 @@ function failureOf(assertion: () => void): string {
 
 // A classic regression of the same feature can fail with the same message, and it has to stay red.
 test("a micro defect is known only on the micro engine, and the same failure on classic is a real one", TAGS, async () => {
-  const unresolved = 'Error: {\n  "code" : "QIP-0101",\n}';
+  const unresolved = 'Error: {\n  "code" : "CIP-0101",\n}';
   expect(strikes(MOCK_BYPASSED, "micro", unresolved)).toBe(true);
   expect(strikes(MOCK_BYPASSED, "classic", unresolved)).toBe(false);
 
@@ -43,7 +43,7 @@ test("a micro defect is known only on the micro engine, and the same failure on 
   }).catch((cause: unknown) => String(cause));
   const expectedStatus = test.info().expectedStatus;
   test.info().expectedStatus = "passed";
-  expect(thrown).toContain("QIP-0101");
+  expect(thrown).toContain("CIP-0101");
   expect(expectedStatus).toBe("passed");
 });
 
@@ -63,7 +63,7 @@ test("a mocked service call that reached its real address is the known defect, a
   // The two failures the micro engine produced, as `strikesAsKnown` reads them.
   const unresolved = [
     "Error: {",
-    '  "code" : "QIP-0101",',
+    '  "code" : "CIP-0101",',
     '  "reason" : "Chain execution failed due to requesting missing endpoint",',
     "}",
     "",

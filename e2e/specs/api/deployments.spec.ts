@@ -22,7 +22,7 @@
  *   The new context is started before the superseded one is stopped, so no sample answers 404 and
  *   the marker flips partway through. It is not a promise that every sample answers 200: there is
  *   no drain handshake, and a call that resolves a suspended consumer — or that is still executing
- *   when the superseded context stops — answers `500 QIP-0001`, which is indistinguishable from a
+ *   when the superseded context stops — answers `500 CIP-0001`, which is indistinguishable from a
  *   chain that threw. The redeploy case tolerates that one answer, bounds how many samples may
  *   carry it, and refuses everything else; issue #845 has the mechanism and the reproduction.
  * - Two **chains** sharing one `contextPath` on one domain both reach `DEPLOYED`, and the last one
@@ -92,7 +92,7 @@ interface RouteAnswer {
 /**
  * Whether a sample is the engine's answer for a route that is not serving right now.
  *
- * `CustomErrorController` maps every chain-URI error status except 404 and 405 to `QIP-0001` at
+ * `CustomErrorController` maps every chain-URI error status except 404 and 405 to `CIP-0001` at
  * HTTP 500, so a suspended consumer's 503 and a genuine chain failure reach the caller as the same
  * document. That is a filed platform defect, and it is why this reads the code out of the body
  * rather than accepting any 500: the status alone would also accept a chain that broke.
@@ -100,7 +100,7 @@ interface RouteAnswer {
 function isDrainAnswer(answer: RouteAnswer): boolean {
   if (answer.status !== 500) return false;
   try {
-    return (JSON.parse(answer.body) as { code?: string }).code === "QIP-0001";
+    return (JSON.parse(answer.body) as { code?: string }).code === "CIP-0001";
   } catch {
     return false;
   }
@@ -323,7 +323,7 @@ test("a redeploy swaps the response and the route never goes missing", { tag: ["
 
   // What the engine does not promise is that every sample answers 200. There is no drain handshake:
   // a request that resolves the superseded consumer while it is suspended, or that is still
-  // executing when its context stops, answers `500 QIP-0001` — the same body a chain that threw
+  // executing when its context stops, answers `500 CIP-0001` — the same body a chain that threw
   // would produce. Issue #845 has the mechanism and the reproduction. The second of the two paths
   // it describes is the one that reaches a redeploy: `stopSupersededContext` tears the old context
   // down under whatever is still executing on it, and `CamelServlet.service` answers that request
@@ -342,7 +342,7 @@ test("a redeploy swaps the response and the route never goes missing", { tag: ["
   const drains = samples.filter(isDrainAnswer);
   test.info().annotations.push({
     type: "drain-window",
-    description: `${drains.length} of ${samples.length} samples answered 500 QIP-0001`,
+    description: `${drains.length} of ${samples.length} samples answered 500 CIP-0001`,
   });
   expect(
     drains.length,

@@ -85,7 +85,7 @@ for (const each of TRIES) {
       expect(call.response.headers()["e2e-finally"]).toBe("ran");
     } else {
       // The default failure handler answers the error; only the trace shows the finally ran.
-      expect(JSON.parse(await call.response.text())).toMatchObject({ code: "QIP-0001" });
+      expect(JSON.parse(await call.response.text())).toMatchObject({ code: "CIP-0001" });
     }
 
     const session = await sessions.byExternalId(call.token, { elements: 7 + each.caught.length });

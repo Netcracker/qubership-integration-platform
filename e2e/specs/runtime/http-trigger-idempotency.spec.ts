@@ -44,7 +44,7 @@ const HTTP_DUPLICATES: Record<string, HttpDuplicate> = {
   disabled: { outcome: "runs the chain again", status: 200, reply: PASSED },
   // No `reply`: the body is the request echoed back, because the check interrupts the exchange before anything writes one.
   ignore: { outcome: "answers 202 and stops", status: 202 },
-  "throw-exception": { outcome: "fails the exchange", status: 500, code: "QIP-0001" },
+  "throw-exception": { outcome: "fails the exchange", status: 500, code: "CIP-0001" },
   "execute-subchain": { outcome: "answers from the sub-chain", status: 200, reply: JSON.stringify({ called: "chain" }) },
 };
 
