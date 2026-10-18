@@ -211,7 +211,7 @@ straight to `kubectl apply`.
 | `environment` | empty | Extra environment variables for the engine container, one element per variable. |
 | `container.image` | `ghcr.io/netcracker/qubership-integration-micro-engine:latest` | Engine image. A blank value takes the default, which `MICRO_DOMAIN_CONTAINER_IMAGE` overrides. |
 | `container.imagePullPolicy` | `IfNotPresent` | `Always`, `Never`, or `IfNotPresent`. |
-| `container.request`, `container.limit` | `1280Mi` for `limit.memory`, otherwise none | `cpu` and `memory` for the container. A blank `limit.memory` takes the default. Without a limit, Camel K sets `512Mi`, and the micro-engine does not fit in it. |
+| `container.request`, `container.limit` | `1280Mi` for `limit.memory`, otherwise none | `cpu` and `memory` for the container. A blank `limit.memory` takes the default, which `MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY` overrides. Without a limit, Camel K sets `512Mi`, and the micro-engine does not fit in it. |
 | `container.readOnlyRootFilesystem` | `true` | Security context setting. |
 | `container.runAsNonRoot` | `true` | Security context setting. |
 | `container.runAsUser`, `container.runAsGroup` | `0` | Security context setting. |
@@ -270,6 +270,7 @@ standard QIP installation.
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `MICRO_DOMAIN_CONTAINER_IMAGE` | `ghcr.io/netcracker/qubership-integration-micro-engine:latest` | Engine image when `options.container.image` is blank. |
+| `MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY` | `1280Mi` | Container memory limit when `options.container.limit.memory` is blank. |
 | `CIP_EGRESS_GATEWAY_URL` | `egress-gateway:8080` | Egress gateway address used in the routes. |
 | `CIP_ISTIO_HOST_RESOURCES_ENABLED` | `true` | Generates the egress `ServiceEntry` and `DestinationRule`. |
 | `CIP_REGISTER_INGRESS_CHAIN_ROUTES` | `true` | Generates the public and private gateway routes. |

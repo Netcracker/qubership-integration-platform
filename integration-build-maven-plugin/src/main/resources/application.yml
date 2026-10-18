@@ -71,4 +71,4 @@ cip:
       container:
         image: ${MICRO_DOMAIN_CONTAINER_IMAGE:ghcr.io/netcracker/qubership-integration-micro-engine:latest}
         limit:
-          memory: 1280Mi
+          memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:1280Mi}
