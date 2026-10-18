@@ -126,6 +126,10 @@ public class GatherRequirementsPromptBuilder {
           Service Call. Chain names use CHAIN placement with elementType=chain. Copy requestedName
           without prefixes or language labels, and keep literal bodies/strings in exactValues.
           Use existing element schema keys for requestedProperties; omit guessed defaults.
+          AsyncAPI Trigger topic and classifier come from the selected catalog operation. Keep
+          their requested literals in fact text and exactValues, not standalone runtime properties.
+          After a rejected capture, retain every validated fact ID, text, and elementIntent field;
+          repair only the reported property. Do not remove the fact or clear its elementIntent.
           Capture known requirements before catalog lookup or a clarifying question. When a
           business choice is unresolved, save the known interactions and facts as a partial
           draft with an open question. Do not end a create or design request without saving

@@ -57,6 +57,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMo
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
@@ -154,6 +155,56 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, signals.stream()
         .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
         .findFirst().orElseThrow().outcome().outcomeClass());
+    assertTrue(signals.stream().noneMatch(CapabilitySignal.Message.class::isInstance));
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = RequirementDiscoveryDirective.class, names = {"STAY", "NONE"})
+  void missingCaptureCannotBecomeAnEmptyWaitOrPublishAnInventedTimeout(RequirementDiscoveryDirective directive) {
+    var store = new RequirementDraftStore();
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      store.finishTurn(chat, directive);
+      return Multi.createFrom().item(ChatEvent.token("The catalog lookup timed out. Try again later."));
+    });
+    var signals = capability.execute(new StageExecutionContext("missing-run", "missing-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", "Create the AsyncAPI chain."))).collect().asList().await().indefinitely();
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    assertEquals("CAPTURE_MISSING", outcome.recoveryCause().findings().getFirst().code());
+    assertTrue(signals.stream().noneMatch(CapabilitySignal.Message.class::isInstance),
+        "Failure explanations must come from the recorded outcome");
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = RequirementDiscoveryDirective.class, names = {"STAY", "NONE", "CONTINUE"})
+  void unresolvedCatalogWorkCannotBecomeAnAuthorWait(RequirementDiscoveryDirective directive) {
+    var store = new RequirementDraftStore();
+    var authored = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("asyncEvent", Direction.INBOUND, "Auto tests kafka service", "onTaskStart", null, null, null),
+        new InteractionInput("commonVariables", Direction.OUTBOUND, "cloud-integration-platform-catalog",
+            "GET /v1/common-variables", null, null, null)), List.of(new TransitionInput("asyncEvent", "commonVariables"))),
+        List.of(new FactInput("topic", List.of("asyncEvent"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Use topic classifier cip-auto-tests-topic2.")),
+        List.of(new CapabilityInput("asyncEvent", "async-api-trigger", null, null, null, null, null, null)),
+        List.of(), new DraftSettings(null, null));
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      store.put(chat, org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+          authored, null, List.of(), "1", "hash"));
+      store.markCaptured(chat);
+      store.finishTurn(chat, directive);
+      return Multi.createFrom().item(ChatEvent.token("The catalog lookup timed out. Try again later."));
+    });
+    var signals = capability.execute(new StageExecutionContext("lookup-run", "lookup-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", "Create the AsyncAPI chain."))).collect().asList().await().indefinitely();
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    assertTrue(outcome.recoveryCause().findings().stream().allMatch(finding ->
+        "OPERATION_LOOKUP_REQUIRED".equals(finding.code())));
+    assertEquals(2, outcome.recoveryCause().findings().size());
     assertTrue(signals.stream().noneMatch(CapabilitySignal.Message.class::isInstance));
   }
 
@@ -267,7 +318,9 @@ class RequirementDiscoveryCapabilityTest {
     var constraint = new FactInput("body-logging", List.of(), FactKind.CONSTRAINT,
         Polarity.NEGATIVE, "Do not log the input body.");
     var complete = new DraftInput(new FlowInput(List.of(), List.of()),
-        List.of(goal, constraint), List.of(), List.of(), new DraftSettings(null, null));
+        List.of(goal, constraint), List.of(),
+        List.of(new QuestionInput("entry", List.of(), "What starts the integration?")),
+        new DraftSettings(null, null));
     var lost = new DraftInput(complete.flow(), List.of(goal), List.of(), List.of(), complete.settings());
     var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
       int attempt = attempts.getAndIncrement();
@@ -1315,7 +1368,7 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.get().outcome().outcomeClass());
     assertTrue(completed.get().outcome().candidates().isEmpty());
     verifyNoInteractions(apiHub, gateway);
   }
@@ -1375,7 +1428,8 @@ class RequirementDiscoveryCapabilityTest {
             });
 
     assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
-    assertEquals("", completed.get().outcome().message());
+    assertEquals(PipelineGates.STAGE_CLARIFICATION,
+        PipelineGates.gateOf(completed.get().outcome().message()).orElseThrow());
     assertFalse(completed.get().outcome().message().contains("READY_FOR_PLAN"));
   }
 

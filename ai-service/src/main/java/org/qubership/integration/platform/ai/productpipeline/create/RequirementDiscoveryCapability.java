@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
@@ -402,6 +403,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
                         List<CapabilitySignal> signals = new ArrayList<>();
                         var settledDraft = draftStore.get(conversationId).orElse(null);
                         if (completed.outcome().outcomeClass() == StageOutcomeClass.NEEDS_INPUT
+                            && PipelineGates.gateOf(completed.outcome().message()).isEmpty()
                             && (settledDraft == null || !settledDraft.readyForPlan()
                                 || !draftStore.wasCapturedThisTurn(conversationId))) {
                           events.forEach(event -> signals.add(new CapabilitySignal.Message(tokenText(event))));
@@ -457,6 +459,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
     var preservation = draftStore.validateCurrent(conversationId);
     Optional<RequirementRejection> rejection = captureFeedback == null ? Optional.empty()
         : captureFeedback.lastRequirementRejection(conversationId);
+    if (rejection.isPresent() && !rejection.get().issues().isEmpty() && rejection.get().issues().stream()
+        .allMatch(issue -> "AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+          PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION,
+              "Which catalog folder should contain this chain? Several folders have the requested name.")));
+    }
     if (rejection.isPresent() && rejection.get().issues().stream()
         .anyMatch(issue -> !"AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
       var findings = rejection.get().issues().stream().map(issue ->
@@ -492,8 +500,30 @@ public class RequirementDiscoveryCapability implements StageCapability {
           "REPAIR_FACT_LOSS: Change only the rejected mapping field paths. The selected draft was retained.",
           RecoveryCause.mappingContract(List.of())));
     }
+    if (draft == null) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The requirements response omitted captureRequirementDraft. Capture the draft from the saved author input.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+              "CAPTURE_MISSING", "Capture the requirements draft before finishing the generation turn.", true,
+              MappingValidationDetails.empty(), "requirement-draft", "/draft")), "")));
+    }
     if (shouldOfferIds(context, draft)) {
       return idsChoiceOutcome();
+    }
+    var uploadedInteractions = uploadedSpecs == null ? java.util.Set.<String>of()
+        : uploadedSpecs.pendingInteractionIds(conversationId, draft);
+    if (!draft.readyForPlan() && !draft.hasPendingImport() && uploadedInteractions.isEmpty()
+        && draft.openQuestions().isEmpty()) {
+      var pending = draft.authoredDraft() == null ? List.<RequirementCaptureProjection.PendingWork>of()
+          : RequirementCaptureProjection.pending(
+              draft.authoredDraft(), draft.catalogBindings(),
+              RequirementCaptureProjection.resolvedTargets(draft));
+      var findings = pending.stream().map(work -> new PlanValidationFinding(work.code(), work.message(), true,
+          MappingValidationDetails.empty(), work.interactionId() == null ? "requirement-draft" : work.interactionId(),
+          work.interactionId() == null ? "/draft" : "/interactions/" + work.interactionId())).toList();
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Requirement discovery left unfinished work without an author question. Complete the saved draft and catalog lookups.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
     }
     if (directive == RequirementDiscoveryDirective.STAY) {
       if (draft != null && draft.readyForPlan()) {
@@ -505,14 +535,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
                     "Requirements draft saved. Continue to planning when ready.")));
       }
       return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
-    }
-    if (draft == null) {
-      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "The requirements response omitted captureRequirementDraft. Capture the draft from the saved author input.",
-          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
-              "CAPTURE_MISSING", "Capture the requirements draft before finishing the generation turn.", true,
-              MappingValidationDetails.empty(), "requirement-draft", "/draft")), "")));
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+              PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, String.join("\n", draft.openQuestions()))));
     }
     if (directive == RequirementDiscoveryDirective.NONE && !draftStore.wasCapturedThisTurn(conversationId)) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
@@ -522,8 +546,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
     // specs hand off the same way so import can bind catalog-backed interactions that are
     // not in the runtime catalog yet.
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
-    var uploadedInteractions = uploadedSpecs == null ? java.util.Set.<String>of()
-        : uploadedSpecs.pendingInteractionIds(conversationId, draft);
     boolean pendingUploadedSpecHandoff = !uploadedInteractions.isEmpty() && !draft.facts().isEmpty();
     if (pendingUploadedSpecHandoff && draft.authoredDraft() != null) {
       pendingUploadedSpecHandoff = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection
@@ -532,10 +554,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
               org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.resolvedTargets(draft), uploadedInteractions));
     }
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
-      // Blank on purpose: the gather agent already streamed the clarifying question. Emitting an
-      // internal draft-state sentence glued it to that text and leaked READY_FOR_PLAN into chat.
       return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+              PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, String.join("\n", draft.openQuestions()))));
     }
     if (draft.facts().isEmpty()) {
       return new CapabilitySignal.Completed(

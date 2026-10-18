@@ -52,6 +52,51 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementCaptureToolsTest {
   @Test
+  void asyncClassifierRepairPreservesFactsAndChangesOnlyTheInvalidProperty() throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    DraftInput original;
+    try (var fixture = getClass().getResourceAsStream("/requirements/asyncapi-invalid-classifier.json")) {
+      original = h.mapper().readValue(fixture, DraftInput.class);
+    }
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var rejected = h.mapper().readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class);
+      assertFalse(rejected.accepted());
+      var issue = rejected.issues().getFirst();
+      assertEquals("INVALID_REQUESTED_PROPERTY", issue.code());
+      assertTrue(issue.message().contains("catalog operation"), issue.message());
+      assertTrue(issue.message().contains("exactValues"), issue.message());
+      assertTrue(issue.message().contains("elementIntent"), issue.message());
+
+      var lost = new DraftInput(original.flow(), original.facts().stream()
+          .filter(fact -> !"async-trigger-anchor".equals(fact.sourceFactId())).toList(),
+          original.capabilities(), original.openQuestions(), original.settings());
+      var loss = h.mapper().readValue(h.tools().captureRequirementDraft(lost), RequirementCaptureResult.class);
+      assertFalse(loss.accepted());
+      assertTrue(loss.issues().stream().anyMatch(finding -> "REPAIR_FACT_LOSS".equals(finding.code())
+          && "async-trigger-anchor".equals(finding.entityId())));
+
+      var facts = original.facts().stream().map(fact -> {
+        if (!"async-trigger-anchor".equals(fact.sourceFactId())) return fact;
+        var intent = fact.elementIntent();
+        return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+            fact.fieldMapping(), fact.policyConflict(), new RequirementElementIntent(intent.elementRef(),
+                intent.elementType(), intent.placement(), intent.ownerInteractionId(), intent.successorElementRef(),
+                intent.predecessorElementRef(), intent.parentElementRef(), intent.requestedName(),
+                intent.requestedProperties().stream().filter(property -> !"topicsClassifierName".equals(property.key())).toList(),
+                List.of("cip-auto-tests-topic2")));
+      }).toList();
+      var repaired = new DraftInput(original.flow(), facts, original.capabilities(), original.openQuestions(), original.settings());
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(repaired), RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+      assertEquals(repaired, result.draft());
+      assertEquals(original.facts().stream().map(FactInput::text).toList(),
+          result.draft().facts().stream().map(FactInput::text).toList());
+    }
+  }
+
+  @Test
   void captureSchemaOffersOnlySupportedRuntimeCapabilities() {
     var root = RequirementCaptureSchemas.parameters("capability", CapabilityInput.class);
     var capability = (JsonObjectSchema) root.properties().get("capability");

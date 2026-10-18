@@ -732,6 +732,37 @@ class ProductPipelineStageExecutorTest {
     assertFalse(result.signals().stream().anyMatch(PipelineSignal.WaitingForInput.class::isInstance));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = StageOutcomeClass.class, names = {
+      "RETRYABLE_TECHNICAL_FAILURE", "CONTRACT_FAILURE", "VALIDATION_FAILURE", "DOMAIN_FAILURE",
+      "POLICY_FAILURE", "MISSING_MANDATORY_INPUT", "INTERNAL_FAILURE"})
+  void everyFailureRemainsActionableAfterAutomaticRecoveryIsExhausted(StageOutcomeClass outcomeClass) {
+    var calls = new AtomicInteger();
+    var failing = capability("failing-cap", context -> {
+      calls.incrementAndGet();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(outcomeClass,
+          "Recorded discovery failure.")));
+    });
+    var profile = retryProfile("requirement-discovery", "failing-cap", new RetryPolicy(1, 1L));
+    var runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+    StageExecutionResult result = execute(runtime, "requirement-discovery");
+    for (int retry = 0; result.decision() instanceof StageDecision.Retry; retry++) {
+      assertTrue(retry < 12, "Automatic recovery must be bounded");
+      applyLifecycle(runtime, result);
+      result = execute(runtime, "requirement-discovery");
+    }
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+    String gate = PipelineGates.gateOf(wait.prompt()).orElseThrow();
+    assertFalse(ChatEvent.actionsForGate(gate).isEmpty(), gate);
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertTrue(requireRun().attempts().stream().anyMatch(attempt -> attempt.failureEvidence() != null));
+    int settledCalls = calls.get();
+    var replay = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "requirement-discovery").decision());
+    assertEquals(gate, PipelineGates.gateOf(replay.prompt()).orElseThrow());
+    assertEquals(settledCalls, calls.get(), "Reading the parked stage must retain its recovery gate");
+  }
+
   @Test
   void missingRequiredInputReturnsWaitForInputWithoutInvokingTheCapability() {
     AtomicInteger capabilityCalls = new AtomicInteger();

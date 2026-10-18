@@ -390,7 +390,10 @@ public class RequirementCaptureTools {
                     + ". Catalog identity belongs to the resolver. Correct the key or encoding without dropping"
                     + " the author setting."
                     + ("async-api-trigger".equals(intent.elementType())
-                        ? " For Kafka consumer options, use integrationOperationAsyncProperties with a JSON object"
+                        ? " The topic and classifier come from the selected catalog operation, not a standalone"
+                            + " runtime property. Retain the literal in the fact text and exactValues; remove only the"
+                            + " invalid property, keeping the fact ID and the remaining elementIntent fields."
+                            + " For Kafka consumer options, use integrationOperationAsyncProperties with a JSON object"
                             + " value, for example {\"groupId\":\"CIP\"}." : "")));
           } else {
             elementSchemas.validateCapturePropertyValue(intent.elementType(), property.key(),
