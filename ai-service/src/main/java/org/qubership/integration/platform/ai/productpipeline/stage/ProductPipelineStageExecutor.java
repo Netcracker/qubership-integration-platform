@@ -1096,6 +1096,19 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           emitted);
     }
     if (recovery.action() == ProducerOwnedRecovery.Action.REOPEN_UPSTREAM
+        && "materialization".equals(stage.stageId())
+        && "design-execution".equals(recovery.producerStageId())
+        && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
+        && isReopenableOwner(doc, recovery.producerStageId(), cause)
+        && !catalogHasBeenWritten(doc.run().runId())
+        && recoveryLedger.mayRepair(doc.transitions(), recoveryLedger.key(recovery.producerStageId(), budgetCause,
+            RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId()), doc.transitions()), InputOrigin.TRUSTED)) {
+      return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+          "The generated chain still failed validation before publication. Retry creation regenerates it from"
+              + " the approved plan. Your requirements and plan are saved.",
+          terminalRecoveryDetails(findings, evidence, doc.run().runId(), PROGRESS_NONE), null, emitted);
+    }
+    if (recovery.action() == ProducerOwnedRecovery.Action.REOPEN_UPSTREAM
         && cause.isBindingIdentityMismatch()) {
       return waitGuardedRecovery(
           doc,
@@ -2565,7 +2578,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return false;
     }
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
-    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    RecoveryAttemptKey key = recoveryLedger.key(owner, recoveryBudgetCause(cause, evidence), artifact, doc.transitions());
     return recoveryLedger.mayReopen(
         doc.transitions(),
         key,
@@ -2624,7 +2637,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER;
     }
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
-    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    RecoveryAttemptKey key = recoveryLedger.key(owner, recoveryBudgetCause(cause, evidence), artifact, doc.transitions());
     String legacy = ToolCallFingerprints.failureSignature(evidence == null ? "" : evidence);
     if (recoveryLedger.ownerAlreadyReopened(doc.transitions(), key, legacy)) {
       return HaltRecoveryGuard.OWNER_ALREADY_REOPENED;

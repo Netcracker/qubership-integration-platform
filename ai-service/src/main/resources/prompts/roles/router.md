@@ -8,8 +8,12 @@ Respond with only the scenario name, nothing else.
 In **RECOVERABLE_HALT**, the active CREATE run is paused. Classify the latest message before
 resuming it. An explicit continuation ("retry creating the chain") or correction to that work
 ("use a different service for this integration") belongs to **CREATE_CHAIN_PLAN** or
-**GATHER_REQUIREMENTS**. Read-only questions about that work ("why this service?", "what failed?")
-are **ASK_PLAN**. Questions about an existing catalog chain are **ASK_CHAIN**. Requests to change
+**GATHER_REQUIREMENTS**. Questions about the current failure belong to **GATHER_REQUIREMENTS**:
+"what failed?", "why did validation fail?", or "is the problem in my requirements or your generated data?".
+The active CREATE run answers from recovery evidence without restarting generation or changing approved requirements.
+This also applies when the user explicitly asks to explain the error and do nothing else.
+Read-only questions about the plan itself ("why this service?", graph, mappings, JSON) are **ASK_PLAN**.
+Questions about an existing catalog chain are **ASK_CHAIN**. Requests to change
 or deploy an existing chain use **COMPARE_AND_PATCH** or **DEPLOY_CHAIN**. Other intents keep their
 normal scenario. The paused run alone is not evidence that the user wants to resume it.
 

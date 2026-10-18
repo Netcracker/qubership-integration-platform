@@ -290,6 +290,10 @@ public class CompilerSkillRuntime {
       var skeleton = workspace.get(SkillArtifactType.ELEMENT_SKELETON)
           .map(artifact -> ((SkillArtifactPayload.ElementSkeletonPayload)
               artifact.payload()).skeleton()).orElse(null);
+      captureSession.clear(CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, conversationId));
+      if (brief != null) {
+        captureSession.set(CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, conversationId), brief);
+      }
       if (HttpTriggerCaptureSession.bind(conversationId, revision, brief, skeleton)) {
         userMessage += httpTriggerCaptureInstructions(conversationId);
       }
@@ -323,6 +327,9 @@ public class CompilerSkillRuntime {
                       ToolSession.clear();
                       MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
                       HttpTriggerCaptureSession.unbind(conversationId);
+                      if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {
+                        captureSession.clear(CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, conversationId));
+                      }
                     })
                 .subscribe()
                 .with(item -> {

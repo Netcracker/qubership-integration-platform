@@ -3948,8 +3948,9 @@ class ProductPipelineStageExecutorTest {
     assertEquals("design-input", reopen.producerStageId());
   }
 
-  @Test
-  void preWriteMaterializationContractShapeReopensSucceededDesignExecution() {
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"1,false", "2,false", "2,true", "8,false"})
+  void preWriteMaterializationContractShapeReopensSucceededDesignExecution(int failures, boolean typedFinding) {
     ArtifactTypeRef request = new ArtifactTypeRef("materialization-request", 1);
     StageCapability execution =
         capability(
@@ -3968,10 +3969,12 @@ class ProductPipelineStageExecutorTest {
         capability(
             "materialization-cap",
             context -> {
-              if (materializationCalls.incrementAndGet() == 1) {
+              if (materializationCalls.incrementAndGet() <= failures) {
                 return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
                     StageOutcomeClass.CONTRACT_FAILURE, "HTTP_ENDPOINT_MISMATCH: approved=/orders, generated=/wrong",
-                    RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
+                    new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+                        typedFinding ? List.of(new PlanValidationFinding("HTTP_ENDPOINT_MISMATCH",
+                            "approved=/orders, generated=/wrong", true)) : List.of(), ""))));
               }
               return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
                   StageOutcomeClass.SUCCEEDED, List.of(new ArtifactCandidate(Kind.MATERIALIZATION_RESULT,
@@ -3981,7 +3984,8 @@ class ProductPipelineStageExecutorTest {
                       List.of())), "chain materialized", null)));
             });
     ProductPipelineProfile profile = executionThenMaterializationProfile(request);
-    CreateChainTestOrchestrator runtime = newRuntime(profile, execution, materialization);
+    CreateChainTestOrchestrator runtime = newRuntime(2,
+        new RecoveryAttemptLedger(RecoveryAttemptLedger.Limits.defaults()), profile, execution, materialization);
     startAndRecordInput(runtime, profile);
     StageExecutionResult executionResult = execute(runtime, "design-execution");
     assertInstanceOf(StageDecision.Continue.class, executionResult.decision());
@@ -3998,9 +4002,35 @@ class ProductPipelineStageExecutorTest {
     var repaired = execute(runtime, "design-execution");
     assertInstanceOf(StageDecision.Continue.class, repaired.decision());
     applyLifecycle(runtime, repaired);
-    var complete = assertInstanceOf(StageDecision.Complete.class, execute(runtime, "materialization").decision());
+    var result = execute(runtime, "materialization");
+    int manualRepairs = Math.min(failures - 1, 2);
+    for (int attempt = 0; attempt < manualRepairs; attempt++) {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+      assertEquals(PipelineGates.RECOVERY_REGENERATE_EXECUTION, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertFalse(ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow()).isEmpty());
+      assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+      assertEquals(1, requireRun().transitions().stream().filter(transition ->
+          transition.reason().startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX)).count());
+      runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+          .collect().asList().await().indefinitely();
+      assertEquals(RunStatus.RUNNING, requireRun().run().status());
+      assertEquals("design-execution", requireRun().run().currentStageId());
+      applyLifecycle(runtime, execute(runtime, "design-execution"));
+      result = execute(runtime, "materialization");
+    }
+    assertEquals(manualRepairs, requireRun().transitions().stream().filter(transition ->
+        transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
+    if (failures > 3) {
+      var exhausted = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+      assertFalse(ChatEvent.actionsForGate(PipelineGates.gateOf(exhausted.prompt()).orElseThrow())
+          .contains(ChatEvent.RETRY_CREATION_ACTION));
+      assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+      assertEquals(4, materializationCalls.get());
+      return;
+    }
+    var complete = assertInstanceOf(StageDecision.Complete.class, result.decision());
     assertEquals(RunStatus.CHAIN_MATERIALIZED, complete.status());
-    assertEquals(2, materializationCalls.get());
+    assertEquals(failures + 1, materializationCalls.get());
   }
 
   @Test

@@ -656,6 +656,7 @@ class ScenarioRouterTest {
   @ParameterizedTest
   @CsvSource({
     "IMPLEMENT_CHAIN, continue creating the chain, false",
+    "GATHER_REQUIREMENTS, why did validation fail? Do not retry or change anything, false",
     "GATHER_REQUIREMENTS, use a different service for this integration, true",
     "CREATE_CHAIN_PLAN, revise the active plan to use the order endpoint, true"
   })

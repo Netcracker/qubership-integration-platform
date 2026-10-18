@@ -732,6 +732,9 @@ class CompilerSkillRuntimeTest {
         new SkillArtifactPayload.ElementSkeletonPayload(approved.skeleton())));
     when(httpTriggerAgent.chat(eq(memoryId("cip-trigger-generator")), any()))
         .thenAnswer(invocation -> {
+          assertEquals(approved.brief(), captureSession.get(
+              CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, CONVERSATION_ID),
+              org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief.class).orElseThrow());
           var binding = HttpTriggerCaptureSession.get(CONVERSATION_ID).orElseThrow();
           var triggers = new HttpTriggerCaptureAdapter().adapt(
               new HttpTriggerCapture(List.of(new HttpTriggerCapture.Endpoint(
@@ -751,6 +754,8 @@ class CompilerSkillRuntimeTest {
     assertTrue(captureSession.isPresent(
         CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID)));
     assertTrue(HttpTriggerCaptureSession.get(CONVERSATION_ID).isEmpty());
+    assertFalse(captureSession.isPresent(
+        CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, CONVERSATION_ID)));
   }
 
   @Test

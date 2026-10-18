@@ -911,6 +911,58 @@ describe("AiAssistant", () => {
     ).toBe(true);
   });
 
+  it("should show completion in the same chat after retrying a saved recovery card", async () => {
+    const gate = decision({
+      kind: "clarify",
+      question: "The generated chain failed validation.",
+      actions: ["retry-creation", "stop-with-report"],
+      recovery: {
+        category: "regeneratable-execution-failure",
+        title: "Creation output needs regeneration",
+        summary: "Retry creation uses the approved plan.",
+        preservedWork: "Your requirements and plan are saved.",
+        technicalDetails:
+          "Generated chain validation failed before publication.",
+      },
+    });
+    const sessionId = seed([
+      { role: "assistant", content: "Implementation plan: AsyncAPI to REST" },
+      { role: "assistant", content: "", decision: gate },
+    ]);
+    jest.mocked(fetchOpenDecision).mockResolvedValue(gate);
+    stream.mockImplementation(async (_request, emit) => {
+      jest.mocked(fetchOpenDecision).mockResolvedValue(null);
+      emit({
+        type: "delta",
+        contentDelta: "Chain AsyncAPI to REST is ready. Open graph",
+      });
+      emit({
+        type: "decision",
+        decision: decision({ id: "clarify:32", kind: "clarify", actions: [] }),
+      });
+      emit({ type: "done", conversationId: "conv-1" });
+    });
+
+    await open();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Retry creation" }),
+    );
+
+    expect(
+      await screen.findByText("Chain AsyncAPI to REST is ready. Open graph"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Implementation plan: AsyncAPI to REST"),
+    ).toHaveLength(1);
+    expect(store.getSession(sessionId)?.conversationId).toBe("conv-1");
+    expect(stream.mock.calls[0][0].decision?.action).toBe("retry-creation");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Retry creation" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("exports selected chains only after the export dialog submits", async () => {
     const gate = decision({
       artifactType: "CHAIN_EXPORT",

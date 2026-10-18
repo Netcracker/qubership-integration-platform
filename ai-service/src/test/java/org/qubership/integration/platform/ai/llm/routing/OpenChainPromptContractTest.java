@@ -43,6 +43,16 @@ class OpenChainPromptContractTest {
     assertTrue(system.contains("existing deployed catalog chain"), system);
   }
 
+  @Test
+  void routerAnswersFailureQuestionsFromRecoveryEvidence() throws IOException {
+    for (String path : new String[]{"/prompts/roles/router.md", "/prompts/router-system.md"}) {
+      String prompt = resource(path);
+      assertTrue(prompt.contains("Questions about the current failure belong to **GATHER_REQUIREMENTS**"), path);
+      assertTrue(prompt.contains("without restarting generation or changing approved requirements"), path);
+      assertFalse(prompt.contains("(\"why this service?\", \"what failed?\")"), path);
+    }
+  }
+
   private static String resource(String path) throws IOException {
     try (var stream = OpenChainPromptContractTest.class.getResourceAsStream(path)) {
       if (stream == null) {

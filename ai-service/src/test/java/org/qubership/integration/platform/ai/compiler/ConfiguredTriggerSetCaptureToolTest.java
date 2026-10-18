@@ -9,15 +9,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTrigger;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class ConfiguredTriggerSetCaptureToolTest {
@@ -67,6 +74,51 @@ class ConfiguredTriggerSetCaptureToolTest {
             .orElseThrow()
             .triggers()
             .size());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"", "9000"})
+  void capturesApprovedAsyncApiPropertiesBeforeSchemaValidation(String generatedDelay) {
+    var intent = new RequirementElementIntent("trigger", "async-api-trigger",
+        RequirementElementIntent.Placement.ANCHOR, "trigger", null, null, null,
+        List.of(new PlanProperty("reconnectDelay", "30000"),
+            new PlanProperty("integrationOperationAsyncProperties", "{\"groupId\":\"CIP\"}")), List.of());
+    var fact = new RequirementFact("trigger-options", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.PARAMETER, "", "Use approved Kafka consumer options", "", "", "", "", "", "",
+        List.of("trigger"), null, intent);
+    session.set(CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, CONVERSATION_ID),
+        new RequirementBrief("Kafka to REST", List.of(), List.of(), List.of(), List.of(), "",
+            null, "", List.of(fact)));
+    var capture = new ConfiguredTriggerSet(1,
+        List.of(new ConfiguredTrigger("entry", "trigger", "async-api-trigger", "Kafka event",
+            List.of(new PlanProperty("integrationOperationProtocolType", "kafka"),
+                new PlanProperty("reconnectDelay", generatedDelay),
+                new PlanProperty("integrationOperationAsyncProperties",
+                    "{\"groupId\":\"wrong\",\"maas.classifier.name\":\"topic2\"}")))), List.of(), List.of());
+
+    CaptureValidationException accepted = assertThrows(CaptureValidationException.class,
+        () -> tool.captureConfiguredTriggerSet(capture));
+
+    assertTrue(accepted.getMessage().contains("captured"), accepted.getMessage());
+    var properties = session.get(
+        CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID),
+        ConfiguredTriggerSet.class).orElseThrow().triggers().getFirst().properties();
+    assertTrue(properties.contains(new PlanProperty("reconnectDelay", "30000")));
+    assertTrue(properties.contains(new PlanProperty("integrationOperationAsyncProperties",
+        "{\"groupId\":\"CIP\",\"maas.classifier.name\":\"topic2\"}")));
+    assertTrue(capture.triggers().getFirst().properties()
+        .contains(new PlanProperty("reconnectDelay", generatedDelay)));
+  }
+
+  @Test
+  void rejectsBlankReconnectDelayWithoutAnApprovedValue() {
+    var capture = new ConfiguredTriggerSet(1,
+        List.of(new ConfiguredTrigger("entry", "trigger", "async-api-trigger", "Kafka event",
+            List.of(new PlanProperty("reconnectDelay", "")))), List.of(), List.of());
+
+    assertTrue(tool.captureConfiguredTriggerSet(capture).contains("reconnectDelay"));
+    assertFalse(session.isPresent(
+        CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID)));
   }
 
   @Test

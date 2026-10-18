@@ -10,6 +10,8 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTrigger;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 
 /** Applies validated author values after model-generated configuration and naming. */
@@ -58,6 +60,21 @@ public final class RequestedElementValues {
     labels.putAll(names(facts));
     return new NamingManifest(generated.schemaVersion(), chainName(facts, generated.chainName()),
         labels, generated.sourceRequirementFactIds(), generated.knowledgeCitations());
+  }
+
+  public static ConfiguredTriggerSet triggers(ConfiguredTriggerSet generated, List<RequirementFact> facts) {
+    var nodes = generated.triggers().stream().map(trigger -> new ChainPlanNode(
+        trigger.semanticNodeId(), trigger.elementType(), trigger.label(), null, null, trigger.properties())).toList();
+    var scoped = facts.stream().filter(fact -> fact.elementIntent() != null
+        && nodes.stream().anyMatch(node -> fact.elementIntent().elementRef().equals(node.nodeId()))).toList();
+    var graph = apply(new ChainPlanGraph("1.0", new ChainSection("", ""), nodes, List.of()), scoped);
+    var triggers = java.util.stream.IntStream.range(0, nodes.size()).mapToObj(index -> {
+      var trigger = generated.triggers().get(index);
+      var node = graph.nodes().get(index);
+      return new ConfiguredTrigger(trigger.roleId(), node.nodeId(), node.type(), node.label(), node.properties());
+    }).toList();
+    return new ConfiguredTriggerSet(generated.schemaVersion(), triggers,
+        generated.sourceRequirementFactIds(), generated.knowledgeCitations());
   }
 
   public static ChainPlanGraph apply(ChainPlanGraph graph, List<RequirementFact> facts) {

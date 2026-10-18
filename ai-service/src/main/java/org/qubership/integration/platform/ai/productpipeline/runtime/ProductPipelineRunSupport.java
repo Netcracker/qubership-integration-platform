@@ -1729,7 +1729,8 @@ public final class ProductPipelineRunSupport {
               }
               if (retryClick
                   && !PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(haltGate)
-                  && !PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(haltGate)) {
+                  && (!PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(haltGate)
+                      || !diagnosedOwnerOf(command.runId()).equals(doc.run().currentStageId()))) {
                 return rewindBeforeGeneration(doc, command);
               }
               if (retryClick
@@ -2496,11 +2497,18 @@ public final class ProductPipelineRunSupport {
     attributesByRun
         .computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>())
         .put(DIAGNOSED_OWNER_STAGE_ATTR, rewind);
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    if (!isEarlierApprovedOwner(doc, rewind) && isCommittedRejectedInputOwner(doc, rewind, cause)) {
+      HaltRecoveryGuard retryRefusal = diagnoseRetryRefusal(doc, command);
+      if (retryRefusal != null) {
+        return refuseWithGuard(doc, command, retryRefusal);
+      }
+      return resetDownstreamAndMoveTo(doc, rewind, recordAttempt(doc, command), command);
+    }
     if (shouldCausalReopen(
         doc, rewind, command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
       return causalReopenOwner(doc, command, rewind);
     }
-    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, rewind);
     RecoveryAttemptKey key = recoveryLedger.key(rewind, cause, artifact, doc.transitions());
     if (!recoveryLedger.mayReopen(
@@ -2585,14 +2593,6 @@ public final class ProductPipelineRunSupport {
     }
     RecoveryCause cause = currentRecoveryCause(doc.run().runId());
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
-    if (PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(
-        PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""))) {
-      artifact =
-          artifactStore
-              .latest(doc.run().runId(), Kind.REQUIREMENT_BRIEF)
-              .map(revision -> revision.reference().contentHash())
-              .orElse(artifact);
-    }
     return recoveryLedger.key(owner, cause, artifact, doc.transitions());
   }
 

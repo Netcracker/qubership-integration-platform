@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationR
 /** Typed capture slot aligned with {@code compiler.addon.CaptureTool} adapters. */
 public enum CaptureSlot {
   REQUIREMENT_BRIEF(RequirementBrief.class, Scope.CONVERSATION),
+  APPROVED_REQUIREMENT_BRIEF(RequirementBrief.class, Scope.CONVERSATION),
   SELECTED_PATTERN(SelectedPattern.class, Scope.CONVERSATION),
   ELEMENT_SKELETON(ElementSkeleton.class, Scope.CONVERSATION),
   NAMING_MANIFEST(NamingManifest.class, Scope.CONVERSATION),

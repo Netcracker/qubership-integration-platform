@@ -19,6 +19,8 @@ import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTrigger;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /** Captures typed {@link ConfiguredTriggerSet} output for planning flow. */
@@ -78,6 +80,11 @@ public class ConfiguredTriggerSetCaptureTool {
       if (capture.triggers() == null || capture.triggers().isEmpty()) {
         return reject(
             conversationId, startMs, "triggers must include at least one configured trigger");
+      }
+      var approved = captureSession.get(
+          CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, conversationId), RequirementBrief.class);
+      if (approved.isPresent()) {
+        capture = RequestedElementValues.triggers(capture, approved.get().facts());
       }
       List<String> validationErrors = validateProperties(capture);
       if (!validationErrors.isEmpty()) {

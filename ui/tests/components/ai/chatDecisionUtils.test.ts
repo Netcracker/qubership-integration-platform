@@ -141,6 +141,30 @@ describe("markDecisionAnswered", () => {
 });
 
 describe("removeDecision", () => {
+  it("should preserve the completion and activity when its card is no longer open", () => {
+    const message: ChatMessage = {
+      id: "completion-1",
+      role: "assistant",
+      content: "Chain AsyncAPI to REST is ready. Open graph",
+      activity: { steps: [], summary: "Creation completed", collapsed: true },
+      decision: buildDecision({
+        id: "clarify:32",
+        kind: "clarify",
+        actions: [],
+      }),
+    };
+
+    expect(reconcileDecisionMessages([message], null)).toEqual([
+      {
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        activity: message.activity,
+      },
+    ]);
+    expect(message.decision).toBeDefined();
+  });
+
   it("should drop the matching entry", () => {
     const messages = appendDecision(
       [{ role: "user", content: "Hi" }],

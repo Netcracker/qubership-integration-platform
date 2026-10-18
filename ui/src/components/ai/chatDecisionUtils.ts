@@ -68,18 +68,24 @@ export function markDecisionAnswered(
   });
 }
 
-/** Drop the entry the server no longer reports as pending; a no-op when the id is absent. */
+/** Remove a closed card while keeping its message and activity; drop card-only entries. */
 export function removeDecision(
   messages: ChatMessage[],
   decisionId: string,
 ): ChatMessage[] {
-  return messages.filter((message) => message.decision?.id !== decisionId);
+  return messages.flatMap((message) => {
+    if (message.decision?.id !== decisionId) return [message];
+    if (!message.content.trim() && !message.activity) return [];
+    const next = { ...message };
+    delete next.decision;
+    return [next];
+  });
 }
 
 /**
  * Reconcile the transcript's decision entries against the single open gate the server currently
  * reports (or `null` for none). The server is the source of truth, so an unanswered entry that no
- * longer matches it is dropped — whether the server reports nothing or a different gate — and a
+ * longer matches it is removed while its narrative remains, and a
  * gate the transcript lacks is appended. Answered entries are history and are left untouched.
  */
 export function reconcileDecisionMessages(
