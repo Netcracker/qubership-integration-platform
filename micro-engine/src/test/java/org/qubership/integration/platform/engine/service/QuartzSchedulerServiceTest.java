@@ -13,6 +13,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.quartz.*;
+import org.quartz.impl.matchers.GroupMatcher;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.lang.reflect.Field;
@@ -76,6 +77,47 @@ class QuartzSchedulerServiceTest {
         service.removeSchedulerJobs(route);
 
         verify(scheduler).deleteJobs(List.of(endpointJobKey, consumerJobKey));
+    }
+
+    @Test
+    void shouldDeleteOnlyJobsThatNoRouteOwns() throws Exception {
+        JobKey endpointJobKey = JobKey.jobKey("endpoint-trigger", "endpoint-group");
+        JobKey consumerJobKey = JobKey.jobKey("consumer-job", "consumer-group");
+        JobKey staleJobKey = JobKey.jobKey("previous-deployment-trigger", "endpoint-group");
+        QuartzEndpoint endpoint = quartzEndpointWithTrigger(endpointJobKey.getName(), endpointJobKey.getGroup());
+        SftpConsumer consumer = sftpConsumerWithQuartzSchedulerJob(consumerJobKey);
+        Route quartzRoute = mock(Route.class);
+        when(quartzRoute.getEndpoint()).thenReturn(endpoint);
+        Route sftpRoute = mock(Route.class);
+        when(sftpRoute.getConsumer()).thenReturn(consumer);
+        when(scheduler.getJobKeys(GroupMatcher.anyJobGroup()))
+                .thenReturn(Set.of(endpointJobKey, consumerJobKey, staleJobKey));
+
+        service.removeJobsNotOwnedBy(List.of(quartzRoute, sftpRoute));
+
+        verify(scheduler).deleteJobs(List.of(staleJobKey));
+    }
+
+    @Test
+    void shouldDeleteNothingWhenRoutesOwnEveryJob() throws Exception {
+        JobKey endpointJobKey = JobKey.jobKey("endpoint-trigger", "endpoint-group");
+        QuartzEndpoint endpoint = quartzEndpointWithTrigger(endpointJobKey.getName(), endpointJobKey.getGroup());
+        Route route = mock(Route.class);
+        when(route.getEndpoint()).thenReturn(endpoint);
+        when(scheduler.getJobKeys(GroupMatcher.anyJobGroup())).thenReturn(Set.of(endpointJobKey));
+
+        service.removeJobsNotOwnedBy(List.of(route));
+
+        verify(scheduler, never()).deleteJobs(anyList());
+    }
+
+    @Test
+    void shouldSwallowExceptionWhenListingJobsThrows() throws Exception {
+        when(scheduler.getJobKeys(GroupMatcher.anyJobGroup())).thenThrow(new SchedulerException("boom"));
+
+        assertDoesNotThrow(() -> service.removeJobsNotOwnedBy(List.of()));
+
+        verify(scheduler, never()).deleteJobs(anyList());
     }
 
     @Test

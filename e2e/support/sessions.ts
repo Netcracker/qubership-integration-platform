@@ -660,7 +660,7 @@ export class Sessions {
   }
 
   /** The ids of the chain's latest sessions, read before a call so its session can be told apart. */
-  async idsOf(chainId: string): Promise<Set<string>> {
-    return new Set((await this.search({}, { chainId })).sessions.map((each) => each.id));
+  async idsOf(chainId: string, count?: number): Promise<Set<string>> {
+    return new Set((await this.search({}, { chainId, count })).sessions.map((each) => each.id));
   }
 }
