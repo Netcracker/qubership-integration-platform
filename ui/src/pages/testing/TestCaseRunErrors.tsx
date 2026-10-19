@@ -28,6 +28,7 @@ import { toStringIds } from "../../misc/selection-utils.ts";
 import { RowLink } from "../../components/table/RowLink.tsx";
 import { TestingListActions } from "../../components/testing/TestingListActions.tsx";
 import { useTestingListToolbar } from "../../components/testing/useTestingListToolbar.tsx";
+import { ChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
 const COLUMN_WIDTHS = {
   matcher: 260,
@@ -290,15 +291,6 @@ export const TestCaseRunErrors: React.FC = () => {
     leading: runSummary,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: Boolean(chainId),
-    registerDependencies: [
-      isLoading,
-      chainId,
-      searchString,
-      selectedRowKeys,
-      run,
-      permissions,
-    ],
   });
 
   const caseRunTitle = run?.testCaseName ?? caseRunId ?? "";
@@ -361,6 +353,7 @@ export const TestCaseRunErrors: React.FC = () => {
 
   return chainId ? (
     <Flex vertical gap={8} style={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+      <ChainHeaderActions>{toolbar}</ChainHeaderActions>
       {breadcrumb}
       {table}
     </Flex>

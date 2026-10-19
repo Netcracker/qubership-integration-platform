@@ -1,41 +1,17 @@
-import {
-  createContext,
-  type DependencyList,
-  type ReactNode,
-  useContext,
-  useEffect,
-  useRef,
-} from "react";
+import { createContext, type FC, type ReactNode, useContext } from "react";
+import { createPortal } from "react-dom";
 
-type ChainHeaderActionsContextValue = {
-  registerHeaderActions: (actions: ReactNode) => () => void;
+const ChainHeaderSlotContext = createContext<HTMLElement | null>(null);
+
+export const ChainHeaderSlotProvider = ChainHeaderSlotContext.Provider;
+
+/**
+ * Renders its children into the chain page header through a portal, so they
+ * commit in the same render as the tab that owns them.
+ */
+export const ChainHeaderActions: FC<{ children?: ReactNode }> = ({
+  children,
+}) => {
+  const slot = useContext(ChainHeaderSlotContext);
+  return slot ? createPortal(children, slot) : null;
 };
-
-const ChainHeaderActionsContext =
-  createContext<ChainHeaderActionsContextValue | null>(null);
-
-export const useChainHeaderActions =
-  (): ChainHeaderActionsContextValue | null =>
-    useContext(ChainHeaderActionsContext);
-
-export const useRegisterChainHeaderActions = (
-  actions: ReactNode,
-  dependencies: DependencyList = [],
-): void => {
-  const registerHeaderActions = useChainHeaderActions()?.registerHeaderActions;
-  const actionsRef = useRef<ReactNode>(actions);
-
-  actionsRef.current = actions;
-
-  useEffect(() => {
-    if (!registerHeaderActions || actionsRef.current === undefined) {
-      return;
-    }
-
-    return registerHeaderActions(actionsRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registerHeaderActions, ...dependencies]);
-};
-
-export const ChainHeaderActionsContextProvider =
-  ChainHeaderActionsContext.Provider;

@@ -16,7 +16,7 @@ import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { pickLoggingProperties } from "../misc/logging-utils.ts";
 import styles from "./Chain.module.css";
 import { LoggingSettingsSourceTag } from "../components/logging/LoggingSettingsSourceTag.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ApplyFormButton } from "../components/ApplyFormButton.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { usePermissions } from "../permissions/usePermissions.tsx";
@@ -169,18 +169,16 @@ export const LoggingSettings: React.FC = () => {
     label: capitalize(value),
   }));
 
-  useRegisterChainHeaderActions(
-    <Require permissions={{ loggingSettings: ["update"] }}>
-      <ApplyFormButton
-        formId="logging-settings-form"
-        loading={isLoggingSettingsLoading}
-      />
-    </Require>,
-    [isLoggingSettingsLoading],
-  );
-
   return (
     <div className={styles.pageContainer}>
+      <ChainHeaderActions>
+        <Require permissions={{ loggingSettings: ["update"] }}>
+          <ApplyFormButton
+            formId="logging-settings-form"
+            loading={isLoggingSettingsLoading}
+          />
+        </Require>
+      </ChainHeaderActions>
       <div className={styles.formContent} style={{ position: "relative" }}>
         {isLoggingSettingsLoading ? (
           <Spin

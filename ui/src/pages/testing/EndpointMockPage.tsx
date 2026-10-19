@@ -73,6 +73,7 @@ export const EndpointMockPage: React.FC = () => {
     activeTab,
     onTabChange,
     breadcrumbItems,
+    headerActions,
   } = useTestingEntityEditor({ ...EDITOR, chainId, entityId: endpointMockId });
 
   const editorContext = useMemo<EndpointMockEditorContext | null>(
@@ -89,6 +90,7 @@ export const EndpointMockPage: React.FC = () => {
 
   return (
     <Flex vertical gap={8} style={{ flex: 1, minWidth: 0 }}>
+      {headerActions}
       <Breadcrumb items={breadcrumbItems} />
       <Tabs activeKey={activeTab} items={TABS} onChange={onTabChange} />
       <Outlet context={editorContext} />

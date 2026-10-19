@@ -11,7 +11,6 @@ export class ChainTabsPage {
   readonly createDeployment: Locator;
   /** The deployment dialog the Deployments toolbar opens. */
   readonly deploymentDialog: Locator;
-  readonly sessionSearch: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -19,7 +18,11 @@ export class ChainTabsPage {
     this.createSnapshot = page.getByTestId("snapshots-create");
     this.createDeployment = page.getByTestId("deployments-create");
     this.deploymentDialog = page.getByRole("dialog", { name: "Deployment" });
-    this.sessionSearch = page.getByRole("textbox", { name: "Search sessions..." });
+  }
+
+  /** The search box the tab renders in the chain header. */
+  search(tab: ChainTab): Locator {
+    return this.page.getByRole("textbox", { name: `Search ${tab}...` });
   }
 
   async goto(chainId: string, tab: ChainTab): Promise<void> {
