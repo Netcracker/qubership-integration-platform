@@ -23,8 +23,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 @Slf4j
 @Component
@@ -62,7 +64,11 @@ public class McpToolRegistrar extends ElementProcessingAction {
                     Exchange result = producerTemplate.request(endpointUri, exchange ->
                         exchange.getIn().setBody(request.arguments()));
                     McpSchema.CallToolResult.Builder builder = McpSchema.CallToolResult.builder();
-                    if (isNull(tool.outputSchema())) {
+                    Exception exception = result.getException();
+                    if (nonNull(exception)) {
+                        builder.isError(true).addTextContent(
+                                Objects.toString(exception.getMessage(), exception.getClass().getName()));
+                    } else if (isNull(tool.outputSchema())) {
                         builder.textContent(Collections.singletonList(result.getMessage().getBody(String.class)));
                     } else {
                         builder.structuredContent(result.getMessage().getBody());
