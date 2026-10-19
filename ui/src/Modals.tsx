@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { ConfigProvider } from "antd";
 import { ModalContextProvider } from "./ModalContextProvider.tsx";
 
 const ModalsContext = createContext<PropsToForward | null>(null);
@@ -65,13 +66,18 @@ export const Modals: React.FC<PropsWithChildren> = ({ children }) => {
 
   return (
     <ModalsContext.Provider value={value}>
-      {modals.map((modal) => {
-        return (
-          <ModalContextProvider key={modal.id} modalId={modal.id}>
-            {modal.component}
-          </ModalContextProvider>
-        );
-      })}
+      {/* React Flow treats Space as its pan key and swallows it on window unless the
+          target is inside .nokey. Monaco's EditContext input is a plain div, so an
+          editor in a dialog over the chain graph would otherwise never get a space. */}
+      <ConfigProvider modal={{ classNames: { body: "nokey" } }}>
+        {modals.map((modal) => {
+          return (
+            <ModalContextProvider key={modal.id} modalId={modal.id}>
+              {modal.component}
+            </ModalContextProvider>
+          );
+        })}
+      </ConfigProvider>
       {children}
     </ModalsContext.Provider>
   );
