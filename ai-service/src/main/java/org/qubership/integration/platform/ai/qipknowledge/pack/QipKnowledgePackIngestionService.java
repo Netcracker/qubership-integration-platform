@@ -25,6 +25,8 @@ import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineC
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexBuilder;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
+import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReportAugmenter;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileKeys;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicy;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicyBuilder;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
@@ -210,6 +212,11 @@ public class QipKnowledgePackIngestionService {
     PipelineCompatibilityReport compatibilityReport =
         new CompilerPipelineCompatibilityAnalyzer()
             .compare(loadPreviousCertifiedPipelineIndex(), pipelineIndex);
+    compatibilityReport =
+        PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+            compatibilityReport,
+            ProductPipelineProfileKeys.readFromProfilesDirectory(
+                packRoot.resolve("product-pipelines").resolve("profiles")));
     writeJson(
         versionDir.resolve(QipKnowledgePackIndexLoader.PIPELINE_COMPATIBILITY_REPORT_FILE),
         compatibilityReport);

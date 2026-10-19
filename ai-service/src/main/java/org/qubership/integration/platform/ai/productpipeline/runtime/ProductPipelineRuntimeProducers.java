@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineCompatibilityAnalyzer;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
+import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReportAugmenter;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
@@ -58,6 +59,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileKeys;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileValidator;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -127,10 +129,18 @@ public class ProductPipelineRuntimeProducers {
       ProductPipelineProfile packProfile = loadPackProfile(packRepository, relativePath);
       merged.put(profileKey(packProfile), packProfile);
     }
+    PipelineCompatibilityReport compatibilityReport =
+        resolveCompatibilityReport(packRepository);
+    compatibilityReport =
+        PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+            compatibilityReport, ProductPipelineProfileKeys.readFromPackRepository(packRepository));
+    CompilerPipelineIndex activeIndex = packRepository.loadCompilerPipelineIndex();
+    ProductPipelineCompatibilityVerifier compatibilityVerifier =
+        new ProductPipelineCompatibilityVerifier();
     List<ProductPipelineProfile> profiles = new ArrayList<>();
     for (ProductPipelineProfile profile : merged.values()) {
       ProductPipelineProfileValidator.validate(profile, schemas, KNOWN_CAPABILITIES);
-      verifyPipelineCompatibility(profile, packRepository);
+      compatibilityVerifier.verify(profile, activeIndex, compatibilityReport);
       profiles.add(profile);
     }
     return new ProductPipelineProfileCatalog(profiles);
@@ -165,16 +175,14 @@ public class ProductPipelineRuntimeProducers {
     }
   }
 
-  private static void verifyPipelineCompatibility(
-      ProductPipelineProfile profile, QipKnowledgePackRepository packRepository) {
-    CompilerPipelineIndex activeIndex = packRepository.loadCompilerPipelineIndex();
-    PipelineCompatibilityReport report;
+  private static PipelineCompatibilityReport resolveCompatibilityReport(
+      QipKnowledgePackRepository packRepository) {
     try {
-      report = packRepository.loadPipelineCompatibilityReport();
+      return packRepository.loadPipelineCompatibilityReport();
     } catch (RuntimeException missingReport) {
-      report = new CompilerPipelineCompatibilityAnalyzer().compare(null, activeIndex);
+      return new CompilerPipelineCompatibilityAnalyzer()
+          .compare(null, packRepository.loadCompilerPipelineIndex());
     }
-    new ProductPipelineCompatibilityVerifier().verify(profile, activeIndex, report);
   }
 
   @Produces
