@@ -198,7 +198,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/engine/(?P<engine_domain>[^/]+)/(sessions|chains|live-exchanges) {
         rewrite ^/api/(v\d+)/.*/engine/[^/]+/(.*)$  /$1/engine/$2 break;
-        proxy_pass  http://qip-engine-${engine_domain}-{{ .Values.global.blueGreenVersion }}.{{ .Release.Namespace }}.svc.cluster.local:8080;
+        proxy_pass  http://cip-engine-${engine_domain}-{{ .Values.global.blueGreenVersion }}.{{ .Release.Namespace }}.svc.cluster.local:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
