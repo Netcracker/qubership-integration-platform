@@ -103,8 +103,8 @@ here. A chain the catalog reports nowhere â€” and a catalog that cannot answer â
 answer as `false`. Read it back through `Config.ProductionMode()`, which resolves the nil.
 
 Migrating over an installation that already runs test cases needs a single writer: **stop the executor that ran them
-before you migrate**. Migration 101 re-queues every case left `running` and deletes that attempt's validation errors,
-and it cannot fence a writer that predates its lease column. A rolling upgrade runs an in-flight case a second time
+before you migrate**. The lease sweep of the new executor re-queues every case left `running` with no lease and
+deletes that attempt's validation errors, and it cannot fence a writer that predates the lease column. A rolling upgrade runs an in-flight case a second time
 against the live chain and loses what the first attempt recorded.
 
 `Mount` registers relative paths, so the prefix is the host's. The generated spec under `docs/` does not follow it:
