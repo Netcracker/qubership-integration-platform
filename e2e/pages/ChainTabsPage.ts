@@ -11,7 +11,6 @@ export class ChainTabsPage {
   readonly createDeployment: Locator;
   /** The deployment dialog the Deployments toolbar opens. */
   readonly deploymentDialog: Locator;
-  readonly sessionSearch: Locator;
   /**
    * The header's submit button of the Logging and Properties forms. Not an exact name: after a save
    * antd can leave the hidden loading icon in the button, which then reads `loading Apply`.
@@ -24,8 +23,12 @@ export class ChainTabsPage {
     this.createSnapshot = page.getByTestId("snapshots-create");
     this.createDeployment = page.getByTestId("deployments-create");
     this.deploymentDialog = page.getByRole("dialog", { name: "Deployment" });
-    this.sessionSearch = page.getByRole("textbox", { name: "Search sessions..." });
     this.apply = page.getByRole("button", { name: /Apply$/ });
+  }
+
+  /** The search box the tab renders in the chain header. */
+  search(tab: ChainTab): Locator {
+    return this.page.getByRole("textbox", { name: `Search ${tab}...` });
   }
 
   async goto(chainId: string, tab: ChainTab): Promise<void> {
