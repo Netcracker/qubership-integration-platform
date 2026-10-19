@@ -5,15 +5,26 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteAdded;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteReloaded;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteRemoved;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteStarted;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteStopped;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
+import java.lang.annotation.Annotation;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -149,5 +160,22 @@ class RouteEventListenerTest {
 
         assertSame(exception, result);
         verify(anotherRouteAddedAction, never()).process(routeAddedEvent);
+    }
+
+    // Every list once carried @OnRouteAdded, so ArC injected nothing for the other four events.
+    @ParameterizedTest
+    @MethodSource("actionListQualifiers")
+    void shouldQualifyEachActionListWithItsOwnEvent(String field, Class<? extends Annotation> qualifier) throws Exception {
+        assertTrue(RouteEventListener.class.getDeclaredField(field).isAnnotationPresent(qualifier));
+    }
+
+    private static Stream<Arguments> actionListQualifiers() {
+        return Stream.of(
+            Arguments.of("onRouteAddedActions", OnRouteAdded.class),
+            Arguments.of("onRouteStartedActions", OnRouteStarted.class),
+            Arguments.of("onRouteStoppedActions", OnRouteStopped.class),
+            Arguments.of("onRouteRemovedActions", OnRouteRemoved.class),
+            Arguments.of("onRouteReloadedActions", OnRouteReloaded.class)
+        );
     }
 }
