@@ -393,6 +393,17 @@ export type PaginationOptions = {
   count?: number;
 };
 
+export type OperationListOptions = PaginationOptions & {
+  /**
+   * Narrows the list to operations whose method, name, and path together
+   * contain every whitespace-separated term of this value, case-insensitively.
+   * The browser transport applies this in the catalog, which matches with SQL
+   * LIKE, so `%` and `_` act as wildcards there. The VS Code transport reads
+   * the full list and the webview filters it by substring.
+   */
+  searchFilter?: string;
+};
+
 export type SessionSearchResponse = {
   offset: number;
   sessions: Session[];
