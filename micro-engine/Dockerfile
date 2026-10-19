@@ -1,8 +1,7 @@
 FROM alpine/java:21-jdk
 
 USER root
-RUN chmod -R 755 /opt/java/openjdk \
-    && apk add --no-cache curl=8.14.1-r2
+RUN chmod -R 755 /opt/java/openjdk
 
 VOLUME /tmp
 
