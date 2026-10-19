@@ -31,7 +31,6 @@ export const MaasPageHeader: React.FC<MaasPageHeaderProps> = ({
             disabled={exportInProgress || !isFormValid}
             onClick={onExport}
           >
-            Export
           </Button>
         </span>
       </Tooltip>
