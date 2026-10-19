@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.configuration.opensearch.OpenSearchProperties;
@@ -20,7 +21,7 @@ import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.netcracker.cloud.dbaas.client.DbaasConst.LOGICAL_DB_NAME;
+import static com.netcracker.cloud.dbaas.client.DbaasConst.*;
 import static com.netcracker.cloud.dbaas.client.entity.database.type.PostgresDBType.INSTANCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -31,6 +32,21 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class FakeDBaaSClientTest {
 
+    // The classifiers a micro-engine pod requests: the default datasource, and the one DbaasDatasourceProducer names.
+    private static final Map<String, Object> DEFAULT_CLASSIFIER = Map.of(
+            MICROSERVICE_NAME, "qip-engine-dev",
+            NAMESPACE, "dev",
+            SCOPE, TENANT,
+            TENANT_ID, "default"
+    );
+    private static final Map<String, Object> CONFIGS_CLASSIFIER = Map.of(
+            CUSTOM_KEYS, Map.of(LOGICAL_DB_NAME, "configs"),
+            MICROSERVICE_NAME, "qip-engine-dev",
+            NAMESPACE, "dev",
+            SCOPE, TENANT,
+            TENANT_ID, "default"
+    );
+
     private FakeDBaaSClient client;
 
     @Mock
@@ -39,11 +55,8 @@ class FakeDBaaSClientTest {
     @Mock
     private OpenSearchProperties.ClientProperties openSearchClientProperties;
 
-    @Mock
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private PostgresProperties postgresProperties;
-
-    @Mock
-    private PostgresProperties.ConnectionProperties schedulerDbConnectionProperties;
 
     @BeforeEach
     void setUp() {
@@ -53,99 +66,63 @@ class FakeDBaaSClientTest {
     }
 
     @Test
-    void shouldReturnPostgresDatabaseWhenTypeIsPostgres() {
-        stubSchedulerDb(
-        );
+    void shouldUseServiceDbForDefaultDatasource() {
+        stubConnection(postgresProperties.serviceDb(), "service");
 
         PostgresDatabase database = client.getOrCreateDatabase(
                 INSTANCE,
                 "dev",
-                Map.of(LOGICAL_DB_NAME, "configs"),
+                DEFAULT_CLASSIFIER,
                 DatabaseConfig.builder().build()
         );
 
         assertEquals("", database.getName());
         assertEquals("dev", database.getNamespace());
-        assertEquals("configs", database.getClassifier().get(LOGICAL_DB_NAME));
-
-        PostgresDBConnection connection = database.getConnectionProperties();
-        assertEquals("jdbc:postgresql://scheduler-db", connection.getUrl());
-        assertEquals("scheduler-user", connection.getUsername());
-        assertEquals("scheduler-password", connection.getPassword());
-        assertEquals("scheduler-role", connection.getRole());
+        assertEquals(DEFAULT_CLASSIFIER, database.getClassifier());
+        assertConnection("service", database.getConnectionProperties());
     }
 
     @Test
-    void shouldUseSchedulerDbWhenLogicalDbNameIsMissingAsCurrentBehavior() {
-        stubSchedulerDb(
-        );
+    void shouldUseSchedulerDbForConfigsDatasource() {
+        stubConnection(postgresProperties.schedulerDb(), "scheduler");
 
         PostgresDatabase database = client.getOrCreateDatabase(
                 INSTANCE,
                 "dev",
-                Map.of(),
+                CONFIGS_CLASSIFIER,
                 DatabaseConfig.builder().build()
         );
 
-        PostgresDBConnection connection = database.getConnectionProperties();
-        assertEquals("jdbc:postgresql://scheduler-db", connection.getUrl());
-        assertEquals("scheduler-user", connection.getUsername());
-        assertEquals("scheduler-password", connection.getPassword());
-        assertEquals("scheduler-role", connection.getRole());
+        assertEquals(CONFIGS_CLASSIFIER, database.getClassifier());
+        assertConnection("scheduler", database.getConnectionProperties());
     }
 
     @Test
     void shouldDelegateToOverloadWithDefaultDatabaseConfig() {
-        stubSchedulerDb(
-        );
+        stubConnection(postgresProperties.schedulerDb(), "scheduler");
 
-        PostgresDatabase database = client.getOrCreateDatabase(
-                INSTANCE,
-                "dev",
-                Map.of(LOGICAL_DB_NAME, "configs")
-        );
+        PostgresDatabase database = client.getOrCreateDatabase(INSTANCE, "dev", CONFIGS_CLASSIFIER);
 
-        PostgresDBConnection connection = database.getConnectionProperties();
-        assertEquals("jdbc:postgresql://scheduler-db", connection.getUrl());
-        assertEquals("scheduler-user", connection.getUsername());
-        assertEquals("scheduler-password", connection.getPassword());
-        assertEquals("scheduler-role", connection.getRole());
+        assertConnection("scheduler", database.getConnectionProperties());
     }
 
     @Test
     void shouldReturnDatabaseFromGetDatabase() {
-        stubSchedulerDb(
-        );
-
-        PostgresDatabase database = client.getDatabase(
-                INSTANCE,
-                "dev",
-                "rw",
-                Map.of(LOGICAL_DB_NAME, "configs")
-        );
+        PostgresDatabase database = client.getDatabase(INSTANCE, "dev", "rw", DEFAULT_CLASSIFIER);
 
         assert database != null;
         assertEquals("dev", database.getNamespace());
-        assertEquals("configs", database.getClassifier().get(LOGICAL_DB_NAME));
+        assertEquals(DEFAULT_CLASSIFIER, database.getClassifier());
     }
 
     @Test
     void shouldReturnPostgresConnectionFromGetConnection() {
-        stubSchedulerDb(
-        );
+        stubConnection(postgresProperties.schedulerDb(), "scheduler");
 
-        PostgresDBConnection connection = client.getConnection(
-                INSTANCE,
-                "dev",
-                "rw",
-                Map.of(LOGICAL_DB_NAME, "configs")
-        );
+        PostgresDBConnection connection = client.getConnection(INSTANCE, "dev", "rw", CONFIGS_CLASSIFIER);
 
         assert connection != null;
-        assertEquals("jdbc:postgresql://scheduler-db", connection.getUrl());
-        assertEquals("scheduler-user", connection.getUsername());
-        assertEquals("scheduler-password", connection.getPassword());
-        assertEquals("scheduler-role", connection.getRole());
+        assertConnection("scheduler", connection);
     }
 
     @Test
@@ -232,13 +209,18 @@ class FakeDBaaSClientTest {
         assertNull(client.getPhysicalDatabases("postgres"));
     }
 
-    private void stubSchedulerDb(
-            ) {
-        when(postgresProperties.schedulerDb()).thenReturn(schedulerDbConnectionProperties);
-        when(schedulerDbConnectionProperties.url()).thenReturn("jdbc:postgresql://scheduler-db");
-        when(schedulerDbConnectionProperties.username()).thenReturn("scheduler-user");
-        when(schedulerDbConnectionProperties.password()).thenReturn("scheduler-password");
-        when(schedulerDbConnectionProperties.role()).thenReturn("scheduler-role");
+    private static void stubConnection(PostgresProperties.ConnectionProperties properties, String name) {
+        when(properties.url()).thenReturn("jdbc:postgresql://" + name + "-db");
+        when(properties.username()).thenReturn(name + "-user");
+        when(properties.password()).thenReturn(name + "-password");
+        when(properties.role()).thenReturn(name + "-role");
+    }
+
+    private static void assertConnection(String name, PostgresDBConnection connection) {
+        assertEquals("jdbc:postgresql://" + name + "-db", connection.getUrl());
+        assertEquals(name + "-user", connection.getUsername());
+        assertEquals(name + "-password", connection.getPassword());
+        assertEquals(name + "-role", connection.getRole());
     }
 
     private void stubOpenSearch(

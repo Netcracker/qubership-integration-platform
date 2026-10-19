@@ -17,14 +17,13 @@ import io.quarkus.arc.profile.IfBuildProfile;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
 import org.qubership.integration.platform.engine.configuration.opensearch.OpenSearchProperties;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 
+import static com.netcracker.cloud.dbaas.client.DbaasConst.CUSTOM_KEYS;
 import static com.netcracker.cloud.dbaas.client.DbaasConst.LOGICAL_DB_NAME;
 
 @Slf4j
@@ -79,11 +78,11 @@ public class FakeDBaaSClient implements DbaasClient {
         database.setName("");
         database.setNamespace(namespace);
         database.setClassifier(new TreeMap<>(classifier));
-        String logicalDbName = Optional.ofNullable(classifier.get(LOGICAL_DB_NAME)).toString();
-        PostgresProperties.ConnectionProperties connectionProperties =
-                StringUtils.isBlank(logicalDbName)
-                        ? postgresProperties.serviceDb()
-                        : postgresProperties.schedulerDb();;
+        boolean configs = classifier.get(CUSTOM_KEYS) instanceof Map<?, ?> customKeys
+                && "configs".equals(customKeys.get(LOGICAL_DB_NAME));
+        PostgresProperties.ConnectionProperties connectionProperties = configs
+                ? postgresProperties.schedulerDb()
+                : postgresProperties.serviceDb();
         database.setConnectionProperties(new PostgresDBConnection(
                 connectionProperties.url(),
                 connectionProperties.username(),
