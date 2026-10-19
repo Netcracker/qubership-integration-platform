@@ -203,6 +203,22 @@ describe("ChainProperties", () => {
     expect(mockMoveChain).not.toHaveBeenCalled();
   });
 
+  it("should disable every field while the chain saves", async () => {
+    mockChainUpdate.mockReturnValue(new Promise<void>(() => {}));
+    render(<ChainProperties />);
+
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
+    [
+      "Name",
+      "Description",
+      "Business Description",
+      "Assumptions",
+      "Out of Scope",
+    ].forEach((label) => expect(screen.getByLabelText(label)).toBeDisabled());
+  });
+
   it("should label the group field Group when running in the extension", () => {
     mockIsVsCode = true;
     render(<ChainProperties />);
