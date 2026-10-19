@@ -53,5 +53,8 @@ test("a script that does not compile fails the deployment on a micro domain", { 
   // The micro engine compiled the scripts in a Camel event notifier, which ignored the failure, and
   // reported DEPLOYED until #1134.
   expect(rows, `the deployment of ${chain.name} settled at ${rows.join("; ")}`).toEqual([`FAILED: ${COMPILE_FAILURE}`]);
-  expect(await routeStatus(target.env, chain), "a chain that failed to compile is serving").toBe(404);
+  // The domain reports the failure while its pod starts, and the proxy answers 503 until the pod is ready.
+  await expect
+    .poll(() => routeStatus(target.env, chain), { timeout: MICRO_READY_TIMEOUT, message: "a chain that failed to compile is serving" })
+    .toBe(404);
 });
