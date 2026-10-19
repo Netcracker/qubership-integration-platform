@@ -191,7 +191,11 @@ class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParse
                         "requestBody": {
                           "content": {
                             "application/json": {
-                              "schema": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Address"}}
+                              "schema": {
+                                "type": "object",
+                                "properties": {"home": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Address"}}},
+                                "additionalProperties": {"$ref": "#/components/schemas/Address"}
+                              }
                             }
                           }
                         },
@@ -210,6 +214,7 @@ class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParse
         JsonNode requestSchema = parse(spec).getOperations().getFirst().getRequestSchema().get("application/json");
 
         assertEquals("#/definitions/Address", requestSchema.at("/additionalProperties/$ref").asText());
+        assertEquals("#/definitions/Address", requestSchema.at("/properties/home/additionalProperties/$ref").asText());
         assertEquals("string", requestSchema.at("/definitions/Address/properties/city/type").asText());
     }
 
@@ -336,6 +341,7 @@ class SwaggerSpecificationParser30Test extends AbstractSwaggerSpecificationParse
         "{\"$ref\": \"#/components/schemas/Address\"}",
         "{\"allOf\": [{\"$ref\": \"#/components/schemas/Address\"}, {\"type\": \"object\", \"properties\": {\"zip\": {\"type\": \"string\"}}}]}",
         "{\"type\": \"object\", \"additionalProperties\": {\"$ref\": \"#/components/schemas/Address\"}}",
+        "{\"type\": \"object\", \"additionalProperties\": {\"type\": \"object\", \"properties\": {\"addresses\": {\"type\": \"object\", \"additionalProperties\": {\"$ref\": \"#/components/schemas/Address\"}}}}}",
         "{\"type\": \"string\", \"enum\": [\"A\", \"B\"]}",
         "{\"type\": \"object\", \"description\": \"Strict\", \"additionalProperties\": false, \"properties\": {\"city\": {\"type\": \"string\"}}}"
     })
