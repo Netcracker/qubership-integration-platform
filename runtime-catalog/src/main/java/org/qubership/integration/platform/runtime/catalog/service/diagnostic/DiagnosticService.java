@@ -240,26 +240,33 @@ public class DiagnosticService {
     // Only one scan task can be executed at a time
     public CompletableFuture<Void> runValidationsAsync(@Nullable Set<String> validationIds) throws DiagnosticValidationUnexpectedException {
         if (validationUpdateTryLock()) {
+            Set<String> filteredIds = validationIds == null || validationIds.isEmpty()
+                    ? validations.keySet()
+                    : validations.keySet().stream()
+                            .filter(validationIds::contains)
+                            .collect(Collectors.toSet());
+
+            // Save IN_PROGRESS before returning, so a status read right after this call never sees the previous run.
+            Map<String, ValidationStatus> filteredValidations = new HashMap<>(filteredIds.size());
+            try {
+                transactionHandler.runInNewTransaction(() -> {
+                    for (String filteredId : filteredIds) {
+                        ValidationStatus savedStatus = validationStatusRepository.save(
+                                ValidationStatus.builder()
+                                        .validationId(filteredId)
+                                        .startedWhen(Timestamp.valueOf(LocalDateTime.now()))
+                                        .state(ValidationState.IN_PROGRESS).build());
+                        filteredValidations.put(filteredId, savedStatus);
+                    }
+                });
+            } catch (RuntimeException e) {
+                log.error("Diagnostic validations task failed to start", e);
+                validationUpdateUnlock();
+                throw e;
+            }
+
             return CompletableFuture.runAsync(() -> {
                 try {
-                    Set<String> filteredIds = validationIds == null || validationIds.isEmpty()
-                            ? validations.keySet()
-                            : validations.keySet().stream()
-                                    .filter(validationIds::contains)
-                                    .collect(Collectors.toSet());
-
-                    Map<String, ValidationStatus> filteredValidations = new HashMap<>(filteredIds.size());
-                    transactionHandler.runInNewTransaction(() -> {
-                        for (String filteredId : filteredIds) {
-                            ValidationStatus savedStatus = validationStatusRepository.save(
-                                    ValidationStatus.builder()
-                                            .validationId(filteredId)
-                                            .startedWhen(Timestamp.valueOf(LocalDateTime.now()))
-                                            .state(ValidationState.IN_PROGRESS).build());
-                            filteredValidations.put(filteredId, savedStatus);
-                        }
-                    });
-
                     for (Map.Entry<String, ValidationStatus> entry : filteredValidations.entrySet()) {
                         AbstractValidation validation = validations.get(entry.getKey());
                         ValidationStatus state = entry.getValue();
