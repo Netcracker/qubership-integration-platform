@@ -356,8 +356,7 @@ function headerSection(header: StackHeader | null, report: JsonReport): string[]
   }
 
   lines.push(
-    `Wall time ${wall}: ${stats.expected ?? 0} passed, ${stats.unexpected ?? 0} failed, ` +
-      `${stats.flaky ?? 0} flaky, ${stats.skipped ?? 0} skipped.`,
+    `Wall time ${wall}: ${stats.expected ?? 0} passed, ${stats.unexpected ?? 0} failed, ${stats.skipped ?? 0} skipped.`,
     "",
   );
   return lines;

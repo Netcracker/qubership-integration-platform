@@ -47,7 +47,7 @@ test("a green run gets its status and counts and no failed list", { tag: ["@infr
   writeRunSummary(dir);
   const summary = fs.readFileSync(path.join(dir, SUMMARY_FILE), "utf8");
   expect(summary).toContain("Status: **passed**");
-  expect(summary).toContain("| 944 | 0 | 0 | 0 | 0 |");
+  expect(summary).toContain("| 944 | 0 | 0 |");
   expect(summary).not.toContain("### Failed tests");
   expect(summary).not.toContain("### Errors");
 });
@@ -58,7 +58,8 @@ test("a red run lists each failed test with its project, location, title, and fi
   writeRunSummary(dir);
   const summary = fs.readFileSync(path.join(dir, SUMMARY_FILE), "utf8");
   expect(summary).toContain("Status: **failed**");
-  expect(summary).toContain("| 895 | 1 | 0 | 48 | 0 |");
+  expect(summary).toContain("| 895 | 1 | 48 |");
+  expect(summary).not.toContain("Pins to remove");
   expect(summary).toContain(
     "| ui | `ui/admin-tools.spec.ts:126` | a live exchange is killed only after its termination is confirmed |  | " +
       "Error: expect(received).toBe(expected) // Object.is equality |",
@@ -131,7 +132,7 @@ test("a missing run file leaves out only its own sections", { tag: ["@infra", "@
   writeRunSummary(noStack);
   const summary = fs.readFileSync(path.join(noStack, SUMMARY_FILE), "utf8");
   expect(summary).not.toContain("Status:");
-  expect(summary).toContain("| 944 | 0 | 0 | 0 | 0 |");
+  expect(summary).toContain("| 944 | 0 | 0 |");
 });
 
 test("the script writes the summary and prints nothing", { tag: ["@infra", "@tier2"] }, () => {
@@ -148,7 +149,7 @@ const earlier = (runId: string, startedAt: string, failed: string[] = [], skippe
 
 test("a failed test that the previous run passed is new, and one it failed counts its runs and links where it began", { tag: ["@infra", "@tier2"] }, () => {
   const { report } = readRun("red");
-  const passedBefore = summaryMarkdown({ report, history: [earlier("2", "2026-10-14T02:00:00Z"), earlier("1", "2026-10-13T02:00:00Z", [FAILING_KEY])] });
+  const passedBefore = summaryMarkdown({ report, history: [earlier("2", "2026-10-14T02:00:00Z"), earlier("1", "2026-10-13T02:00:00Z")] });
   expect(passedBefore).toContain("| a live exchange is killed only after its termination is confirmed | new | Error:");
   expect(passedBefore).toContain(`Against the [previous run](${RUNS}/2) of Oct 14: 1 new failure, 0 still failing, 0 fixed.`);
 
@@ -160,6 +161,15 @@ test("a failed test that the previous run passed is new, and one it failed count
 
   // Failing in every run kept, the start lies before the history.
   expect(summaryMarkdown({ report, history: history.slice(0, 3) })).toContain(`| 3 runs, since [Oct 13](${RUNS}/1) or earlier |`);
+});
+
+test("a failed test that the previous run passed and an earlier one failed is intermittent", { tag: ["@infra", "@tier2"] }, () => {
+  const { report } = readRun("red");
+  const history = [earlier("3", "2026-10-15T02:00:00Z"), earlier("2", "2026-10-14T02:00:00Z", [], [FAILING_KEY]), earlier("1", "2026-10-13T02:00:00Z", [FAILING_KEY])];
+  const summary = summaryMarkdown({ report, history });
+  // The run that skipped it is not one of the runs before.
+  expect(summary).toContain("| intermittent, failed 1 of the 2 runs before | Error:");
+  expect(summary).toContain(`Against the [previous run](${RUNS}/3) of Oct 15: 0 new failures, 1 intermittent, 0 still failing, 0 fixed.`);
 });
 
 test("a test the previous run failed and this one passed counts as fixed", { tag: ["@infra", "@tier2"] }, () => {
@@ -216,20 +226,27 @@ test("the time by project and the slowest tests come from each result's start an
   expect(summary).toContain("<summary>Slowest 5 tests</summary>");
 });
 
-test("known defects are grouped by the defect a conditional pin names, and a stackless project's pins are left out", { tag: ["@infra", "@tier2"] }, () => {
+test("a test.fail() case that passed is a pin to remove, and a stackless project's pin that passed stays a failure", { tag: ["@infra", "@tier2"] }, () => {
   const { report } = readRun("green");
   const [spec] = report.suites[0].specs;
-  const pinned = (projectName: string, description?: string) => ({ ...spec.tests[0], projectName, status: "expected", annotations: [{ type: "fail", description }] });
+  const passedPin = (projectName: string, description?: string) => ({ ...spec.tests[0], projectName, status: "unexpected", annotations: [{ type: "fail", description }], results: [{ status: "passed", errors: [] }] });
+  const struckPin = { ...spec.tests[0], projectName: "api", status: "expected", annotations: [{ type: "fail" }], results: [{ status: "failed", errors: [] }] };
+  // notTheKnownDefect fails a pinned case for real.
+  const realFailure = { ...struckPin, status: "unexpected", results: [{ status: "failed", errors: [{ message: "Error: a new failure" }] }] };
   report.config.projects = [{ name: "schema", metadata: { stack: false } }];
+  report.stats.unexpected = 4;
   report.suites[0].specs.push(
-    { ...spec, title: "a", tests: [pinned("runtime-micro", "the micro engine drops it"), pinned("brokers-micro", "the micro engine drops it")] },
-    { ...spec, title: "b", line: 9, tests: [pinned("api")] },
-    { ...spec, title: "c", tests: [pinned("schema", "a race")] },
+    { ...spec, title: "a", line: 8, tests: [passedPin("runtime-micro", "the micro engine drops it")] },
+    { ...spec, title: "b", line: 9, tests: [passedPin("api")] },
+    { ...spec, title: "c", line: 10, tests: [passedPin("schema")] },
+    { ...spec, title: "d", line: 11, tests: [struckPin] },
+    { ...spec, title: "e", line: 12, tests: [realFailure] },
   );
   const summary = summaryMarkdown({ report });
-  expect(summary).toContain("<summary>Known defects: 3 cases</summary>");
-  expect(summary).toContain("| the micro engine drops it | `runtime-micro`, `brokers-micro` | 2 |");
-  expect(summary).toContain(`| \`${spec.file}:9\` b | \`api\` | 1 |`);
-  expect(summary).not.toContain("a race");
-  expect(summary).toContain("| 941 | 0 | 0 | 0 | 3 |");
+  expect(summary).toContain("| Passed | Failed | Skipped | Pins to remove |\n| --- | --- | --- | --- |\n| 944 | 2 | 0 | 2 |");
+  expect(summary).toContain("### Pins to remove\n\nEach `test.fail()` case below passed");
+  expect(summary).toContain(`| runtime-micro | \`${spec.file}:8\` | a | the micro engine drops it |`);
+  expect(summary).toContain(`| api | \`${spec.file}:9\` | b |  |`);
+  expect(failedTests(report).map((each) => each.title)).toEqual(["c", "e"]);
+  expect(summary).not.toContain("Known defects");
 });

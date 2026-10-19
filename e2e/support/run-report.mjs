@@ -7,7 +7,7 @@ import fs from "node:fs";
 /**
  * @typedef {{ message?: string, location?: { file: string, line: number } }} ReportError
  * @typedef {{ name: string, contentType?: string, body?: string }} Attachment
- * @typedef {{ startTime?: string, duration?: number, errors?: ReportError[], attachments?: Attachment[] }} TestResult
+ * @typedef {{ status?: string, startTime?: string, duration?: number, errors?: ReportError[], attachments?: Attachment[] }} TestResult
  * @typedef {{ type: string, description?: string }} Annotation
  * @typedef {{ projectName: string, status: string, annotations?: Annotation[], results: TestResult[] }} ReportTest
  * @typedef {{ title: string, file: string, line: number, tests: ReportTest[] }} ReportSpec
@@ -48,16 +48,20 @@ export function eachTest(report, visit) {
 }
 
 /**
- * Which tests struck a known product defect. A `test.fail()` case that failed the way it pins is
- * `expected`, and it keeps the `fail` annotation. A project that needs no stack pins no product
- * defect: its pins test the pinning itself.
+ * Which tests pin a product defect that no longer reproduces. A `test.fail()` case that passed is
+ * `unexpected`, with a passed result and the `fail` annotation. A project that needs no stack pins
+ * no product defect: its pins test the pinning itself, so a pass there is an ordinary failure.
  *
  * @param {Report} report
  * @returns {(test: ReportTest) => boolean}
  */
-export function knownDefectIn(report) {
+export function fixedPinIn(report) {
   const stackless = new Set((report.config.projects ?? []).filter((each) => each.metadata?.stack === false).map((each) => each.name));
-  return (test) => test.status === "expected" && !stackless.has(test.projectName) && (test.annotations ?? []).some((each) => each.type === "fail");
+  return (test) =>
+    test.status === "unexpected" &&
+    !stackless.has(test.projectName) &&
+    (test.annotations ?? []).some((each) => each.type === "fail") &&
+    test.results.at(-1)?.status === "passed";
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

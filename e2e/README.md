@@ -222,26 +222,29 @@ the console output only, and the command does not run `npm run reconcile`.
 manual dispatch from the Actions tab. The dispatch input `workers` sets `E2E_WORKERS`; left empty,
 the run uses the nightly value. The dispatch input `email` makes a failed manual run send the
 failure email as well. Start with the job's step summary, which `support/run-summary.mjs` writes. It
-shows the run status, how long the run and its provisioning took, and the test counts with the known
-defects counted apart. Then come up to 50 failed tests with their project, `file:line`, title, how
-long each has been failing, and first error line, the errors raised outside any test, and the
-coverage `npm run reconcile` recorded. Collapsed tables hold the peak memory, CPU, and Metaspace of
-each service against its band, the time each project took, the slowest tests, and the known defects
-grouped by defect. The projects left out on this target come last.
+shows the run status, how long the run and its provisioning took, and the test counts. Then come up
+to 50 failed tests with their project, `file:line`, title, how long each has been failing, and first
+error line, the pins to remove, the errors raised outside any test, and the coverage
+`npm run reconcile` recorded. A pin to remove is a `test.fail()` case that passed: the defect it pins
+no longer reproduces, so remove the annotation and close the defect's issue. Collapsed tables hold
+the peak memory, CPU, and Metaspace of each service against its band, the time each project took,
+and the slowest tests. The projects left out on this target come last.
 
 Every run with a report uploads its failed and skipped tests as the `e2e-outcomes` artifact, kept for
 30 days. Before it writes the summary, the job downloads that artifact from up to ten earlier runs on
-the same branch, which marks each failed test as new or as failing since a given run, and counts the
-tests the previous run failed that pass now.
+the same branch. A failed test is new when no earlier run failed it, intermittent when an earlier run
+failed it and the latest run that ran it passed, and otherwise failing since a given run. The summary
+also counts the tests the previous run failed that pass now.
 
 A failed nightly run mails a report to the addresses in the repository variable `EMAIL_TO`, which
 the email step needs. `support/run-email.mjs` writes it: a one-sentence verdict, followed by how the
-failures compare with the previous run, the test counts with the known defects that struck counted
-apart, and links to the run, the report artifact, the cluster dump, and the commit. Up to 20 failed
-tests follow, each with how long it has been failing, the first lines of its error, and the command
-that reruns it. The email also lists the projects a failed project kept from running and the errors
-raised outside any test. When every failed test also failed the previous run, the subject reads
-"still failing" instead of "failed". Every run uploads the `e2e-report` artifact:
+failures compare with the previous run, the test counts, and links to the run, the report artifact,
+the cluster dump, and the commit. Up to 20 failed tests follow, each with how long it has been
+failing, the first lines of its error, and the command that reruns it, and then the pins to remove.
+A run whose only failures are pins to remove is titled "found fixed defects". The email also lists
+the projects a failed project kept from running and the errors raised outside any test. When every
+failed test also failed the previous run, the subject reads "still failing" instead of "failed".
+Every run uploads the `e2e-report` artifact:
 `playwright-report/`, `test-results/`, the `.e2e-k8s-` state files, and `.e2e-ui-server.log`. A failed or cancelled run also uploads `e2e-cluster`: the workloads and events
 of every namespace, a description of each pod in `qip-e2e`, the camel-k Integrations, and the logs
 of those pods' containers, istiod, and the camel-k operator. The dump runs after the suite, so it
@@ -364,7 +367,7 @@ Kubernetes run:
 | Service | Version | Built | Image | Image created |
 …
 
-Wall time 768.4 s: 935 passed, 0 failed, 0 flaky, 0 skipped.
+Wall time 768.4 s: 935 passed, 0 failed, 0 skipped.
 ```
 
 "Not run on this target" is the `absent` list: a project this target leaves out, with the reason.

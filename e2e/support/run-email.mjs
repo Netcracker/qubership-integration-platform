@@ -9,7 +9,8 @@
  * `GITHUB_SHA`, `GITHUB_REF_NAME`, `GITHUB_RUN_ID`, `GITHUB_EVENT_NAME`) and from the artifact links
  * the workflow passes (`REPORT_URL`, `CLUSTER_URL`). The subject names the failed tests, or else the
  * first error raised outside any test, or else the step `FAILED_STEP` names. The earlier runs under
- * `E2E_HISTORY_DIR` mark each failed test as new or as still failing.
+ * `E2E_HISTORY_DIR` mark each failed test as new, intermittent, or still failing. A `test.fail()`
+ * case that passed is listed apart, as a pin to remove.
  *
  * The HTML is laid out with tables and inline styles only, because Gmail drops a `<style>` block in
  * many of its clients and Outlook renders with Word.
@@ -17,7 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { eachTest, knownDefectIn, readIfPresent, shortDate, stripAnsi, utcDate } from "./run-report.mjs";
+import { eachTest, fixedPinIn, readIfPresent, shortDate, stripAnsi, utcDate } from "./run-report.mjs";
 import { fixedSince, historyOf, readHistory, testKey } from "./run-history.mjs";
 
 export const HTML_FILE = "email.html";
@@ -38,14 +39,15 @@ const WORKFLOW_FILE = ".github/workflows/e2e-k8s.yaml";
  * @typedef {{ text: string, href?: string }} Link
  * @typedef {{ lines: string[], cut: boolean }} Excerpt
  * @typedef {{ project: string, title: string, location: Link, failedAt?: Link, error: Excerpt, retry: string, history?: History, sameCommit?: boolean }} FailedCase
+ * @typedef {{ project: string, title: string, location: Link, defect?: string }} FixedPin
  * @typedef {{ name: string, skipped: number }} IdleProject
  * @typedef {{ cause: string[], projects: IdleProject[] }} NotRun
- * @typedef {{ passed: number, failed: number, flaky: number, skipped: number, known: number, total: number }} Counts
+ * @typedef {{ passed: number, failed: number, pins: number, skipped: number, total: number }} Counts
  * @typedef {"failed" | "warning" | "passed"} Tone
  * @typedef {{
  *   tone: Tone, title: string, verdict: string, trend?: string, repo?: string, branch?: string, commit?: Link, commitSubject?: string,
  *   trigger: string, started?: string, duration?: string, target: string, counts?: Counts,
- *   runUrl?: string, artifactsUrl?: string, clusterUrl?: string, readmeUrl?: string, failed: FailedCase[],
+ *   runUrl?: string, artifactsUrl?: string, clusterUrl?: string, readmeUrl?: string, failed: FailedCase[], pins: FixedPin[],
  *   failedProjects: string[], errors: Excerpt[], failedStep?: string, notRun: NotRun[],
  *   dependenciesKnown: boolean, absent: { name: string, reason: string }[]
  * }} Email
@@ -154,31 +156,37 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
   const perProject = new Map((report?.config.projects ?? []).map((each) => [each.name, { total: 0, skipped: 0, failed: 0 }]));
   /** @type {FailedCase[]} */
   const failed = [];
-  let known = 0;
+  /** @type {FixedPin[]} */
+  const pins = [];
   if (report) {
     const e2eDir = path.dirname(report.config.rootDir);
-    const isKnown = knownDefectIn(report);
+    const isFixedPin = fixedPinIn(report);
     eachTest(report, (spec, test, title) => {
       const project = perProject.get(test.projectName) ?? { total: 0, skipped: 0, failed: 0 };
       perProject.set(test.projectName, project);
       project.total++;
       if (test.status === "skipped") project.skipped++;
-      if (isKnown(test)) known++;
       if (test.status !== "unexpected") return;
+      const location = { text: `${spec.file}:${spec.line}`, href: blob(`specs/${spec.file}`, spec.line) };
+      if (isFixedPin(test)) {
+        const defect = test.annotations?.find((each) => each.type === "fail" && each.description)?.description;
+        pins.push({ project: test.projectName, title, location, defect });
+        return;
+      }
       project.failed++;
       const error = test.results.at(-1)?.errors?.[0];
       const thrown = error?.location && path.relative(e2eDir, error.location.file);
       failed.push({
         project: test.projectName,
         title,
-        location: { text: `${spec.file}:${spec.line}`, href: blob(`specs/${spec.file}`, spec.line) },
+        location,
         failedAt: thrown && error?.location ? { text: `${thrown}:${error.location.line}`, href: blob(thrown, error.location.line) } : undefined,
         error: excerpt(error?.message),
         retry: `npm run test:${target} -- --project=${test.projectName} --no-deps -g "${grepPattern(spec.title)}"`,
         history: historyOf(testKey(test.projectName, spec.file, title), history),
       });
       const last = failed.at(-1);
-      if (last?.history?.kind === "new") last.sameCommit = Boolean(sha) && last.history.previous.sha === sha;
+      if (last?.history && last.history.kind !== "recurring") last.sameCommit = Boolean(sha) && last.history.previous.sha === sha;
     });
   }
   // Grouped by project, in the order the config declares the projects.
@@ -189,14 +197,13 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
   const stats = report?.stats;
   /** @type {Counts | undefined} */
   const counts = stats && {
-    passed: stats.expected - known,
-    failed: stats.unexpected,
-    flaky: stats.flaky,
+    passed: stats.expected,
+    failed: stats.unexpected - pins.length,
+    pins: pins.length,
     skipped: stats.skipped,
-    known,
-    total: stats.expected + stats.unexpected + stats.flaky + stats.skipped,
+    total: stats.expected + stats.unexpected + stats.skipped,
   };
-  const failedStep = failed.length === 0 && errors.length === 0 ? env.FAILED_STEP || undefined : undefined;
+  const failedStep = failed.length === 0 && pins.length === 0 && errors.length === 0 ? env.FAILED_STEP || undefined : undefined;
 
   /** @type {[Tone, string]} */
   const [tone, verdict] =
@@ -206,8 +213,8 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
         ? ["warning", "timed out"]
         : errors.length > 0 || failedStep || !report
           ? ["failed", "failed"]
-          : (counts?.flaky ?? 0) > 0
-            ? ["warning", "passed with flaky tests"]
+          : pins.length > 0
+            ? ["warning", "found fixed defects"]
             : ["passed", "passed"];
   const event = env.GITHUB_EVENT_NAME;
   const started = stats?.startTime ?? stack?.startedAt;
@@ -232,6 +239,7 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
     clusterUrl: env.CLUSTER_URL || undefined,
     readmeUrl: blob("README.md") && `${blob("README.md")}#reproducing-one-case`,
     failed,
+    pins,
     failedProjects,
     errors,
     failedStep,
@@ -240,34 +248,25 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
     absent: stack?.absent ?? [],
   };
   email.verdict = verdictOf(email, lastRun?.status === "timedout", Boolean(report));
-  email.trend = report && trendOf(email, fixedSince(report, history[0]).length, history[0]);
+  // After the trend, whose "It" names the failed test.
+  const trend = [report && trendOf(email, fixedSince(report, history[0]).length, history[0]), failed.length > 0 && pins.length > 0 && noLongerReproduce(pins.length)];
+  email.trend = trend.filter(Boolean).join(" ") || undefined;
   return email;
 }
 
 /**
  * The run's outcome as one sentence, the way the tone was chosen: failed tests first, then a
- * timeout, an error outside any test, a failed step, and a pass.
+ * timeout, an error outside any test, a failed step, pins to remove, and a pass.
  *
  * @param {Email} email
  * @param {boolean} timedOut
  * @param {boolean} reported
  */
 function verdictOf(email, timedOut, reported) {
-  const counts = email.counts ?? { passed: 0, failed: 0, flaky: 0, skipped: 0, known: 0, total: 0 };
-  const ran = counts.passed + counts.known + counts.failed + counts.flaky;
+  const counts = email.counts ?? { passed: 0, failed: 0, pins: 0, skipped: 0, total: 0 };
+  const ran = counts.passed + counts.failed + counts.pins;
   const didNotRun = counts.skipped > 0 ? `, and ${plural(counts.skipped, "test")} did not run` : "";
-  if (email.failed.length > 0) {
-    const projects = email.failedProjects;
-    const where = projects.length <= 3 ? joined(projects) : `${projects.slice(0, 2).join(", ")}, and ${projects.length - 2} other projects`;
-    const head = `${plural(email.failed.length, "test")} failed in ${where}`;
-    if (counts.skipped === 0) return `${head}.`;
-    // Only a project whose dependency failed counts here; a test the spec skipped itself does not.
-    const dependent = email.notRun.filter((group) => group.cause.length > 0).flatMap((group) => group.projects).reduce((sum, each) => sum + each.skipped, 0);
-    const tests = plural(counts.skipped, "test");
-    const tail = dependent === counts.skipped ? `${tests} that ${counts.skipped === 1 ? "depends" : "depend"} on ${projects.length === 1 ? "it" : "them"} did not run` : `${tests} did not run`;
-    // A list of three already holds an ", and", so the rest gets a sentence of its own.
-    return projects.length < 3 ? `${head}, and ${tail}.` : `${head}. ${tail[0].toUpperCase()}${tail.slice(1)}.`;
-  }
+  if (email.failed.length > 0) return failedVerdict(email, counts);
   if (timedOut) return `The run timed out${email.duration ? ` after ${email.duration}` : ""}${didNotRun}.`;
   const error = email.errors[0]?.lines[0];
   if (error !== undefined) {
@@ -279,9 +278,31 @@ function verdictOf(email, timedOut, reported) {
     return /^[a-z]/.test(email.failedStep) ? `The run failed at ${email.failedStep}.` : `The run failed at the step "${email.failedStep}".`;
   }
   if (!reported) return "The run failed before it wrote a report.";
+  if (counts.pins > 0) return `${noLongerReproduce(counts.pins)} Every other test ${counts.skipped > 0 ? "that ran " : ""}passed${didNotRun}.`;
   const passed = counts.skipped > 0 ? `All ${plural(ran, "test")} that ran passed` : `All ${plural(ran, "test")} passed`;
-  const flaky = counts.flaky > 0 ? `, ${counts.flaky} of them only on a retry` : "";
-  return `${passed}${flaky}${counts.skipped > 0 ? `, and ${counts.skipped} did not run` : ""}.`;
+  return `${passed}${counts.skipped > 0 ? `, and ${counts.skipped} did not run` : ""}.`;
+}
+
+/** @param {number} pins */
+const noLongerReproduce = (pins) => `${plural(pins, "pinned defect")} no longer ${pins === 1 ? "reproduces" : "reproduce"}.`;
+
+/**
+ * The failed tests, the projects they failed in, and the tests those projects kept from running.
+ *
+ * @param {Email} email
+ * @param {Counts} counts
+ */
+function failedVerdict(email, counts) {
+  const projects = email.failedProjects;
+  const where = projects.length <= 3 ? joined(projects) : `${projects.slice(0, 2).join(", ")}, and ${projects.length - 2} other projects`;
+  const head = `${plural(email.failed.length, "test")} failed in ${where}`;
+  if (counts.skipped === 0) return `${head}.`;
+  // Only a project whose dependency failed counts here; a test the spec skipped itself does not.
+  const dependent = email.notRun.filter((group) => group.cause.length > 0).flatMap((group) => group.projects).reduce((sum, each) => sum + each.skipped, 0);
+  const tests = plural(counts.skipped, "test");
+  const tail = dependent === counts.skipped ? `${tests} that ${counts.skipped === 1 ? "depends" : "depend"} on ${projects.length === 1 ? "it" : "them"} did not run` : `${tests} did not run`;
+  // A list of three already holds an ", and", so the rest gets a sentence of its own.
+  return projects.length < 3 ? `${head}, and ${tail}.` : `${head}. ${tail[0].toUpperCase()}${tail.slice(1)}.`;
 }
 
 /**
@@ -296,11 +317,16 @@ function trendOf(email, fixed, previous) {
   if (!previous) return undefined;
   const total = email.failed.length;
   const fresh = email.failed.filter((each) => each.history?.kind === "new").length;
+  const intermittent = email.failed.filter((each) => each.history?.kind === "intermittent").length;
   const still = email.failed.filter((each) => each.history?.kind === "recurring").length;
   const parts = [];
   if (total > 0 && fresh === total) parts.push(total === 1 ? "It is new since the previous run." : "All of them are new since the previous run.");
   else if (total > 0 && still === total) parts.push(total === 1 ? "It failed in the previous run too." : "All of them failed in the previous run too.");
-  else if (fresh > 0) parts.push(`${fresh} of them ${fresh === 1 ? "is" : "are"} new since the previous run.`);
+  else if (total > 0 && intermittent === total) parts.push(total === 1 ? "It fails intermittently." : "All of them fail intermittently.");
+  else {
+    if (fresh > 0) parts.push(`${fresh} of them ${fresh === 1 ? "is" : "are"} new since the previous run.`);
+    if (intermittent > 0) parts.push(`${intermittent} of them ${intermittent === 1 ? "fails" : "fail"} intermittently.`);
+  }
   if (fixed > 0) parts.push(`${plural(fixed, "test")} that the previous run failed ${fixed === 1 ? "passes" : "pass"} now.`);
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
@@ -314,11 +340,13 @@ function trendOf(email, fixed, previous) {
 function historyParts(each) {
   const history = each.history;
   if (!history) return undefined;
-  if (history.kind === "new") {
+  const same = each.sameCommit ? ", which ran the same commit" : "";
+  if (history.kind === "new") return { before: "New since ", link: { text: "the last run that ran it", href: history.previous.url }, after: same };
+  if (history.kind === "intermittent") {
     return {
-      before: "New since ",
+      before: `Intermittent: failed in ${history.failures} of the ${history.runs} runs before this one, and passed in `,
       link: { text: "the last run that ran it", href: history.previous.url },
-      after: each.sameCommit ? ", which ran the same commit" : "",
+      after: same,
     };
   }
   return {
@@ -347,8 +375,11 @@ export function emailSubject(email) {
   const ref = email.branch && email.commit ? ` (${email.branch} @ ${email.commit.text})` : "";
   const { counts } = email;
   let detail = "";
+  const pins = counts && counts.pins > 0 ? plural(counts.pins, "pin") + " to remove" : "";
   if (counts && counts.failed > 0) {
-    detail = `: ${headline(email)}${counts.skipped > 0 ? `, ${counts.skipped} skipped` : ""}`;
+    detail = `: ${headline(email)}${counts.skipped > 0 ? `, ${counts.skipped} skipped` : ""}${pins ? `, ${pins}` : ""}`;
+  } else if (pins && email.errors.length === 0) {
+    detail = `: ${pins}`;
   } else if (email.errors[0]) {
     const line = email.errors[0].lines[0] ?? "";
     detail = `: ${line.length > 100 ? `${line.slice(0, 99)}…` : line}`;
@@ -366,10 +397,7 @@ export function emailSubject(email) {
 export function preheader(email) {
   const verdict = (/[.!?]$/.test(email.verdict) ? email.verdict : `${email.verdict}.`) + (email.trend ? ` ${email.trend}` : "");
   const parts = [];
-  if (email.counts && email.counts.total > 0) {
-    parts.push(`${email.counts.passed} passed`);
-    if (email.counts.known > 0) parts.push(plural(email.counts.known, "known defect"));
-  }
+  if (email.counts && email.counts.total > 0) parts.push(`${email.counts.passed} passed`);
   const tail = [email.duration, `on ${email.target}`].filter(Boolean).join(" ");
   const counts = parts.length > 0 ? ` ${parts.join(", ")}.` : "";
   return `${verdict}${counts} ${tail[0].toUpperCase()}${tail.slice(1)}.`;
@@ -439,16 +467,17 @@ const badge = (name) =>
 
 /** @param {Counts} counts */
 function tiles(counts) {
-  const tile = [
+  /** @type {[string, number, string, string][]} */
+  const shown = [
     ["Passed", counts.passed, "#ecfdf3", "#067647"],
     ["Failed", counts.failed, "#fef3f2", "#b42318"],
-    ["Flaky", counts.flaky, "#fffaeb", "#b54708"],
     ["Skipped", counts.skipped, "#f2f4f7", "#344054"],
-    ["Known defects", counts.known, "#f4f3ff", "#5925dc"],
-  ].map(([label, value, background, color]) => {
+  ];
+  if (counts.pins > 0) shown.push(["Pins to remove", counts.pins, "#fffaeb", "#b54708"]);
+  const tile = shown.map(([label, value, background, color]) => {
     const [bg, fg] = value === 0 ? ["#f9fafb", MUTED] : [background, color];
     return (
-      `<td width="20%" valign="top" style="padding:0 3px;">` +
+      `<td width="${Math.floor(100 / shown.length)}%" valign="top" style="padding:0 3px;">` +
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>` +
       `<td align="center" bgcolor="${bg}" style="background-color:${bg};border-radius:6px;padding:12px 2px;font-family:${SANS};">` +
       `<div style="font-size:22px;line-height:28px;font-weight:700;color:${fg};">${value}</div>` +
@@ -468,7 +497,7 @@ function tiles(counts) {
 function card(each) {
   const failedAt = each.failedAt ? `<br><span style="color:${MUTED};">failed at</span> ${anchor(each.failedAt)}` : "";
   const parts = historyParts(each);
-  const color = each.history?.kind === "new" ? "#b42318" : "#475467";
+  const color = each.history?.kind === "new" ? "#b42318" : each.history?.kind === "intermittent" ? "#b54708" : "#475467";
   const history = parts
     ? `<div style="padding-top:6px;font-size:13px;line-height:19px;font-weight:600;color:${color};">${escapeHtml(parts.before)}${anchor(parts.link)}${escapeHtml(parts.after)}</div>`
     : "";
@@ -506,6 +535,31 @@ function failedSection(email) {
     body += `<div style="padding-top:14px;font-family:${SANS};font-size:14px;line-height:20px;color:#344054;">And ${more} more, listed in the HTML report ${where}.</div>`;
   }
   return sectionTitle("What failed") + `<tr><td style="padding:0 28px;">${body}</td></tr>`;
+}
+
+const PINS_LEAD = "Each test.fail() case below passed, so the defect it pins no longer reproduces. Remove the annotation and close the defect's issue.";
+
+/** @param {FixedPin} each */
+function pinCard(each) {
+  const defect = each.defect ? `<div style="padding-top:6px;font-size:13px;line-height:19px;color:#475467;">${escapeHtml(each.defect)}</div>` : "";
+  return (
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;"><tr><td style="padding-top:10px;">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;table-layout:fixed;border:1px solid #e4e7ec;border-left:4px solid #f79009;border-radius:6px;">` +
+    `<tr><td style="padding:14px 16px;font-family:${SANS};">` +
+    `<div style="font-size:15px;line-height:21px;font-weight:600;color:${TEXT};">${escapeHtml(each.title)}</div>` +
+    `<div style="padding-top:4px;font-family:${MONO};font-size:12px;line-height:18px;word-break:break-word;overflow-wrap:anywhere;">${badge(each.project)}&nbsp; ${anchor(each.location)}</div>` +
+    defect +
+    `</td></tr></table></td></tr></table>`
+  );
+}
+
+/** @param {Email} email */
+function pinsSection(email) {
+  if (email.pins.length === 0) return "";
+  return (
+    sectionTitle("Pins to remove") +
+    `<tr><td style="padding:4px 28px 0;font-family:${SANS};font-size:14px;line-height:20px;color:#344054;">${escapeHtml(PINS_LEAD)}${email.pins.map(pinCard).join("")}</td></tr>`
+  );
 }
 
 /** @param {Email} email */
@@ -681,6 +735,7 @@ export function emailHtml(email) {
     actions(email),
     errorsSection(email),
     failedSection(email),
+    pinsSection(email),
     notRunSection(email),
     footer(email),
     `</table>`,
@@ -718,7 +773,7 @@ export function emailText(email) {
   for (const [label, value] of facts) if (value) out.push(`${label.padEnd(10)}${value}`);
   if (email.counts) {
     const c = email.counts;
-    out.push("", `${c.passed} passed, ${c.failed} failed, ${c.flaky} flaky, ${c.skipped} skipped, ${plural(c.known, "known defect")} (${c.total} tests)`);
+    out.push("", `${c.passed} passed, ${c.failed} failed, ${c.skipped} skipped${c.pins > 0 ? `, ${plural(c.pins, "pin")} to remove` : ""} (${c.total} tests)`);
   }
   if (email.runUrl) {
     out.push("", `Open the run: ${email.runUrl}`);
@@ -749,6 +804,13 @@ export function emailText(email) {
     }
     const more = email.failed.length - shown.length;
     if (more > 0) out.push("", `And ${more} more, listed in the HTML report${email.artifactsUrl ? `: ${email.artifactsUrl}` : " of the run."}`);
+  }
+  if (email.pins.length > 0) {
+    out.push("", "", ...underlined("Pins to remove"), "", PINS_LEAD);
+    for (const each of email.pins) {
+      out.push("", `  * ${each.title}`, `    [${each.project}] ${each.location.text}${each.location.href ? `  ${each.location.href}` : ""}`);
+      if (each.defect) out.push(`    ${each.defect}`);
+    }
   }
   if (email.notRun.length > 0) {
     out.push("", "", ...underlined("What did not run"));

@@ -38,7 +38,7 @@ const ENV = {
 const REPO = "https://github.com/Netcracker/qubership-integration-platform";
 const RUN = `${REPO}/actions/runs/38898485986`;
 
-type Test = { projectName: string; status: string; annotations?: { type: string }[]; results: { errors?: { message: string; location?: { file: string; line: number } }[] }[] };
+type Test = { projectName: string; status: string; annotations?: { type: string; description?: string }[]; results: { status?: string; errors?: { message: string; location?: { file: string; line: number } }[] }[] };
 type Spec = { title: string; file: string; line: number; tests: Test[] };
 type Suite = { title: string; specs: Spec[]; suites?: Suite[] };
 
@@ -246,17 +246,47 @@ test("every link is built from the workflow's variables, and none without them",
   expect(emailHtml(local)).not.toContain("href=");
 });
 
-test("a known defect that struck is counted apart from the passed tests", { tag: ["@infra", "@tier2"] }, () => {
-  const pinned: Spec = { title: "pinned", file: "api/a.spec.ts", line: 3, tests: [{ projectName: "api", status: "expected", annotations: [{ type: "fail" }], results: [{}] }] };
-  const report = reportOf({ api: [] }, [file("api/a.spec.ts", [passing("api"), passing("api", "two"), pinned, failing("api", "red", "Error: no"), skipped("api")])]);
+/** A `test.fail()` case that passed, so the defect it pins no longer reproduces. */
+const passedPin = (project: string, title: string, description?: string): Spec => ({
+  title,
+  file: `${project}/pin.spec.ts`,
+  line: 3,
+  tests: [{ projectName: project, status: "unexpected", annotations: [{ type: "fail", description }], results: [{ status: "passed", errors: [] }] }],
+});
+
+test("a pin whose defect no longer reproduces is listed apart from the failed tests and counted on its own", { tag: ["@infra", "@tier2"] }, () => {
+  const struck: Spec = { title: "struck", file: "api/a.spec.ts", line: 2, tests: [{ projectName: "api", status: "expected", annotations: [{ type: "fail" }], results: [{ status: "failed" }] }] };
+  const report = reportOf({ api: [] }, [file("api/a.spec.ts", [passing("api"), struck, passedPin("api", "pinned", "#1086 the sender drops it"), failing("api", "red", "Error: no"), skipped("api")])]);
   const email = emailOf({ report, env: ENV });
 
-  expect(email.counts).toEqual({ passed: 2, failed: 1, flaky: 0, skipped: 1, known: 1, total: 5 });
-  expect(preheader(email)).toBe("1 test failed in api, and 1 test did not run. 2 passed, 1 known defect. 37 min on k8s.");
-  expect(emailText(email)).toContain("\n2 passed, 1 failed, 0 flaky, 1 skipped, 1 known defect (5 tests)\n");
+  expect(email.counts).toEqual({ passed: 2, failed: 1, pins: 1, skipped: 1, total: 5 });
+  expect(email.failed.map((each) => each.title)).toEqual(["red"]);
+  expect(email.pins).toEqual([{ project: "api", title: "pinned", location: { text: "api/pin.spec.ts:3", href: `${REPO}/blob/${SHA}/e2e/specs/api/pin.spec.ts#L3` }, defect: "#1086 the sender drops it" }]);
+  expect(email.verdict).toBe("1 test failed in api, and 1 test did not run.");
+  expect(email.trend).toBe("1 pinned defect no longer reproduces.");
+  expect(emailSubject(email)).toBe("E2E nightly failed: 1 test in api, 1 skipped, 1 pin to remove (main @ 7a393a8)");
+  expect(preheader(email)).toBe("1 test failed in api, and 1 test did not run. 1 pinned defect no longer reproduces. 2 passed. 37 min on k8s.");
+  const text = emailText(email);
+  expect(text).toContain("\n2 passed, 1 failed, 1 skipped, 1 pin to remove (5 tests)\n");
+  expect(text).toContain(`Pins to remove\n--------------\n\nEach test.fail() case below passed`);
+  expect(text).toContain(`  * pinned\n    [api] api/pin.spec.ts:3  ${REPO}/blob/${SHA}/e2e/specs/api/pin.spec.ts#L3\n    #1086 the sender drops it\n`);
   const html = emailHtml(email);
   expect(html).toMatch(/>2<\/div><div [^>]*>Passed<\/div>/);
-  expect(html).toMatch(/>1<\/div><div [^>]*>Known defects<\/div>/);
+  expect(html).toMatch(/>1<\/div><div [^>]*>Pins to remove<\/div>/);
+  expect(html).toContain(`;">Pins to remove</td>`);
+  expect(html.match(/Retry locally/g)).toHaveLength(1);
+  expect(html).not.toContain("Flaky");
+  expect(html).not.toContain("Known defects");
+});
+
+test("a run whose only failures are pins to remove found fixed defects, whatever step the workflow names", { tag: ["@infra", "@tier2"] }, () => {
+  const report = reportOf({ api: [] }, [file("api/a.spec.ts", [passing("api"), passedPin("api", "pinned")])]);
+  const email = emailOf({ report, lastRun: { status: "failed" }, env: { ...ENV, FAILED_STEP: "Run the suite" } });
+
+  expect([email.tone, email.title, email.failedStep]).toEqual(["warning", "E2E nightly found fixed defects", undefined]);
+  expect(email.verdict).toBe("1 pinned defect no longer reproduces. Every other test passed.");
+  expect(emailSubject(email)).toBe("E2E nightly found fixed defects: 1 pin to remove (main @ 7a393a8)");
+  expect(emailHtml(email)).not.toContain("What failed");
 });
 
 test("the script writes both parts and prints the subject as a step output", { tag: ["@infra", "@tier2"] }, () => {
@@ -365,6 +395,23 @@ test("each failed test says whether the run before failed it too, and the title 
   expect(emailOf({ report, env: ENV }).trend).toBeUndefined();
 });
 
+test("a failed test that the previous run passed and an earlier one failed is intermittent", { tag: ["@infra", "@tier2"] }, () => {
+  const report = reportOf({ api: [] }, [file("api/a.spec.ts", [failing("api", "flip", "Error: no"), failing("api", "fresh", "Error: no", 9)])]);
+  const flip = testKey("api", "api/case.spec.ts", "flip");
+  const history = [earlier("3", "2026-10-15T02:00:00Z", [], SHA), earlier("2", "2026-10-14T02:00:00Z", [flip]), earlier("1", "2026-10-13T02:00:00Z")];
+  const email = emailOf({ report, history, env: ENV });
+
+  expect(email.trend).toBe("1 of them is new since the previous run. 1 of them fails intermittently.");
+  expect(emailHtml(email)).toContain(
+    `Intermittent: failed in 1 of the 3 runs before this one, and passed in <a href="${RUNS}/3" style="color:#175cd3;text-decoration:none;">the last run that ran it</a>, which ran the same commit`,
+  );
+  expect(emailText(email)).toContain(`    Intermittent: failed in 1 of the 3 runs before this one, and passed in the last run that ran it, which ran the same commit  ${RUNS}/3\n`);
+
+  const alone = emailOf({ report: reportOf({ api: [] }, [file("api/a.spec.ts", [failing("api", "flip", "Error: no")])]), history, env: ENV });
+  expect(alone.trend).toBe("It fails intermittently.");
+  expect(alone.title).toBe("E2E nightly failed");
+});
+
 test("a test the previous run failed and this one passed is counted in the trend", { tag: ["@infra", "@tier2"] }, () => {
   const report = reportOf({ api: [] }, [file("api/a.spec.ts", [failing("api", "red", "Error: no"), passing("api", "green")])]);
   const history = [earlier("2", "2026-10-15T02:00:00Z", [testKey("api", "api/a.spec.ts", "green")])];
@@ -380,11 +427,13 @@ test("the report and the cluster dump link to their artifacts when the workflow 
   expect(emailHtml(emailOf({ report, env: ENV }))).not.toContain("Cluster dump");
 });
 
-test("a pin in a project that needs no stack is not a known defect", { tag: ["@infra", "@tier2"] }, () => {
-  const pinned: Spec = { title: "pinned", file: "schema/a.spec.ts", line: 3, tests: [{ projectName: "schema", status: "expected", annotations: [{ type: "fail" }], results: [{}] }] };
-  const report = reportOf({ schema: [] }, [file("schema/a.spec.ts", [pinned, failing("schema", "red", "Error: no")])]);
+test("a pin that passed in a project that needs no stack is an ordinary failure", { tag: ["@infra", "@tier2"] }, () => {
+  const report = reportOf({ schema: [] }, [file("schema/a.spec.ts", [passedPin("schema", "pinned")])]);
   Object.assign(report.config.projects[0].metadata, { stack: false });
-  expect(emailOf({ report, env: ENV }).counts).toMatchObject({ passed: 1, known: 0 });
+  const email = emailOf({ report, env: ENV });
+  expect(email.pins).toEqual([]);
+  expect(email.failed.map((each) => each.title)).toEqual(["pinned"]);
+  expect(email.counts).toMatchObject({ failed: 1, pins: 0 });
 });
 
 test("the script reads the earlier runs from the directory E2E_HISTORY_DIR names", { tag: ["@infra", "@tier2"] }, () => {

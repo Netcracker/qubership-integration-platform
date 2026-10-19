@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { eachTest, knownDefectIn, readIfPresent, shortDate, stripAnsi } from "./run-report.mjs";
+import { eachTest, fixedPinIn, readIfPresent, shortDate, stripAnsi } from "./run-report.mjs";
 import { fixedSince, historyOf, readHistory, testKey, writeOutcomes } from "./run-history.mjs";
 
 export const SUMMARY_FILE = "summary.md";
@@ -32,6 +32,7 @@ export const METASPACE_ATTACHMENT = "metaspace";
  * @typedef {{ role: string, memoryBytes: number, cpuPercent: number, samples: number, band: { memoryBytes: number, cpuPercent: number } }} PeakReading
  * @typedef {{ role: string, usedBytes: number, maxBytes: number, band: number }} MetaspaceReading
  * @typedef {{ project: string, location: string, title: string, error: string, history?: History }} FailedTest
+ * @typedef {{ project: string, location: string, title: string, defect?: string }} FixedPin
  */
 
 /** @param {string} text */
@@ -71,15 +72,18 @@ function firstLine(error) {
 }
 
 /**
+ * The failed tests, leaving out the pins whose defect no longer reproduces.
+ *
  * @param {Report} report
  * @param {Outcomes[]} [history] earlier runs, the latest first
  * @returns {FailedTest[]}
  */
 export function failedTests(report, history = []) {
+  const isFixedPin = fixedPinIn(report);
   /** @type {FailedTest[]} */
   const failed = [];
   eachTest(report, (spec, test, title) => {
-    if (test.status !== "unexpected") return;
+    if (test.status !== "unexpected" || isFixedPin(test)) return;
     failed.push({
       project: test.projectName,
       location: `${spec.file}:${spec.line}`,
@@ -92,6 +96,24 @@ export function failedTests(report, history = []) {
 }
 
 /**
+ * The `test.fail()` cases that passed, with the defect a conditional pin names.
+ *
+ * @param {Report} report
+ * @returns {FixedPin[]}
+ */
+export function fixedPins(report) {
+  const isFixedPin = fixedPinIn(report);
+  /** @type {FixedPin[]} */
+  const pins = [];
+  eachTest(report, (spec, test, title) => {
+    if (!isFixedPin(test)) return;
+    const defect = test.annotations?.find((each) => each.type === "fail" && each.description)?.description;
+    pins.push({ project: test.projectName, location: `${spec.file}:${spec.line}`, title, defect });
+  });
+  return pins;
+}
+
+/**
  * How long a failed test has been failing, as a table cell.
  *
  * @param {History | undefined} history
@@ -99,6 +121,7 @@ export function failedTests(report, history = []) {
 function failingCell(history) {
   if (!history) return "";
   if (history.kind === "new") return "new";
+  if (history.kind === "intermittent") return `intermittent, failed ${history.failures} of the ${history.runs} runs before`;
   const since = history.since.startedAt ? shortDate(history.since.startedAt) : "";
   const link = history.since.url && since ? `[${since}](${history.since.url})` : since;
   return `${history.runs + 1} runs, since ${link}${history.always ? " or earlier" : ""}`;
@@ -113,11 +136,13 @@ function againstPrevious(failed, report, history) {
   const previous = history[0];
   if (!previous) return undefined;
   const fresh = failed.filter((each) => each.history?.kind === "new").length;
+  const intermittent = failed.filter((each) => each.history?.kind === "intermittent").length;
   const still = failed.filter((each) => each.history?.kind === "recurring").length;
   const fixed = fixedSince(report, previous).length;
   const when = previous.startedAt ? ` of ${shortDate(previous.startedAt)}` : "";
   const run = previous.url ? `[previous run](${previous.url})${when}` : `previous run${when}`;
-  return `Against the ${run}: ${fresh} new ${fresh === 1 ? "failure" : "failures"}, ${still} still failing, ${fixed} fixed.`;
+  const flickering = intermittent > 0 ? ` ${intermittent} intermittent,` : "";
+  return `Against the ${run}: ${fresh} new ${fresh === 1 ? "failure" : "failures"},${flickering} ${still} still failing, ${fixed} fixed.`;
 }
 
 /**
@@ -132,15 +157,30 @@ function timing(report, stack) {
   return parts.length > 0 ? `${parts.join(", ")}.` : undefined;
 }
 
-/** @param {Report} report */
-function countsTable(report) {
-  const isKnown = knownDefectIn(report);
-  let known = 0;
-  eachTest(report, (_spec, test) => {
-    if (isKnown(test)) known++;
-  });
-  const { expected, unexpected, flaky, skipped } = report.stats;
-  return table(["Passed", "Failed", "Flaky", "Skipped", "Known defects"], [[expected - known, unexpected, flaky, skipped, known].map(String)]);
+/**
+ * @param {Report} report
+ * @param {number} pins the failed tests that are fixed pins
+ */
+function countsTable(report, pins) {
+  const { expected, unexpected, skipped } = report.stats;
+  const head = ["Passed", "Failed", "Skipped"];
+  const row = [expected, unexpected - pins, skipped];
+  if (pins > 0) {
+    head.push("Pins to remove");
+    row.push(pins);
+  }
+  return table(head, [row.map(String)]);
+}
+
+/** @param {FixedPin[]} pins */
+function pinsSection(pins) {
+  const rows = pins.map((each) => [cell(each.project), `\`${each.location}\``, cell(each.title), cell(each.defect ?? "")]);
+  return (
+    "### Pins to remove\n\n" +
+    "Each `test.fail()` case below passed, so the defect it pins no longer reproduces. " +
+    "Remove the annotation and close the defect's issue.\n\n" +
+    table(["Project", "Location", "Test", "Defect"], rows)
+  );
 }
 
 /** @param {Coverage} coverage */
@@ -241,33 +281,6 @@ function timeSections(report) {
 }
 
 /**
- * The cases a `test.fail()` pins, grouped by the defect a conditional pin names. A pin that names
- * none gets a row of its own.
- *
- * @param {Report} report
- */
-function knownDefectsSection(report) {
-  const isKnown = knownDefectIn(report);
-  /** @type {Map<string, { projects: Set<string>, cases: number }>} */
-  const defects = new Map();
-  eachTest(report, (spec, test, title) => {
-    if (!isKnown(test)) return;
-    const named = test.annotations?.find((each) => each.type === "fail" && each.description)?.description;
-    const key = named ?? `\`${spec.file}:${spec.line}\` ${title}`;
-    const defect = defects.get(key) ?? { projects: new Set(), cases: 0 };
-    defect.projects.add(test.projectName);
-    defect.cases++;
-    defects.set(key, defect);
-  });
-  if (defects.size === 0) return undefined;
-  const total = [...defects.values()].reduce((sum, each) => sum + each.cases, 0);
-  const rows = [...defects]
-    .sort(([, a], [, b]) => b.cases - a.cases)
-    .map(([defect, each]) => [cell(defect), [...each.projects].map((name) => `\`${name}\``).join(", "), String(each.cases)]);
-  return details(`Known defects: ${total} cases`, table(["Defect", "Projects", "Cases"], rows));
-}
-
-/**
  * @param {{ report?: Report, lastRun?: LastRun, stack?: Stack, coverage?: Coverage, history?: Outcomes[] }} run
  * @returns {string}
  */
@@ -276,9 +289,9 @@ export function summaryMarkdown({ report, lastRun, stack, coverage, history = []
   const parts = [];
   if (lastRun) parts.push(`Status: **${lastRun.status}**`);
   if (report) {
-    parts.push(timing(report, stack), countsTable(report));
     const failed = failedTests(report, history);
-    parts.push(againstPrevious(failed, report, history));
+    const pins = fixedPins(report);
+    parts.push(timing(report, stack), countsTable(report, pins.length), againstPrevious(failed, report, history));
     if (failed.length > 0) {
       const rows = failed
         .slice(0, FAILED_TESTS_LIMIT)
@@ -289,6 +302,7 @@ export function summaryMarkdown({ report, lastRun, stack, coverage, history = []
       }
       parts.push(section);
     }
+    if (pins.length > 0) parts.push(pinsSection(pins));
     // Playwright colors the messages with ANSI escapes.
     if (report.errors.length > 0) {
       const messages = report.errors.map((each) => stripAnsi(each.message ?? "")).join("\n\n");
@@ -296,7 +310,7 @@ export function summaryMarkdown({ report, lastRun, stack, coverage, history = []
     }
   }
   if (coverage) parts.push(coverageSection(coverage));
-  if (report) parts.push(resourcesSection(report), ...timeSections(report), knownDefectsSection(report));
+  if (report) parts.push(resourcesSection(report), ...timeSections(report));
   if (stack?.absent?.length) {
     parts.push(`### Absent\n\n${stack.absent.map((each) => `- \`${each.name}\`: ${each.reason}`).join("\n")}`);
   }

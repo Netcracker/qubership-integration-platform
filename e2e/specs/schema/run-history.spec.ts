@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
-import { OUTCOMES_FILE, readHistory } from "../../support/run-history.mjs";
+import { OUTCOMES_FILE, historyOf, readHistory } from "../../support/run-history.mjs";
 
 test("the history lists the downloaded runs latest first and passes over one it cannot read", { tag: ["@infra", "@tier2"] }, () => {
   const dir = test.info().outputPath("history");
@@ -21,4 +21,20 @@ test("the history lists the downloaded runs latest first and passes over one it 
   expect(readHistory(dir).map((each) => each.runId)).toEqual(["12", "10"]);
   expect(readHistory(undefined)).toEqual([]);
   expect(readHistory(path.join(dir, "absent"))).toEqual([]);
+});
+
+test("a failed test is recurring, intermittent, or new by the runs before that reached it", { tag: ["@infra", "@tier2"] }, () => {
+  const key = "api › a.spec.ts › case";
+  const run = (runId: string, outcome: "failed" | "passed" | "skipped") => ({
+    runId,
+    startedAt: "2026-10-16T02:00:00Z",
+    failed: outcome === "failed" ? [key] : [],
+    skipped: outcome === "skipped" ? [key] : [],
+  });
+
+  expect(historyOf(key, [run("3", "failed"), run("2", "skipped"), run("1", "failed"), run("0", "passed")])).toMatchObject({ kind: "recurring", runs: 2, since: { runId: "1" }, always: false });
+  expect(historyOf(key, [run("1", "failed"), run("0", "failed")])).toMatchObject({ kind: "recurring", runs: 2, since: { runId: "0" }, always: true });
+  expect(historyOf(key, [run("3", "passed"), run("2", "failed"), run("1", "skipped"), run("0", "failed")])).toMatchObject({ kind: "intermittent", previous: { runId: "3" }, failures: 2, runs: 3 });
+  expect(historyOf(key, [run("1", "skipped"), run("0", "passed")])).toMatchObject({ kind: "new", previous: { runId: "0" } });
+  expect(historyOf(key, [run("0", "skipped")])).toBeUndefined();
 });

@@ -134,9 +134,9 @@ jobs:
         working-directory: e2e
         run: npm run reconcile
 
-      # Earlier runs on this branch, which mark a failed test new or still failing in the summary and
-      # the email. A run without the e2e-outcomes artifact is passed over, and a failed fetch costs
-      # the history, not the run.
+      # Earlier runs on this branch, which mark a failed test new, intermittent, or still failing in the
+      # summary and the email. A run without the e2e-outcomes artifact is passed over, and a failed
+      # fetch costs the history, not the run.
       - name: Fetch the run history
         if: ${{ always() && hashFiles('e2e/test-results/report.json') != '' }}
         continue-on-error: true

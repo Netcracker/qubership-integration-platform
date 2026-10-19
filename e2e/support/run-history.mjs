@@ -15,7 +15,9 @@ export const OUTCOMES_FILE = "outcomes.json";
  * yet, and both read the same way here: a failure after it is new.
  *
  * @typedef {{ runId?: string, url?: string, sha?: string, startedAt?: string, failed: string[], skipped: string[] }} Outcomes
- * @typedef {{ kind: "new", previous: Outcomes } | { kind: "recurring", runs: number, since: Outcomes, always: boolean }} History
+ * @typedef {{ kind: "new", previous: Outcomes }
+ *   | { kind: "intermittent", previous: Outcomes, failures: number, runs: number }
+ *   | { kind: "recurring", runs: number, since: Outcomes, always: boolean }} History
  * @typedef {import("./run-report.mjs").Report} Report
  * @typedef {Record<string, string | undefined>} Env
  */
@@ -76,25 +78,21 @@ export function readHistory(dir) {
 
 /**
  * How long a test that failed in this run has been failing. A run that skipped it says nothing
- * either way and is passed over. `undefined` means no earlier run reached it.
+ * either way and is passed over. A test the latest run passed is intermittent when an earlier run
+ * failed it, and new otherwise. `undefined` means no earlier run reached it.
  *
  * @param {string} key
  * @param {Outcomes[]} history the earlier runs, the latest first
  * @returns {History | undefined}
  */
 export function historyOf(key, history) {
-  let runs = 0;
-  /** @type {Outcomes | undefined} */
-  let since;
-  for (const run of history) {
-    if (run.failed.includes(key)) {
-      runs++;
-      since = run;
-    } else if (!run.skipped.includes(key)) {
-      return since ? { kind: "recurring", runs, since, always: false } : { kind: "new", previous: run };
-    }
-  }
-  return since && { kind: "recurring", runs, since, always: true };
+  const reached = history.filter((run) => !run.skipped.includes(key));
+  if (reached.length === 0) return undefined;
+  const streak = reached.findIndex((run) => !run.failed.includes(key));
+  if (streak === -1) return { kind: "recurring", runs: reached.length, since: /** @type {Outcomes} */ (reached.at(-1)), always: true };
+  if (streak > 0) return { kind: "recurring", runs: streak, since: reached[streak - 1], always: false };
+  const failures = reached.filter((run) => run.failed.includes(key)).length;
+  return failures > 0 ? { kind: "intermittent", previous: reached[0], failures, runs: reached.length } : { kind: "new", previous: reached[0] };
 }
 
 /**
