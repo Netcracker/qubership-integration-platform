@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.engine.configuration.security;
 
 import com.netcracker.cloud.security.core.utils.k8s.impl.UrlCache;
+import io.quarkus.arc.Unremovable;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Named;
@@ -11,8 +12,9 @@ import java.util.concurrent.TimeUnit;
 @ApplicationScoped
 public class M2MFallbackConfiguration {
 
-    @Named("m2mUrlCache")
+    @Unremovable
     @Produces
+    @Named("m2mUrlCache")
     public UrlCache m2mUrlCache(
         @ConfigProperty(name = "qip.chains.http-client.m2m.fallback-interceptor.url-cache.size") int urlCacheSize,
         @ConfigProperty(name = "qip.chains.http-client.m2m.fallback-interceptor.url-cache.ttl-hours") int ttlHours
