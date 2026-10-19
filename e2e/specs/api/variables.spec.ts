@@ -3,7 +3,7 @@
  *
  * **Which version.** Measured on this stack, the whole `/v1/secured-variables` surface answers
  * **410 `Default secret functionality is disabled`** — every one of its five operations, the import
- * included. It addresses the default secret, `qip-secured-variables-v2`, and
+ * included. It addresses the default secret, `cip-secured-variables-v2`, and
  * `DefaultSecretPolicyService` gates that behind `cip.variables.default-secret.enabled`, which
  * defaults to false and is not set here. So the v1 secured surface cannot be covered as configured,
  * and the case below pins the 410 rather than pretending otherwise: it is the operation's contract

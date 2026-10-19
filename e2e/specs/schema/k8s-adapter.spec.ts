@@ -111,7 +111,7 @@ test("a micro project reads its domain and its corpus copy from the state file i
     const state = path.join(dir, "own-micro-corpus.json");
     const chains = [{ fixture: "http-echo", id: "c1" }, { fixture: "choice", id: "c2" }];
     fs.writeFileSync(state, JSON.stringify({ run: "run2", domain: "e2e-run2-own", chains, services: [] }));
-    const ownEngine = "http://localhost:30080/e2e/svc/qip-engine-e2e-run2-own-v1";
+    const ownEngine = "http://localhost:30080/e2e/svc/cip-engine-e2e-run2-own-v1";
 
     withEnv(ON_K8S, () => {
       expect(targetSetup("k8s").createEnv("micro", state).engineUrl()).toBe(ownEngine);
@@ -151,7 +151,7 @@ test("a tokened domain is recorded where its project's env reads it, until it is
     // A chain with no route, so the route poll has nothing to call.
     await deployToDomain(catalog, target, [{ id: "c1", name: "e2e-run3-x", contextPath: "" }]);
     withEnv(ON_K8S, () => {
-      const engine = "http://localhost:30080/e2e/svc/qip-engine-e2e-run3-placeholder-redeploy-v1";
+      const engine = "http://localhost:30080/e2e/svc/cip-engine-e2e-run3-placeholder-redeploy-v1";
       expect(target.env.engineUrl()).toBe(engine);
       expect(targetSetup("k8s").createEnv("micro", record).engineUrl()).toBe(engine);
     });
@@ -530,7 +530,7 @@ function microPods(...pods: [string, boolean, boolean][]): string {
   });
 }
 
-const MICRO_SELECTOR = "camel.apache.org/integration=qip-engine-e2e-run1-micro-v1";
+const MICRO_SELECTOR = "camel.apache.org/integration=cip-engine-e2e-run1-micro-v1";
 
 test("on a micro env the engine address is the micro domain's live pod", { tag: ["@infra", "@tier1"] }, async () => {
   const { calls, run } = recordingKubectl([microPods(["old", true, false], ["live", false, true])]);
@@ -570,7 +570,7 @@ test("on a micro env the engine restart deletes the domain's pod and waits for a
   ]);
   // Probed only once the replacement's engine container is Ready, and until it answers 200.
   expect(probed).toHaveLength(2);
-  for (const url of probed) expect(url).toMatch(/\/e2e\/svc\/qip-engine-e2e-run1-micro-v1\/q\/health\/ready$/);
+  for (const url of probed) expect(url).toMatch(/\/e2e\/svc\/cip-engine-e2e-run1-micro-v1\/q\/health\/ready$/);
 });
 
 test("a micro engine restart fails when no single Ready pod replaces the deleted one", { tag: ["@infra", "@tier1"] }, async () => {
@@ -591,7 +591,7 @@ test("a micro engine restart fails when no single Ready pod replaces the deleted
   expect(await restart(microPods(["new", false, true], ["newer", false, true]))).toContain("(2 pods replace old)");
 });
 
-const MICRO_LOG = "logs deploy/qip-engine-e2e-run1-micro-v1 -c integration";
+const MICRO_LOG = "logs deploy/cip-engine-e2e-run1-micro-v1 -c integration";
 
 test("a classic env has no engine evidence beyond its log", { tag: ["@infra", "@tier1"] }, async () => {
   const { calls, run } = recordingKubectl();
@@ -603,7 +603,7 @@ test("a micro env's evidence is the pod's whole short log, its description, and 
   const run = stubKubectl({
     [`${MICRO_LOG} --limit-bytes=${MICRO_LOG_HEAD_BYTES} -n qip-e2e`]: "\u001b[38;5;231m[INFO ] the engine started",
     [`describe pods -l ${MICRO_SELECTOR} -n qip-e2e`]: "Events: Started",
-    "get integrations.camel.apache.org qip-engine-e2e-run1-micro-v1 -o yaml -n qip-e2e": "phase: Running",
+    "get integrations.camel.apache.org cip-engine-e2e-run1-micro-v1 -o yaml -n qip-e2e": "phase: Running",
   });
   const env = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro", kubectl: run });
   // The stub refuses `--previous`, as kubectl does for a container that never restarted.

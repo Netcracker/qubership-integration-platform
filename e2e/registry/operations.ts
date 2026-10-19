@@ -330,7 +330,7 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
 //
 // Three kinds of call still record nothing, and none of them can carry a row's status. A request
 // through **nginx** matches no row by design, which is what `specs/api/api-prefixes.spec.ts` and
-// `specs/env/restart-resilience.spec.ts` send for `/api/v1/qip/engine/live-exchanges`.
+// `specs/env/restart-resilience.spec.ts` send for `/api/v1/cip/engine/live-exchanges`.
 // `globalSetup` and `globalTeardown` are outside a test, where `test.info()` throws and
 // `noteReached()` is silent rather than fatal. And `support/diagnostics.ts` reads a session for an
 // attachment with Node's own `fetch`, over a row `specs/api/sessions-api.spec.ts` covers anyway.

@@ -251,7 +251,7 @@ test("a literal template wins over a parameter that would also match", { tag: ["
 
 test("a call through the proxy's /e2e/svc/ location matches the row of the path behind it", { tag: ["@infra", "@tier1"] }, () => {
   // How the `Engine` transport reaches a micro domain, which has no host port.
-  const proxied = "http://localhost:30080/e2e/svc/qip-engine-e2e-run1-micro-v1/v1/engine/live-exchanges";
+  const proxied = "http://localhost:30080/e2e/svc/cip-engine-e2e-run1-micro-v1/v1/engine/live-exchanges";
   expect(operationPathOf(proxied)).toBe("/v1/engine/live-exchanges");
   expect(matchOperationPath("engine", "GET", operationPathOf(proxied))).toBe("engine GET /v1/engine/live-exchanges");
   expect(operationPathOf("http://localhost:30092/v1/engine/live-exchanges")).toBe("/v1/engine/live-exchanges");

@@ -22,7 +22,7 @@
  * And nginx resolves `proxy_pass http://engine:8080` once, at config load, with no `resolver` in
  * scope. Recreate a backend and the proxy keeps an address Docker has since handed to a different
  * container. Measured: after the engine and sessions-management containers were recreated,
- * `/api/v1/qip/engine/live-exchanges` answered 500 with a *Session Management* error body. So every
+ * `/api/v1/cip/engine/live-exchanges` answered 500 with a *Session Management* error body. So every
  * created or recreated container is followed by `Env.reloadProxy()`, unconditionally.
  *
  * Provisioning runs in `globalSetup` rather than in a fixture: a cold service costs tens of seconds

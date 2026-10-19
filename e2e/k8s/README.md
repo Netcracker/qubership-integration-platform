@@ -199,14 +199,14 @@ kubectl delete deployment qip-postgres -n qip-e2e
 
 ## A failed micro case
 
-A micro domain is the camel-k Integration `qip-engine-<domain>-v1`, and its pod is deleted with the
+A micro domain is the camel-k Integration `cip-engine-<domain>-v1`, and its pod is deleted with the
 domain. So a failed case on a micro project reads the pod while it still exists and attaches its
 log, its description with the events, and the Integration with its status, as
 [Reading a failure](../README.md#reading-a-failure) lists. The run then keeps its micro domains,
 which the CI cluster dump reads after the suite, and which you read the same way:
 
 ```bash
-kubectl logs -n qip-e2e deploy/qip-engine-<domain>-v1 -c integration
+kubectl logs -n qip-e2e deploy/cip-engine-<domain>-v1 -c integration
 kubectl get integrations.camel.apache.org -n qip-e2e -o yaml
 ```
 

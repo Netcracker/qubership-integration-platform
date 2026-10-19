@@ -79,9 +79,9 @@ test("a chain's session counter grows with the calls it serves", { tag: ["@engin
     `the engine publishes no chain meters, or ${url} did not answer: ` +
       "cip.metrics.enabled reads MONITORING_ENABLED, and infrastructure/docker/engine-dev.env is where " +
       "Compose sets it; a micro domain gets it from the chart value qip-runtime-catalog.microDomainMetrics",
-  ).toContain("qip_engine_sessions_counter_total");
+  ).toContain("cip_engine_sessions_counter_total");
 
-  const before = sumForChain(exposition, "qip_engine_sessions_counter_total", chain.id);
+  const before = sumForChain(exposition, "cip_engine_sessions_counter_total", chain.id);
   for (let call = 0; call < CALLS; call++) {
     const answered = await callChain(request, env.chainUrl(chain.contextPath), { data: { call } });
     expect(answered.response.status()).toBe(200);
@@ -90,7 +90,7 @@ test("a chain's session counter grows with the calls it serves", { tag: ["@engin
   await expect
     .poll(
       async () =>
-        sumForChain(await meters(request, url), "qip_engine_sessions_counter_total", chain.id),
+        sumForChain(await meters(request, url), "cip_engine_sessions_counter_total", chain.id),
       {
         timeout: METER_TIMEOUT,
         message:
@@ -113,7 +113,7 @@ test("a chain's session counter grows with the calls it serves", { tag: ["@engin
       async () =>
         sumForChain(
           await meters(request, url),
-          "qip_engine_sessions_duration_timer_seconds_count",
+          "cip_engine_sessions_duration_timer_seconds_count",
           chain.id,
         ),
       {
@@ -137,14 +137,14 @@ test("a chain that ends in a failure increments the failure counter", { tag: ["@
   await expect
     .poll(async () => (exposition = await meters(request, url)) !== "", { timeout: METER_TIMEOUT, message: `${url} never answered` })
     .toBe(true);
-  const before = sumForChain(exposition, "qip_engine_chains_failures_total", chain.id);
+  const before = sumForChain(exposition, "cip_engine_chains_failures_total", chain.id);
   const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "fail" } });
   expect(call.response.status()).toBe(500);
 
   await expect
     .poll(
       async () =>
-        sumForChain(await meters(request, url), "qip_engine_chains_failures_total", chain.id),
+        sumForChain(await meters(request, url), "cip_engine_chains_failures_total", chain.id),
       {
         timeout: METER_TIMEOUT,
         message:

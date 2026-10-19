@@ -734,7 +734,7 @@ export interface ImportVariablePreview {
 export interface SecretView {
   secretName: string;
   variablesNames: string[];
-  /** The `qip-secured-variables-v2` secret the `/v1` surface addressed. */
+  /** The `cip-secured-variables-v2` secret the `/v1` surface addressed. */
   defaultSecret: boolean;
   /** True for the default secret while `cip.variables.default-secret.enabled` is false. */
   disabled: boolean;

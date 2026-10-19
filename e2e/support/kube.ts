@@ -30,7 +30,7 @@ export function classicPublicRoutes(chainId: string): string {
 }
 
 /** The gateway's path prefix for a chain with an external trigger. */
-export const GATEWAY_ROUTE_PREFIX = "/qip-routes";
+export const GATEWAY_ROUTE_PREFIX = "/cip-routes";
 
 export interface KubeObject {
   metadata: { name: string; labels?: Record<string, string> };
@@ -73,7 +73,7 @@ export function httpRoute(name: string): Promise<HttpRoute | null> {
   return getOne(HTTP_ROUTES, name);
 }
 
-/** The ConfigMaps matching a label selector, such as `qip-domain=<domain>`. */
+/** The ConfigMaps matching a label selector, such as `cip-domain=<domain>`. */
 export function configMaps(selector: string): Promise<KubeObject[]> {
   return list("configmaps", selector);
 }

@@ -311,7 +311,7 @@ E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
 - Set `E2E_KEEP=1` to skip teardown and pick a failure apart on the stack. Whatever the run created
   stays behind, named with the run token the failing spec prints.
 - On `k8s`, a failed micro case does the same on its own: its run keeps the micro domains and every
-  other entity, so `kubectl logs -n qip-e2e deploy/qip-engine-<domain>-v1 -c integration` still
+  other entity, so `kubectl logs -n qip-e2e deploy/cip-engine-<domain>-v1 -c integration` still
   reads the pod. The next run's sweep removes them.
 
 ## Flags

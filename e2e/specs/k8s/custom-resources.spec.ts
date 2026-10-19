@@ -78,10 +78,10 @@ test("a micro domain is built, deployed, trimmed to one chain, and deleted throu
       .filter((each) => each.kind === "ConfigMap" && each.metadata.labels?.[SNAPSHOT_LABEL])
       .map((each) => each.metadata.labels?.[SNAPSHOT_LABEL]);
     expect(sources.sort()).toEqual(snapshotIds.map(k8sName).sort());
-    for (const each of documents) expect(each.metadata.labels?.["qip-domain"], `${each.kind} ${each.metadata.name}`).toBe(domain);
+    for (const each of documents) expect(each.metadata.labels?.["cip-domain"], `${each.kind} ${each.metadata.name}`).toBe(domain);
 
     expect(await integration(resource)).toBeNull();
-    expect(await configMaps(`qip-domain=${domain}`)).toEqual([]);
+    expect(await configMaps(`cip-domain=${domain}`)).toEqual([]);
   });
 
   let deployed = false;
@@ -103,8 +103,8 @@ test("a micro domain is built, deployed, trimmed to one chain, and deleted throu
 
     await test.step("DELETE /v1/cr/{name}/{snapshotId} removes one chain and keeps the other", async () => {
       await catalog.deleteSnapshotFromCustomResource(domain, droppedSnapshot.id);
-      expect(await configMaps(`qip-domain=${domain},${SNAPSHOT_LABEL}=${k8sName(droppedSnapshot.id)}`)).toEqual([]);
-      expect(await configMaps(`qip-domain=${domain},${SNAPSHOT_LABEL}=${k8sName(keptSnapshot.id)}`)).toHaveLength(1);
+      expect(await configMaps(`cip-domain=${domain},${SNAPSHOT_LABEL}=${k8sName(droppedSnapshot.id)}`)).toEqual([]);
+      expect(await configMaps(`cip-domain=${domain},${SNAPSHOT_LABEL}=${k8sName(keptSnapshot.id)}`)).toHaveLength(1);
       await expect
         .poll(async () => [await routeStatus(request, domain, kept), await routeStatus(request, domain, dropped)], {
           timeout: MICRO_READY_TIMEOUT,
@@ -119,7 +119,7 @@ test("a micro domain is built, deployed, trimmed to one chain, and deleted throu
       expect(await integration(resource)).toBeNull();
       // The source ConfigMaps belong to the Integration, and the garbage collector removes them.
       await expect
-        .poll(async () => (await configMaps(`qip-domain=${domain}`)).map((each) => each.metadata.name), {
+        .poll(async () => (await configMaps(`cip-domain=${domain}`)).map((each) => each.metadata.name), {
           timeout: GC_TIMEOUT,
         })
         .toEqual([]);

@@ -340,7 +340,7 @@ test("nginx refuses a mock call on the testing service's prefix that the service
     expect(await answerOf(await testingService.callMock("post", context))).toEqual({ status: 200, body: "mocked" });
 
     // The prefix reaches the service for every other path, so the refusal below is the guard's.
-    const prefix = `${proxyUrl()}/api/v1/qip/testing-service`;
+    const prefix = `${proxyUrl()}/api/v1/cip/testing-service`;
     const read = await request.get(`${prefix}/endpoint-mocks/${mock.id}`);
     expect(read.status()).toBe(200);
     expect((await read.json()).id).toBe(mock.id);

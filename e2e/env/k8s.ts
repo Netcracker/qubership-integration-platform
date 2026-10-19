@@ -53,10 +53,7 @@ export function containerOf(role: ServiceRole): string {
   return `${RELEASE}-${role}`;
 }
 
-/**
- * The Service of a micro domain: `CloudServiceNamingStrategy` with the catalog's
- * `cip.cr.naming.prefix` and an empty Service suffix.
- */
+/** The Service of a micro domain: the catalog's `cip.cr.naming.prefix`, with an empty Service suffix. */
 export function microServiceOf(domain: string): string {
   return `cip-engine-${domain}-${VERSION}`;
 }

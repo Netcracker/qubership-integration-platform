@@ -84,8 +84,8 @@ export interface Env {
    * `proxy_pass http://engine:8080` once, at config load, with no `resolver` in scope, so a
    * recreated backend leaves the proxy pointing at an address Docker has since handed to someone
    * else. Measured: after the engine and sessions-management containers were recreated,
-   * `/api/v1/qip/engine/live-exchanges` answered 500 with a *Session Management* error body and
-   * `/api/v1/qip/sessions-management/sessions` answered 404; one reload restored 204 and 200.
+   * `/api/v1/cip/engine/live-exchanges` answered 500 with a *Session Management* error body and
+   * `/api/v1/cip/sessions-management/sessions` answered 404; one reload restored 204 and 200.
    */
   reloadProxy(): Promise<void>;
   /**

@@ -97,25 +97,25 @@ test("the two irregular shapes are the ones the config still produces", { tag: [
 
 test("the catch-all is the general form and the UI's form is not", { tag: ["@infra", "@tier1"] }, () => {
   // The catch-all strips one segment and proxies the rest to the catalog, which is why
-  // `/api/qip` + a service path reaches all of it.
+  // `/api/cip` + a service path reaches all of it.
   expect(lines[144]).toContain("location ~ ^/api/[^/]+/(v\\d+)/");
-  expect(apiPath("runtime-catalog", "/v1/systems")).toBe("/api/qip/v1/systems");
+  expect(apiPath("runtime-catalog", "/v1/systems")).toBe("/api/cip/v1/systems");
   expect(apiPath("runtime-catalog", "/v1/catalog/runtime-deployments")).toBe(
-    "/api/qip/v1/catalog/runtime-deployments",
+    "/api/cip/v1/catalog/runtime-deployments",
   );
 
   // The form the UI builds lists six families and no more; `systems` is not among them.
   expect(lines[36]).toContain("chains|detailed-design|design-generator|library|folders|cr");
-  expect(NOT_PROXIED.map((each) => each.api)).toContain("/api/v1/qip/catalog/systems");
+  expect(NOT_PROXIED.map((each) => each.api)).toContain("/api/v1/cip/catalog/systems");
 });
 
 test("each non-catalog service is addressed through its own segment", { tag: ["@infra", "@tier1"] }, () => {
   expect(apiPath("sessions-management", "/v1/sessions")).toBe(
-    "/api/v1/qip/sessions-management/sessions",
+    "/api/v1/cip/sessions-management/sessions",
   );
-  expect(apiPath("engine", "/v1/engine/live-exchanges")).toBe("/api/v1/qip/engine/live-exchanges");
+  expect(apiPath("engine", "/v1/engine/live-exchanges")).toBe("/api/v1/cip/engine/live-exchanges");
   expect(apiPath("testing-service", "/api/v1/swagger/doc.json")).toBe(
-    "/api/v1/qip/testing-service/swagger/doc.json",
+    "/api/v1/cip/testing-service/swagger/doc.json",
   );
   // The rewrites these rules perform are exactly what the table's shapes encode.
   expect(lines[110]).toContain("/sessions-management/(.*)$");
