@@ -6,7 +6,7 @@ USER root
 # against. protoc is statically linked and needs nothing; the grpc-java plugin is published only as
 # a glibc binary, and gcompat supplies its interpreter and the libc it names.
 RUN chmod -R 755 /opt/java/openjdk \
-    && apk add --no-cache curl=8.14.1-r2 gcompat=1.1.0-r4
+    && apk add --no-cache gcompat=1.1.0-r4
 COPY --chmod=755 target/protobuf-toolchain/bin/ /usr/bin/
 COPY target/protobuf-toolchain/include/ /usr/include/
 
