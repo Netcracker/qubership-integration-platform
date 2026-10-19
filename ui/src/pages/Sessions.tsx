@@ -210,7 +210,8 @@ export const Sessions: React.FC<SessionsProps> = ({
           }
         }
 
-        const checkpointSessionsLists = await Promise.all(
+        // A failed domain, such as a deleted micro domain, leaves its sessions without checkpoints.
+        const checkpointSessionsLists = await Promise.allSettled(
           Array.from(groupBy(fetched, (s) => s.domain).entries()).map(
             ([domainName, sessions]) => {
               const domainType = sessions[0].domainType;
@@ -222,7 +223,9 @@ export const Sessions: React.FC<SessionsProps> = ({
           ),
         );
         const checkpointSessions: CheckpointSession[] =
-          checkpointSessionsLists.flat();
+          checkpointSessionsLists.flatMap((result) =>
+            result.status === "fulfilled" ? result.value : [],
+          );
         const checkpointsById = new Map<string, Checkpoint[]>();
         checkpointSessions.forEach((cs) =>
           checkpointsById.set(cs.id, cs.checkpoints),
