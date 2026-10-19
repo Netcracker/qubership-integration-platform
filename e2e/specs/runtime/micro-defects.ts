@@ -48,7 +48,7 @@ const FIRED_BESIDE_ANOTHER_DOMAIN = /recorded [1-9]\d* sessions on \S+ before th
  * firing can raise. That cause is read off the code and not reproduced: CI run 38673581259 showed the
  * shared micro domain's `scheduler-basic` record a session every 3 s until 03:15:57, then none for
  * over ten minutes, while its pod stayed up beside the brokers-micro domain's pod and logged 0 lines
- * for the chain over the case's wait. No issue is filed yet.
+ * for the chain over the case's wait. Filed as #1112.
  *
  * The matcher needs the pod to have logged nothing for the chain, the chain to have recorded sessions
  * on its domain before the wait, and the catalog to list another micro domain. None of that shows

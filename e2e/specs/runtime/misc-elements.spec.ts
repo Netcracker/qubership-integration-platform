@@ -195,9 +195,7 @@ for (const [position, received] of [["header", ECHOED_HEADER_CORRELATION_ID], ["
 
 /** The levels of the engine log lines that carry the record's message, in order. */
 async function loggedLevels(env: Env, since: string, token: string): Promise<string[]> {
-  // Both engines' patterns close the MDC block with `] %m`. The micro engine's log manager reads the
-  // pattern's `%ex{5}` as `%e` and the text `x{5}`, which then opens the next line, so the level is
-  // not anchored to the line start.
+  // Both engines' patterns close the MDC block with `] %m`.
   const message = `] ${LOG_MESSAGE_PREFIX} ${token}`;
   return (await env.engineLogs(since))
     .split("\n")

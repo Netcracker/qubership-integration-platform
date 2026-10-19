@@ -16,7 +16,7 @@ export function countedAnswer(alertsCount: number, entities: number): string {
  * the commit of a run's alerts answers the previous run's alerts with the new count and state `OK`,
  * because the run saves `OK` only after that commit. The Validations page reads the same endpoint.
  * Measured in CI run 38680913931: 207 alerts and 206 entities, without the alert the run had just
- * added. No issue is filed yet.
+ * added. Filed as #1140.
  */
 export const VALIDATION_READ_BEFORE_ALERTS: ConditionalDefect = {
   title: "a validation read answers state OK with the alerts of the previous run",

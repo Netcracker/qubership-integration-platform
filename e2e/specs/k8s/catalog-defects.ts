@@ -13,7 +13,7 @@ export const RESULT_AT_100 = "the discovery result once the progress reads 100";
  * in a second transaction. A read in between gets the previous run's result, or, where discovery never
  * ran before, 200 with an empty body from `GET /v1/systems/discovery/result`, which the client returns
  * as `undefined`. Only the empty body is pinned. The UI reads the result as soon as the progress
- * reads 100 (`ServiceDiscoveryButton.tsx`), so it meets the same window. No issue is filed yet.
+ * reads 100 (`ServiceDiscoveryButton.tsx`), so it meets the same window. Filed as #1139.
  */
 export const DISCOVERY_RESULT_AFTER_PROGRESS: ConditionalDefect = {
   title: "the catalog reports discovery progress 100 before it stores the discovery result",
