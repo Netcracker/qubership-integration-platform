@@ -19,12 +19,15 @@ package org.qubership.integration.platform.engine.service.contextstorage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.errorhandling.ContextStorageException;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ContextSystemRecords;
 import org.qubership.integration.platform.engine.persistence.shared.repository.ContextStorageRespository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -38,14 +41,22 @@ public class ContextStorageService {
     private static final String CONTEXT = "context";
     private final ContextStorageRespository contextStorageRepository;
 
+    private final EntityManager entityManager;
+
     private final ObjectMapper objectMapper;
 
     @Autowired
-    public ContextStorageService(ContextStorageRespository contextStorageRepository, ObjectMapper objectMapper) {
+    public ContextStorageService(
+            ContextStorageRespository contextStorageRepository,
+            @Qualifier("checkpointEntityManagerFactory") EntityManager entityManager,
+            ObjectMapper objectMapper
+    ) {
         this.contextStorageRepository = contextStorageRepository;
+        this.entityManager = entityManager;
         this.objectMapper = objectMapper;
     }
 
+    @Transactional("checkpointTransactionManager")
     public void storeValue(String contextKey, String contextValue, String contextServiceId, String contextId, long ttl) {
         Optional<ContextSystemRecords> oldRecord = contextStorageRepository.findByContextServiceIdAndContextId(contextServiceId, contextId);
         ContextData existingContext = oldRecord
@@ -54,16 +65,21 @@ public class ContextStorageService {
                     log.debug("No existing storage found, creating new context for contextKey: {}", contextKey);
                     return createNewContext(contextKey, contextValue);
                 });
-        ContextSystemRecords contextSystemRecords = ContextSystemRecords.builder()
-                .id(oldRecord.isPresent() ? oldRecord.get().getId() : UUID.randomUUID().toString())
-                .value(objectMapper.convertValue(existingContext, JsonNode.class))
+        JsonNode value = objectMapper.convertValue(existingContext, JsonNode.class);
+        Timestamp now = Timestamp.from(Instant.now());
+        Timestamp expiresAt = Timestamp.from(Instant.now().plusSeconds(ttl));
+        oldRecord.ifPresentOrElse(stored -> {
+            stored.setValue(value);
+            stored.setExpiresAt(expiresAt);
+            stored.setUpdatedAt(now);
+        }, () -> entityManager.persist(ContextSystemRecords.builder()
+                .value(value)
                 .contextServiceId(contextServiceId)
                 .contextId(contextId)
-                .createdAt(oldRecord.isPresent() ? oldRecord.get().getCreatedAt() : Timestamp.from(Instant.now()))
-                .expiresAt(Timestamp.from(Instant.now().plusSeconds(ttl)))
-                .updatedAt(Timestamp.from(Instant.now()))
-                .build();
-        contextStorageRepository.save(contextSystemRecords);
+                .createdAt(now)
+                .expiresAt(expiresAt)
+                .updatedAt(now)
+                .build()));
         log.debug("Value stored successfully for contextKey: {}, contextServiceId: {}, contextId: {}", contextKey, contextServiceId, contextId);
     }
 
