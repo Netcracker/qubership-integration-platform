@@ -71,9 +71,8 @@ const WidgetEditor: React.FC = () => {
     chainId?: string;
     widgetId: string;
   }>();
-  const { entity, loading, onChange, breadcrumbItems } = useTestingEntityEditor(
-    { ...WIDGET_EDITOR, chainId, entityId: widgetId },
-  );
+  const { entity, loading, onChange, breadcrumbItems, headerActions } =
+    useTestingEntityEditor({ ...WIDGET_EDITOR, chainId, entityId: widgetId });
 
   if (loading) {
     return <div>loading</div>;
@@ -83,6 +82,7 @@ const WidgetEditor: React.FC = () => {
   }
   return (
     <div>
+      {headerActions}
       <Breadcrumb items={breadcrumbItems} />
       <div data-testid="widget-name">{entity.name}</div>
       <button onClick={() => onChange({ name: `${entity.name}!` })}>

@@ -33,7 +33,7 @@ import { ImportSessions } from "../components/modal/ImportSessions.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { toStringIds } from "../misc/selection-utils.ts";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import {
@@ -605,18 +605,6 @@ export const Sessions: React.FC<SessionsProps> = ({
     ],
   );
 
-  useRegisterChainHeaderActions(
-    variant === "chain-tab" ? sessionsToolbar : undefined,
-    [
-      searchString,
-      chainId,
-      selectedRowKeys,
-      onRefreshSessions,
-      variant,
-      isLoading,
-    ],
-  );
-
   const sessionsTable = (
     <TablePageLayout>
       <div
@@ -660,7 +648,10 @@ export const Sessions: React.FC<SessionsProps> = ({
           {sessionsTable}
         </Flex>
       ) : (
-        sessionsTable
+        <>
+          <ChainHeaderActions>{sessionsToolbar}</ChainHeaderActions>
+          {sessionsTable}
+        </>
       )}
     </>
   );

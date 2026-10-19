@@ -14,7 +14,7 @@ import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { useBlocker } from "react-router-dom";
 import { useModalsContext } from "../Modals.tsx";
 import { UnsavedChangesModal } from "../components/modal/UnsavedChangesModal.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ApplyFormButton } from "../components/ApplyFormButton.tsx";
 import {
   GROUP_SEGMENT_REGEX,
@@ -144,19 +144,17 @@ export const ChainProperties: React.FC = () => {
     }
   };
 
-  useRegisterChainHeaderActions(
-    <Require permissions={{ chain: ["update"] }}>
-      <ApplyFormButton
-        formId="chain-properties-form"
-        loading={isUpdating}
-        disabled={!hasChanges}
-      />
-    </Require>,
-    [isUpdating, hasChanges],
-  );
-
   return (
     <div className={styles.pageContainer}>
+      <ChainHeaderActions>
+        <Require permissions={{ chain: ["update"] }}>
+          <ApplyFormButton
+            formId="chain-properties-form"
+            loading={isUpdating}
+            disabled={!hasChanges}
+          />
+        </Require>
+      </ChainHeaderActions>
       <div className={styles.formContent}>
         <Form<FormData>
           id="chain-properties-form"

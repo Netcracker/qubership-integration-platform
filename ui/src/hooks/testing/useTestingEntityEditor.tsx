@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { BreadcrumbProps } from "antd";
 import {
   BlockerFunction,
@@ -10,7 +17,7 @@ import { UnsavedChangesModal } from "../../components/modal/UnsavedChangesModal.
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { introducesViolation } from "../../components/testing/violations.ts";
 import { useModalsContext } from "../../Modals.tsx";
-import { useRegisterChainHeaderActions } from "../../pages/ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "../../pages/ChainHeaderActionsContext.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { useNotificationService } from "../useNotificationService.tsx";
 import { RowLink } from "../../components/table/RowLink.tsx";
@@ -61,6 +68,8 @@ export type TestingEntityEditor<T> = {
   activeTab: string;
   onTabChange: (key: string) => void;
   breadcrumbItems: BreadcrumbProps["items"];
+  /** The Save button for the chain header; the page renders it. */
+  headerActions: ReactNode;
 };
 
 function getActiveTab(pathname: string, tabs: TestingEntityTab[]): string {
@@ -256,39 +265,25 @@ export function useTestingEntityEditor<T extends { name: string }, R>({
     });
   }, [blocker, save, showModal]);
 
-  // Registered before the page's own guards, since a hook cannot sit behind a
-  // return, and withheld until there is an entity to save so the button cannot
-  // linger over a screen that failed to load one. The dependencies name the
-  // state the button reads: the hook holds the node by reference and re-reads it
-  // on these alone.
-  const hasEntity = !!entity;
-  useRegisterChainHeaderActions(
-    readonly || !hasEntity ? undefined : (
-      <ProtectedButton
-        require={permissions.write}
-        tooltipProps={{ title: `Save the ${singular}` }}
-        buttonProps={{
-          "data-testid": saveTestId,
-          type: "primary",
-          children: "Save",
-          loading: saving,
-          disabled: !hasChanges || !valid,
-          onClick: handleSave,
-        }}
-      />
-    ),
-    [
-      readonly,
-      hasEntity,
-      permissions,
-      saving,
-      hasChanges,
-      valid,
-      handleSave,
-      singular,
-      saveTestId,
-    ],
-  );
+  // Withheld until there is an entity to save, so the button cannot linger over
+  // a screen that failed to load one.
+  const headerActions =
+    readonly || !entity ? null : (
+      <ChainHeaderActions>
+        <ProtectedButton
+          require={permissions.write}
+          tooltipProps={{ title: `Save the ${singular}` }}
+          buttonProps={{
+            "data-testid": saveTestId,
+            type: "primary",
+            children: "Save",
+            loading: saving,
+            disabled: !hasChanges || !valid,
+            onClick: handleSave,
+          }}
+        />
+      </ChainHeaderActions>
+    );
 
   const handleTabChange = useCallback(
     (key: string) => void navigate(`${editorPath}/${key}`),
@@ -306,5 +301,6 @@ export function useTestingEntityEditor<T extends { name: string }, R>({
       { title: <RowLink to={listPath}>{listTitle}</RowLink> },
       { title: entity?.name || entityId },
     ],
+    headerActions,
   };
 }
