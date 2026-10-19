@@ -44,6 +44,7 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 class UploadedSpecRequirementRecoveryTest {
   private static final String RUN = "uploaded-spec-recovery";
   private static final String CHAT = "uploaded-spec-conversation";
+  private static final String RESULT_QUESTION = "result-delivery";
   private static final String ANSWER = "Send results by POST to https://om.example/results. Preserve executionId. Proceed without IDS.";
   private static final String CATALOG_ANSWER = "Use OM onTaskResult as a catalog operation. Salesforce WFM createTask is imported. Preserve executionId. Proceed without IDS.";
 
@@ -63,7 +64,6 @@ class UploadedSpecRequirementRecoveryTest {
     var approval = h.approval.appendApprovalRecord(RUN, CHAT, h.approval.createDecision(CHAT), h.artifacts);
     h.runtime.recordInput(new AcceptInputCommand(RUN, ChatEvent.IMPORT_ACTION)).collect().asList().await().indefinitely();
     assertInstanceOf(StageDecision.ReopenProducer.class, h.step().decision());
-    h.step();
     h.partialCatalogDraft = new DraftInput(new FlowInput(List.of(
         new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks", null, null, null),
         new InteractionInput("salesforce", Direction.OUTBOUND, "Salesforce WFM", "createTask", null, null, null),
@@ -75,19 +75,23 @@ class UploadedSpecRequirementRecoveryTest {
     var binding = new CatalogBindingHint("3", "salesforce", "salesforce", "POST /sobjects/Task",
         "salesforce", "group", "spec", "createTask", "http", "POST", "/sobjects/Task", "1", h.clock.instant(), "catalog-read");
     h.capturedBindings = List.of(binding);
+    h.step();
+    assertEquals(RunStatus.WAITING_FOR_INPUT, h.run().run().status());
     h.reload();
     h.source(CATALOG_ANSWER);
     h.runtime.recordInput(new AcceptInputCommand(RUN, CATALOG_ANSWER)).collect().asList().await().indefinitely();
-    h.step();
+    assertInstanceOf(StageDecision.Retry.class, h.step().decision());
 
     assertEquals("requirement-discovery", h.run().run().currentStageId());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, h.run().run().status());
+    assertEquals(RunStatus.RUNNING, h.run().run().status());
+    assertEquals(1, h.continuation.pendingWork().size());
     assertEquals("OPERATION_LOOKUP_REQUIRED", h.continuation.pendingWork().getFirst().code());
     assertEquals("result", h.continuation.pendingWork().getFirst().interactionId());
     assertFalse(h.continuation.accepted());
     h.reload();
     h.step();
     assertEquals("requirement-discovery", h.run().run().currentStageId());
+    assertEquals("spec", h.drafts.get(CHAT).orElseThrow().catalogBinding("salesforce").orElseThrow().specificationId());
     assertTrue(h.artifacts.get(RUN, approval).isPresent());
     verify(h.gateway, times(1)).importUploadedSpec(any(), any(), any());
   }
@@ -175,11 +179,17 @@ class UploadedSpecRequirementRecoveryTest {
     h.step();
     assertEquals("requirement-discovery", h.run().run().currentStageId());
     assertEquals(RunStatus.WAITING_FOR_INPUT, h.run().run().status());
+    var partial = h.drafts.get(CHAT).orElseThrow();
+    assertEquals(RESULT_QUESTION, partial.authoredDraft().openQuestions().getFirst().questionId());
     if (reload) h.reload();
     var input = h.source(ANSWER);
     h.runtime.recordInput(new AcceptInputCommand(RUN, ANSWER)).collect().asList().await().indefinitely();
     h.step();
-    assertTrue(h.drafts.get(CHAT).orElseThrow().readyForPlan());
+    var ready = h.drafts.get(CHAT).orElseThrow();
+    assertTrue(ready.readyForPlan());
+    assertEquals(partial.authoredDraft().facts(), ready.authoredDraft().facts());
+    assertEquals(partial.flow(), ready.flow());
+    assertTrue(ready.openQuestions().isEmpty());
     assertNotNull(h.archive.read(CHAT).turns().stream().filter(turn -> turn.id().equals(input.turnId()))
         .findFirst().orElseThrow().consumedDraftReference());
     h.step();
@@ -256,25 +266,35 @@ class UploadedSpecRequirementRecoveryTest {
       var gather = new RequirementDiscoveryCapability(null, drafts, null, (chat, text) -> {
         try {
           if (partialCatalogDraft != null && text.contains(CATALOG_ANSWER)) {
-            var captured = tools.captureRequirementDraft(partialCatalogDraft);
+            var questions = drafts.get(chat).orElseThrow().authoredDraft().openQuestions().stream()
+                .map(QuestionInput::questionId).toList();
+            var captured = tools.updateRequirementDraft(new DraftUpdate(List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), questions, null));
             assertTrue(mapper.readTree(captured).path("accepted").asBoolean(), captured);
             continuation = mapper.readValue(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
                 RequirementCaptureResult.class);
           } else if (!text.contains(ANSWER)) {
-            assertTrue(mapper.readTree(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY))
-                .path("accepted").asBoolean());
-          } else {
-            var input = new DraftInput(new FlowInput(List.of(
+            var waiting = partialCatalogDraft != null ? partialCatalogDraft : new DraftInput(new FlowInput(List.of(
                 new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks", "Receive tasks", null, null),
                 new InteractionInput("result", Direction.OUTBOUND, "OM", "Return task results", "Preserve executionId", null, null)),
                 List.of(new TransitionInput("entry", "result"))),
                 List.of(new FactInput("result-behavior", List.of("result"), FactKind.BEHAVIOR,
                     Polarity.POSITIVE, "Preserve executionId in task results.")),
                 List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
-                    "/tasks", null, null, null), new CapabilityInput("result", "http-sender", null,
+                    "/tasks", null, null, null)), List.of(), new DraftSettings(null, null));
+            var captured = tools.captureRequirementDraft(new DraftInput(waiting.flow(), waiting.facts(),
+                waiting.capabilities(), List.of(new QuestionInput(RESULT_QUESTION, List.of("result"),
+                    "How should task results be returned to OM?")), waiting.settings()));
+            assertTrue(mapper.readTree(captured).path("accepted").asBoolean(), captured);
+            assertTrue(mapper.readTree(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY))
+                .path("accepted").asBoolean());
+          } else {
+            var captured = tools.updateRequirementDraft(new DraftUpdate(List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(new CapabilityInput("result", "http-sender", null,
                     HttpMethod.POST, "https://om.example/results", null, null, null)), List.of(),
-                new DraftSettings(false, null));
-            var captured = tools.captureRequirementDraft(input);
+                List.of(), List.of(), List.of(RESULT_QUESTION), new DraftSettings(false, null)));
             assertTrue(mapper.readTree(captured).path("accepted").asBoolean(), captured);
             var finished = tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE);
             assertTrue(mapper.readTree(finished).path("accepted").asBoolean(), finished);

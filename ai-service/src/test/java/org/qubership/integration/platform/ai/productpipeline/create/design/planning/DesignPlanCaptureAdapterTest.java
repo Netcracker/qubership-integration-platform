@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.ClaimRole;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 
 class DesignPlanCaptureAdapterTest {
@@ -68,7 +70,7 @@ class DesignPlanCaptureAdapterTest {
         DesignPlanTestFixtures.brief(), DesignPlanTestFixtures.planningPin(revision)).isEmpty());
   }
   @Test
-  void approvalShowsTheOwnerOfAnApprovedBehaviorFact() {
+  void approvalShowsBehaviorTextAndPlannerInputKeepsItsOwner() {
     var revision = DesignPlanTestFixtures.revision();
     var pin = DesignPlanTestFixtures.planningPin(revision);
     var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("sender-auth",
@@ -82,8 +84,14 @@ class DesignPlanCaptureAdapterTest {
     var report = new DesignPlanReportRenderer().render(contract);
     var projection = new DesignPlanProjector().project(contract, report, revision, pin, brief);
     var approval = new DesignImplementationPlanRenderer().render(report, projection, revision, brief);
-    assertTrue(approval.planText().contains("interactionIds=[call-1]"), approval.planText());
-    assertTrue(approval.planText().contains("sourceFactId=" + fact.sourceFactId()), approval.planText());
+    assertTrue(approval.planText().contains("\n- " + fact.text() + "\n"), approval.planText());
+    assertFalse(approval.planText().contains("interactionIds="), approval.planText());
+    assertFalse(approval.planText().contains("sourceFactId="), approval.planText());
+    var ids = new IdsDocument("1", IdsDocument.Mode.DERIVED, "brief", "brief-hash", "flow-hash",
+        "renderer", "# Orders");
+    String input = DesignPlanningCapability.buildPlannerInput(ids, revision, "2026.1", brief);
+    assertTrue(input.contains("sourceFactId=" + fact.sourceFactId() + " kind=BEHAVIOR interactionIds=[call-1]"), input);
+    assertTrue(input.contains(fact.text()), input);
   }
 
   @Test
