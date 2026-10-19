@@ -16,8 +16,8 @@ public class M2MFallbackConfiguration {
     @Produces
     @Named("m2mUrlCache")
     public UrlCache m2mUrlCache(
-        @ConfigProperty(name = "qip.chains.http-client.m2m.fallback-interceptor.url-cache.size") int urlCacheSize,
-        @ConfigProperty(name = "qip.chains.http-client.m2m.fallback-interceptor.url-cache.ttl-hours") int ttlHours
+        @ConfigProperty(name = "cip.chains.http-client.m2m.fallback-interceptor.url-cache.size") int urlCacheSize,
+        @ConfigProperty(name = "cip.chains.http-client.m2m.fallback-interceptor.url-cache.ttl-hours") int ttlHours
     ) {
         return new UrlCache(
             urlCacheSize,

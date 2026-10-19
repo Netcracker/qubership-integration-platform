@@ -14,8 +14,8 @@ public class M2MFallbackConfiguration {
     private final int ttlHours;
 
     public M2MFallbackConfiguration(
-            @Value("${qip.chains.http-client.m2m.fallback-interceptor.url-cache.size:400}") int urlCacheSize,
-            @Value("${qip.chains.http-client.m2m.fallback-interceptor.url-cache.ttl-hours:5}") int ttlHours) {
+            @Value("${cip.chains.http-client.m2m.fallback-interceptor.url-cache.size:400}") int urlCacheSize,
+            @Value("${cip.chains.http-client.m2m.fallback-interceptor.url-cache.ttl-hours:5}") int ttlHours) {
         this.urlCacheSize = urlCacheSize;
         this.ttlHours = ttlHours;
     }
