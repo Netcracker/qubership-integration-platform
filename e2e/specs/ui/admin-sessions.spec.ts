@@ -8,13 +8,10 @@
  * filter matches no other chain; `scheduler-basic`, whose sessions are in every list, does not
  * match it either.
  *
- * The first case deletes one of the chain's two sessions. On this page, a delete of every loaded
- * session sends the bare `DELETE /v1/sessions`, which removes every session on the platform:
- * `Sessions.tsx` passes its route's chain id, which the admin page has none of, to
- * `deleteSessionsByChainId`. So the first case waits for both rows before it selects one, and the
- * selection never covers the whole list. The second case pins that defect with `test.fail()`: it
- * selects every loaded row, and the page's delete is answered in the browser, so it never reaches
- * sessions-management.
+ * The first case deletes one of the chain's two sessions. The second selects every loaded row and
+ * reads the delete the page sends, which names those sessions. Until #1108 it sent the bare
+ * `DELETE /v1/sessions`, which removes every session on the platform, so the second case answers
+ * the page's delete in the browser and never lets it reach sessions-management.
  */
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { test, expect } from "../../support/page-guard.js";
@@ -26,7 +23,6 @@ import { deployAndRecord, withBuilt } from "../../support/cleanup.js";
 import { callChain, HTTP_TRIGGER_STEPS, type RecordedSession, type Sessions } from "../../support/sessions.js";
 import type { Catalog } from "../../support/catalog.js";
 import type { Env } from "../../env/index.js";
-import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import { callToken } from "../../support/run.js";
 
 /** Builds and deploys a chain named with a call token, and records two of its sessions. */
@@ -94,38 +90,34 @@ test("a session found by its chain's name opens to its trace, and its delete lea
   });
 });
 
-// Not filed: the delete of every loaded row sends the bare DELETE /v1/sessions, which wipes the platform.
-test.fail("a delete of every loaded session on the admin page removes those sessions only", { tag: ["@ui", "@tier2"] }, async ({ page, request, catalog, env, sessions, folder, run }) => {
+test("a delete of every loaded session on the admin page removes those sessions only", { tag: ["@ui", "@tier2"] }, async ({ page, request, catalog, env, sessions, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
-  // Every delete the page sends is answered here and recorded, so none reaches sessions-management.
-  const deletes: string[] = [];
+  // Every delete the page sends is answered here and recorded, so a regression to the bare delete
+  // cannot wipe the platform.
+  const deletes: { sent: string; ids: unknown }[] = [];
   await page.route(/\/sessions-management\/sessions/, async (route) => {
     const sent = route.request();
     if (sent.method() !== "DELETE" && !sent.url().endsWith("/sessions/bulk-delete")) return route.continue();
-    deletes.push(`${sent.method()} ${new URL(sent.url()).pathname}`);
+    deletes.push({ sent: `${sent.method()} ${new URL(sent.url()).pathname}`, ids: sent.postDataJSON() });
     return route.fulfill({ status: 200 });
   });
   await withBuilt(catalog, async (built) => {
-    const { chain, opened, kept } = await outsideTheDefect("recording two sessions", () => recordedChain({ request, catalog, env, sessions }, run, folder.id, built.chains));
-    await outsideTheDefect("deleting every loaded row", async () => {
-      await page.goto("/admintools/sessions");
-      await new FilterDialog(page).apply("Chain", chain.name);
-      await expect(rowOf(page, opened.id)).toBeVisible();
-      await expect(rowOf(page, kept.id)).toBeVisible();
-      // The unfiltered list shows the two rows too, so the selection waits for the filter to apply.
-      await expect(foreignRows(page, chain.name)).toHaveCount(0);
-      await page.getByRole("row").filter({ has: page.getByRole("columnheader") }).getByRole("checkbox").check();
-      // The answer, not the request: the route records a delete before it answers.
-      const answered = page.waitForResponse((each) => each.request().method() === "DELETE" || each.url().endsWith("/sessions/bulk-delete"));
-      await page.getByTestId("sessions-delete").click();
-      const confirm = page.getByRole("dialog").filter({ hasText: "Delete Sessions" });
-      await confirm.getByRole("button", { name: "OK" }).click();
-      await answered;
-    });
-    for (const each of [opened, kept]) {
-      if ((await sessions.rawSession(each.id)).status() !== 200) notTheKnownDefect(`session ${each.id} is gone, so a delete reached sessions-management`);
-    }
-    const bare = deletes.filter((sent) => sent.startsWith("DELETE ") && sent.endsWith("/sessions-management/sessions"));
-    expect(bare, "the page sent the bare delete of every session: delete the test.fail() annotation once it does not").toEqual([]);
+    const { chain, opened, kept } = await recordedChain({ request, catalog, env, sessions }, run, folder.id, built.chains);
+    await page.goto("/admintools/sessions");
+    await new FilterDialog(page).apply("Chain", chain.name);
+    await expect(rowOf(page, opened.id)).toBeVisible();
+    await expect(rowOf(page, kept.id)).toBeVisible();
+    // The unfiltered list shows the two rows too, so the selection waits for the filter to apply.
+    await expect(foreignRows(page, chain.name)).toHaveCount(0);
+    await page.getByRole("row").filter({ has: page.getByRole("columnheader") }).getByRole("checkbox").check();
+    // The answer, not the request: the route records a delete before it answers.
+    const answered = page.waitForResponse((each) => each.request().method() === "DELETE" || each.url().endsWith("/sessions/bulk-delete"));
+    await page.getByTestId("sessions-delete").click();
+    const confirm = page.getByRole("dialog").filter({ hasText: "Delete Sessions" });
+    await confirm.getByRole("button", { name: "OK" }).click();
+    await answered;
+    // The page sent the bare `DELETE /v1/sessions` here until #1108.
+    expect(deletes.map((each) => each.sent)).toEqual(["POST /api/v1/cip/sessions-management/sessions/bulk-delete"]);
+    expect(new Set(deletes[0].ids as string[])).toEqual(new Set([opened.id, kept.id]));
   });
 });

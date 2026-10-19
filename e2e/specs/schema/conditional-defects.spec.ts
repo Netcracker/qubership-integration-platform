@@ -3,8 +3,7 @@
  * ones it must leave a real failure, and the engine gate `strikesAsKnown` puts in front of it. No stack.
  */
 import { test, expect, type APIResponse } from "@playwright/test";
-import { CONTEXT_STORE_UNTRANSACTED, firingHistory, MOCK_BYPASSED, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "../runtime/micro-defects.js";
-import { LIMIT_REFUSED_WITH_500 } from "../global/classic-defects.js";
+import { firingHistory, MOCK_BYPASSED, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "../runtime/micro-defects.js";
 import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "../k8s/catalog-defects.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
 import { WIPE_ABORTED_ON_CONFLICT, WIPE_ANSWERED } from "../global/sessions-defects.js";
@@ -13,8 +12,6 @@ import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
 import { STRUCK_ANNOTATION } from "../../registry/elements.js";
 import { linesOfChain, withEngineLines } from "../../support/logs.js";
-import { SFTP_TRIGGER_IDLE } from "../brokers/micro-defects.js";
-import { ignoredCompileFailure, SCRIPT_COMPILE_IGNORED } from "../runtime-micro-redeploy/micro-defects.js";
 import type { Env } from "../../env/index.js";
 
 const TAGS = { tag: ["@infra", "@tier1"] };
@@ -87,22 +84,6 @@ test("a mocked service call that reached its real address is the known defect, a
   expect(MOCK_BYPASSED.matches(`Error: the case run's outbound call was not mocked: '{"mocked":"other"}' doesn't contain '"mocked":"e2e-s7rodt-runs-mocked"'`)).toBe(false);
 });
 
-test("a context SET the micro engine ran outside a transaction is the known defect, and another failure is not", TAGS, () => {
-  // The failure as `expectStored` in misc-elements.spec.ts reports it: the step's recorded exception.
-  const untransacted = [
-    "Error: Transaction is not active, consider adding @Transactional to your method to automatically activate one.",
-    "",
-    "expect(received).toBe(expected) // Object.is equality",
-    "",
-    "Expected: 200",
-    "Received: 500",
-  ].join("\n");
-  expect(CONTEXT_STORE_UNTRANSACTED.matches(untransacted)).toBe(true);
-
-  expect(CONTEXT_STORE_UNTRANSACTED.matches("Error: expect(received).toBe(expected)\n\nExpected: 200\nReceived: 500")).toBe(false);
-  expect(CONTEXT_STORE_UNTRANSACTED.matches("Error: Connection refused\n\nExpected: 200\nReceived: 500")).toBe(false);
-});
-
 /** What `withEngineLines` throws when `wait` fails with `failure` and the engine log reads `log`. */
 async function engineLinesFailure(
   log: string,
@@ -116,26 +97,6 @@ async function engineLinesFailure(
   });
   return String(await failed.catch((cause: unknown) => cause));
 }
-
-/** Engine lines that carry no chain id. */
-const UNRELATED_LOG = [
-  "x{5}[2026-10-14T06:18:42.251] [ERROR] [request_id=               ] terminated streaming with exception: com.google.api.gax.rpc.UnauthenticatedException: com.google.api.gax.rpc.UnauthenticatedException: io.grpc.StatusRuntimeException: UNAUTHENTICATED: Failed computing credential metadata",
-  "\tat com.google.api.gax.rpc.ApiExceptionFactory.createException(ApiExceptionFactory.java:116)",
-  "Caused by: io.grpc.StatusRuntimeException: UNAUTHENTICATED: Failed computing credential metadata",
-].join("\n");
-
-test("an sftp trigger that never ran its chain is the known defect, and a run that recorded no session is not", TAGS, async () => {
-  const chain = "e2e0b001-0000-4000-8000-000000000001";
-  const idle = await engineLinesFailure(UNRELATED_LOG, `for chain ${chain}`, linesOfChain(chain));
-  expect(idle).toContain(`the engine logged 0 lines for chain ${chain}`);
-  expect(SFTP_TRIGGER_IDLE.matches(idle)).toBe(true);
-
-  // The chain ran, so the poll picked the file up and something else lost the session.
-  const ran = await engineLinesFailure(`[INFO ] [chain_id=${chain}] [chain=e2e-x-sftp-trigger-basic] Session started`, `for chain ${chain}`, linesOfChain(chain));
-  expect(ran).toContain(`the engine logged 1 lines for chain ${chain} since 2026-10-14T06:18:41.203Z; the first: [INFO ] [chain_id=${chain}]`);
-  expect(SFTP_TRIGGER_IDLE.matches(ran)).toBe(false);
-  expect(SFTP_TRIGGER_IDLE.matches("Error: sessions of x\n\nExpected length: 1\nReceived length: 0")).toBe(false);
-});
 
 test("a scheduler chain that stopped firing on its micro domain beside another is the known defect, and one that never fired is not", TAGS, async () => {
   const chain = "dfd387a7-7dcc-4e05-8942-e94fcd7bc936";
@@ -185,40 +146,10 @@ test("an exchange the micro engine never listed while it was held is the known d
   expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("expect(received).toBe(expected)\n\nExpected: true\nReceived: false", 200, held))).toBe(false);
 });
 
-test("a script deployment the micro engine reported DEPLOYED after ignoring its compile failure is the known defect, and another reading is not", TAGS, async () => {
-  const ignored =
-    "x{5}[2026-10-14T11:00:47.051] [WARN ] [class=org.apache.camel.support.EventHelper] Error notifying event Route added: route2. " +
-    "This exception will be ignored.: java.lang.RuntimeException: Failed to compile groovy script.";
-  const deployed = (log: string) =>
-    engineLinesFailure(log, "ignoring the compile failure", ignoredCompileFailure, "the deployment of e2e-x settled at DEPLOYED: \n\nexpect(received).toEqual(expected) // deep equality");
-  expect(SCRIPT_COMPILE_IGNORED.matches(await deployed(ignored))).toBe(true);
-
-  // DEPLOYED with no compile failure in the log: the script compiled, so the case is wrong, not the engine.
-  expect(SCRIPT_COMPILE_IGNORED.matches(await deployed(""))).toBe(false);
-  // The engine failed the deployment, with another message than the case expects.
-  const failed = await engineLinesFailure(ignored, "ignoring the compile failure", ignoredCompileFailure, "the deployment of e2e-x settled at FAILED: Connection refused\n\nexpect(received).toEqual(expected)");
-  expect(SCRIPT_COMPILE_IGNORED.matches(failed)).toBe(false);
-});
-
 test("an unknown deployment the micro engine reports as an unknown exchange is the known defect, and another 404 is not", TAGS, () => {
   const micro = `Error: the engine answered {"serviceName":"Engine","errorMessage":"No live exchange found for deployment id no-such-deployment"}\n\nexpect(received).toContain(expected) // indexOf`;
   expect(KILL_NOT_FOUND_UNSPECIFIC.matches(micro)).toBe(true);
   expect(KILL_NOT_FOUND_UNSPECIFIC.matches("Error: the engine answered Not Found\n\nexpect(received).toContain(expected) // indexOf")).toBe(false);
-});
-
-/** What `strikesAsKnown` reads when the live-exchanges case's status assertion fails in a worker. */
-function statusFailure(answer: string, status: number): string {
-  return failureOf(() => expect(status, `the engine answered ${answer}`).toBe(400));
-}
-
-test("limit=0 answered with the classic engine's 500 is the known defect, and another status is not", TAGS, () => {
-  const classic = statusFailure('{"errorMessage":"getLiveExchanges.limit: must be greater than 0"}', 500);
-  // Playwright colors matcher output in a worker, and the case met the defect with this text.
-  expect(classic).toContain("\u001b[");
-  expect(strikes(LIMIT_REFUSED_WITH_500, "classic", classic)).toBe(true);
-  expect(strikes(LIMIT_REFUSED_WITH_500, "classic", statusFailure("no healthy upstream", 503))).toBe(false);
-  expect(strikes(LIMIT_REFUSED_WITH_500, "classic", statusFailure("NullPointerException", 500))).toBe(false);
-  expect(strikes(LIMIT_REFUSED_WITH_500, "micro", classic)).toBe(false);
 });
 
 /** What `strikesAsKnown` reads when the discovery case's result assertion fails on `read`. */
@@ -248,7 +179,7 @@ test("a bare session delete aborted on a version conflict is the known defect on
   const conflict =
     '{"serviceName":"Session Management","errorMessage":"Unable to perform delete from OpenSearch","stacktrace":"' +
     "org.opensearch.client.transport.httpclient5.ResponseException: method [POST], host [http://qip-opensearch:9200], " +
-    "URI [/qip_qip-elements-qip-e2e-session-elements/_delete_by_query?refresh=true], status line [HTTP/1.1 409 Conflict]\\n" +
+    "URI [/qip_cip-elements-qip-e2e-session-elements/_delete_by_query?refresh=true], status line [HTTP/1.1 409 Conflict]\\n" +
     '{\\"total\\":4123,\\"deleted\\":4121,\\"version_conflicts\\":2,\\"failures\\":[{\\"cause\\":{\\"type\\":\\"version_conflict_engine_exception\\"';
   const aborted = wipeFailure(400, conflict);
   expect(strikes(WIPE_ABORTED_ON_CONFLICT, "classic", aborted)).toBe(true);

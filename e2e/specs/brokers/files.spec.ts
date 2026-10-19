@@ -30,10 +30,8 @@ import { callToken } from "../../support/run.js";
 import { callChain, element, elementNames, failedElements } from "../../support/sessions.js";
 import { readUntil } from "../../support/poll.js";
 import { linesOfChain, logWindowStart, withEngineLines } from "../../support/logs.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
 import { covers } from "../../registry/covers.js";
 import type { Env } from "../../env/index.js";
-import { SFTP_TRIGGER_IDLE } from "./micro-defects.js";
 
 /** What `readUntil` gets for the idempotent case's settle window, instead of a bare literal. */
 const IDEMPOTENT_SETTLE_TIMEOUT = 12_000;
@@ -54,7 +52,7 @@ async function dropFile(remotePath: string, content: string): Promise<void> {
 
 /** Waits for the session a dropped file causes; a failure says how many engine lines the chain wrote. */
 async function pickedUp<T>(env: Env, since: string, chain: BrokerChain, wait: () => Promise<T>): Promise<T> {
-  return strikesAsKnown(SFTP_TRIGGER_IDLE, () => withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), wait));
+  return withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), wait);
 }
 
 /** Reads `remotePath` back as text, for the upload case's own assertion. */

@@ -9,8 +9,7 @@
  * `env`, which is what makes the readings below stable enough to assert.
  *
  * `global-micro` runs this file again on the shared micro domain. The cases the micro engine fails
- * are pinned with the defects in `micro-defects.ts`, and the one the classic engine fails with the
- * defect in `classic-defects.ts`.
+ * are pinned with the defects in `micro-defects.ts`.
  *
  * **The timing is handled by holding the exchange, never by sleeping and hoping.** An exchange can
  * finish before the first list call, and
@@ -25,9 +24,8 @@
  * - **204 on empty, on both services.** `CollectionUtils.isEmpty(result)` answers
  *   `ResponseEntity.noContent()`, so a client parsing the body gets a parse error rather than `[]`.
  *   The transports unwrap it; one case asserts the raw status.
- * - **`limit` is `@Positive` and validated.** `?limit=0` answers **400** on the catalog and on the
- *   micro engine, and **500** on the classic engine, which has no handler for
- *   `ConstraintViolationException`.
+ * - **`limit` is `@Positive` and validated.** `?limit=0` answers **400** on the catalog and on both
+ *   engines. The classic engine answered 500 with the stack trace in the body until #1138.
  * - **the filter key is `column`, not `feature`.** `FilterRequestDTO.feature` carries
  *   `@JsonProperty("column")`. A body spelling `feature` is accepted and silently ignored, because
  *   Jackson leaves the field null and `isApplicable` is then false for every filter, so the clause
@@ -53,7 +51,6 @@ import type { Catalog, LiveExchangeExtView } from "../../support/catalog.js";
 import { hold, untilListed, withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import type { LiveExchange } from "../../support/engine.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
-import { LIMIT_REFUSED_WITH_500 } from "./classic-defects.js";
 import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "./micro-defects.js";
 
 /** The fixture whose script holds the exchange. Its hold is a header, so one deployment serves all. */
@@ -353,16 +350,14 @@ test("a kill aimed at nothing is a 404 on both services, and leaves no audit row
 });
 
 test("limit is validated, and refused with 400 by the catalog and the engine", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, engine }) => {
-  // `@Positive` on both. The classic engine has no handler for `ConstraintViolationException` and
-  // answers 500, which `LIMIT_REFUSED_WITH_500` pins.
+  // `@Positive` on both. The classic engine answered 500 with the stack trace in the body until #1138.
   const fromCatalog = await catalog.liveExchangesResponse(0);
   expect(fromCatalog.status()).toBe(400);
   expect(await fromCatalog.text()).toContain("must be greater than 0");
 
   const fromEngine = await engine.raw("get", "/v1/engine/live-exchanges?limit=0");
   const fromEngineText = await fromEngine.text();
+  expect(fromEngine.status(), `the engine answered ${fromEngineText}`).toBe(400);
   expect(fromEngineText).toContain("must be greater than 0");
-  await strikesAsKnown(LIMIT_REFUSED_WITH_500, async () =>
-    expect(fromEngine.status(), `the engine answered ${fromEngineText}`).toBe(400),
-  );
+  expect(fromEngineText).not.toContain("ConstraintViolationException");
 });

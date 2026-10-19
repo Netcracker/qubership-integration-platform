@@ -72,7 +72,7 @@ import {
 } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import { strikesAsKnown } from "../../support/known-defect.js";
-import { CONTEXT_STORE_UNTRANSACTED, MOCK_BYPASSED } from "./micro-defects.js";
+import { MOCK_BYPASSED } from "./micro-defects.js";
 import { waitForFirstRecording, withBuilt } from "../../support/cleanup.js";
 import type { APIRequestContext } from "@playwright/test";
 import { McpSession, mcpSessionsOf, offeredTool } from "../../support/mcp.js";
@@ -247,7 +247,7 @@ test.describe("context-storage", () => {
     const cause = call.response.status() === 200
       ? ""
       : (await readUntil(causes, (found) => found.length > 0, SESSION_TIMEOUT, 1_000)).join("; ");
-    await strikesAsKnown(CONTEXT_STORE_UNTRANSACTED, async () => expect(call.response.status(), cause).toBe(200));
+    expect(call.response.status(), cause).toBe(200);
   }
 
   async function store(request: APIRequestContext, env: Env, sessions: Sessions, headers: Record<string, string>): Promise<void> {
@@ -281,9 +281,9 @@ test.describe("context-storage", () => {
     // The second SET updates the stored record in place, which only the transaction around it writes (#1128).
     covers("context-storage", "operation", "SET");
     const contextId = callToken("context");
-    await store(request, env, chains.set, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: callToken("value") });
+    await store(request, env, sessions, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: callToken("value") });
     const second = callToken("value");
-    await store(request, env, chains.set, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: second });
+    await store(request, env, sessions, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: second });
     expect(await readBack(request, env, sessions, contextId)).toEqual({ [KEY]: second });
   });
 

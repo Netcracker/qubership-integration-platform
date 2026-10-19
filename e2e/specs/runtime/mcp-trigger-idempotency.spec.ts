@@ -11,9 +11,9 @@
  * `support/idempotency.ts` holds the modes; `Callee Reply` is the step `fixtures/chains/chain-callee/`
  * runs inside the caller's session.
  *
- * Both engines answer a tool call from the exchange's body and never read its exception
- * (`McpToolRegistrar`), so a duplicate under `throw-exception` answers `isError: false` with the
- * call's arguments. The last case pins that as a `test.fail()`.
+ * A duplicate under `throw-exception` answers the tool call with `isError: true`. Until #1136 both
+ * engines answered from the exchange's body and never read its exception (`McpToolRegistrar`), so
+ * the duplicate answered `isError: false` with the call's arguments.
  */
 import { randomUUID } from "node:crypto";
 import { test, expect } from "../../support/fixtures.js";
@@ -24,7 +24,6 @@ import { element, elementNames, SESSION_TIMEOUT, trace, type RecordedSession, ty
 import { coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes, type IdempotencyMode } from "../../support/idempotency.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
-import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 
 const PASSED = JSON.stringify({ called: "downstream" });
 
@@ -96,17 +95,11 @@ for (const mode of MODES) {
   });
 }
 
-// Not filed: `McpToolRegistrar` on both engines answers from the body and never reads the exchange's exception.
-test.fail("mcp-trigger: a duplicate under throw-exception answers the tool call as an error", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+test("mcp-trigger: a duplicate under throw-exception answers the tool call as an error", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const mode = MODES.find((each) => each.value === "throw-exception")!;
-  const { mcp, chain } = await outsideTheDefect("opening the tool", () => toolOf(request, env, mode));
+  const { mcp, chain } = await toolOf(request, env, mode);
   const key = randomUUID();
-  await outsideTheDefect("the first call", () => callTool(mcp, sessions, chain.id, chain.name, key, firstSteps(mode, PASSED_STEP.name).length));
-  const { result } = await outsideTheDefect("the duplicate call", () => callTool(mcp, sessions, chain.id, chain.name, key, mode.steps.length + 1));
-  const sent = JSON.stringify({ key });
-  const answeredArguments = result.content.length === 1 && result.content[0].type === "text" && result.content[0].text === sent;
-  if (!result.isError && !answeredArguments) {
-    notTheKnownDefect(`the duplicate answered ${JSON.stringify(result)}, which is neither an error nor the call's arguments`);
-  }
-  expect(result.isError, "the duplicate is answered as an error: delete the test.fail() annotation").toBe(true);
+  await callTool(mcp, sessions, chain.id, chain.name, key, firstSteps(mode, PASSED_STEP.name).length);
+  const { result } = await callTool(mcp, sessions, chain.id, chain.name, key, mode.steps.length + 1);
+  expect(result.isError, `the duplicate answered ${JSON.stringify(result)}`).toBe(true);
 });
