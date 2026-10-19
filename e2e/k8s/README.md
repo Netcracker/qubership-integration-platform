@@ -187,6 +187,16 @@ let the next run install it again:
 kubectl delete namespace qip-e2e
 ```
 
+**A `qip-e2e` installed from a chart whose Postgres rolls has to lose that Deployment first.** The
+chart now runs Postgres with `strategy: Recreate`, because a rolling update starts a second server on
+the same data directory and corrupts its WAL. Helm refuses the switch for the same reason as above.
+Delete the Deployment alone, which keeps the database on its PersistentVolumeClaim, and let the next
+run create it again:
+
+```bash
+kubectl delete deployment qip-postgres -n qip-e2e
+```
+
 ## A failed micro case
 
 A micro domain is the camel-k Integration `qip-engine-<domain>-v1`, and its pod is deleted with the

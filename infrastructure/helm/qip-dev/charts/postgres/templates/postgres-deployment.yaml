@@ -4,6 +4,9 @@ metadata:
   name: {{ .Release.Name }}-postgres
 spec:
   replicas: 1
+  # A rolling update runs a second server on the same data directory, which corrupts its WAL.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: {{ .Release.Name }}-postgres
