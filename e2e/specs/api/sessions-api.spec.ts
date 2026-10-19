@@ -618,7 +618,8 @@ test("sessions export and import back, and an import over a live id is refused",
       expect(conflict.status(), "an import over a session that still exists is refused").toBe(409);
       expect(((await conflict.json()) as { errorMessage: string }).errorMessage).toContain(session.id);
 
-      expect((await sessions.bulkDelete([session.id])).status()).toBe(200);
+      const deleted = await sessions.bulkDelete([session.id]);
+      expect(deleted.status(), await deleted.text()).toBe(200);
       expect(await sessions.exists(session.id)).toBe(404);
 
       const restored = await sessions.importSessions("sessions.json", document);

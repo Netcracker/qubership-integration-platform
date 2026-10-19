@@ -9,7 +9,7 @@
  * match it either.
  *
  * The first case deletes one of the chain's two sessions. The second selects every loaded row and
- * reads the delete the page sends, which names those sessions. Until #1108 it sent the bare
+ * reads the delete the page sends, which names every session of the chain. Until #1108 it sent the bare
  * `DELETE /v1/sessions`, which removes every session on the platform, so the second case answers
  * the page's delete in the browser and never lets it reach sessions-management.
  */
@@ -118,6 +118,7 @@ test("a delete of every loaded session on the admin page removes those sessions 
     await answered;
     // The page sent the bare `DELETE /v1/sessions` here until #1108.
     expect(deletes.map((each) => each.sent)).toEqual(["POST /api/v1/cip/sessions-management/sessions/bulk-delete"]);
-    expect(new Set(deletes[0].ids as string[])).toEqual(new Set([opened.id, kept.id]));
+    // Every loaded row is every session of the chain, the ones `deployAndRecord` recorded included.
+    expect(new Set(deletes[0].ids as string[])).toEqual(await sessions.idsOf(chain.id));
   });
 });
