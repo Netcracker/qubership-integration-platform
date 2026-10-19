@@ -2,6 +2,7 @@ package org.qubership.integration.platform.engine.util.builders;
 
 import com.netcracker.cloud.security.core.utils.k8s.impl.UrlCache;
 import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpClientInterceptor;
+import jakarta.enterprise.inject.literal.NamedLiteral;
 import jakarta.enterprise.inject.spi.CDI;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.http.HttpClientConfigurer;
@@ -96,7 +97,7 @@ public class HttpClientConfigurerBuilder {
 
         return clientBuilder -> {
             if (m2mFallbackInterceptorEnabled && m2mEnabled) {
-                UrlCache m2mUrlCache = CDI.current().select(UrlCache.class).get();
+                UrlCache m2mUrlCache = CDI.current().select(UrlCache.class, NamedLiteral.of("m2mUrlCache")).get();
 
                 clientBuilder.addExecInterceptorAfter(
                     ChainElement.PROTOCOL.name(), "m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
