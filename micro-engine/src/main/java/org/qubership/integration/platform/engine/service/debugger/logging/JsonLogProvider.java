@@ -14,7 +14,7 @@ import java.util.Map;
 
 @Singleton
 public class JsonLogProvider implements JsonProvider {
-    private static final Map<String, String> MDC_MAPPING = Map.ofEntries(
+    static final Map<String, String> MDC_MAPPING = Map.ofEntries(
             Map.entry("requestId", "request_id"),
             Map.entry("tenantId", "tenant_id"),
             Map.entry("trace_id", "traceId"),
