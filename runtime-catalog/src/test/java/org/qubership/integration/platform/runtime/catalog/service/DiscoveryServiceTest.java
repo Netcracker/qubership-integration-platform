@@ -10,6 +10,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.AutodiscoveryException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ConfigParameter;
@@ -107,7 +108,22 @@ class DiscoveryServiceTest {
         when(configParameterService.findByName("discovery", "discoveryProgress")).thenReturn(progress("42", 16));
 
         assertThatThrownBy(() -> service.getDiscoveryResult())
+                .isInstanceOf(AutodiscoveryException.class)
                 .hasMessage("Autodiscovery did not complete: no progress for 15 minutes. Run it again.");
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+        "{\"errorMessage\":\"kube API is down\"} | Error in Autodiscovery service: kube API is down",
+        "null | Unknown error, no status available"
+    })
+    void storedErrorOrMissingStatusIsReportedAsAnError(String stored, String message) {
+        when(configParameterService.findByName("discovery", "discoveryProgress")).thenReturn(null);
+        when(configParameterService.findByName("discovery", "discoveryResult")).thenReturn(result(stored));
+
+        assertThatThrownBy(() -> service.getDiscoveryResult())
+                .isInstanceOf(AutodiscoveryException.class)
+                .hasMessage(message);
     }
 
     @ParameterizedTest
@@ -115,13 +131,18 @@ class DiscoveryServiceTest {
     void completeRunningOrNeverStartedDiscoveryReturnsTheStoredResult(String value, int minutesAgo) {
         when(configParameterService.findByName("discovery", "discoveryProgress"))
                 .thenReturn(value == null ? null : progress(value, minutesAgo));
-        ConfigParameter result = new ConfigParameter("discovery", "discoveryResult");
-        result.setString("{\"result\":{\"discoveredSystemIds\":[\"svc\"]}}");
-        when(configParameterService.findByName("discovery", "discoveryResult")).thenReturn(result);
+        when(configParameterService.findByName("discovery", "discoveryResult"))
+                .thenReturn(result("{\"result\":{\"discoveredSystemIds\":[\"svc\"]}}"));
 
         DiscoveryResultDTO stored = service.getDiscoveryResult();
 
         assertThat(stored.getDiscoveredSystemIds()).containsExactly("svc");
+    }
+
+    private static ConfigParameter result(String value) {
+        ConfigParameter result = new ConfigParameter("discovery", "discoveryResult");
+        result.setString(value);
+        return result;
     }
 
     private static ConfigParameter progress(String value, int minutesAgo) {

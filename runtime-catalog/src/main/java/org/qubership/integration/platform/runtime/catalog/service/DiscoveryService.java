@@ -30,6 +30,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHeaders;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.runtime.catalog.consul.ContextHeaders;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.AutodiscoveryException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationDiscoveryException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeService;
@@ -175,6 +176,12 @@ public class DiscoveryService {
     private static final String DISCOVERY_COMPLETE = "100";
     private static final String DISCOVERY_START = "0";
     private static final int DISCOVERY_EXPIRATION_MINUTES = 15;
+    private static final String DISCOVERY_NOT_COMPLETED_ERROR_MESSAGE = "Autodiscovery did not complete: no progress for "
+            + DISCOVERY_EXPIRATION_MINUTES + " minutes. Run it again.";
+    private static final String RESULT_NOT_SAVED_ERROR_MESSAGE =
+            "Unable to save the Autodiscovery result. See the runtime-catalog log for the cause.";
+    private static final String NO_STATUS_ERROR_MESSAGE = "Unknown error, no status available";
+    private static final String DISCOVERY_FAILED_ERROR_PREFIX = "Error in Autodiscovery service: ";
     private static final Integer PRIORITY_SERVICE_PORT = 8080;
     private static final Map<OperationProtocol, String> PROTOCOL_POSTFIX_MAP = Map.of(
             OperationProtocol.HTTP, "",
@@ -222,7 +229,7 @@ public class DiscoveryService {
             setDiscoveryStatusResult(result, errorMessage);
         } catch (RuntimeException e) {
             log.error("Unable to save the Autodiscovery result", e);
-            setDiscoveryStatusResult(null, "Unable to save the Autodiscovery result. See the runtime-catalog log for the cause.");
+            setDiscoveryStatusResult(null, RESULT_NOT_SAVED_ERROR_MESSAGE);
         }
     }
 
@@ -802,8 +809,7 @@ public class DiscoveryService {
     public DiscoveryResultDTO getDiscoveryResult() {
         ConfigParameter progress = configParameterService.findByName(DISCOVERY_NAMESPACE, DISCOVERY_PROGRESS_NAME);
         if (progress != null && !DISCOVERY_COMPLETE.equals(wholePercent(progress)) && isExpired(progress)) {
-            throw new RuntimeException("Autodiscovery did not complete: no progress for "
-                    + DISCOVERY_EXPIRATION_MINUTES + " minutes. Run it again.");
+            throw new AutodiscoveryException(DISCOVERY_NOT_COMPLETED_ERROR_MESSAGE);
         }
 
         ConfigParameter cp = configParameterService.findByName(DISCOVERY_NAMESPACE, DISCOVERY_RESULT_NAME);
@@ -816,12 +822,12 @@ public class DiscoveryService {
 
 
         if (status == null) {
-            throw new RuntimeException("Unknown error, no status available");
+            throw new AutodiscoveryException(NO_STATUS_ERROR_MESSAGE);
         }
 
         String errorMessage = status.getErrorMessage();
         if (!StringUtils.isBlank(errorMessage)) {
-            throw new RuntimeException("Error in Autodiscovery service: " + errorMessage);
+            throw new AutodiscoveryException(DISCOVERY_FAILED_ERROR_PREFIX + errorMessage);
         }
 
         return status.getResult();
