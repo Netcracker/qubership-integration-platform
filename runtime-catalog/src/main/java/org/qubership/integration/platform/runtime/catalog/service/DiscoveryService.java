@@ -739,7 +739,6 @@ public class DiscoveryService {
     }
 
     private void setDiscoveryStatusResult(DiscoveryResultDTO result, String errorMessage) {
-        setDiscoveryStatus(DISCOVERY_COMPLETE);
         ConfigParameter cp = new ConfigParameter(DISCOVERY_NAMESPACE, DISCOVERY_RESULT_NAME);
         DiscoveryStatusDTO dto = new DiscoveryStatusDTO(result, errorMessage);
         try {
@@ -748,6 +747,8 @@ public class DiscoveryService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Unable to set discovery status: " + e.getMessage());
         }
+        // Readers fetch the result once the progress reads 100, so the progress goes last.
+        setDiscoveryStatus(DISCOVERY_COMPLETE);
     }
 
     private void setDiscoveryStatus(String discoveryProgress) {
