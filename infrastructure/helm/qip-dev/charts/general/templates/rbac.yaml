@@ -33,6 +33,9 @@ rules:
   - apiGroups: ["networking.istio.io"]
     resources: ["serviceentries", "destinationrules"]
     verbs: [ "create", "get", "list", "watch", "update", "patch", "delete", "deletecollection" ]
+  - apiGroups: [ "dbaas.netcracker.com" ]
+    resources: [ "internaldatabases" ]
+    verbs: [ "create", "get", "list", "watch", "update", "patch", "delete", "deletecollection" ]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
