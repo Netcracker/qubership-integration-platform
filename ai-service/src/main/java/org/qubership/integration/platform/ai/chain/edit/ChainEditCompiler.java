@@ -90,6 +90,7 @@ public class ChainEditCompiler {
   private final CompilerValidationPipeline validationPipeline;
   private final CipChainEditPlannerAdapter structuralPlanner;
   private final CipChainEditPlannerRequestBuilder plannerRequestBuilder;
+  private final CreateRunSelectionService createRunSelectionService;
 
   public ChainEditCompiler(
       ChainEditIntentResolver intentResolver,
@@ -116,6 +117,7 @@ public class ChainEditCompiler {
         schemaService,
         validationPipeline,
         null,
+        null,
         null);
   }
 
@@ -134,7 +136,8 @@ public class ChainEditCompiler {
       DeterministicElementSchemaService schemaService,
       CompilerValidationPipeline validationPipeline,
       CipChainEditPlannerAdapter structuralPlanner,
-      CipChainEditPlannerRequestBuilder plannerRequestBuilder) {
+      CipChainEditPlannerRequestBuilder plannerRequestBuilder,
+      CreateRunSelectionService createRunSelectionService) {
     this.intentResolver = Objects.requireNonNull(intentResolver, "intentResolver");
     this.bindingResolver = Objects.requireNonNull(bindingResolver, "bindingResolver");
     this.engine = Objects.requireNonNull(engine, "engine");
@@ -149,6 +152,7 @@ public class ChainEditCompiler {
     this.validationPipeline = Objects.requireNonNull(validationPipeline, "validationPipeline");
     this.structuralPlanner = structuralPlanner;
     this.plannerRequestBuilder = plannerRequestBuilder;
+    this.createRunSelectionService = createRunSelectionService;
   }
 
   /**
@@ -1125,14 +1129,14 @@ public class ChainEditCompiler {
   }
 
   private CompilerRunPin resolvePin(String conversationId) {
+    String profileVersion = activeCreateProfileVersion();
     ProductPipelineProfile profile =
-        profileCatalog.require(
-            CreateRunSelectionService.CREATE_PROFILE_ID,
-            CreateRunSelectionService.CREATE_PROFILE_VERSION);
+        profileCatalog.require(CreateRunSelectionService.CREATE_PROFILE_ID, profileVersion);
     return runPinResolver.resolve(profile, knowledgeContextProvider.forConversation(conversationId));
   }
 
   private RunManifest baseManifest(ChainEditRequest request, CompilerRunPin pin) {
+    String profileVersion = activeCreateProfileVersion();
     KnowledgePackageRef packageRef =
         knowledgeContextProvider.forConversation(request.conversationId()).packageRef();
     return new RunManifest(
@@ -1141,10 +1145,8 @@ public class ChainEditCompiler {
         List.of(),
         "product",
         CreateRunSelectionService.CREATE_PROFILE_ID,
-        CreateRunSelectionService.CREATE_PROFILE_VERSION,
-        CreateRunSelectionService.CREATE_PROFILE_ID
-            + "@"
-            + CreateRunSelectionService.CREATE_PROFILE_VERSION,
+        profileVersion,
+        CreateRunSelectionService.CREATE_PROFILE_ID + "@" + profileVersion,
         "reference-baseline-v1",
         "reference-baseline-v1",
         List.of(),
@@ -1153,6 +1155,12 @@ public class ChainEditCompiler {
         request.languageVersion(),
         List.of(),
         pin);
+  }
+
+  private String activeCreateProfileVersion() {
+    return createRunSelectionService == null
+        ? CreateRunSelectionService.CREATE_PROFILE_VERSION
+        : createRunSelectionService.createProfileVersion();
   }
 
   /**

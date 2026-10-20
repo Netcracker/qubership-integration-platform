@@ -76,7 +76,8 @@ public final class PublicQipKnowledgePackFixture {
     put(root, "product-pipelines/capabilities/planning.yaml", "schemaVersion: 1\ncapabilityId: planning\ncapabilityVersion: '1'\nskills:\n  required: [cip-auth-generator]\naddons:\n  required: [cip-auth-generator]\nrules:\n  required: []\n");
     canonicalSources(root);
     var resolver = new org.qubership.integration.platform.ai.productpipeline.packageindex.ProductPipelineDependencyResolver();
-    var pins = resolver.resolveClosure(root.getParent(),
+    var pins = resolver.resolveClosure(
+        root,
         resolver.loadCapabilities(root.resolve("product-pipelines")),
         GENERATORS.stream().map(name -> "cip-" + name + "-generator").toList());
     StringBuilder baseline = new StringBuilder("schemaVersion: 1\nbaselineId: experimental-migration\nbaselineVersion: '1'\nroot: integration-platform-skills\nreferenceEvidence: {}\nmapping: {}\nartifacts:\n");
@@ -150,7 +151,14 @@ public final class PublicQipKnowledgePackFixture {
     put(root, "knowledge/runtime-substrate/runtime-dependency-model.yaml", yaml.writeValueAsString(Map.of("model", Map.of("package", "public-test-fixture", "version", "1.0.0"), "skill-dependencies", dependencies)));
     put(root, "knowledge/runtime-substrate/generator-packages.yaml", yaml.writeValueAsString(Map.of("baseline-generators", packages,
         "ownership-envelopes", List.of("cip-mcp-trigger-generator", "cip-routing-generator").stream().map(id -> Map.of("skill", id, "mayAddNodes", false, "mayAddEdges", false, "nodeTypes", List.of(), "properties", Map.of("mcp-trigger", List.of("name", "description", "inputSchema"), "service-call", List.of("propagateContext")))).toList())));
-    put(root, "product-pipelines/artifact-schemas.yaml", "artifacts: []\n");
+    try (var in =
+        PublicQipKnowledgePackFixture.class.getResourceAsStream(
+            "/product-pipelines/artifact-schemas.yaml")) {
+      if (in == null) {
+        throw new IllegalStateException("bundled artifact-schemas.yaml is missing");
+      }
+      put(root, "product-pipelines/artifact-schemas.yaml", new String(in.readAllBytes()));
+    }
   }
 
   private static void skill(Path root, String skill, String id, boolean runtime) throws IOException {

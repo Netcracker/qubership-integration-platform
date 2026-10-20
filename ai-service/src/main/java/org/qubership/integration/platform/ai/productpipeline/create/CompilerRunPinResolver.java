@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Canon
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeQueryContext;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.CompilerPipelinePolicy;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 
@@ -294,21 +295,35 @@ public final class CompilerRunPinResolver {
 
   private void pinCreateChainV2DesignSkills(
       ProductPipelineProfile profile, Map<String, String> skillHashes) {
-    if (!"create-chain".equals(profile.profileId()) || !"2".equals(profile.profileVersion())) {
+    if (!requiresDesignSkillPins(profile)) {
       return;
     }
     if (designSkillHashLookup == null) {
       throw new IllegalStateException(
-          "create-chain@2 requires a DesignSkillHashLookup for design-process skill pins");
+          profile.profileId()
+              + "@"
+              + profile.profileVersion()
+              + " requires a DesignSkillHashLookup for design-process skill pins");
     }
     for (String skillId : CREATE_CHAIN_V2_DESIGN_SKILLS) {
       String hash = designSkillHashLookup.skillSha256(skillId);
       if (hash == null || hash.isBlank()) {
         throw new IllegalStateException(
-            "create-chain@2 missing pinned skill hash for " + skillId);
+            profile.profileId()
+                + "@"
+                + profile.profileVersion()
+                + " missing pinned skill hash for "
+                + skillId);
       }
       skillHashes.put(skillId, hash);
     }
+  }
+
+  private static boolean requiresDesignSkillPins(ProductPipelineProfile profile) {
+    return profile.stages().stream()
+        .anyMatch(
+            stage ->
+                DesignPlanningCapability.CAPABILITY_ID.equals(stage.capabilityId()));
   }
 
   private static LinkedHashSet<String> resolveClosure(

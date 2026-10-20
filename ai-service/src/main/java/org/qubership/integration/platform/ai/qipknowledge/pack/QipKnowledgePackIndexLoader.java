@@ -38,6 +38,8 @@ public class QipKnowledgePackIndexLoader {
   static final String RUNTIME_PROMOTED_SKILLS_FILE = "runtime-promoted-skills.json";
   public static final String PRODUCT_PIPELINE_PACKAGE_INDEX_FILE =
       "product-pipeline-package-index.json";
+  static final String PRODUCT_PIPELINE_PROFILES_INDEX_FILE =
+      "product-pipeline-profiles-index.json";
 
   private final ObjectMapper objectMapper;
 

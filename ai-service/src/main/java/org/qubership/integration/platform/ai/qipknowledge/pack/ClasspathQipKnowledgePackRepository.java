@@ -160,6 +160,38 @@ public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepo
         ProductPipelinePackageIndex.class);
   }
 
+  @Override
+  public List<String> loadProductPipelineProfileResources() {
+    return cachedJson(
+        QipKnowledgePackIndexLoader.PRODUCT_PIPELINE_PROFILES_INDEX_FILE,
+        () -> {
+          try {
+            String payload = readOptionalResource(
+                QipKnowledgePackIndexLoader.PRODUCT_PIPELINE_PROFILES_INDEX_FILE);
+            if (payload == null) {
+              return List.of();
+            }
+            return objectMapper.readValue(payload, new TypeReference<List<String>>() {});
+          } catch (IOException e) {
+            throw new IllegalStateException(
+                "Failed to load product pipeline profile index for version "
+                    + activeVersion.normalized(),
+                e);
+          }
+        });
+  }
+
+  @Override
+  public InputStream openProductPipelineResource(String relativePath) {
+    if (relativePath == null || relativePath.isBlank()) {
+      return null;
+    }
+    String normalized = relativePath.startsWith("/") ? relativePath.substring(1) : relativePath;
+    String resourcePath =
+        CLASSPATH_ROOT + activeVersion.normalized() + "/product-pipelines/" + normalized;
+    return classLoader.getResourceAsStream(resourcePath);
+  }
+
   /**
    * Returns the compiler contract digest pinned in the knowledge index. Missing or mismatched pins
    * fail closed.
@@ -231,9 +263,19 @@ public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepo
   }
 
   private String readResource(String fileName) throws IOException {
+    String payload = readOptionalResource(fileName);
+    if (payload == null) {
+      throw new IOException("Missing QIP knowledge resource: " + fileName);
+    }
+    return payload;
+  }
+
+  private String readOptionalResource(String fileName) throws IOException {
     String resourcePath = CLASSPATH_ROOT + activeVersion.normalized() + "/" + fileName;
-    try (InputStream stream =
-        QipKnowledgePackIndexLoader.openClasspathResource(classLoader, resourcePath)) {
+    try (InputStream stream = classLoader.getResourceAsStream(resourcePath)) {
+      if (stream == null) {
+        return null;
+      }
       return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
     }
   }

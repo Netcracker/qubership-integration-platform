@@ -2,18 +2,19 @@ package org.qubership.integration.platform.ai.qipknowledge.pack;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /** CDI wiring for classpath QIP knowledge pack access. */
 @ApplicationScoped
 public class QipKnowledgePackProducer {
-  private static final QipKnowledgePackVersion ACTIVE_VERSION =
-      new QipKnowledgePackVersion(
-          "integration-platform-skills",
-          "integration-platform-skills");
+
+  @ConfigProperty(name = "qip.ai.qipknowledge.pack-id", defaultValue = "integration-platform-skills")
+  String packId;
 
   @Produces
   @ApplicationScoped
   public QipKnowledgePackRepository qipKnowledgePackRepository() {
-    return new ClasspathQipKnowledgePackRepository(ACTIVE_VERSION);
+    QipKnowledgePackVersion activeVersion = new QipKnowledgePackVersion(packId, packId);
+    return new ClasspathQipKnowledgePackRepository(activeVersion);
   }
 }

@@ -136,6 +136,11 @@ public interface AppConfig {
     @WithDefault("2026.1")
     String languageVersion();
 
+    /** Default product profile version for new CREATE runs (for example {@code 2} or {@code 3}). */
+    @WithName("profile-version")
+    @WithDefault("2")
+    String profileVersion();
+
     /**
      * Create-chain Flow rollout flag. Default false. When true, the provided-IDS route uses Quarkus
      * Flow through design planning.
@@ -210,6 +215,11 @@ public interface AppConfig {
   interface QipKnowledgeConfig {
     @WithName("build")
     QipKnowledgeBuildConfig build();
+
+    /** Classpath directory name for the active knowledge pack indexes. */
+    @WithName("pack-id")
+    @WithDefault("integration-platform-skills")
+    String packId();
 
     interface QipKnowledgeBuildConfig {
       @WithDefault("false")

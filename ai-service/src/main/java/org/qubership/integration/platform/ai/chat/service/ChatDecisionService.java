@@ -79,6 +79,8 @@ public class ChatDecisionService {
 
   @Inject PendingRedeployStore pendingRedeployStore;
 
+  @Inject CreateRunSelectionService createRunSelectionService;
+
   @Inject
   @ForScenario(ScenarioType.MANAGE_CHAIN_LIST)
   ChainListScenario chainListScenario;
@@ -874,11 +876,15 @@ public class ChatDecisionService {
     return "";
   }
 
-  private static String runIdFor(String conversationId) {
+  private String runIdFor(String conversationId) {
+    String profileVersion =
+        createRunSelectionService == null
+            ? CreateRunSelectionService.CREATE_PROFILE_VERSION
+            : createRunSelectionService.createProfileVersion();
     return conversationId
         + "-"
         + CreateRunSelectionService.CREATE_PROFILE_ID
         + "-"
-        + CreateRunSelectionService.CREATE_PROFILE_VERSION;
+        + profileVersion;
   }
 }
