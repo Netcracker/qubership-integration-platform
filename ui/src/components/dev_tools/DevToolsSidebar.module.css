@@ -1,0 +1,12 @@
+.menu:global(.ant-menu.ant-menu-inline) :global(.ant-menu-sub.ant-menu-inline) {
+  background: transparent;
+}
+
+.menu:global(.ant-menu.ant-menu-light) :global(.ant-menu-item-selected) {
+  color: var(--vscode-textLink-foreground);
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-textLink-foreground) 10%,
+    transparent
+  );
+}
