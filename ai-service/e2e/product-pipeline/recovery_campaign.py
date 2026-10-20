@@ -701,6 +701,7 @@ def process_identity(container):
         "id": container["Id"],
         "startedAt": container["State"]["StartedAt"],
         "restarts": container["RestartCount"],
+        "running": container["State"]["Running"],
     }
 
 

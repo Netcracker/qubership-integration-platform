@@ -481,6 +481,9 @@ public class RequirementCaptureTools {
       if (!unbound.isEmpty()) issues.add(new Issue("UNBOUND_REQUIRED_LITERAL",
           "/draft/facts/" + fact.sourceFactId() + "/elementIntent/requestedProperties", fact.sourceFactId(),
           "Bind required literals " + unbound + " to supported properties or an owned executable artifact."
+              + (elementSchemas == null ? "" : " Current runtime property keys for " + fact.elementIntent().elementType()
+                  + ": " + new java.util.TreeSet<>(elementSchemas.allowedPatchPropertyKeys(fact.elementIntent().elementType()))
+                  + ". Use describeElementProperty for the selected property's current value schema.")
               + " Use the saved author source; preserve the fact, exactValues, and existing values."
               + " Names, descriptions, unrelated nodes, and comments cannot implement runtime values."));
     }

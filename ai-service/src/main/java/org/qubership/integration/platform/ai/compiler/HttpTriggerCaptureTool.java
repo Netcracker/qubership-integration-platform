@@ -142,9 +142,14 @@ public class HttpTriggerCaptureTool {
   }
 
   private Result reject(String conversationId, String code, String path, String message, String entity) {
-    if (HttpTriggerCaptureSession.get(conversationId).isEmpty()) {
+    var binding = HttpTriggerCaptureSession.get(conversationId).orElse(null);
+    if (binding == null) {
       return rejected("CAPTURE_SESSION_NOT_FOUND", "/", "No active HTTP trigger capture.", true);
     }
+    message += " Approved roleIds: " + binding.skeleton().entryPointRoleIds()
+        + "; approved semanticNodeIds: " + binding.revision().entryPoints().stream()
+            .map(org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint::triggerNodeId).toList()
+        + ". Copy these identifiers exactly; paths and labels are not identifiers. externalRoute must be a JSON boolean.";
     var gateway = outcomeGateway == null
         ? new CaptureToolOutcomeGateway(feedbackStore.fingerprintStore(), feedbackStore) : outcomeGateway;
     gateway.onTypedPlanFailure(
