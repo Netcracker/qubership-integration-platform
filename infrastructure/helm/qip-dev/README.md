@@ -72,6 +72,11 @@ The AI service uses an existing MinIO or S3-compatible endpoint. Set `global.qip
 `minio-credentials`. The Secret must exist in the release namespace with `accessKey` and `secretKey` entries.
 Provision the `qip-ai-storage` bucket separately; the chart keeps bucket initialization disabled.
 
+`global.qip.ai.enabled` (default `true`) turns the AI service off together with its five nginx
+locations. With it off, build the UI with `VITE_AI_SERVICE_ENABLED=false` too. Otherwise the UI
+requests `/q/health` on every page, the dev server answers it with 200, and the AI assistant
+appears with no service behind it.
+
 `qip-engine`, `qip-runtime-catalog`, `qip-sessions-management`, and `qip-testing-service` each take
 these values under their own key. Every one is optional, and the defaults render the manifests the
 chart rendered before the value existed.
@@ -133,7 +138,7 @@ through unchanged. Leave the locations off for anything but the suite.
 
 `e2e/k8s/values.e2e.yaml` is the suite's own values file for namespace `qip-e2e`:
 `Recreate` everywhere, JVM sizes above the chart defaults, the environment variables the specs read,
-and the `/e2e/` proxy locations. The suite sets the image tags, the micro-engine image, the NodePorts, and the
+the AI service off, and the `/e2e/` proxy locations. The suite sets the image tags, the micro-engine image, the NodePorts, and the
 LoadBalancer ports on the command line; `e2e/k8s/README.md` describes the install it makes.
 
 ## Brokers

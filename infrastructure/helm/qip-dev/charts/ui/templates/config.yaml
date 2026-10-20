@@ -240,6 +240,8 @@ data:
         proxy_intercept_errors  on;
       }
 
+      {{- if .Values.global.qip.ai.enabled }}
+
       location = /q/health {
         proxy_pass  http://{{ .Release.Name }}-ai-service:8080;
         proxy_redirect     off;
@@ -283,6 +285,7 @@ data:
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
       }
+      {{- end }}
 
       # Anything under /api/ that no rule above claims belongs to no service. Without
       # this it falls through to the SPA below and answers 200 text/html, so a caller

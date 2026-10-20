@@ -166,7 +166,12 @@ global:
       micro:
         enabled: true
         image: ghcr.io/netcracker/qubership-integration-micro-engine:latest
+    # Turning the AI service off drops its chart and its nginx routes, which name
+    # the service statically, as the testing service's route does. A UI built
+    # without VITE_AI_SERVICE_ENABLED=false still requests /q/health, and the
+    # dev server's 200 for it shows the AI assistant.
     ai:
+      enabled: true
       image: ghcr.io/netcracker/qubership-integration-ai-service:latest
       knowledgeSidecarImage: ghcr.io/netcracker/qubership-integration-knowledge-sidecar:latest
       knowledgeVolume: null
