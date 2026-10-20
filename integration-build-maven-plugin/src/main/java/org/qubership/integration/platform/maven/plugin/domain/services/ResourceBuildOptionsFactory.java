@@ -40,6 +40,7 @@ public class ResourceBuildOptionsFactory {
             .jvm(options.getJvm())
             .monitoring(options.getMonitoring())
             .service(options.getService())
+            .dbaas(options.getDbaas())
             .mount(options.getMount())
             .environment(buildEnvironment(parameters))
             .integrations(options.getIntegrations())
