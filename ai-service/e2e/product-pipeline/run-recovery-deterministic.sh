@@ -28,6 +28,11 @@ RECOVERY_TESTS+="configuredRecoveryFaultFailsTheFirstTwoMatchingRunAttempts+"
 RECOVERY_TESTS+="configuredCatalogMismatchFaultCarriesDesignInputRecoveryEvidenceOnce,"
 RECOVERY_TESTS+="MaterializationCapabilityTest#"
 RECOVERY_TESTS+="configuredRecoveryFaultStopsBeforeTheFirstCatalogWrite"
+RECOVERY_TESTS+=",HttpTriggerCaptureToolTest,HttpTriggerCaptureAdapterTest,"
+RECOVERY_TESTS+="E2eRecoveryTestControlTest,RecoveryEvidenceProbeTest,"
+RECOVERY_TESTS+="MaterializationCapabilityTest#focusedCheckpointRequiresNativeAdmissionAndPreventsTheFirstCatalogWrite"
+
+python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
 
 mvn -pl ai-service \
     -Dtest="${RECOVERY_TESTS}" \

@@ -29,6 +29,8 @@ public class HttpTriggerCaptureTool {
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final ObjectMapper mapper;
 
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+
   @Inject
   HttpTriggerCaptureTool(
       ConfiguredTriggerSetCaptureTool configuredTool,
@@ -63,13 +65,26 @@ public class HttpTriggerCaptureTool {
         CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, conversationId))) {
       return rejected("DUPLICATE_CAPTURE", "/", "HTTP triggers already captured.", true);
     }
-    feedbackStore.beginProposal(conversationId, CompilerGraphPatchTool.resolveCapabilityId(),
+    String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
+    if (recoveryControl != null) {
+      capture = recoveryControl.httpCapture(conversationId, capabilityId, capture);
+    }
+    feedbackStore.beginProposal(conversationId, capabilityId,
         "captureHttpTriggers", capture);
     try {
       String result = configuredTool.captureConfiguredTriggerSet(adapter.adapt(capture, binding));
       return rejected("TRIGGER_VALIDATION", "/endpoints", result, false);
     } catch (IllegalArgumentException error) {
       return reject(conversationId, "CAPTURE_SHAPE_INVALID", "/endpoints", error.getMessage());
+    } finally {
+      if (recoveryControl != null) {
+        var accepted = captureSession.get(
+            CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, conversationId),
+            org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet.class);
+        if (accepted.isPresent()) {
+          recoveryControl.acceptedHttpCapture(conversationId, capabilityId, capture, accepted.orElseThrow());
+        }
+      }
     }
   }
 

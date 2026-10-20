@@ -28,6 +28,13 @@ curl -sf "${CATALOG_URL}/v1/chains/${CHAIN_ID}/elements" > "$elements_json" ||
 curl -sf "${CATALOG_URL}/v1/chains/${CHAIN_ID}/dependencies" > "$deps_json" ||
     e2e_fail "catalog GET dependencies failed for chain ${CHAIN_ID}"
 
+if [[ -n "${E2E_CATALOG_EVIDENCE_DIR:-}" ]]; then
+    mkdir -p "${E2E_CATALOG_EVIDENCE_DIR}"
+    cp "${catalog_json}" "${E2E_CATALOG_EVIDENCE_DIR}/chain.json"
+    cp "${elements_json}" "${E2E_CATALOG_EVIDENCE_DIR}/elements.json"
+    cp "${deps_json}" "${E2E_CATALOG_EVIDENCE_DIR}/dependencies.json"
+fi
+
 if ! jq -e --arg s "$SCENARIO" '.[$s].catalog' "$SCENARIOS_FILE" > /dev/null; then
     e2e_info "no catalog section for ${SCENARIO}; skip catalog assertions"
     exit 0

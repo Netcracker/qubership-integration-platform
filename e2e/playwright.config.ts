@@ -287,7 +287,24 @@ const suite: SuiteProject[] = [
 
 /** The projects a run on `setup`'s target declares: the common ones, then its own. */
 export function suiteProjects(setup: TargetSetup): SuiteProject[] {
-  return [...suite, ...setup.projects];
+  return [
+    ...suite.map((project) =>
+      (setup.name === "k8s" || process.env.E2E_AI_RECOVERY !== "1") && project.name === "env"
+        ? {
+            ...project,
+            testIgnore: [
+              ...(Array.isArray(project.testIgnore)
+                ? project.testIgnore
+                : project.testIgnore
+                  ? [project.testIgnore]
+                  : []),
+              "**/ai-recovery-lifecycle.spec.ts",
+            ],
+          }
+        : project,
+    ),
+    ...setup.projects,
+  ];
 }
 
 export default defineConfig<PlaywrightTestOptions, PlaywrightWorkerOptions & SuiteWorkerOptions>({

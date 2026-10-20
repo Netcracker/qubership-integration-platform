@@ -74,6 +74,8 @@ public class MaterializationCapability implements StageCapability {
   private final CipDesignExecutorJavaAdapter designExecutor;
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
 
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+
   @Inject
   public MaterializationCapability(
       ProductPipelineArtifactStore artifactStore,
@@ -202,6 +204,11 @@ public class MaterializationCapability implements StageCapability {
                       StageOutcomeClass.CONTRACT_FAILURE,
                       "E2E recovery fault: injected " + causeCode + " at materialization.",
                       RecoveryCause.of(causeCode))));
+    }
+
+    if (resolved.v2() && recoveryControl != null
+        && recoveryControl.materializationInputsAccepted(context, resolved.graphRef(), materializationInputs(resolved))) {
+      return Multi.createFrom().emitter(ignored -> {});
     }
 
     // Capture the SSE emit consumer on this thread (ToolInvocationSink bound by chat turn), then
