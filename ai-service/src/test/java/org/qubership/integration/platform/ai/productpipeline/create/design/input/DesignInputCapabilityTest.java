@@ -583,7 +583,7 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void designAgentPromptEscapesQuteBracesFromTheBrief() {
+  void designAgentPromptPreservesPathBracesAfterTemplateRendering() {
     java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
         new java.util.concurrent.atomic.AtomicReference<>();
     DesignInputCapability capability =
@@ -598,9 +598,11 @@ class DesignInputCapabilityTest {
         context(
             "design-input",
             Map.of("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief())));
-    String prompt = seenPrompt.get();
-    assertTrue(prompt.contains("path=/orders/\\{id}"), prompt);
-    assertFalse(prompt.contains("path=/orders/{id}"), prompt);
+    var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook()).build();
+    String prompt = renderer.parse(seenPrompt.get()).render();
+    assertTrue(prompt.contains("path=/orders/{id}"), prompt);
   }
 
   private static DesignInputCapability capturingCapability() {

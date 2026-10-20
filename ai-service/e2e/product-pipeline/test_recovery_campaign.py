@@ -127,6 +127,33 @@ class RecoveryContractTest(unittest.TestCase):
     def outcome(self):
         return campaign.verdict(self.case, self.evidence)["outcome"]
 
+    def test_tool_prohibition_allows_negative_text_and_tool_schemas(self):
+        self.enhanced()
+        self.case["checks"]["forbiddenTools"] = ["getApiHubDocument"]
+        self.evidence["providerBoundary"][0]["request"].update(
+            parameters={"tools": [{"name": "getApiHubDocument"}]}
+        )
+        self.evidence["providerBoundary"][0]["request"]["messages"].append(
+            {"text": "Do not use APIHub."}
+        )
+        self.assertEqual("CHECKPOINT_PASS", self.outcome())
+
+    def test_tool_prohibition_rejects_response_tool_calls(self):
+        self.enhanced()
+        self.case["checks"]["forbiddenTools"] = ["getApiHubDocument"]
+        self.evidence["providerBoundary"][-1]["value"]["message"]["toolExecutionRequests"].append(
+            {"name": "getApiHubDocument", "arguments": "{}"}
+        )
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
+    def test_tool_prohibition_rejects_completed_stream_tool_calls(self):
+        self.enhanced()
+        self.case["checks"]["forbiddenTools"] = ["getApiHubDocument"]
+        self.evidence["providerBoundary"].append(
+            {"kind": "tool-completed", "value": {"toolExecutionRequest": {"name": "getApiHubDocument"}}}
+        )
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
     def enhanced(self):
         self.case.update(requireProviderEvidence=True)
         self.case["fault"]["kind"] = "http-exposure-type"
