@@ -629,9 +629,9 @@ and restores the previous providers and context when the scenario ends.
 
 The functional chain has four independent trigger-to-sender routes: default settings,
 `propagateContext: false`, a context override, and a configured routing key.
-With `propagateContext: false`, the template skips `contextPropagationProcessor` but still
-runs `rabbitMqSenderProcessor`. The tests expect the request ID in the published message
-and no `Authorization` header, including when the request ID is generated.
+With `propagateContext: false`, the template skips both `contextPropagationProcessor` and
+`rabbitMqSenderProcessor` and removes the `Authorization` header. The tests expect neither the
+request ID nor `Authorization` in the published message, including when the request ID is generated.
 Invocations select the existing entrypoint for the sender they exercise.
 `publishes-messages-through-sender-variants` contains 18 Short invocations;
 `publishes-messages-with-routing-and-context-and-recovers` contains 47 Long invocations.
