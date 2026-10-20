@@ -3,9 +3,8 @@
  * ones it must leave a real failure, and the engine gate `strikesAsKnown` puts in front of it. No stack.
  */
 import { test, expect, type APIResponse } from "@playwright/test";
-import { firingHistory, MOCK_BYPASSED, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "../runtime/micro-defects.js";
+import { firingHistory, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "../runtime/micro-defects.js";
 import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "../k8s/catalog-defects.js";
-import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "../global/micro-defects.js";
 import { countedAnswer, VALIDATION_READ_BEFORE_ALERTS } from "../global/catalog-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
@@ -28,13 +27,14 @@ function failureOf(assertion: () => void): string {
 // A classic regression of the same feature can fail with the same message, and it has to stay red.
 test("a micro defect is known only on the micro engine, and the same failure on classic is a real one", TAGS, async () => {
   const unresolved = 'Error: {\n  "code" : "CIP-0101",\n}';
-  expect(strikes(MOCK_BYPASSED, "micro", unresolved)).toBe(true);
-  expect(strikes(MOCK_BYPASSED, "classic", unresolved)).toBe(false);
+  const onMicro = { title: "a micro defect", engine: "micro" as const, matches: (message: string) => message.includes("CIP-0101") };
+  expect(strikes(onMicro, "micro", unresolved)).toBe(true);
+  expect(strikes(onMicro, "classic", unresolved)).toBe(false);
 
   // This project sets no engine kind, so it runs as a classic one: the failure comes back, and the
   // case is still expected to pass. The status is put back before it is asserted, since a case
   // marked to fail would report this assertion's failure as expected.
-  const thrown = await strikesAsKnown(MOCK_BYPASSED, async () => {
+  const thrown = await strikesAsKnown(onMicro, async () => {
     throw new Error(unresolved);
   }).catch((cause: unknown) => String(cause));
   const expectedStatus = test.info().expectedStatus;
@@ -53,34 +53,6 @@ test("a strike is recorded beside the expected failure, so reconcile can read th
   test.info().expectedStatus = "passed";
   expect(expectedStatus).toBe("failed");
   expect(test.info().annotations).toContainEqual({ type: STRUCK_ANNOTATION, description: "a race" });
-});
-
-test("a mocked service call that reached its real address is the known defect, and an unmatched mock is not", TAGS, () => {
-  // The two failures the micro engine produced, as `strikesAsKnown` reads them.
-  const unresolved = [
-    "Error: {",
-    '  "code" : "CIP-0101",',
-    '  "reason" : "Chain execution failed due to requesting missing endpoint",',
-    "}",
-    "",
-    "expect(received).toBe(expected) // Object.is equality",
-  ].join("\n");
-  const egress = "Error: no healthy upstream\n\nexpect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 503";
-  // A test case run of `http-out`, whose rule read the real endpoint's answer.
-  const health = [
-    `Error: the case run's outbound call was not mocked: '{"status":"UP","groups":["liveness","readiness"],"components":{"ping":{"status":"UP"}}}' doesn't contain '"mocked":"e2e-s7rodt-runs-mocked"'`,
-    "",
-    "expect(received).toEqual(expected) // deep equality",
-  ].join("\n");
-  expect(MOCK_BYPASSED.matches(unresolved)).toBe(true);
-  expect(MOCK_BYPASSED.matches(egress)).toBe(true);
-  expect(MOCK_BYPASSED.matches(health)).toBe(true);
-
-  // The testing service answers a request no mock matched with 404.
-  expect(MOCK_BYPASSED.matches("Error: no mock matched: the element sent another path, query or body. \n\nExpected: 201\nReceived: 404")).toBe(false);
-  expect(MOCK_BYPASSED.matches("Error: expect(received).toBe(expected)\n\nExpected: 201\nReceived: 500")).toBe(false);
-  // The mock answered, with another body than the rule expects.
-  expect(MOCK_BYPASSED.matches(`Error: the case run's outbound call was not mocked: '{"mocked":"other"}' doesn't contain '"mocked":"e2e-s7rodt-runs-mocked"'`)).toBe(false);
 });
 
 /** What `withEngineLines` throws when `wait` fails with `failure` and the engine log reads `log`. */
@@ -131,24 +103,9 @@ async function heldAnswerFailure(failure: string, status: number, body: string):
   return String(thrown);
 }
 
-test("an exchange the micro engine never listed while it was held is the known defect, and one that was not held is not", TAGS, async () => {
+test("a step that fails while a call is held names what the held call answered", TAGS, async () => {
   const held = '{"element":"long-running","heldMs":12000}';
-  const fromCatalog = await heldAnswerFailure("no live exchange for chain c1 was ever listed", 200, held);
-  expect(fromCatalog).toContain(`the held call answered 200 ${held}`);
-  expect(LIVE_EXCHANGE_UNLISTED.matches(fromCatalog)).toBe(true);
-  expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("the engine never reported an exchange for e2e-x-long-running", 200, held))).toBe(true);
-
-  // The call failed, or answered without holding, so nothing was in flight to list.
-  expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("no live exchange for chain c1 was ever listed", 503, "no healthy upstream"))).toBe(false);
-  expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("no live exchange for chain c1 was ever listed", 200, '{"element":"other"}'))).toBe(false);
-  // The exchange was listed, and a later assertion failed.
-  expect(LIVE_EXCHANGE_UNLISTED.matches(await heldAnswerFailure("expect(received).toBe(expected)\n\nExpected: true\nReceived: false", 200, held))).toBe(false);
-});
-
-test("an unknown deployment the micro engine reports as an unknown exchange is the known defect, and another 404 is not", TAGS, () => {
-  const micro = `Error: the engine answered {"serviceName":"Engine","errorMessage":"No live exchange found for deployment id no-such-deployment"}\n\nexpect(received).toContain(expected) // indexOf`;
-  expect(KILL_NOT_FOUND_UNSPECIFIC.matches(micro)).toBe(true);
-  expect(KILL_NOT_FOUND_UNSPECIFIC.matches("Error: the engine answered Not Found\n\nexpect(received).toContain(expected) // indexOf")).toBe(false);
+  expect(await heldAnswerFailure("no live exchange for chain c1 was ever listed", 200, held)).toContain(`the held call answered 200 ${held}`);
 });
 
 /** What `strikesAsKnown` reads when the discovery case's result assertion fails on `read`. */

@@ -37,10 +37,8 @@ import { escapeRegExp, readServiceFixture } from "../../fixtures/templating.js";
 import { callToken, tokenized } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, element, elementNames, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER, type ExecutionStatus } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
-import { MOCK_BYPASSED } from "./micro-defects.js";
 import { axisChain, MOCKED_BODY } from "./service-call.js";
 import { noChainRequestId, type RequestMatcher } from "../../support/testing-service.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
 import type { Env } from "../../env/index.js";
 import type { SchemaValue } from "../../registry/discriminators.js";
 
@@ -107,11 +105,9 @@ for (const each of MOCKED_CASES) {
     await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response, matchers: each.matchers?.(env) }, async () => {
       const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { payload: PAYLOAD }, headers: each.headers });
       const body = await call.response.text();
-      await strikesAsKnown(MOCK_BYPASSED, async () => {
-        expect(call.response.status(), body).toBe(each.status);
-        if (each.code) expect(JSON.parse(body).code, body).toBe(each.code);
-        else expect(body).toBe(each.reply);
-      });
+      expect(call.response.status(), body).toBe(each.status);
+      if (each.code) expect(JSON.parse(body).code, body).toBe(each.code);
+      else expect(body).toBe(each.reply);
       const steps = [branch, ...each.steps];
       const session = await sessions.byExternalId(call.token, { elements: steps.length + 2 });
       expect(session.executionStatus).toBe(each.executionStatus);
@@ -136,7 +132,7 @@ for (const { value, declares, uri } of SYSTEM_TYPES) {
     await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response: { status: 201, body: MOCKED_BODY } }, async () => {
       const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
       const body = await call.response.text();
-      await strikesAsKnown(MOCK_BYPASSED, async () => expect(call.response.status(), body).toBe(201));
+      expect(call.response.status(), body).toBe(201);
       const session = await sessions.byExternalId(call.token, { elements: 4 });
       expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt"]);
       expect(element(session, "Request attempt")?.headersBefore?.CamelHttpUri).toMatch(uri(callerId));
@@ -157,7 +153,7 @@ for (const position of POSITIONS) {
     await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response }, async () => {
       const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
       const body = await call.response.text();
-      await strikesAsKnown(MOCK_BYPASSED, async () => expect(call.response.status(), body).toBe(201));
+      expect(call.response.status(), body).toBe(201);
       const session = await sessions.byExternalId(call.token, { elements: 5 });
       expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt", CORRELATION_ECHO.name]);
       expect((JSON.parse(body) as { correlationId: unknown }).correlationId).toBe(sent);

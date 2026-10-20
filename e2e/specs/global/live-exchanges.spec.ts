@@ -8,8 +8,9 @@
  * other worker is doing at that instant. `specs/global/` runs one worker after `api`, `runtime` and
  * `env`, which is what makes the readings below stable enough to assert.
  *
- * `global-micro` runs this file again on the shared micro domain. The cases the micro engine fails
- * are pinned with the defects in `micro-defects.ts`.
+ * `global-micro` runs this file again on the shared micro domain. Until #1098 the micro engine
+ * listed no live exchange and answered a kill for an unknown deployment as one for an unknown
+ * exchange.
  *
  * **The timing is handled by holding the exchange, never by sleeping and hoping.** An exchange can
  * finish before the first list call, and
@@ -50,8 +51,6 @@ import { tokenized } from "../../support/run.js";
 import type { Catalog, LiveExchangeExtView } from "../../support/catalog.js";
 import { hold, untilListed, withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import type { LiveExchange } from "../../support/engine.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
-import { KILL_NOT_FOUND_UNSPECIFIC, LIVE_EXCHANGE_UNLISTED } from "./micro-defects.js";
 
 /** The fixture whose script holds the exchange. Its hold is a header, so one deployment serves all. */
 const HOLDING_FIXTURE = "long-running";
@@ -65,9 +64,9 @@ const KILLED_MESSAGE = "Chain was interrupted manually";
 /** How long a held call stays in flight. Long enough to poll for it twice over on a loaded stack. */
 const HOLD_MS = 12_000;
 
-/** The held exchange as the catalog lists it, or the known micro defect when it is never listed. */
+/** The held exchange as the catalog lists it. */
 function listedWhileHeld(catalog: Catalog, call: HeldCall, chainId: string): Promise<LiveExchangeExtView> {
-  return strikesAsKnown(LIVE_EXCHANGE_UNLISTED, () => withHeldAnswer(call, () => untilListed(catalog, chainId)));
+  return withHeldAnswer(call, () => untilListed(catalog, chainId));
 }
 
 /** Waits until the platform reports nothing in flight, so an emptiness assertion means something. */
@@ -276,18 +275,16 @@ test("killing through the engine needs no pod address and does the same thing", 
     // Straight to the engine, which is where the catalog's kill ends up: the deployment and the
     // exchange are all it needs, because a pod can only kill what it is running.
     let running: LiveExchange[] = [];
-    await strikesAsKnown(LIVE_EXCHANGE_UNLISTED, () =>
-      withHeldAnswer(call, () =>
-        expect
-          .poll(
-            async () => {
-              running = await engine.liveExchanges();
-              return running.some((each) => each.chainId === chain.id);
-            },
-            { message: `the engine never reported an exchange for ${chain.name}` },
-          )
-          .toBe(true),
-      ),
+    await withHeldAnswer(call, () =>
+      expect
+        .poll(
+          async () => {
+            running = await engine.liveExchanges();
+            return running.some((each) => each.chainId === chain.id);
+          },
+          { message: `the engine never reported an exchange for ${chain.name}` },
+        )
+        .toBe(true),
     );
     const mine = running.find((each) => each.chainId === chain.id)!;
 
@@ -343,10 +340,8 @@ test("a kill aimed at nothing is a 404 on both services, and leaves no audit row
     "a kill that found nothing should leave no audit row",
   ).toEqual([]);
 
-  await strikesAsKnown(KILL_NOT_FOUND_UNSPECIFIC, async () => {
-    expect(noDeploymentText, `the engine answered ${noDeploymentText}`).toContain("No deployment found for id no-such-deployment");
-    expect(throughCatalogText, `the catalog answered ${throughCatalogText}`).toContain("No deployment found for id no-such-deployment");
-  });
+  expect(noDeploymentText, `the engine answered ${noDeploymentText}`).toContain("No deployment found for id no-such-deployment");
+  expect(throughCatalogText, `the catalog answered ${throughCatalogText}`).toContain("No deployment found for id no-such-deployment");
 });
 
 test("limit is validated, and refused with 400 by the catalog and the engine", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, engine }) => {

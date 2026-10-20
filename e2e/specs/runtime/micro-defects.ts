@@ -6,27 +6,6 @@
 import type { ConditionalDefect } from "../../support/known-defect.js";
 import { NO_LINE_FOR_CHAIN } from "../../support/logs.js";
 
-/** What the egress gateway answers for a route whose upstream it cannot reach. */
-const EGRESS_NO_ROUTE = /no healthy upstream/;
-
-/** What a `contain` rule writes when it read the catalog health document `http-out` calls, not the mock. */
-const HEALTH_ANSWERED = /'\{"status":"[A-Z_]+".*' doesn't contain '"mocked":/;
-
-/**
- * The micro engine sends a test case run's service call or http sender call to its own address
- * rather than to the endpoint mock. Measured on a micro domain: the pod logs `Endpoint mocking is
- * enabled`, and the call it then sends fails with `UnknownHostException: e2e-service-call.invalid`,
- * or `e2e-http-sender.invalid` for the sender. No issue is filed yet. The engine answers that
- * exception with CIP-0101; an EXTERNAL call reaches the egress gateway instead, which cannot reach
- * the address either. The address of the `http-out` sender resolves, so its test case run gets the
- * catalog health document, and the run's rule reports that body.
- */
-export const MOCK_BYPASSED: ConditionalDefect = {
-  title: "the micro engine sends a mocked service call to the real address",
-  engine: "micro",
-  matches: (message) => message.includes("CIP-0101") || EGRESS_NO_ROUTE.test(message) || HEALTH_ANSWERED.test(message),
-};
-
 /**
  * What the scheduler case adds to its failure: how many sessions the chain recorded on its domain
  * before the wait, and which other micro domains the catalog lists.

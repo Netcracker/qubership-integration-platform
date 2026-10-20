@@ -30,8 +30,6 @@ import { GRAPHQL_QUERY, GRAPHQL_VARIABLES, ORDER_CHANNEL, ORDER_ID } from "../..
 import { callToken, tokenized } from "../../support/run.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS, trace, type RecordedSession } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
-import { MOCK_BYPASSED } from "./micro-defects.js";
 import { axisChain, MOCKED_BODY } from "./service-call.js";
 
 /** The steps of the looked-up session (`own`), or of the other session the lookup folded in. */
@@ -55,9 +53,7 @@ test("integrationOperationProtocolType http sends the path, query and body the e
   await testingService.withMock({ name: tokenized(run, "service-call-http"), reference: { chainId: chain.id, elementId: callerId }, response: { status: 201, body: MOCKED_BODY }, matchers: [...matchers] }, async () => {
     const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { payload } });
     const body = await call.response.text();
-    await strikesAsKnown(MOCK_BYPASSED, async () =>
-      expect(call.response.status(), `no mock matched: the element sent another path, query or body. ${body}`).toBe(201),
-    );
+    expect(call.response.status(), `no mock matched: the element sent another path, query or body. ${body}`).toBe(201);
     expect(body).toBe(MOCKED_BODY);
     const session = await sessions.byExternalId(call.token, { elements: 4 });
     expect(session.executionStatus).toBe("COMPLETED_NORMALLY");

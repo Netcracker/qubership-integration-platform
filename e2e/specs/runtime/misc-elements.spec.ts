@@ -71,8 +71,6 @@ import {
   type RecordedSession,
 } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
-import { MOCK_BYPASSED } from "./micro-defects.js";
 import { waitForFirstRecording, withBuilt } from "../../support/cleanup.js";
 import type { APIRequestContext } from "@playwright/test";
 import { McpSession, mcpSessionsOf, offeredTool } from "../../support/mcp.js";
@@ -120,10 +118,8 @@ for (const value of [true, false]) {
       async () => {
         const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {}, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
         const body = await call.response.text();
-        await strikesAsKnown(MOCK_BYPASSED, async () => {
-          expect(call.response.status(), body).toBe(200);
-          expect(body).toBe(MOCKED);
-        });
+        expect(call.response.status(), body).toBe(200);
+        expect(body).toBe(MOCKED);
         expect(elementNames(await sessions.byExternalId(call.token, { elements: 3 }))).toEqual([...HTTP_TRIGGER_STEPS, branch]);
       },
     );
@@ -171,7 +167,7 @@ for (const position of ["header", "body"] as const) {
     await testingService.withMock({ name: tokenized(run, `http-sender-correlationIdPosition-${position}`), reference: { chainId: chain.id, elementId: chain.elements[branch] }, response }, async () => {
       const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
       const body = await call.response.text();
-      await strikesAsKnown(MOCK_BYPASSED, async () => expect(call.response.status(), body).toBe(200));
+      expect(call.response.status(), body).toBe(200);
       expect(elementNames(await sessions.byExternalId(call.token, { elements: 4 }))).toEqual([...HTTP_TRIGGER_STEPS, branch, CORRELATION_ECHO.name]);
       expect(JSON.parse(body)).toEqual({ correlationId: sent });
     });
