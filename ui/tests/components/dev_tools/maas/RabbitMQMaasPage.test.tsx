@@ -133,7 +133,7 @@ function fillValidFormForCreate(exchange = "my-exchange", queue = "my-queue") {
 import { RabbitMQMaasPage } from "../../../../src/components/dev_tools/maas/RabbitMQMaasPage";
 
 const getExportButton = () =>
-  screen.getByTestId("icon-cloudDownload").closest("button")!;
+  screen.getByRole("button", { name: "Export declarative file" });
 
 describe("RabbitMQMaasPage", () => {
   let originalWindow: unknown;

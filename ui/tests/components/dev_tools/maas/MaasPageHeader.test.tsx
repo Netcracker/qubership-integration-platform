@@ -17,7 +17,8 @@ jest.mock("../../../../src/icons/IconProvider.tsx", () => ({
   ),
 }));
 
-const getExportButton = () => screen.getByRole("button");
+const getExportButton = () =>
+  screen.getByRole("button", { name: "Export declarative file" });
 
 describe("MaasPageHeader", () => {
   test("renders title", () => {

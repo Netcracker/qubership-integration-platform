@@ -94,7 +94,7 @@ async function flushPromises(): Promise<void> {
 import { KafkaMaasPage } from "../../../../src/components/dev_tools/maas/KafkaMaasPage";
 
 const getExportButton = () =>
-  screen.getByTestId("icon-cloudDownload").closest("button")!;
+  screen.getByRole("button", { name: "Export declarative file" });
 
 describe("KafkaMaasPage", () => {
   let originalWindow: unknown;
