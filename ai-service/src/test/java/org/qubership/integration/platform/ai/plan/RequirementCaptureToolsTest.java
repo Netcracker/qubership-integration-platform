@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact;
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -1149,7 +1152,8 @@ class RequirementCaptureToolsTest {
             attempts.get(attempt), List.of());
         var fact = new FactInput("http-config", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
             "Accept POST /tasks.", null, null, intent);
-        var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+        var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact,
+            nativeAnchorFact("submit", "http-sender")),
             base.capabilities(), base.openQuestions(), base.settings());
         var result = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
         assertFalse(result.issues().stream().anyMatch(issue -> issue.code().equals("REPEATED_REJECTION")),
@@ -1479,8 +1483,8 @@ class RequirementCaptureToolsTest {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var tools = new RequirementCaptureTools(store, adapter, mapper);
     var base = readyHttpDraft();
-    var input = new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst()),
-        base.openQuestions(), base.settings());
+    var input = withNativeAnchors(new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst()),
+        base.openQuestions(), base.settings()));
     var binding = new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
         "3", "submit", "submit", "Task API submit", "sys", "group", "spec", "operation",
         "http", "POST", "/tasks", "2026.1",
@@ -1509,7 +1513,7 @@ class RequirementCaptureToolsTest {
     Harness harness = harness();
     try (ToolSession.Handle ignored = ToolSession.open(harness.conversationId())) {
       RequirementCaptureResult captured = harness.mapper().readValue(
-          harness.tools().captureRequirementDraft(readyHttpDraft()), RequirementCaptureResult.class);
+          harness.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())), RequirementCaptureResult.class);
       assertEquals(RequirementCaptureResult.Readiness.READY, captured.readiness(), captured.toString());
 
       RequirementCaptureResult finished = harness.mapper().readValue(

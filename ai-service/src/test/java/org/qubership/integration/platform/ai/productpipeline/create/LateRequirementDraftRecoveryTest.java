@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
+
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -103,7 +105,7 @@ class LateRequirementDraftRecoveryTest {
   }
 
   private static DraftInput draft(String text, RequirementPolicyConflict.Decision decision) {
-    return new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+    return withNativeAnchors(new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
         "Caller", "POST /tasks", null, null, null)), List.of()),
         List.of(new FactInput("retain-id", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE, text),
             new FactInput("sibling", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE, "Preserve all inputs."),
@@ -113,7 +115,7 @@ class LateRequirementDraftRecoveryTest {
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
             "/tasks", null, null, null)),
         decision == null ? List.of(new QuestionInput("choice", List.of("entry"), "Keep NONE or use RBAC?")) : List.of(),
-        new DraftSettings(false, null));
+        new DraftSettings(false, null)));
   }
 
   private static DraftUpdate edit(List<FactInput> facts, List<String> removeQuestions) {

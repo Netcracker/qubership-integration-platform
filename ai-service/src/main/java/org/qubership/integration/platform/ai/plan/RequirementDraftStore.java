@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -169,6 +170,32 @@ public class RequirementDraftStore {
     return RequirementRevisionAdmission.validate(current.authoredDraft(), current.authoredDraft(),
         rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), java.util.Set.of(),
         java.util.Set.of(), java.util.Map.of(), fact -> false);
+  }
+
+  public List<RequirementCaptureEditor.Issue> validateForContinuation(String conversationId) {
+    var issues = new ArrayList<>(validateCurrent(conversationId));
+    var current = get(conversationId).orElse(null);
+    if (current == null || current.authoredDraft() == null || !current.readyForPlan()) return issues;
+    var input = current.authoredDraft();
+    for (var capability : input.capabilities()) {
+      boolean declared = input.facts().stream()
+          .filter(fact -> fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE)
+          .map(RequirementCaptureInput.FactInput::elementIntent)
+          .anyMatch(intent -> intent != null && intent.placement() == RequirementElementIntent.Placement.ANCHOR
+              && capability.interactionId().equals(intent.elementRef())
+              && capability.interactionId().equals(intent.ownerInteractionId())
+              && capability.capabilityKey().equals(intent.elementType()));
+      if (!declared) {
+        issues.add(new RequirementCaptureEditor.Issue("MISSING_ANCHOR_INTENT", "/draft/facts",
+            capability.interactionId(), "Selected native element '" + capability.interactionId()
+                + "' needs a positive fact with elementIntent placement=ANCHOR, elementRef=ownerInteractionId='"
+                + capability.interactionId() + "', and elementType='" + capability.capabilityKey()
+                + "'. Add the fact without replacing accepted facts. Copy its explicit name from the saved author"
+                + " source into requestedName; use null only when no name was supplied. Participant and operation"
+                + " do not bind an element name. This is generated metadata to complete, not missing author data."));
+      }
+    }
+    return List.copyOf(issues);
   }
 
   private java.util.Set<String> activeRepairPaths(String conversationId, RequirementCaptureInput.DraftInput base) {

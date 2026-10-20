@@ -460,7 +460,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
     String conversationId = context.conversationId();
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
     RequirementDraft draft = draftStore.get(conversationId).orElse(captured.get());
-    var preservation = draftStore.validateCurrent(conversationId);
+    var preservation = directive == RequirementDiscoveryDirective.DISCUSS
+        ? draftStore.validateCurrent(conversationId) : draftStore.validateForContinuation(conversationId);
     Optional<RequirementRejection> rejection = captureFeedback == null ? Optional.empty()
         : captureFeedback.lastRequirementRejection(conversationId);
     if (rejection.isPresent() && !rejection.get().issues().isEmpty() && rejection.get().issues().stream()
@@ -504,7 +505,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
       var findings = preservation.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
           MappingValidationDetails.empty(), issue.entityId(), CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "Retain validated requirements from rejected attempts before continuing.",
+          "Complete and retain validated requirements before continuing.",
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
     }
     RequirementDraft repairDraft = mappingRepairDraft(context);

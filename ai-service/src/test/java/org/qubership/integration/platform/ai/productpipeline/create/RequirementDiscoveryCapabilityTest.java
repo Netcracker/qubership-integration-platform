@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -86,6 +88,30 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackV
 import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class RequirementDiscoveryCapabilityTest {
+
+  @Test
+  void readyButtonCannotBypassMissingNativeAnchorMetadata() {
+    var store = new RequirementDraftStore();
+    var input = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", RequirementFlow.Direction.INBOUND,
+        "Caller", "POST /work", null, null, null)), List.of()),
+        List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Accept incoming work.")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+            "/work", null, null, null)), List.of(), new DraftSettings(null, null));
+    store.put("anchor-button", org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        input, null, List.of(), "1", "hash"));
+    var capability = new RequirementDiscoveryCapability(null, store, (cid, text) -> {
+      throw new AssertionError("The ready-button path must validate the saved state before dispatching a producer.");
+    });
+    var signals = capability.execute(new StageExecutionContext("anchor-run", "anchor-button", "requirement-discovery",
+        "execution", "attempt", null, null, List.of(), Map.of("userText", ChatEvent.CONTINUE_TO_PLANNING_ACTION)))
+        .collect().asList().await().indefinitely();
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    assertTrue(outcome.recoveryCause().findings().stream()
+        .anyMatch(finding -> "MISSING_ANCHOR_INTENT".equals(finding.code())));
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -536,7 +562,7 @@ class RequirementDiscoveryCapabilityTest {
         new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
             new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput("entry",
                 Direction.INBOUND, "Client", "POST /tasks", null, null, null)), List.of()),
-        List.of(goal), List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput(
+        List.of(goal, nativeAnchorFact("entry", "http-trigger")), List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput(
             "entry", "http-trigger", org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode.CUSTOM,
             org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod.POST, "/tasks", null, null, null)),
         List.of(), new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(null, null));
@@ -765,7 +791,8 @@ class RequirementDiscoveryCapabilityTest {
         new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks", "Receive tasks", null, null),
         new InteractionInput("delivery", Direction.OUTBOUND, "Delivery", "POST /results", "Return results", null, null)),
         List.of(new TransitionInput("entry", "delivery"))),
-        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Return task results."), mapping),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Return task results."), mapping,
+            nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("delivery", "http-sender")),
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/tasks", null, null, null),
             new CapabilityInput("delivery", "http-sender", null, HttpMethod.POST, "http://localhost/results", null, null, null)),
         List.of(), new DraftSettings(false, null));
@@ -806,7 +833,8 @@ class RequirementDiscoveryCapabilityTest {
           .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
       assertEquals(StageOutcomeClass.CANDIDATE, outcome.outcomeClass(), outcome.toString());
     }
-    assertEquals(List.of(initial.facts().getFirst(), corrected),
+    assertEquals(List.of(initial.facts().getFirst(), corrected,
+            nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("delivery", "http-sender")),
         h.store().get(chat).orElseThrow().authoredDraft().facts());
     assertTrue(h.feedback().lastRequirementRejection(chat).isEmpty());
     assertEquals(2, calls.get());

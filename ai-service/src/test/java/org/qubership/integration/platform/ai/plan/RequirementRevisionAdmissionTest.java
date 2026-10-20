@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -38,8 +40,8 @@ class RequirementRevisionAdmissionTest {
           initial = httpDraft(List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL,
               Polarity.POSITIVE, "Create tasks. HTTP trigger contextPath /tasks", null, null, intent)));
         }
-        var base = new DraftInput(initial.flow(), initial.facts(), initial.capabilities(), List.of(),
-            new DraftSettings(false, null, "Tasks"));
+        var base = withNativeAnchors(new DraftInput(initial.flow(), initial.facts(), initial.capabilities(), List.of(),
+            new DraftSettings(false, null, "Tasks")));
         assertTrue(h.capture(base).accepted());
         var accepted = h.store.latestRevision(h.chat).orElseThrow().reference();
         var json = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(new DraftUpdate(
@@ -292,10 +294,10 @@ class RequirementRevisionAdmissionTest {
       h.store.beginTurn(h.chat, "Automatic correction.");
       assertFalse(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
       assertTrue(h.store.get(h.chat).isEmpty());
-      assertTrue(h.capture(httpDraft(List.of(second.facts().get(0), second.facts().get(1),
-          fact("invalid-ref", "Keep inputs.")))).accepted());
+      assertTrue(h.capture(withNativeAnchors(httpDraft(List.of(second.facts().get(0), second.facts().get(1),
+          fact("invalid-ref", "Keep inputs."))))).accepted());
       assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
-      assertEquals(List.of("goal", "retain-id", "invalid-ref"), h.store.get(h.chat).orElseThrow()
+      assertEquals(List.of("goal", "retain-id", "invalid-ref", "native-entry"), h.store.get(h.chat).orElseThrow()
           .authoredDraft().facts().stream().map(f -> f.sourceFactId()).toList());
     }
   }
@@ -693,7 +695,7 @@ class RequirementRevisionAdmissionTest {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
       h.begin("Create tasks and retain request IDs. Proceed without IDS.");
-      assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
+      assertTrue(h.capture(withNativeAnchors(httpDraft(List.of(fact("goal", "Create tasks."))))).accepted());
       var damaged = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(fact("retain-id", "Preserve request IDs.")), List.of(fact("goal", "Drop tasks.")),
           List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
