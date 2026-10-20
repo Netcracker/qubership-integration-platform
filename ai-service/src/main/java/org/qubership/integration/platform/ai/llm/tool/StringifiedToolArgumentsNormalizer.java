@@ -53,6 +53,7 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
   private final DesignPlanCaptureTool designPlanTool;
   private final HttpTriggerCaptureTool httpTriggerTool;
   private final CaptureToolOutcomeGateway outcomeGateway;
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
 
   @Inject
   public StringifiedToolArgumentsNormalizer(
@@ -122,12 +123,23 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
     if (isHttpTriggerCapture(method)) {
       StructuredCaptureArguments.Result inspected =
           StructuredCaptureArguments.inspect(request, method, objectMapper);
+      Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+      String conversationId = memoryId == null
+          ? ToolSession.resolveConversationId()
+          : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
+      String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
+      if (inspected.issue() == null && recoveryControl != null) {
+        var controlled = recoveryControl.httpArguments(conversationId, capabilityId, inspected.request());
+        if (controlled != inspected.request()) {
+          request = controlled;
+          inspected = StructuredCaptureArguments.inspect(controlled, method, objectMapper);
+        }
+      }
       if (inspected.issue() != null) {
-        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
-        String conversationId = memoryId == null
-            ? ToolSession.resolveConversationId()
-            : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
         String result = httpTriggerTool.rejectArguments(conversationId, inspected.issue());
+        if (recoveryControl != null) {
+          recoveryControl.rejectedHttpArguments(conversationId, capabilityId, request, result);
+        }
         return ToolExecutionResult.builder().result(result).resultText(result).build();
       }
       return next.apply(inspected.request(), invocationContext);

@@ -75,7 +75,10 @@ def load_cases(path=DEFAULT_CASES):
                 )
         elif not case.get("fault") or case["fault"].get("applications") != 1:
             raise ValueError("The pilot requires one finite fault")
-        elif case["fault"].get("kind") != "http-semantic-reference":
+        elif case["fault"].get("kind") not in {
+            "http-semantic-reference",
+            "http-exposure-type",
+        }:
             raise ValueError("Unsupported pilot fault")
         cases[case["id"]] = case
     return cases
@@ -115,7 +118,16 @@ def graph_errors(case, graph):
             errors.append("Execution edge references an absent node")
     triggers = {node["nodeId"] for node in nodes if node.get("type") == "http-trigger"}
     script_ids = {node["nodeId"] for node in scripts}
-    if not any(
+    if expected.get("edgeTypes") is not None:
+        types = {node["nodeId"]: node["type"] for node in nodes}
+        actual = sorted(
+            [types.get(edge.get("fromNodeId")), types.get(edge.get("toNodeId"))]
+            for edge in edges
+            if edge.get("fromNodeId") in types and edge.get("toNodeId") in types
+        )
+        if actual != sorted(expected["edgeTypes"]):
+            errors.append("Execution edges differ from the declared topology")
+    elif not any(
         edge.get("fromNodeId") in triggers and edge.get("toNodeId") in script_ids
         for edge in edges
     ):
@@ -273,9 +285,14 @@ def verdict(case, evidence):
         if fault.get("original") == fault.get("mutated"):
             return result("NOT_EXERCISED", "Candidate was unchanged")
         declared_mutation = copy.deepcopy(fault["original"])
-        declared_mutation["endpoints"][0]["semanticNodeId"] = fault["mutated"][
-            "endpoints"
-        ][0]["semanticNodeId"]
+        if case["fault"]["kind"] == "http-semantic-reference":
+            declared_mutation["endpoints"][0]["semanticNodeId"] = fault["mutated"][
+                "endpoints"
+            ][0]["semanticNodeId"]
+        else:
+            declared_mutation["endpoints"][0]["externalRoute"] = str(
+                declared_mutation["endpoints"][0]["externalRoute"]
+            ).lower()
         if declared_mutation != fault["mutated"]:
             return result(
                 "RECOVERY_FAILURE", "Fault changed fields outside its declared selector"
@@ -296,6 +313,37 @@ def verdict(case, evidence):
             == "captureHttpTriggers"
             and r.get("payload", {}).get("feedback")
         ]
+        if case["fault"]["kind"] == "http-exposure-type":
+            rejection_sequence = 0
+            by_capture_ref = {
+                (row.get("kind"), row.get("artifactId"), row.get("contentHash")): row
+                for row in feedback
+            }
+            rejected = []
+            for event in evidence.get("events", []):
+                ref = event.get("rejectionRef") or {}
+                native = by_capture_ref.get(
+                    tuple(ref.get(key) for key in ("kind", "artifactId", "contentHash"))
+                )
+                issues = event.get("nativeResult", {}).get("issues", [])
+                if (
+                    event.get("type") == "CAPTURE_REJECTED"
+                    and event.get("conversationId") == fault.get("conversationId")
+                    and event.get("capabilityId") == fault.get("capabilityId")
+                    and event.get("proposal") == fault["mutated"]
+                    and event.get("nativeResult", {}).get("accepted") is False
+                    and event.get("sequence", 0) > fault.get("sequence", 0)
+                    and native
+                    and any(
+                        issue.get("code") == "INVALID_TYPE"
+                        and issue.get("path") == "/capture/endpoints/0/externalRoute"
+                        and issue.get("message")
+                        == native.get("payload", {}).get("feedback", {}).get("summary")
+                        for issue in issues
+                    )
+                ):
+                    rejected.append(native)
+                    rejection_sequence = max(rejection_sequence, event["sequence"])
         accepted = [
             event
             for event in evidence.get("events", [])
@@ -303,6 +351,10 @@ def verdict(case, evidence):
             and event.get("conversationId") == fault.get("conversationId")
             and event.get("capabilityId") == fault.get("capabilityId")
             and event.get("sequence", 0) > fault.get("sequence", 0)
+            and (
+                case["fault"]["kind"] != "http-exposure-type"
+                or event.get("sequence", 0) > rejection_sequence
+            )
         ]
         if not rejected or not accepted:
             return result(

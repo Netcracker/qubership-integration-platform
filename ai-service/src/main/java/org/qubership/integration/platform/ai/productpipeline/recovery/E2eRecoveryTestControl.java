@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.recovery;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.io.IOException;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 import org.qubership.integration.platform.ai.compiler.HttpTriggerCapture;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
@@ -27,6 +29,8 @@ public class E2eRecoveryTestControl {
   private final JsonNode plan;
   private long sequence;
   private boolean injected;
+  private String injectedArguments;
+  @Inject CaptureAttemptFeedbackStore feedbackStore;
 
   @Inject
   public E2eRecoveryTestControl(AppConfig config, ObjectMapper mapper) {
@@ -50,6 +54,51 @@ public class E2eRecoveryTestControl {
 
   private boolean owns(String conversationId) {
     return directory != null && plan.path("conversationId").asText().equals(conversationId);
+  }
+
+  /** Receives arguments only after ordinary normalization and schema validation have succeeded. */
+  public synchronized ToolExecutionRequest httpArguments(
+      String conversationId, String capabilityId, ToolExecutionRequest request) {
+    if (!owns(conversationId) || injected
+        || !"http-exposure-type".equals(plan.path("mutation").asText())) {
+      return request;
+    }
+    try {
+      var root = mapper.readTree(request.arguments());
+      var capture = root.path("capture");
+      var endpoint = capture.path("endpoints").path(0);
+      if (!endpoint.path("externalRoute").isBoolean()) { return request; }
+      var original = capture.deepCopy();
+      ((ObjectNode) endpoint).put("externalRoute", endpoint.path("externalRoute").asText());
+      injectedArguments = mapper.writeValueAsString(root);
+      var event = event("FAULT_APPLIED", conversationId);
+      event.put("capabilityId", capabilityId);
+      event.set("original", original);
+      event.set("mutated", capture);
+      saveEvent(event);
+      injected = true;
+      return request.toBuilder().arguments(injectedArguments).build();
+    } catch (IOException failure) {
+      throw new IllegalStateException("Cannot mutate validated HTTP capture arguments", failure);
+    }
+  }
+
+  public synchronized void rejectedHttpArguments(
+      String conversationId, String capabilityId, ToolExecutionRequest request, String result) {
+    if (!owns(conversationId) || !injected
+        || !request.arguments().equals(injectedArguments)
+        || !"http-exposure-type".equals(plan.path("mutation").asText())) { return; }
+    try {
+      var event = event("CAPTURE_REJECTED", conversationId);
+      event.put("capabilityId", capabilityId);
+      event.set("proposal", mapper.readTree(request.arguments()).path("capture"));
+      event.set("nativeResult", mapper.readTree(result));
+      var feedback = feedbackStore.lastPlanFailure(conversationId).orElseThrow();
+      event.set("rejectionRef", mapper.valueToTree(feedback.evidenceReference()));
+      saveEvent(event);
+    } catch (IOException failure) {
+      throw new IllegalStateException("Cannot record native HTTP argument rejection", failure);
+    }
   }
 
   public synchronized HttpTriggerCapture httpCapture(

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -42,6 +43,26 @@ class E2eRecoveryTestControlTest {
     assertSame(proposal, control.httpCapture("owned", "trigger", proposal));
     assertFalse(control.materializationInputsAccepted(context("owned"), ref(), List.of(ref())));
     assertTrue(Files.exists(directory.resolve("checkpoint.json")));
+  }
+
+  @Test void rawArgumentFaultChangesOneBooleanTypeOnceAndIsIsolated() throws Exception {
+    mapper.writeValue(directory.resolve("plan.json").toFile(), Map.of("schemaVersion", 1,
+        "conversationId", "owned", "boundary", "checkpoint", "mutation", "http-exposure-type"));
+    var control = new E2eRecoveryTestControl(directory, mapper);
+    var request = ToolExecutionRequest.builder().id("capture-1").name("captureHttpTriggers").arguments("""
+        {"capture":{"endpoints":[{"roleId":"entry","semanticNodeId":"http-1","externalRoute":false}]}}
+        """).build();
+    assertSame(request, control.httpArguments("foreign", "trigger", request));
+    var changed = control.httpArguments("owned", "trigger", request);
+    assertEquals(request.id(), changed.id());
+    assertEquals(request.name(), changed.name());
+    var expected = mapper.readTree(request.arguments());
+    ((com.fasterxml.jackson.databind.node.ObjectNode) expected.path("capture").path("endpoints").path(0))
+        .put("externalRoute", "false");
+    assertEquals(expected, mapper.readTree(changed.arguments()));
+    assertSame(request, control.httpArguments("owned", "trigger", request));
+    assertSame(request, new E2eRecoveryTestControl((Path) null, mapper).httpArguments("owned", "trigger", request));
+    try (var events = Files.list(directory.resolve("events"))) { assertEquals(1, events.count()); }
   }
 
   private void writePlan(String boundary) throws Exception {

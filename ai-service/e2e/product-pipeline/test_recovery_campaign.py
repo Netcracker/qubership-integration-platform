@@ -123,6 +123,62 @@ class RecoveryContractTest(unittest.TestCase):
     def test_native_correction_and_consumer_admission_pass(self):
         self.assertEqual("CHECKPOINT_PASS", self.outcome())
 
+    def test_held_out_topology_checks_actual_order(self):
+        self.case["checks"]["exactTypes"].append("log")
+        self.case["checks"]["edges"] = 2
+        self.case["checks"]["edgeTypes"] = [["http-trigger", "log"], ["log", "script"]]
+        graph = self.evidence["pipelineArtifacts"][0]["payload"]
+        graph["nodes"].append({"nodeId": "log", "type": "log", "properties": []})
+        graph["edges"] = [
+            {"fromNodeId": "http", "toNodeId": "log"},
+            {"fromNodeId": "log", "toNodeId": "script"},
+        ]
+        self.assertEqual("CHECKPOINT_PASS", self.outcome())
+        graph["edges"][1] = {"fromNodeId": "script", "toNodeId": "log"}
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
+    def test_schema_repair_needs_exact_native_rejection_and_later_admission(self):
+        self.case["fault"]["kind"] = "http-exposure-type"
+        fault = self.evidence["events"][0]
+        fault["mutated"] = copy.deepcopy(fault["original"])
+        fault["mutated"]["endpoints"][0]["externalRoute"] = "false"
+        ref = {
+            "kind": "CAPTURE_ATTEMPT_FEEDBACK",
+            "artifactId": "reject",
+            "contentHash": "reject-hash",
+        }
+        self.evidence["captureArtifacts"][0] = {
+            **ref,
+            "payload": {"feedback": {"summary": "Wrong type"}},
+        }
+        event = {
+            "type": "CAPTURE_REJECTED",
+            "conversationId": "conversation",
+            "capabilityId": "trigger",
+            "sequence": 2,
+            "proposal": copy.deepcopy(fault["mutated"]),
+            "rejectionRef": ref,
+            "nativeResult": {
+                "accepted": False,
+                "issues": [
+                    {
+                        "code": "INVALID_TYPE",
+                        "path": "/capture/endpoints/0/externalRoute",
+                        "message": "Wrong type",
+                    }
+                ],
+            },
+        }
+        self.evidence["events"].insert(1, event)
+        self.evidence["events"][-1]["sequence"] = 3
+        self.evidence["checkpoint"]["sequence"] = 4
+        self.assertEqual("CHECKPOINT_PASS", self.outcome())
+        event["rejectionRef"] = {**ref, "contentHash": "foreign"}
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+        event["rejectionRef"] = ref
+        self.evidence["events"][-1]["sequence"] = 1
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
     def test_a_different_artifact_kind_cannot_stand_in_for_the_graph(self):
         self.evidence["checkpoint"]["graphRef"]["kind"] = "USER_INPUT"
         self.evidence["checkpoint"]["inputRefs"][0]["kind"] = "USER_INPUT"
