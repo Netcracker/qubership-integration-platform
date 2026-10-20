@@ -16,11 +16,14 @@ public class QuartzSchedulerProvider {
     @ConfigProperty(name = "cip.engine.domain")
     String domain;
 
+    @ConfigProperty(name = "cloud.microservice.bg_version")
+    String bgVersion;
+
     @Produces
     @Alternative
     @Priority(1)
     public Scheduler quartzScheduler() throws SchedulerException {
-        SchedulerFactory schedulerFactory = new StdSchedulerFactory(getSchedulerProperties(domain));
+        SchedulerFactory schedulerFactory = new StdSchedulerFactory(getSchedulerProperties(domain, bgVersion));
         Scheduler scheduler = schedulerFactory.getScheduler();
         // Without this, beans that require an active RequestScoped context (e.g. security
         // identity lookups used by context propagation) fail when a chain is triggered by the scheduler
@@ -29,7 +32,7 @@ public class QuartzSchedulerProvider {
         return scheduler;
     }
 
-    static Properties getSchedulerProperties(String domain) {
+    static Properties getSchedulerProperties(String domain, String bgVersion) {
         Properties properties = new Properties();
         properties.put("org.quartz.jobStore.useProperties", "true");
         properties.put("org.quartz.scheduler.instanceId", "AUTO");
@@ -48,8 +51,9 @@ public class QuartzSchedulerProvider {
         properties.put("org.quartz.jobStore.acquireTriggersWithinLock", "true");
         properties.put("org.quartz.scheduler.rmi.export", "false");
         properties.put("org.quartz.jobStore.dataSource", "configs");
-        // The name identifies a Quartz cluster in the shared tables, so each domain gets a cluster of its own.
-        properties.put("org.quartz.scheduler.instanceName", "engine-" + domain);
+        // The name identifies a Quartz cluster in the shared tables. Each domain and blue-green version gets its own,
+        // so the stale-job cleanup at start never deletes the jobs of the other version.
+        properties.put("org.quartz.scheduler.instanceName", "engine-" + domain + "-" + bgVersion);
         properties.put("org.quartz.threadPool.threadPriority", "5");
         properties.put("org.quartz.jobStore.isClustered", "true");
         properties.put("org.quartz.dataSource.configs.connectionProvider.class", QuartzSchedulerConnectionProvider.class.getName());

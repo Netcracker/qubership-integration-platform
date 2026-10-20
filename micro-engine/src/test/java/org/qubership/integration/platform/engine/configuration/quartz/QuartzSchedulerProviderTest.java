@@ -10,8 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class QuartzSchedulerProviderTest {
 
     @Test
-    void shouldNameSchedulerAfterDomain() {
-        assertEquals("engine-orders",
-                QuartzSchedulerProvider.getSchedulerProperties("orders").getProperty("org.quartz.scheduler.instanceName"));
+    void shouldNameSchedulerAfterDomainAndBlueGreenVersion() {
+        assertEquals("engine-orders-v2", QuartzSchedulerProvider.getSchedulerProperties("orders", "v2")
+                .getProperty("org.quartz.scheduler.instanceName"));
     }
 }
