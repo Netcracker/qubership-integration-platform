@@ -230,7 +230,9 @@ public class RequirementCaptureTools {
       use STAY for a justified remaining author question and CONTINUE only when the author asked to proceed and the saved draft has no missing fields.
       A partial draft with nextAction RUN_IMPORT may CONTINUE to the upload import stage. Other
       partial drafts refuse CONTINUE. Do not tell the user the draft is ready until
-      CONTINUE is accepted. This does not mutate or approve the accepted draft.
+      CONTINUE is accepted. Each selected native capability needs a positive ANCHOR elementIntent
+      with its interaction ID and type; requestedName may be null when no name was supplied.
+      This does not mutate or approve the accepted draft.
       """)
   public String finishRequirementDiscoveryTurn(
       @P("STAY for missing author data; DISCUSS for a question about the draft; CONTINUE for an authorized next step")
@@ -257,7 +259,7 @@ public class RequirementCaptureTools {
             "Complete the producer work. DISCUSS requires a new author question about a paused draft.")));
       }
       if (directive == RequirementDiscoveryDirective.CONTINUE) {
-        var preservation = store.validateCurrent(conversationId);
+        var preservation = store.validateForContinuation(conversationId);
         if (!preservation.isEmpty()) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
           return view(current, false, false, preservation);

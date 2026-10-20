@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -193,7 +196,9 @@ class UploadedSpecRequirementRecoveryTest {
     h.step();
     var ready = h.drafts.get(CHAT).orElseThrow();
     assertTrue(ready.readyForPlan());
-    assertEquals(partial.authoredDraft().facts(), ready.authoredDraft().facts());
+    var completedFacts = new java.util.ArrayList<>(partial.authoredDraft().facts());
+    completedFacts.add(nativeAnchorFact("result", "http-sender"));
+    assertEquals(completedFacts, ready.authoredDraft().facts());
     assertEquals(partial.flow(), ready.flow());
     assertTrue(ready.openQuestions().isEmpty());
     assertNotNull(h.archive.read(CHAT).turns().stream().filter(turn -> turn.id().equals(input.turnId()))
@@ -289,20 +294,20 @@ class UploadedSpecRequirementRecoveryTest {
                     Polarity.POSITIVE, "Preserve executionId in task results.")),
                 List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
                     "/tasks", null, null, null)), List.of(), new DraftSettings(null, null));
-            var captured = tools.captureRequirementDraft(new DraftInput(waiting.flow(), waiting.facts(),
+            var captured = tools.captureRequirementDraft(withNativeAnchors(new DraftInput(waiting.flow(), waiting.facts(),
                 waiting.capabilities(), List.of(new QuestionInput(RESULT_QUESTION, List.of("result"),
                     "How should task results be returned to OM?",
                     new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
                         "result", "path", org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
                         conversations.archive().read(chat).activeTurns().stream().filter(turn ->
                             turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
-                                && "READY".equals(turn.status())).map(ConversationArchive.Turn::id).toList()))), waiting.settings()));
+                                && "READY".equals(turn.status())).map(ConversationArchive.Turn::id).toList()))), waiting.settings())));
             assertTrue(mapper.readTree(captured).path("accepted").asBoolean(), captured);
             assertTrue(mapper.readTree(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY))
                 .path("accepted").asBoolean());
           } else {
             var captured = tools.updateRequirementDraft(new DraftUpdate(List.of(), List.of(), List.of(),
-                List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(nativeAnchorFact("result", "http-sender")), List.of(), List.of(),
                 List.of(new CapabilityInput("result", "http-sender", null,
                     HttpMethod.POST, "https://om.example/results", null, null, null)), List.of(),
                 List.of(), List.of(), List.of(RESULT_QUESTION), new DraftSettings(false, null)));

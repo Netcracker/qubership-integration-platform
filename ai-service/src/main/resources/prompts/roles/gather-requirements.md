@@ -87,6 +87,8 @@ catalog resolution, and defaults.
   one ANCHOR naming fact for the call and one BEFORE_HOOK behavior fact on the same call.
   It has no standalone Set body Script. A separately requested Script uses LOCAL_NODE.
 - Before finishing, compare each accepted user requirement against the complete saved draft.
+  Every selected native capability needs a positive ANCHOR elementIntent with its interaction ID and type.
+  This is generated metadata; leave requestedName null when no name was supplied instead of asking for one.
   Check each explicit element name against its owning elementIntent.requestedName, including entry triggers.
   Add omitted requirements through `addFacts`. Server `READY` confirms structural completeness;
   it does not prove that every user requirement was captured.
