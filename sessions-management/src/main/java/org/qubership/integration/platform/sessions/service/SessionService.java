@@ -33,6 +33,7 @@ import org.opensearch.client.opensearch.core.search.FieldCollapse;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.core.search.InnerHits;
 import org.opensearch.client.opensearch.core.search.InnerHitsResult;
+import org.opensearch.client.opensearch.indices.RefreshRequest;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5Options;
 import org.opensearch.client.transport.httpclient5.HttpAsyncResponseConsumerFactory;
 import org.qubership.integration.platform.sessions.dto.Session;
@@ -346,6 +347,8 @@ public class SessionService {
 
     private void delete(DeleteByQueryRequest request) {
         try {
+            // The delete reads the index as of its last refresh, so an element rewritten since then would conflict and stay.
+            opensearchClient.getClient().indices().refresh(new RefreshRequest.Builder().index(request.index()).build());
             opensearchClient.getClient().deleteByQuery(request);
         } catch (IOException e) {
             throw new SearchException("Unable to perform delete from OpenSearch", e);

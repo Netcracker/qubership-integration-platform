@@ -6,9 +6,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.Conflicts;
 import org.opensearch.client.opensearch.core.DeleteByQueryRequest;
+import org.opensearch.client.opensearch.indices.OpenSearchIndicesClient;
+import org.opensearch.client.opensearch.indices.RefreshRequest;
 import org.qubership.integration.platform.sessions.mapper.SessionAggregateMapper;
 import org.qubership.integration.platform.sessions.mapper.SessionElementMapper;
 import org.qubership.integration.platform.sessions.properties.opensearch.ElementsIndexProperties;
@@ -22,8 +25,8 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SessionServiceDeleteTest {
@@ -31,11 +34,14 @@ class SessionServiceDeleteTest {
     private static final String INDEX = "session-elements";
 
     private OpenSearchClient client;
+    private OpenSearchIndicesClient indices;
     private SessionService sessionService;
 
     @BeforeEach
     void setUp() {
         client = mock(OpenSearchClient.class);
+        indices = mock(OpenSearchIndicesClient.class);
+        when(client.indices()).thenReturn(indices);
         DbaasOpensearchClient opensearchClient = mock(DbaasOpensearchClient.class);
         when(opensearchClient.getClient()).thenReturn(client);
         when(opensearchClient.normalize(INDEX)).thenReturn(INDEX);
@@ -59,13 +65,17 @@ class SessionServiceDeleteTest {
                 Arguments.of("all", (Consumer<SessionService>) SessionService::deleteAllSessions));
     }
 
-    @ParameterizedTest(name = "delete {0} proceeds past version conflicts")
+    @ParameterizedTest(name = "delete {0} refreshes the index, then proceeds past version conflicts")
     @MethodSource("deletes")
-    void deleteProceedsPastVersionConflicts(String name, Consumer<SessionService> delete) throws IOException {
+    void deleteRefreshesThenProceedsPastVersionConflicts(String name, Consumer<SessionService> delete) throws IOException {
         delete.accept(sessionService);
 
-        ArgumentCaptor<DeleteByQueryRequest> captor = ArgumentCaptor.forClass(DeleteByQueryRequest.class);
-        verify(client).deleteByQuery(captor.capture());
-        assertThat(captor.getValue().conflicts()).isEqualTo(Conflicts.Proceed);
+        ArgumentCaptor<RefreshRequest> refresh = ArgumentCaptor.forClass(RefreshRequest.class);
+        ArgumentCaptor<DeleteByQueryRequest> deleteByQuery = ArgumentCaptor.forClass(DeleteByQueryRequest.class);
+        InOrder order = inOrder(indices, client);
+        order.verify(indices).refresh(refresh.capture());
+        order.verify(client).deleteByQuery(deleteByQuery.capture());
+        assertThat(refresh.getValue().index()).containsExactly(INDEX);
+        assertThat(deleteByQuery.getValue().conflicts()).isEqualTo(Conflicts.Proceed);
     }
 }

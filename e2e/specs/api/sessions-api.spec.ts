@@ -26,7 +26,7 @@
  * - **`offset` in the answer is the marker for the next request**, `offset + rows`, never a total
  *   and never an echo. A full page and a last page are indistinguishable without asking again.
  * - **Four deletes refresh the index and one does not.** `deleteBySessionId` passes
- *   `refresh=false` (`SessionService.java:152`); the chain deletes, the bulk delete and the
+ *   `refresh=false` (`SessionService.java:153`); the chain deletes, the bulk delete and the
  *   wholesale delete all pass `true`. So a delete by id is visible when OpenSearch gets to it and
  *   every other delete is visible on the very next read, and the cases assert exactly that
  *   difference rather than polling everywhere.
