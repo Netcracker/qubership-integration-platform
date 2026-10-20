@@ -125,7 +125,8 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
       if (inspected.issue() != null) {
         Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
         String conversationId = memoryId == null
-            ? ToolSession.resolveConversationId() : memoryId.toString();
+            ? ToolSession.resolveConversationId()
+            : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
         String result = httpTriggerTool.rejectArguments(conversationId, inspected.issue());
         return ToolExecutionResult.builder().result(result).resultText(result).build();
       }

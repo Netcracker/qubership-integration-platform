@@ -90,7 +90,8 @@ public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgu
         && httpTriggerTool != null) {
       Object memoryId = context == null ? null : context.memoryId();
       String conversationId = memoryId == null
-          ? ToolSession.resolveConversationId() : memoryId.toString();
+          ? ToolSession.resolveConversationId()
+          : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
       return ToolErrorHandlerResult.text(httpTriggerTool.rejectArguments(
           conversationId, new StructuredCaptureArguments.Issue(
               "INVALID_TYPE", "/capture", "Arguments do not match the HTTP trigger schema.")));

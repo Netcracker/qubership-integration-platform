@@ -31,6 +31,51 @@ non-failing live scenario.
 The default gate includes synchronous and asynchronous split scenarios. They verify branch-shell
 containment and catalog materialization for `split-2` and `split-async-2`.
 
+## Scripted recovery checks
+
+Run the recovery gate without a model provider:
+
+```bash
+bash ai-service/e2e/product-pipeline/run-recovery-deterministic.sh
+```
+
+The test-only `ScriptedStreamingChatModel` supplies a finite sequence of tool calls, text, or provider errors.
+Every turn checks the actual incoming `ChatRequest` before responding. A missing turn, unexpected call, or
+request mismatch fails the script, including a mismatch swallowed by an asynchronous caller.
+The scripted provider is only in `src/test/java`; it cannot be selected by the deployed service or live campaign.
+
+`ScriptedRecoveryTest` runs the native compiler runtime, HTTP capture agent, generated argument mapper,
+capture policy, element schemas, and graph consumer. Only model inference and external knowledge/storage
+dependencies use local fixtures. The ordinary retry settings come from `AppConfig`; a recording sleeper
+checks delays without waiting. No capture tool, validator, or successful repair result is mocked.
+
+| Check | Required result |
+| --- | --- |
+| Malformed JSON, wrong types, missing fields, unknown fields, and duplicate keys | Native rejection reaches the next model request; corrected capture reaches the graph consumer |
+| Unknown semantic reference or incomplete trigger set | Ordinary admission rejects it before the corrected proposal is accepted |
+| Sequential distinct defects | Each correction preserves the approved endpoint, existing script, and execution edges |
+| Same defect with different invalid IDs | Configured repair allowance is not reset; no accepted capture or graph mutation |
+| A model claims success without calling capture | The compiler step fails |
+| Mixed 429 and transient failures followed by invalid tool arguments | Native retries preserve the request; tool admission and consumer continuation remain mandatory |
+| Requirement summary/input errors and attempts to overwrite approved facts | The real brief tool rejects the candidate; accepted output preserves the selected draft and reaches handoff |
+
+`ProductAnalysisRepairLoopTest` also checks the stateless requirement agent and its native brief handoff.
+Argument failures retain their detailed stored rejection and use the ordinary JSON repair instruction;
+semantic failures include their native diagnostic in the repair request.
+The gate reuses model-wrapper and budget tests for exhaustion, pre-output retries, and refusal to replay
+after streamed text, thinking, or tool-call output. Expected stops are safety checks, not successful recovery.
+
+Add a scenario as named `Turn` values in a module test. Assert the initial input, the native rejection store,
+the feedback delivered to the next request, and the actual accepted artifact and consumer output.
+Keep expected repairs in test data. Do not add a production branch that recognizes the scenario.
+No additional root e2e case is needed: these checks exercise module behavior without a running platform stack.
+The existing lifecycle e2e case continues to cover container and storage isolation.
+
+Scripted checks do not establish that a real model can find a correction. Independent real-model acceptance
+remains mandatory, with ordinary limits and the checkpoint/completion evidence described below.
+The held-out campaign and variation generator remain separate planned work; the current live pilot does not
+satisfy that independent acceptance requirement.
+
 ## Isolated recovery pilot
 
 `recovery_campaign.py` tests automatic recovery with the ordinary configured model and limits.
