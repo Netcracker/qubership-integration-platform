@@ -19,6 +19,54 @@ class ConversationArchiveTest {
   private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
   @Test
+  void clearDropsActiveAttachmentsAfterReloadAndKeepsTheirSourceEvidence() {
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var metadata = mapper.createObjectNode();
+    metadata.putArray("attachmentObjectKeys").add("uploads/api.json");
+    var input = archive.beginInput("chat", "Import this API", metadata);
+    var service = new ConversationService(java.time.Duration.ofHours(1),
+        com.github.benmanes.caffeine.cache.Ticker.systemTicker(), archive);
+    service.registerAllowedAttachmentKeys("chat", List.of("uploads/api.json"));
+    service.addMaterializedAttachmentKeys("chat", List.of("uploads/api.json"));
+
+    service.clearMessages("chat");
+
+    var restoredArchive = new ConversationArchive(blobs, mapper);
+    var restored = new ConversationService(java.time.Duration.ofHours(1),
+        com.github.benmanes.caffeine.cache.Ticker.systemTicker(), restoredArchive);
+    assertTrue(restored.getAllowedAttachmentKeys("chat").isEmpty());
+    assertFalse(restored.isAttachmentKeyMaterialized("chat", "uploads/api.json"));
+    assertTrue(restoredArchive.readSource("chat", input.turnId(), 0, 16000).contains("uploads/api.json"));
+  }
+
+  @Test
+  void truncateKeepsOnlyAttachmentsFromRetainedTurnsIncludingLegacyAndResolvedMetadata() {
+    var archive = new ConversationArchive(new InMemoryArtifactBlobStore(), mapper);
+    var metadata = mapper.createObjectNode()
+        .put("attachment", "- http://localhost/download?key=uploads%2Flegacy.yaml");
+    metadata.putArray("attachmentObjectKeys").add("uploads/retained.json");
+    var kept = archive.beginInput("chat", "keep", metadata);
+    archive.resolveInput("chat", kept, "expanded", mapper.createObjectNode().put("action", "approve"));
+    var removedMetadata = mapper.createObjectNode();
+    removedMetadata.putArray("attachmentObjectKeys").add("uploads/removed.json");
+    var removed = archive.beginInput("chat", "remove", removedMetadata);
+    var service = new ConversationService(java.time.Duration.ofHours(1),
+        com.github.benmanes.caffeine.cache.Ticker.systemTicker(), archive);
+    var keys = List.of("uploads/retained.json", "uploads/legacy.yaml", "uploads/removed.json");
+    service.registerAllowedAttachmentKeys("chat", keys);
+    service.addMaterializedAttachmentKeys("chat", keys);
+
+    service.truncateAfter("chat", 0);
+
+    assertEquals(List.of("uploads/legacy.yaml", "uploads/retained.json"), service.getAllowedAttachmentKeys("chat"));
+    assertTrue(service.isAttachmentKeyMaterialized("chat", "uploads/retained.json"));
+    assertTrue(service.isAttachmentKeyMaterialized("chat", "uploads/legacy.yaml"));
+    assertFalse(service.isAttachmentKeyMaterialized("chat", "uploads/removed.json"));
+    assertTrue(archive.readSource("chat", removed.turnId(), 0, 16000).contains("uploads/removed.json"));
+  }
+
+  @Test
   void originalEffectiveDecisionAndConsumedSourcesSurviveRestartAndReset() {
     var blobs = new InMemoryArtifactBlobStore();
     var archive = new ConversationArchive(blobs, mapper);

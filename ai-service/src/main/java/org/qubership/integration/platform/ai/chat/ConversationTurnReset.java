@@ -10,6 +10,9 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.chat.evidence.ConversationEvidenceStore;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditClarificationStore;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditEscalationStore;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
@@ -57,6 +60,9 @@ public class ConversationTurnReset {
   private final ChainListScenario chainListScenario;
   private final CreateRunBindingStore createRunBindingStore;
   private final ProductPipelineRunStore productRunStore;
+  private final ChainPatchStore chainPatchStore;
+  private final ChainEditClarificationStore chainEditClarificationStore;
+  private final ChainEditEscalationStore chainEditEscalationStore;
 
   @Inject
   ConversationTurnReset(
@@ -77,7 +83,10 @@ public class ConversationTurnReset {
       PendingRedeployStore pendingRedeployStore,
       @ForScenario(ScenarioType.MANAGE_CHAIN_LIST) ChainListScenario chainListScenario,
       CreateRunBindingStore createRunBindingStore,
-      ProductPipelineRunStore productRunStore) {
+      ProductPipelineRunStore productRunStore,
+      ChainPatchStore chainPatchStore,
+      ChainEditClarificationStore chainEditClarificationStore,
+      ChainEditEscalationStore chainEditEscalationStore) {
     this.conversationService = conversationService;
     this.chatMemoryStore = chatMemoryStore;
     this.workspaceStore = workspaceStore;
@@ -96,6 +105,9 @@ public class ConversationTurnReset {
     this.chainListScenario = chainListScenario;
     this.createRunBindingStore = createRunBindingStore;
     this.productRunStore = productRunStore;
+    this.chainPatchStore = chainPatchStore;
+    this.chainEditClarificationStore = chainEditClarificationStore;
+    this.chainEditEscalationStore = chainEditEscalationStore;
   }
 
   public void truncateAndReset(String conversationId, int afterMessageIndex) {
@@ -129,7 +141,6 @@ public class ConversationTurnReset {
 
     clearChatMemory(conversationId, completedSkillIds);
 
-    // Conversation-scoped session keys only — do not clearConversation (would wipe patches).
     captureSession.clear(CaptureKey.conversation(CaptureSlot.SELECTED_PATTERN, conversationId));
     captureSession.clear(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId));
     captureSession.clear(CaptureKey.conversation(CaptureSlot.VALIDATION_RESULT, conversationId));
@@ -147,6 +158,9 @@ public class ConversationTurnReset {
     conversationApiHubCache.clear(conversationId);
     pendingRedeployStore.clear(conversationId);
     chainListScenario.clearConversation(conversationId);
+    chainPatchStore.clearProposal(conversationId);
+    chainEditClarificationStore.clear(conversationId);
+    chainEditEscalationStore.clear(conversationId);
   }
 
   private void clearChatMemory(String conversationId, Set<String> completedSkillIds) {

@@ -31,6 +31,9 @@ import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.chain.deploy.MaasKafkaTopicsFollowUp;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditClarificationStore;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditEscalationStore;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.chain.folder.ChainListAction;
 import org.qubership.integration.platform.ai.chain.folder.ChainListCommand;
@@ -124,7 +127,10 @@ class ConversationTurnResetTest {
             pendingRedeployStore,
             chainListScenario,
             createBindings,
-            productRuns);
+            productRuns,
+            new ChainPatchStore(),
+            new ChainEditClarificationStore(),
+            new ChainEditEscalationStore());
   }
 
   @ParameterizedTest

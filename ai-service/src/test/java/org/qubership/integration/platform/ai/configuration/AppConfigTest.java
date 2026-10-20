@@ -11,10 +11,39 @@ import java.util.Optional;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AppConfigTest {
+
+  @ParameterizedTest
+  @CsvSource(value = {
+      "~,~,http://apihub-mcp:3000/mcp/",
+      "~,http://legacy.example/mcp/,http://legacy.example/mcp/",
+      "http://primary.example/mcp/,~,http://primary.example/mcp/",
+      "http://primary.example/mcp/,http://legacy.example/mcp/,http://primary.example/mcp/"
+  }, nullValues = "~")
+  void productionApiHubUrlDefaultsAndOverridesMatchTheRestClient(
+      String mcpUrl, String baseUrl, String expected) throws Exception {
+    Properties production = new Properties();
+    try (var input = java.nio.file.Files.newInputStream(java.nio.file.Path.of("src/main/resources/application.properties"))) {
+      production.load(input);
+    }
+    Map<String, String> properties = new HashMap<>(Map.of(
+        "qip.ai.llm.base-url", "http://localhost:9999",
+        "qip.ai.llm.model-name", "test-model",
+        "qip.ai.apihub.base-url", production.getProperty("qip.ai.apihub.base-url"),
+        "quarkus.rest-client.apihub-mcp.url", production.getProperty("quarkus.rest-client.apihub-mcp.url")));
+    if (mcpUrl != null) properties.put("APIHUB_MCP_URL", mcpUrl);
+    if (baseUrl != null) properties.put("APIHUB_BASE_URL", baseUrl);
+    var config = new SmallRyeConfigBuilder().addDefaultInterceptors()
+        .withSources(new PropertiesConfigSource(properties, "production-apihub-test"))
+        .withMapping(AppConfig.class).build();
+
+    assertEquals(expected, config.getConfigMapping(AppConfig.class).apihub().baseUrl());
+    assertEquals(expected, config.getValue("quarkus.rest-client.apihub-mcp.url", String.class));
+  }
 
   @ParameterizedTest
   @NullAndEmptySource
