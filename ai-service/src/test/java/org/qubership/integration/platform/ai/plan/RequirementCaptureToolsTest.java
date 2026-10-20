@@ -61,16 +61,37 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementCaptureToolsTest {
   @Test
-  void requiredLiteralNeedsAnOwnedRuntimeBinding() throws Exception {
+  void scriptBehaviorBindsToItsOwnedArtifactBeforeTheScriptIsGenerated() throws Exception {
     var h = harness();
     h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
         .createForUnitTests(h.mapper());
-    h.store().beginTurn(h.conversationId(), "Accept POST /tasks and log exactly audit-value.");
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks and use a Script to respond with accepted-body.");
+    var base = readyHttpDraft();
+    var intent = new RequirementElementIntent("reply", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, "entry", null, List.of(), List.of("accepted-body"));
+    var fact = new FactInput("reply", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "The Script responds with accepted-body.", null, null, intent);
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(),
+          List.of(base.facts().getFirst(), fact), base.capabilities(), base.openQuestions(), base.settings())),
+          RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+      assertEquals(intent, h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts().getLast().elementIntent());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"audit-value", "POST"})
+  void requiredLiteralNeedsAnOwnedRuntimeBinding(String literal) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks and log exactly " + literal + ".");
     var base = readyHttpDraft();
     var intent = new RequirementElementIntent("audit", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
-        "entry", null, "entry", null, List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("logLevel", "Info")), List.of("audit-value"));
+        "entry", null, "entry", null, List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("logLevel", "Info")), List.of(literal));
     var fact = new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
-        "Log exactly audit-value.", null, null, intent);
+        "Log exactly " + literal + ".", null, null, intent);
     var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
         base.capabilities(), base.openQuestions(), base.settings());
     try (var ignored = ToolSession.open(h.conversationId())) {
@@ -79,7 +100,7 @@ class RequirementCaptureToolsTest {
       assertTrue(result.issues().stream().anyMatch(i -> "UNBOUND_REQUIRED_LITERAL".equals(i.code())), result.toString());
       for (boolean keepLevel : List.of(false, true)) {
         var props = new ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
-        props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", "audit-value"));
+        props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", literal));
         if (keepLevel) props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("logLevel", "Info"));
         var corrected = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
             intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(), null, props, intent.exactValues());

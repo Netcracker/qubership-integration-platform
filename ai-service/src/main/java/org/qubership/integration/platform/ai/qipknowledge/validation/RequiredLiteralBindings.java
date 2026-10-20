@@ -15,13 +15,16 @@ public final class RequiredLiteralBindings {
   public static List<String> unbound(RequirementFact fact, List<RequirementFact> facts) {
     var intent = fact.elementIntent();
     if (intent == null || fact.polarity() != RequirementFactPolarity.POSITIVE) return List.of();
+    if (ownedScript(fact)) return List.of(); // Its owned body is generated later and checked on the assembled graph.
     if (intent.placement() == org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK
         || intent.placement() == org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.AFTER_HOOK)
       return List.of(); // Hook placement binds the owned artifact; materialization validates that artifact.
     var unbound = new ArrayList<String>();
     for (String literal : intent.exactValues()) {
       if (literal == null || literal.isBlank()) continue;
-      boolean bound = facts.stream().filter(candidate -> candidate.polarity() == RequirementFactPolarity.POSITIVE)
+      boolean bound = intent.placement()
+          == org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.ANCHOR
+          && facts.stream().filter(candidate -> candidate.polarity() == RequirementFactPolarity.POSITIVE)
           .filter(candidate -> candidate.targetsInteraction(intent.ownerInteractionId() == null
               ? intent.elementRef() : intent.ownerInteractionId()))
           .anyMatch(candidate -> List.of(candidate.path(), candidate.httpMethod(), candidate.topic(), candidate.operation())
@@ -44,6 +47,26 @@ public final class RequiredLiteralBindings {
       if (!bound) unbound.add(literal);
     }
     return List.copyOf(unbound);
+  }
+
+  public static List<String> missingScriptLiterals(RequirementFact fact,
+      org.qubership.integration.platform.ai.plan.model.ChainPlanGraph graph) {
+    if (!ownedScript(fact)) return List.of();
+    var intent = fact.elementIntent();
+    var bodies = graph.nodes().stream().filter(node -> intent.elementRef().equals(node.nodeId())
+        && intent.elementType().equals(node.type())).flatMap(node -> node.properties() == null
+            ? java.util.stream.Stream.empty() : node.properties().stream())
+        .filter(property -> property != null && "script".equals(property.key()))
+        .map(property -> property.value()).toList();
+    return intent.exactValues().stream().filter(literal -> literal != null && !literal.isBlank())
+        .filter(literal -> bodies.stream().noneMatch(body -> body != null && scriptConstant(body, literal))).toList();
+  }
+
+  private static boolean ownedScript(RequirementFact fact) {
+    return fact.polarity() == RequirementFactPolarity.POSITIVE && fact.elementIntent() != null
+        && "script".equals(fact.elementIntent().elementType())
+        && fact.elementIntent().placement()
+            == org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE;
   }
 
   private static boolean boundValue(String key, String value, String literal) {

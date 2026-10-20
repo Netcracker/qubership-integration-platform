@@ -78,6 +78,13 @@ public class CompilerQualityValidator {
     if (brief != null && graph != null) {
       issues.addAll(MaterializationRequirementsValidator.validateRequestedHooks(graph, brief.facts()));
       for (var fact : brief.facts()) {
+        var missing = RequiredLiteralBindings.missingScriptLiterals(fact, graph);
+        if (!missing.isEmpty()) issues.add(new ValidationIssue(
+            "missing-required-script-literal", ValidationSeverity.BLOCKER,
+            "The owned script has no verified literal binding for " + missing + " from fact " + fact.sourceFactId(),
+            "cip-script-generator", List.of(fact.elementIntent().elementRef()), List.of(),
+            "Restore the required values in this script using the approved behavior and saved author source.",
+            "MISSING_REQUIRED_SCRIPT_LITERAL", fact.sourceFactId(), "/properties/script"));
         if (!RequiredLiteralBindings.unbound(fact, brief.facts()).isEmpty()) issues.add(new ValidationIssue(
             "unbound-required-literal", ValidationSeverity.BLOCKER,
             "Required literal lacks an implementation binding: " + fact.sourceFactId(), OWNER,

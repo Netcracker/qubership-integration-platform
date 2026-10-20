@@ -258,7 +258,7 @@ public record RecoveryCause(
     return switch (normalized) {
       case "UNKNOWN_PROPERTY", "else.condition", "else.priority" ->
           RecoveryCauseCode.UNKNOWN_PROPERTY;
-      case "MISSING_REQUIRED_PROPERTY" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
+      case "MISSING_REQUIRED_PROPERTY", "MISSING_REQUIRED_SCRIPT_LITERAL" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
       case "GRAPH_STRUCTURE" -> RecoveryCauseCode.GRAPH_STRUCTURE;
       case "MISSING_BRIEF_FACTS" -> RecoveryCauseCode.MISSING_BRIEF_FACTS;
       case "BRIEF_CONTRACT", "UNBOUND_REQUIRED_LITERAL" -> RecoveryCauseCode.BRIEF_CONTRACT;

@@ -259,6 +259,12 @@ public final class ProductPipelineRunSupport {
     return this;
   }
 
+  ProductPipelineRunSupport withRecoveryControl(
+      org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl control) {
+    this.stageExecutor.withRecoveryControl(control);
+    return this;
+  }
+
 
   /** Fluent builder for the optional collaborators; required ones are constructor args. */
   public static Builder builder(

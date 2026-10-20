@@ -35,6 +35,24 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 class ProductPipelineDerivedRunTest {
+  @Test
+  void aManuallyConstructedExecutorReceivesTheDiagnosticControl(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+    var mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    java.nio.file.Files.writeString(directory.resolve("plan.json"),
+        "{\"schemaVersion\":1,\"conversationId\":\"owned\",\"boundary\":\"checkpoint\"}");
+    runSupport.withRecoveryControl(
+        new org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl(directory, mapper));
+    runtime.startOrResume(new StartOrResumeCommand("owned", "observed-run", profile,
+        sampleManifest("observed-run"))).collect().asList().await().indefinitely();
+    var recorded = mapper.readTree(directory.resolve("provider-context.json").toFile());
+    assertEquals("observed-run", recorded.path("runId").asText());
+    assertEquals("owned", recorded.path("conversationId").asText());
+    assertEquals("collect", recorded.path("stageId").asText());
+    assertTrue(!recorded.path("attemptId").asText().isBlank());
+    assertTrue(recorded.path("inputRefs").isArray());
+  }
+
 
   private static final Instant FIXED = Instant.parse("2026-07-22T12:30:00Z");
 
