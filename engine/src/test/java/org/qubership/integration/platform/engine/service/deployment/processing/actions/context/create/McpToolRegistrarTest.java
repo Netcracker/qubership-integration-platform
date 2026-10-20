@@ -4,6 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
+import org.apache.camel.Exchange;
+import org.apache.camel.Processor;
+import org.apache.camel.ProducerTemplate;
+import org.apache.camel.impl.DefaultCamelContext;
+import org.apache.camel.spring.SpringCamelContext;
+import org.apache.camel.support.DefaultExchange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -131,6 +137,39 @@ class McpToolRegistrarTest {
     }
 
     @Test
+    void callHandlerAnswersChainBody() {
+        Exchange result = new DefaultExchange(new DefaultCamelContext());
+        result.getMessage().setBody("{\"result\":\"ok\"}");
+
+        McpSchema.CallToolResult callResult = callTool(result);
+
+        assertFalse(callResult.isError());
+        assertEquals(List.of(new McpSchema.TextContent("{\"result\":\"ok\"}")), callResult.content());
+    }
+
+    @Test
+    void callHandlerAnswersErrorWhenChainFails() {
+        Exchange result = new DefaultExchange(new DefaultCamelContext());
+        result.setException(new IllegalStateException("chain failed"));
+
+        McpSchema.CallToolResult callResult = callTool(result);
+
+        assertTrue(callResult.isError());
+        assertEquals(List.of(new McpSchema.TextContent("chain failed")), callResult.content());
+    }
+
+    @Test
+    void callHandlerAnswersExceptionClassWhenExceptionHasNoMessage() {
+        Exchange result = new DefaultExchange(new DefaultCamelContext());
+        result.setException(new IllegalStateException());
+
+        McpSchema.CallToolResult callResult = callTool(result);
+
+        assertTrue(callResult.isError());
+        assertEquals(List.of(new McpSchema.TextContent("java.lang.IllegalStateException")), callResult.content());
+    }
+
+    @Test
     void executeAppliesOnlyMcpTriggerElements() {
         ElementProperties mcpElement = mcpTriggerProperties(null);
         ElementProperties httpElement = elementProperties("http-trigger");
@@ -143,6 +182,21 @@ class McpToolRegistrarTest {
         registrar.execute(null, deploymentInfo, config);
 
         verify(mcpSyncServer, times(1)).addTool(any());
+    }
+
+    private McpSchema.CallToolResult callTool(Exchange result) {
+        SpringCamelContext context = mock(SpringCamelContext.class);
+        ProducerTemplate producerTemplate = mock(ProducerTemplate.class);
+        when(context.createProducerTemplate()).thenReturn(producerTemplate);
+        when(producerTemplate.request(eq("direct:" + ELEMENT_ID), any(Processor.class))).thenReturn(result);
+
+        registrar.apply(context, mcpTriggerProperties(null), deploymentInfo());
+
+        ArgumentCaptor<McpServerFeatures.SyncToolSpecification> captor =
+                ArgumentCaptor.forClass(McpServerFeatures.SyncToolSpecification.class);
+        verify(mcpSyncServer).addTool(captor.capture());
+        return captor.getValue().callHandler()
+                .apply(null, new McpSchema.CallToolRequest(TOOL_NAME, Map.of("param", "value")));
     }
 
     private ElementProperties elementProperties(String elementType) {

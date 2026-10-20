@@ -3,6 +3,7 @@ package org.qubership.integration.platform.engine.camel.listeners.actions.routes
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkiverse.mcp.server.MetaKey;
+import io.quarkiverse.mcp.server.TextContent;
 import io.quarkiverse.mcp.server.ToolManager;
 import io.quarkiverse.mcp.server.ToolResponse;
 import org.apache.camel.CamelContext;
@@ -38,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -269,6 +271,39 @@ class McpToolRegistrarTest {
         verify(camelContext).createProducerTemplate();
         verify(producerTemplate).request(eq("direct:" + ELEMENT_ID), any(Processor.class));
         verify(resultMessage).getBody(String.class);
+    }
+
+    @Test
+    void shouldReturnErrorWhenChainFails() {
+        ToolResponse response = callFailedChain(new IllegalStateException("chain failed"));
+
+        assertTrue(response.isError());
+        assertEquals(List.of(new TextContent("chain failed")), response.content());
+    }
+
+    @Test
+    void shouldReturnExceptionClassWhenExceptionHasNoMessage() {
+        ToolResponse response = callFailedChain(new IllegalStateException());
+
+        assertTrue(response.isError());
+        assertEquals(List.of(new TextContent("java.lang.IllegalStateException")), response.content());
+    }
+
+    private ToolResponse callFailedChain(Exception exception) {
+        stubMcpTriggerInfo();
+        stubMcpTriggerElementSnapshotIdOnly();
+        stubToolDefinition();
+
+        Exchange failedExchange = new DefaultExchange(camelContext);
+        failedExchange.getIn().setBody(Map.of("name", "test-name"));
+        failedExchange.setException(exception);
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.createProducerTemplate()).thenReturn(producerTemplate);
+        when(producerTemplate.request(eq("direct:" + ELEMENT_ID), any(Processor.class))).thenReturn(failedExchange);
+
+        registrar.registerMcpTool(route, deploymentInfo, elementInfo, mcpTriggerInfo);
+
+        return captureHandler().apply(toolArguments);
     }
 
     private void stubToolDefinition() {

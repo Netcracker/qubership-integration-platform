@@ -86,7 +86,7 @@ class ContextStorageServiceTest {
         assertTrue(valueNode.has("context"));
         assertEquals("v1", valueNode.get("context").get("k1").asText());
 
-        verify(repository, times(2)).findByContextServiceIdAndContextId("svc", "ctx");
+        verify(repository).findByContextServiceIdAndContextId("svc", "ctx");
     }
 
     @Test
@@ -109,6 +109,7 @@ class ContextStorageServiceTest {
 
         service.storeValue("b", "NEW", "svc", "ctx", 120);
 
+        verify(repository).findByContextServiceIdAndContextId("svc", "ctx");
         verify(repository, never()).persist(any(ContextSystemRecords.class));
         assertEquals("fixed-id", old.getId());
         assertEquals(createdAt, old.getCreatedAt());
@@ -257,7 +258,7 @@ class ContextStorageServiceTest {
                 .build();
 
         when(repo.findByContextServiceIdAndContextId("svc", "ctx"))
-                .thenReturn(Optional.of(old), Optional.of(old));
+                .thenReturn(Optional.of(old));
 
         service.storeValue("k1", "v1", "svc", "ctx", 60);
 
@@ -270,20 +271,22 @@ class ContextStorageServiceTest {
     }
 
     @Test
-    void storeValueShouldThrowContextStorageExceptionWhenRepositoryFailsInsideContextKeyExits() {
+    void storeValueShouldThrowContextStorageExceptionWhenStoredContextCannotBeMerged() {
         ContextStorageRepository repo = mock(ContextStorageRepository.class);
         ObjectMapper mapper = new ObjectMapper();
         ContextStorageService service = new ContextStorageService(repo, mapper);
 
+        ContextSystemRecords old = ContextSystemRecords.builder()
+                .id("fixed-id")
+                .value(mapper.createObjectNode())
+                .build();
         when(repo.findByContextServiceIdAndContextId("svc", "ctx"))
-                .thenReturn(Optional.empty())
-                .thenThrow(new RuntimeException("db is down"));
+                .thenReturn(Optional.of(old));
 
         ContextStorageException ex = assertThrows(ContextStorageException.class,
                 () -> service.storeValue("k", "v", "svc", "ctx", 60));
 
         assertTrue(ex.getMessage().contains("Error occurred while processing contextKey"));
-        assertNotNull(ex.getCause());
-        assertEquals("db is down", ex.getCause().getMessage());
+        assertInstanceOf(NullPointerException.class, ex.getCause());
     }
 }

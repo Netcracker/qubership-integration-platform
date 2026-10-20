@@ -69,10 +69,6 @@ jest.mock("react-router-dom", () => ({
   useBlocker: () => mockUseBlocker(),
 }));
 
-jest.mock("../../src/pages/ChainHeaderActionsContext.tsx", () => ({
-  useRegisterChainHeaderActions: jest.fn(),
-}));
-
 jest.mock("../../src/components/ApplyFormButton.tsx", () => ({
   ApplyFormButton: () => <button type="button">Apply</button>,
 }));

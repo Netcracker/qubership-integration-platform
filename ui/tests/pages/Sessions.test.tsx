@@ -1447,6 +1447,49 @@ describe("Sessions", () => {
     expect(mockGetCheckpointSessions).toHaveBeenCalledWith(["s-domB"]);
   });
 
+  // #1137: a deleted micro domain answered 502, and the page listed no sessions.
+  test("lists the sessions of a domain whose checkpoint request fails, without a retry button", async () => {
+    mockGetSessions
+      .mockResolvedValueOnce({
+        sessions: [
+          baseSession({ id: "classic-s", domain: "classic-dom" }),
+          baseSession({
+            id: "micro-s",
+            domain: "deleted-micro-dom",
+            domainType: DomainType.MICRO,
+          }),
+        ],
+        offset: 2,
+      })
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "classic-s2", domain: "classic-dom" })],
+        offset: 3,
+      });
+    mockGetCheckpointSessions.mockResolvedValue([
+      baseCheckpointSession("classic-s", [
+        { id: "cp1", checkpointElementId: "el1", timestamp: "2024-01-01" },
+      ]),
+    ]);
+    mockGetCheckpointSessionsForMicroDomain.mockRejectedValue(
+      new Error("Request failed with status code 502"),
+    );
+
+    renderSessions();
+
+    const microRow = await screen.findByRole("row", { name: /micro-s/ });
+    const classicRow = screen.getByRole("row", { name: /classic-s\b/ });
+    expect(
+      within(microRow).queryByTestId("protected-btn-"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(classicRow).getByTestId("protected-btn-"),
+    ).toBeInTheDocument();
+    expect(mockNotificationService.requestFailed).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+    ).toBeInTheDocument();
+  });
+
   test("scroll-load preserves prior checkpoints and fetches new ones for appended page", async () => {
     mockGetSessions
       .mockResolvedValueOnce({

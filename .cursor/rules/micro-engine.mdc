@@ -52,6 +52,12 @@ Single Java root package `org.qubership.integration.platform.engine` (artifact a
 
 Config: `src/main/resources/application.yml` (+ `application-development.yml`, `application-no-m2m.yml`); Quarkus build profile `development` gates dev-only beans (`@IfBuildProfile("development")`). HTTP on port 8080. Two Flyway migration sets under `db/migration/postgresql/`: `static/` and `configs/` (schema `engine`); dev profile points the checkpoints datasource at `engine_checkpoints_db` and the Quartz scheduler at `engine_qrtz_db`. `Dockerfile` is a layered Quarkus fast-jar image on `alpine/java:21-jdk` (non-root uid 10001, exposes 8080).
 
+The image `CMD` runs G1 with the heap at 50% of the pod memory limit (runtime-catalog defaults the limit to
+1280Mi), caps Metaspace at 256m and direct memory at 128m, and exits on `OutOfMemoryError`. It starts no debug
+agent: to debug a domain, set
+`JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005` in the runtime catalog's
+`MICRO_DOMAIN_ENVIRONMENT`.
+
 ### Platform context
 
 The micro-engine is the cloud-native (Quarkus) execution engine that runs deployed integration chains; it is functionally interchangeable with the Spring Boot `engine` module. See `README.md` for the repository layout.

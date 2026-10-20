@@ -40,7 +40,7 @@ import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ChainContext } from "./ChainPage.tsx";
 import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
 
@@ -462,16 +462,9 @@ export const Snapshots: React.FC = () => {
     [searchTerm, columnSettingsButton, selectedRowKeys, refresh, isLoading],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    refresh,
-    isLoading,
-    searchTerm,
-    selectedRowKeys,
-    // columnSettingsButton is new JSX every render — omit or header re-registers every frame and breaks tab clicks.
-  ]);
-
   return (
     <TablePageLayout>
+      <ChainHeaderActions>{chainTabToolbar}</ChainHeaderActions>
       <Table
         size="small"
         columns={columnsWithResize}

@@ -249,6 +249,16 @@ test.describe("context-storage", () => {
     expect(await readBack(request, env, sessions, callToken("context")), "another context id reads nothing").toEqual({});
   });
 
+  test("a second SET on the same context id replaces the value the first one stored", { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+    // The second SET updates the stored record in place, which only the transaction around it writes (#1128).
+    covers("context-storage", "operation", "SET");
+    const contextId = callToken("context");
+    await store(request, env, chains.set, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: callToken("value") });
+    const second = callToken("value");
+    await store(request, env, chains.set, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: second });
+    expect(await readBack(request, env, sessions, contextId)).toEqual({ [KEY]: second });
+  });
+
   for (const target of ["HEADER", "PROPERTY"] as const) {
     test(`target=${target}: a GET writes what it read into the named ${target.toLowerCase()}`, { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
       covers("context-storage", "target", target);

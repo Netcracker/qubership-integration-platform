@@ -165,31 +165,11 @@ jest.mock("../../src/api/rest/vscodeExtensionApi", () => ({
   isVsCode: false,
 }));
 
-jest.mock("../../src/pages/ChainHeaderActionsContext", () => {
-  const R = require("react") as typeof import("react");
-  const ReactDOM =
-    require("react-dom/client") as typeof import("react-dom/client");
-  return {
-    useRegisterChainHeaderActions: (
-      actions: React.ReactNode,
-      deps: unknown[],
-    ) => {
-      R.useEffect(() => {
-        const container = document.createElement("div");
-        container.dataset.testid = "chain-header-actions-slot";
-        document.body.appendChild(container);
-        const root = ReactDOM.createRoot(container);
-        root.render(actions);
-        return () => {
-          queueMicrotask(() => {
-            root.unmount();
-            container.remove();
-          });
-        };
-      }, deps);
-    },
-  };
-});
+jest.mock("../../src/pages/ChainHeaderActionsContext", () => ({
+  ChainHeaderActions: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="chain-header-actions-slot">{children}</div>
+  ),
+}));
 
 jest.mock("@xyflow/react", () => ({
   ReactFlowProvider: ({ children }: { children: React.ReactNode }) => (
