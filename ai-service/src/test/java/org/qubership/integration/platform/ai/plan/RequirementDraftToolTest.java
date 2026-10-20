@@ -42,9 +42,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackManifest;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 class RequirementDraftToolTest {
@@ -3669,16 +3669,16 @@ class RequirementDraftToolTest {
         new CatalogRestClient.OperationDto("op-1", "getInventory", "GET", "/store/inventory", "spec-1"));
   }
 
-  private static QipKnowledgePackRepository repositoryWithBrainstorming() {
-    QipKnowledgePackRepository repository = mock(QipKnowledgePackRepository.class);
-    QipKnowledgePackVersion version =
-        new QipKnowledgePackVersion("cip_compiler_v2", "cip_compiler_v2");
+  private static CipKnowledgePackRepository repositoryWithBrainstorming() {
+    CipKnowledgePackRepository repository = mock(CipKnowledgePackRepository.class);
+    CipKnowledgePackVersion version =
+        new CipKnowledgePackVersion("cip_compiler_v2", "cip_compiler_v2");
     when(repository.activeVersion()).thenReturn(version);
     String brainstormingChecksum =
         "a".repeat(64);
     when(repository.loadManifest())
         .thenReturn(
-            new QipKnowledgePackManifest(
+            new CipKnowledgePackManifest(
                 version,
                 "/pack",
                 Instant.EPOCH,

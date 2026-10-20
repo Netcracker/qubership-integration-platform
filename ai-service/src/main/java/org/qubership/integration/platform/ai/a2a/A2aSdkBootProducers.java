@@ -16,8 +16,8 @@ import org.qubership.integration.platform.ai.a2a.protocol.A2aLegacyAgentCardFact
 import org.qubership.integration.platform.ai.a2a.transport.A2aDispatchCrashGate;
 import org.qubership.integration.platform.ai.a2a.transport.A2aTaskSnapshotPersister;
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aAgentExecutor;
-import org.qubership.integration.platform.ai.a2a.transport.QipA2aAgentExecutor;
-import org.qubership.integration.platform.ai.a2a.transport.QipAssistA2aAgentExecutor;
+import org.qubership.integration.platform.ai.a2a.transport.CipA2aAgentExecutor;
+import org.qubership.integration.platform.ai.a2a.transport.CipAssistA2aAgentExecutor;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
@@ -63,7 +63,7 @@ public class A2aSdkBootProducers {
   @Produces
   @ApplicationScoped
   public AgentExecutor agentExecutor() {
-    return new QipA2aAgentExecutor(
+    return new CipA2aAgentExecutor(
         new CreateChainA2aAgentExecutor(
             facade,
             persister,
@@ -73,7 +73,7 @@ public class A2aSdkBootProducers {
             featureGate,
             crashGate,
             leaseHeartbeat),
-        new QipAssistA2aAgentExecutor(
+        new CipAssistA2aAgentExecutor(
             scenarioRouter,
             conversationService,
             callerContextProvider,
@@ -83,7 +83,7 @@ public class A2aSdkBootProducers {
   }
 
   String resolvePublicBaseUrl() {
-    String configured = appConfig.a2a().publicBaseUrl();
+    String configured = appConfig.a2a().publicBaseUrl().orElse("");
     if (configured != null && !configured.isBlank()) {
       return configured.trim();
     }

@@ -33,9 +33,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackManifest;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class ChainSemanticCaptureToolTest {
 
@@ -443,12 +443,12 @@ class ChainSemanticCaptureToolTest {
     ProductCapabilityCaptureContext.bindDesign("run-1", "conv-1", brief, payload -> {});
   }
 
-  static ChainSemanticCaptureTool tool(QipKnowledgePackRepository pack) {
+  static ChainSemanticCaptureTool tool(CipKnowledgePackRepository pack) {
     return tool(pack, new E2eRecoveryFaultInjector("", ""));
   }
 
   private static ChainSemanticCaptureTool tool(
-      QipKnowledgePackRepository pack, E2eRecoveryFaultInjector injector) {
+      CipKnowledgePackRepository pack, E2eRecoveryFaultInjector injector) {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
     return new ChainSemanticCaptureTool(
@@ -460,11 +460,11 @@ class ChainSemanticCaptureToolTest {
         injector);
   }
 
-  static QipKnowledgePackRepository completePack() {
+  static CipKnowledgePackRepository completePack() {
     return pack(completeAddons(), packRelativeChecksums());
   }
 
-  private static QipKnowledgePackRepository packMissingExecutor() {
+  private static CipKnowledgePackRepository packMissingExecutor() {
     Map<String, String> addons = new LinkedHashMap<>();
     for (String addonId : CONTRACT.requiredAddons()) {
       if (!"cip-design-executor".equals(addonId)) {
@@ -490,11 +490,11 @@ class ChainSemanticCaptureToolTest {
     return files;
   }
 
-  static QipKnowledgePackRepository pack(Map<String, String> addons, Map<String, String> files) {
-    QipKnowledgePackRepository repository = mock(QipKnowledgePackRepository.class);
-    QipKnowledgePackManifest manifest =
-        new QipKnowledgePackManifest(
-            new QipKnowledgePackVersion("v1", "v1"),
+  static CipKnowledgePackRepository pack(Map<String, String> addons, Map<String, String> files) {
+    CipKnowledgePackRepository repository = mock(CipKnowledgePackRepository.class);
+    CipKnowledgePackManifest manifest =
+        new CipKnowledgePackManifest(
+            new CipKnowledgePackVersion("v1", "v1"),
             "test",
             Instant.parse("2026-01-01T00:00:00Z"),
             files,

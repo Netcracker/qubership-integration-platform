@@ -16,6 +16,39 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class AppConfigTest {
 
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = "https://ai.example.com")
+  void mapsOptionalPublicBaseUrl(String url) {
+    Map<String, String> properties = new HashMap<>(Map.of(
+        "qip.ai.llm.base-url", "http://localhost:9999",
+        "qip.ai.llm.model-name", "test-model"));
+    if (url != null) {
+      properties.put("qip.ai.a2a.public-base-url", url);
+    }
+    var config = new SmallRyeConfigBuilder()
+        .withSources(new PropertiesConfigSource(properties, "public-base-url-test"))
+        .withMapping(AppConfig.class).build();
+    assertEquals(Optional.ofNullable(url).filter(value -> !value.isEmpty()),
+        config.getConfigMapping(AppConfig.class).a2a().publicBaseUrl());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void harnessRequiresExplicitEnablement(boolean enabled) {
+    Map<String, String> properties = new HashMap<>(Map.of(
+        "qip.ai.llm.base-url", "http://localhost:9999",
+        "qip.ai.llm.model-name", "test-model",
+        "qip.ai.a2a.public-base-url", "http://localhost:8080"));
+    if (enabled) {
+      properties.put("qip.ai.harness.enabled", "true");
+    }
+    var config = new SmallRyeConfigBuilder()
+        .withSources(new PropertiesConfigSource(properties, "harness-config-test"))
+        .withMapping(AppConfig.class).build();
+    assertEquals(enabled, config.getConfigMapping(AppConfig.class).harness().enabled());
+  }
+
   @Test
   void resolvesProductionStorageSettingsFromDeploymentEnvironment() throws Exception {
     Properties properties = new Properties();

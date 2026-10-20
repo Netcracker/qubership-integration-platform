@@ -29,7 +29,7 @@ public final class ElementPropertiesSchemaModelBuilder {
     if (trimmed.isEmpty()) {
       return ElementPropertiesSchemaModel.empty("", "", "elementType is required");
     }
-    String elementUri = QipConfModelUris.elementModelUri(trimmed);
+    String elementUri = CipConfModelUris.elementModelUri(trimmed);
     JsonNode elementRoot = resolver.loadDocumentRoot(elementUri);
     String docUri = resolver.readDocumentUri(elementRoot, elementUri);
     JsonNode inner = elementRoot.path("properties").path("properties");
@@ -98,7 +98,7 @@ public final class ElementPropertiesSchemaModelBuilder {
       if (ref.startsWith("#")) {
         return new DocumentContext(elementRoot, elementDocUri);
       }
-      String docPart = QipConfModelUris.stripFragment(ref);
+      String docPart = CipConfModelUris.stripFragment(ref);
       JsonNode docRoot = resolver.loadDocumentRoot(docPart);
       String uri = resolver.readDocumentUri(docRoot, docPart);
       return new DocumentContext(docRoot, uri);

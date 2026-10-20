@@ -23,7 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 
 @Tag("certified-pack")
 class CompilerContractKnowledgeAlignmentTest {
@@ -35,18 +35,18 @@ class CompilerContractKnowledgeAlignmentTest {
   @Test
   void knowledgeIndexPinsCompilerContractDigestAndAsyncCardinality(@TempDir Path outputDir)
       throws Exception {
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
     CompilerContract contract =
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);
-    QipKnowledgePackBuildGenerator.generate(
-        QipKnowledgePackFixturePaths.packRoot(),
+    CipKnowledgePackBuildGenerator.generate(
+        CipKnowledgePackFixturePaths.packRoot(),
         outputDir,
-        QipKnowledgePackFixturePaths.addonRoot());
+        CipKnowledgePackFixturePaths.addonRoot());
 
-    QipKnowledgePackRepository repository =
-        new FilesystemQipKnowledgePackRepository(
-            outputDir, QipKnowledgePackFixturePaths.packVersion());
-    QipKnowledgePackManifest index = repository.loadManifest();
+    CipKnowledgePackRepository repository =
+        new FilesystemCipKnowledgePackRepository(
+            outputDir, CipKnowledgePackFixturePaths.packVersion());
+    CipKnowledgePackManifest index = repository.loadManifest();
 
     assertEquals(contract.sha256(), index.compilerContractSha256());
     assertEquals(contract.contractVersion(), index.compilerContractVersion());
@@ -166,8 +166,8 @@ class CompilerContractKnowledgeAlignmentTest {
     assertFalse(hasCompilerSourceChoice(ruleMapping));
   }
 
-  private static ClasspathQipKnowledgePackRepository classpathRepository() {
-    return new ClasspathQipKnowledgePackRepository(QipKnowledgePackFixturePaths.packVersion());
+  private static ClasspathCipKnowledgePackRepository classpathRepository() {
+    return new ClasspathCipKnowledgePackRepository(CipKnowledgePackFixturePaths.packVersion());
   }
 
   private static RuntimeElementDescriptor runtimeDescriptor(String elementType) throws Exception {
@@ -196,11 +196,11 @@ class CompilerContractKnowledgeAlignmentTest {
   }
 
   private static Path packAddonFile(String skillId) {
-    return QipKnowledgePackFixturePaths.addonRoot().resolve("skills").resolve(skillId + ".addon.md");
+    return CipKnowledgePackFixturePaths.addonRoot().resolve("skills").resolve(skillId + ".addon.md");
   }
 
   private static String readPackKnowledge(String fileName) throws Exception {
-    return Files.readString(QipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai").resolve(fileName));
+    return Files.readString(CipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai").resolve(fileName));
   }
 
   private static Path packKnowledgeFile(String fragment) {
@@ -211,7 +211,7 @@ class CompilerContractKnowledgeAlignmentTest {
           case "generator-rule-mapping" -> "generator-rule-mapping.md";
           default -> fragment;
         };
-    return QipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai").resolve(fileName);
+    return CipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai").resolve(fileName);
   }
 
   private static Map<String, MappingRow> parseOwnershipTable(String executorAddon) {

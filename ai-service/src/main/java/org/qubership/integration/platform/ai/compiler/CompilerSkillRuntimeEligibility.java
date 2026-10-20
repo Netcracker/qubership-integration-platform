@@ -7,16 +7,16 @@ import java.util.Optional;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDescriptor;
 import org.qubership.integration.platform.ai.compiler.pipeline.InternalPipelineSkills;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 
 /** Runtime gate for catalog-backed compiler skill traversal and prompt context. */
 @ApplicationScoped
 public class CompilerSkillRuntimeEligibility {
 
-  private final QipKnowledgePackRepository repository;
+  private final CipKnowledgePackRepository repository;
 
   @Inject
-  public CompilerSkillRuntimeEligibility(QipKnowledgePackRepository repository) {
+  public CompilerSkillRuntimeEligibility(CipKnowledgePackRepository repository) {
     this.repository = Objects.requireNonNull(repository, "repository");
   }
 

@@ -3,7 +3,7 @@ package org.qubership.integration.platform.ai.qipknowledge.patch;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 
 /** Typed graph patch produced by a compiler-backed generator pass. */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -16,5 +16,5 @@ public record GraphPatch(
     @Description("Property add/update/remove operations on existing node ids")
         List<PropertyPatch> propertyPatches,
     @Description("Chain-level plan field patches") List<ChainPatch> chainPatches,
-    List<QipKnowledgeCitation> usedKnowledgeRefs,
+    List<CipKnowledgeCitation> usedKnowledgeRefs,
     @Description("Why the patch was or was not generated") String rationale) {}

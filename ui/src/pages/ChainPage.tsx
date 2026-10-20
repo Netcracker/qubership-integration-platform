@@ -1,16 +1,14 @@
 import "@xyflow/react/dist/style.css";
 import { Breadcrumb, Col, Flex, Row, Result, Button, Tabs, Tag } from "antd";
-import { ChainHeaderActionsContextProvider } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderSlotProvider } from "./ChainHeaderActionsContext.tsx";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
 import {
   type FC,
-  type ReactNode,
   createContext,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -40,10 +38,9 @@ export const ChainContext = createContext<ChainContextData | undefined>(
 const ChainPage = () => {
   const { chainId, sessionId } = useParams();
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
-  const [headerActions, setHeaderActions] = useState<ReactNode>(null);
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const notificationService = useNotificationService();
   const { isAvailable: isTestingAvailable } = useTestingServiceAvailability();
-  const headerActionsRegistrationRef = useRef(0);
   const [graphRefreshVersion, setGraphRefreshVersion] = useState(0);
   const [localOperations, setLocalOperations] = useState(0);
   const operationsRef = useRef(0);
@@ -60,21 +57,6 @@ const ChainPage = () => {
       setLocalOperations(operationsRef.current);
     };
   }, []);
-
-  const registerHeaderActions = useCallback((actions: ReactNode) => {
-    const generation = ++headerActionsRegistrationRef.current;
-    setHeaderActions(actions);
-    return () => {
-      if (headerActionsRegistrationRef.current === generation) {
-        setHeaderActions(null);
-      }
-    };
-  }, []);
-
-  const chainHeaderActionsContextValue = useMemo(
-    () => ({ registerHeaderActions }),
-    [registerHeaderActions],
-  );
 
   const location = useLocation();
   const { pathname } = location;
@@ -253,7 +235,7 @@ const ChainPage = () => {
   }
 
   return (
-    <ChainHeaderActionsContextProvider value={chainHeaderActionsContextValue}>
+    <ChainHeaderSlotProvider value={headerSlot}>
       <ChainContext.Provider
         value={{
           chain,
@@ -276,7 +258,7 @@ const ChainPage = () => {
           <ChainPageHeader
             activeKey={activeKey}
             tabItems={tabItems}
-            headerActions={headerActions}
+            headerSlotRef={setHeaderSlot}
             pathItems={pathItems}
             onTabChange={handleTabChange}
             showUnsavedChanges={!isVsCode && chain.unsavedChanges}
@@ -286,14 +268,14 @@ const ChainPage = () => {
           </Flex>
         </Flex>
       </ChainContext.Provider>
-    </ChainHeaderActionsContextProvider>
+    </ChainHeaderSlotProvider>
   );
 };
 
 type ChainPageHeaderProps = {
   activeKey: string;
   tabItems: { key: string; label: string }[];
-  headerActions: ReactNode;
+  headerSlotRef: (slot: HTMLElement | null) => void;
   pathItems: BreadcrumbProps["items"];
   onTabChange: (key: string) => void;
   showUnsavedChanges: boolean;
@@ -302,7 +284,7 @@ type ChainPageHeaderProps = {
 const ChainPageHeader: FC<ChainPageHeaderProps> = ({
   activeKey,
   tabItems,
-  headerActions,
+  headerSlotRef,
   pathItems,
   onTabChange,
   showUnsavedChanges,
@@ -319,14 +301,14 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
         items={tabItems}
         style={{ marginBottom: 0 }}
         tabBarExtraContent={
-          <div className={styles.chainTabBarExtra}>{headerActions}</div>
+          <div className={styles.chainTabBarExtra} ref={headerSlotRef} />
         }
       />
     );
   }
 
   const tabsBarExtra = (
-    <div className={styles.chainTabBarExtra}>{headerActions}</div>
+    <div className={styles.chainTabBarExtra} ref={headerSlotRef} />
   );
 
   return (

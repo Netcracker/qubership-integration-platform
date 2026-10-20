@@ -257,7 +257,12 @@ public final class RequirementCaptureProjection {
       pending.add(new PendingWork("FACTS_REQUIRED", null, null,
           "Record the intended result or behavior."));
     }
+    var chainCalls = input.capabilities().stream()
+        .filter(capability -> "chain-call-2".equals(capability.capabilityKey())).toList();
+    boolean chainTargetsResolved = !chainCalls.isEmpty() && chainCalls.stream()
+        .allMatch(capability -> targets.containsKey(capability.interactionId()));
     for (QuestionInput question : input.openQuestions()) {
+      if (chainTargetsResolved && RequirementDraftTool.isChainCallTriggerUuidQuestion(question.text())) continue;
       pending.add(new PendingWork("BUSINESS_CHOICE_REQUIRED", null, question.questionId(),
           question.text()));
     }
@@ -438,8 +443,23 @@ public final class RequirementCaptureProjection {
     var remaining = pending(input, bindings, targets);
     boolean ready = remaining.isEmpty()
         && RequirementFlowValidator.validateBindings(flow, facts, bindings).isEmpty();
-    var questions = new ArrayList<>(input.openQuestions().stream().map(QuestionInput::text).toList());
-    remaining.stream().filter(item -> "RBAC_ROLES_REQUIRED".equals(item.code()))
+    List<String> openQuestions = input.openQuestions().stream().map(QuestionInput::text).toList();
+    var chainCalls = input.capabilities().stream()
+        .filter(capability -> "chain-call-2".equals(capability.capabilityKey())).toList();
+    if (!chainCalls.isEmpty()) {
+      var unresolved = chainCalls.stream()
+          .filter(capability -> !targets.containsKey(capability.interactionId())).findFirst();
+      openQuestions = unresolved.isPresent()
+          ? RequirementDraftTool.replaceChainCallUuidQuestions(openQuestions,
+              org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder
+                  .pickerQuestion(unresolved.get().interactionId()))
+          : RequirementDraftTool.dropChainCallUuidQuestions(openQuestions);
+    }
+    var questions = new ArrayList<>(openQuestions);
+    remaining.stream().filter(item -> "RBAC_ROLES_REQUIRED".equals(item.code())
+            || "CAPABILITY_FIELD_REQUIRED".equals(item.code()) && input.capabilities().stream()
+                .anyMatch(capability -> "http-sender".equals(capability.capabilityKey())
+                    && capability.interactionId().equals(item.interactionId())))
         .map(PendingWork::message).filter(question -> !questions.contains(question)).forEach(questions::add);
     String candidateInteractionId = previous == null
         ? null : previous.apiHubCandidateInteractionId();

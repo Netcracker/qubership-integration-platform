@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 
 class CompilerPipelineCompatibilityAnalyzerTest {
@@ -145,7 +145,7 @@ class CompilerPipelineCompatibilityAnalyzerTest {
             GraphPatchOwnershipPolicy.denyAll());
     return new CompilerPipelineIndex(
         CompilerPipelineIndexBuilder.SCHEMA_VERSION,
-        new QipKnowledgePackVersion("test", "test"),
+        new CipKnowledgePackVersion("test", "test"),
         new CompilerPipelineIndexSource("catalog", "policy"),
         List.of(),
         new CompilerPackageIdentity("compiler-v2", "1.0.0", digest),

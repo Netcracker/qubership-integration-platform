@@ -86,6 +86,54 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.RestartChec
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
+  @ParameterizedTest
+  @CsvSource({"stage-clarification,false", "stage-clarification,true",
+      "recovery-retry-technical,false", "recovery-retry-technical,true"})
+  void explicitGateSurvivesAnEmptyPromptAndDecisionReload(String gateId, boolean storedQuestion) {
+    String conversationId = "conv-empty-gate";
+    String runId = conversationId + "-create-chain-2";
+    var mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    var blobs = new InMemoryArtifactBlobStore();
+    var clock = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+    var runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    runs.create(new RunSnapshot(runId, conversationId, 3L, RunStatus.RUNNING,
+        "requirement-discovery", List.of(), null, "flow-1"));
+    runs.commit(3L, new org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit(
+        runId, 3L, RunStatus.WAITING_FOR_INPUT, "requirement-discovery", List.of(),
+        new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt("attempt", "requirement-discovery", 4L,
+            org.qubership.integration.platform.ai.productpipeline.store.StageStatus.WAITING_FOR_INPUT,
+            Instant.EPOCH, Instant.EPOCH, List.of(), null),
+        new RunTransition(3L, 4L, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT,
+            "requirement-discovery", Instant.EPOCH, PipelineGates.tag(gateId, ""))));
+    ChatEvent.Decision first = null;
+    for (int reload = 0; reload < 2; reload++) {
+      var restoredRuns = new ProductPipelineRunStore(blobs, mapper, clock);
+      var drafts = new RequirementDraftStore();
+      if (storedQuestion) {
+        drafts.put(conversationId, new RequirementDraft(false, "Incomplete requirements",
+            org.qubership.integration.platform.ai.plan.DraftDecision.NEEDS_INPUT,
+            List.of("Which catalog operation should deliver the result?"), "brainstorming", "1"));
+      }
+      var facade = new CreateChainApplicationFacade(mock(CreateRunSelectionService.class),
+          mock(CreateRunBindingStore.class), mock(CreateChainOrchestrator.class), restoredRuns,
+          mock(ProductPipelineProfileCatalog.class), inMemoryArtifactStore(), drafts);
+      var pending = assertInstanceOf(CreateChainPendingAction.Clarify.class,
+          facade.snapshot(conversationId).orElseThrow().pendingAction());
+      assertEquals(gateId, pending.gateId());
+      assertFalse(ChatEvent.isSilentClarification(pending));
+      assertEquals(storedQuestion ? 1 : 0, pending.missingEvidence().size());
+      var decision = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+          .openDecision(conversationId).orElseThrow();
+      assertFalse(decision.question().isBlank());
+      if (PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gateId)) {
+        assertTrue(decision.actions().contains(ChatEvent.RETRY_CREATION_ACTION));
+        assertEquals(runId, pending.runId());
+      }
+      if (first != null) assertEquals(first, decision);
+      first = decision;
+    }
+  }
+
 
   @Test
   void activeCreateOwnsImportDecisionsAfterAnEarlierStandaloneRequest() {
@@ -1166,6 +1214,8 @@ class ChatDecisionServiceTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    String runId = "conv-1-create-chain-2-after-reset";
+    when(facade.importApprovalRunId("conv-1")).thenReturn(runId);
     when(facade.start(any(StartCreateChainCommand.class)))
         .thenReturn(Multi.createFrom().empty());
     when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
@@ -1185,7 +1235,9 @@ class ChatDecisionServiceTest {
 
     service.apply("conv-1", command).collect().asList().await().indefinitely();
 
-    ApprovalRecordV2 stored = latestUploadedSpecsApproval(artifactStore, "conv-1");
+    ApprovalRecordV2 stored = artifactStore.payload(
+        artifactStore.findLatestApprovalRecord(runId, UploadedSpecsApprovalHandler.ARTIFACT_TYPE, null)
+            .orElseThrow(), ApprovalRecordV2.class);
     assertEquals(
         Map.of(
             "uploads/orders-api.yaml", "INTERNAL",
@@ -1203,6 +1255,7 @@ class ChatDecisionServiceTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.importApprovalRunId("conv-1")).thenReturn("conv-1-create-chain-2");
     when(facade.start(any(StartCreateChainCommand.class)))
         .thenReturn(Multi.createFrom().empty());
     when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
@@ -1233,9 +1286,11 @@ class ChatDecisionServiceTest {
     ProductPipelineArtifactStore artifactStore = inMemoryArtifactStore();
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.importApprovalRunId("conv-1")).thenReturn("conv-1-create-chain-2");
     ChatDecisionService service =
         uploadedSpecsDecisionService(
-            mock(CreateChainApplicationFacade.class), conversations, artifactStore, handler);
+            facade, conversations, artifactStore, handler);
     ChatDecisionCommand command =
         command(
             ChatEvent.IMPORT_ACTION,

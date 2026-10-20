@@ -10,9 +10,9 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Canonical
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeObjectResult;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 /** Resolves LLM-selected reference IDs against the pinned runtime knowledge package. */
 @ApplicationScoped
@@ -32,7 +32,7 @@ class KnowledgeCitationResolver {
     this.contextProvider = Objects.requireNonNull(contextProvider, "contextProvider");
   }
 
-  List<QipKnowledgeCitation> resolve(String conversationId, List<String> referenceIds) {
+  List<CipKnowledgeCitation> resolve(String conversationId, List<String> referenceIds) {
     if (referenceIds == null) {
       return null;
     }
@@ -52,7 +52,7 @@ class KnowledgeCitationResolver {
         .toList();
   }
 
-  private QipKnowledgeCitation resolveOne(
+  private CipKnowledgeCitation resolveOne(
       String conversationId, EvidenceSnapshot.Knowledge evidence, String referenceId) {
     if (referenceId.isEmpty() || !evidence.objectIds().contains(referenceId)) {
       throw new IllegalArgumentException(
@@ -66,11 +66,11 @@ class KnowledgeCitationResolver {
       sourcePath += "#" + object.source().sectionId();
     }
     String version = result.identity().packageRef().knowledgeVersion();
-    return new QipKnowledgeCitation(
+    return new CipKnowledgeCitation(
         object.id(),
-        QipKnowledgeRefType.KNOWLEDGE_OBJECT,
+        CipKnowledgeRefType.KNOWLEDGE_OBJECT,
         sourcePath,
-        new QipKnowledgePackVersion(version, version),
+        new CipKnowledgePackVersion(version, version),
         object.summary());
   }
 }

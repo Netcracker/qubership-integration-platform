@@ -372,7 +372,7 @@
                         <configuration>
                             <skip>${maven.test.skip}</skip>
                             <classpathScope>test</classpathScope>
-                            <mainClass>org.qubership.integration.platform.ai.qipknowledge.pack.PublicQipKnowledgePackFixture</mainClass>
+                            <mainClass>org.qubership.integration.platform.ai.qipknowledge.pack.PublicCipKnowledgePackFixture</mainClass>
                             <arguments>
                                 <argument>${project.build.directory}/public-pack-fixture</argument>
                                 <argument>${project.build.testOutputDirectory}/qipknowledge</argument>
@@ -403,7 +403,7 @@
                         </goals>
                         <configuration>
                             <skip>${qip.ai.qipknowledge.build.skip}</skip>
-                            <mainClass>org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator</mainClass>
+                            <mainClass>org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator</mainClass>
                             <classpathScope>compile</classpathScope>
                             <arguments>
                                 <argument>${qip.ai.qipknowledge.pack-root}</argument>
@@ -596,7 +596,7 @@
                             <execution>
                                 <id>generate-test-pack</id>
                                 <configuration>
-                                    <mainClass>org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator</mainClass>
+                                    <mainClass>org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator</mainClass>
                                     <arguments combine.self="override">
                                         <argument>${qip.test.pack-root}</argument>
                                         <argument>${project.build.testOutputDirectory}/qipknowledge</argument>

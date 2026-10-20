@@ -9,6 +9,6 @@ public record SelectedPattern(
     String patternId,
     String name,
     String reason,
-    QipKnowledgeCitation citation,
+    CipKnowledgeCitation citation,
     List<String> requiredCapabilities,
     String summary) {}

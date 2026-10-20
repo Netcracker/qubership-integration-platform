@@ -25,6 +25,8 @@ import org.qubership.integration.platform.ai.integration.apihub.ConversationApiH
 import org.qubership.integration.platform.ai.llm.scenario.ChainListScenario;
 import org.qubership.integration.platform.ai.llm.scenario.ForScenario;
 import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 
 /**
  * Single entry point for Edit/Regenerate/Clear turn resets: truncate or clear transcript messages
@@ -53,6 +55,8 @@ public class ConversationTurnReset {
   private final ConversationApiHubCache conversationApiHubCache;
   private final PendingRedeployStore pendingRedeployStore;
   private final ChainListScenario chainListScenario;
+  private final CreateRunBindingStore createRunBindingStore;
+  private final ProductPipelineRunStore productRunStore;
 
   @Inject
   ConversationTurnReset(
@@ -71,7 +75,9 @@ public class ConversationTurnReset {
       LastAssistantTurnStore lastAssistantTurnStore,
       ConversationApiHubCache conversationApiHubCache,
       PendingRedeployStore pendingRedeployStore,
-      @ForScenario(ScenarioType.MANAGE_CHAIN_LIST) ChainListScenario chainListScenario) {
+      @ForScenario(ScenarioType.MANAGE_CHAIN_LIST) ChainListScenario chainListScenario,
+      CreateRunBindingStore createRunBindingStore,
+      ProductPipelineRunStore productRunStore) {
     this.conversationService = conversationService;
     this.chatMemoryStore = chatMemoryStore;
     this.workspaceStore = workspaceStore;
@@ -88,6 +94,8 @@ public class ConversationTurnReset {
     this.conversationApiHubCache = conversationApiHubCache;
     this.pendingRedeployStore = pendingRedeployStore;
     this.chainListScenario = chainListScenario;
+    this.createRunBindingStore = createRunBindingStore;
+    this.productRunStore = productRunStore;
   }
 
   public void truncateAndReset(String conversationId, int afterMessageIndex) {
@@ -115,6 +123,8 @@ public class ConversationTurnReset {
   }
 
   private void resetArtifactInventory(String conversationId) {
+    createRunBindingStore.reset(conversationId);
+    productRunStore.resetConversation(conversationId);
     Set<String> completedSkillIds = workspaceStore.completedSkillIds(conversationId);
 
     clearChatMemory(conversationId, completedSkillIds);

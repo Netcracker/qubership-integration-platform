@@ -51,7 +51,7 @@ public final class ElementSchemaCompactFormatter {
       }
       String groupUri =
           group.has("$id") && group.get("$id").isTextual()
-              ? QipConfModelUris.stripFragment(group.get("$id").asText())
+              ? CipConfModelUris.stripFragment(group.get("$id").asText())
               : fallbackUri;
       JsonNode groupRoot = resolver.loadDocumentRoot(groupUri);
       String schemaGroup = schemaGroupLabel(group);

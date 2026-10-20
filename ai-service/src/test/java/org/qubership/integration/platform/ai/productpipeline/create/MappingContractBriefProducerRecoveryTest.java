@@ -129,8 +129,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContra
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
@@ -216,14 +216,22 @@ class MappingContractBriefProducerRecoveryTest {
         org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
         "Map the execution identifier.", new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
             "trigger-http", "executionId", "call-1", "preserved.executionId", "   "));
-    var tree = MAPPER.valueToTree(RequirementFactFixtures.greetingsApprovedDraft());
-    ((com.fasterxml.jackson.databind.node.ObjectNode) tree).set("authoredDraft", MAPPER.valueToTree(
-        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
-            null, List.of(fact, new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+    var authored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
+                new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput(
+                    "trigger-http", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND,
+                    "Caller", "Receive event", null, null, null),
+                new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput(
+                    "call-1", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND,
+                    "Salesforce", "Create task", null, null, null)), List.of(
+                new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput("trigger-http", "call-1"))),
+            List.of(fact, new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
                 "sibling-map", fact.interactionIds(), fact.kind(), fact.polarity(), "Map the subject.",
                 new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
-                    "trigger-http", "subject", "call-1", "Subject", null))), List.of(), List.of(), null)));
-    authoredDraft = MAPPER.treeToValue(tree, org.qubership.integration.platform.ai.plan.RequirementDraft.class);
+                    "trigger-http", "subject", "call-1", "Subject", null))), List.of(), List.of(),
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    authoredDraft = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        authored, null, List.of(), null, null);
     var runtime = runtime(FakeFailureNarrativeAgent.narrates("unused"), injectedMappingExecution());
     runtime.startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
         .collect().asList().await().indefinitely();
@@ -244,6 +252,43 @@ class MappingContractBriefProducerRecoveryTest {
     assertEquals(authoredDraft, attrs.get("requirementCorrectionDraft"));
     assertEquals("true", attrs.get("mappingRepairAutomatic"));
     assertEquals(Map.of("subject-map", Set.of("targetPath")), attrs.get("mappingRepairPaths"));
+
+    var repairPrompt = new AtomicReference<String>();
+    var discovery = new RequirementDiscoveryCapability(null,
+        new org.qubership.integration.platform.ai.plan.RequirementDraftStore(), (chat, text) -> {
+          repairPrompt.set(text);
+          return Multi.createFrom().empty();
+        });
+    discovery.execute(new StageExecutionContext(RUN_ID, CONV_ID, "requirement-discovery",
+        "repair", "repair-attempt", profile, manifest(), List.of(), attrs))
+        .collect().asList().await().indefinitely();
+    assertTrue(repairPrompt.get().contains("\"expectedContract\":\"Subject\""), repairPrompt.get());
+    assertTrue(repairPrompt.get().contains("\"observed\":\"$.preserved.executionId\""), repairPrompt.get());
+
+    Reference authorDraft = artifactStore.append(new AppendCommand(RUN_ID, Kind.REQUIREMENT_DRAFT, "2",
+        "requirement-discovery", "1", authoredDraft, List.of(draftRef), null,
+        artifactStore.get(RUN_ID, draftRef).orElseThrow().provenance())).reference();
+    artifactStore.append(new AppendCommand(RUN_ID, Kind.USER_INPUT, "1", "product-pipeline-runtime", "1",
+        new org.qubership.integration.platform.ai.productpipeline.artifact.UserInput(
+            "author-correction", "requirement-discovery", "Revise the response mapping.", FIXED,
+            authorDraft, List.of()), List.of(authorDraft), null,
+        artifactStore.get(RUN_ID, draftRef).orElseThrow().provenance()));
+    var authorAttributes = new java.util.HashMap<>(attrs);
+    authorAttributes.put("mappingRepairAutomatic", "false");
+    var document = run();
+    long revision = document.run().runRevision();
+    runStore.commit(revision, new org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit(
+        RUN_ID, revision, RunStatus.RUNNING, "requirement-discovery", document.run().stages(),
+        new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt(
+            "author-correction", "requirement-discovery", revision + 1,
+            org.qubership.integration.platform.ai.productpipeline.store.StageStatus.RUNNING,
+            FIXED, FIXED, List.of(), ProductPipelineRunSupport.haltEvidence(authorAttributes, null)),
+        new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+            document.run().status(), RunStatus.RUNNING, "requirement-discovery", FIXED, "author correction")));
+    var authorRuntime = runtime(FakeFailureNarrativeAgent.narrates("unused"), injectedMappingExecution());
+    restoreCaches(authorRuntime);
+    authorRuntime.stageExecutor().execute(RUN_ID, "requirement-discovery").await().indefinitely();
+    assertEquals(authorDraft, authorRuntime.support().runAttributes(RUN_ID).get("requirementCorrectionDraftReference"));
   }
 
   @Test
@@ -1293,8 +1338,8 @@ class MappingContractBriefProducerRecoveryTest {
         new InMemorySkillWorkspaceStore(new ChainPlanStore());
     SkillExecutorRegistry skillRegistry = mock(SkillExecutorRegistry.class);
     when(skillRegistry.require("cip-script-generator")).thenReturn(new MustNotRunScriptExecutor());
-    QipKnowledgePackRepository packRepository = mock(QipKnowledgePackRepository.class);
-    when(packRepository.activeVersion()).thenReturn(new QipKnowledgePackVersion("v1", "v1"));
+    CipKnowledgePackRepository packRepository = mock(CipKnowledgePackRepository.class);
+    when(packRepository.activeVersion()).thenReturn(new CipKnowledgePackVersion("v1", "v1"));
     CanonicalGraphDigest digest = new CanonicalGraphDigest(MAPPER);
     CompilerSecurityValidator securityValidator = mock(CompilerSecurityValidator.class);
     when(securityValidator.validate(any())).thenReturn(new ValidationResult(true, List.of(), "ok"));
@@ -1705,7 +1750,7 @@ class MappingContractBriefProducerRecoveryTest {
   }
 
   private static CompilerSkillContextBuilder contextBuilder() {
-    QipKnowledgePackRepository repository = mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository repository = mock(CipKnowledgePackRepository.class);
     CompilerSkillAddonRepository addonRepository = mock(CompilerSkillAddonRepository.class);
     when(addonRepository.loadForSkill(any())).thenReturn(CompilerSkillAddonContext.empty());
     when(repository.loadCompilerGeneratorSpecIndex())

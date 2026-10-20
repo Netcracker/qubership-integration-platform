@@ -5,7 +5,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
@@ -823,7 +823,7 @@ public class GraphPatchApplier {
       String message,
       String suggestedFix,
       List<String> affectedNodeIds) {
-    List<QipKnowledgeCitation> ruleRefs =
+    List<CipKnowledgeCitation> ruleRefs =
         patch.usedKnowledgeRefs() != null ? patch.usedKnowledgeRefs() : List.of();
     return new ValidationIssue(
         "patch-conflict-" + issueCounter,

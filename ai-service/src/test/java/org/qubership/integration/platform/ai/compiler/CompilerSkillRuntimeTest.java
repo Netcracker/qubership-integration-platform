@@ -61,10 +61,10 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
@@ -128,7 +128,7 @@ class CompilerSkillRuntimeTest {
       }
       return Multi.createFrom().empty();
     });
-    var context = new SkillRunContext(CONVERSATION_ID, capabilityId, QipKnowledgePackFixturePaths.PACK_DIR,
+    var context = new SkillRunContext(CONVERSATION_ID, capabilityId, CipKnowledgePackFixturePaths.PACK_DIR,
         SkillSubgraph.BUILD_CHAIN, 3, false, "Preserve the approved flow.", repair);
     var workspace = workspaceWithGraph(greetingsGraph());
 
@@ -197,11 +197,11 @@ class CompilerSkillRuntimeTest {
 
   @BeforeEach
   void setUp(@TempDir Path outputDir) throws Exception {
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
-    QipKnowledgePackBuildGenerator.generate(QipKnowledgePackFixturePaths.packRoot(), outputDir);
-    FilesystemQipKnowledgePackRepository repository =
-        new FilesystemQipKnowledgePackRepository(
-            outputDir, QipKnowledgePackFixturePaths.packVersion());
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackBuildGenerator.generate(CipKnowledgePackFixturePaths.packRoot(), outputDir);
+    FilesystemCipKnowledgePackRepository repository =
+        new FilesystemCipKnowledgePackRepository(
+            outputDir, CipKnowledgePackFixturePaths.packVersion());
     captureSession = new CaptureSession();
     chainPlanStore = new ChainPlanStore();
     chainPlanRepairDraftStore = new ChainPlanRepairDraftStore();
@@ -219,7 +219,7 @@ class CompilerSkillRuntimeTest {
     CompilerSkillAddonRepository addonRepository =
         CompilerSkillAddonRepository.forFilesystem(
             outputDir,
-            QipKnowledgePackFixturePaths.packVersion(),
+            CipKnowledgePackFixturePaths.packVersion(),
             getClass().getClassLoader());
     runtime =
         new CompilerSkillRuntime(
@@ -513,7 +513,7 @@ class CompilerSkillRuntimeTest {
           return Multi.createFrom().empty();
         });
     SkillRunContext context = new SkillRunContext(
-        CONVERSATION_ID, GENERATOR_ID, QipKnowledgePackFixturePaths.PACK_DIR,
+        CONVERSATION_ID, GENERATOR_ID, CipKnowledgePackFixturePaths.PACK_DIR,
         SkillSubgraph.BUILD_CHAIN, 3, false, approvedTask, repair);
     SkillWorkspace workspace = workspaceWithGraph(greetingsGraph());
     workspace.put(SkillArtifact.of(SkillArtifactType.REQUIREMENT_BRIEF, "approved",
@@ -832,10 +832,14 @@ class CompilerSkillRuntimeTest {
   void scriptGeneratorRetriesAfterInvalidRepairPatchDuringStreaming() {
     ChainPlanGraph graph = graphWithMissingScriptBody();
     chainPlanStore.put(CONVERSATION_ID, graph);
+    CaptureKey progressKey = CaptureKey.capability(
+        CaptureSlot.SCRIPT_BODY_REPAIR_PROGRESS, CONVERSATION_ID, SCRIPT_GENERATOR_ID);
+    captureSession.set(progressKey, new ScriptBodyRepairTool.ValidatedScriptBodies("previous-invocation", Map.of()));
     AtomicInteger calls = new AtomicInteger();
     when(scriptBodyRepairAgent.chat(eq(memoryId(SCRIPT_GENERATOR_ID)), any()))
         .thenAnswer(
             invocation -> {
+              assertFalse(captureSession.isPresent(progressKey));
               if (calls.getAndIncrement() == 0) {
                 putScriptRepair(SCRIPT_GENERATOR_ID, new GraphPatch(
                         "script-repair-bad",
@@ -1288,7 +1292,7 @@ class CompilerSkillRuntimeTest {
 
   private static SkillRunContext runContext(String skillId, int stepIndex) {
     return new SkillRunContext(
-        CONVERSATION_ID, skillId, QipKnowledgePackFixturePaths.PACK_DIR, SkillSubgraph.BUILD_CHAIN, stepIndex, false, "");
+        CONVERSATION_ID, skillId, CipKnowledgePackFixturePaths.PACK_DIR, SkillSubgraph.BUILD_CHAIN, stepIndex, false, "");
   }
 
   private static String memoryId(String skillId) {

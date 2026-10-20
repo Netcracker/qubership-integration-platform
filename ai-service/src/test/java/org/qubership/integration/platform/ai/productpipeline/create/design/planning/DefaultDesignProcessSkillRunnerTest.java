@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class DefaultDesignProcessSkillRunnerTest {
 
@@ -22,9 +22,9 @@ class DefaultDesignProcessSkillRunnerTest {
             "cip-design-planner",
             "skills/cip-design-planner/SKILL.md",
             "planner",
-            QipKnowledgeCapabilityPhase.DECISION,
+            CipKnowledgeCapabilityPhase.DECISION,
             true,
-            new QipKnowledgePackVersion("test", "test"),
+            new CipKnowledgePackVersion("test", "test"),
             "Upstream planner instructions");
     CompilerSkillAddonContext addon =
         new CompilerSkillAddonContext(
@@ -99,9 +99,9 @@ class DefaultDesignProcessSkillRunnerTest {
         "cip-design-planner",
         "skills/cip-design-planner/SKILL.md",
         "planner",
-        QipKnowledgeCapabilityPhase.DECISION,
+        CipKnowledgeCapabilityPhase.DECISION,
         true,
-        new QipKnowledgePackVersion("test", "test"),
+        new CipKnowledgePackVersion("test", "test"),
         "Upstream planner instructions");
   }
 }

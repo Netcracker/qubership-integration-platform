@@ -37,8 +37,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class GatherRequirementsPromptBuilderTest {
 
@@ -315,9 +315,9 @@ class GatherRequirementsPromptBuilderTest {
         "brainstorming",
         "skills/brainstorming/SKILL.md",
         "Brainstorming Ideas Into Designs",
-        QipKnowledgeCapabilityPhase.UNSUPPORTED,
+        CipKnowledgeCapabilityPhase.UNSUPPORTED,
         false,
-        new QipKnowledgePackVersion("cip_compiler_v2", "cip_compiler_v2"),
+        new CipKnowledgePackVersion("cip_compiler_v2", "cip_compiler_v2"),
         "# Brainstorming Ideas Into Designs\n");
   }
 }

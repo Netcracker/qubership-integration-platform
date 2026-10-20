@@ -5,12 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class CapabilityClassifierTest {
 
   private final CapabilityClassifier classifier = new CapabilityClassifier();
-  private final QipKnowledgePackVersion version = new QipKnowledgePackVersion("v1_0_1", "v1_0_1");
+  private final CipKnowledgePackVersion version = new CipKnowledgePackVersion("v1_0_1", "v1_0_1");
 
   @Test
   void classifiesErrorHandlingGeneratorAsSupportedGenerator() {
@@ -19,13 +19,13 @@ class CapabilityClassifierTest {
             "cip-error-handling-generator",
             "CIP Error Handling Generator",
             "skills/cip-error-handling-generator/SKILL.md",
-            QipKnowledgeCapabilityPhase.GENERATOR,
+            CipKnowledgeCapabilityPhase.GENERATOR,
             false,
             "summary");
 
     CapabilityDescriptor capability = classifier.toCapability(skill, version);
 
-    assertEquals(QipKnowledgeCapabilityPhase.GENERATOR, capability.phase());
+    assertEquals(CipKnowledgeCapabilityPhase.GENERATOR, capability.phase());
     assertTrue(capability.supported());
   }
 
@@ -36,26 +36,26 @@ class CapabilityClassifierTest {
             "cip-configuration-validator",
             "CIP Configuration Validator",
             "skills/cip-configuration-validator/SKILL.md",
-            QipKnowledgeCapabilityPhase.VALIDATOR,
+            CipKnowledgeCapabilityPhase.VALIDATOR,
             false,
             "summary");
 
     CapabilityDescriptor capability = classifier.toCapability(skill, version);
 
-    assertEquals(QipKnowledgeCapabilityPhase.VALIDATOR, capability.phase());
+    assertEquals(CipKnowledgeCapabilityPhase.VALIDATOR, capability.phase());
     assertTrue(capability.supported());
   }
 
   @Test
   void classifiesChainAssemblerAsUnsupportedMaterializer() {
-    assertEquals(QipKnowledgeCapabilityPhase.MATERIALIZER, classifier.classifyPhase("cip-chain-assembler"));
+    assertEquals(CipKnowledgeCapabilityPhase.MATERIALIZER, classifier.classifyPhase("cip-chain-assembler"));
 
     SkillDescriptor skill =
         new SkillDescriptor(
             "cip-chain-assembler",
             "CIP Chain Assembler",
             "skills/cip-chain-assembler/SKILL.md",
-            QipKnowledgeCapabilityPhase.MATERIALIZER,
+            CipKnowledgeCapabilityPhase.MATERIALIZER,
             false,
             "summary");
 
@@ -66,21 +66,21 @@ class CapabilityClassifierTest {
 
   @Test
   void classifiesPublishingSkillsAsUnsupported() {
-    assertEquals(QipKnowledgeCapabilityPhase.PUBLISHING, classifier.classifyPhase("cip-folder-organizer"));
-    assertEquals(QipKnowledgeCapabilityPhase.PUBLISHING, classifier.classifyPhase("cip-deployment-packager"));
+    assertEquals(CipKnowledgeCapabilityPhase.PUBLISHING, classifier.classifyPhase("cip-folder-organizer"));
+    assertEquals(CipKnowledgeCapabilityPhase.PUBLISHING, classifier.classifyPhase("cip-deployment-packager"));
 
     SkillDescriptor folderOrganizer =
         new SkillDescriptor(
             "cip-folder-organizer",
             "CIP Folder Organizer",
             "skills/cip-folder-organizer/SKILL.md",
-            QipKnowledgeCapabilityPhase.PUBLISHING,
+            CipKnowledgeCapabilityPhase.PUBLISHING,
             true,
             "summary");
 
     CapabilityDescriptor capability = classifier.toCapability(folderOrganizer, version);
 
-    assertEquals(QipKnowledgeCapabilityPhase.PUBLISHING, capability.phase());
+    assertEquals(CipKnowledgeCapabilityPhase.PUBLISHING, capability.phase());
     assertFalse(capability.supported());
   }
 }

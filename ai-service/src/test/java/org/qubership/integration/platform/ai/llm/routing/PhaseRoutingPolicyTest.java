@@ -9,6 +9,17 @@ import org.qubership.integration.platform.ai.model.ScenarioType;
 class PhaseRoutingPolicyTest {
 
   @Test
+  void standaloneImportWithNegatedDeploymentFallsThroughToClassification() {
+    String message = "Import the attached OpenAPI specification as an external service. Do not create or deploy a chain."
+        + "\n---\n- `9fc94106-77db-4715-ad84-b48c43e15dd7.json` (inlined)\n{}";
+    assertTrue(PhaseRoutingPolicy.tryResolve(
+        ConversationPhase.COLD, message, false, false, false).isEmpty());
+    assertTrue(PhaseRoutingPolicy.tryResolve(
+        ConversationPhase.COLD, "Import this spec without deploying a chain. Don't deploy it.",
+        false, false, false).isEmpty());
+  }
+
+  @Test
   void coldCreateChainIntentFallsThroughToLlm() {
     var result =
         PhaseRoutingPolicy.tryResolve(

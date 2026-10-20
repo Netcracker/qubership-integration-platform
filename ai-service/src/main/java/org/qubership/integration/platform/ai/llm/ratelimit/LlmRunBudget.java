@@ -108,9 +108,9 @@ public class LlmRunBudget {
     return new Ticket(runId, id);
   }
 
-  void complete(Ticket ticket, TokenUsage usage) {
-    if (ticket == null) { return; }
-    update(ticket.runId(), state -> {
+  String complete(Ticket ticket, TokenUsage usage) {
+    if (ticket == null) { return null; }
+    return update(ticket.runId(), state -> {
       Active reservation = state.active().get(ticket.id());
       if (reservation == null) { return state; }
       long used = reservation.tokens();
@@ -133,7 +133,7 @@ public class LlmRunBudget {
       return new State(state.requests(), tokens,
           Math.addExact(state.activeMillis(), elapsedMillis(reservation.startedAt())), state.grants(),
           state.grantCommands(), active, refusal);
-    });
+    }).refusal();
   }
 
   public void grant(String runId, String commandId) {

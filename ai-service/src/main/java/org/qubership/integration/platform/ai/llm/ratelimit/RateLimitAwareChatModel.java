@@ -102,7 +102,8 @@ public final class RateLimitAwareChatModel implements ChatModel {
         ChatResponse response = runBudget == null ? delegate.chat(sent)
             : runBudget.invoke(ticket, () -> {
               ChatResponse completed = delegate.chat(sent);
-              runBudget.complete(ticket, completed == null ? null : completed.tokenUsage());
+              String refusal = runBudget.complete(ticket, completed == null ? null : completed.tokenUsage());
+              if (refusal != null) { throw new LlmRunBudget.Exhausted(refusal); }
               return completed;
             });
         return response;

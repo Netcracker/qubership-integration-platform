@@ -6,4 +6,4 @@ import java.util.List;
 /** Trace of decision steps taken during planning. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DecisionTrace(
-    List<DecisionStep> steps, List<QipKnowledgeCitation> citations, String summary) {}
+    List<DecisionStep> steps, List<CipKnowledgeCitation> citations, String summary) {}

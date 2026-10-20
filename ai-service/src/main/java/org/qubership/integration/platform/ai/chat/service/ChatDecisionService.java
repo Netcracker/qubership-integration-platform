@@ -27,7 +27,6 @@ import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
-import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
@@ -874,11 +873,7 @@ public class ChatDecisionService {
     return "";
   }
 
-  private static String runIdFor(String conversationId) {
-    return conversationId
-        + "-"
-        + CreateRunSelectionService.CREATE_PROFILE_ID
-        + "-"
-        + CreateRunSelectionService.CREATE_PROFILE_VERSION;
+  private String runIdFor(String conversationId) {
+    return facade.importApprovalRunId(conversationId);
   }
 }

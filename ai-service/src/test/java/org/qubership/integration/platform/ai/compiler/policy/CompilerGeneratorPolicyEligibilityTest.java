@@ -10,15 +10,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalogLoader;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDisposition;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackIngestionService;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityDescriptor;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
 
 class CompilerGeneratorPolicyEligibilityTest {
 
-  private final QipKnowledgePackIngestionService ingestionService = new QipKnowledgePackIngestionService();
+  private final CipKnowledgePackIngestionService ingestionService = new CipKnowledgePackIngestionService();
 
   @Test
   void excludedCatalogDispositionsCannotEnterPolicy(@TempDir Path tempDir) throws Exception {
@@ -71,7 +71,7 @@ class CompilerGeneratorPolicyEligibilityTest {
     var ingestResult = ingestionService.ingest(tempDir);
     var catalog =
         new CompilerSkillCatalogLoader()
-            .load(new QipKnowledgePackScanResult(tempDir, ingestResult.manifest().version(), ingestResult.files()));
+            .load(new CipKnowledgePackScanResult(tempDir, ingestResult.manifest().version(), ingestResult.files()));
 
     var descriptor = catalog.find("allowed-generator").orElseThrow();
     assertEquals(CompilerSkillDisposition.PUBLIC_RUNTIME, descriptor.disposition());
@@ -88,7 +88,7 @@ class CompilerGeneratorPolicyEligibilityTest {
 
   private static void writeKnowledgeFiles(Path root) throws Exception {
     Path knowledge = root.resolve("knowledge");
-    Path fixture = QipKnowledgePackFixturePaths.knowledgeRoot();
+    Path fixture = CipKnowledgePackFixturePaths.knowledgeRoot();
     copyTree(fixture, knowledge);
     Path knowledgeDir = knowledge.resolve("ai");
     Files.writeString(

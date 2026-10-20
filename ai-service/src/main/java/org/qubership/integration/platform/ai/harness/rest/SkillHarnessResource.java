@@ -4,12 +4,14 @@ import io.smallrye.common.annotation.Blocking;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Map;
 import org.jboss.logging.Logger;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessRequest;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessResponse;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessService;
@@ -34,17 +36,20 @@ public class SkillHarnessResource {
   private final ChainPatchHarnessService chainPatchHarnessService;
   private final PlannerHarnessService plannerHarnessService;
   private final ExecutorHarnessService executorHarnessService;
+  private final boolean enabled;
 
   @Inject
   public SkillHarnessResource(
       SkillHarnessService harnessService,
       ChainPatchHarnessService chainPatchHarnessService,
       PlannerHarnessService plannerHarnessService,
-      ExecutorHarnessService executorHarnessService) {
+      ExecutorHarnessService executorHarnessService,
+      @ConfigProperty(name = "qip.ai.harness.enabled", defaultValue = "false") boolean enabled) {
     this.harnessService = harnessService;
     this.chainPatchHarnessService = chainPatchHarnessService;
     this.plannerHarnessService = plannerHarnessService;
     this.executorHarnessService = executorHarnessService;
+    this.enabled = enabled;
   }
 
   @POST
@@ -52,6 +57,7 @@ public class SkillHarnessResource {
   @Blocking
   @Consumes(MediaType.APPLICATION_JSON)
   public Response runExecutor(ExecutorHarnessRequest request) {
+    requireEnabled();
     if (request == null) {
       return badRequest("Request body is required");
     }
@@ -77,6 +83,7 @@ public class SkillHarnessResource {
   @Blocking
   @Consumes(MediaType.APPLICATION_JSON)
   public Response runPlanner(PlannerHarnessRequest request) {
+    requireEnabled();
     if (request == null) {
       return badRequest("Request body is required");
     }
@@ -93,6 +100,7 @@ public class SkillHarnessResource {
   @Blocking
   @Consumes(MediaType.APPLICATION_JSON)
   public Response run(SkillHarnessRequest request) {
+    requireEnabled();
     if (request == null) {
       return badRequest("Request body is required");
     }
@@ -119,6 +127,7 @@ public class SkillHarnessResource {
   @Blocking
   @Consumes(MediaType.APPLICATION_JSON)
   public Response runChainPatch(ChainPatchHarnessRequest request) {
+    requireEnabled();
     if (request == null) {
       return badRequest("Request body is required");
     }
@@ -134,6 +143,12 @@ public class SkillHarnessResource {
 
     ChainPatchHarnessResponse response = chainPatchHarnessService.run(request);
     return Response.ok(response).build();
+  }
+
+  private void requireEnabled() {
+    if (!enabled) {
+      throw new NotFoundException();
+    }
   }
 
   private static boolean isBlank(String value) {

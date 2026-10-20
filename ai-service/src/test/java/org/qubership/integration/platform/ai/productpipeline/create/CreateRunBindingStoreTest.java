@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,22 @@ class CreateRunBindingStoreTest {
     blobs = new InMemoryArtifactBlobStore();
     mapper = new ObjectMapper().registerModule(new JavaTimeModule());
     store = new CreateRunBindingStore(blobs, mapper);
+  }
+
+  @Test
+  void resetRebindsTheSameConversationToANewRunAcrossReload() {
+    CreateRunBinding original = store.create(productBinding("reset-chat"));
+    store.reset("reset-chat");
+    store = new CreateRunBindingStore(blobs, mapper);
+    assertTrue(store.load("reset-chat").isEmpty());
+
+    CreateRunBinding replacement = store.create(productBinding("reset-chat"));
+    assertNotEquals(original.productRunId(), replacement.productRunId());
+    assertEquals(replacement.productRunId(), replacement.runManifest().runId());
+    assertEquals(replacement, new CreateRunBindingStore(blobs, mapper).load("reset-chat").orElseThrow());
+
+    store.reset("reset-chat");
+    assertNotEquals(replacement.productRunId(), store.create(productBinding("reset-chat")).productRunId());
   }
 
   @Test

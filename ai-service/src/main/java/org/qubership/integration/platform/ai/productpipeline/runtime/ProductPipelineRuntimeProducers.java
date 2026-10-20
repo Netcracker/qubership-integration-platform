@@ -62,7 +62,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOu
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileValidator;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
@@ -117,7 +117,7 @@ public class ProductPipelineRuntimeProducers {
 
   @Produces
   @ApplicationScoped
-  ProductPipelineProfileCatalog profileCatalog(QipKnowledgePackRepository packRepository) {
+  ProductPipelineProfileCatalog profileCatalog(CipKnowledgePackRepository packRepository) {
     ArtifactSchemaRegistry schemas = loadArtifactSchemas();
     ProductPipelineProfile createChainV1 = loadProfile("create-chain-v1.yaml");
     ProductPipelineProfile createChainV2 = loadProfile("create-chain-v2.yaml");
@@ -137,7 +137,7 @@ public class ProductPipelineRuntimeProducers {
   @Produces
   @ApplicationScoped
   CompilerRunPinResolver compilerRunPinResolver(
-      QipKnowledgePackRepository packRepository, CompilerSkillDocumentService skillDocuments) {
+      CipKnowledgePackRepository packRepository, CompilerSkillDocumentService skillDocuments) {
     return new CompilerRunPinResolver(
         packRepository.loadCompilerPipelineIndex(),
         skillId -> {
@@ -158,7 +158,7 @@ public class ProductPipelineRuntimeProducers {
   }
 
   private static void verifyPipelineCompatibility(
-      ProductPipelineProfile profile, QipKnowledgePackRepository packRepository) {
+      ProductPipelineProfile profile, CipKnowledgePackRepository packRepository) {
     CompilerPipelineIndex activeIndex = packRepository.loadCompilerPipelineIndex();
     PipelineCompatibilityReport report;
     try {

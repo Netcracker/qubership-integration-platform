@@ -3,7 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.artifact;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 
 /**
@@ -20,7 +20,7 @@ public record GraphPatchArtifact(
     GraphPatch patch,
     List<CompilationArtifacts.Reference> consumedArtifacts,
     List<String> sourceRequirementFactIds,
-    List<QipKnowledgeCitation> knowledgeCitations,
+    List<CipKnowledgeCitation> knowledgeCitations,
     String rationale,
     PatchApplicability applicability,
     String invocationKey) {

@@ -56,8 +56,7 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
   }
 
   /**
-   * Document mapping tasks fail the capture when the model output cannot be parsed. The edit path
-   * still treats that as no change.
+   * Document mapping tasks fail the capture when the model output cannot be parsed.
    */
   public MappingTurnResult interpretForWorkDocument(RequirementBrief brief, String authorMessage) {
     Objects.requireNonNull(brief, "brief");
@@ -87,8 +86,8 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
       capture =
           agent.interpret(renderFlow(brief.flow()), renderIntents(brief), authorMessage.trim());
     } catch (OutputParsingException e) {
-      LOG.warnf(e, "Mapping turn capture could not be parsed; treating as no change");
-      return MappingTurnResult.changes();
+      LOG.warnf(e, "Mapping turn capture could not be parsed; the change was not applied");
+      return new Clarification("MALFORMED_CAPTURE", List.of());
     }
     return fromCapture(capture, brief, authorMessage.trim(), omitMissingAdditions);
   }
@@ -588,6 +587,8 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
           .append(interaction.participant())
           .append(" operation=")
           .append(interaction.operation())
+          .append(" failureMode=")
+          .append(interaction.failureMode())
           .append('\n');
     }
     if (!flow.transitions().isEmpty()) {
@@ -629,6 +630,9 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
         sb.append(" preference=").append(intent.implementationPreference());
       }
       sb.append('\n');
+      for (MappingIntentRule rule : intent.rules()) {
+        sb.append("  ").append(rule).append('\n');
+      }
     }
     return sb.toString();
   }

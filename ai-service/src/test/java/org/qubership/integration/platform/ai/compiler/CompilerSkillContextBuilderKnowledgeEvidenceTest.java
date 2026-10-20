@@ -25,9 +25,9 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextRequest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class CompilerSkillContextBuilderKnowledgeEvidenceTest {
 
@@ -41,7 +41,7 @@ class CompilerSkillContextBuilderKnowledgeEvidenceTest {
     EvidenceEmitter evidenceEmitter = new EvidenceEmitter(evidenceStore);
     knowledgeClient = FakeKnowledgeClient.defaultFixture();
 
-    QipKnowledgePackRepository repository = Mockito.mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository repository = Mockito.mock(CipKnowledgePackRepository.class);
     CompilerSkillAddonRepository addonRepository = Mockito.mock(CompilerSkillAddonRepository.class);
     when(addonRepository.loadForSkill(Mockito.anyString()))
         .thenReturn(CompilerSkillAddonContext.empty());
@@ -135,9 +135,9 @@ class CompilerSkillContextBuilderKnowledgeEvidenceTest {
         "cip-error-handling-generator",
         "skills/cip-error-handling-generator.md",
         "Error handling generator",
-        QipKnowledgeCapabilityPhase.GENERATOR,
+        CipKnowledgeCapabilityPhase.GENERATOR,
         true,
-        new QipKnowledgePackVersion("test", "test-pack"),
+        new CipKnowledgePackVersion("test", "test-pack"),
         markdown);
   }
 

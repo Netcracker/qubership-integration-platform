@@ -1396,6 +1396,11 @@ export const AiAssistant: React.FC = () => {
         await resetConversation(serviceUrl, conversationId);
       } catch (err) {
         console.error("[AiAssistant] Clear reset failed", err);
+        notificationService.requestFailed(
+          "Failed to clear the conversation",
+          err,
+        );
+        return;
       }
     }
 
@@ -1415,6 +1420,7 @@ export const AiAssistant: React.FC = () => {
     sessionStore,
     activityStore,
     refreshSessions,
+    notificationService,
   ]);
 
   // ---------------------------------------------------------------------------

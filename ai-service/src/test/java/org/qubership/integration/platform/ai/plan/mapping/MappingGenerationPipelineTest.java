@@ -59,7 +59,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 
@@ -808,7 +808,7 @@ class MappingGenerationPipelineTest {
   }
 
   private static CompilerSkillContextBuilder contextBuilder() {
-    QipKnowledgePackRepository repository = Mockito.mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository repository = Mockito.mock(CipKnowledgePackRepository.class);
     CompilerSkillAddonRepository addonRepository = Mockito.mock(CompilerSkillAddonRepository.class);
     when(addonRepository.loadForSkill(Mockito.anyString()))
         .thenReturn(CompilerSkillAddonContext.empty());

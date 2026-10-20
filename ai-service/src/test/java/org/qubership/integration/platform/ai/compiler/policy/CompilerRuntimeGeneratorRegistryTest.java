@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 
 class CompilerRuntimeGeneratorRegistryTest {
 
@@ -17,7 +17,7 @@ class CompilerRuntimeGeneratorRegistryTest {
 
   @Test
   void readsGeneratorIdsFromAddonManifest() {
-    Map<String, String> mappings = registry.skillToGeneratorId(QipKnowledgePackFixturePaths.addonRoot());
+    Map<String, String> mappings = registry.skillToGeneratorId(CipKnowledgePackFixturePaths.addonRoot());
 
     assertEquals("GEN-06", mappings.get("cip-service-call-generator"));
     assertEquals("GEN-02", mappings.get("cip-trigger-generator"));

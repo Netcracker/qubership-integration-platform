@@ -3,8 +3,8 @@ package org.qubership.integration.platform.ai.qipknowledge.skill;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackFileKind;
-import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedQipKnowledgeFile;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackFileKind;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedCipKnowledgeFile;
 
 /** Parses QIP knowledge skill files into {@link SkillDescriptor} records. */
 public class SkillParser {
@@ -13,8 +13,8 @@ public class SkillParser {
 
   private final CapabilityClassifier classifier = new CapabilityClassifier();
 
-  public SkillDescriptor parse(ScannedQipKnowledgeFile file) {
-    if (file.kind() != QipKnowledgePackFileKind.SKILL) {
+  public SkillDescriptor parse(ScannedCipKnowledgeFile file) {
+    if (file.kind() != CipKnowledgePackFileKind.SKILL) {
       throw new IllegalArgumentException("Expected SKILL file, got " + file.kind());
     }
     String skillId = deriveSkillId(file.relativePath());

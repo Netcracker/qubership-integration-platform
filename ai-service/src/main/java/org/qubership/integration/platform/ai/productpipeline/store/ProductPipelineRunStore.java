@@ -46,11 +46,15 @@ public final class ProductPipelineRunStore {
   public ProductPipelineRunDocument create(
       RunSnapshot snapshot, String commandId, String commandPayloadHash) {
     ProductPipelineRunDocument document = createUnbound(snapshot, commandId, commandPayloadHash);
+    var current = blobStore.getVersioned(conversationKey(snapshot.conversationId()));
+    if (current.isPresent() && current.get().content().length != 0) {
+      throw new StaleBlobVersionException("conversation already bound: " + snapshot.conversationId());
+    }
     try {
       blobStore.putIfVersion(
           conversationKey(snapshot.conversationId()),
           snapshot.runId().getBytes(StandardCharsets.UTF_8),
-          null);
+          current.map(blob -> blob.version()).orElse(null));
     } catch (StaleBlobVersionException e) {
       throw new StaleBlobVersionException(
           "conversation already bound: " + snapshot.conversationId(), e);
@@ -162,8 +166,16 @@ public final class ProductPipelineRunStore {
     requireText(conversationId, "conversationId");
     return blobStore
         .get(conversationKey(conversationId))
+        .filter(bytes -> bytes.length != 0)
         .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
         .flatMap(this::load);
+  }
+
+  public void resetConversation(String conversationId) {
+    requireText(conversationId, "conversationId");
+    String key = conversationKey(conversationId);
+    var current = blobStore.getVersioned(key);
+    blobStore.putIfVersion(key, new byte[0], current.map(blob -> blob.version()).orElse(null));
   }
 
   public ProductPipelineRunDocument commit(long expectedRunRevision, LogicalCommit mutation) {

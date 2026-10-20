@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 
 class ProductPipelineDependencyResolverTest {
 
@@ -16,7 +16,7 @@ class ProductPipelineDependencyResolverTest {
 
   @Test
   void failsClosedWhenMandatorySkillMissing() {
-    Path packRoot = QipKnowledgePackFixturePaths.packRoot();
+    Path packRoot = CipKnowledgePackFixturePaths.packRoot();
     Path repoRoot = packRoot.getParent();
     CapabilityManifest broken =
         new CapabilityManifest(
@@ -38,7 +38,7 @@ class ProductPipelineDependencyResolverTest {
 
   @Test
   void closureContainsOnlySkillAddonAndRulePins() {
-    Path packRoot = QipKnowledgePackFixturePaths.packRoot();
+    Path packRoot = CipKnowledgePackFixturePaths.packRoot();
     Path repoRoot = packRoot.getParent();
     List<CapabilityManifest> capabilities =
         resolver.loadCapabilities(packRoot.resolve("product-pipelines"));

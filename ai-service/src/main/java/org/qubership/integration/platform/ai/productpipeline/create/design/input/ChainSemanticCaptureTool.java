@@ -25,8 +25,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackManifest;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 
 /**
  * Stores one validated semantic revision in {@link ProductCapabilityCaptureContext}. The model
@@ -60,7 +60,7 @@ public class ChainSemanticCaptureTool {
   private final ChainSemanticCaptureAdapter adapter;
   private final ChainSemanticRevisionValidator validator;
   private final CompilerContractRepository contractRepository;
-  private final QipKnowledgePackRepository knowledgePackRepository;
+  private final CipKnowledgePackRepository knowledgePackRepository;
   private final CatalogElementDescriptorLoader descriptorLoader;
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
 
@@ -69,7 +69,7 @@ public class ChainSemanticCaptureTool {
       ChainSemanticCaptureAdapter adapter,
       ChainSemanticRevisionValidator validator,
       CompilerContractRepository contractRepository,
-      QipKnowledgePackRepository knowledgePackRepository,
+      CipKnowledgePackRepository knowledgePackRepository,
       CatalogElementDescriptorLoader descriptorLoader,
       E2eRecoveryFaultInjector recoveryFaultInjector,
       org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedbackStore) {
@@ -84,7 +84,7 @@ public class ChainSemanticCaptureTool {
   }
 
   public ChainSemanticCaptureTool(ChainSemanticCaptureAdapter adapter, ChainSemanticRevisionValidator validator,
-      CompilerContractRepository contractRepository, QipKnowledgePackRepository knowledgePackRepository,
+      CompilerContractRepository contractRepository, CipKnowledgePackRepository knowledgePackRepository,
       CatalogElementDescriptorLoader descriptorLoader, E2eRecoveryFaultInjector recoveryFaultInjector) {
     this(adapter, validator, contractRepository, knowledgePackRepository, descriptorLoader, recoveryFaultInjector,
         new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore());
@@ -94,7 +94,7 @@ public class ChainSemanticCaptureTool {
       ChainSemanticCaptureAdapter adapter,
       ChainSemanticRevisionValidator validator,
       CompilerContractRepository contractRepository,
-      QipKnowledgePackRepository knowledgePackRepository,
+      CipKnowledgePackRepository knowledgePackRepository,
       CatalogElementDescriptorLoader descriptorLoader) {
     this(adapter, validator, contractRepository, knowledgePackRepository, descriptorLoader,
         new E2eRecoveryFaultInjector("", ""));
@@ -247,7 +247,7 @@ public class ChainSemanticCaptureTool {
   }
 
   private String preflight(ChainSemanticRevision revision, CompilerContract contract) {
-    QipKnowledgePackManifest manifest = knowledgePackRepository.loadManifest();
+    CipKnowledgePackManifest manifest = knowledgePackRepository.loadManifest();
     for (String addonId : contract.requiredAddons()) {
       if (!manifest.addonSha256().containsKey(addonId)) {
         return "Required compiler addon is missing: " + addonId;
@@ -280,7 +280,7 @@ public class ChainSemanticCaptureTool {
     return null;
   }
 
-  private static boolean fragmentPresent(QipKnowledgePackManifest manifest, String fragment) {
+  private static boolean fragmentPresent(CipKnowledgePackManifest manifest, String fragment) {
     String fileName = knowledgeFileName(fragment);
     for (String path : manifest.fileChecksums().keySet()) {
       if (fileName.equals(path) || fileName.equals(lastSegment(path))) {

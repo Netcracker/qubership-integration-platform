@@ -23,12 +23,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SchemaRefResolver {
 
   private final SchemaResourceLoader resourceLoader;
-  private final QipSchemaYamlParser yamlParser;
+  private final CipSchemaYamlParser yamlParser;
   private final JsonSchemaFactory validationFactory;
   private final ConcurrentHashMap<String, JsonNode> documentRootCache = new ConcurrentHashMap<>();
 
   @Inject
-  public SchemaRefResolver(SchemaResourceLoader resourceLoader, QipSchemaYamlParser yamlParser) {
+  public SchemaRefResolver(SchemaResourceLoader resourceLoader, CipSchemaYamlParser yamlParser) {
     this.resourceLoader = resourceLoader;
     this.yamlParser = yamlParser;
     this.validationFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7,
@@ -110,8 +110,8 @@ public class SchemaRefResolver {
         targetRoot = baseDocumentRoot;
         fragment = ref;
       } else {
-        String docPart = QipConfModelUris.stripFragment(ref);
-        fragment = QipConfModelUris.fragmentPart(ref);
+        String docPart = CipConfModelUris.stripFragment(ref);
+        fragment = CipConfModelUris.fragmentPart(ref);
         targetRoot = loadDocumentRoot(docPart);
       }
       String pointer = toJsonPointer(fragment);

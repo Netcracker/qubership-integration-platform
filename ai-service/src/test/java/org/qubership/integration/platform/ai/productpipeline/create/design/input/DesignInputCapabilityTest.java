@@ -46,9 +46,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackManifest;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class DesignInputCapabilityTest {
 
@@ -620,7 +620,7 @@ class DesignInputCapabilityTest {
   private static ChainSemanticCaptureTool captureTool() {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
-    QipKnowledgePackRepository pack = mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository pack = mock(CipKnowledgePackRepository.class);
     Map<String, String> addons = new LinkedHashMap<>();
     for (String addonId : CONTRACT.requiredAddons()) {
       addons.put(addonId, "sha-" + addonId);
@@ -631,8 +631,8 @@ class DesignInputCapabilityTest {
     files.put("knowledge/ai/generator-rule-mapping.md", "sha-generator-rule-mapping");
     when(pack.loadManifest())
         .thenReturn(
-            new QipKnowledgePackManifest(
-                new QipKnowledgePackVersion("v1", "v1"),
+            new CipKnowledgePackManifest(
+                new CipKnowledgePackVersion("v1", "v1"),
                 "test",
                 Instant.parse("2026-01-01T00:00:00Z"),
                 files,

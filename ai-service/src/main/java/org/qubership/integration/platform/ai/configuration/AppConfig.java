@@ -38,6 +38,13 @@ public interface AppConfig {
   @WithName("conversation")
   ConversationConfig conversation();
 
+  HarnessConfig harness();
+
+  interface HarnessConfig {
+    @WithDefault("false")
+    boolean enabled();
+  }
+
   /**
    * Runtime A2A rollout flag. Default false. When false, A2A discovery and invocation return a
    * deliberate disabled response; browser chat and persisted Task rows stay intact.
@@ -51,7 +58,7 @@ public interface AppConfig {
    * fail-closed for other unknown keys.
    */
   @WithName("qipknowledge")
-  QipKnowledgeConfig qipknowledge();
+  CipKnowledgeConfig qipknowledge();
 
   @WithName("e2e")
   E2eConfig e2e();
@@ -73,8 +80,7 @@ public interface AppConfig {
      * http://localhost:<quarkus.http.port>}.
      */
     @WithName("public-base-url")
-    @WithDefault("")
-    String publicBaseUrl();
+    Optional<String> publicBaseUrl();
 
     /**
      * Logs the JSON-RPC request body exactly as it arrived, before deserialization.
@@ -207,11 +213,11 @@ public interface AppConfig {
     }
   }
 
-  interface QipKnowledgeConfig {
+  interface CipKnowledgeConfig {
     @WithName("build")
-    QipKnowledgeBuildConfig build();
+    CipKnowledgeBuildConfig build();
 
-    interface QipKnowledgeBuildConfig {
+    interface CipKnowledgeBuildConfig {
       @WithDefault("false")
       boolean skip();
     }

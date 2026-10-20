@@ -1186,17 +1186,35 @@ describe("AiAssistant", () => {
     expect(stream).not.toHaveBeenCalled();
   });
 
-  it("clears local messages even if the remote reset fails", async () => {
+  it("keeps the conversation when the remote reset fails", async () => {
     const id = seed([{ role: "user", content: "Original request" }]);
+    store.updateSessionLastAttachmentUrls(id, ["http://ai.test/saved-file"]);
+    store.updateSessionLastAttachmentObjectKeys(id, ["saved-file"]);
     jest
       .mocked(resetConversation)
       .mockRejectedValue(new Error("Reset unavailable"));
     await open();
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-    await waitFor(() => expect(store.getSession(id)?.messages).toEqual([]));
-    expect(console.error).toHaveBeenCalledWith(
-      "[AiAssistant] Clear reset failed",
+    await waitFor(() =>
+      expect(console.error).toHaveBeenCalledWith(
+        "[AiAssistant] Clear reset failed",
+        expect.any(Error),
+      ),
+    );
+    expect(
+      store.getSession(id)?.messages.map((message) => message.content),
+    ).toEqual(["Original request"]);
+    expect(store.getSession(id)?.conversationId).toBe("conv-1");
+    expect(store.getSession(id)?.lastAttachmentUrls).toEqual([
+      "http://ai.test/saved-file",
+    ]);
+    expect(store.getSession(id)?.lastAttachmentObjectKeys).toEqual([
+      "saved-file",
+    ]);
+    expect(mockNotify.requestFailed).toHaveBeenCalledWith(
+      "Failed to clear the conversation",
       expect.any(Error),
     );
+    expect(stream).not.toHaveBeenCalled();
   });
 });

@@ -1,8 +1,7 @@
 FROM alpine/java:21-jdk
 
 USER root
-RUN chmod -R 755 /opt/java/openjdk \
-    && apk add --no-cache curl=8.14.1-r2
+RUN chmod -R 755 /opt/java/openjdk
 
 VOLUME /tmp
 
@@ -18,4 +17,5 @@ COPY --chown=10001 target/quarkus-app/quarkus/ /app/quarkus/
 
 WORKDIR /app
 
-CMD ["/opt/java/openjdk/bin/java", "-Xmx832m", "-Djava.security.egd=file:/dev/./urandom", "-Dfile.encoding=UTF-8", "-Djava.util.logging.manager=org.jboss.logmanager.LogManager", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005", "-jar", "/app/quarkus-run.jar"]
+# The heap takes half of the pod memory limit, leaving room for about 400 MiB off-heap; runtime-catalog defaults the limit to 1280Mi.
+CMD ["/opt/java/openjdk/bin/java", "-XX:+UseG1GC", "-XX:MaxRAMPercentage=50", "-XX:MaxMetaspaceSize=256m", "-XX:MaxDirectMemorySize=128m", "-XX:+ExitOnOutOfMemoryError", "-Djava.security.egd=file:/dev/./urandom", "-Dfile.encoding=UTF-8", "-Djava.util.logging.manager=org.jboss.logmanager.LogManager", "-jar", "/app/quarkus-run.jar"]

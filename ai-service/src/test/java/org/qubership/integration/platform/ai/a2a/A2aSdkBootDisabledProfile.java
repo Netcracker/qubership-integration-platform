@@ -10,6 +10,6 @@ public class A2aSdkBootDisabledProfile extends TestArtifactBlobStoreProducer.Pro
 
   @Override
   public Map<String, String> getConfigOverrides() {
-    return Map.of("qip.ai.a2a.enabled", "false");
+    return Map.of("qip.ai.a2a.enabled", "false", "qip.ai.a2a.public-base-url", "");
   }
 }

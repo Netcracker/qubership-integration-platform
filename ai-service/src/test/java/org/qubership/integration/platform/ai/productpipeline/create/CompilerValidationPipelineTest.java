@@ -14,7 +14,7 @@ import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.qipknowledge.validation.MaterializationRequirementsValidator;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
-import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.CipSchemaYamlParser;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -37,7 +37,7 @@ class CompilerValidationPipelineTest {
     ObjectMapper mapper = new ObjectMapper();
     var schemaService = DeterministicElementSchemaService.createForUnitTests(mapper);
     var loader = new SchemaResourceLoader();
-    var resolver = new SchemaRefResolver(loader, new QipSchemaYamlParser());
+    var resolver = new SchemaRefResolver(loader, new CipSchemaYamlParser());
     var pipeline = new CompilerValidationPipeline(loader, resolver, mapper,
         new ChainPlanGraphValidator(schemaService), schemaService,
         security(valid("security")), quality(valid("quality")));
@@ -115,7 +115,7 @@ class CompilerValidationPipelineTest {
     ObjectMapper mapper = new ObjectMapper();
     var schemaService = DeterministicElementSchemaService.createForUnitTests(mapper);
     var loader = new SchemaResourceLoader();
-    var resolver = new SchemaRefResolver(loader, new QipSchemaYamlParser());
+    var resolver = new SchemaRefResolver(loader, new CipSchemaYamlParser());
     var pipeline = new CompilerValidationPipeline(loader, resolver, mapper,
         new ChainPlanGraphValidator(schemaService), schemaService,
         security(valid("security")), quality(valid("quality")));
@@ -140,7 +140,7 @@ class CompilerValidationPipelineTest {
         DeterministicElementSchemaService.createForUnitTests(mapper);
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
     SchemaRefResolver schemaRefResolver =
-        new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+        new SchemaRefResolver(schemaResourceLoader, new CipSchemaYamlParser());
     MaterializationRequirementsValidator requirements =
         mock(MaterializationRequirementsValidator.class);
     when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
@@ -189,7 +189,7 @@ class CompilerValidationPipelineTest {
         DeterministicElementSchemaService.createForUnitTests(mapper);
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
     SchemaRefResolver schemaRefResolver =
-        new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+        new SchemaRefResolver(schemaResourceLoader, new CipSchemaYamlParser());
     MaterializationRequirementsValidator requirements =
         mock(MaterializationRequirementsValidator.class);
     when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
@@ -240,7 +240,7 @@ class CompilerValidationPipelineTest {
         DeterministicElementSchemaService.createForUnitTests(mapper);
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
     SchemaRefResolver schemaRefResolver =
-        new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+        new SchemaRefResolver(schemaResourceLoader, new CipSchemaYamlParser());
     MaterializationRequirementsValidator requirements =
         mock(MaterializationRequirementsValidator.class);
     when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());

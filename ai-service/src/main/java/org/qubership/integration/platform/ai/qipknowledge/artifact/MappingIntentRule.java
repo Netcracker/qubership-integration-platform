@@ -125,6 +125,11 @@ public record MappingIntentRule(
         id, requirementIds, targetPath, value, condition, newStatus, fieldRefs, constants, behavior);
   }
 
+  public MappingIntentRule withRequirementIds(List<String> ids) {
+    return new MappingIntentRule(
+        id, ids, targetPath, value, condition, status, fieldRefs, constants, behavior);
+  }
+
   public MappingIntentRule withTargetPath(String path) {
     return new MappingIntentRule(
         id, requirementIds, path, value, condition, status, fieldRefs, constants, behavior);

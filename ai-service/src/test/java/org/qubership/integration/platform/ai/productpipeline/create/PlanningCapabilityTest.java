@@ -30,10 +30,10 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTyp
 import org.qubership.integration.platform.ai.productpipeline.profile.CompilerPipelinePolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackIngestionService;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.mockito.ArgumentCaptor;
@@ -367,15 +367,15 @@ class PlanningCapabilityTest {
 
   private static CompilerPipelineIndex buildProductionIndex() {
     try {
-      QipKnowledgePackTestSupport.configureAddonPackRoot();
-      var policy = QipKnowledgePackTestSupport.buildPolicyFromFixture();
-      var packRoot = QipKnowledgePackFixturePaths.packRoot();
-      QipKnowledgePackIngestionService ingestionService = new QipKnowledgePackIngestionService();
+      CipKnowledgePackTestSupport.configureAddonPackRoot();
+      var policy = CipKnowledgePackTestSupport.buildPolicyFromFixture();
+      var packRoot = CipKnowledgePackFixturePaths.packRoot();
+      CipKnowledgePackIngestionService ingestionService = new CipKnowledgePackIngestionService();
       var result = ingestionService.ingest(packRoot);
-      QipKnowledgePackScanResult scanResult =
-          new QipKnowledgePackScanResult(packRoot, result.manifest().version(), result.files());
+      CipKnowledgePackScanResult scanResult =
+          new CipKnowledgePackScanResult(packRoot, result.manifest().version(), result.files());
       return new CompilerPipelineIndexBuilder()
-          .build(scanResult, policy, QipKnowledgePackFixturePaths.addonRoot());
+          .build(scanResult, policy, CipKnowledgePackFixturePaths.addonRoot());
     } catch (Exception e) {
       throw new IllegalStateException("Failed to build production pipeline index", e);
     }

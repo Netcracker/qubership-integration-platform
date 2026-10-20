@@ -79,7 +79,7 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationI
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
-import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.CipSchemaYamlParser;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
@@ -176,7 +176,7 @@ class ChainEditCompilerTest {
         DeterministicElementSchemaService.createForUnitTests(mapper);
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
     SchemaRefResolver schemaRefResolver =
-        new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+        new SchemaRefResolver(schemaResourceLoader, new CipSchemaYamlParser());
     MaterializationRequirementsValidator requirements =
         mock(MaterializationRequirementsValidator.class);
     when(requirements.validate(any())).thenReturn(List.of());

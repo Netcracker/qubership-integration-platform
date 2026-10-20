@@ -1231,10 +1231,9 @@ public final class ProductPipelineRunSupport {
   }
 
   /**
-   * After the requirement brief is approved, a mapping turn either reopens analysis or leaves the
-   * wait unchanged. Queries, clarifications, confirmations, and stale results do not reopen the
-   * brief and do not invalidate a plan. Ordinary typed input that is not a mapping outcome still
-   * follows the refine path.
+   * After approval, mapping changes reopen the source draft producer, or analysis in profiles
+   * without one. FLOW_CHANGE also reopens the source producer. Queries, other clarifications,
+   * confirmations, and stale results keep the wait and plan. Other typed input follows the refine path.
    */
   private Multi<PipelineSignal> interpretApprovedMappingTurnOrFallback(
       ProductPipelineRunDocument doc,
@@ -1260,6 +1259,9 @@ public final class ProductPipelineRunSupport {
     MappingTurnApplication application =
         MappingTurnProcessor.process(brief, command.text(), mappingTurnAdapter);
     if (application.applied()) {
+      if (hasRequirementDiscovery(command.runId())) {
+        return Optional.of(reopenRequirementDraft(doc, command, selectedRequirementBriefReference(doc)));
+      }
       BriefMappingReview.MappingChangeImpact impact =
           BriefMappingReview.afterApprovedMappingChange(brief, application.brief(), null);
       if (impact.briefReopened()) {
@@ -1268,6 +1270,10 @@ public final class ProductPipelineRunSupport {
       return Optional.of(stayAfterMappingTurn(doc, ""));
     }
     MappingTurnResult result = application.result();
+    if (result instanceof MappingTurnResult.Clarification clarification
+        && "FLOW_CHANGE".equals(clarification.reason())) {
+      return Optional.of(reopenRequirementDraft(doc, command, selectedRequirementBriefReference(doc)));
+    }
     var structuralRepair = tryStructuralReminder(doc, command, brief, result);
     if (structuralRepair.isPresent()) {
       return structuralRepair;
@@ -1316,6 +1322,11 @@ public final class ProductPipelineRunSupport {
       return false;
     }
     return stageIdsAfter(profile, "requirement-analysis").contains(doc.run().currentStageId());
+  }
+
+  private boolean hasRequirementDiscovery(String runId) {
+    return profilesByRun.get(runId).stages().stream()
+        .anyMatch(stage -> "requirement-discovery".equals(stage.capabilityId()));
   }
 
   private RequirementBrief approvedRequirementBrief(String runId) {
@@ -1887,11 +1898,9 @@ public final class ProductPipelineRunSupport {
                     .onCompletion()
                     .switchTo(() -> reemitApprovalCard(doc));
               }
-              boolean authoredProducer = profilesByRun.get(command.runId()).stages().stream()
-                  .anyMatch(stage -> "requirement-discovery".equals(stage.capabilityId()));
               Reference selectedCandidate = approvalCandidate(doc);
               if (asked.isRequirementChange()
-                  || asked.isNotAQuestion() && !asked.isWordingChange() && authoredProducer
+                  || asked.isNotAQuestion() && !asked.isWordingChange() && hasRequirementDiscovery(command.runId())
                       && selectedCandidate != null && selectedCandidate.kind() == Kind.REQUIREMENT_BRIEF) {
                 return reopenRequirementDraft(doc, command);
               }
@@ -2696,7 +2705,10 @@ public final class ProductPipelineRunSupport {
             && stage.produces().stream().anyMatch(type -> type.matches(Kind.REQUIREMENT_DRAFT)))
         .map(ProfileStage::stageId).findFirst().orElse(null);
     Reference published = doc.run().stages().stream().filter(stage -> java.util.Objects.equals(owner, stage.stageId()))
-        .map(ProductPipelineRunSupport::resolveReopenApprovable).filter(java.util.Objects::nonNull)
+        .map(stage -> preparingReplacement(profile, attributesByRun.get(command.runId()), owner)
+            ? stage.candidateReferences().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+                .findFirst().orElse(null)
+            : resolveReopenApprovable(stage)).filter(java.util.Objects::nonNull)
         .filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT).findFirst().orElse(null);
     if (published == null || candidate == null || candidate.kind() != Kind.REQUIREMENT_BRIEF) {
       return refuseWithGuard(doc, command, HaltRecoveryGuard.MISSING_PROFILE_OR_PRIOR_CANDIDATE);
@@ -2712,7 +2724,9 @@ public final class ProductPipelineRunSupport {
     if (catalogHasBeenWritten(command.runId())) {
       return refuseWithGuard(doc, command, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN);
     }
-    if (!shouldCausalReopen(doc, owner, command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
+    boolean authorRevision = doc.run().status() == RunStatus.WAITING_FOR_APPROVAL;
+    if (!authorRevision
+        && !shouldCausalReopen(doc, owner, command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
       return refuseWithGuard(doc, command, HaltRecoveryGuard.MAX_CAUSAL_REOPENS);
     }
     List<String> sourceIds = conversations == null ? List.of() : conversations.archive()
@@ -2724,12 +2738,15 @@ public final class ProductPipelineRunSupport {
             .filter(stage -> owner.equals(stage.stageId())).findFirst().orElseThrow().capabilityId())));
     var attributes = attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
     attributes.put("userText", command.text());
+    attributes.put("mappingRepairAutomatic", "false");
     attributes.put("requirementCorrectionDraftReference", selected);
     attributes.put("requirementCorrectionDraft", artifactStore.get(command.runId(), selected)
         .map(revision -> artifactStore.payload(revision, org.qubership.integration.platform.ai.plan.RequirementDraft.class))
         .orElseThrow());
     attributes.put("requirementCorrectionSourceTurnIds", sourceIds);
-    return causalReopenOwner(doc, command, owner);
+    return authorRevision
+        ? resetDownstreamAndMoveTo(doc, owner, "requirement change requested", command)
+        : causalReopenOwner(doc, command, owner);
   }
 
   private boolean draftDerivesFrom(String runId, Reference selected, Reference published) {
@@ -2968,7 +2985,7 @@ public final class ProductPipelineRunSupport {
 
   /**
    * Moves to {@code ownerStageId} and resets later stages to PENDING. Does not consult the recovery
-   * ledger; mapping-gap describe is not a causal reopen.
+   * ledger; approval revisions and mapping-gap descriptions are not failure recovery.
    */
   private Multi<PipelineSignal> resetDownstreamAndMoveTo(
       ProductPipelineRunDocument doc,

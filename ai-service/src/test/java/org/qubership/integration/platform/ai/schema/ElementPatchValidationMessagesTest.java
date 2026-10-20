@@ -15,7 +15,7 @@ class ElementPatchValidationMessagesTest {
   @BeforeEach
   void setUp() {
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
-    QipSchemaYamlParser qipSchemaYamlParser = new QipSchemaYamlParser();
+    CipSchemaYamlParser qipSchemaYamlParser = new CipSchemaYamlParser();
     resolver = new SchemaRefResolver(schemaResourceLoader, qipSchemaYamlParser);
   }
 

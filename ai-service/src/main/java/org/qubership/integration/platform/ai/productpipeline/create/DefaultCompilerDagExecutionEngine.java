@@ -67,8 +67,8 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.ClasspathQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ClasspathCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult;
@@ -99,7 +99,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   private final InMemorySkillWorkspaceStore workspaceStore;
   private final SkillExecutorRegistry skillRegistry;
   private final CompilerNodeExecutionAdapterRegistry javaAdapterRegistry;
-  private final QipKnowledgePackRepository packRepository;
+  private final CipKnowledgePackRepository packRepository;
   private final CompilerDerivedPlanningScheduler scheduler;
   private final GraphPatchExecutionContextStore executionContextStore;
   private final GraphPatchArtifactFactory graphPatchArtifactFactory;
@@ -118,7 +118,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       InMemorySkillWorkspaceStore workspaceStore,
       SkillExecutorRegistry skillRegistry,
       CompilerNodeExecutionAdapterRegistry javaAdapterRegistry,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GraphPatchExecutionContextStore executionContextStore,
       GraphPatchArtifactFactory graphPatchArtifactFactory,
       ValidatedGraphPatchApplier validatedGraphPatchApplier,
@@ -154,7 +154,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       InMemorySkillWorkspaceStore workspaceStore,
       SkillExecutorRegistry skillRegistry,
       CompilerNodeExecutionAdapterRegistry javaAdapterRegistry,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GraphAssemblyService graphAssemblyService,
       CompilerValidationPipeline compilerValidationPipeline,
       ProductPipelineArtifactStore artifactStore) {
@@ -174,7 +174,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       InMemorySkillWorkspaceStore workspaceStore,
       SkillExecutorRegistry skillRegistry,
       CompilerNodeExecutionAdapterRegistry javaAdapterRegistry,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GraphAssemblyService graphAssemblyService,
       CompilerValidationPipeline compilerValidationPipeline,
       ProductPipelineArtifactStore artifactStore,
@@ -204,7 +204,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       InMemorySkillWorkspaceStore workspaceStore,
       SkillExecutorRegistry skillRegistry,
       CompilerNodeExecutionAdapterRegistry javaAdapterRegistry,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GraphAssemblyService graphAssemblyService,
       CompilerValidationPipeline compilerValidationPipeline) {
     this(
@@ -1391,7 +1391,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   }
 
   private void pinRuntimeDescriptors() {
-    if (packRepository instanceof ClasspathQipKnowledgePackRepository classpathPack) {
+    if (packRepository instanceof ClasspathCipKnowledgePackRepository classpathPack) {
       classpathPack.requireRuntimeDescriptorVersion();
       classpathPack.requireRuntimeDescriptorDigest();
     }

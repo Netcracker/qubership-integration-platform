@@ -39,15 +39,15 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTyp
 import org.qubership.integration.platform.ai.productpipeline.profile.CompilerPipelinePolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackIngestionService;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.skill.registry.SkillExecutorRegistry;
 
 class CompilerRunPinResolverTest {
@@ -693,15 +693,15 @@ class CompilerRunPinResolverTest {
 
   private static CompilerPipelineIndex buildProductionIndex() {
     try {
-      QipKnowledgePackTestSupport.configureAddonPackRoot();
-      var policy = QipKnowledgePackTestSupport.buildPolicyFromFixture();
-      var packRoot = QipKnowledgePackFixturePaths.packRoot();
-      QipKnowledgePackIngestionService ingestionService = new QipKnowledgePackIngestionService();
+      CipKnowledgePackTestSupport.configureAddonPackRoot();
+      var policy = CipKnowledgePackTestSupport.buildPolicyFromFixture();
+      var packRoot = CipKnowledgePackFixturePaths.packRoot();
+      CipKnowledgePackIngestionService ingestionService = new CipKnowledgePackIngestionService();
       var result = ingestionService.ingest(packRoot);
-      QipKnowledgePackScanResult scanResult =
-          new QipKnowledgePackScanResult(packRoot, result.manifest().version(), result.files());
+      CipKnowledgePackScanResult scanResult =
+          new CipKnowledgePackScanResult(packRoot, result.manifest().version(), result.files());
       return new CompilerPipelineIndexBuilder()
-          .build(scanResult, policy, QipKnowledgePackFixturePaths.addonRoot());
+          .build(scanResult, policy, CipKnowledgePackFixturePaths.addonRoot());
     } catch (Exception e) {
       throw new IllegalStateException("Failed to build production pipeline index", e);
     }
@@ -841,7 +841,7 @@ class CompilerRunPinResolverTest {
             "structural-validation");
     return new CompilerPipelineIndex(
         CompilerPipelineIndexBuilder.SCHEMA_VERSION,
-        new QipKnowledgePackVersion("v1_0_0", "v1_0_0"),
+        new CipKnowledgePackVersion("v1_0_0", "v1_0_0"),
         new CompilerPipelineIndexSource("catalog", "policy"),
         List.of(),
         new CompilerPackageIdentity("compiler-v2", "1.0.0", "digest-ready-v2"),
@@ -1096,8 +1096,8 @@ class CompilerRunPinResolverTest {
         revision.executionEdges(),
         revision.mappingIntents(),
         List.of(
-            new QipKnowledgeCitation(
-                "cite-1", QipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
+            new CipKnowledgeCitation(
+                "cite-1", CipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
   }
 
   private static ChainSemanticRevision copy(
@@ -1105,7 +1105,7 @@ class CompilerRunPinResolverTest {
       List<SemanticEntryPoint> entryPoints,
       List<SemanticExecutionEdge> edges,
       List<MappingIntent> mappings,
-      List<QipKnowledgeCitation> citations) {
+      List<CipKnowledgeCitation> citations) {
     return new ChainSemanticRevision(
         base.schemaVersion(),
         base.revisionId(),

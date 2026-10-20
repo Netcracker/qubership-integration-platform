@@ -65,7 +65,7 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPla
 import org.qubership.integration.platform.ai.qipknowledge.validation.PlanGraphValidationInput;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResultMerger;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
@@ -77,7 +77,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult;
 import org.qubership.integration.platform.ai.skill.orchestration.SkillRunContext;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
@@ -123,7 +123,7 @@ public class CompilerSkillRuntime {
   private final int maxRepairAttempts;
   private final GraphPatchExecutionContextStore executionContextStore;
   private final CanonicalGraphDigest canonicalGraphDigest;
-  private final QipKnowledgePackRepository packRepository;
+  private final CipKnowledgePackRepository packRepository;
   private final DeterministicElementSchemaService schemaService;
 
   @Inject
@@ -154,7 +154,7 @@ public class CompilerSkillRuntime {
       AppConfig appConfig,
       GraphPatchExecutionContextStore executionContextStore,
       CanonicalGraphDigest canonicalGraphDigest,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       DeterministicElementSchemaService schemaService) {
     this.documentService = documentService;
     this.contextBuilder = contextBuilder;
@@ -213,7 +213,7 @@ public class CompilerSkillRuntime {
       CaptureRepairMessageBuilder repairMessageBuilder,
       ChatMemorySanitizer chatMemorySanitizer,
       AppConfig appConfig,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GraphPatchExecutionContextStore executionContextStore,
       DeterministicElementSchemaService schemaService) {
     this(
@@ -391,7 +391,7 @@ public class CompilerSkillRuntime {
       String capabilityId,
       SkillWorkspace workspace,
       CaptureRoute route,
-      QipKnowledgeCapabilityPhase phase) {
+      CipKnowledgeCapabilityPhase phase) {
     return switch (phase) {
       case DISCOVERY -> finishDiscoveryRun(context.conversationId(), capabilityId, route);
       case GRAPH_CONSTRUCTION -> finishGraphConstructionRun(context.conversationId(), capabilityId);
@@ -808,7 +808,7 @@ public class CompilerSkillRuntime {
 
   private Multi<String> agentStreamFor(
       CaptureRoute route,
-      QipKnowledgeCapabilityPhase phase,
+      CipKnowledgeCapabilityPhase phase,
       String conversationId,
       String memoryId,
       String capabilityId,
@@ -1406,7 +1406,7 @@ public class CompilerSkillRuntime {
     return "";
   }
 
-  private static boolean toolMatchesPhase(CaptureTool captureTool, QipKnowledgeCapabilityPhase phase) {
+  private static boolean toolMatchesPhase(CaptureTool captureTool, CipKnowledgeCapabilityPhase phase) {
     return switch (phase) {
       case DISCOVERY ->
           captureTool == CaptureTool.CAPTURE_REQUIREMENT_BRIEF
@@ -1455,6 +1455,8 @@ public class CompilerSkillRuntime {
                 ? CaptureSlot.SCRIPT_BODY_REPAIR
                 : CaptureSlot.GRAPH_PATCH;
         captureSession.clear(CaptureKey.capability(slot, conversationId, capabilityId));
+        captureSession.clear(CaptureKey.capability(
+            CaptureSlot.SCRIPT_BODY_REPAIR_PROGRESS, conversationId, capabilityId));
       }
       case CAPTURE_VALIDATION_RESULT ->
           captureSession.clear(

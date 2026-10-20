@@ -5,6 +5,6 @@ public record SkillDescriptor(
     String skillId,
     String title,
     String sourcePath,
-    QipKnowledgeCapabilityPhase phase,
+    CipKnowledgeCapabilityPhase phase,
     boolean fileTransportOnly,
     String rawSummary) {}

@@ -7,7 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 
 @Tag("certified-pack")
 class RoutingAndErrorHandlingContractTest {
@@ -16,7 +16,7 @@ class RoutingAndErrorHandlingContractTest {
   void validationRulesAllowOneOrMoreDirectIfChildren() throws Exception {
     String rules =
         Files.readString(
-            QipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai/validation-rules.yaml"));
+            CipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai/validation-rules.yaml"));
 
     assertFalse(rules.contains("condition.if_children_count != 1"));
     assertFalse(rules.contains("exactly one if child"));
@@ -29,7 +29,7 @@ class RoutingAndErrorHandlingContractTest {
   void routingAddonAllowsManyDirectIfChildren() throws Exception {
     String addon =
         Files.readString(
-            QipKnowledgePackFixturePaths.addonRoot()
+            CipKnowledgePackFixturePaths.addonRoot()
                 .resolve("skills/cip-routing-generator.addon.md"));
 
     assertFalse(addon.toLowerCase().contains("exactly one if"));
@@ -41,7 +41,7 @@ class RoutingAndErrorHandlingContractTest {
   void errorHandlingAddonOwnsPropertiesButNotTopology() throws Exception {
     String addon =
         Files.readString(
-            QipKnowledgePackFixturePaths.addonRoot()
+            CipKnowledgePackFixturePaths.addonRoot()
                 .resolve("skills/cip-error-handling-generator.addon.md"));
 
     assertTrue(addon.contains("`cip-structure-generator` owns wrapper nodes"));
@@ -55,7 +55,7 @@ class RoutingAndErrorHandlingContractTest {
   @Test
   void errorHandlingAddonShipsNoTopologyPatchExample() {
     Path example =
-        QipKnowledgePackFixturePaths.addonRoot()
+        CipKnowledgePackFixturePaths.addonRoot()
             .resolve("examples/cip-error-handling-generator/add-try-catch-wrapper-atomic.json");
 
     assertFalse(Files.exists(example));

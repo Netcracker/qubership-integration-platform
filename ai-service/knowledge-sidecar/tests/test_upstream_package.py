@@ -34,7 +34,9 @@ def test_context_uses_compiled_capability_mapping(runtime: RuntimeAdapter) -> No
         max_chars=20_000,
     )
     ids = {item["id"] for item in result.objects}
-    assert "CIP:GEN-000049" in ids
+    assert "CIP:GEN-000005" in ids
+    generator = next(item for item in result.objects if item["id"] == "CIP:GEN-000005")
+    assert "gen-04-error-handling-generator" in generator["metadata"]["aliases"]
     assert result.content_chars <= 20_000
     assert set(result.capabilities) >= {
         "error",

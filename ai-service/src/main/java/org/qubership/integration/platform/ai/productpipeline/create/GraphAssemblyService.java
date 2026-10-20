@@ -19,7 +19,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructur
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
-import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.CipSchemaYamlParser;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.schema.UnconditionalElementDefaults;
@@ -53,7 +53,7 @@ public class GraphAssemblyService implements CompilerNodeExecutionAdapter {
         canonicalGraphDigest,
         new GraphPatchApplier(),
         new ObjectMapper(),
-        new SchemaRefResolver(new SchemaResourceLoader(), new QipSchemaYamlParser()));
+        new SchemaRefResolver(new SchemaResourceLoader(), new CipSchemaYamlParser()));
   }
 
   GraphAssemblyService(

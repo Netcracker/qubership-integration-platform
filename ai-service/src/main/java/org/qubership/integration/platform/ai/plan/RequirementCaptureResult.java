@@ -87,6 +87,9 @@ public record RequirementCaptureResult(
             RequirementCaptureProjection.resolvedTargets(acceptedDraft), uploadedSpecInteractions);
     Readiness readiness = acceptedDraft.readyForPlan() ? Readiness.READY : Readiness.PARTIAL;
     NextAction action = nextAction(issues, pending, readiness, draft, directive);
+    if (action == NextAction.COMPLETE_DRAFT && !acceptedDraft.openQuestions().isEmpty()) {
+      action = NextAction.ASK_USER;
+    }
     return new RequirementCaptureResult(
         accepted, changed, revision, readiness, action, issues, pending, draft,
         resolutions(draft, acceptedDraft.catalogBindings(),

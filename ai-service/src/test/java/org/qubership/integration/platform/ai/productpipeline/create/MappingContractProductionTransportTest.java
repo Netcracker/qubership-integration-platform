@@ -90,8 +90,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
@@ -140,8 +140,8 @@ class MappingContractProductionTransportTest {
         new InMemorySkillWorkspaceStore(new ChainPlanStore());
     SkillExecutorRegistry skillRegistry = mock(SkillExecutorRegistry.class);
     when(skillRegistry.require("cip-script-generator")).thenReturn(new MustNotRunScriptExecutor());
-    QipKnowledgePackRepository packRepository = mock(QipKnowledgePackRepository.class);
-    when(packRepository.activeVersion()).thenReturn(new QipKnowledgePackVersion("v1", "v1"));
+    CipKnowledgePackRepository packRepository = mock(CipKnowledgePackRepository.class);
+    when(packRepository.activeVersion()).thenReturn(new CipKnowledgePackVersion("v1", "v1"));
     CanonicalGraphDigest digest = new CanonicalGraphDigest(MAPPER);
     CompilerSecurityValidator securityValidator = mock(CompilerSecurityValidator.class);
     when(securityValidator.validate(any())).thenReturn(new ValidationResult(true, List.of(), "ok"));
@@ -632,7 +632,7 @@ class MappingContractProductionTransportTest {
   }
 
   private static CompilerSkillContextBuilder contextBuilder() {
-    QipKnowledgePackRepository repository = mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository repository = mock(CipKnowledgePackRepository.class);
     CompilerSkillAddonRepository addonRepository = mock(CompilerSkillAddonRepository.class);
     when(addonRepository.loadForSkill(any())).thenReturn(CompilerSkillAddonContext.empty());
     when(repository.loadCompilerGeneratorSpecIndex())

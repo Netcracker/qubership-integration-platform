@@ -1090,9 +1090,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           </Flex>
         </Flex>
       }
-      classNames={{
-        body: "nokey",
-      }}
     >
       <div
         ref={modalFocusRootRef}

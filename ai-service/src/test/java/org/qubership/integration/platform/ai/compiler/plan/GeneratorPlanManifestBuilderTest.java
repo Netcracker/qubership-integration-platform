@@ -16,10 +16,10 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackIngestionService;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexBuilder;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexSupport;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspace;
@@ -52,12 +52,12 @@ class GeneratorPlanManifestBuilderTest {
 
   @BeforeAll
   static void buildPolicy() throws Exception {
-    policy = QipKnowledgePackTestSupport.buildPolicyFromFixture();
-    Path packRoot = QipKnowledgePackFixturePaths.packRoot();
-    QipKnowledgePackIngestionService ingestionService = new QipKnowledgePackIngestionService();
+    policy = CipKnowledgePackTestSupport.buildPolicyFromFixture();
+    Path packRoot = CipKnowledgePackFixturePaths.packRoot();
+    CipKnowledgePackIngestionService ingestionService = new CipKnowledgePackIngestionService();
     var result = ingestionService.ingest(packRoot);
     var scanResult =
-        new QipKnowledgePackScanResult(
+        new CipKnowledgePackScanResult(
             packRoot, result.manifest().version(), result.files());
     generationSkillIds =
         CompilerPipelineIndexSupport.generationSkillIds(

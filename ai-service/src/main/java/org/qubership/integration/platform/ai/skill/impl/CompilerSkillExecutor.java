@@ -12,7 +12,7 @@ import org.qubership.integration.platform.ai.compiler.CompilerSkillCapabilityGat
 import org.qubership.integration.platform.ai.compiler.CompilerSkillRuntime;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.pipeline.InternalPipelineSkills;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutorKind;
 import org.qubership.integration.platform.ai.skill.executor.StreamingSkillExecutor;
@@ -25,7 +25,7 @@ public final class CompilerSkillExecutor implements StreamingSkillExecutor {
 
   private final CompilerSkillRuntime compilerSkillRuntime;
   private final String capabilityId;
-  private final QipKnowledgeCapabilityPhase phase;
+  private final CipKnowledgeCapabilityPhase phase;
   private final CaptureRoute route;
 
   public CompilerSkillExecutor(
@@ -134,7 +134,7 @@ public final class CompilerSkillExecutor implements StreamingSkillExecutor {
   }
 
   private static CaptureRoute defaultRoute(
-      String capabilityId, QipKnowledgeCapabilityPhase phase) {
+      String capabilityId, CipKnowledgeCapabilityPhase phase) {
     CaptureTool captureTool =
         switch (phase) {
           case DISCOVERY -> CaptureTool.CAPTURE_REQUIREMENT_BRIEF;

@@ -368,7 +368,7 @@ public class DeployChainScenario implements ScenarioHandler {
     if (message == null || message.isBlank()) {
       return Optional.empty();
     }
-    for (String token : message.split("[^0-9a-fA-F-]+")) {
+    for (String token : UserIntentPatterns.extractLeadingIntent(message).split("[^0-9a-fA-F-]+")) {
       if (CatalogIdPatterns.isUuidLike(token)) {
         return Optional.of(token);
       }

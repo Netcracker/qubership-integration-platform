@@ -9,10 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackIngestionService;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
 
 class CompilerPipelineIndexBuilderTest {
 
@@ -136,14 +136,14 @@ class CompilerPipelineIndexBuilderTest {
 
   private CompilerPipelineIndex buildProductionIndex() {
     try {
-      QipKnowledgePackTestSupport.configureAddonPackRoot();
-      var policy = QipKnowledgePackTestSupport.buildPolicyFromFixture();
-      var packRoot = QipKnowledgePackFixturePaths.packRoot();
-      QipKnowledgePackIngestionService ingestionService = new QipKnowledgePackIngestionService();
+      CipKnowledgePackTestSupport.configureAddonPackRoot();
+      var policy = CipKnowledgePackTestSupport.buildPolicyFromFixture();
+      var packRoot = CipKnowledgePackFixturePaths.packRoot();
+      CipKnowledgePackIngestionService ingestionService = new CipKnowledgePackIngestionService();
       var result = ingestionService.ingest(packRoot);
-      QipKnowledgePackScanResult scanResult =
-          new QipKnowledgePackScanResult(packRoot, result.manifest().version(), result.files());
-      return builder.build(scanResult, policy, QipKnowledgePackFixturePaths.addonRoot());
+      CipKnowledgePackScanResult scanResult =
+          new CipKnowledgePackScanResult(packRoot, result.manifest().version(), result.files());
+      return builder.build(scanResult, policy, CipKnowledgePackFixturePaths.addonRoot());
     } catch (Exception e) {
       throw new IllegalStateException("Failed to build production pipeline index", e);
     }
@@ -253,9 +253,9 @@ class CompilerPipelineIndexBuilderTest {
   }
 
   private static CompilerPipelineSourceLoader.SourceSet productionSources() {
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
     return new CompilerPipelineSourceLoader()
-        .load(QipKnowledgePackFixturePaths.packRoot(), QipKnowledgePackFixturePaths.addonRoot());
+        .load(CipKnowledgePackFixturePaths.packRoot(), CipKnowledgePackFixturePaths.addonRoot());
   }
 
   private static CompilerPipelineSourceLoader.SourceSet withAddonOwnership(

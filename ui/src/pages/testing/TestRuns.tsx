@@ -295,8 +295,6 @@ export const TestRuns: React.FC = () => {
     filterButton,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: false,
-    registerDependencies: [isLoading],
   });
 
   return (

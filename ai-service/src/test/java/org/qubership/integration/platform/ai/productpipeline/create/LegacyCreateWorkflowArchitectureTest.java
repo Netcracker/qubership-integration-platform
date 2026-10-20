@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexSource;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexSupport;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class LegacyCreateWorkflowArchitectureTest {
 
@@ -70,7 +70,7 @@ class LegacyCreateWorkflowArchitectureTest {
     CompilerPipelineIndex empty =
         new CompilerPipelineIndex(
             1,
-            new QipKnowledgePackVersion("1.0.0", "1.0.0"),
+            new CipKnowledgePackVersion("1.0.0", "1.0.0"),
             new CompilerPipelineIndexSource("g", "r"),
             List.of(),
             null,

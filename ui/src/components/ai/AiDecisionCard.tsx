@@ -414,7 +414,11 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
       : text.trim();
     if (disabled || clickedRef.current || !trimmed) return;
     clickedRef.current = true;
-    onSubmitClarification?.(trimmed);
+    onSubmitClarification?.(
+      isChainTriggerPicker
+        ? `Use the selected catalog chain-trigger element ID ${trimmed} for this Chain Call.`
+        : trimmed,
+    );
   };
 
   const cardText = decisionCardText(decision);
@@ -677,8 +681,8 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                     {action === "apply-chain-patch" && hasPatchFeedback
                       ? "Review changes"
                       : usePerSpecImport && action === "import-specification"
-                      ? "Import"
-                      : actionLabel(action, decision)}
+                        ? "Import"
+                        : actionLabel(action, decision)}
                   </Button>
                 ))
             )}

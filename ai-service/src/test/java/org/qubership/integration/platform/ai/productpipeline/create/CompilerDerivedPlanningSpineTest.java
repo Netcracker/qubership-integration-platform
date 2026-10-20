@@ -37,8 +37,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructur
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
@@ -63,7 +63,7 @@ class CompilerDerivedPlanningSpineTest {
   private SkillExecutorRegistry skillRegistry;
   private CompilerNodeExecutionAdapterRegistry javaAdapterRegistry;
   private CreateRunBindingStore bindingStore;
-  private QipKnowledgePackRepository packRepository;
+  private CipKnowledgePackRepository packRepository;
   private CompilerDerivedPlanningSpine spine;
 
   @BeforeEach
@@ -73,8 +73,8 @@ class CompilerDerivedPlanningSpineTest {
     skillRegistry = mock(SkillExecutorRegistry.class);
     javaAdapterRegistry = mock(CompilerNodeExecutionAdapterRegistry.class);
     bindingStore = mock(CreateRunBindingStore.class);
-    packRepository = mock(QipKnowledgePackRepository.class);
-    when(packRepository.activeVersion()).thenReturn(new QipKnowledgePackVersion("v1", "v1"));
+    packRepository = mock(CipKnowledgePackRepository.class);
+    when(packRepository.activeVersion()).thenReturn(new CipKnowledgePackVersion("v1", "v1"));
     CanonicalGraphDigest digest = new CanonicalGraphDigest(new com.fasterxml.jackson.databind.ObjectMapper());
     GraphAssemblyService graphAssemblyService = new GraphAssemblyService(digest);
     CompilerSecurityValidator securityValidator = mock(CompilerSecurityValidator.class);

@@ -3,7 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.sema
 import java.util.List;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignArtifacts;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
@@ -22,7 +22,7 @@ public record ChainSemanticRevision(
     List<MappingIntent> mappingIntents,
     List<String> constraints,
     List<String> assumptions,
-    List<QipKnowledgeCitation> citations) {
+    List<CipKnowledgeCitation> citations) {
 
   public static final String CURRENT_SCHEMA_VERSION = "chain-semantic-revision/v1";
 

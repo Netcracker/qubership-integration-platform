@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class CompilerSkillAddonBuildSupportTest {
 
@@ -220,7 +220,7 @@ class CompilerSkillAddonBuildSupportTest {
   void loadForSkillFailsWhenAddonIndexIsMissing(@TempDir Path outputDir) {
     CompilerSkillAddonRepository repository =
         CompilerSkillAddonRepository.forFilesystem(
-            outputDir, new QipKnowledgePackVersion("v1", "v1"), getClass().getClassLoader());
+            outputDir, new CipKnowledgePackVersion("v1", "v1"), getClass().getClassLoader());
 
     IllegalStateException error =
         assertThrows(
@@ -240,7 +240,7 @@ class CompilerSkillAddonBuildSupportTest {
 
     CompilerSkillAddonRepository repository =
         CompilerSkillAddonRepository.forFilesystem(
-            outputDir, new QipKnowledgePackVersion("v1", "v1"), getClass().getClassLoader());
+            outputDir, new CipKnowledgePackVersion("v1", "v1"), getClass().getClassLoader());
     CompilerSkillAddonDocument document =
         repository.loadForSkill("cip-security-generator").skillAddon();
 

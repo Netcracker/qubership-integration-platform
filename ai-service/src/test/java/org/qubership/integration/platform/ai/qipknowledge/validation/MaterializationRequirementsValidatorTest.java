@@ -20,8 +20,8 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator;
 
 class MaterializationRequirementsValidatorTest {
 
@@ -33,7 +33,7 @@ class MaterializationRequirementsValidatorTest {
   @BeforeEach
   void setUp(@TempDir Path outputDir, @TempDir Path addonRoot) throws Exception {
     previousAddonPackRoot = System.getProperty(ADDON_PACK_ROOT_PROPERTY);
-    Path fixtureAddonRoot = QipKnowledgePackFixturePaths.addonRoot();
+    Path fixtureAddonRoot = CipKnowledgePackFixturePaths.addonRoot();
     Files.createDirectories(addonRoot.resolve("global"));
     Files.createDirectories(addonRoot.resolve("skills"));
     try (var globals = Files.newDirectoryStream(fixtureAddonRoot.resolve("global"))) {
@@ -62,13 +62,13 @@ class MaterializationRequirementsValidatorTest {
         """);
 
     System.setProperty(ADDON_PACK_ROOT_PROPERTY, addonRoot.toString());
-    QipKnowledgePackBuildGenerator.generate(QipKnowledgePackFixturePaths.packRoot(), outputDir);
+    CipKnowledgePackBuildGenerator.generate(CipKnowledgePackFixturePaths.packRoot(), outputDir);
     CompilerSkillAddonBuildSupport.materialize(
-        addonRoot, outputDir.resolve(QipKnowledgePackFixturePaths.PACK_DIR));
+        addonRoot, outputDir.resolve(CipKnowledgePackFixturePaths.PACK_DIR));
 
     CompilerSkillAddonRepository addonRepository =
         CompilerSkillAddonRepository.forFilesystem(
-            outputDir, QipKnowledgePackFixturePaths.packVersion(), getClass().getClassLoader());
+            outputDir, CipKnowledgePackFixturePaths.packVersion(), getClass().getClassLoader());
     validator =
         new MaterializationRequirementsValidator(new MaterializationRequirementsLoader(addonRepository));
   }

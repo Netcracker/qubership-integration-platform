@@ -12,6 +12,6 @@ public class JtokkitTokenCountEstimatorProducer {
   @Produces
   @ApplicationScoped
   TokenCountEstimator tokenCountEstimator(AppConfig appConfig) {
-    return new QipJtokkitTokenCountEstimator(appConfig.llm().modelName());
+    return new CipJtokkitTokenCountEstimator(appConfig.llm().modelName());
   }
 }

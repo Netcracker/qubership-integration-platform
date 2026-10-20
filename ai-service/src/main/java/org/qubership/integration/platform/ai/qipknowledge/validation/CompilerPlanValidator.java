@@ -13,8 +13,8 @@ import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSiteVa
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
 import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
@@ -254,7 +254,7 @@ public class CompilerPlanValidator {
         message,
         OWNER_CAPABILITY_ID,
         List.copyOf(affectedNodeIds),
-        List.of(QipKnowledgeCitation.declaredRule(ruleId, QipKnowledgeRefType.VALIDATION_RULE)),
+        List.of(CipKnowledgeCitation.declaredRule(ruleId, CipKnowledgeRefType.VALIDATION_RULE)),
         suggestedFix);
   }
 

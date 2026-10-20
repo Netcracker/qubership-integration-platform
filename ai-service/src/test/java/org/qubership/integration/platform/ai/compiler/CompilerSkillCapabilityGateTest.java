@@ -7,12 +7,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class CompilerSkillCapabilityGateTest {
 
@@ -21,11 +21,11 @@ class CompilerSkillCapabilityGateTest {
   @BeforeAll
   static void setUpPack() throws Exception {
     Path outputDir = Files.createTempDirectory("qip-capability-gate-test");
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
-    QipKnowledgePackBuildGenerator.generate(QipKnowledgePackFixturePaths.packRoot(), outputDir);
-    QipKnowledgePackVersion version = QipKnowledgePackVersion.fromPath(QipKnowledgePackFixturePaths.packRoot());
-    QipKnowledgePackRepository repository =
-        new FilesystemQipKnowledgePackRepository(outputDir, version);
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackBuildGenerator.generate(CipKnowledgePackFixturePaths.packRoot(), outputDir);
+    CipKnowledgePackVersion version = CipKnowledgePackVersion.fromPath(CipKnowledgePackFixturePaths.packRoot());
+    CipKnowledgePackRepository repository =
+        new FilesystemCipKnowledgePackRepository(outputDir, version);
     gate = new CompilerSkillCapabilityGate(repository);
   }
 

@@ -17,7 +17,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
@@ -195,7 +195,7 @@ class GeneratorTopologyOwnershipContractTest {
 
   private AddonRuntimeMetadata metadata(String skillId) {
     Path addon =
-        QipKnowledgePackFixturePaths.addonRoot()
+        CipKnowledgePackFixturePaths.addonRoot()
             .resolve("skills")
             .resolve(skillId + ".addon.md");
     AddonRuntimeMetadata metadata = parser.parseAddonFile(addon);

@@ -9,12 +9,12 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndexBuilder;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanner;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanner;
 
 class CompilerSkillCatalogLoaderTest {
 
-  private final QipKnowledgePackScanner scanner = new QipKnowledgePackScanner();
+  private final CipKnowledgePackScanner scanner = new CipKnowledgePackScanner();
   private final CompilerSkillCatalogLoader loader = new CompilerSkillCatalogLoader();
 
   @Test
@@ -39,7 +39,7 @@ class CompilerSkillCatalogLoaderTest {
         ```
         """);
 
-    QipKnowledgePackScanResult scan = scanner.scan(tempDir);
+    CipKnowledgePackScanResult scan = scanner.scan(tempDir);
     CompilerSkillDescriptor skill = loader.load(scan).find("cip-trigger-generator").orElseThrow();
     var spec = new CompilerGeneratorSpecIndexBuilder().build(scan)
         .findBySkillName("cip-trigger-generator").orElseThrow();
@@ -226,7 +226,7 @@ class CompilerSkillCatalogLoaderTest {
   }
 
   private CompilerSkillCatalog load(Path packRoot) {
-    QipKnowledgePackScanResult scanResult = scanner.scan(packRoot);
+    CipKnowledgePackScanResult scanResult = scanner.scan(packRoot);
     return loader.load(scanResult);
   }
 

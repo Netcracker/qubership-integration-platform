@@ -26,7 +26,7 @@ import org.qubership.integration.platform.ai.schema.ElementPatchDefaultsApplicat
 import org.qubership.integration.platform.ai.schema.ElementPatchValidationMessages;
 import org.qubership.integration.platform.ai.schema.ElementPatchValidator;
 import org.qubership.integration.platform.ai.schema.ElementPropertiesSchemaModelBuilder;
-import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.CipSchemaYamlParser;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
@@ -38,7 +38,7 @@ class RecoveryEvidenceFactoryTest {
   void fromElementValidationKeepsValidatorJsonAndStructuredKeys() throws Exception {
     ObjectMapper mapper = new ObjectMapper();
     SchemaResourceLoader loader = new SchemaResourceLoader();
-    SchemaRefResolver resolver = new SchemaRefResolver(loader, new QipSchemaYamlParser());
+    SchemaRefResolver resolver = new SchemaRefResolver(loader, new CipSchemaYamlParser());
     ChainPlanNode node = failingServiceCallNode();
     String validationJson = liveValidationJson(node, mapper, resolver);
 
@@ -68,7 +68,7 @@ class RecoveryEvidenceFactoryTest {
         DeterministicElementSchemaService.createForUnitTests(mapper);
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
     SchemaRefResolver schemaRefResolver =
-        new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+        new SchemaRefResolver(schemaResourceLoader, new CipSchemaYamlParser());
     MaterializationRequirementsValidator requirements =
         mock(MaterializationRequirementsValidator.class);
     when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());

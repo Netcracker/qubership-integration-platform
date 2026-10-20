@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class ValidationArtifactTest {
 
@@ -32,7 +32,7 @@ class ValidationArtifactTest {
 
   @Test
   void roundTripsValidationIssue() throws Exception {
-    QipKnowledgePackVersion version = new QipKnowledgePackVersion("v1_0_1", "v1_0_1");
+    CipKnowledgePackVersion version = new CipKnowledgePackVersion("v1_0_1", "v1_0_1");
     ValidationIssue original =
         new ValidationIssue(
             "VR-L-001",
@@ -41,9 +41,9 @@ class ValidationArtifactTest {
             "cip-configuration-validator",
             List.of("split-1"),
             List.of(
-                new QipKnowledgeCitation(
+                new CipKnowledgeCitation(
                     "VR-L-001",
-                    QipKnowledgeRefType.VALIDATION_RULE,
+                    CipKnowledgeRefType.VALIDATION_RULE,
                     "knowledge/ai/validation-rules.yaml",
                     version,
                     "VR-L-001")),

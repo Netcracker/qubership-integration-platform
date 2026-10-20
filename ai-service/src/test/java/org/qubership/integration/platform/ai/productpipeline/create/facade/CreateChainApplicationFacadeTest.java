@@ -571,6 +571,36 @@ class CreateChainApplicationFacadeTest {
   }
 
   @Test
+  void resetStartsNewApprovalFlowAndRejectsTheOldPlanAfterReload() {
+    String taskId = "task-reset-approval";
+    fixture = Fixture.createWithNeedingInputDiscovery();
+    CreateChainApplicationFacade facade = fixture.facade();
+    reachPlanApproval(facade, taskId);
+    var oldApproval = assertInstanceOf(CreateChainPendingAction.Approve.class,
+        facade.snapshot(taskId).orElseThrow().pendingAction());
+    String oldRunId = fixture.runStore().loadByConversation(taskId).orElseThrow().run().runId();
+
+    fixture.bindingStore().reset(taskId);
+    fixture.runStore().resetConversation(taskId);
+    fixture = new Fixture(fixture.blobs, fixture.mapper, fixture.knowledge, fixture.catalog, true, false);
+    facade = fixture.facade();
+    assertTrue(facade.snapshot(taskId).isEmpty());
+    String expectedImportRunId = facade.importApprovalRunId(taskId);
+
+    facade.start(new StartCreateChainCommand(taskId, "create a fresh HTTP API"))
+        .collect().asList().await().indefinitely();
+    String nextRunId = fixture.runStore().loadByConversation(taskId).orElseThrow().run().runId();
+    assertEquals(expectedImportRunId, nextRunId);
+    org.junit.jupiter.api.Assertions.assertNotEquals(oldRunId, nextRunId);
+    assertFalse(facade.approve(new ApproveCreateChainArtifactCommand(taskId,
+        oldApproval.artifactType(), oldApproval.artifactHash(), oldApproval.revision()))
+        instanceof ApproveCreateChainOutcome.Accepted);
+    assertEquals("create a fresh HTTP API", fixture.lastDiscoveryUserText());
+    assertTrue(fixture.runStore().load(oldRunId).isPresent());
+    reachPlanApproval(facade, taskId);
+  }
+
+  @Test
   void exactApprovalMatrix() {
     CreateChainApplicationFacade facade = fixture.facade();
     String taskId = "task-approve-1";
@@ -1255,6 +1285,7 @@ class CreateChainApplicationFacadeTest {
 
         @Override
         public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+          lastDiscoveryUserText.set(context.attributeAsString("userText"));
           String needInputMessage = blankNeedInputReason ? "" : "need input";
           if (needInputFirst && calls.incrementAndGet() <= needInputTimes) {
             return Multi.createFrom()

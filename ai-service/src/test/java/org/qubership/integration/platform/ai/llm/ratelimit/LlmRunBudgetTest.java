@@ -15,6 +15,8 @@ import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import dev.langchain4j.model.output.TokenUsage;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 
@@ -275,14 +277,67 @@ class LlmRunBudgetTest {
     assertEquals(1, budget.state("run").requests());
   }
 
+  @ParameterizedTest
+  @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+  void completionRejectsExhaustedResourcesBeforePublishingTheResponse(boolean streaming, boolean timeLimit) {
+    budget();
+    when(config.llm().maxTokensPerRun()).thenReturn(1000L);
+    when(config.llm().maxActiveTimePerRun()).thenReturn(java.time.Duration.ofMillis(50));
+    var start = java.time.Instant.parse("2026-10-19T17:00:00Z");
+    var now = new java.util.concurrent.atomic.AtomicReference<>(start);
+    var testClock = mock(Clock.class);
+    when(testClock.instant()).thenAnswer(call -> now.get());
+    var budget = new LlmRunBudget(blobs, mapper, config.llm(), testClock);
+    var defaults = DefaultChatRequestParameters.builder().maxOutputTokens(100).build();
+    var request = ChatRequest.builder().messages(UserMessage.from("approved source")).build();
+    java.util.function.Supplier<ChatResponse> response = () -> {
+      if (timeLimit) { now.set(start.plusMillis(50)); }
+      return ChatResponse.builder().aiMessage(AiMessage.from("late answer"))
+          .tokenUsage(timeLimit ? new TokenUsage(10, 20) : new TokenUsage(600, 600)).build();
+    };
+    if (streaming) {
+      StreamingChatModel upstream = mock(StreamingChatModel.class);
+      when(upstream.defaultRequestParameters()).thenReturn(defaults);
+      doAnswer(call -> {
+        ((StreamingChatResponseHandler) call.getArgument(1)).onCompleteResponse(response.get());
+        return null;
+      }).when(upstream).chat(any(ChatRequest.class), any(StreamingChatResponseHandler.class));
+      var wrapper = new RateLimitStreamingChatModel(upstream, config, seconds -> {},
+          new RateLimitErrorClassifier(), new RateLimitWaitPolicy()).withRunBudget(budget);
+      var handler = mock(StreamingChatResponseHandler.class);
+      LlmRunBudget.withRun("run", () -> { wrapper.chat(request, handler); return null; });
+      verify(handler).onError(isA(LlmRunBudget.Exhausted.class));
+      verify(handler, never()).onCompleteResponse(any());
+    } else {
+      ChatModel upstream = mock(ChatModel.class);
+      when(upstream.defaultRequestParameters()).thenReturn(defaults);
+      when(upstream.chat(any(ChatRequest.class))).thenAnswer(call -> response.get());
+      var wrapper = new RateLimitChatModel(upstream, config, seconds -> {},
+          new RateLimitErrorClassifier(), new RateLimitWaitPolicy()).withRunBudget(budget);
+      assertThrows(LlmRunBudget.Exhausted.class,
+          () -> LlmRunBudget.withRun("run", () -> wrapper.chat(request)));
+    }
+    assertNotNull(budget.state("run").refusal());
+    assertEquals(1, budget.state("run").requests());
+    assertTrue(budget.state("run").active().isEmpty());
+    assertEquals(timeLimit ? 50 : 0, budget.state("run").activeMillis());
+    assertEquals(timeLimit ? 30 : 1200, budget.state("run").tokens());
+  }
+
   @Test
   void simultaneousRequestsShareActiveTimeInsteadOfReceivingSeparateFullDeadlines() throws Exception {
-    var budget = budget();
+    budget();
+    var start = java.time.Instant.parse("2026-10-07T09:00:00Z");
+    var now = new java.util.concurrent.atomic.AtomicReference<>(start);
+    var testClock = mock(Clock.class);
+    when(testClock.instant()).thenAnswer(call -> now.get());
+    var budget = new LlmRunBudget(blobs, mapper, config.llm(), testClock);
     var warm = budget.reserve("warm", 1, 1);
     budget.complete(warm, null);
     when(config.llm().maxActiveTimePerRun()).thenReturn(java.time.Duration.ofMillis(300));
     var tickets = java.util.List.of(budget.reserve("parallel", 1, 1), budget.reserve("parallel", 1, 1));
     var entered = new java.util.concurrent.CountDownLatch(2);
+    var release = new java.util.concurrent.CountDownLatch(1);
     var failures = new java.util.concurrent.CopyOnWriteArrayList<Throwable>();
     var workers = new java.util.ArrayList<Thread>();
     for (var ticket : tickets) {
@@ -290,7 +345,7 @@ class LlmRunBudgetTest {
         try {
           budget.invoke(ticket, () -> {
             entered.countDown();
-            try { entered.await(1, java.util.concurrent.TimeUnit.SECONDS); Thread.sleep(1000); }
+            try { release.await(); }
             catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
             return null;
           });
@@ -298,12 +353,18 @@ class LlmRunBudgetTest {
         finally { budget.complete(ticket, null); }
       }));
     }
-    for (Thread worker : workers) { worker.join(2000); assertFalse(worker.isAlive()); }
+    try {
+      assertTrue(entered.await(2, java.util.concurrent.TimeUnit.SECONDS));
+      now.set(start.plusMillis(150));
+      for (Thread worker : workers) { worker.join(2000); assertFalse(worker.isAlive()); }
+    } finally {
+      release.countDown();
+    }
     assertEquals(0, entered.getCount());
     assertEquals(2, failures.size());
     failures.forEach(failure -> assertInstanceOf(LlmRunBudget.Exhausted.class, failure));
-    assertTrue(budget.state("parallel").activeMillis() < 500,
-        "Both requests must stop at the shared deadline, including timer resolution");
+    assertEquals(300, budget.state("parallel").activeMillis(),
+        "Both requests share the summed active time allowance");
     assertEquals(2, budget.state("parallel").requests());
   }
 

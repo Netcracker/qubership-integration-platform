@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
@@ -223,14 +225,18 @@ class ProductRequirementBriefToolTest {
     assertTrue(candidate.get() == null);
   }
 
-  @Test
-  void projectsApprovedFieldMappingWhenModelOmitsIt() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void projectsApprovedFieldMapping(boolean modelIncludesMapping) {
     ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION,
         approvedWithTypedMapping(), candidate::set);
 
     ProductRequirementBriefTool.Result result = tool.capture(
         new RequirementAnalysisCapture("Forward task", List.of("POST task input"), List.of(),
-            "Copy title to Subject", List.of(), List.of()), CONVERSATION);
+            "Copy title to Subject", List.of(), modelIncludesMapping
+                ? List.of(new RequirementAnalysisCapture.Mapping("http-in", "http-out",
+                    List.of(new RequirementAnalysisCapture.Rule("title", "Subject", null)), null))
+                : List.of()), CONVERSATION);
 
     assertTrue(result.accepted(), result.toString());
     RequirementBrief brief = (RequirementBrief) candidate.get();
@@ -239,6 +245,44 @@ class ProductRequirementBriefToolTest {
     assertEquals("Subject", brief.mappingIntents().getFirst().rules().getFirst().targetPath());
     assertEquals(MappingPort.OUTPUT, brief.mappingIntents().getFirst().sourcePort());
     assertEquals(MappingPort.REQUEST, brief.mappingIntents().getFirst().targetPort());
+  }
+
+  @Test
+  void authoredMappingKeepsCoverageThroughCanonicalEditsAndExplicitRename() {
+    RequirementDraft approved = approvedWithTypedMapping();
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
+    assertTrue(tool.capture(new RequirementAnalysisCapture("Forward task", List.of("POST task input"),
+        List.of(), "Copy title to Subject", List.of(), List.of()), CONVERSATION).accepted());
+    RequirementBrief brief = (RequirementBrief) candidate.get();
+    var intent = brief.mappingIntents().getFirst();
+    var validator = new RequirementBriefCoverageValidator();
+
+    var supplement = MappingTurnProcessor.process(brief, "Add the source name", (current, message) ->
+        MappingTurnResult.changes(new MappingTurnResult.AddRule(
+            intent.mappingIntentId(), "\"salesforce\"", "sourceAppName", null)));
+
+    assertTrue(supplement.applied());
+    assertTrue(validator.validate(approved, supplement.brief()).isEmpty(),
+        () -> validator.validate(approved, supplement.brief()).toString());
+    assertEquals(List.of("mapping-title-subject"),
+        supplement.brief().mappingIntents().getFirst().rules().getFirst().requirementIds());
+
+    var renamed = MappingTurnProcessor.process(supplement.brief(), "Rename Subject to Title", (current, message) ->
+        MappingTurnResult.changes(new MappingTurnResult.UpdateRule(
+            intent.mappingIntentId(), "Subject", "", "Title", null)));
+
+    assertTrue(renamed.applied());
+    var renamedRule = renamed.brief().mappingIntents().getFirst().rules().getFirst();
+    assertEquals("$.title", renamedRule.sourcePath());
+    assertEquals("$.Title", renamedRule.targetPath());
+    assertEquals(List.of("mapping-title-subject"), renamedRule.requirementIds());
+    assertTrue(validator.validate(approved, renamed.brief()).isEmpty(),
+        () -> validator.validate(approved, renamed.brief()).toString());
+    assertTrue(validator.validate(approved, brief.withMappingIntents(List.of())).isPresent());
+    var unapprovedRename = renamed.brief().withMappingIntents(List.of(
+        intent.withRules(List.of(renamedRule.withStatus(
+            org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus.PROPOSED)))));
+    assertTrue(validator.validate(approved, unapprovedRename).isPresent());
   }
 
   @Test

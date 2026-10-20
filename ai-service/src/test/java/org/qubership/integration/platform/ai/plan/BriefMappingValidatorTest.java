@@ -19,6 +19,21 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 
 class BriefMappingValidatorTest {
 
+  @Test
+  void normalizationPreservesRetainedContextConditionAndFactIdentity() {
+    var rule = new MappingIntentRule("result-id", List.of("response-execution-id"), "executionId",
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+            new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Context("saved-execution")),
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingCondition(
+            org.qubership.integration.platform.ai.qipknowledge.artifact.MappingCondition.When.SUCCESS, "create-task"),
+        MappingRuleStatus.USER_DEFINED);
+
+    var classified = BriefMappingValidator.classify(List.of(rule),
+        MappingContract.unknown(), MappingContract.unknown());
+
+    assertEquals(List.of(rule.withTargetPath("$.executionId")), classified);
+  }
+
   private static final MappingContract SOURCE =
       MappingContract.of(
           new MappingContract.Field("$.orderId", "string", true),

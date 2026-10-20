@@ -15,7 +15,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 
 /**
  * Deterministic JSON bytes and SHA-256 for a semantic revision. Unordered collections are sorted
@@ -235,11 +235,11 @@ public class ChainSemanticCanonicalizer {
     return List.copyOf(copy);
   }
 
-  private static List<QipKnowledgeCitation> sortCitations(List<QipKnowledgeCitation> citations) {
-    List<QipKnowledgeCitation> copy = new ArrayList<>(citations);
+  private static List<CipKnowledgeCitation> sortCitations(List<CipKnowledgeCitation> citations) {
+    List<CipKnowledgeCitation> copy = new ArrayList<>(citations);
     copy.sort(
         Comparator.comparing(
-            QipKnowledgeCitation::refId, Comparator.nullsFirst(String::compareTo)));
+            CipKnowledgeCitation::refId, Comparator.nullsFirst(String::compareTo)));
     return List.copyOf(copy);
   }
 
