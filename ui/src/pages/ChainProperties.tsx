@@ -205,16 +205,16 @@ export const ChainProperties: React.FC = () => {
             />
           </Form.Item>
           <Form.Item label="Description" name="description">
-            <TextArea className="fixed-textarea" disabled={disabled} />
+            <TextArea className="fixed-textarea" />
           </Form.Item>
           <Form.Item label="Business Description" name="businessDescription">
-            <TextArea className="fixed-textarea" disabled={disabled} />
+            <TextArea className="fixed-textarea" />
           </Form.Item>
           <Form.Item label="Assumptions" name="assumptions">
-            <TextArea className="fixed-textarea" disabled={disabled} />
+            <TextArea className="fixed-textarea" />
           </Form.Item>
           <Form.Item label="Out of Scope" name="outOfScope">
-            <TextArea className="fixed-textarea" disabled={disabled} />
+            <TextArea className="fixed-textarea" />
           </Form.Item>
           <ChainExtensionProperties onChange={() => setHasChanges(true)} />
         </Form>
