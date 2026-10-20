@@ -4,8 +4,6 @@
  */
 import { test, expect, type APIResponse } from "@playwright/test";
 import { firingHistory, SCHEDULER_FIRES_ON_ANOTHER_DOMAIN } from "../runtime/micro-defects.js";
-import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "../k8s/catalog-defects.js";
-import { countedAnswer, VALIDATION_READ_BEFORE_ALERTS } from "../global/catalog-defects.js";
 import { withHeldAnswer, type HeldCall } from "../../support/held-call.js";
 import { strikes, strikesAsKnown } from "../../support/known-defect.js";
 import { STRUCK_ANNOTATION } from "../../registry/elements.js";
@@ -13,16 +11,6 @@ import { linesOfChain, withEngineLines } from "../../support/logs.js";
 import type { Env } from "../../env/index.js";
 
 const TAGS = { tag: ["@infra", "@tier1"] };
-
-/** The message of the failure `assertion` throws, as `strikesAsKnown` reads it. */
-function failureOf(assertion: () => void): string {
-  try {
-    assertion();
-  } catch (cause) {
-    return String(cause);
-  }
-  throw new Error("the assertion passed, so there is no failure to read");
-}
 
 // A classic regression of the same feature can fail with the same message, and it has to stay red.
 test("a micro defect is known only on the micro engine, and the same failure on classic is a real one", TAGS, async () => {
@@ -106,41 +94,4 @@ async function heldAnswerFailure(failure: string, status: number, body: string):
 test("a step that fails while a call is held names what the held call answered", TAGS, async () => {
   const held = '{"element":"long-running","heldMs":12000}';
   expect(await heldAnswerFailure("no live exchange for chain c1 was ever listed", 200, held)).toContain(`the held call answered 200 ${held}`);
-});
-
-/** What `strikesAsKnown` reads when the discovery case's result assertion fails on `read`. */
-function resultFailure(read: unknown): string {
-  return failureOf(() => expect(read, RESULT_AT_100).toBeDefined());
-}
-
-test("an empty discovery result at progress 100 is the known defect on either engine, and a failed read is not", TAGS, () => {
-  const empty = resultFailure(undefined);
-  expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "classic", empty)).toBe(true);
-  expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "micro", empty)).toBe(true);
-
-  // The catalog refused the read, so the result was never empty.
-  const refused = "Error: GET http://localhost:8090/v1/systems/discovery/result answered 500: Error in Autodiscovery service: timeout";
-  expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "classic", refused)).toBe(false);
-  // Another assertion that received nothing is not the discovery result.
-  expect(strikes(DISCOVERY_RESULT_AFTER_PROGRESS, "classic", "Error: expect(received).toBeDefined()\n\nReceived: undefined")).toBe(false);
-});
-
-/** What `strikesAsKnown` reads when the diagnostic round-trip's findings assertion fails on `found`. */
-function findingsFailure(found: number, alertsCount: number, entities: number): string {
-  return failureOf(() => expect(new Array(found), `the run did not flag the script this case added ${countedAnswer(alertsCount, entities)}`).toHaveLength(1));
-}
-
-test("a validation read whose count and entities disagree is the known defect on either engine, and a consistent read is not", TAGS, () => {
-  // CI run 38680913931: the count already held the new alert, the entities did not.
-  const straddled = findingsFailure(0, 207, 206);
-  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", straddled)).toBe(true);
-  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "micro", straddled)).toBe(true);
-
-  // A count that differs only by a digit the other number lacks still differs.
-  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", findingsFailure(0, 20, 206))).toBe(true);
-  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", findingsFailure(0, 206, 2060))).toBe(true);
-
-  // The answer agrees with itself, so the rule is what missed the script.
-  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", findingsFailure(0, 206, 206))).toBe(false);
-  expect(strikes(VALIDATION_READ_BEFORE_ALERTS, "classic", "Error: expect(received).toHaveLength(expected)\n\nExpected length: 1\nReceived length: 0")).toBe(false);
 });

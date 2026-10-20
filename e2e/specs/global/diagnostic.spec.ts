@@ -38,8 +38,6 @@
 import { test, expect } from "../../support/fixtures.js";
 import { tokenized } from "../../support/run.js";
 import type { Catalog, DiagnosticValidation, ValidationChainEntity } from "../../support/catalog.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
-import { countedAnswer, VALIDATION_READ_BEFORE_ALERTS } from "./catalog-defects.js";
 
 /**
  * The rule this spec drives, spelled out rather than looked up by title.
@@ -86,9 +84,12 @@ function findingsFor(validation: DiagnosticValidation, chainId: string): Validat
   return (validation.chainEntities ?? []).filter((entity) => entity.chainId === chainId);
 }
 
-/** The answer's alert count beside its entity list's length, which the known defect's matcher compares. */
+/**
+ * The answer's alert count beside its entity list's length. Until #1140 a read during a run could
+ * answer `OK` with the previous run's alerts and the new count, and the two numbers then differ.
+ */
 function counted(validation: DiagnosticValidation): string {
-  return countedAnswer(validation.alertsCount, (validation.chainEntities ?? []).length);
+  return `(${validation.alertsCount} alerts, ${(validation.chainEntities ?? []).length} entities)`;
 }
 
 /** An empty chain of this spec's own, inside the worker folder. Each caller wires what it needs. */
@@ -140,9 +141,7 @@ test("a run finds the chain's script, and a rerun stops finding it once the elem
   const script = await catalog.createElement(chain.id, "script");
   const found = await runRule(catalog, SCRIPTING_RULE);
   const mine = findingsFor(found, chain.id);
-  await strikesAsKnown(VALIDATION_READ_BEFORE_ALERTS, async () =>
-    expect(mine, `the run did not flag the script this case added ${counted(found)}`).toHaveLength(1),
-  );
+  expect(mine, `the run did not flag the script this case added ${counted(found)}`).toHaveLength(1);
   expect(mine[0]).toMatchObject({
     chainId: chain.id,
     chainName: chain.name,
@@ -155,9 +154,7 @@ test("a run finds the chain's script, and a rerun stops finding it once the elem
   // And the alert is rebuilt rather than appended to, so removing the element removes the finding.
   await catalog.deleteElement(chain.id, script.id);
   const rerun = await runRule(catalog, SCRIPTING_RULE);
-  await strikesAsKnown(VALIDATION_READ_BEFORE_ALERTS, async () =>
-    expect(findingsFor(rerun, chain.id), `the rerun still flags the deleted script ${counted(rerun)}`).toEqual([]),
-  );
+  expect(findingsFor(rerun, chain.id), `the rerun still flags the deleted script ${counted(rerun)}`).toEqual([]);
 });
 
 test("a search and a filter scope the findings to the chain they name", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {

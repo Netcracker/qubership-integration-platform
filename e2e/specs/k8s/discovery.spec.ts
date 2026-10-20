@@ -9,16 +9,14 @@
  * (`KubeOperator.REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME`), so the chart's `qip-<role>-v1` Services
  * are never discovered; the `qip-runtime-catalog` alias the e2e values add always is.
  *
- * The catalog can report progress 100 before it stores the result (`DISCOVERY_RESULT_AFTER_PROGRESS`
- * in `catalog-defects.ts`), so the result is read after the services are checked.
+ * Until #1139 the catalog reported progress 100 before it stored the result, and a read in between
+ * answered an empty body.
  *
  * Measured on Docker Desktop's Kubernetes: a run took 8 s and discovered four services.
  */
 import { test, expect } from "../../support/fixtures.js";
 import type { Catalog } from "../../support/catalog.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
 import { serviceNames } from "../../support/kube.js";
-import { DISCOVERY_RESULT_AFTER_PROGRESS, RESULT_AT_100 } from "./catalog-defects.js";
 
 const DISCOVERY_TIMEOUT = 60_000;
 
@@ -53,12 +51,8 @@ test("discovery creates a catalog service for each Service in the namespace that
       expect(each.serviceGroups.map((group) => Boolean(group.specificationId)), each.id).toContain(true);
     }
 
-    // Read last, so the services above are checked even when the known defect strikes.
-    const result = await strikesAsKnown(DISCOVERY_RESULT_AFTER_PROGRESS, async () => {
-      const read = await catalog.discoveryResult();
-      expect(read, RESULT_AT_100).toBeDefined();
-      return read;
-    });
+    const result = await catalog.discoveryResult();
+    expect(result, "the discovery result once the progress reads 100").toBeDefined();
     expect(result.errorMessages).toEqual([]);
     expect([...result.discoveredSystemIds].sort()).toEqual(discovered.map((each) => each.id).sort());
     bodyFailed = false;
