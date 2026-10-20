@@ -79,7 +79,13 @@ satisfy that independent acceptance requirement.
 ## Isolated recovery pilot
 
 `recovery_campaign.py` tests automatic recovery with the ordinary configured model and limits.
-The first slice covers one HTTP capture defect, its full-completion counterpart, and a missing-route control.
+The pilot covers an HTTP reference defect, its full-completion counterpart, and a missing-route control.
+Independent cases can also use `http-exposure-type`: after a genuine model call passes ordinary argument
+normalization and schema checks, the test changes the first endpoint's boolean `externalRoute` to a string.
+The ordinary schema boundary must reject it. Its exact stored rejection reference and native issue must
+precede the accepted model correction and consumer checkpoint. The test supplies no repair response.
+An optional `checks.edgeTypes` lists the exact directed type pairs for a case with distinct element types;
+this supports held-out topologies without assuming a direct trigger-to-script edge.
 The canonical request uses the recommended RBAC policy with the explicit role `qip-viewer`.
 This keeps policy-exception confirmation separate from recovery of a generated semantic reference.
 
@@ -131,7 +137,8 @@ python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recover
 `NOT_EXERCISED`, and `INFRASTRUCTURE_FAILURE`. A model success statement or an accepted transport retry is insufficient.
 The lifecycle stack check is `e2e/specs/env/ai-recovery-lifecycle.spec.ts`; it sends no model requests.
 Set `CIP_RECOVERY_AI_IMAGE` when running that check against a candidate image.
-The variation generator, transport fault matrix, and independent 18-run acceptance campaign follow this pilot.
+The variation generator, transport fault matrix, and complete 18-run acceptance campaign follow this pilot.
+An independent wave over the implemented HTTP boundaries does not satisfy missing families in that campaign.
 
 The retained [missing-route regression](fixtures/recovery/regressions/missing-route-repeated.json) records a stage
 that accepted the author's path and then requested it again at a newer revision. Its
