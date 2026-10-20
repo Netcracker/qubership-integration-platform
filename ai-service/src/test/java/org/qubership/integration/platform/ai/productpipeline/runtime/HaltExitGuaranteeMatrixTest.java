@@ -210,7 +210,7 @@ class HaltExitGuaranteeMatrixTest {
   }
 
   @Test
-  void aClarificationAnswerSpendsAnAttemptAndKeepsTheCatalogChoiceActionable() {
+  void aClarificationAnswerKeepsTheCatalogChoiceActionableWithoutSpendingRepairCredit() {
     haltOnCatalogResolution(
         FakeFailureNarrativeAgent.owner("", "design-execution")
             .recoverAsksForCatalogChoice("pets-call", CLARIFICATION));
@@ -234,7 +234,7 @@ class HaltExitGuaranteeMatrixTest {
     assertTrue(PipelineGates.strip(second).contains(CLARIFICATION), second);
     assertTrue(agent.lastRecoveryContextJson.get().contains("still the wrong service"));
     assertInstanceOf(
-        SemanticRecoveryState.CompareResult.Advanced.class,
+        SemanticRecoveryState.CompareResult.Unchanged.class,
         before.compareTo(runtime.captureSemanticRecoveryState(RUN_ID)));
     assertTrue(planningCalls.get() > callsBefore);
   }

@@ -127,7 +127,14 @@ public final class RequirementCaptureInput {
     CONNECT
   }
 
-  public record QuestionInput(String questionId, List<String> interactionIds, String text) {}
+  public record QuestionInput(String questionId, List<String> interactionIds, String text,
+      @NullableCaptureValue(description = "Target field, remaining uncertainty, and every reviewed author source turn ID."
+          + " Re-read saved sources before asking, including the latest answer; null only for legacy questions.")
+      org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence evidence) {
+    public QuestionInput(String questionId, List<String> interactionIds, String text) {
+      this(questionId, interactionIds, text, null);
+    }
+  }
 
   public record DraftSettings(
       @NullableCaptureValue Boolean idsRequested,

@@ -115,6 +115,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     this.conversations = conversations;
   }
 
+  @jakarta.inject.Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+
   private static final Logger LOG =
       Logger.getLogger(ProductPipelineStageExecutor.class);
 
@@ -470,6 +472,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             manifestsByRun.get(runId),
             inputs,
             attributes);
+    if (recoveryControl != null) recoveryControl.stageStarted(context);
     putRunAttribute(runId, ProductPipelineRunSupport.RECOVERY_INVOCATION_ATTR,
         recoveryJson(new ProducerInvocation(attemptId, stage.stageId(), inputs)));
     long requestsBefore = llmBudget == null ? -1L : llmBudget.state(runId).requests();

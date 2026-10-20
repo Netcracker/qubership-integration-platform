@@ -329,7 +329,8 @@ public final class RequirementCaptureEditor {
       return null;
     }
     Set<String> paths = new HashSet<>();
-    issues.stream().filter(issue -> issue.path().contains("/elementIntent")).forEach(issue -> paths.add(issue.path().substring(issue.path().indexOf("/elementIntent")
+    issues.stream().filter(issue -> !"UNBOUND_REQUIRED_LITERAL".equals(issue.code()))
+        .filter(issue -> issue.path().contains("/elementIntent")).forEach(issue -> paths.add(issue.path().substring(issue.path().indexOf("/elementIntent")
         + "/elementIntent".length())));
     var properties = intent.requestedProperties().stream().filter(property -> property != null
         && property.key() != null && !paths.contains("/requestedProperties")

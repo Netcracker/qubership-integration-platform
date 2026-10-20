@@ -29,6 +29,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 @ApplicationScoped
 public class RequirementDraftStore {
 
+  private final java.util.Set<String> discussionTurns = ConcurrentHashMap.newKeySet();
   private final ConcurrentHashMap<String, Boolean> capturedThisTurn = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, RequirementDiscoveryDirective> turnDirectives =
       new ConcurrentHashMap<>();
@@ -41,6 +42,7 @@ public class RequirementDraftStore {
   private final ConcurrentHashMap<String, List<RequirementCaptureInput.FactInput>> rejectedCaptureFacts =
       new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, com.fasterxml.jackson.databind.JsonNode> rejectedCaptureValues = new ConcurrentHashMap<>();
+  @Inject org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService elementSchemas;
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
   private final org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
@@ -473,6 +475,8 @@ public class RequirementDraftStore {
   public void remove(String conversationId) {
     sessions.startNew(conversationId);
     capturedThisTurn.remove(conversationId);
+    discussionTurns.remove(conversationId);
+    clarificationBases.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
     captureMutationScopes.remove(conversationId);
@@ -490,6 +494,8 @@ public class RequirementDraftStore {
             previous.mutationScope(), "reset", null, true, List.of(), previous.acceptedDraftReference())));
     sourceInputs.remove(conversationId);
     capturedThisTurn.remove(conversationId);
+    discussionTurns.remove(conversationId);
+    clarificationBases.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
     captureMutationScopes.remove(conversationId);
@@ -510,6 +516,7 @@ public class RequirementDraftStore {
   }
 
   public void beginTurn(String conversationId, String authorText) {
+    discussionTurns.remove(conversationId);
     var source = conversations == null ? null : conversations.archive().read(conversationId);
     var previousSource = sourceInputs.get(conversationId);
     boolean sameAuthorTurn = source == null
@@ -697,6 +704,128 @@ public class RequirementDraftStore {
     }
     return Optional.ofNullable(currentAuthorText.get(conversationId));
   }
+
+  private final ConcurrentHashMap<String, Reference> clarificationBases = new ConcurrentHashMap<>();
+
+  public void associateClarification(String conversationId) {
+    var reference = latestRevision(conversationId).map(Revision::reference).orElse(null);
+    if (reference == null) return;
+    if (conversations == null) {
+      clarificationBases.putIfAbsent(conversationId, reference);
+      return;
+    }
+    var source = conversations.archive().read(conversationId);
+    String inputId = org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(source);
+    if (inputId != null) conversations.archive().associateClarification(conversationId, source.generation(), inputId, reference);
+  }
+
+  /** An accepted but unrelated revision cannot consume an answer to an unchanged question. */
+  public List<RequirementCaptureEditor.Issue> validateAuthorQuestions(String conversationId) {
+    var current = get(conversationId).orElse(null);
+    if (current == null) return List.of();
+    var issues = new java.util.ArrayList<RequirementCaptureEditor.Issue>();
+    var source = conversations == null ? null : conversations.archive().read(conversationId);
+    var inputIds = source == null ? java.util.Set.<String>of() : source.activeTurns().stream()
+        .filter(turn -> turn.message().role()
+            == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+            && "READY".equals(turn.status()))
+        .map(turn -> turn.id()).collect(java.util.stream.Collectors.toSet());
+    Reference baseRef = clarificationBases.get(conversationId);
+    if (source != null) {
+      var latest = source.activeTurns().stream().filter(turn -> inputIds.contains(turn.id())).reduce((a, b) -> b);
+      if (latest.isPresent() && latest.get().metadata() != null && latest.get().metadata().has("clarificationDraft")) {
+        baseRef = new ObjectMapper().convertValue(latest.get().metadata().get("clarificationDraft"), Reference.class);
+      }
+    }
+    var base = baseRef == null ? null : artifacts.get(sessions.active(conversationId), baseRef)
+        .map(revision -> artifacts.payload(revision, RequirementDraft.class)).orElse(null);
+    if (current.authoredDraft() == null) {
+      if (base != null && base.openQuestions().equals(current.openQuestions())) {
+        issues.add(new RequirementCaptureEditor.Issue("UNAPPLIED_AUTHOR_ANSWER", "/draft/openQuestions", null,
+            "The admitted answer has not changed the saved question. Read the saved source and apply it,"
+                + " or capture scoped evidence explaining the remaining ambiguity."));
+      }
+      return issues;
+    }
+    var draft = current.authoredDraft();
+    var facts = RequirementCaptureProjection.facts(draft);
+    for (var question : draft.openQuestions()) {
+      if (question == null) continue;
+      var evidence = question.evidence();
+      String path = "/draft/openQuestions/" + question.questionId();
+      boolean prior = base != null && base.authoredDraft() != null && base.authoredDraft().openQuestions().stream()
+          .anyMatch(old -> old.questionId().equals(question.questionId()) || old.evidence() != null && evidence != null
+              && old.evidence().interactionId().equals(evidence.interactionId())
+              && old.evidence().propertyKey().equals(evidence.propertyKey()));
+      var findings = new java.util.ArrayList<String>();
+      if (evidence != null) {
+        if (!question.interactionIds().contains(evidence.interactionId()) && facts.stream().noneMatch(fact ->
+            fact.elementIntent() != null && evidence.interactionId().equals(fact.elementIntent().elementRef())
+                && question.interactionIds().contains(fact.elementIntent().ownerInteractionId()))) {
+          findings.add("Question evidence must target the question's interaction.");
+        }
+        org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionAdmission.validate(
+            evidence, facts, current.flow(), current.catalogBindings(), inputIds, questionDefaults(draft, evidence.interactionId()), prior || evidence.kind()
+                != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+            findings);
+      } else if (source != null || prior) {
+        findings.add("Review saved author sources and capture evidence for the target field before asking again.");
+      }
+      if (prior && (evidence == null || evidence.kind()
+          != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER)) {
+        findings.add("The admitted answer has not resolved this question. Apply it to its target field;"
+            + " use AMBIGUOUS_ANSWER only when the reviewed latest answer leaves that field unresolved.");
+      }
+      if (!findings.isEmpty()) issues.add(new RequirementCaptureEditor.Issue(
+          prior ? "UNAPPLIED_AUTHOR_ANSWER" : "AUTHOR_QUESTION_NOT_SUPPORTED", path, question.questionId(),
+          String.join(" ", findings) + " Source turn IDs: " + inputIds));
+    }
+    if (base != null && base.authoredDraft() != null) {
+      for (var question : base.authoredDraft().openQuestions()) {
+        var evidence = question.evidence();
+        if (evidence == null || draft.openQuestions().stream().anyMatch(open -> open.questionId().equals(question.questionId()))) continue;
+        boolean resolverWork = RequirementCaptureProjection.pending(draft, current.catalogBindings(),
+            RequirementCaptureProjection.resolvedTargets(current)).stream().anyMatch(work ->
+                evidence.interactionId().equals(work.interactionId()) && work.code().endsWith("LOOKUP_REQUIRED"));
+        if (resolverWork) continue;
+        var values = facts.stream().filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+            .filter(fact -> fact.targetsInteraction(evidence.interactionId())
+            || fact.elementIntent() != null && evidence.interactionId().equals(fact.elementIntent().elementRef()))
+            .flatMap(fact -> org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionAdmission
+                .suppliedValues(fact, evidence.propertyKey()).stream()).toList();
+        boolean resolvedPolicy = evidence.kind()
+            != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.POLICY_CHOICE
+            || facts.stream().anyMatch(fact -> fact.targetsInteraction(evidence.interactionId()) && fact.policyConflict() != null
+                && evidence.propertyKey().equals(fact.policyConflict().propertyKey()) && fact.policyConflict().decision() != null);
+        if ((values.isEmpty() && !questionDefaults(draft, evidence.interactionId()).contains(evidence.propertyKey())) || !resolvedPolicy) {
+          issues.add(new RequirementCaptureEditor.Issue("UNAPPLIED_AUTHOR_ANSWER", "/draft/openQuestions/" + question.questionId(),
+              question.questionId(), "Removing a question is insufficient: apply the saved answer to "
+                  + evidence.interactionId() + "." + evidence.propertyKey() + " before continuing."));
+        }
+      }
+    }
+    return List.copyOf(issues);
+  }
+
+  private java.util.Set<String> questionDefaults(RequirementCaptureInput.DraftInput draft, String target) {
+    if (elementSchemas == null) return java.util.Set.of();
+    String type = draft.facts().stream().map(RequirementCaptureInput.FactInput::elementIntent)
+        .filter(intent -> intent != null && target.equals(intent.elementRef()))
+        .map(RequirementElementIntent::elementType).findFirst().orElseGet(() -> draft.capabilities().stream()
+            .filter(capability -> target.equals(capability.interactionId()))
+            .map(RequirementCaptureInput.CapabilityInput::capabilityKey).findFirst().orElse(null));
+    var properties = draft.facts().stream().map(RequirementCaptureInput.FactInput::elementIntent)
+        .filter(intent -> intent != null && target.equals(intent.elementRef()))
+        .flatMap(intent -> intent.requestedProperties().stream()).toList();
+    var existing = properties.stream().map(org.qubership.integration.platform.ai.plan.model.PlanProperty::key)
+        .collect(java.util.stream.Collectors.toSet());
+    return elementSchemas.withUnconditionalSchemaDefaults(type, properties).stream().map(
+        org.qubership.integration.platform.ai.plan.model.PlanProperty::key).filter(key -> !existing.contains(key))
+        .collect(java.util.stream.Collectors.toSet());
+  }
+
+  public void allowDiscussion(String conversationId) { discussionTurns.add(conversationId); }
+  public boolean discussionAllowed(String conversationId) { return discussionTurns.contains(conversationId); }
 
   public void finishTurn(String conversationId, RequirementDiscoveryDirective directive) {
     Objects.requireNonNull(conversationId, "conversationId");

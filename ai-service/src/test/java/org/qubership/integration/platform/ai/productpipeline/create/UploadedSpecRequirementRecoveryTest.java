@@ -48,6 +48,12 @@ class UploadedSpecRequirementRecoveryTest {
   private static final String ANSWER = "Send results by POST to https://om.example/results. Preserve executionId. Proceed without IDS.";
   private static final String CATALOG_ANSWER = "Use OM onTaskResult as a catalog operation. Salesforce WFM createTask is imported. Preserve executionId. Proceed without IDS.";
 
+  @org.junit.jupiter.api.AfterEach
+  void releaseConversationBinding() {
+    org.qubership.integration.platform.ai.chat.ToolSession.clear();
+    ProductCapabilityCaptureContext.unbind(CHAT);
+  }
+
   @Test
   void importedSalesforceDoesNotSendAnUnboundOmOperationBackToImportAfterReload() throws Exception {
     var h = new Harness();
@@ -285,7 +291,12 @@ class UploadedSpecRequirementRecoveryTest {
                     "/tasks", null, null, null)), List.of(), new DraftSettings(null, null));
             var captured = tools.captureRequirementDraft(new DraftInput(waiting.flow(), waiting.facts(),
                 waiting.capabilities(), List.of(new QuestionInput(RESULT_QUESTION, List.of("result"),
-                    "How should task results be returned to OM?")), waiting.settings()));
+                    "How should task results be returned to OM?",
+                    new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+                        "result", "path", org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+                        conversations.archive().read(chat).activeTurns().stream().filter(turn ->
+                            turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+                                && "READY".equals(turn.status())).map(ConversationArchive.Turn::id).toList()))), waiting.settings()));
             assertTrue(mapper.readTree(captured).path("accepted").asBoolean(), captured);
             assertTrue(mapper.readTree(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY))
                 .path("accepted").asBoolean());

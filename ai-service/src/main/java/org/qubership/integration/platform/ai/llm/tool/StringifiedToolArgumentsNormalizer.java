@@ -136,7 +136,7 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
         }
       }
       if (inspected.issue() != null) {
-        String result = httpTriggerTool.rejectArguments(conversationId, inspected.issue());
+        String result = httpTriggerTool.rejectArguments(conversationId, inspected.issue(), request);
         if (recoveryControl != null) {
           recoveryControl.rejectedHttpArguments(conversationId, capabilityId, request, result);
         }

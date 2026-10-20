@@ -1782,7 +1782,7 @@ public final class ProductPipelineRunSupport {
                 attributes.put("userText", command.text());
                 attributes.remove(ADMITTED_INPUT_GATE_ATTR);
                 attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
-                if (PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
+                if (isClarificationWait(doc) || PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
                     && ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(command.text().strip())) {
                   attributes.put(ADMITTED_INPUT_GATE_ATTR, haltGate);
                   attributes.put(ADMITTED_INPUT_REVISION_ATTR, doc.run().runRevision());
@@ -1830,13 +1830,8 @@ public final class ProductPipelineRunSupport {
               } else if (retryClick) {
                 reason = recordAttempt(doc, command);
               } else if (isClarificationWait(doc)) {
-                // The clarification card is the ask after repair budget. Retry the stage with the
-                // author's text; do not escalate to owner-stage buttons when repairs are spent.
-                if (diagnoseAttemptRefusal(doc, command) == null) {
-                  reason = recordAttempt(doc, command);
-                } else {
-                  reason = "accepted clarification";
-                }
+                reason = "accepted clarification";
+
               }
               commitStatus(
                   doc,

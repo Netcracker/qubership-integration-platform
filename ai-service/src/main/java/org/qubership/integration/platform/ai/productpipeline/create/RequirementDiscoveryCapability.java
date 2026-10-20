@@ -364,6 +364,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
         captureFeedback.clearRequirement(conversationId);
       }
       draftStore.beginTurn(conversationId, gatherMessage);
+      if (PipelineGates.STAGE_CLARIFICATION.equals(context.attributeAsString(
+          ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
+        draftStore.associateClarification(conversationId);
+        if (repair == null) draftStore.allowDiscussion(conversationId);
+      }
       return installed;
     };
     if (conversationService != null) {
@@ -464,6 +469,16 @@ public class RequirementDiscoveryCapability implements StageCapability {
           PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION,
               "Which catalog folder should contain this chain? Several folders have the requested name.")));
     }
+    if (rejection.isPresent() && rejection.get().issues().stream().allMatch(issue ->
+        "POLICY_RESPONSE_REQUIRED".equals(issue.code())) && draft != null && draft.authoredDraft() != null
+        && draft.facts().stream().anyMatch(fact -> fact.policyConflict() != null
+            && fact.policyConflict().decision() == null
+            && draft.authoredDraft().openQuestions().stream().anyMatch(question ->
+                question.questionId().equals(fact.policyConflict().questionId())))
+        && draftStore.validateAuthorQuestions(conversationId).isEmpty()) {
+      captureFeedback.clearRequirement(conversationId);
+      rejection = Optional.empty();
+    }
     if (rejection.isPresent() && rejection.get().issues().stream()
         .anyMatch(issue -> !"AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
       var findings = rejection.get().issues().stream().map(issue ->
@@ -504,6 +519,23 @@ public class RequirementDiscoveryCapability implements StageCapability {
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
               "CAPTURE_MISSING", "Capture the requirements draft before finishing the generation turn.", true,
               MappingValidationDetails.empty(), "requirement-draft", "/draft")), "")));
+    }
+    if (directive == RequirementDiscoveryDirective.DISCUSS && !draftStore.discussionAllowed(conversationId)) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Complete the producer work before finishing. Discussion requires a new author turn at a paused draft.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+              "DISCUSSION_NOT_AUTHORIZED", "An automatic producer turn cannot become an author discussion.", true)), "")));
+    }
+    if (directive == RequirementDiscoveryDirective.DISCUSS) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
+    }
+    var questionIssues = draftStore.validateAuthorQuestions(conversationId);
+    if (!questionIssues.isEmpty()) {
+      var findings = questionIssues.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+          MappingValidationDetails.empty(), issue.entityId(), CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Apply the saved author answer or justify the remaining uncertainty before waiting again.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
     }
     if (shouldOfferIds(context, draft)) {
       return idsChoiceOutcome();

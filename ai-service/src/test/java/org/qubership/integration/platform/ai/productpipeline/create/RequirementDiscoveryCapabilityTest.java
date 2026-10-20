@@ -88,6 +88,94 @@ import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapa
 class RequirementDiscoveryCapabilityTest {
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void aPersistedPolicyQuestionSurvivesAFabricatedResponseButNotATechnicalDefect(boolean technical) throws Exception {
+    var h = captureHarness(null);
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    String chat = "policy-discovery";
+    var policy = new org.qubership.integration.platform.ai.plan.RequirementPolicyConflict(
+        org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY,
+        "accessControlType", "NONE", "RBAC", "security-choice", null);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput("entry",
+                RequirementFlow.Direction.INBOUND, "Caller", "GET /policy", null, null, null)), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("access", List.of("entry"),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.CONSTRAINT,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+            "Request NONE; RBAC is the recommendation.", null, policy)),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput("entry", "http-trigger",
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode.CUSTOM,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod.GET, "/policy", null, null, null)),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput("security-choice",
+            List.of("entry"), "Keep NONE after reviewing the RBAC recommendation?")),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    try (var ignored = org.qubership.integration.platform.ai.chat.ToolSession.open(chat)) {
+      assertTrue(mapper.readValue(h.tools().captureRequirementDraft(input),
+          org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class).accepted());
+    }
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (cid, text) -> {
+      h.feedback().recordClassifiedRequirementFailure(cid,
+          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE, true,
+          "Rejected response", List.of(new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue(
+              technical ? "INVALID_TYPE" : "POLICY_RESPONSE_REQUIRED", "/draft/facts/access/policyConflict", "Rejected response")));
+      h.store().finishTurn(cid, RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    capability.captureFeedback = h.feedback();
+    var signals = capability.execute(new StageExecutionContext("policy-run", chat, "requirement-discovery",
+        "execution", "attempt", null, null, List.of(), Map.of("userText", "Initial policy request")))
+        .collect().asList().await().indefinitely();
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(technical ? StageOutcomeClass.CONTRACT_FAILURE : StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+    assertEquals(policy, h.store().get(chat).orElseThrow().facts().getFirst().policyConflict());
+  }
+
+  @Test
+  void discussionAboutAPausedDraftDoesNotRequireAnAmendment() {
+    var store = new RequirementDraftStore();
+    var initial = new RequirementDraft(false, "Known requirements", DraftDecision.NEEDS_INPUT,
+        List.of("Which endpoint should receive the request?"), "gather", "1", "hash", null, false,
+        petstoreServiceCallDraft().facts(), false, null, false, petstoreServiceCallDraft().flow(), List.of(), null);
+    store.put("discussion-chat", initial);
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      store.finishTurn(chat, RequirementDiscoveryDirective.DISCUSS);
+      return Multi.createFrom().item(ChatEvent.token("This endpoint receives the result."));
+    });
+    var signals = capability.execute(new StageExecutionContext("discussion-run", "discussion-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", "What is this endpoint for?", "admittedInputGate", PipelineGates.STAGE_CLARIFICATION,
+            "admittedInputRevision", 6L))).collect().asList().await().indefinitely();
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+    assertEquals(initial, store.get("discussion-chat").orElseThrow());
+  }
+
+  @Test
+  void anAdmittedClarificationCannotRepeatTheUnchangedQuestion() {
+    var store = new RequirementDraftStore();
+    var initial = new RequirementDraft(false, "Known requirements", DraftDecision.NEEDS_INPUT,
+        List.of("Which endpoint should receive the request?"), "gather", "1", "hash", null, false,
+        petstoreServiceCallDraft().facts(), false, null, false, petstoreServiceCallDraft().flow(), List.of(), null);
+    store.put("answered-chat", initial);
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      store.finishTurn(chat, RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    var signals = capability.execute(new StageExecutionContext("answered-run", "answered-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", "Use the existing endpoint.", "admittedInputGate", PipelineGates.STAGE_CLARIFICATION,
+            "admittedInputRevision", 6L))).collect().asList().await().indefinitely();
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    assertTrue(outcome.recoveryCause().findings().stream().anyMatch(f -> "UNAPPLIED_AUTHOR_ANSWER".equals(f.code())));
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"yes", "no", "already-no"})
   void missingHttpSenderHostAsksTheAuthorWithoutAutomaticRepair(String choice) throws Exception {
     var h = captureHarness(null);

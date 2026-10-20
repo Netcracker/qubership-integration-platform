@@ -21,7 +21,14 @@ public record CaptureAttemptFeedback(
     boolean outerAllowed,
     List<CaptureFieldHint> fieldHints,
     String repairHistoryJson,
-    boolean noProgress, Reference evidenceReference) {
+    boolean noProgress, Reference evidenceReference,
+    List<org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue> issues) {
+
+  public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
+      CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,
+      String repairHistoryJson, boolean noProgress, Reference evidenceReference) {
+    this(kind, summary, failureClass, outerAllowed, fieldHints, repairHistoryJson, noProgress, evidenceReference, List.of());
+  }
 
   public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
       CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,
@@ -31,7 +38,7 @@ public record CaptureAttemptFeedback(
 
   public CaptureAttemptFeedback withEvidenceReference(Reference reference) {
     return new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, fieldHints,
-        repairHistoryJson, noProgress, reference);
+        repairHistoryJson, noProgress, reference, issues);
   }
 
   public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
@@ -63,6 +70,7 @@ public record CaptureAttemptFeedback(
   }
 
   public CaptureAttemptFeedback {
+    issues = issues == null ? List.of() : List.copyOf(issues);
     repairHistoryJson = repairHistoryJson == null ? "" : repairHistoryJson;
     fieldHints = fieldHints == null ? List.of() : List.copyOf(fieldHints);
   }

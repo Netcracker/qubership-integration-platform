@@ -161,10 +161,20 @@ class ScriptedRecoveryTest {
   }
 
   @Test
-  void cosmeticChangesDoNotResetTheConfiguredRepairAllowance() {
+  void differentSchemaFieldsWithTheSameExplanationReachTheConsumer() {
+    install(Turn.tool("first-type", this::expectInitial, TOOL, VALID.replace(":false", ":0")),
+        Turn.tool("second-type", expectRejection("externalRoute"), TOOL,
+            VALID.replace("\"http-trigger-1\"", "false")),
+        Turn.tool("corrected", expectRejection("semanticNodeId"), TOOL, VALID));
+    assertConsumed(run());
+    script.assertComplete();
+  }
+
+  @Test
+  void cosmeticChangesDoNotCreateNewCreditForTheSameTypedDefect() {
     List<Turn> turns = new ArrayList<>();
     turns.add(Turn.tool("bad-reference", this::expectInitial, TOOL, VALID.replace("http-trigger-1", "absent-0")));
-    for (int index = 1; index < 2 + config.capture().maxRepairAttempts(); index++) {
+    for (int index = 1; index < 2; index++) {
       turns.add(Turn.tool("same-defect-" + index, expectRejection("approved targets"), TOOL,
           VALID.replace("http-trigger-1", "absent-" + index)));
     }
@@ -175,6 +185,9 @@ class ScriptedRecoveryTest {
     assertTrue(feedback.lastPlanFailure(conversation).orElseThrow().summary().contains("approved targets"));
     assertEquals(originalGraph, ((SkillArtifactPayload.ChainPlanGraphPayload)
         workspace.get(SkillArtifactType.CHAIN_PLAN_GRAPH).orElseThrow().payload()).graph());
+    assertEquals(2, script.requests().size());
+    assertEquals(org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM,
+        feedback.lastPlanFailure(conversation).orElseThrow().failureClass());
     script.assertComplete();
   }
 
@@ -244,7 +257,20 @@ class ScriptedRecoveryTest {
       String delivered = last instanceof ToolExecutionResultMessage tool ? tool.text()
           : last instanceof UserMessage user ? user.singleText() : "";
       assertTrue(delivered.contains(diagnostic), delivered);
-      assertTrue(delivered.contains(rejection.summary()), delivered);
+      if (last instanceof ToolExecutionResultMessage && !rejection.issues().isEmpty()) {
+        var nativeResult = org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> {
+          var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+          var parsed = mapper.readTree(delivered);
+          return parsed.isTextual() ? mapper.readTree(parsed.asText()) : parsed;
+        });
+        var issue = rejection.issues().getFirst();
+        assertTrue(java.util.stream.StreamSupport.stream(nativeResult.path("issues").spliterator(), false)
+            .anyMatch(value -> issue.code().equals(value.path("code").asText())
+                && issue.path().equals(value.path("path").asText())
+                && issue.message().equals(value.path("message").asText())), delivered);
+      } else {
+        assertTrue(delivered.contains(rejection.summary()), delivered);
+      }
     };
   }
 

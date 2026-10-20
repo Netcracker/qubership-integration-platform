@@ -42,13 +42,19 @@ public final class LlmRequestBudget {
     return false;
   }
 
+  private final ProviderBoundaryEvidence evidence;
   private final AppConfig.LlmConfig config;
   private final CipJtokkitTokenCountEstimator estimator;
 
   LlmRequestBudget(AppConfig config) {
+    this.evidence = new ProviderBoundaryEvidence(config.e2e() == null ? null
+        : config.e2e().recoveryControlDirectory().map(java.nio.file.Path::of).orElse(null));
     this.config = config.llm();
     this.estimator = new CipJtokkitTokenCountEstimator(this.config.modelName());
   }
+
+  String recordProviderRequest(ChatRequest request, String runId) { return evidence.request(request, runId); }
+  void recordProviderOutcome(String id, String kind, Object value) { evidence.outcome(id, kind, value); }
 
   ChatRequest prepare(ChatRequest request) {
     request.messages().forEach(message -> {

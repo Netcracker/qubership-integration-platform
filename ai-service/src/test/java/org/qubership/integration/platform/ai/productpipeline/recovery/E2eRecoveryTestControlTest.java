@@ -65,6 +65,23 @@ class E2eRecoveryTestControlTest {
     try (var events = Files.list(directory.resolve("events"))) { assertEquals(1, events.count()); }
   }
 
+  @Test void distinctFieldFaultsAreFiniteAndRetainTheRestOfTheModelCandidate() throws Exception {
+    mapper.writeValue(directory.resolve("plan.json").toFile(), Map.of("schemaVersion", 1,
+        "conversationId", "owned", "boundary", "checkpoint", "mutation", "http-distinct-fields"));
+    var control = new E2eRecoveryTestControl(directory, mapper);
+    var request = ToolExecutionRequest.builder().id("first").name("captureHttpTriggers").arguments("""
+        {"capture":{"endpoints":[{"roleId":"entry","semanticNodeId":"http-1","externalRoute":false}]}}
+        """).build();
+    var first = mapper.readTree(control.httpArguments("owned", "trigger", request).arguments());
+    var second = mapper.readTree(control.httpArguments("owned", "trigger", request.toBuilder().id("second").build()).arguments());
+    assertTrue(first.at("/capture/endpoints/0/externalRoute").isTextual());
+    assertEquals("http-1", first.at("/capture/endpoints/0/semanticNodeId").asText());
+    assertTrue(second.at("/capture/endpoints/0/semanticNodeId").isBoolean());
+    assertTrue(second.at("/capture/endpoints/0/externalRoute").isBoolean());
+    assertSame(request, control.httpArguments("owned", "trigger", request));
+    try (var events = Files.list(directory.resolve("events"))) { assertEquals(2, events.count()); }
+  }
+
   private void writePlan(String boundary) throws Exception {
     mapper.writeValue(directory.resolve("plan.json").toFile(), Map.of("schemaVersion", 1,
         "conversationId", "owned", "boundary", boundary, "mutation", "http-semantic-reference"));

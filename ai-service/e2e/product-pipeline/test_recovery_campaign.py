@@ -120,6 +120,84 @@ class RecoveryContractTest(unittest.TestCase):
     def outcome(self):
         return campaign.verdict(self.case, self.evidence)["outcome"]
 
+    def enhanced(self):
+        self.case.update(requireProviderEvidence=True)
+        self.case["fault"]["kind"] = "http-exposure-type"
+        fault = self.evidence["events"][0]
+        fault.update(tool="captureHttpTriggers", parameter="capture", observedAt=20)
+        fault["mutated"] = copy.deepcopy(fault["original"])
+        fault["mutated"]["endpoints"][0]["externalRoute"] = "false"
+        ref = {"kind": "CAPTURE_ATTEMPT_FEEDBACK", "artifactId": "rejected", "contentHash": "reject-hash"}
+        issue = {"code": "INVALID_TYPE", "path": "/capture/endpoints/0/externalRoute", "message": "Wrong type"}
+        self.evidence["captureArtifacts"] = [{**ref, "payload": {"feedback": {"issues": [issue]}}}]
+        rejection = {"type": "CAPTURE_REJECTED", "tool": "captureHttpTriggers", "proposal": fault["mutated"],
+                     "sequence": 2, "observedAt": 21, "rejectionRef": ref,
+                     "nativeResult": {"accepted": False, "issues": [issue]}}
+        accepted = self.evidence["events"][-1]
+        accepted.update(tool="captureHttpTriggers", sequence=3)
+        self.evidence["events"].insert(1, rejection)
+        self.evidence["checkpoint"]["sequence"] = 4
+        self.evidence["budget"]["requests"] = 1
+        self.evidence["providerBoundary"] = [
+            {"id": "request", "runId": "run", "at": 21.5, "context": {"runId": "run", "attemptId": "attempt"},
+             "request": {"messages": [{"text": "INVALID_TYPE /capture/endpoints/0/externalRoute Wrong type"}]},
+             "originalRequestHash": "original", "redactedRequestHash": "redacted"},
+            {"requestId": "request", "kind": "response", "at": 22,
+             "value": {"message": {"toolExecutionRequests": [{"name": "captureHttpTriggers", "id": "corrected",
+                        "arguments": json.dumps({"capture": accepted["proposal"]})}]}}},
+        ]
+
+    def test_actual_provider_refusal_and_model_correction_are_required(self):
+        self.enhanced()
+        self.assertEqual("CHECKPOINT_PASS", self.outcome())
+        self.evidence["providerBoundary"][0]["request"] = {"messages": [{"text": "No refusal delivered"}]}
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
+    def test_a_request_prepared_before_the_refusal_cannot_prove_repair(self):
+        self.enhanced()
+        self.evidence["providerBoundary"][0]["at"] = 19
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
+    def test_optional_capture_defaults_preserve_false_zero_and_explicit_string_values(self):
+        self.assertEqual(campaign.capture_value({"operations": [{"nodeId": "reply"}], "loopRegions": [], "owner": None}),
+                         campaign.capture_value({"operations": [{"nodeId": "reply"}]}))
+        self.assertNotEqual(campaign.capture_value({"externalRoute": False, "count": 0, "value": "[]"}),
+                            campaign.capture_value({}))
+
+    def test_projection_without_a_corrected_model_call_cannot_pass(self):
+        self.enhanced()
+        self.evidence["providerBoundary"][1]["value"]["message"]["toolExecutionRequests"] = []
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
+    def test_incomplete_provider_recording_cannot_pass(self):
+        self.enhanced()
+        self.evidence["budget"]["requests"] = 2
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
+    def test_fault_cannot_change_undeclared_source_fields(self):
+        self.enhanced()
+        self.evidence["events"][0]["mutated"]["endpoints"][0]["roleId"] = "other-role"
+        self.assertEqual("RECOVERY_FAILURE", self.outcome())
+
+    def test_full_readback_checks_directed_edges_and_each_bound_property(self):
+        graph = self.evidence["pipelineArtifacts"][0]["payload"]
+        snapshot_ref = {"kind": "CATALOG_CHAIN_SNAPSHOT", "artifactId": "catalog", "contentHash": "catalog-hash"}
+        reconcile_ref = {"kind": "RECONCILE_RESULT", "artifactId": "reconcile", "contentHash": "reconcile-hash"}
+        snapshot = {"elements": [{"elementId": node["nodeId"], "type": node["type"], "name": node.get("label"),
+                                "properties": {prop["key"]: prop["value"] for prop in node["properties"]}}
+                               for node in graph["nodes"]],
+                    "dependencies": [{"fromElementId": "http", "toElementId": "script"}]}
+        self.evidence["pipelineArtifacts"] += [
+            {**snapshot_ref, "payload": snapshot}, {**reconcile_ref, "payload": {"matches": True}},
+            {"kind": "MATERIALIZATION_RESULT", "artifactId": "result", "contentHash": "result-hash",
+             "payload": {"completedPhase": "COMPLETE", "catalogSnapshotRef": snapshot_ref,
+                         "reconcileResultRef": reconcile_ref,
+                         "materializationMap": {"nodeIdToElementId": {"http": "http", "script": "script"}}}},
+        ]
+        self.assertEqual([], campaign.catalog_graph_errors(self.evidence, graph))
+        snapshot["dependencies"] = [{"fromElementId": "script", "toElementId": "http"}]
+        self.assertTrue(campaign.catalog_graph_errors(self.evidence, graph))
+
     def test_native_correction_and_consumer_admission_pass(self):
         self.assertEqual("CHECKPOINT_PASS", self.outcome())
 
