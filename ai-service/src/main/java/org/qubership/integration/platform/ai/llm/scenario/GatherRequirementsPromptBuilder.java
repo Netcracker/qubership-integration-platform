@@ -187,7 +187,12 @@ public class GatherRequirementsPromptBuilder {
         .append("update its capability path and any operation, description, or fact text that repeats that URL. ")
         .append("Use the same source quote with a separate exact path for each changed field; retain all other content. ")
         .append("An unrelated new message grants no permission to change earlier requirements. ")
-        .append("Automatic correction uses amendments: [] and retains confirmed answers.\n");
+        .append("Automatic correction uses amendments: [] and retains confirmed answers.\n")
+        .append("Capture each explicit name in requestedName on its owning elementIntent, including entry triggers ")
+        .append("and calls with ANCHOR placement even when they have no requestedProperties. ")
+        .append("The interaction participant identifies the other party; it does not name the trigger or call. ")
+        .append("Before finishing, compare each explicit name in the saved author source to the accepted elementIntent fields. ")
+        .append("Add a missing naming fact on that elementRef before using CONTINUE.\n");
     boolean currentIncluded = false;
     if (conversationService != null) {
       var archive = conversationService.archive();

@@ -57,6 +57,11 @@ catalog resolution, and defaults.
   Use `BEFORE_HOOK` or `AFTER_HOOK` for inline Service Call code, with the call's ownerInteractionId;
   hook names and requestedProperties stay null/empty because no separate element is created.
   Copy requestedName verbatim, without labels such as "Chain name:" or language annotations.
+  Entry triggers and calls need an ANCHOR naming intent even when no element properties are supplied.
+  The interaction participant identifies the other party; it does not name the trigger or call.
+  For an HTTP trigger named "Receive request" accepting a request from Partner, keep participant=Partner
+  and capture elementType=http-trigger, placement=ANCHOR, elementRef=ownerInteractionId=entry,
+  requestedName="Receive request". Do not create another interaction or LOCAL_NODE for that name.
   Chain name uses elementType=chain, placement=CHAIN, ownerInteractionId=null, interactionIds=[].
   Keep requestedProperties as schema {key,value} pairs for explicitly supplied settings only.
   A supplied runtime value remains an explicit setting when the author describes it as behavior.
@@ -82,6 +87,7 @@ catalog resolution, and defaults.
   one ANCHOR naming fact for the call and one BEFORE_HOOK behavior fact on the same call.
   It has no standalone Set body Script. A separately requested Script uses LOCAL_NODE.
 - Before finishing, compare each accepted user requirement against the complete saved draft.
+  Check each explicit element name against its owning elementIntent.requestedName, including entry triggers.
   Add omitted requirements through `addFacts`. Server `READY` confirms structural completeness;
   it does not prove that every user requirement was captured.
 - Read `repairConstraints` even when no draft has been accepted. They retain valid fields from
