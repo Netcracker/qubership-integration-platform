@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "id": "om-progressive",
+      "checkpoint": "filling",
+      "gate": "G2P",
+      "observation": "Sequential filling from the preserved canonical source through WorkDocumentFilling"
+    },
+    {
+      "id": "om-controlled-recovery",
+      "checkpoint": "filling",
+      "gate": "G2P",
+      "observation": "Corrupt one sourceRef on the first mapping response and let ordinary recovery call the model again"
+    },
+    {
+      "id": "om-upstream-recovery",
+      "checkpoint": "filling",
+      "gate": "G2P",
+      "observation": "Omit the retained outline declaration and record whether a later consumer returns to DEFINE_TRANSFERS"
+    },
+    {
+      "id": "om-semantic-recovery",
+      "checkpoint": "filling",
+      "gate": "G2P",
+      "observation": "Drop the low and default Priority branch from one mapping proposal and record actual detection"
+    }
+  ]
+}

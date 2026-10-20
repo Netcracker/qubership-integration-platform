@@ -1,0 +1,30 @@
+{
+  "approve": {
+    "action": "approve",
+    "artifactType": "integration-design",
+    "artifactHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "revision": 3,
+    "prompt": "Review the integration design",
+    "allowedActions": ["approve"]
+  },
+  "clarify": {
+    "action": "clarify",
+    "reason": "Additional input is required.",
+    "missingEvidence": [],
+    "allowedActions": ["clarify"]
+  },
+  "blockedApprove": {
+    "action": "approve",
+    "artifactType": "implementation-plan",
+    "artifactHash": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+    "revision": 7,
+    "prompt": "Approved plan hash is unavailable for automatic implementation.",
+    "allowedActions": ["approve"]
+  },
+  "blockedClarify": {
+    "action": "clarify",
+    "reason": "Need plan evidence",
+    "missingEvidence": ["implementation-plan"],
+    "allowedActions": ["clarify"]
+  }
+}

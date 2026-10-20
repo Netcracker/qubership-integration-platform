@@ -1,0 +1,1348 @@
+package org.qubership.integration.platform.ai.productpipeline.create.design.input;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ErrorHandler;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.LoopPolicy;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.RetryPolicy;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticBranch;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticContainment;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRouteKind;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+
+/**
+ * Projects a model-owned {@link ChainSemanticCapture} onto the canonical {@link
+ * ChainSemanticRevision}. This is the only place where server-owned state enters a design: schema
+ * and contract versions come from the {@link CompilerContract}, catalog values and mapping bodies
+ * come from the approved {@link RequirementBrief}, and identifiers are derived from content.
+ *
+ * <p>Unknown or ambiguous references fail closed. The adapter never guesses a value and never falls
+ * back to an alias. The server materializes one trigger and one service-call node per approved
+ * interaction and names it after the interaction id. Captured operations must not reuse those
+ * ids.
+ *
+ * <p>Identifiers are stable by construction. {@code edgeId} is a hash of the edge's semantic key,
+ * so reordering the JSON arrays does not change it, and {@code revisionId} is a hash of the whole
+ * canonical aggregate seeded with the run id, so the same run plus the same capture plus the same
+ * compiler contract reproduces the same id after a retry or a restart. A changed brief, topology,
+ * mapping, or contract yields a different id, which keeps a stale approval from becoming valid.
+ */
+@ApplicationScoped
+public class ChainSemanticCaptureAdapter {
+
+  private static final String REVISION_ID_PREFIX = "semantic-";
+  private static final String EDGE_ID_PREFIX = "edge-";
+  /** Unit separator between semantic-key fields. It cannot appear inside an id. */
+  private static final String KEY_SEPARATOR = "\u001f";
+
+  private final ChainSemanticCanonicalizer canonicalizer;
+
+  @Inject
+  public ChainSemanticCaptureAdapter(ChainSemanticCanonicalizer canonicalizer) {
+    this.canonicalizer = Objects.requireNonNull(canonicalizer, "canonicalizer");
+  }
+
+  /**
+   * Builds the canonical revision for one design-input turn.
+   *
+   * @throws IllegalArgumentException when the capture references something the approved brief or
+   *     the compiler contract does not own. The message is returned to the model verbatim.
+   */
+  public ChainSemanticRevision adapt(
+      ChainSemanticCapture capture,
+      String runId,
+      RequirementBrief brief,
+      CompilerContract contract) {
+    Objects.requireNonNull(capture, "capture");
+    Objects.requireNonNull(runId, "runId");
+    Objects.requireNonNull(brief, "brief");
+    Objects.requireNonNull(contract, "contract");
+
+    RequirementBrief authoritative = brief;
+    Set<String> factIds = factIds(authoritative);
+    Map<String, RequirementEntryPoint> briefEntryPoints = briefEntryPoints(authoritative);
+    Map<String, RequirementServiceCall> briefServiceCalls = briefServiceCalls(authoritative);
+    List<TriggerBinding> triggerBindings = triggerBindings(briefEntryPoints);
+
+    List<SemanticNode> nodes =
+        nodes(
+            capture,
+            triggerBindings,
+            briefServiceCalls,
+            briefEntryPoints,
+            authoritative.facts(),
+            contract,
+            factIds);
+    Set<String> nodeIds = new LinkedHashSet<>();
+    for (SemanticNode node : nodes) {
+      if (!nodeIds.add(node.nodeId())) {
+        throw new IllegalArgumentException("Duplicate nodeId: " + node.nodeId());
+      }
+    }
+    List<SemanticRegion> regions = regions(capture);
+    Set<String> regionIds = new LinkedHashSet<>();
+    for (SemanticRegion region : regions) {
+      if (!regionIds.add(region.regionId())) {
+        throw new IllegalArgumentException("Duplicate regionId: " + region.regionId());
+      }
+    }
+
+    List<SemanticEntryPoint> entryPoints =
+        entryPoints(triggerBindings, capture, nodeIds, factIds);
+    List<SemanticExecutionEdge> edges =
+        resolveMappingIntentIds(
+            canonicalizeMappingIntentIds(edges(capture, nodeIds, regionIds), authoritative),
+            authoritative,
+            nodes);
+    requireApprovedAnchorGraph(authoritative, triggerBindings, briefServiceCalls, edges);
+    List<MappingIntent> mappingIntents = mappingIntents(authoritative, edges, nodes);
+    List<SemanticContainment> containment = containment(capture, nodeIds);
+    requireNativeDirectOutboundFactCoverage(authoritative, nodes);
+    requirePositiveExecutableFactCoverage(authoritative, nodes);
+    ChainSemanticRevision forIdentity =
+        new ChainSemanticRevision(
+            contract.semanticSchemaVersion(),
+            seedRevisionId(runId, contract),
+            chainIdentity(capture, authoritative),
+            contract.contractVersion(),
+            entryPoints,
+            nodes,
+            regions,
+            edges,
+            containment,
+            mappingIntents,
+            authoritative.constraints(),
+            authoritative.assumptions(),
+            authoritative.citations());
+    List<String> intentErrors = validateElementIntent(authoritative, forIdentity, contract);
+    if (!intentErrors.isEmpty()) {
+      throw new IllegalArgumentException(String.join("\n", intentErrors));
+    }
+    String revisionId = REVISION_ID_PREFIX + canonicalizer.sha256(forIdentity).substring(0, 32);
+    return new ChainSemanticRevision(
+        forIdentity.schemaVersion(),
+        revisionId,
+        forIdentity.chainIdentity(),
+        forIdentity.compilerContractVersion(),
+        forIdentity.entryPoints(),
+        forIdentity.nodes(),
+        forIdentity.regions(),
+        forIdentity.executionEdges(),
+        forIdentity.containment(),
+        List.of(),
+        forIdentity.constraints(),
+        forIdentity.assumptions(),
+        forIdentity.citations());
+  }
+
+  // Nodes
+
+  /**
+   * Materializes one trigger binding per approved brief entry point. {@code nodeId} equals the
+   * interaction id ({@code entryPointId}).
+   */
+  private static List<TriggerBinding> triggerBindings(
+      Map<String, RequirementEntryPoint> briefEntryPoints) {
+    List<RequirementEntryPoint> approved = new ArrayList<>(briefEntryPoints.values());
+    if (approved.isEmpty()) {
+      throw new IllegalArgumentException("entryPoints must contain at least one entry");
+    }
+    List<TriggerBinding> bindings = new ArrayList<>();
+    int order = 0;
+    for (RequirementEntryPoint entry : approved) {
+      requireText(entry.entryPointId(), "entryPointId");
+      if (entry.capabilityKey().isBlank()) {
+        throw new IllegalArgumentException(
+            "Entry point '"
+                + entry.entryPointId()
+                + "' has no catalog capability in the approved requirement brief");
+      }
+      bindings.add(new TriggerBinding(entry, order++));
+    }
+    return List.copyOf(bindings);
+  }
+
+  /**
+   * Trigger and service-call nodes come from the approved brief. The server names each node after
+   * its interaction id. Matching captured operations only extend an anchor's provenance.
+   */
+  private static List<SemanticNode> nodes(
+      ChainSemanticCapture capture,
+      List<TriggerBinding> triggerBindings,
+      Map<String, RequirementServiceCall> briefServiceCalls,
+      Map<String, RequirementEntryPoint> briefEntryPoints,
+      List<RequirementFact> facts,
+      CompilerContract contract,
+      Set<String> factIds) {
+    List<SemanticNode> nodes = new ArrayList<>();
+    Set<String> interactionIds = new LinkedHashSet<>();
+    for (TriggerBinding binding : triggerBindings) {
+      RequirementEntryPoint approved = binding.approved();
+      String nodeId = binding.triggerNodeId();
+      if (!interactionIds.add(nodeId)) {
+        throw new IllegalArgumentException("Duplicate nodeId: " + nodeId);
+      }
+      List<String> provenance = entryPointProvenance(approved, factIds);
+      nodes.add(
+          new SemanticNode.Trigger(
+              nodeId,
+              approved.entryPointId(),
+              approved.capabilityKey(),
+              new SemanticProvenance(provenance)));
+    }
+    for (RequirementFact fact : facts) {
+      if (fact == null || fact.kind() != RequirementFactKind.CAPABILITY
+          || fact.polarity() != RequirementFactPolarity.POSITIVE) {
+        continue;
+      }
+      String senderType =
+          RequirementFlowValidator
+              .nativeDirectOutboundCapabilityKey(fact.owningInteractionId(), facts)
+              .orElse(null);
+      if (senderType == null) {
+        continue;
+      }
+      String nodeId = fact.owningInteractionId();
+      if (!interactionIds.add(nodeId)) {
+        if (matchesProjectedSender(nodes, nodeId, senderType)) {
+          continue;
+        }
+        throw new IllegalArgumentException("Duplicate nodeId: " + nodeId);
+      }
+      List<String> provenance =
+          factIds.contains(fact.sourceFactId()) ? List.of(fact.sourceFactId()) : List.of();
+      nodes.add(
+          new SemanticNode.Operation(nodeId, senderType, new SemanticProvenance(provenance)));
+    }
+    Set<String> triggerFactIds = triggerFactIds(briefEntryPoints.values());
+    for (RequirementServiceCall approved : briefServiceCalls.values()) {
+      if (RequirementFlowValidator.nativeDirectOutboundCapabilityKey(
+              approved.serviceCallId(), facts)
+          .isPresent()) {
+        continue;
+      }
+      if (!materializesServiceCallNode(approved, triggerFactIds)) {
+        if (approved.catalogBinding() == null) {
+          throw new IllegalArgumentException(
+              "serviceCallId '"
+                  + approved.serviceCallId()
+                  + "' has no resolved catalog binding in the approved requirement brief."
+                  + " Requirement gathering owns the binding; a design cannot supply it.");
+        }
+        continue;
+      }
+      String serviceCallId = approved.serviceCallId();
+      if (approved.operation().isBlank()) {
+        throw new IllegalArgumentException(
+            "serviceCallId '"
+                + serviceCallId
+                + "' has no catalog operation in the approved requirement brief");
+      }
+      if (approved.catalogBinding() == null) {
+        throw new IllegalArgumentException(
+            "serviceCallId '"
+                + serviceCallId
+                + "' has no resolved catalog binding in the approved requirement brief."
+                + " Requirement gathering owns the binding; a design cannot supply it.");
+      }
+      if (!interactionIds.add(serviceCallId)) {
+        throw new IllegalArgumentException(
+            "serviceCallId '" + serviceCallId + "' reuses an inbound interaction id");
+      }
+      List<String> provenance =
+          factIds.contains(approved.sourceFactId())
+              ? List.of(approved.sourceFactId())
+              : List.of();
+      nodes.add(
+          new SemanticNode.ServiceCall(
+              serviceCallId,
+              serviceCallId,
+              approved.operation(),
+              approved.failureMode(),
+              new SemanticProvenance(provenance)));
+    }
+    for (ChainSemanticCapture.CapturedOperation operation : capture.operations()) {
+      String nodeId = requireText(operation.nodeId(), "operation nodeId");
+      String elementType =
+          MappingMechanismSelector.canonicalTransformElementType(
+              requireText(operation.elementType(), "elementType"));
+      if (interactionIds.contains(nodeId)) {
+        if (mergeAnchorProvenance(nodes, nodeId, elementType, operation.sourceFactIds(), factIds)) {
+          continue;
+        }
+        throw new IllegalArgumentException(
+            "Operation node '"
+                + nodeId
+                + "' reuses an interaction id with a different elementType. Copy the anchor's"
+                + " exact nodeId and elementType to attach sourceFactIds; do not replace it.");
+      }
+      if (RequirementFlowValidator.isNativeOutboundCapabilityKey(elementType)) {
+        throw nativeOutboundOwnedException(nodeId, elementType, nodes);
+      }
+      if (!contract.elements().containsKey(elementType)) {
+        throw new IllegalArgumentException(
+            "Operation node '"
+                + nodeId
+                + "' uses elementType '"
+                + elementType
+                + "', which the compiler contract does not declare. Allowed elementType values: "
+                + String.join(", ", contract.elements().keySet().stream().sorted().toList()));
+      }
+      requireFacts(operation.sourceFactIds(), factIds, "operation node '" + nodeId + "'");
+      nodes.add(
+          new SemanticNode.Operation(
+              nodeId, elementType, new SemanticProvenance(operation.sourceFactIds())));
+    }
+    if (nodes.isEmpty()) {
+      throw new IllegalArgumentException("The capture has no nodes");
+    }
+    return List.copyOf(nodes);
+  }
+
+  private static void requirePositiveExecutableFactCoverage(
+      RequirementBrief brief, List<SemanticNode> nodes) {
+    Set<String> coveredFactIds = new LinkedHashSet<>();
+    for (SemanticNode node : nodes) {
+      coveredFactIds.addAll(node.provenance().sourceFactIds());
+    }
+    List<String> missingFactIds = new ArrayList<>();
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null
+          || fact.polarity() != RequirementFactPolarity.POSITIVE
+          || (fact.kind() != RequirementFactKind.BEHAVIOR
+              && fact.kind() != RequirementFactKind.CAPABILITY)
+          || coveredFactIds.contains(fact.sourceFactId())) {
+        continue;
+      }
+      missingFactIds.add(fact.sourceFactId());
+    }
+    if (!missingFactIds.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Positive executable facts are missing from semantic node sourceFactIds: "
+              + String.join(", ", missingFactIds)
+              + ". Attach each fact to the node that implements it. For an existing external"
+              + " anchor, list its exact nodeId and elementType under operations with the extra"
+              + " sourceFactIds. This extends the existing node; it creates no interaction."
+              + " Add a processing node only when the behavior requires additional processing.");
+    }
+  }
+
+  public static List<String> validateElementIntent(
+      RequirementBrief brief, ChainSemanticRevision revision, CompilerContract contract) {
+    if (brief == null) {
+      return List.of();
+    }
+    List<String> errors = new ArrayList<>();
+    List<SemanticNode> nodes = revision.nodes();
+    Map<String, List<String>> outgoing = adjacency(revision.executionEdges());
+    Map<String, List<String>> children = new LinkedHashMap<>();
+    for (SemanticContainment relation : revision.containment()) {
+      children.computeIfAbsent(relation.parentNodeId(), ignored -> new ArrayList<>()).add(relation.childNodeId());
+    }
+    for (SemanticRegion region : revision.regions()) {
+      if (region.ownerNodeId() != null) {
+        children.computeIfAbsent(region.ownerNodeId(), ignored -> new ArrayList<>())
+            .addAll(region.bodyNodeIds(revision.executionEdges(), revision.regions()));
+      }
+    }
+    for (RequirementFact fact : brief.facts()) {
+      var intent = fact.elementIntent();
+      if (intent == null || fact.polarity() != RequirementFactPolarity.POSITIVE
+          || intent.placement() == Placement.CHAIN) {
+        continue;
+      }
+      boolean hook = intent.placement() == Placement.BEFORE_HOOK
+          || intent.placement() == Placement.AFTER_HOOK;
+      String nodeId = hook ? intent.ownerInteractionId() : intent.elementRef();
+      List<SemanticNode> owners = nodes.stream()
+          .filter(node -> node.provenance().sourceFactIds().contains(fact.sourceFactId())).toList();
+      SemanticNode owner = owners.stream().filter(node -> nodeId.equals(node.nodeId())).findFirst().orElse(null);
+      var elementContract = contract.elements().get(intent.elementType());
+      boolean container = !hook && elementContract != null && elementContract.runtimeDescriptor() != null
+          && elementContract.runtimeDescriptor().container();
+      boolean contributorsValid = owners.stream().allMatch(node -> nodeId.equals(node.nodeId())
+          || container && reachableWithinTransition(nodeId, node.nodeId(), children, Set.of()));
+      if (owner == null || !contributorsValid
+          || hook && !(owner instanceof SemanticNode.ServiceCall)
+          || !hook && !intent.elementType().equals(elementType(owner))) {
+        errors.add("ELEMENT_INTENT_REALIZATION: fact=" + fact.sourceFactId() + " elementRef="
+            + intent.elementRef() + " type=" + intent.elementType() + " placement=" + intent.placement()
+            + " owner=" + intent.ownerInteractionId() + " actual=" + owners.stream().map(SemanticNode::nodeId).toList()
+            + ". Attach the fact to its required element. Container body work may also reference it;"
+            + " unrelated nodes may not. Inline hooks belong only to their Service Call.");
+        continue;
+      }
+      if (intent.parentElementRef() != null) {
+        SemanticNode parent = nodes.stream()
+            .filter(node -> intent.parentElementRef().equals(node.nodeId())).findFirst().orElse(null);
+        var parentContract = parent == null ? null : contract.elements().get(elementType(parent));
+        if (intent.placement() != Placement.LOCAL_NODE || parentContract == null
+            || parentContract.runtimeDescriptor() == null || !parentContract.runtimeDescriptor().container()
+            || nodeId.equals(intent.parentElementRef())
+            || !reachableWithinTransition(intent.parentElementRef(), nodeId, children, Set.of())) {
+          errors.add("ELEMENT_INTENT_PARENT: elementRef=" + intent.elementRef()
+              + " parent=" + intent.parentElementRef()
+              + ". Place the element inside its approved container using containment or the container region."
+              + " Preserve execution order separately; a parent reference does not require an execution edge.");
+        }
+      }
+      if (intent.successorElementRef() != null
+          && !reachableWithinTransition(nodeId, intent.successorElementRef(), outgoing, Set.of())
+          || intent.predecessorElementRef() != null
+              && !reachableWithinTransition(intent.predecessorElementRef(), nodeId, outgoing, Set.of())) {
+        errors.add("ELEMENT_INTENT_ORDER: elementRef=" + intent.elementRef()
+            + " successor=" + intent.successorElementRef() + " predecessor=" + intent.predecessorElementRef()
+            + ". Required paths: "
+            + (intent.predecessorElementRef() == null ? "" : intent.predecessorElementRef() + " -> " + nodeId + "; ")
+            + (intent.successorElementRef() == null ? "" : nodeId + " -> " + intent.successorElementRef() + "; ")
+            + "correct edges, not the operations array. Preserve the approved element intent.");
+      }
+    }
+    return List.copyOf(errors);
+  }
+
+  private static String elementType(SemanticNode node) {
+    return switch (node) {
+      case SemanticNode.Operation operation -> operation.elementType();
+      case SemanticNode.Trigger trigger -> trigger.capabilityKey();
+      case SemanticNode.ServiceCall ignored -> "service-call";
+    };
+  }
+
+  private static void requireNativeDirectOutboundFactCoverage(
+      RequirementBrief brief, List<SemanticNode> nodes) {
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null || fact.kind() != RequirementFactKind.CAPABILITY
+          || fact.polarity() != RequirementFactPolarity.POSITIVE) {
+        continue;
+      }
+      String expectedType =
+          RequirementFlowValidator
+              .nativeDirectOutboundCapabilityKey(fact.owningInteractionId(), brief.facts())
+              .orElse(null);
+      if (expectedType == null) {
+        continue;
+      }
+      boolean covered =
+          nodes.stream()
+              .anyMatch(
+                  node ->
+                      node instanceof SemanticNode.Operation operation
+                          && fact.targetsInteraction(operation.nodeId())
+                          && expectedType.equals(operation.elementType()));
+      if (!covered) {
+        throw new IllegalArgumentException(
+            "Positive native outbound fact '"
+                + fact.sourceFactId()
+                + "' requires operation nodeId '"
+                + fact.owningInteractionId()
+                + "' with elementType '"
+                + expectedType
+                + "'. Add that operation and connect it through the execution edges.");
+      }
+    }
+  }
+
+  // Entry points
+
+  private static List<SemanticEntryPoint> entryPoints(
+      List<TriggerBinding> bindings,
+      ChainSemanticCapture capture,
+      Set<String> nodeIds,
+      Set<String> factIds) {
+    List<SemanticEntryPoint> entryPoints = new ArrayList<>();
+    for (TriggerBinding binding : bindings) {
+      RequirementEntryPoint approved = binding.approved();
+      String triggerNodeId = binding.triggerNodeId();
+      requireNode(triggerNodeId, nodeIds, "triggerNodeId");
+      String initialTargetNodeId = initialTargetNodeId(triggerNodeId, capture);
+      requireNode(initialTargetNodeId, nodeIds, "initialTargetNodeId");
+      List<String> provenance = entryPointProvenance(approved, factIds);
+      entryPoints.add(
+          new SemanticEntryPoint(
+              approved.entryPointId(),
+              triggerNodeId,
+              initialTargetNodeId,
+              binding.order(),
+              new SemanticProvenance(provenance),
+              new SemanticEntryPoint.Presentation(null, null)));
+    }
+    if (entryPoints.isEmpty()) {
+      throw new IllegalArgumentException("entryPoints must contain at least one entry");
+    }
+    return List.copyOf(entryPoints);
+  }
+
+  private static String initialTargetNodeId(String triggerNodeId, ChainSemanticCapture capture) {
+    List<String> targets = new ArrayList<>();
+    for (ChainSemanticCapture.CapturedEdge edge : capture.edges()) {
+      if (!triggerNodeId.equals(trimmed(edge.sourceNodeId()))) {
+        continue;
+      }
+      targets.add(requireText(edge.targetNodeId(), "initialTargetNodeId"));
+    }
+    if (targets.size() != 1) {
+      throw new IllegalArgumentException(
+          "Trigger node '"
+              + triggerNodeId
+              + "' must have exactly one outgoing edge so the server can derive"
+              + " initialTargetNodeId");
+    }
+    return targets.getFirst();
+  }
+
+  private static List<String> entryPointProvenance(
+      RequirementEntryPoint approved, Set<String> factIds) {
+    if (!approved.sourceFactId().isBlank() && factIds.contains(approved.sourceFactId())) {
+      return List.of(approved.sourceFactId());
+    }
+    return List.of();
+  }
+
+  // Regions
+
+  private static List<SemanticRegion> regions(ChainSemanticCapture capture) {
+    List<SemanticRegion> regions = new ArrayList<>();
+    for (ChainSemanticCapture.CapturedSequenceRegion region : capture.sequenceRegions()) {
+      regions.add(
+          new SemanticRegion.Sequence(
+              requireText(region.regionId(), "regionId"), region.memberNodeIds()));
+    }
+    for (ChainSemanticCapture.CapturedConditionRegion region : capture.conditionRegions()) {
+      List<SemanticBranch.Condition> branches = new ArrayList<>();
+      int position = 0;
+      for (ChainSemanticCapture.CapturedConditionBranch branch : region.branches()) {
+        branches.add(
+            new SemanticBranch.Condition(
+                requireText(branch.branchId(), "branchId"),
+                requireValue(branch.role(), "condition branch role"),
+                branch.predicate(),
+                branch.priority() == null ? position : branch.priority(),
+                requireText(branch.entryNodeId(), "branch entryNodeId"),
+                branch.exitNodeIds()));
+        position++;
+      }
+      regions.add(
+          new SemanticRegion.Condition(
+              requireText(region.regionId(), "regionId"),
+              requireText(region.ownerNodeId(), "ownerNodeId"),
+              branches,
+              region.reconvergenceNodeId()));
+    }
+    for (ChainSemanticCapture.CapturedSplitRegion region : capture.splitRegions()) {
+      List<SemanticBranch.Split> branches = new ArrayList<>();
+      int position = 0;
+      for (ChainSemanticCapture.CapturedSplitBranch branch : region.branches()) {
+        branches.add(
+            new SemanticBranch.Split(
+                requireText(branch.branchId(), "branchId"),
+                branch.order() == null ? position : branch.order(),
+                requireText(branch.entryNodeId(), "branch entryNodeId"),
+                branch.exitNodeIds()));
+        position++;
+      }
+      regions.add(
+          new SemanticRegion.Split(
+              requireText(region.regionId(), "regionId"),
+              requireText(region.ownerNodeId(), "ownerNodeId"),
+              requireValue(region.mode(), "split mode"),
+              branches,
+              region.reconvergenceNodeId(),
+              region.mainBranchId()));
+    }
+    for (ChainSemanticCapture.CapturedLoopRegion region : capture.loopRegions()) {
+      regions.add(
+          new SemanticRegion.Loop(
+              requireText(region.regionId(), "regionId"),
+              requireText(region.ownerNodeId(), "ownerNodeId"),
+              requireText(region.bodyEntryNodeId(), "bodyEntryNodeId"),
+              region.bodyExitNodeIds(),
+              requireText(region.exitNodeId(), "exitNodeId"),
+              new LoopPolicy(
+                  requireValue(region.loopMode(), "loopMode"),
+                  requireText(region.loopExpression(), "loopExpression"),
+                  region.loopSafetyBound())));
+    }
+    for (ChainSemanticCapture.CapturedRetryRegion region : capture.retryRegions()) {
+      regions.add(
+          new SemanticRegion.Retry(
+              requireText(region.regionId(), "regionId"),
+              requireText(region.ownerNodeId(), "ownerNodeId"),
+              requireText(region.bodyEntryNodeId(), "bodyEntryNodeId"),
+              region.bodyExitNodeIds(),
+              requireText(region.exhaustedNodeId(), "exhaustedNodeId"),
+              new RetryPolicy(
+                  region.retryCount() == null ? 0 : region.retryCount(),
+                  region.retryDelayMillis() == null ? 0 : region.retryDelayMillis())));
+    }
+    for (ChainSemanticCapture.CapturedErrorScopeRegion region : capture.errorScopeRegions()) {
+      List<ErrorHandler> handlers = new ArrayList<>();
+      for (ChainSemanticCapture.CapturedErrorHandler handler : region.handlers()) {
+        handlers.add(
+            new ErrorHandler(
+                requireText(handler.handlerId(), "handlerId"),
+                requireText(handler.exceptionClass(), "exceptionClass"),
+                requireText(handler.entryNodeId(), "handler entryNodeId"),
+                handler.exitNodeIds()));
+      }
+      regions.add(
+          new SemanticRegion.ErrorScope(
+              requireText(region.regionId(), "regionId"),
+              requireText(region.ownerNodeId(), "ownerNodeId"),
+              requireText(region.tryEntryNodeId(), "tryEntryNodeId"),
+              handlers,
+              blankToNull(region.finallyEntryNodeId()),
+              region.exitNodeIds()));
+    }
+    return List.copyOf(regions);
+  }
+
+  // Edges
+
+  private static List<SemanticExecutionEdge> edges(
+      ChainSemanticCapture capture, Set<String> nodeIds, Set<String> regionIds) {
+    record Keyed(ChainSemanticCapture.CapturedEdge edge, SemanticRoute route, String key) {}
+
+    List<Keyed> keyed = new ArrayList<>();
+    for (ChainSemanticCapture.CapturedEdge edge : capture.edges()) {
+      requireNode(edge.sourceNodeId(), nodeIds, "edge sourceNodeId");
+      requireNode(edge.targetNodeId(), nodeIds, "edge targetNodeId");
+      if (edge.regionId() != null
+          && !edge.regionId().isBlank()
+          && !regionIds.contains(edge.regionId().trim())) {
+        throw new IllegalArgumentException("Edge regionId '" + edge.regionId() + "' is missing");
+      }
+      SemanticRoute route = route(edge);
+      keyed.add(new Keyed(edge, route, edgeKey(edge, route)));
+    }
+    keyed.sort(Comparator.comparing(Keyed::key));
+
+    List<SemanticExecutionEdge> edges = new ArrayList<>(keyed.size());
+    Map<String, Integer> ordinals = new HashMap<>();
+    for (Keyed entry : keyed) {
+      int ordinal = ordinals.merge(entry.key(), 1, Integer::sum) - 1;
+      String edgeId =
+          EDGE_ID_PREFIX
+              + sha256Hex(entry.key()).substring(0, 16)
+              + (ordinal == 0 ? "" : "-" + ordinal);
+      edges.add(
+          new SemanticExecutionEdge(
+              edgeId,
+              entry.edge().sourceNodeId().trim(),
+              entry.edge().targetNodeId().trim(),
+              blankToNull(entry.edge().regionId()),
+              entry.route(),
+              blankToNull(entry.edge().mappingIntentId())));
+    }
+    return List.copyOf(edges);
+  }
+
+  private static SemanticRoute route(ChainSemanticCapture.CapturedEdge edge) {
+    SemanticRouteKind kind =
+        edge.routeKind() == null ? SemanticRouteKind.SEQUENCE : edge.routeKind();
+    return switch (kind) {
+      case SEQUENCE -> new SemanticRoute.Sequence();
+      case CONDITION_BRANCH ->
+          new SemanticRoute.ConditionBranch(
+              requireText(edge.branchId(), "CONDITION_BRANCH branchId"));
+      case SPLIT_BRANCH ->
+          new SemanticRoute.SplitBranch(requireText(edge.branchId(), "SPLIT_BRANCH branchId"));
+      case RECONVERGE -> new SemanticRoute.Reconverge(edge.branchIds());
+      case LOOP_BODY -> new SemanticRoute.LoopBody();
+      case LOOP_EXIT -> new SemanticRoute.LoopExit();
+      case RETRY_ATTEMPT -> new SemanticRoute.RetryAttempt();
+      case RETRY_EXHAUSTED -> new SemanticRoute.RetryExhausted();
+      case TRY_PATH -> new SemanticRoute.TryPath();
+      case CATCH_PATH ->
+          new SemanticRoute.CatchPath(requireText(edge.handlerId(), "CATCH_PATH handlerId"));
+      case FINALLY_PATH -> new SemanticRoute.FinallyPath();
+    };
+  }
+
+  /**
+   * Semantic key of one edge. It holds only what makes the edge that edge, so array order never
+   * reaches the derived {@code edgeId}.
+   */
+  private static String edgeKey(ChainSemanticCapture.CapturedEdge edge, SemanticRoute route) {
+    List<String> branchIds = new ArrayList<>(sortedBranchIds(route));
+    return String.join(
+        KEY_SEPARATOR,
+        trimmed(edge.sourceNodeId()),
+        trimmed(edge.targetNodeId()),
+        trimmed(edge.regionId()),
+        route.kind().name(),
+        trimmed(edge.branchId()),
+        String.join(",", branchIds),
+        trimmed(edge.handlerId()),
+        trimmed(edge.mappingIntentId()));
+  }
+
+  private static List<String> sortedBranchIds(SemanticRoute route) {
+    if (!(route instanceof SemanticRoute.Reconverge reconverge)) {
+      return List.of();
+    }
+    List<String> ids = new ArrayList<>(reconverge.branchIds());
+    ids.sort(Comparator.naturalOrder());
+    return ids;
+  }
+
+  // Mappings
+
+  /**
+   * Copies {@code mappingIntentId=} from the brief when the model pasted the hop label printed
+   * next to that token, for example {@code create-task/RESPONSE -> task-result/REQUEST}.
+   */
+  private static List<SemanticExecutionEdge> canonicalizeMappingIntentIds(
+      List<SemanticExecutionEdge> edges, RequirementBrief brief) {
+    Map<String, MappingIntent> approved = approvedMappingIntents(brief);
+    List<SemanticExecutionEdge> rewritten = new ArrayList<>(edges.size());
+    for (SemanticExecutionEdge edge : edges) {
+      String capturedId = edge.mappingId();
+      if (capturedId == null || capturedId.isBlank()) {
+        rewritten.add(edge);
+        continue;
+      }
+      String canonical = canonicalMappingIntentId(capturedId, approved);
+      if (capturedId.equals(canonical)) {
+        rewritten.add(edge);
+        continue;
+      }
+      rewritten.add(
+          new SemanticExecutionEdge(
+              edge.edgeId(),
+              edge.sourceNodeId(),
+              edge.targetNodeId(),
+              edge.regionId(),
+              edge.route(),
+              canonical));
+    }
+    return List.copyOf(rewritten);
+  }
+
+  private static Map<String, MappingIntent> approvedMappingIntents(RequirementBrief brief) {
+    Map<String, MappingIntent> approved = new LinkedHashMap<>();
+    for (MappingIntent intent : brief.mappingIntents()) {
+      if (intent != null && !intent.mappingIntentId().isBlank()) {
+        approved.put(intent.mappingIntentId(), intent);
+      }
+    }
+    return approved;
+  }
+
+  private static List<SemanticExecutionEdge> resolveMappingIntentIds(
+      List<SemanticExecutionEdge> edges, RequirementBrief brief, List<SemanticNode> nodes) {
+    Map<String, MappingIntent> approved = approvedMappingIntents(brief);
+    if (approved.isEmpty()) {
+      return edges;
+    }
+    Set<String> placed = new LinkedHashSet<>();
+    for (SemanticExecutionEdge edge : edges) {
+      if (edge.mappingId() != null) {
+        placed.add(edge.mappingId());
+      }
+    }
+    Map<String, SemanticNode> nodesById = new LinkedHashMap<>();
+    for (SemanticNode node : nodes) {
+      nodesById.put(node.nodeId(), node);
+    }
+    List<SemanticExecutionEdge> resolved = new ArrayList<>(edges);
+    for (MappingIntent intent : approved.values()) {
+      if (placed.contains(intent.mappingIntentId())) {
+        continue;
+      }
+      String targetNodeId = mappingTargetNodeId(intent, brief);
+      List<Integer> sites = new ArrayList<>();
+      for (int index = 0; index < resolved.size(); index++) {
+        SemanticExecutionEdge edge = resolved.get(index);
+        if (edge.mappingId() != null
+            || !targetNodeId.equals(edge.targetNodeId())
+            || !isTransform(nodesById.get(edge.sourceNodeId()))) {
+          continue;
+        }
+        try {
+          requireApprovedMappingTransition(intent, edge, brief.flow(), resolved);
+          sites.add(index);
+        } catch (IllegalArgumentException ignored) {
+          // An edge on a different approved transition cannot carry this mapping.
+        }
+      }
+      if (sites.size() == 1) {
+        int index = sites.getFirst();
+        SemanticExecutionEdge edge = resolved.get(index);
+        resolved.set(index, new SemanticExecutionEdge(
+            edge.edgeId(), edge.sourceNodeId(), edge.targetNodeId(), edge.regionId(),
+            edge.route(), intent.mappingIntentId()));
+      }
+    }
+    return List.copyOf(resolved);
+  }
+
+  private static String mappingTargetNodeId(MappingIntent intent, RequirementBrief brief) {
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (intent.targetRef().equals(call.sourceFactId())) {
+        return call.serviceCallId();
+      }
+    }
+    for (RequirementEntryPoint entry : brief.entryPoints()) {
+      if (intent.targetRef().equals(entry.sourceFactId())) {
+        return entry.entryPointId();
+      }
+    }
+    return intent.targetRef();
+  }
+
+  private static String canonicalMappingIntentId(
+      String capturedId, Map<String, MappingIntent> approved) {
+    if (approved.containsKey(capturedId)) {
+      return capturedId;
+    }
+    MappingIntent match = null;
+    for (MappingIntent intent : approved.values()) {
+      if (capturedId.equals(intent.hopLabel())) {
+        if (match != null) {
+          return capturedId;
+        }
+        match = intent;
+      }
+    }
+    return match == null ? capturedId : match.mappingIntentId();
+  }
+
+  private static List<MappingIntent> mappingIntents(
+      RequirementBrief brief, List<SemanticExecutionEdge> edges, List<SemanticNode> nodes) {
+    Map<String, MappingIntent> approved = approvedMappingIntents(brief);
+    Map<String, SemanticExecutionEdge> siteByIntent = new LinkedHashMap<>();
+    for (SemanticExecutionEdge edge : edges) {
+      String intentId = edge.mappingId();
+      if (intentId == null || intentId.isBlank()) {
+        continue;
+      }
+      if (!approved.containsKey(intentId)) {
+        throw new IllegalArgumentException(
+            "mappingIntentId '" + intentId + "' is not in the approved requirement brief");
+      }
+      SemanticExecutionEdge previous = siteByIntent.put(intentId, edge);
+      if (previous != null) {
+        throw new IllegalArgumentException(
+            "mappingIntentId '"
+                + intentId
+                + "' is placed on more than one edge. Place each mapping on exactly one edge.");
+      }
+    }
+    Map<String, SemanticNode> nodesById = new LinkedHashMap<>();
+    for (SemanticNode node : nodes) {
+      nodesById.put(node.nodeId(), node);
+    }
+    Map<String, Integer> incoming = new HashMap<>();
+    for (SemanticExecutionEdge edge : edges) {
+      incoming.merge(edge.targetNodeId(), 1, Integer::sum);
+    }
+    List<MappingIntent> projected = new ArrayList<>();
+    for (MappingIntent intent : approved.values()) {
+      SemanticExecutionEdge site = siteByIntent.get(intent.mappingIntentId());
+      if (site == null) {
+        throw new IllegalArgumentException(
+            "The approved brief already has mappingIntentId='"
+                + intent.mappingIntentId()
+                + "'. None of the captured edges listed that id. Set mappingIntentId on the edge"
+                + " that carries this mapping, not on the brief.");
+      }
+      requireTransformSite(intent.mappingIntentId(), site, nodesById);
+      if (!BriefMappingValidator.isMappingEndpoint(
+          incoming.getOrDefault(site.targetNodeId(), 0),
+          site.route() instanceof SemanticRoute.Reconverge)) {
+        throw new IllegalArgumentException(
+            "Mapping '"
+                + intent.mappingIntentId()
+                + "' sits on an edge whose target node '"
+                + site.targetNodeId()
+                + "' has more than one incoming edge. Mapping needs a single-incoming site.");
+      }
+      requireApprovedMappingTransition(intent, site, brief.flow(), edges);
+      projected.add(projectOntoCarryingEdge(intent, site));
+    }
+    return List.copyOf(projected);
+  }
+
+  /**
+   * Rewrites both mapping refs to {@code site.edgeId()}. Capture keeps interaction ids on the live
+   * brief and stores this projected form on the revision.
+   */
+  public static MappingIntent projectOntoCarryingEdge(
+      MappingIntent intent, SemanticExecutionEdge site) {
+    return new MappingIntent(
+        intent.mappingIntentId(),
+        site.edgeId(),
+        intent.sourcePort(),
+        site.edgeId(),
+        intent.targetPort(),
+        intent.rules(),
+        intent.implementationPreference());
+  }
+
+  private static void requireTransformSite(
+      String mappingIntentId, SemanticExecutionEdge site, Map<String, SemanticNode> nodesById) {
+    if (isTransform(nodesById.get(site.sourceNodeId()))
+        || isTransform(nodesById.get(site.targetNodeId()))) {
+      return;
+    }
+    throw new IllegalArgumentException(
+        "Mapping '"
+            + mappingIntentId
+            + "' has no adjacent "
+            + MappingExecutionSite.ELEMENT_TYPE
+            + " or "
+            + MappingExecutionSite.SCRIPT_ELEMENT_TYPE
+            + " node. Add one next to the mapped edge.");
+  }
+
+  private static boolean isTransform(SemanticNode node) {
+    return node instanceof SemanticNode.Operation operation
+        && (MappingExecutionSite.ELEMENT_TYPE.equals(operation.elementType())
+            || MappingExecutionSite.SCRIPT_ELEMENT_TYPE.equals(operation.elementType()));
+  }
+
+  private static void requireApprovedMappingTransition(
+      MappingIntent intent,
+      SemanticExecutionEdge site,
+      RequirementFlow flow,
+      List<SemanticExecutionEdge> edges) {
+    if (flow.transitions().isEmpty()) {
+      return;
+    }
+    Set<String> anchors = new LinkedHashSet<>();
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      anchors.add(interaction.interactionId());
+    }
+    Map<String, List<String>> outgoing = adjacency(edges);
+    Set<AnchorEdge> matches = new LinkedHashSet<>();
+    for (RequirementFlow.Transition transition : flow.transitions()) {
+      if (reachableWithinTransition(
+              transition.sourceInteractionId(), site.sourceNodeId(), outgoing, anchors)
+          && reachableWithinTransition(
+              site.targetNodeId(), transition.targetInteractionId(), outgoing, anchors)) {
+        matches.add(
+            new AnchorEdge(
+                transition.sourceInteractionId(), transition.targetInteractionId()));
+      }
+    }
+    AnchorEdge expected = new AnchorEdge(intent.sourceRef(), intent.targetRef());
+    if (matches.size() == 1 && matches.contains(expected)) {
+      return;
+    }
+    if (matches.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Mapping intent '"
+              + intent.mappingIntentId()
+              + "' does not belong to an approved requirement-flow transition");
+    }
+    if (matches.size() > 1) {
+      throw new IllegalArgumentException(
+          "Mapping intent '"
+              + intent.mappingIntentId()
+              + "' has an ambiguous carrying transition: "
+              + matches);
+    }
+    throw new IllegalArgumentException(
+        "Mapping intent '"
+            + intent.mappingIntentId()
+            + "' is placed on transition "
+            + matches.iterator().next()
+            + " but approved for "
+            + expected);
+  }
+
+  private static Map<String, List<String>> adjacency(List<SemanticExecutionEdge> edges) {
+    Map<String, List<String>> adjacent = new LinkedHashMap<>();
+    for (SemanticExecutionEdge edge : edges) {
+      adjacent
+          .computeIfAbsent(edge.sourceNodeId(), ignored -> new ArrayList<>())
+          .add(edge.targetNodeId());
+    }
+    return adjacent;
+  }
+
+  private static boolean reachableWithinTransition(
+      String start,
+      String target,
+      Map<String, List<String>> outgoing,
+      Set<String> anchors) {
+    if (start.equals(target)) {
+      return true;
+    }
+    ArrayDeque<String> pending = new ArrayDeque<>();
+    Set<String> seen = new LinkedHashSet<>();
+    pending.add(start);
+    seen.add(start);
+    while (!pending.isEmpty()) {
+      String current = pending.removeFirst();
+      for (String next : outgoing.getOrDefault(current, List.of())) {
+        if (next.equals(target)) {
+          return true;
+        }
+        if (anchors.contains(next)) {
+          continue;
+        }
+        if (seen.add(next)) {
+          pending.add(next);
+        }
+      }
+    }
+    return false;
+  }
+
+  // Containment
+
+  private static List<SemanticContainment> containment(
+      ChainSemanticCapture capture, Set<String> nodeIds) {
+    List<SemanticContainment> containment = new ArrayList<>();
+    for (ChainSemanticCapture.CapturedContainment relation : capture.containment()) {
+      requireNode(relation.parentNodeId(), nodeIds, "containment parentNodeId");
+      requireNode(relation.childNodeId(), nodeIds, "containment childNodeId");
+      containment.add(
+          new SemanticContainment(
+              relation.parentNodeId().trim(),
+              relation.childNodeId().trim(),
+              requireText(relation.role(), "containment role")));
+    }
+    return List.copyOf(containment);
+  }
+
+  // Identity
+
+  private static String seedRevisionId(String runId, CompilerContract contract) {
+    return REVISION_ID_PREFIX
+        + sha256Hex(runId + KEY_SEPARATOR + contract.sha256()).substring(0, 32);
+  }
+
+  private static String chainIdentity(ChainSemanticCapture capture, RequirementBrief brief) {
+    String requested = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues
+        .chainName(brief.facts(), null);
+    if (requested != null) {
+      return requested;
+    }
+    String captured = trimmed(capture.chainIdentity());
+    if (!captured.isEmpty()) {
+      return captured;
+    }
+    String slug = slug(brief.goal());
+    return slug.isEmpty() ? "chain" : slug;
+  }
+
+  private static String slug(String text) {
+    if (text == null) {
+      return "";
+    }
+    String slug =
+        text.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+    return slug.length() > 48 ? slug.substring(0, 48) : slug;
+  }
+
+  // Shared checks
+
+  private static Set<String> factIds(RequirementBrief brief) {
+    Set<String> ids = new LinkedHashSet<>();
+    for (RequirementFact fact : brief.facts()) {
+      if (fact != null && fact.sourceFactId() != null && !fact.sourceFactId().isBlank()) {
+        ids.add(fact.sourceFactId());
+      }
+    }
+    return ids;
+  }
+
+  private static Map<String, RequirementEntryPoint> briefEntryPoints(RequirementBrief brief) {
+    Map<String, RequirementEntryPoint> byId = new LinkedHashMap<>();
+    for (RequirementEntryPoint entryPoint : brief.entryPoints()) {
+      if (entryPoint != null && !entryPoint.entryPointId().isBlank()) {
+        byId.put(entryPoint.entryPointId(), entryPoint);
+      }
+    }
+    return byId;
+  }
+
+  private static Map<String, RequirementServiceCall> briefServiceCalls(RequirementBrief brief) {
+    Map<String, RequirementServiceCall> byId = new LinkedHashMap<>();
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (call != null && !call.serviceCallId().isBlank()) {
+        byId.put(call.serviceCallId(), call);
+      }
+    }
+    return byId;
+  }
+
+  private static void requireApprovedAnchorGraph(
+      RequirementBrief brief,
+      List<TriggerBinding> triggerBindings,
+      Map<String, RequirementServiceCall> briefServiceCalls,
+      List<SemanticExecutionEdge> edges) {
+    RequirementFlow flow = brief.flow();
+    if (flow.transitions().isEmpty()) {
+      return;
+    }
+    Set<String> interactionIds = new LinkedHashSet<>();
+    Set<String> triggerFactIds = triggerFactIds(brief.entryPoints());
+    for (TriggerBinding binding : triggerBindings) {
+      interactionIds.add(binding.triggerNodeId());
+    }
+    for (RequirementServiceCall call : briefServiceCalls.values()) {
+      if (materializesServiceCallNode(call, triggerFactIds)) {
+        interactionIds.add(call.serviceCallId());
+      }
+    }
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null) {
+        continue;
+      }
+      RequirementFlowValidator
+          .nativeDirectOutboundCapabilityKey(fact.owningInteractionId(), brief.facts())
+          .ifPresent(ignored -> interactionIds.add(fact.owningInteractionId()));
+    }
+    Set<AnchorEdge> contracted = contractedAnchorEdges(interactionIds, edges);
+    Set<AnchorEdge> approved = new LinkedHashSet<>();
+    for (RequirementFlow.Transition transition : flow.transitions()) {
+      approved.add(new AnchorEdge(transition.sourceInteractionId(), transition.targetInteractionId()));
+    }
+    if (!contracted.equals(approved)) {
+      throw new IllegalArgumentException(
+          "Captured edges do not preserve approved business transitions. Approved: "
+              + approved
+              + ". Contracted: "
+              + contracted
+              + ". You may insert internal processing nodes between an approved source and target,"
+              + " but you may not reverse, omit, or add an external interaction transition.");
+    }
+  }
+
+  private static Set<AnchorEdge> contractedAnchorEdges(
+      Set<String> interactionIds, List<SemanticExecutionEdge> edges) {
+    Map<String, List<String>> outgoing = new LinkedHashMap<>();
+    for (SemanticExecutionEdge edge : edges) {
+      outgoing
+          .computeIfAbsent(edge.sourceNodeId(), unused -> new ArrayList<>())
+          .add(edge.targetNodeId());
+    }
+    Set<AnchorEdge> contracted = new LinkedHashSet<>();
+    for (String source : interactionIds) {
+      ArrayDeque<String> pending = new ArrayDeque<>();
+      Set<String> seen = new LinkedHashSet<>();
+      pending.add(source);
+      seen.add(source);
+      while (!pending.isEmpty()) {
+        String current = pending.removeFirst();
+        for (String next : outgoing.getOrDefault(current, List.of())) {
+          if (interactionIds.contains(next) && !next.equals(source)) {
+            contracted.add(new AnchorEdge(source, next));
+            continue;
+          }
+          if (seen.add(next)) {
+            pending.add(next);
+          }
+        }
+      }
+    }
+    return contracted;
+  }
+
+  private record AnchorEdge(String sourceInteractionId, String targetInteractionId) {
+    @Override
+    public String toString() {
+      return sourceInteractionId + " -> " + targetInteractionId;
+    }
+  }
+
+  static Set<String> triggerFactIds(Iterable<RequirementEntryPoint> entryPoints) {
+    Set<String> ids = new LinkedHashSet<>();
+    for (RequirementEntryPoint entry : entryPoints) {
+      if (entry == null) {
+        continue;
+      }
+      if (!entry.sourceFactId().isBlank()) {
+        ids.add(entry.sourceFactId());
+      }
+      if (!entry.entryPointId().isBlank()) {
+        ids.add(entry.entryPointId());
+      }
+    }
+    return ids;
+  }
+
+  static boolean materializesServiceCallNode(
+      RequirementServiceCall call, Set<String> triggerFactIds) {
+    return !triggerFactIds.contains(call.sourceFactId());
+  }
+
+  private static boolean matchesProjectedSender(
+      List<SemanticNode> nodes, String nodeId, String elementType) {
+    if (!RequirementFlowValidator.isNativeOutboundCapabilityKey(elementType)) {
+      return false;
+    }
+    for (SemanticNode node : nodes) {
+      if (node instanceof SemanticNode.Operation operation
+          && nodeId.equals(operation.nodeId())
+          && elementType.equals(operation.elementType())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean mergeAnchorProvenance(
+      List<SemanticNode> nodes, String nodeId, String elementType,
+      List<String> extraFactIds, Set<String> factIds) {
+    for (int index = 0; index < nodes.size(); index++) {
+      SemanticNode node = nodes.get(index);
+      if (!nodeId.equals(node.nodeId())) {
+        continue;
+      }
+      String expectedType = switch (node) {
+        case SemanticNode.Trigger trigger -> trigger.capabilityKey();
+        case SemanticNode.ServiceCall ignored -> "service-call";
+        case SemanticNode.Operation operation -> operation.elementType();
+      };
+      if (!elementType.equals(expectedType)) {
+        return false;
+      }
+      requireFacts(extraFactIds, factIds, "anchor node '" + nodeId + "'");
+      LinkedHashSet<String> sourceFactIds =
+          new LinkedHashSet<>(node.provenance().sourceFactIds());
+      if (extraFactIds != null) {
+        sourceFactIds.addAll(extraFactIds);
+      }
+      SemanticProvenance provenance = new SemanticProvenance(List.copyOf(sourceFactIds));
+      nodes.set(index, switch (node) {
+        case SemanticNode.Trigger trigger -> new SemanticNode.Trigger(
+            trigger.nodeId(), trigger.interactionId(), trigger.capabilityKey(), provenance);
+        case SemanticNode.ServiceCall call -> new SemanticNode.ServiceCall(
+            call.nodeId(), call.serviceCallId(), call.operation(), call.failureMode(), provenance);
+        case SemanticNode.Operation operation -> new SemanticNode.Operation(
+            operation.nodeId(), operation.elementType(), provenance);
+      });
+      return true;
+    }
+    return false;
+  }
+
+  private static IllegalArgumentException nativeOutboundOwnedException(
+      String nodeId, String elementType, List<SemanticNode> nodes) {
+    List<String> ownedIds = new ArrayList<>();
+    for (SemanticNode node : nodes) {
+      if (node instanceof SemanticNode.Operation operation
+          && elementType.equals(operation.elementType())) {
+        ownedIds.add(operation.nodeId());
+      }
+    }
+    if (ownedIds.isEmpty()) {
+      return new IllegalArgumentException(
+          "Native outbound elementType '"
+              + elementType
+              + "' is server-owned from a capability fact. Do not add operation node '"
+              + nodeId
+              + "'.");
+    }
+    return new IllegalArgumentException(
+        "Operation node '"
+            + nodeId
+            + "' uses native outbound elementType '"
+            + elementType
+            + "'. That node is server-owned from the capability fact. Use nodeId "
+            + String.join(" or ", ownedIds)
+            + "; do not add another "
+            + elementType
+            + " operation.");
+  }
+
+  private record TriggerBinding(RequirementEntryPoint approved, int order) {
+    String triggerNodeId() {
+      return approved.entryPointId();
+    }
+  }
+
+  private static void requireFacts(List<String> sourceFactIds, Set<String> factIds, String owner) {
+    for (String sourceFactId : sourceFactIds) {
+      if (!factIds.contains(sourceFactId)) {
+        throw new IllegalArgumentException(
+            "Provenance sourceFactId '"
+                + sourceFactId
+                + "' on "
+                + owner
+                + " is not in the approved requirement brief. Use one of the sourceFactId values:"
+                + " "
+                + String.join(", ", factIds));
+      }
+    }
+  }
+
+  private static void requireNode(String nodeId, Set<String> nodeIds, String field) {
+    if (nodeId == null || !nodeIds.contains(nodeId.trim())) {
+      throw new IllegalArgumentException(field + " '" + nodeId + "' is missing from nodes");
+    }
+  }
+
+  private static String requireText(String value, String field) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalArgumentException(field + " is required");
+    }
+    return value.trim();
+  }
+
+  private static <T> T requireValue(T value, String field) {
+    if (value == null) {
+      throw new IllegalArgumentException(field + " is required");
+    }
+    return value;
+  }
+
+  private static String blankToNull(String value) {
+    return value == null || value.isBlank() ? null : value.trim();
+  }
+
+  private static String trimmed(String value) {
+    return value == null ? "" : value.trim();
+  }
+
+  private static String sha256Hex(String value) {
+    try {
+      return HexFormat.of()
+          .formatHex(
+              MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 is unavailable", e);
+    }
+  }
+}

@@ -1,0 +1,360 @@
+package org.qubership.integration.platform.ai.productpipeline.store;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException;
+import org.qubership.integration.platform.ai.compiler.artifact.VersionedBlob;
+
+/**
+ * Persists one authoritative product-pipeline run document behind compare-and-set blob writes.
+ */
+public final class ProductPipelineRunStore {
+
+  private static final String RUN_PREFIX = "product-pipeline-runs/";
+  private static final String CONVERSATION_PREFIX = "product-pipeline-conversations/";
+
+  private final ArtifactBlobStore blobStore;
+  private final ObjectMapper objectMapper;
+  private final Clock clock;
+
+  public ProductPipelineRunStore(
+      ArtifactBlobStore blobStore, ObjectMapper objectMapper, Clock clock) {
+    this.blobStore = Objects.requireNonNull(blobStore, "blobStore");
+    this.objectMapper =
+        Objects.requireNonNull(objectMapper, "objectMapper")
+            .copy()
+            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    this.clock = Objects.requireNonNull(clock, "clock");
+  }
+
+  public ProductPipelineRunDocument create(RunSnapshot snapshot) {
+    return create(snapshot, null, null);
+  }
+
+  /**
+   * Creates the run and records durable evidence that {@code commandId} caused it, in the same
+   * create-only write.
+   */
+  public ProductPipelineRunDocument create(
+      RunSnapshot snapshot, String commandId, String commandPayloadHash) {
+    ProductPipelineRunDocument document = createUnbound(snapshot, commandId, commandPayloadHash);
+    var current = blobStore.getVersioned(conversationKey(snapshot.conversationId()));
+    if (current.isPresent() && current.get().content().length != 0) {
+      throw new StaleBlobVersionException("conversation already bound: " + snapshot.conversationId());
+    }
+    try {
+      blobStore.putIfVersion(
+          conversationKey(snapshot.conversationId()),
+          snapshot.runId().getBytes(StandardCharsets.UTF_8),
+          current.map(blob -> blob.version()).orElse(null));
+    } catch (StaleBlobVersionException e) {
+      throw new StaleBlobVersionException(
+          "conversation already bound: " + snapshot.conversationId(), e);
+    }
+    return document;
+  }
+
+  /** Creates a durable run without changing the conversation's active-run pointer. */
+  public ProductPipelineRunDocument createUnbound(
+      RunSnapshot snapshot, String commandId, String commandPayloadHash) {
+    Objects.requireNonNull(snapshot, "snapshot");
+    requireText(snapshot.runId(), "runId");
+    requireText(snapshot.conversationId(), "conversationId");
+    if (snapshot.runRevision() < 1L) {
+      throw new IllegalArgumentException("runRevision must be >= 1");
+    }
+
+    List<RunTransition> initialTransitions =
+        commandId == null || commandId.isBlank()
+            ? List.of()
+            : List.of(
+                new RunTransition(
+                    0L,
+                    snapshot.runRevision(),
+                    snapshot.status(),
+                    snapshot.status(),
+                    snapshot.currentStageId(),
+                    clock.instant(),
+                    "created",
+                    commandId,
+                    commandPayloadHash));
+    ProductPipelineRunDocument document =
+        new ProductPipelineRunDocument(snapshot, List.of(), initialTransitions, null);
+    byte[] payload = write(document);
+    try {
+      blobStore.putIfVersion(runKey(snapshot.runId()), payload, null);
+    } catch (StaleBlobVersionException e) {
+      throw new StaleBlobVersionException("run already exists: " + snapshot.runId(), e);
+    }
+    return load(snapshot.runId())
+        .orElseThrow(() -> new IllegalStateException("created run disappeared"));
+  }
+
+  /**
+   * Atomically changes the active run for a conversation after a child run has been prepared.
+   * The expected run id prevents a stale restart request from replacing a newer active run.
+   */
+  public void replaceConversationBinding(
+      String conversationId, String expectedRunId, String newRunId) {
+    replaceConversationBinding(conversationId, expectedRunId, null, newRunId);
+  }
+
+  /**
+   * Atomically changes the active run after confirming that the parent did not advance while the
+   * child was prepared.
+   */
+  public void replaceConversationBinding(
+      String conversationId,
+      String expectedRunId,
+      Long expectedRunRevision,
+      String newRunId) {
+    requireText(conversationId, "conversationId");
+    requireText(expectedRunId, "expectedRunId");
+    requireText(newRunId, "newRunId");
+    if (expectedRunRevision != null) {
+      ProductPipelineRunDocument parent =
+          load(expectedRunId)
+              .orElseThrow(
+                  () -> new IllegalArgumentException("run was not found: " + expectedRunId));
+      if (parent.run().runRevision() != expectedRunRevision) {
+        throw new StaleBlobVersionException(
+            "expected active runRevision "
+                + expectedRunRevision
+                + " but run "
+                + expectedRunId
+                + " has "
+                + parent.run().runRevision());
+      }
+    }
+    ProductPipelineRunDocument child =
+        load(newRunId)
+            .orElseThrow(() -> new IllegalArgumentException("run was not found: " + newRunId));
+    if (!conversationId.equals(child.run().conversationId())) {
+      throw new IllegalArgumentException(
+          "run " + newRunId + " belongs to another conversation");
+    }
+    String key = conversationKey(conversationId);
+    VersionedBlob current =
+        blobStore
+            .getVersioned(key)
+            .orElseThrow(
+                () -> new IllegalArgumentException("conversation was not found: " + conversationId));
+    String activeRunId = new String(current.content(), StandardCharsets.UTF_8);
+    if (!expectedRunId.equals(activeRunId)) {
+      throw new StaleBlobVersionException(
+          "expected active run " + expectedRunId + " but conversation has " + activeRunId);
+    }
+    blobStore.putIfVersion(key, newRunId.getBytes(StandardCharsets.UTF_8), current.version());
+  }
+
+  public Optional<ProductPipelineRunDocument> load(String runId) {
+    requireText(runId, "runId");
+    return blobStore
+        .getVersioned(runKey(runId))
+        .map(versioned -> read(versioned).withBlobVersion(versioned.version()));
+  }
+
+  public Optional<ProductPipelineRunDocument> loadByConversation(String conversationId) {
+    requireText(conversationId, "conversationId");
+    return blobStore
+        .get(conversationKey(conversationId))
+        .filter(bytes -> bytes.length != 0)
+        .map(bytes -> new String(bytes, StandardCharsets.UTF_8))
+        .flatMap(this::load);
+  }
+
+  public void resetConversation(String conversationId) {
+    requireText(conversationId, "conversationId");
+    String key = conversationKey(conversationId);
+    var current = blobStore.getVersioned(key);
+    blobStore.putIfVersion(key, new byte[0], current.map(blob -> blob.version()).orElse(null));
+  }
+
+  public ProductPipelineRunDocument commit(long expectedRunRevision, LogicalCommit mutation) {
+    Objects.requireNonNull(mutation, "mutation");
+    requireText(mutation.runId(), "runId");
+    if (mutation.expectedRunRevision() != expectedRunRevision) {
+      throw new IllegalArgumentException("LogicalCommit.expectedRunRevision mismatch");
+    }
+    if (mutation.attempt() == null || mutation.transition() == null) {
+      throw new IllegalArgumentException("attempt and transition are required");
+    }
+    if (mutation.transition().toRevision() != expectedRunRevision + 1L) {
+      throw new IllegalArgumentException("transition.toRevision must be expectedRunRevision + 1");
+    }
+
+    VersionedBlob versioned =
+        blobStore
+            .getVersioned(runKey(mutation.runId()))
+            .orElseThrow(
+                () -> new IllegalArgumentException("run was not found: " + mutation.runId()));
+    ProductPipelineRunDocument current = read(versioned).withBlobVersion(versioned.version());
+    if (current.run().runRevision() != expectedRunRevision) {
+      throw new StaleBlobVersionException(
+          "expected runRevision "
+              + expectedRunRevision
+              + " but document has "
+              + current.run().runRevision());
+    }
+    if (mutation.workDocumentRef() != null
+        && mutation.attempt().outputs().stream().noneMatch(mutation.workDocumentRef()::equals)) {
+      throw new IllegalArgumentException(
+          "Document reference must be published on the same attempt as the transition.");
+    }
+    if (mutation.workRepairBudget() != null && mutation.workDocumentRef() == null) {
+      throw new IllegalArgumentException(
+          "Repair budget cannot advance without the document reference.");
+    }
+
+    RunSnapshot nextSnapshot =
+        new RunSnapshot(
+            current.run().runId(),
+            current.run().conversationId(),
+            expectedRunRevision + 1L,
+            mutation.nextStatus(),
+            mutation.currentStageId(),
+            mutation.stages(),
+            current.run().runManifestRef(),
+            current.run().flowInstanceId(),
+            mutation.workDocumentRef() != null
+                ? mutation.workDocumentRef()
+                : current.run().workDocumentRef(),
+            mutation.workRepairBudget() != null
+                ? mutation.workRepairBudget()
+                : current.run().workRepairBudget());
+    List<StageAttempt> attempts = new ArrayList<>(current.attempts());
+    attempts.add(mutation.attempt());
+    List<RunTransition> transitions = new ArrayList<>(current.transitions());
+    transitions.add(mutation.transition());
+    ProductPipelineRunDocument next =
+        new ProductPipelineRunDocument(nextSnapshot, attempts, transitions, null);
+
+    blobStore.putIfVersion(runKey(mutation.runId()), write(next), versioned.version());
+    return load(mutation.runId())
+        .orElseThrow(() -> new IllegalStateException("committed run disappeared"));
+  }
+
+  /** Outcome of one physical provider attempt, recorded apart from the logical task receipt. */
+  public enum ProviderDeliveryOutcome {
+    COMPLETED,
+    UNCERTAIN
+  }
+
+  public ProductPipelineRunDocument reserveProviderDelivery(String runId, String reservationId) {
+    return recordDelivery(runId, reservationId, "RESERVED", StageStatus.RUNNING);
+  }
+
+  public ProductPipelineRunDocument recordProviderDelivery(
+      String runId, String reservationId, ProviderDeliveryOutcome outcome) {
+    Objects.requireNonNull(outcome, "outcome");
+    StageStatus status =
+        outcome == ProviderDeliveryOutcome.COMPLETED ? StageStatus.SUCCEEDED : StageStatus.FAILED;
+    return recordDelivery(runId, reservationId, outcome.name(), status);
+  }
+
+  public List<String> providerDeliveryReservations(ProductPipelineRunDocument document) {
+    return deliveryIds(document, "RESERVED");
+  }
+
+  public List<String> confirmedProviderDeliveries(ProductPipelineRunDocument document) {
+    return deliveryIds(document, "COMPLETED");
+  }
+
+  public List<String> uncertainProviderDeliveries(ProductPipelineRunDocument document) {
+    return deliveryIds(document, "UNCERTAIN");
+  }
+
+  private ProductPipelineRunDocument recordDelivery(
+      String runId, String reservationId, String outcome, StageStatus status) {
+    requireText(runId, "runId");
+    requireText(reservationId, "reservationId");
+    ProductPipelineRunDocument current =
+        load(runId)
+            .orElseThrow(() -> new IllegalArgumentException("run was not found: " + runId));
+    String reason = "provider-delivery:" + outcome + ":" + reservationId;
+    for (RunTransition transition : current.transitions()) {
+      if (reason.equals(transition.reason())) {
+        return current;
+      }
+    }
+    long expected = current.run().runRevision();
+    long next = expected + 1L;
+    Instant at = clock.instant();
+    String stage = current.run().currentStageId();
+    return commit(
+        expected,
+        new LogicalCommit(
+            runId,
+            expected,
+            current.run().status(),
+            stage,
+            current.run().stages(),
+            new StageAttempt(
+                "delivery-" + reservationId + "-" + outcome,
+                stage,
+                next,
+                status,
+                at,
+                at,
+                List.of(),
+                null,
+                null),
+            new RunTransition(
+                expected, next, current.run().status(), current.run().status(), stage, at, reason, null, null),
+            null,
+            null));
+  }
+
+  private static List<String> deliveryIds(ProductPipelineRunDocument document, String outcome) {
+    String prefix = "provider-delivery:" + outcome + ":";
+    List<String> ids = new ArrayList<>();
+    if (document == null) {
+      return ids;
+    }
+    for (RunTransition transition : document.transitions()) {
+      String reason = transition.reason();
+      if (reason != null && reason.startsWith(prefix)) {
+        ids.add(reason.substring(prefix.length()));
+      }
+    }
+    return List.copyOf(ids);
+  }
+
+  private ProductPipelineRunDocument read(VersionedBlob versioned) {
+    try {
+      return objectMapper.readValue(versioned.content(), ProductPipelineRunDocument.class);
+    } catch (Exception e) {
+      throw new IllegalStateException("cannot deserialize product-pipeline run", e);
+    }
+  }
+
+  private byte[] write(ProductPipelineRunDocument document) {
+    try {
+      return objectMapper.writeValueAsBytes(document);
+    } catch (Exception e) {
+      throw new IllegalStateException("cannot serialize product-pipeline run", e);
+    }
+  }
+
+  private static String runKey(String runId) {
+    return RUN_PREFIX + runId + ".json";
+  }
+
+  private static String conversationKey(String conversationId) {
+    return CONVERSATION_PREFIX + conversationId;
+  }
+
+  private static void requireText(String value, String name) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalArgumentException(name + " is required");
+    }
+  }
+}

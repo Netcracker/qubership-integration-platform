@@ -1,5 +1,5 @@
-import { Form, Input, Select } from "antd";
-import React, { useContext, useEffect, useState } from "react";
+import { Alert, Button, Form, Input, Select } from "antd";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { Chain } from "../api/apiTypes.ts";
 import { ChainContext } from "./ChainPage.tsx";
 import {
@@ -23,6 +23,7 @@ import {
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { Require } from "../permissions/Require.tsx";
+import { confirmAndRun } from "../misc/confirm-utils.ts";
 
 const { TextArea } = Input;
 const { useForm } = Form;
@@ -42,6 +43,8 @@ export type FormData = {
 export const ChainProperties: React.FC = () => {
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const sourceSnapshot = useRef("");
+  const [changedInCatalog, setChangedInCatalog] = useState(false);
   const blocker = useBlocker(hasChanges);
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
@@ -107,12 +110,19 @@ export const ChainProperties: React.FC = () => {
         outOfScope: chainContext.chain.outOfScope ?? "",
       };
       loadChainExtensionPropertiesToForm(chainContext, formData);
+      const snapshot = JSON.stringify(formData);
+      if (hasChanges) {
+        setChangedInCatalog(sourceSnapshot.current !== snapshot);
+        return;
+      }
+      sourceSnapshot.current = snapshot;
+      setChangedInCatalog(false);
       form.setFieldsValue(formData);
     }
-  }, []);
+  }, [chainContext?.chain, form, hasChanges]);
 
   const handleFinish = async (values: FormData): Promise<boolean> => {
-    if (!chainContext?.chain) return false;
+    if (!chainContext?.chain || chainContext.deleted) return false;
 
     const changes: Partial<Chain> = {
       name: values.name,
@@ -139,6 +149,8 @@ export const ChainProperties: React.FC = () => {
       await chainContext.update(changes);
       setHasChanges(false);
       return true;
+    } catch {
+      return false;
     } finally {
       setIsUpdating(false);
     }
@@ -151,11 +163,39 @@ export const ChainProperties: React.FC = () => {
           <ApplyFormButton
             formId="chain-properties-form"
             loading={isUpdating}
-            disabled={!hasChanges}
+            disabled={!hasChanges || chainContext?.deleted}
           />
         </Require>
       </ChainHeaderActions>
       <div className={styles.formContent}>
+        {chainContext?.deleted && (
+          <Alert
+            type="warning"
+            showIcon
+            title="This chain was deleted. Your unsaved input is preserved."
+          />
+        )}
+        {changedInCatalog && !chainContext?.deleted && (
+          <Alert
+            type="warning"
+            showIcon
+            title="Chain properties changed in the catalog. Your draft is preserved."
+            action={
+              <Button
+                onClick={() =>
+                  confirmAndRun({
+                    title:
+                      "Discard unsaved changes and reload chain properties?",
+                    okText: "Reload properties",
+                    onOk: () => setHasChanges(false),
+                  })
+                }
+              >
+                Reload properties
+              </Button>
+            }
+          />
+        )}
         <Form<FormData>
           id="chain-properties-form"
           form={form}

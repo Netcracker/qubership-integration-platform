@@ -36,15 +36,8 @@
  *   And the miss is a bare `ResponseEntity.notFound().build()`: **404 with an empty body**, not the
  *   `{serviceName, errorMessage, errorDate}` envelope the rest of the catalog answers with.
  *
- * **One platform defect, decided as won't fix, stands behind the types listing**:
- * `ElementLibraryController.findAllUsingElementsTypes` maps each type through
- * `libraryElementsService.getElementDescriptor(type)`, which throws `ElementNotFoundException` for
- * a type the library does not offer. The query is catalog-wide and spans snapshot elements as well
- * as chain elements, so a single row anywhere — including inside a snapshot of a chain nobody is
- * looking at — takes the endpoint down for the whole instance. It is not asserted as a `test.fail()`
- * because it is not reproducible on demand: no create path accepts an unknown type, so a spec
- * cannot manufacture the row, and pinning the 500 would pin whatever the stack happens to hold.
- * `presentableTypesInUse` below turns it into a failure that names itself instead.
+ * The types listing includes persisted types whose descriptors were removed. Those rows use the
+ * type name as the title, so an old chain or snapshot cannot break the filter for the whole catalog.
  */
 import { test, expect } from "../../support/fixtures.js";
 import {
@@ -131,26 +124,10 @@ function allGroups(node: LibraryElementsView): LibraryElementGroupView[] {
   return node.groups.flatMap((group) => [group, ...allGroups(group)]);
 }
 
-/**
- * The types listing, read so that its one interesting failure explains itself.
- *
- * A 500 here is the defect in the file header rather than anything this spec did, so the message
- * carries the query that finds the offending row. Without it the reader gets
- * `Element descriptor 'x' not found` and no way to tell whose element `x` is.
- */
+/** Reads the types used by chains and snapshots, including removed descriptors. */
 async function presentableTypesInUse(catalog: Catalog): Promise<ElementTypeInUse[]> {
   const response = await catalog.raw("get", "/v1/library/elements/types");
-  expect(
-    response.status(),
-    "the element-type listing failed. It maps every type in `catalog.elements` through the " +
-      "library and throws on one the library does not offer, so a single row anywhere — a " +
-      "snapshot element of an unrelated chain included — takes it down for the whole instance. " +
-      "Find it with:\n" +
-      "  SELECT e.id, e.type, e.chain_id, e.snapshot_id FROM catalog.elements e\n" +
-      "  WHERE e.type NOT IN (<the names GET /v1/library offers>);\n" +
-      "Body: " +
-      (await response.text()),
-  ).toBe(200);
+  expect(response.status(), await response.text()).toBe(200);
   return (await response.json()) as ElementTypeInUse[];
 }
 
@@ -337,7 +314,7 @@ test("the by-name read looks up a name, and misses with an empty 404", { tag: ["
   expect((await catalog.libraryElement("catch-2")).status()).toBe(200);
 });
 
-test("the types listing is the palette projected through the catalog's own elements", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
+test("the types listing maps known titles and preserves removed types", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
   const inUse = await presentableTypesInUse(catalog);
   const palette = paletteElements(await catalog.library());
 
@@ -346,10 +323,7 @@ test("the types listing is the palette projected through the catalog's own eleme
   for (const row of inUse) {
     expect(Object.keys(row).sort(), `row ${JSON.stringify(row)}`).toEqual(["elementTitle", "elementType"]);
     const descriptor = palette.get(row.elementType);
-    expect(descriptor, `type ${row.elementType} is in use and the palette does not offer it`).toBeDefined();
-    // The title is read from the library at request time rather than stored with the element, so
-    // this is the projection: rename an element in its descriptor and this listing renames with it.
-    expect(descriptor?.title, `title of ${row.elementType}`).toBe(row.elementTitle);
+    expect(row.elementTitle, `title of ${row.elementType}`).toBe(descriptor?.title ?? row.elementType);
   }
 
   // `GROUP BY e.type` cannot repeat a type, and a duplicate would double every entry in the UI's
@@ -357,15 +331,13 @@ test("the types listing is the palette projected through the catalog's own eleme
   const types = inUse.map((row) => row.elementType);
   expect(new Set(types).size, "the listing repeats a type").toBe(types.length);
 
-  // A **strict** subset, which is the whole difference between this endpoint and `GET /v1/library`:
-  // it answers what the catalog uses, not what the editor offers. This is also the floor the
-  // round-trip below stands on — with no spare type there is no transition to observe.
+  // Unused palette types stay absent; removed types may still appear from old chains or snapshots.
   const unused = [...palette.keys()].filter((name) => !types.includes(name));
   expect(
     unused.length,
     "every element the palette offers is in use somewhere, so the listing is not a subset",
   ).toBeGreaterThan(0);
-  expect(inUse.length).toBeLessThan(palette.size);
+  expect(types.filter((type) => palette.has(type)).length).toBeLessThan(palette.size);
 });
 
 test("a type enters the listing when an element of it exists and leaves when it is deleted", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {

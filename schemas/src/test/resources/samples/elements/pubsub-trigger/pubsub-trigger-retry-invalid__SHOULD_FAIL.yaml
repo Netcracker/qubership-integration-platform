@@ -1,0 +1,11 @@
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/pubsub-trigger
+---
+id: d09ca8e9-e5e5-568b-976f-6f718449157a
+name: PubSub retry codes
+type: pubsub-trigger
+properties:
+  destinationName: orders
+  projectId: test-project
+  serviceAccountKey: test-key
+  synchronousPullRetryableCodes:
+    - INVALID

@@ -18,10 +18,9 @@
 //     yields `publish` or `subscribe`, and `path` is the channel's `address` rather than its key
 //   - the second operation's schema is resolved: its channel message references
 //     `components.messages`, whose payload references `components.schemas`, and
-//     `AsyncApiSchemaResolver` follows both into a document carrying `definitions` and an `$id`
-//     under the catalog's schema namespace. A message declared inline with a literal payload, like
-//     the first channel's, is cloned as written — `getMessageSchema` resolves a reference only when
-//     the message itself is one. The header of `AsyncApiSpecificationResolvers` calls the file a
+//     `AsyncApiSchemaResolver` follows both and expands the root reference. Both literal and
+//     referenced payloads carry `definitions`, an `$id` under the catalog's schema namespace, and
+//     the JSON Schema draft URL. The header of `AsyncApiSpecificationResolvers` calls the file a
 //     port of the backend's `AbstractAsyncApiSpecificationResolver`, so that is where the shape
 //     comes from; nothing here measured the Java side
 //   - the environment comes from the server, named after the server's key and addressed
@@ -113,6 +112,27 @@ describe("the AsyncAPI import", () => {
       ["publishOrderCreated", "send", "orders.created"],
       ["consumeOrderShipped", "receive", "orders.shipped"],
     ]);
+
+    expect(
+      specification.content.operations[0].responseSchemas.payload,
+    ).toMatchObject({
+      type: "object",
+      required: ["orderId"],
+      definitions: {},
+      $id: "http://system.catalog/schemas/payload",
+      $schema: "http://json-schema.org/draft-07/schema#",
+    });
+    const shipped =
+      specification.content.operations[1].responseSchemas.OrderShipped;
+    expect(shipped).toMatchObject({
+      type: "object",
+      required: ["orderId", "shippedAt"],
+      properties: {
+        orderId: { type: "string" },
+        shippedAt: { type: "string", format: "date-time" },
+      },
+    });
+    expect(shipped).not.toHaveProperty("$ref");
 
     // The protocol the detector derived from the server, which decides what the service document
     // carries and which parser the import dispatched to.

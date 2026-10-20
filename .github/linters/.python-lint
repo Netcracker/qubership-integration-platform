@@ -1,0 +1,27 @@
+[MAIN]
+jobs=0
+
+[MESSAGES CONTROL]
+# Super-Linter cannot install each Python package's dependencies.
+# Black, isort, and Flake8 own formatting; data models and test scripts keep their existing structure.
+disable=import-error,
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    too-many-locals,
+    too-many-branches,
+    too-many-arguments,
+    too-many-positional-arguments,
+    too-many-statements,
+    too-many-boolean-expressions,
+    duplicate-code,
+    consider-using-with,
+    use-implicit-booleaness-not-comparison,
+    use-dict-literal
+
+[BASIC]
+module-rgx=[a-z_][a-z0-9_-]*$
+
+[FORMAT]
+max-line-length=120

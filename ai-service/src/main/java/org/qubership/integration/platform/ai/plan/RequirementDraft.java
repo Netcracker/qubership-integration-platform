@@ -1,0 +1,763 @@
+package org.qubership.integration.platform.ai.plan;
+
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+
+/** Iterative requirement vision accumulated before the compiler spine runs. */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record RequirementDraft(
+    boolean complete,
+    String assembledText,
+    DraftDecision decision,
+    List<String> openQuestions,
+    String sourceSkillId,
+    String sourceSkillVersion,
+    String sourceSkillHash,
+    ApiHubRequirementRefs apiHubCandidate,
+    boolean awaitingPlanContinuation,
+    List<RequirementFact> facts,
+    boolean importIntent,
+    @JsonAlias("apiHubCandidateServiceCallId") String apiHubCandidateInteractionId,
+    Boolean idsRequested,
+    RequirementFlow flow,
+    List<CatalogBindingHint> catalogBindings,
+    String preferredSystemType,
+    RequirementCaptureInput.DraftInput authoredDraft) {
+
+  public RequirementDraft {
+    decision = decision != null ? decision : decisionFromComplete(complete);
+    openQuestions = openQuestions == null ? List.of() : List.copyOf(openQuestions);
+    assembledText = assembledText != null ? assembledText.trim() : "";
+    sourceSkillHash =
+        sourceSkillHash != null && !sourceSkillHash.isBlank() ? sourceSkillHash.trim() : null;
+    facts = facts == null ? List.of() : List.copyOf(facts);
+    apiHubCandidateInteractionId =
+        apiHubCandidateInteractionId == null || apiHubCandidateInteractionId.isBlank()
+            ? null
+            : apiHubCandidateInteractionId.trim();
+    flow = flow == null ? RequirementFlow.EMPTY : flow;
+    catalogBindings = catalogBindings == null ? List.of() : List.copyOf(catalogBindings);
+    preferredSystemType = normalizePreferredSystemType(preferredSystemType);
+    complete = decision == DraftDecision.READY_FOR_PLAN && openQuestions.isEmpty();
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      String apiHubCandidateInteractionId,
+      Boolean idsRequested,
+      RequirementFlow flow,
+      List<CatalogBindingHint> catalogBindings,
+      String preferredSystemType) {
+    this(complete, assembledText, decision, openQuestions, sourceSkillId, sourceSkillVersion,
+        sourceSkillHash, apiHubCandidate, awaitingPlanContinuation, facts, importIntent,
+        apiHubCandidateInteractionId, idsRequested, flow, catalogBindings, preferredSystemType, null);
+  }
+
+  /** Compatibility constructor for drafts captured before generic catalogBindings storage. */
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      String apiHubCandidateInteractionId,
+      Boolean idsRequested,
+      RequirementFlow flow) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        List.of(),
+        null);
+  }
+
+  /** Compatibility constructor for drafts captured before preferredSystemType. */
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      String apiHubCandidateInteractionId,
+      Boolean idsRequested,
+      RequirementFlow flow,
+      List<CatalogBindingHint> catalogBindings) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        null);
+  }
+
+  /** Compatibility constructor for drafts captured before business-first flow ownership. */
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      String apiHubCandidateInteractionId,
+      Boolean idsRequested) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        RequirementFlow.EMPTY);
+  }
+
+  /** Compatibility constructor for drafts captured before the author could decline the IDS. */
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      String apiHubCandidateInteractionId) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        null);
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        null,
+        null,
+        false,
+        List.of(),
+        false,
+        null,
+        null);
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        null,
+        false,
+        List.of(),
+        false,
+        null,
+        null);
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        List.of(),
+        false,
+        null,
+        null);
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        false,
+        null,
+        null);
+  }
+
+  public RequirementDraft(boolean complete, String assembledText) {
+    this(
+        complete,
+        assembledText,
+        null,
+        List.of(),
+        null,
+        null,
+        null,
+        null,
+        false,
+        List.of(),
+        false,
+        null,
+        null);
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        null,
+        null);
+  }
+
+  /**
+   * Compatibility constructor for tests and call sites that still pass projected service calls.
+   * Bindings on those calls are copied onto {@link #catalogBindings()}.
+   */
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      List<org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall>
+          serviceCalls) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        null,
+        null,
+        RequirementFlow.EMPTY,
+        hintsFromCalls(serviceCalls),
+        null);
+  }
+
+  private static String normalizePreferredSystemType(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return null;
+    }
+    String normalized = raw.trim().toUpperCase(java.util.Locale.ROOT);
+    if ("EXTERNAL".equals(normalized) || "INTERNAL".equals(normalized)) {
+      return normalized;
+    }
+    return null;
+  }
+
+  public String resolvedPreferredSystemType() {
+    return preferredSystemType == null ? "INTERNAL" : preferredSystemType;
+  }
+
+  public RequirementDraft withPreferredSystemType(String systemType) {
+    String normalized = normalizePreferredSystemType(systemType);
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        normalized,
+        authoredDraft == null ? null : new RequirementCaptureInput.DraftInput(
+            authoredDraft.flow(), authoredDraft.facts(), authoredDraft.capabilities(),
+            authoredDraft.openQuestions(), new RequirementCaptureInput.DraftSettings(
+                authoredDraft.settings().idsRequested(),
+                normalized == null ? null : RequirementCaptureInput.SystemType.valueOf(normalized),
+                authoredDraft.settings().targetFolderPath())));
+  }
+
+  public boolean readyForPlan() {
+    return readinessError().isEmpty();
+  }
+
+  /** Returns the first reason this draft cannot cross the requirement-analysis boundary. */
+  public Optional<String> readinessError() {
+    if (flow.interactions().isEmpty()) {
+      return Optional.of("requirement draft has no flow interactions");
+    }
+    Optional<String> bindingError =
+        RequirementFlowValidator.validateBindings(flow, facts, catalogBindings);
+    if (bindingError.isPresent()) {
+      return bindingError;
+    }
+    if (decision != DraftDecision.READY_FOR_PLAN) {
+      return Optional.of("requirement draft decision is " + decision);
+    }
+    if (!openQuestions.isEmpty()) {
+      return Optional.of("requirement draft still has open questions");
+    }
+    return Optional.empty();
+  }
+
+  public boolean hasPendingImport() {
+    if (apiHubCandidate == null) {
+      return false;
+    }
+    if (apiHubCandidateInteractionId != null) {
+      return catalogBindings.stream()
+          .noneMatch(hint -> apiHubCandidateInteractionId.equals(hint.interactionId()));
+    }
+    return true;
+  }
+
+  /**
+   * True when specification import should skip because the selected call is already in the catalog.
+   * An API Hub candidate is bound when that interaction has a catalog hint. A non-empty flow is
+   * bound when {@link RequirementFlowValidator#validateBindings} reports no gaps. An empty flow is
+   * bound when any catalog hint is present.
+   */
+  public boolean selectedImportCallAlreadyBound() {
+    if (apiHubCandidateInteractionId != null) {
+      return catalogBindings.stream()
+          .anyMatch(hint -> apiHubCandidateInteractionId.equals(hint.interactionId()));
+    }
+    if (!flow.interactions().isEmpty()) {
+      return RequirementFlowValidator.validateBindings(flow, facts, catalogBindings).isEmpty();
+    }
+    return !catalogBindings.isEmpty();
+  }
+
+  public String planningText() {
+    return assembledText;
+  }
+
+  /** Same draft with the author's IDS answer recorded. */
+  public RequirementDraft withIdsRequested(Boolean requested) {
+    if (requested != null && authoredDraft != null && authoredDraft.openQuestions().stream()
+        .anyMatch(question -> PipelineGates.IDS_PATH_CHOICE
+            .equals(question.questionId()))) {
+      var input = new RequirementCaptureInput.DraftInput(authoredDraft.flow(), authoredDraft.facts(),
+          authoredDraft.capabilities(), authoredDraft.openQuestions().stream()
+              .filter(question -> !PipelineGates.IDS_PATH_CHOICE
+                  .equals(question.questionId())).toList(),
+          new RequirementCaptureInput.DraftSettings(requested, authoredDraft.settings().preferredSystemType(),
+              authoredDraft.settings().targetFolderPath()));
+      return RequirementCaptureProjection.toDraft(input, this, catalogBindings, sourceSkillVersion, sourceSkillHash);
+    }
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        requested,
+        flow,
+        catalogBindings,
+        preferredSystemType,
+        authoredDraft == null ? null : new RequirementCaptureInput.DraftInput(
+            authoredDraft.flow(), authoredDraft.facts(), authoredDraft.capabilities(),
+            authoredDraft.openQuestions(), new RequirementCaptureInput.DraftSettings(
+                requested, authoredDraft.settings().preferredSystemType(),
+                authoredDraft.settings().targetFolderPath())));
+  }
+
+  /** Same draft with a captured business interaction graph. */
+  public RequirementDraft withFlow(RequirementFlow nextFlow) {
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        nextFlow,
+        catalogBindings,
+        preferredSystemType,
+        authoredDraft);
+  }
+
+  /**
+   * Replaces or appends the catalog binding for one interaction. Other bindings stay in place.
+   */
+  public RequirementDraft withBoundInteraction(String interactionId, CatalogBindingHint hint) {
+    String id = interactionId == null ? "" : interactionId.trim();
+    if (id.isEmpty() || hint == null) {
+      return this;
+    }
+    List<CatalogBindingHint> next = new ArrayList<>();
+    boolean replaced = false;
+    for (CatalogBindingHint existing : catalogBindings) {
+      if (!replaced && existing.interactionId().equals(id)) {
+        next.add(hint);
+        replaced = true;
+      } else {
+        next.add(existing);
+      }
+    }
+    if (!replaced) {
+      if (!flow.interactions().isEmpty() && flow.interaction(id).isEmpty()) {
+        return this;
+      }
+      next.add(hint);
+    }
+    if (authoredDraft != null) {
+      return RequirementCaptureProjection.toDraft(
+          authoredDraft, this, List.copyOf(next), sourceSkillVersion, sourceSkillHash);
+    }
+    boolean bound =
+        !flow.interactions().isEmpty()
+            && RequirementFlowValidator.validateBindings(flow, facts, next).isEmpty();
+    boolean ready = bound && openQuestions.isEmpty();
+    return new RequirementDraft(
+        ready,
+        assembledText,
+        ready ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        null,
+        false,
+        facts,
+        false,
+        null,
+        idsRequested,
+        flow,
+        List.copyOf(next),
+        preferredSystemType,
+        authoredDraft);
+  }
+
+  public RequirementDraft withBoundServiceCall(String interactionId, CatalogBindingHint hint) {
+    return withBoundInteraction(interactionId, hint);
+  }
+
+  public RequirementDraft withAwaitingPlanContinuation(boolean awaiting) {
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaiting,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        preferredSystemType,
+        authoredDraft);
+  }
+
+  /**
+   * Sets a pending API Hub candidate and records durable import intent. The confirmation reaches
+   * the reader as a decision, so nothing is pinned as an open question.
+   */
+  public RequirementDraft withApiHubCandidate(ApiHubRequirementRefs candidate) {
+    return withApiHubCandidate(candidate, apiHubCandidateInteractionId);
+  }
+
+  public RequirementDraft withApiHubCandidate(
+      ApiHubRequirementRefs candidate, String interactionId) {
+    return new RequirementDraft(
+        false,
+        assembledText,
+        DraftDecision.NEEDS_INPUT,
+        List.of(),
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        candidate,
+        false,
+        facts,
+        true,
+        interactionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        preferredSystemType,
+        authoredDraft);
+  }
+
+  /** Clears the pending candidate while keeping {@link #importIntent()} for re-gather. */
+  public RequirementDraft clearApiHubCandidate() {
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        null,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        preferredSystemType,
+        authoredDraft);
+  }
+
+  public RequirementDraft withImportIntent(boolean intent) {
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        intent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        preferredSystemType,
+        authoredDraft);
+  }
+
+  public RequirementDraft withFacts(List<RequirementFact> nextFacts) {
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        nextFacts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        preferredSystemType,
+        authoredDraft);
+  }
+
+  public RequirementDraft withAssembledText(String next) {
+    return new RequirementDraft(
+        complete,
+        next,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        preferredSystemType,
+        authoredDraft);
+  }
+
+  public java.util.Optional<CatalogBindingHint> catalogBinding(String interactionId) {
+    String id = interactionId == null ? "" : interactionId.trim();
+    if (id.isEmpty()) {
+      return java.util.Optional.empty();
+    }
+    return catalogBindings.stream().filter(hint -> id.equals(hint.interactionId())).findFirst();
+  }
+
+  private static DraftDecision decisionFromComplete(boolean complete) {
+    return complete ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT;
+  }
+
+  private static List<CatalogBindingHint> hintsFromCalls(
+      List<org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall>
+          serviceCalls) {
+    if (serviceCalls == null || serviceCalls.isEmpty()) {
+      return List.of();
+    }
+    List<CatalogBindingHint> hints = new ArrayList<>();
+    for (org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall call :
+        serviceCalls) {
+      if (call != null && call.catalogBinding() != null) {
+        hints.add(call.catalogBinding());
+      }
+    }
+    return List.copyOf(hints);
+  }
+}
