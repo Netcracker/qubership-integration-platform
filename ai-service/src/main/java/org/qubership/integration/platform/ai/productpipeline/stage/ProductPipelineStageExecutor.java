@@ -115,7 +115,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     this.conversations = conversations;
   }
 
-  @jakarta.inject.Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+  private org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+
+  public void withRecoveryControl(
+      org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl control) {
+    this.recoveryControl = control;
+  }
 
   private static final Logger LOG =
       Logger.getLogger(ProductPipelineStageExecutor.class);

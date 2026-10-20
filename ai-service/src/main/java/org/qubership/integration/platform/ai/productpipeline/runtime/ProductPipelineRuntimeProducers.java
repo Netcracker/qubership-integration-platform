@@ -189,7 +189,8 @@ public class ProductPipelineRuntimeProducers {
       SchemaResourceLoader schemaResourceLoader,
       SchemaRefResolver schemaRefResolver,
       DeterministicElementSchemaService schemaService,
-      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations,
+      org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl) {
     AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
         appConfig.create().failureNarrative();
     return new ProductPipelineRunSupport(
@@ -221,7 +222,8 @@ public class ProductPipelineRuntimeProducers {
             objectMapper,
             schemaResourceLoader,
             schemaRefResolver,
-            schemaService).withConversations(conversations).withLlmBudget(llmRunBudget);
+            schemaService).withConversations(conversations).withLlmBudget(llmRunBudget)
+                .withRecoveryControl(recoveryControl);
   }
 
   @Produces

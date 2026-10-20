@@ -15,6 +15,34 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 
 class CompilerQualityValidatorTest {
+  @Test
+  void anOwnedScriptLiteralIsCheckedAfterGenerationInsteadOfReopeningRequirements() {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger", null, null, null, List.of(), List.of("accepted-body"));
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("reply",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Respond with accepted-body.",
+        "", "", "", "", "", "", List.of("trigger"), null, intent);
+    var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief("goal", List.of(),
+        List.of(), List.of(), List.of(), "summary", "ref", "source", List.of(fact), List.of());
+    for (String script : List.of("exchange.in.body = 'different'", "// accepted-body\nexchange.in.body = 'different'")) {
+      var candidate = graph().withNodeProperty("script", "script", script);
+      var nodes = new java.util.ArrayList<>(candidate.nodes());
+      nodes.add(new ChainPlanNode("unrelated", "script", "accepted-body", null, null,
+          List.of(new PlanProperty("script", "exchange.in.body = 'accepted-body'"))));
+      candidate = new ChainPlanGraph(candidate.schemaVersion(), candidate.chain(), nodes, candidate.edges());
+      var findings = CompilerQualityValidator.validateApprovedValues(candidate, brief);
+      assertTrue(findings.stream().anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())
+          && "/properties/script".equals(issue.fieldPointer())), findings.toString());
+    }
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = 'accepted-body'"), brief).isEmpty());
+    assertTrue(org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause.fromFindingCode(
+        "MISSING_REQUIRED_SCRIPT_LITERAL")
+        == org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.MISSING_REQUIRED_PROPERTY);
+  }
+
 
   @Test
   void approvedInlineHooksCannotBeOmittedOrReplacedByStandaloneScripts() {
