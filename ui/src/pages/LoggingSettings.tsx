@@ -49,7 +49,7 @@ export const LoggingSettings: React.FC = () => {
       }
       setIsLoggingSettingsLoading(true);
       try {
-        return api.getLoggingSettings(chainId);
+        return await api.getLoggingSettings(chainId);
       } catch (error) {
         notificationService.requestFailed(
           "Failed to get logging settings",
@@ -169,6 +169,8 @@ export const LoggingSettings: React.FC = () => {
     label: capitalize(value),
   }));
 
+  const formDisabled = isLoggingSettingsLoading || disabled;
+
   return (
     <div className={styles.pageContainer}>
       <ChainHeaderActions>
@@ -192,7 +194,7 @@ export const LoggingSettings: React.FC = () => {
         ) : null}
         <Form<LogSettingsFormState>
           id="logging-settings-form"
-          disabled={isLoggingSettingsLoading || disabled}
+          disabled={formDisabled}
           labelWrap
           form={form}
           {...formItemLayout}
@@ -209,7 +211,7 @@ export const LoggingSettings: React.FC = () => {
             valuePropName="checked"
             {...formItemStyle}
           >
-            <Checkbox disabled={disabled}>Override default properties</Checkbox>
+            <Checkbox>Override default properties</Checkbox>
           </Form.Item>
           <Form.Item
             label="Logging settings source"
@@ -222,25 +224,25 @@ export const LoggingSettings: React.FC = () => {
           </Form.Item>
           <Form.Item label="Session level" name="sessionsLoggingLevel">
             <Select<SessionsLoggingLevel>
-              disabled={!isCustom}
+              disabled={formDisabled || !isCustom}
               options={sessionLevelOptions}
             ></Select>
           </Form.Item>
           <Form.Item label="Session log details" name="sessionLogDetails">
             <Select<SessionLogDetails>
-              disabled={!isCustom}
+              disabled={formDisabled || !isCustom}
               options={sessionLogDetailsOptions}
             ></Select>
           </Form.Item>
           <Form.Item label="Log level" name="logLoggingLevel">
             <Select<LogLoggingLevel>
-              disabled={!isCustom}
+              disabled={formDisabled || !isCustom}
               options={logLoggingLevelOptions}
             ></Select>
           </Form.Item>
           <Form.Item label="Log payload" name="logPayload">
             <Select<LogPayload[]>
-              disabled={!isCustom}
+              disabled={formDisabled || !isCustom}
               mode="multiple"
               allowClear
               options={logPayloadOptions}
@@ -252,7 +254,7 @@ export const LoggingSettings: React.FC = () => {
             valuePropName="checked"
             {...formItemStyle}
           >
-            <Checkbox disabled={!isCustom || disabled}>
+            <Checkbox disabled={formDisabled || !isCustom}>
               Produce DPT Events
             </Checkbox>
           </Form.Item>
@@ -262,7 +264,7 @@ export const LoggingSettings: React.FC = () => {
             valuePropName="checked"
             {...formItemStyle}
           >
-            <Checkbox disabled={!isCustom || disabled}>
+            <Checkbox disabled={formDisabled || !isCustom}>
               Enable logging masking
             </Checkbox>
           </Form.Item>
