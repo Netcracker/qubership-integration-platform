@@ -26,7 +26,7 @@
  * - **`offset` in the answer is the marker for the next request**, `offset + rows`, never a total
  *   and never an echo. A full page and a last page are indistinguishable without asking again.
  * - **Four deletes refresh the index and one does not.** `deleteBySessionId` passes
- *   `refresh=false` (`SessionService.java:151`); the chain deletes, the bulk delete and the
+ *   `refresh=false` (`SessionService.java:152`); the chain deletes, the bulk delete and the
  *   wholesale delete all pass `true`. So a delete by id is visible when OpenSearch gets to it and
  *   every other delete is visible on the very next read, and the cases assert exactly that
  *   difference rather than polling everywhere.
@@ -52,6 +52,7 @@ import {
   elementNames,
   type RecordedSession,
   type SessionPage,
+  SESSION_TIMEOUT,
   type Sessions,
   type TracedElement,
 } from "../../support/sessions.js";
@@ -64,8 +65,8 @@ import {
   waitForDeployed,
   waitForRoutes,
 } from "../../support/corpus.js";
-import { createScriptChain, SCRIPT_CHAIN_STEPS } from "../../support/deployable.js";
-import { releaseChains } from "../../support/cleanup.js";
+import { createScriptChain, createStepsChain, SCRIPT_CHAIN_STEPS } from "../../support/deployable.js";
+import { releaseChains, waitForRecording } from "../../support/cleanup.js";
 import type { Catalog } from "../../support/catalog.js";
 import type { Env } from "../../env/index.js";
 import type { APIRequestContext } from "@playwright/test";
@@ -459,6 +460,59 @@ test("a chain's sessions delete together, alone or in a named set", { tag: ["@se
 
       bodyFailed = false;
     } finally {
+      await releaseChains(catalog, built, bodyFailed);
+    }
+  },
+);
+
+test("a chain's sessions delete while the chain is still recording them", { tag: ["@sessions", "@engine", "@tier2"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    const built: SeedChain[] = [];
+    let bodyFailed = true;
+    let calling = true;
+    const callers: Promise<void>[] = [];
+    try {
+      // Issue #1162. The engine writes an element when it starts and again when it finishes, so slow
+      // steps keep documents changing under the delete. Four of them is the shape the issue measured.
+      const steps = [1, 2, 3, 4].map((index) => ({
+        name: `Slow Step ${index}`,
+        type: "script",
+        properties: { script: "Thread.sleep(50)" },
+      }));
+      const chain = await createStepsChain(
+        catalog,
+        run,
+        { what: "sess-busy-delete", parentId: folder.id, steps, logging: SEED_LOGGING },
+        built,
+      );
+      const snapshot = await catalog.createSnapshot(chain.id);
+      await catalog.deploy(chain.id, snapshot.id);
+      await waitForDeployed(catalog, [chain]);
+      await waitForRoutes(env, [chain]);
+      await waitForRecording(env, sessions, chain);
+
+      for (let caller = 0; caller < 2; caller++) {
+        callers.push((async () => {
+          while (calling) await callChain(request, env.chainUrl(chain.contextPath), { data: { caller } });
+        })());
+      }
+      await expect
+        .poll(async () => (await sessions.search({}, { chainId: chain.id })).sessions.length, {
+          message: "the chain never recorded sessions under traffic",
+          timeout: SESSION_TIMEOUT,
+        })
+        .toBeGreaterThan(10);
+
+      // A document the engine rewrites between the delete's search and its delete is a version
+      // conflict. The delete leaves that session to its next write and answers 200 for the rest.
+      expect((await sessions.deleteSessionsOfChain(chain.id)).status(), "the chain delete under traffic").toBe(200);
+      const listed = idsOf(await sessions.search({}, { chainId: chain.id }));
+      expect((await sessions.bulkDelete(listed)).status(), "the bulk delete under traffic").toBe(200);
+
+      bodyFailed = false;
+    } finally {
+      calling = false;
+      await Promise.allSettled(callers);
       await releaseChains(catalog, built, bodyFailed);
     }
   },

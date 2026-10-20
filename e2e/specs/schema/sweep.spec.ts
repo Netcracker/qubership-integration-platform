@@ -632,7 +632,7 @@ test("the mock listing is read to its end rather than to the end of its first pa
  *
  * `page` caps the answer on top of that, because a stub that always served what it was asked for
  * could never end a listing, and `SessionSearchResponse` carries no total: its `offset` comes back
- * as `offset + rows` (`SessionService.java:220`), so the empty page is the ending, the same way it
+ * as `offset + rows` (`SessionService.java:224`), so the empty page is the ending, the same way it
  * is for the mock listing above.
  */
 async function whileServingSessions<T>(

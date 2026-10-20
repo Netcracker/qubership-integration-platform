@@ -20,6 +20,7 @@ import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.opensearch.client.json.JsonData;
+import org.opensearch.client.opensearch._types.Conflicts;
 import org.opensearch.client.opensearch._types.FieldSort;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.SortOptions;
@@ -158,6 +159,7 @@ public class SessionService {
     public void deleteAllSessions() {
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
                 .index(opensearchClient.normalize(indexName))
+                .conflicts(Conflicts.Proceed)
                 .query(new MatchAllQuery.Builder().build().toQuery())
                 .refresh(true)
                 .build();
@@ -167,6 +169,7 @@ public class SessionService {
     public void deleteByField(String fieldName, String value, boolean refresh) {
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
                 .index(opensearchClient.normalize(indexName))
+                .conflicts(Conflicts.Proceed)
                 .query(new TermQuery.Builder().field(fieldName).value(FieldValue.of(value)).build().toQuery())
                 .refresh(refresh)
                 .build();
@@ -183,6 +186,7 @@ public class SessionService {
                 .toQuery();
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
                 .index(opensearchClient.normalize(indexName))
+                .conflicts(Conflicts.Proceed)
                 .query(query)
                 .refresh(true)
                 .build();

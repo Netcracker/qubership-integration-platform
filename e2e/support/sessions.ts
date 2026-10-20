@@ -156,7 +156,7 @@ export interface RecordedSession {
  * `SessionSearchResponse`: one page of light sessions, and the marker for the next request.
  *
  * `offset` is **not** an echo of the offset that was asked for and it is not a total either — it is
- * `offset + rows` (`SessionService.java:220`), the value to send next. So a full page and a last
+ * `offset + rows` (`SessionService.java:224`), the value to send next. So a full page and a last
  * page look alike on the wire and an empty page is the only ending; `sessionsOfRun` in
  * `support/fixtures.ts` loops on exactly that.
  */
@@ -575,7 +575,7 @@ export class Sessions {
   // -------------------------------------------------------------------------
   //
   // Four of the five deletes are `refresh=true` and are visible on the very next read.
-  // `deleteBySessionId` is the exception — `SessionService.java:151` passes `false` — so a spec
+  // `deleteBySessionId` is the exception — `SessionService.java:152` passes `false` — so a spec
   // that deletes one session by id has to poll for the index to catch up, and one that deletes by
   // chain, by id list, or wholesale does not.
 
