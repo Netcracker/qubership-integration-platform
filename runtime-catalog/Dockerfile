@@ -4,7 +4,8 @@ USER root
 # The Protobuf toolchain for gRPC specification import comes from target/, where Maven resolves it
 # from Central so its version stays tied to the libraries the generated code is compiled and run
 # against. protoc is statically linked and needs nothing; the grpc-java plugin is published only as
-# a glibc binary, and gcompat supplies its interpreter and the libc it names.
+# a glibc binary: gcompat supplies its interpreter and the libc it names, and the base image already
+# ships the libstdc++ it links, as a dependency of binutils.
 RUN chmod -R 755 /opt/java/openjdk \
     && apk add --no-cache gcompat=1.1.0-r4
 COPY --chmod=755 target/protobuf-toolchain/bin/ /usr/bin/
