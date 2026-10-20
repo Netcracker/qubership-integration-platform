@@ -7,6 +7,8 @@
  * and cannot be pointed at a cluster, which is where micro-engine lives.
  */
 export interface Env {
+  /** Checks the owned AI-service lifecycle without making model requests. */
+  verifyAiRecoveryLifecycle(output: string): Promise<AiRecoveryLifecycleReport>;
   readonly name: string;
   /**
    * The `X-Request-Id` a chain's outbound HTTP call arrives with when the chain sends none, as a
@@ -132,6 +134,15 @@ export interface Env {
    * listing with these facts rather than naming the target.
    */
   domainFacts(): DomainFacts;
+}
+
+export interface AiRecoveryLifecycleReport {
+  privateStorage: boolean;
+  artifactReadAfterStop: boolean;
+  retainedStoresStopped: boolean;
+  sharedUnchanged: boolean;
+  modelRequests: number;
+  project: string;
 }
 
 /** How the catalog reports the classic domains on a target. */

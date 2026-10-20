@@ -273,6 +273,10 @@ export interface K8sEnvOptions {
 }
 
 export class K8sEnv implements Env {
+  verifyAiRecoveryLifecycle(): Promise<never> {
+    return Promise.reject(new Error("AI recovery lifecycle uses the Compose target"));
+  }
+
   readonly name = "k8s";
   // UUID-shaped, not a v4 UUID: Envoy writes its trace decision into the version digit.
   readonly generatedRequestId = UUID.source;

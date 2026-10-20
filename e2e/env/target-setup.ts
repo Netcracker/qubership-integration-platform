@@ -262,6 +262,13 @@ function k8sSetup(): TargetSetup {
     },
     projects: k8sProjects(),
     decorate(project) {
+      if (project.name === "env") {
+        const previous = project.testIgnore;
+        return { ...project, testIgnore: [
+          ...(Array.isArray(previous) ? previous : previous ? [previous] : []),
+          "**/ai-recovery-lifecycle.spec.ts",
+        ] };
+      }
       // The micro teardown deletes the micro copy's chains through the catalog, and `env`
       // restarts the catalog. Measured: with nothing ordering the two, the teardown ran during
       // that restart and three chain deletes failed with `socket hang up`. `global` runs after
@@ -270,6 +277,7 @@ function k8sSetup(): TargetSetup {
       return project.name === "global" ? { ...project, teardown: "seed-micro-teardown" } : project;
     },
     absent: [
+      { name: "env: specs/env/ai-recovery-lifecycle.spec.ts", reason: "owned Compose AI-service lifecycle" },
       ...brokerProjects().map(({ name }) => ({
         name,
         reason: "the brokers have no chart on the k8s target",

@@ -331,7 +331,11 @@ test("the k8s target declares its own projects and lists the brokers and the cla
   // The micro teardown waits for `global`, and with it for the catalog restarts in `env`.
   expect(setup.decorate({ name: "global" }).teardown).toBe("seed-micro-teardown");
   expect(setup.decorate({ name: "env" }).teardown).toBeUndefined();
+  expect(setup.decorate({ name: "env", testIgnore: ["**/existing.spec.ts"] }).testIgnore).toEqual([
+    "**/existing.spec.ts", "**/ai-recovery-lifecycle.spec.ts",
+  ]);
   expect(setup.absent.map((each) => each.name)).toEqual([
+    "env: specs/env/ai-recovery-lifecycle.spec.ts",
     "brokers-seed",
     "brokers-seed-teardown",
     "brokers",

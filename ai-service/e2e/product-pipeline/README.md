@@ -31,6 +31,72 @@ non-failing live scenario.
 The default gate includes synchronous and asynchronous split scenarios. They verify branch-shell
 containment and catalog materialization for `split-2` and `split-async-2`.
 
+## Isolated recovery pilot
+
+`recovery_campaign.py` tests automatic recovery with the ordinary configured model and limits.
+The first slice covers one HTTP capture defect, its full-completion counterpart, and a missing-route control.
+The canonical request uses the recommended RBAC policy with the explicit role `qip-viewer`.
+This keeps policy-exception confirmation separate from recovery of a generated semantic reference.
+
+The runner allows revision-bound approvals, the advertised ready-draft continuation, and the fixed IDS choice.
+It supplies a control answer only after the declared missing value is requested. A complete case cannot receive
+additional facts, a repair hint, Retry, rebuild, or extra credit.
+
+Build the candidate image and the local read-only evidence exporter from the repository root:
+
+```bash
+mvn -pl ai-service -Dgpg.skip=true -Dtest=HttpTriggerCaptureToolTest,HttpTriggerCaptureAdapterTest,E2eRecoveryTestControlTest,RecoveryEvidenceProbeTest,MaterializationCapabilityTest,ProductPipelineRunResourceTest package dependency:build-classpath -Dmdep.outputFile=target/recovery-probe-classpath.txt
+docker build -t qip-ai-recovery:pilot ai-service
+python3 ai-service/e2e/product-pipeline/recovery_campaign.py lifecycle-check --image qip-ai-recovery:pilot --out /tmp/recovery-lifecycle
+python3 ai-service/e2e/product-pipeline/recovery_campaign.py pilot --image qip-ai-recovery:pilot --out /tmp/recovery-pilot
+```
+
+The ordinary local AI service, PostgreSQL, MinIO, catalog, and knowledge sidecar must already be running.
+The harness reads the AI service's runtime environment, uses a private temporary environment file, and removes
+that file after teardown. Credentials do not belong in campaign artifacts. Override the baseline service with
+`--baseline-container` when it has a different name. Each attempt needs a new output directory.
+
+Each case owns a separate Compose project, database, storage volume, bucket, and localhost ports.
+Its private services join the shared network only for ordinary catalog and knowledge dependencies.
+The harness checks for shared mounts and changed shared process identities. It never recreates the baseline.
+The `lifecycle-check` command uploads a marker through the storage API, stops the owned AI service, reads the
+marker through the read-only exporter, and proves that no model budget was created.
+
+The fault replaces one actual `captureHttpTriggers` semantic reference before native admission.
+Passing requires the persisted native rejection, a subsequent accepted model/tool proposal, preserved author
+requirements, and the exact graph revision admitted by materialization. The focused instance parks after native
+bundle and endpoint checks, before its first write. Evidence is exported before the owned instance stops.
+A full case additionally requires materialization, reconciliation, and catalog assertions over real readback.
+
+Artifacts include the frozen case, submitted scenario, nonsecret model settings, source/image fingerprints,
+interactions, SSE, durable state, pipeline/capture histories, fault observations, native model accounting,
+catalog readback for full runs, and a verdict. Capture compilation IDs can differ from the pipeline run ID.
+Failed attempts retain stopped stores; their project identities are recorded in `retained.json`.
+Earlier failed attempts remain failures when a later attempt succeeds.
+
+Check an archived case without calling the model:
+
+```bash
+python3 ai-service/e2e/product-pipeline/recovery_campaign.py check --cases /tmp/recovery-pilot/cases.json --case http-reference-checkpoint --evidence /tmp/recovery-pilot/http-reference-checkpoint/evidence.json
+python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
+```
+
+`CHECKPOINT_PASS` proves recovery and consumer continuation; it does not prove completed construction.
+`COMPLETION_PASS` also proves the catalog result. Other outcomes are `RECOVERY_FAILURE`, `PUBLICATION_FAILURE`,
+`NOT_EXERCISED`, and `INFRASTRUCTURE_FAILURE`. A model success statement or an accepted transport retry is insufficient.
+The lifecycle stack check is `e2e/specs/env/ai-recovery-lifecycle.spec.ts`; it sends no model requests.
+Set `CIP_RECOVERY_AI_IMAGE` when running that check against a candidate image.
+The variation generator, transport fault matrix, and independent 18-run acceptance campaign follow this pilot.
+
+The retained [missing-route regression](fixtures/recovery/regressions/missing-route-repeated.json) records a stage
+that accepted the author's path and then requested it again at a newer revision. Its
+[native trace](fixtures/recovery/regressions/missing-route-repeated-evidence.json) remains a failed recovery.
+Replay that case with the ordinary model after a separately approved service fix:
+
+```bash
+python3 ai-service/e2e/product-pipeline/recovery_campaign.py run --cases ai-service/e2e/product-pipeline/fixtures/recovery/regressions/missing-route-repeated.json --case missing-route-answer-repeated --image qip-ai-recovery:pilot --out /tmp/recovery-route-regression
+```
+
 ## Live gate
 
 ```bash

@@ -107,6 +107,11 @@ An artifact proposed to correct a rejected chain-construction result. Replacing 
 plan requires renewed approval; repairing generated properties, scripts, or a graph within those inputs is automatic.
 _Avoid_: silent approval of a replacement brief or plan, in-place edit of an approved plan
 
+**Complete construction request**:
+A chain-construction request for which all required author facts and decisions are already available.
+It requires no additional business input to construct the requested chain.
+_Avoid_: treating missing generated data as missing author input
+
 **Repair attempt**:
 A bounded invocation of a chain-artifact producer to correct a rejected result after initial generation.
 Targeted correction and clean regeneration are separate strategies for the same logical defect.
@@ -116,6 +121,11 @@ _Avoid_: a new defect for the same rejection after a context reset, original gen
 Resolution of a rejected chain requirement or contract finding while preserving effective requirements
 and previously verified structure. A partially repaired candidate can be the next repair input before it is valid for promotion.
 _Avoid_: a smaller finding count as proof of progress, a newly observed defect as proof of a new regression
+
+**Recovery checkpoint**:
+A chain-construction state where a specific repair has passed the applicable checks and the same run has advanced
+to the next step or an ordinary approval. It confirms that repair, while construction completion confirms the whole chain.
+_Avoid_: a proposed repair as a completed repair, a checkpoint as proof of completed construction
 
 **Recovery allowance**:
 Additional bounded correction credit explicitly granted by the author for an existing construction run.

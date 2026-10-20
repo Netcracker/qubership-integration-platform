@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "missing-route-answer-repeated",
+      "sourceScenario": "product-create-chain-greetings",
+      "inputMode": "missing-input",
+      "mechanism": "clarification",
+      "boundary": "completion",
+      "fault": null,
+      "scenario": {
+        "tier": "product-pipeline",
+        "status": "active",
+        "pipeline": "create-chain-v1",
+        "profileId": "create-chain",
+        "profileVersion": "2",
+        "terminalState": "CHAIN_MATERIALIZED",
+        "expectsApproval": true,
+        "expectsImplement": true,
+        "retainCatalogChain": true,
+        "uniqueChainNamePrefix": "RecoveryPilot",
+        "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". Receive GET on the internal route whose exact path I have not supplied; ask me for that path (externalRoute=false). Use accessControlType=RBAC with exactly the role qip-viewer. Connect the HTTP trigger directly to one Groovy script returning exactly the plain text Hello world. No mapping or transformation is needed on the connection. No service calls, APIHub, MCP, error handling, ABAC, or chain failure handler. No target folder. Generate a full IDS and an implementation plan for approval.",
+        "requiredFacts": [
+          "GET /greetings",
+          "Hello world",
+          "script"
+        ],
+        "forbiddenFacts": [
+          "service-call",
+          "APIHub"
+        ],
+        "designInputChoice": "Generate full IDS",
+        "catalog": {
+          "requiredTypes": [
+            "http-trigger",
+            "script"
+          ],
+          "forbiddenTypes": [
+            "service-call"
+          ],
+          "properties": [
+            {
+              "type": "http-trigger",
+              "key": "contextPath",
+              "equals": "/greetings"
+            },
+            {
+              "type": "http-trigger",
+              "key": "httpMethodRestrict",
+              "equals": "GET"
+            },
+            {
+              "type": "http-trigger",
+              "key": "externalRoute",
+              "equals": "false"
+            },
+            {
+              "type": "http-trigger",
+              "key": "accessControlType",
+              "equals": "RBAC"
+            },
+            {
+              "type": "http-trigger",
+              "key": "roles",
+              "contains": "qip-viewer"
+            },
+            {
+              "type": "script",
+              "key": "script",
+              "contains": "Hello world"
+            }
+          ],
+          "skeleton": {
+            "minDependencies": 1,
+            "triggerMustHaveOutgoing": true
+          }
+        }
+      },
+      "checks": {
+        "exactTypes": [
+          "http-trigger",
+          "script"
+        ],
+        "edges": 1,
+        "scriptContains": "Hello world",
+        "properties": [
+          {
+            "type": "http-trigger",
+            "key": "contextPath",
+            "equals": "/greetings"
+          },
+          {
+            "type": "http-trigger",
+            "key": "httpMethodRestrict",
+            "equals": "GET"
+          },
+          {
+            "type": "http-trigger",
+            "key": "externalRoute",
+            "equals": "false"
+          },
+          {
+            "type": "http-trigger",
+            "key": "accessControlType",
+            "equals": "RBAC"
+          },
+          {
+            "type": "http-trigger",
+            "key": "roles",
+            "equals": "[\"qip-viewer\"]"
+          }
+        ]
+      },
+      "clarification": {
+        "questionPattern": "path|route|\u043f\u0443\u0442\u044c|\u043c\u0430\u0440\u0448\u0440\u0443\u0442",
+        "answer": "/greetings"
+      }
+    }
+  ],
+  "observed": {
+    "outcome": "RECOVERY_FAILURE",
+    "model": "gpt-6-luna",
+    "stageId": "requirement-discovery",
+    "sourceAttempt": ".dev/ai-recovery-pilot-20261020/live-rbac-001/http-missing-route-control",
+    "summary": "The stage accepted /greetings, resumed, and asked for the same route again at a newer revision."
+  }
+}
