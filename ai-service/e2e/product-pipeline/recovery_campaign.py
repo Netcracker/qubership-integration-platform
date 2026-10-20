@@ -343,6 +343,20 @@ def verdict(case, evidence):
 
     if evidence.get("infrastructureErrors"):
         return result("INFRASTRUCTURE_FAILURE", *evidence["infrastructureErrors"])
+    forbidden_tools = set(case.get("checks", {}).get("forbiddenTools", []))
+    if forbidden_tools and not evidence.get("providerBoundary"):
+        return result("RECOVERY_FAILURE", "Tool prohibition has no provider evidence")
+    for record in evidence.get("providerBoundary", []) if forbidden_tools else []:
+        value = record.get("value") or {}
+        calls = (
+            list((value.get("message") or {}).get("toolExecutionRequests", []))
+            if record.get("kind") == "response" else []
+        )
+        if record.get("kind", "").startswith("tool-"):
+            calls.append(value.get("toolExecutionRequest") or {})
+        for call in calls:
+            if call.get("name") in forbidden_tools:
+                return result("RECOVERY_FAILURE", "Forbidden model tool call: " + call["name"])
     for interaction in evidence.get("interactions", []):
         if (
             interaction.get("kind") == "decision"

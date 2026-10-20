@@ -499,11 +499,14 @@ class CompilerSkillContextBuilderAddonTest {
     CompilerSkillDocument document = documentService.loadByCapabilityId("cip-script-generator");
     var snapshot = new CompilerSkillInputSnapshot("Add the current date", "Static response", null, graph, null,
         "action: CONFIGURE\nproperty keys: script");
-    String message = contextBuilder.buildScriptRepairMessage("conversation-1", document, snapshot,
+    String encoded = contextBuilder.buildScriptRepairMessage("conversation-1", document, snapshot,
         java.util.List.of("script-1"), true);
+    var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook()).build();
+    String message = renderer.parse(encoded).render();
     String json = message.substring(message.indexOf("Original script bodies:\n")
-        + "Original script bodies:\n".length(), message.indexOf("\n\nRequired script node IDs:"))
-        .replace("\\{", "{").replace("\\\\", "\\");
+        + "Original script bodies:\n".length(), message.indexOf("\n\nRequired script node IDs:"));
     try {
       assertEquals(original, new ObjectMapper().readTree(json).get(0).path("script").asText());
     } catch (java.io.IOException e) {

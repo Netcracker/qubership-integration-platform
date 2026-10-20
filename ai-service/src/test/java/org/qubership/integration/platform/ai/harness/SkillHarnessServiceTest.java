@@ -44,7 +44,7 @@ class SkillHarnessServiceTest {
   }
 
   @Test
-  void escapesQuteBracesInSkillBodyAndIncludesStrippedAddon() {
+  void preservesSkillBodyAndStrippedAddonAfterTemplateRendering() {
     when(documentService.loadByCapabilityId(SKILL_ID))
         .thenReturn(
             new CompilerSkillDocument(
@@ -86,10 +86,13 @@ class SkillHarnessServiceTest {
     assertEquals(SkillHarnessStatus.COMPLETED, response.status());
     ArgumentCaptor<String> userMessage = ArgumentCaptor.forClass(String.class);
     verify(harnessSkillAgent).chat(anyString(), userMessage.capture());
-    String body = userMessage.getValue();
-    assertTrue(body.contains("\\{VAR}"));
+    var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook()).build();
+    String body = renderer.parse(userMessage.getValue()).render();
+    assertTrue(body.contains("#{VAR}"));
     assertTrue(body.contains("Keep seeded UUIDs"));
-    assertTrue(body.contains("\\{uuid}"));
+    assertTrue(body.contains("{uuid}"));
     assertTrue(body.contains("Addon example (examples/cip-variable-generator/valid-patch-env.json)"));
     assertTrue(body.contains("#<ORDER_TTL>"));
     assertFalse(body.contains("Machine metadata"));

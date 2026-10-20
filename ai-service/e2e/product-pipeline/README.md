@@ -86,6 +86,9 @@ The ordinary schema boundary must reject it. Its exact stored rejection referenc
 precede the accepted model correction and consumer checkpoint. The test supplies no repair response.
 An optional `checks.edgeTypes` lists the exact directed type pairs for a case with distinct element types;
 this supports held-out topologies without assuming a direct trigger-to-script edge.
+`checks.forbiddenTools` lists prohibited tool names. It checks completed stream tool calls and response tool calls
+in provider evidence. Mentions in negative requirements or available tool schemas do not count as calls.
+Use these checks with exact graph requirements when prohibiting external integration activity.
 The canonical request uses the recommended RBAC policy with the explicit role `qip-viewer`.
 This keeps policy-exception confirmation separate from recovery of a generated semantic reference.
 
