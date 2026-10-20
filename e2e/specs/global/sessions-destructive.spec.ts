@@ -26,9 +26,8 @@
  * from what the scheduler chain fires on its own, so that is the assertion, and it is only available
  * to a spec that owns the stack.
  *
- * The delete aborts with 400 when a chain rewrites a session element while it runs
- * (`WIPE_ABORTED_ON_CONFLICT` in `sessions-defects.ts`). Its status is therefore asserted last, so a
- * case that meets the defect still shows that the index goes on recording.
+ * Until #1162 the delete aborted with 400 on the first session element the engine had rewritten
+ * since the last refresh: CI run 38651497943 deleted 4121 of 4123 documents and answered 400.
  */
 import { test, expect } from "../../support/fixtures.js";
 import {
@@ -46,8 +45,6 @@ import {
 } from "../../support/corpus.js";
 import { createScriptChain, SCRIPT_CHAIN_STEPS } from "../../support/deployable.js";
 import { releaseChains } from "../../support/cleanup.js";
-import { strikesAsKnown } from "../../support/known-defect.js";
-import { WIPE_ABORTED_ON_CONFLICT, WIPE_ANSWERED } from "./sessions-defects.js";
 import type { Env } from "../../env/index.js";
 import type { APIRequestContext } from "@playwright/test";
 
@@ -63,9 +60,6 @@ const NOT_FIRED_ON_ITS_OWN: SessionSearch = {
 
 /** One page, newest first: it holds this case's own session and the traces the wipe is measured against. */
 const ONE_PAGE = 1000;
-
-/** How much of a failed delete's body the assertion quotes: the first conflict sits in its first 1000 characters. */
-const WIPE_EXCERPT = 1500;
 
 /** The script element's name, which is what this spec's chain carries into the trace. */
 const PROBE_ELEMENT = "Wipe Probe";
@@ -128,45 +122,37 @@ test("the bare delete removes every session on the platform, and the index goes 
 
       const wiped = await sessions.deleteEverySession();
       const answer = await wiped.text();
-      const cleared = wiped.status() === 200;
-      if (cleared) {
-        expect(answer, "a delete with nothing to report answers no body").toBe("");
+      expect(wiped.status(), answer).toBe(200);
+      expect(answer, "a delete with nothing to report answers no body").toBe("");
 
-        // `deleteAllSessions` passes `refresh=true`, so this is a read of the settled index rather
-        // than a poll — and a poll would be the wrong instrument anyway: it would accept an index
-        // that emptied for some other reason a second later.
-        const after = await sessions.search(NOT_FIRED_ON_ITS_OWN, { count: ONE_PAGE });
-        expect(
-          after.sessions,
-          "the platform holds no session afterwards, the scheduler's own left out",
-        ).toEqual([]);
-        for (const row of before.sessions.slice(0, 20)) {
-          expect(await sessions.exists(row.id), `session ${row.id} survived the wipe`).toBe(404);
-        }
-
-        // It matches by query rather than by enumeration, so an empty index is not a special case.
-        expect(
-          (await sessions.deleteEverySession()).status(),
-          "a second wipe answers the same",
-        ).toBe(200);
+      // `deleteAllSessions` passes `refresh=true`, so this is a read of the settled index rather
+      // than a poll — and a poll would be the wrong instrument anyway: it would accept an index
+      // that emptied for some other reason a second later.
+      const after = await sessions.search(NOT_FIRED_ON_ITS_OWN, { count: ONE_PAGE });
+      expect(
+        after.sessions,
+        "the platform holds no session afterwards, the scheduler's own left out",
+      ).toEqual([]);
+      for (const row of before.sessions.slice(0, 20)) {
+        expect(await sessions.exists(row.id), `session ${row.id} survived the wipe`).toBe(404);
       }
+
+      // It matches by query rather than by enumeration, so an empty index is not a special case.
+      expect(
+        (await sessions.deleteEverySession()).status(),
+        "a second wipe answers the same",
+      ).toBe(200);
 
       // The blast radius stops at the traces. The chain is still deployed and the route is still
       // serving, so the next call records a new session — which is what says the delete removed
-      // documents rather than the index or the alias behind them. That holds for an aborted delete
-      // too, which leaves some sessions behind, possibly this chain's first one.
+      // documents rather than the index or the alias behind them.
       const afterwards = await drive(request, sessions, env, chain);
       expect(afterwards.id).not.toBe(mine.id);
       expect(await sessions.exists(afterwards.id)).toBe(200);
       expect(
         (await sessions.search({}, { chainId: chain.id })).sessions.map((each) => each.id),
-        "the chain holds the session recorded since the wipe, and only that one once the wipe cleared",
-      ).toEqual(cleared ? [afterwards.id] : expect.arrayContaining([afterwards.id]));
-
-      // Asserted last, so a wipe that met the known defect still shows the index recording.
-      await strikesAsKnown(WIPE_ABORTED_ON_CONFLICT, async () =>
-        expect(wiped.status(), `${WIPE_ANSWERED} ${answer.slice(0, WIPE_EXCERPT)}`).toBe(200),
-      );
+        "the chain holds the session recorded since the wipe, and only that one",
+      ).toEqual([afterwards.id]);
 
       bodyFailed = false;
     } finally {
