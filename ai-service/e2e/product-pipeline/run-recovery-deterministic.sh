@@ -31,6 +31,10 @@ RECOVERY_TESTS+="configuredRecoveryFaultStopsBeforeTheFirstCatalogWrite"
 RECOVERY_TESTS+=",HttpTriggerCaptureToolTest,HttpTriggerCaptureAdapterTest,"
 RECOVERY_TESTS+="E2eRecoveryTestControlTest,RecoveryEvidenceProbeTest,"
 RECOVERY_TESTS+="MaterializationCapabilityTest#focusedCheckpointRequiresNativeAdmissionAndPreventsTheFirstCatalogWrite"
+RECOVERY_TESTS+=",ScriptedStreamingChatModelTest,ScriptedRecoveryTest,ProductAnalysisRepairLoopTest,"
+RECOVERY_TESTS+="RateLimitAwareChatModelTest,RateLimitAwareStreamingChatModelTest,"
+RECOVERY_TESTS+="RateLimitStreamingChatModelTest,LlmRunBudgetTest"
+RECOVERY_TESTS+=",ToolCallErrorHandlerTest,StringifiedToolArgumentsNormalizerTest"
 
 python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
 

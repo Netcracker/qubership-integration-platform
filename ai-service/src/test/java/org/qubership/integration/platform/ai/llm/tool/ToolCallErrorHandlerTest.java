@@ -3,6 +3,11 @@ package org.qubership.integration.platform.ai.llm.tool;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.exception.ToolArgumentsException;
@@ -10,6 +15,9 @@ import dev.langchain4j.service.tool.ToolErrorContext;
 import dev.langchain4j.service.tool.ToolErrorHandlerResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.compiler.HttpTriggerCaptureTool;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 
 class ToolCallErrorHandlerTest {
@@ -37,6 +45,20 @@ class ToolCallErrorHandlerTest {
     assertTrue(response.contains("\"code\":\"INVALID_TYPE\""), response);
     assertTrue(ProductCapabilityCaptureContext.designBinding("conv-1")
         .orElseThrow().captureRejection().get().contains("INVALID_TYPE"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"conv-1", "compiler-skill/conv-1/cip-trigger-generator"})
+  void httpMapperFailureUsesTheConversationInsteadOfTheCompilerMemoryId(String memoryId) {
+    handler.httpTriggerTool = mock(HttpTriggerCaptureTool.class);
+    when(handler.httpTriggerTool.rejectArguments(eq("conv-1"), any())).thenReturn("native rejection");
+    ToolErrorContext context = ToolErrorContext.builder()
+        .toolExecutionRequest(ToolExecutionRequest.builder()
+            .id("call-http").name("captureHttpTriggers").arguments("{}").build())
+        .memoryId(memoryId).build();
+
+    assertEquals("native rejection", handler.handle(new ToolArgumentsException("bad type"), context).text());
+    verify(handler.httpTriggerTool).rejectArguments(eq("conv-1"), any());
   }
 
   @Test
