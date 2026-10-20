@@ -607,6 +607,7 @@ public class RequirementCaptureTools {
         }
         return recordOutcome(toolName, arguments, action.get());
       });
+      result = result.withRepairConstraints(store.repairConstraints(conversationId));
       if (recoveryControl != null && "captureRequirementDraft".equals(toolName) && arguments instanceof DraftInput draft) {
         recoveryControl.requirementOutcome(conversationId, draft, result);
       }
