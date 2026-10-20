@@ -61,6 +61,20 @@ class GatherRequirementsPromptBuilderTest {
   }
 
   @Test
+  void namedEntryGuidanceSurvivesUnavailableProcessDocuments() {
+    when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
+        .thenThrow(new IllegalStateException("skill unavailable"));
+
+    String input = builder.wrap("named-entry", "Receive work through the HTTP trigger named Intake.", "en");
+
+    assertTrue(input.contains("HTTP trigger named Intake"), input);
+    assertTrue(input.contains("each explicit name"), input);
+    assertTrue(input.contains("ANCHOR"), input);
+    assertTrue(input.contains("participant"), input);
+    assertTrue(input.contains("requestedName"), input);
+  }
+
+  @Test
   void failedSkillLoadingKeepsTheDraftPendingSourcesAndQuestion() {
     ConversationService conversations = new ConversationService();
     conversations.addMessage("conv-1", org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.user(

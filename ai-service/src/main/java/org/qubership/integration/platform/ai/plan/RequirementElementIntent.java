@@ -18,7 +18,9 @@ public record RequirementElementIntent(
         + " predecessorElementRef B, the required order is B -> A. Null when unspecified or when the elements belong to alternative branches.") String predecessorElementRef,
     @NullableCaptureValue(description = "The containing elementRef when this element is explicitly nested inside a container."
         + " This is structural membership, not execution order. Null when unspecified.") String parentElementRef,
-    @NullableCaptureValue String requestedName,
+    @NullableCaptureValue(description = "Exact display name explicitly supplied for this element, including an entry trigger or call"
+        + " with ANCHOR placement. The interaction participant names the other party, not this element."
+        + " Keep the name here even when no properties are requested. Null when the author supplied no element name.") String requestedName,
     List<PlanProperty> requestedProperties,
     List<String> exactValues) {
 

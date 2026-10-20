@@ -35,6 +35,31 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementCaptureProviderTest {
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+      "captureRequirementDraft,draft,facts",
+      "updateRequirementDraft,changes,addFacts",
+      "updateRequirementDraft,changes,updateFacts"
+  })
+  void nameSchemaDistinguishesElementNamesFromInteractionParticipants(
+      String tool, String parameter, String factsField) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var provider = new RequirementCaptureToolProvider(new RequirementCaptureTools(new RequirementDraftStore(),
+        mock(RequirementDraftTool.class), mapper), mapper).provideTools(null);
+    var input = assertInstanceOf(JsonObjectSchema.class,
+        provider.toolSpecificationByName(tool).parameters().properties().get(parameter));
+    var facts = assertInstanceOf(JsonArraySchema.class, input.properties().get(factsField));
+    var fact = assertInstanceOf(JsonObjectSchema.class, facts.items());
+    var intentValue = assertInstanceOf(JsonAnyOfSchema.class, fact.properties().get("elementIntent"));
+    var intent = intentValue.anyOf().stream().filter(JsonObjectSchema.class::isInstance)
+        .map(JsonObjectSchema.class::cast).findFirst().orElseThrow();
+    var name = assertInstanceOf(JsonAnyOfSchema.class, intent.properties().get("requestedName"));
+    assertTrue(name.anyOf().stream().anyMatch(JsonNullSchema.class::isInstance));
+    org.junit.jupiter.api.Assertions.assertNotNull(name.description());
+    assertTrue(name.description().contains("ANCHOR"), name.description());
+    assertTrue(name.description().contains("participant"), name.description());
+  }
+
   @Test
   void updateSchemaRequiresScopedAmendmentEvidence() {
     var mapper = new ObjectMapper().findAndRegisterModules();
