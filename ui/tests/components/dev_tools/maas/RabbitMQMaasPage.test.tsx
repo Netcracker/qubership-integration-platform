@@ -132,6 +132,9 @@ function fillValidFormForCreate(exchange = "my-exchange", queue = "my-queue") {
 
 import { RabbitMQMaasPage } from "../../../../src/components/dev_tools/maas/RabbitMQMaasPage";
 
+const getExportButton = () =>
+  screen.getByTestId("icon-cloudDownload").closest("button")!;
+
 describe("RabbitMQMaasPage", () => {
   let originalWindow: unknown;
 
@@ -157,7 +160,9 @@ describe("RabbitMQMaasPage", () => {
 
   test("renders title and form fields", () => {
     render(<RabbitMQMaasPage />);
-    expect(screen.getByText("RabbitMQ - MaaS")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "RabbitMQ" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/namespace/i)).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText(/vhost classifier name/i),
@@ -222,12 +227,10 @@ describe("RabbitMQMaasPage", () => {
     fillValidFormForCreate("export-exchange", "export-queue");
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /export/i }),
-      ).not.toBeDisabled();
+      expect(getExportButton()).not.toBeDisabled();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /export/i }));
+    fireEvent.click(getExportButton());
     await waitFor(() => {
       expect(mockGetMaasRabbitMQDeclarativeFile).toHaveBeenCalledWith({
         vhost: "public",
@@ -248,12 +251,10 @@ describe("RabbitMQMaasPage", () => {
     fillValidFormForCreate();
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /export/i }),
-      ).not.toBeDisabled();
+      expect(getExportButton()).not.toBeDisabled();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /export/i }));
+    fireEvent.click(getExportButton());
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalledWith(
         "Unable to export RabbitMQ declarative file.",
@@ -311,7 +312,7 @@ describe("RabbitMQMaasPage", () => {
     await flushPromises();
 
     expect(screen.getByRole("button", { name: /create/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /export/i })).toBeDisabled();
+    expect(getExportButton()).toBeDisabled();
   });
 
   test("routing key validation requires both exchange and queue", async () => {

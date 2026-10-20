@@ -93,6 +93,9 @@ async function flushPromises(): Promise<void> {
 
 import { KafkaMaasPage } from "../../../../src/components/dev_tools/maas/KafkaMaasPage";
 
+const getExportButton = () =>
+  screen.getByTestId("icon-cloudDownload").closest("button")!;
+
 describe("KafkaMaasPage", () => {
   let originalWindow: unknown;
 
@@ -118,7 +121,7 @@ describe("KafkaMaasPage", () => {
 
   test("renders title and form fields", () => {
     render(<KafkaMaasPage />);
-    expect(screen.getByText("Kafka - MaaS")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Kafka" })).toBeInTheDocument();
     expect(screen.getByLabelText(/namespace/i)).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText(/topic classifier name/i),
@@ -161,12 +164,10 @@ describe("KafkaMaasPage", () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /export/i }),
-      ).not.toBeDisabled();
+      expect(getExportButton()).not.toBeDisabled();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /export/i }));
+    fireEvent.click(getExportButton());
     await waitFor(() => {
       expect(mockGetMaasKafkaDeclarativeFile).toHaveBeenCalledWith({
         topicClassifierName: "export-classifier",
@@ -189,12 +190,10 @@ describe("KafkaMaasPage", () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /export/i }),
-      ).not.toBeDisabled();
+      expect(getExportButton()).not.toBeDisabled();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /export/i }));
+    fireEvent.click(getExportButton());
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalledWith(
         "Unable to export Kafka declarative file.",
@@ -235,7 +234,7 @@ describe("KafkaMaasPage", () => {
     await flushPromises();
 
     expect(screen.getByRole("button", { name: /create/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /export/i })).toBeDisabled();
+    expect(getExportButton()).toBeDisabled();
   });
 
   test("Reset clears topic classifier field", async () => {

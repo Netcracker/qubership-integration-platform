@@ -17,17 +17,19 @@ jest.mock("../../../../src/icons/IconProvider.tsx", () => ({
   ),
 }));
 
+const getExportButton = () => screen.getByRole("button");
+
 describe("MaasPageHeader", () => {
   test("renders title", () => {
     render(
       <MaasPageHeader
-        title="Kafka - MaaS"
+        title="Kafka"
         exportInProgress={false}
         isFormValid={true}
         onExport={jest.fn()}
       />,
     );
-    expect(screen.getByText("Kafka - MaaS")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Kafka" })).toBeInTheDocument();
   });
 
   test("calls onExport when Export button is clicked", () => {
@@ -40,7 +42,7 @@ describe("MaasPageHeader", () => {
         onExport={onExport}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /export/i }));
+    fireEvent.click(getExportButton());
     expect(onExport).toHaveBeenCalledTimes(1);
   });
 
@@ -53,7 +55,7 @@ describe("MaasPageHeader", () => {
         onExport={jest.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: /export/i })).toBeDisabled();
+    expect(getExportButton()).toBeDisabled();
   });
 
   test("Export button is disabled when exportInProgress is true", () => {
@@ -65,6 +67,6 @@ describe("MaasPageHeader", () => {
         onExport={jest.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: /export/i })).toBeDisabled();
+    expect(getExportButton()).toBeDisabled();
   });
 });
