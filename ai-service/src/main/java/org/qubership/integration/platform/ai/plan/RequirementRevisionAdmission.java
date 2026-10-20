@@ -208,7 +208,8 @@ final class RequirementRevisionAdmission {
       for (int i = 0; i < accumulated.size(); i++) {
         var old = accumulated.get(i);
         if (Objects.equals(old.sourceFactId(), fact.sourceFactId())
-            || !RequirementCaptureEditor.validFactId(old.sourceFactId()) && Objects.equals(old.text(), fact.text())) {
+            || !RequirementCaptureEditor.validFactId(old.sourceFactId()) && Objects.equals(old.text(), fact.text())
+            || sameFactContent(old, fact)) {
           index = i;
           break;
         }
@@ -248,6 +249,20 @@ final class RequirementRevisionAdmission {
       }
     }
     return List.copyOf(accumulated);
+  }
+
+  private static boolean sameFactContent(FactInput left, FactInput right) {
+    return left.text() != null && !left.text().isBlank() && left.kind() != null && left.polarity() != null
+        && Objects.equals(left.text(), right.text()) && left.kind() == right.kind()
+        && left.polarity() == right.polarity() && Objects.equals(left.interactionIds(), right.interactionIds())
+        && Objects.equals(left.fieldMapping(), right.fieldMapping())
+        && Objects.equals(left.policyConflict(), right.policyConflict())
+        && (left.elementIntent() == null && right.elementIntent() == null
+            || left.elementIntent() != null && right.elementIntent() != null
+                && Objects.equals(left.elementIntent().elementRef(), right.elementIntent().elementRef())
+                && Objects.equals(left.elementIntent().elementType(), right.elementIntent().elementType())
+                && Objects.equals(left.elementIntent().ownerInteractionId(), right.elementIntent().ownerInteractionId())
+                && left.elementIntent().placement() == right.elementIntent().placement());
   }
 
   static ObjectNode valuesToPreserve(DraftInput input, List<Issue> issues) {

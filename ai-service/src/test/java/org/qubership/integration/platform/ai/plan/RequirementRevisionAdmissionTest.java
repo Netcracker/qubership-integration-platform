@@ -300,6 +300,29 @@ class RequirementRevisionAdmissionTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void identicalTextOnDistinctOwnersRemainsSeparate(boolean elementOwner) {
+    var first = fact("first", "Record status.");
+    var second = new FactInput("second", List.of("delivery"), first.kind(), first.polarity(), first.text());
+    if (elementOwner) {
+      first = new FactInput(first.sourceFactId(), first.interactionIds(), first.kind(), first.polarity(),
+          first.text(), null, null, new RequirementElementIntent("first-node", "log-record",
+              RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null, null, "First", List.of(), List.of()));
+      second = new FactInput(second.sourceFactId(), first.interactionIds(), first.kind(), first.polarity(),
+          first.text(), null, null, new RequirementElementIntent("second-node", "log-record",
+              RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null, null, "Second", List.of(), List.of()));
+    }
+    assertEquals(List.of(first, second), RequirementRevisionAdmission.accumulate(List.of(first), List.of(second)));
+  }
+
+  @Test
+  void incompleteFactsDoNotAcquireASharedIdentity() {
+    var first = new FactInput("first", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, null);
+    var second = new FactInput("second", first.interactionIds(), first.kind(), first.polarity(), null);
+    assertEquals(List.of(first, second), RequirementRevisionAdmission.accumulate(List.of(first), List.of(second)));
+  }
+
   @Test
   void derivedWriterCannotReplaceAuthoredRequirements() throws Exception {
     var h = new Harness();

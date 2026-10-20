@@ -84,6 +84,10 @@ catalog resolution, and defaults.
 - Before finishing, compare each accepted user requirement against the complete saved draft.
   Add omitted requirements through `addFacts`. Server `READY` confirms structural completeness;
   it does not prove that every user requirement was captured.
+- Read `repairConstraints` even when no draft has been accepted. They retain valid fields from
+  rejected proposals, including stable generated IDs that the author messages do not contain.
+  Use those fields with the saved source; complete or correct reported invalid fields. An empty
+  draft with repair constraints needs `captureRequirementDraft`, not another author acknowledgment.
 - During completion or automatic repair, preserve existing fact IDs, full text, polarity, and
   mapping values. Correct the reported fields and their dependent references. Do not summarize
   facts, drop conditions, rename facts, or remove unrelated content to make validation pass.

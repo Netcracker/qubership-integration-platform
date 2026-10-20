@@ -940,6 +940,92 @@ class RequirementCaptureToolsTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
+  void rejectedRenamingCannotExpandRepairConstraints(boolean structuralFailure) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "repair-constraints-" + UUID.randomUUID();
+    String text = "Submit one task. Keep the external route with RBAC.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var ready = readyHttpDraft();
+    var goal = ready.facts().getFirst();
+    var visibility = new FactInput("visibility", List.of("entry"), FactKind.VISIBILITY,
+        Polarity.POSITIVE, "Keep the external route with RBAC.");
+    var invalid = new DraftInput(ready.flow(), List.of(new FactInput("1", goal.interactionIds(),
+        goal.kind(), goal.polarity(), goal.text()), visibility), ready.capabilities(),
+        ready.openQuestions(), ready.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      assertFalse(mapper.readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).accepted());
+      var facts = new ArrayList<>(List.of(structuralFailure ? invalid.facts().getFirst() : goal,
+          new FactInput("renamed-visibility", visibility.interactionIds(),
+          visibility.kind(), visibility.polarity(), visibility.text())));
+      var changed = new DraftInput(ready.flow(), facts, ready.capabilities(), ready.openQuestions(), ready.settings());
+      assertFalse(mapper.readValue(h.tools().captureRequirementDraft(changed), RequirementCaptureResult.class).accepted());
+      assertEquals(2, h.store().rejectedCaptureFacts(chat).size());
+      assertTrue(h.store().rejectedCaptureFacts(chat).contains(visibility));
+      assertFalse(h.store().rejectedCaptureFacts(chat).stream()
+          .anyMatch(fact -> "renamed-visibility".equals(fact.sourceFactId())),
+          "A rejected rewrite must not make an alternative identity mandatory");
+      h = persistentHarness(blobs, mapper, conversations, chat);
+      h.store().beginTurn(chat, "Repair the generated draft from the saved source.");
+      var corrected = new DraftInput(ready.flow(), List.of(goal, visibility), ready.capabilities(),
+          ready.openQuestions(), ready.settings());
+      var result = mapper.readValue(h.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+    }
+  }
+
+  @Test
+  void freshRepairCanReadAllValidatedFieldsWithoutAnAcceptedDraft() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "repair-view-" + UUID.randomUUID();
+    String text = "Submit one task. Keep the external route with RBAC.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var ready = readyHttpDraft();
+    var goal = ready.facts().getFirst();
+    var visibility = new FactInput("visibility", List.of("entry"), FactKind.VISIBILITY,
+        Polarity.POSITIVE, "Keep the external route with RBAC.");
+    var invalid = new DraftInput(ready.flow(), List.of(new FactInput("1", goal.interactionIds(),
+        goal.kind(), goal.polarity(), goal.text()), visibility), ready.capabilities(),
+        ready.openQuestions(), ready.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      assertFalse(mapper.readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).accepted());
+      h = persistentHarness(blobs, mapper, conversations, chat);
+      h.store().beginTurn(chat, "Repair the generated draft from the saved source.");
+      var expected = mapper.valueToTree(h.store().rejectedCaptureFacts(chat));
+      var view = mapper.readTree(h.tools().readRequirementDraft());
+      assertTrue(view.path("draft").isNull());
+      assertEquals("EMPTY", view.path("readiness").asText());
+      assertEquals("REPAIR_CAPTURE", view.path("nextAction").asText());
+      assertEquals(expected, view.path("repairConstraints").path("facts"));
+      assertEquals("/tasks", view.path("repairConstraints").path("values")
+          .path("capabilities").path("entry").path("path").asText());
+      var builder = new org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder(
+          null, null, h.store(), conversations);
+      var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+          .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+              .MustacheTemplateVariableStyleParserHook()).build();
+      String prompt = renderer.parse(builder.wrap(chat, "Repair the generated draft.", "en")).render();
+      assertTrue(prompt.contains("<requirement-repair-constraints>"), prompt);
+      assertTrue(prompt.contains(mapper.writeValueAsString(h.store().rejectedCaptureFacts(chat))), prompt);
+      assertTrue(h.store().get(chat).isEmpty(), "Reading constraints must not admit a draft");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   void acceptedCaptureProtectionSurvivesRestartUntilANewAuthorTurn(boolean sourceAcknowledgmentFails) throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();

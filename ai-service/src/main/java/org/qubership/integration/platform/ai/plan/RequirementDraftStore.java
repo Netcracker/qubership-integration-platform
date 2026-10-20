@@ -628,6 +628,13 @@ public class RequirementDraftStore {
     return rejectedCaptureFacts.getOrDefault(conversationId, List.of());
   }
 
+  public RequirementCaptureResult.RepairConstraints repairConstraints(String conversationId) {
+    var facts = rejectedCaptureFacts(conversationId);
+    var values = rejectedCaptureValues.get(conversationId);
+    return facts.isEmpty() && (values == null || values.isEmpty()) ? null
+        : new RequirementCaptureResult.RepairConstraints(facts, values);
+  }
+
   void clearRejectedCaptureFacts(String conversationId) {
     rejectedCaptureFacts.remove(conversationId);
     rejectedCaptureValues.remove(conversationId);

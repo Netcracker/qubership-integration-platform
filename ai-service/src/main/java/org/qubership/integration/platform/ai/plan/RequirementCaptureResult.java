@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,7 +24,29 @@ public record RequirementCaptureResult(
     List<RequirementCaptureProjection.PendingWork> pendingWork,
     DraftInput draft,
     List<ResolutionSummary> resolutions,
-    List<RequirementCaptureProjection.AppliedDefault> defaults) {
+    List<RequirementCaptureProjection.AppliedDefault> defaults,
+    @JsonInclude(JsonInclude.Include.NON_NULL) RepairConstraints repairConstraints) {
+
+  public RequirementCaptureResult(boolean accepted, boolean changed, Reference revision, Readiness readiness,
+      NextAction nextAction, List<CaptureIssue> issues, List<RequirementCaptureProjection.PendingWork> pendingWork,
+      DraftInput draft, List<ResolutionSummary> resolutions, List<RequirementCaptureProjection.AppliedDefault> defaults) {
+    this(accepted, changed, revision, readiness, nextAction, issues, pendingWork, draft, resolutions, defaults, null);
+  }
+
+  public record RepairConstraints(List<RequirementCaptureInput.FactInput> facts, JsonNode values) {
+    public RepairConstraints {
+      facts = List.copyOf(facts);
+      values = values == null ? null : values.deepCopy();
+    }
+  }
+
+  public RequirementCaptureResult withRepairConstraints(RepairConstraints constraints) {
+    if (constraints == null) return this;
+    NextAction action = readiness == Readiness.EMPTY && nextAction == NextAction.DISCUSS
+        ? NextAction.REPAIR_CAPTURE : nextAction;
+    return new RequirementCaptureResult(accepted, changed, revision, readiness, action, issues, pendingWork,
+        draft, resolutions, defaults, constraints);
+  }
 
   public enum Readiness {
     EMPTY,
