@@ -84,7 +84,7 @@ assert_contains 'name: qip-dev-postgres-auth' 'existing postgres Secret referenc
 assert_contains 'QIP_AI_A2A_ENABLED' 'A2A feature flag env'
 assert_contains "image: ghcr.io/netcracker/qubership-integration-ai-service:$RELEASE_TAG" 'published AI image tag'
 assert_contains "image: ghcr.io/netcracker/qubership-integration-knowledge-sidecar:$RELEASE_TAG" 'published sidecar image tag'
-python3 - "$RENDERED" <<'PY'
+python3 - "$RENDERED" << 'PY'
 import pathlib
 import re
 import sys
