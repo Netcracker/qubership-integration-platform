@@ -44,7 +44,6 @@ import yaml from "js-yaml";
 import type { APIResponse } from "@playwright/test";
 import type { Catalog } from "../../support/catalog.js";
 import { test, expect } from "../../support/fixtures.js";
-import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import { leftBehind } from "../../support/teardown.js";
 import { archiveOf, entryNames, entryText, zipOf } from "../../support/zip.js";
 
@@ -316,16 +315,13 @@ function importGolden(protocol: string): ImportGolden {
 
 const IMPORTED = ["soap", "grpc", "graphql", "openapi", "asyncapi"].map(importGolden);
 
-/** The import row's message when the catalog cannot compile a specification's library. */
-const LIBRARY_UNCOMPILED = "Failed to compile libraries for service specifications";
-
 /**
  * Each case reads what it expects out of the golden documents rather than out of a list copied
  * beside them, so a regenerated golden moves this spec with the extension's own suite.
  *
- * The cases first ran in CI run 39296968849, and four of the five trees imported as asserted. The
- * gRPC tree does not (#1157): the grpc-java plugin annotates the stub it generates with
- * `javax.annotation.Generated`, and the catalog compiles it against a classpath without that class.
+ * The cases first ran in CI run 39296968849, and four of the five trees imported as asserted. Until
+ * #1157 the gRPC tree answered 207: the grpc-java plugin annotates the stub it generates with
+ * `javax.annotation.Generated`, and the catalog compiled it against a classpath without that class.
  *
  * The export is read for the archive layout and the source bytes, and not compared document by
  * document against the golden. The extension writes `extendedProtocol` and `specification` into a
@@ -345,8 +341,6 @@ const LIBRARY_UNCOMPILED = "Failed to compile libraries for service specificatio
  */
 for (const golden of IMPORTED) {
   test(`the ${golden.protocol} specification the extension imported into a service imports into the catalog`, { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-    const pinned = golden.protocol === "grpc";
-    test.fail(pinned, "#1157: the catalog cannot compile the stub the grpc-java plugin generates");
     const archive = await zipOf(
       golden.entries.map((entry) => [
         `services/${golden.serviceId}/${entry}`,
@@ -355,16 +349,10 @@ for (const golden of IMPORTED) {
     );
     const location = `/v1/systems/${golden.serviceId}`;
     try {
-      await outsideTheDefect("removing the service", () => removeIfPresent(catalog, location, () => catalog.deleteSystem(golden.serviceId)));
+      await removeIfPresent(catalog, location, () => catalog.deleteSystem(golden.serviceId));
 
-      const response = await outsideTheDefect("the import", () => catalog.importArchive("/v1/import/system", archive, `${golden.protocol}.zip`));
-      const answer = await response.text();
-      // #1157 answers 207 with the compile failure, and any other answer, a fixed import included, is
-      // not what the pin carries.
-      if (pinned && !(response.status() === 207 && answer.includes(LIBRARY_UNCOMPILED))) {
-        notTheKnownDefect(`the import answered ${response.status()}, not the failure #1157 pins: ${answer.slice(0, 400)}`);
-      }
-      expect(response.status(), answer).toBe(200);
+      const response = await catalog.importArchive("/v1/import/system", archive, `${golden.protocol}.zip`);
+      expect(response.status(), await response.text()).toBe(200);
       // The row before any read: a refused import would otherwise be reported as a service that
       // holds no specification group. The likeliest refusal is `LIB_COMPILATION_ERROR`:
       // `SystemExportImportService.enrichAndSaveIntegrationSystem` compiles a library for every new
