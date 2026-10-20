@@ -34,6 +34,7 @@ consul:
     deployments-update: /deployments-update
     libraries-update: /libraries-update
     engines-state: /engines-state
+    scheduler-leaders: /scheduler-leaders
     runtime-configurations: /runtime-configurations
     chains: /chains
     common-variables-v2: /variables/common

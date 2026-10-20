@@ -148,7 +148,7 @@ public class ConsulSessionService {
                     log.error("Failed to renew session in consul: {}", failure.getMessage());
                 }
             })
-            .onFailure(this::sessionNotFoundError).transform(failure -> new InvalidConsulSessionException(id, failure))
+            .onFailure(ConsulSessionService::sessionNotFoundError).transform(failure -> new InvalidConsulSessionException(id, failure))
         );
     }
 
@@ -190,7 +190,7 @@ public class ConsulSessionService {
         return Duration.ofMillis((long) consulConnectTimeout + consulTimeout + CONSUL_AWAIT_BUFFER_MS);
     }
 
-    private boolean sessionNotFoundError(Throwable e) {
+    public static boolean sessionNotFoundError(Throwable e) {
         for (Throwable current = e; current != null; current = current.getCause()) {
             String message = current.getMessage();
             if (message != null && message.contains("Session id") && message.contains("not found")) {

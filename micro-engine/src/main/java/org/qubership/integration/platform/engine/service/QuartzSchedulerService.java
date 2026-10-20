@@ -28,14 +28,11 @@ import org.apache.camel.component.quartz.QuartzEndpoint;
 import org.apache.camel.pollconsumer.quartz.QuartzScheduledPollConsumerScheduler;
 import org.apache.camel.spi.ScheduledPollConsumerScheduler;
 import org.quartz.*;
-import org.quartz.impl.matchers.GroupMatcher;
 import org.qubership.integration.platform.engine.camel.scheduler.SchedulerProxy;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
@@ -64,29 +61,6 @@ public class QuartzSchedulerService {
 
     public void removeSchedulerJobs(Route route) {
         removeSchedulerJobs(getSchedulerJobsForRoute(route));
-    }
-
-    /**
-     * Deletes the jobs in this domain's scheduler that none of {@code routes} owns, such as the jobs
-     * of a previous deployment or of a deleted domain that had the same name. The catalog compiles the
-     * job keys of {@code quartz-scheduler} and {@code sftp-trigger-2} elements into the chain source,
-     * so a restart or another replica of one deployment keeps those jobs.
-     */
-    public void removeJobsNotOwnedBy(List<Route> routes) {
-        Set<JobKey> ownedJobs = routes.stream()
-                .flatMap(route -> getSchedulerJobsForRoute(route).stream())
-                .collect(Collectors.toSet());
-        try {
-            List<JobKey> staleJobs = schedulerProxy.getJobKeys(GroupMatcher.anyJobGroup()).stream()
-                    .filter(jobKey -> !ownedJobs.contains(jobKey))
-                    .toList();
-            if (!staleJobs.isEmpty()) {
-                log.info("Remove scheduler jobs that no route owns: {}", staleJobs);
-                schedulerProxy.deleteJobs(staleJobs);
-            }
-        } catch (SchedulerException e) {
-            log.error("Failed to remove scheduler jobs that no route owns", e);
-        }
     }
 
     private List<JobKey> getSchedulerJobsForRoute(Route route) {
@@ -149,6 +123,24 @@ public class QuartzSchedulerService {
             schedulerProxy.resumeScheduler();
         } catch (SchedulerException e) {
             log.error("Failed to resume scheduler", e);
+        }
+    }
+
+    public void takeLeadership() {
+        try {
+            log.info("This pod leads the scheduler of its domain");
+            schedulerProxy.takeLeadership();
+        } catch (SchedulerException e) {
+            log.error("Failed to start scheduler after taking leadership", e);
+        }
+    }
+
+    public void releaseLeadership() {
+        try {
+            log.info("This pod no longer leads the scheduler of its domain");
+            schedulerProxy.releaseLeadership();
+        } catch (SchedulerException e) {
+            log.error("Failed to put scheduler into standby after losing leadership", e);
         }
     }
 }

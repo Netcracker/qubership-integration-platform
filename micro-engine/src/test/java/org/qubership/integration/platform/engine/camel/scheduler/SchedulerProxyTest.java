@@ -8,12 +8,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.quartz.CronScheduleBuilder;
 import org.quartz.JobDetail;
 import org.quartz.Scheduler;
 import org.quartz.Trigger;
+import org.quartz.TriggerBuilder;
+import org.quartz.TriggerKey;
+import org.quartz.spi.OperableTrigger;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
+import java.time.Instant;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -75,17 +81,113 @@ class SchedulerProxyTest {
     }
 
     @Test
-    void shouldDelegateStartWhenNotSuspended() throws Exception {
+    void shouldNotStartBeforeTakingLeadership() throws Exception {
         proxy.start();
+        proxy.startDelayed(5);
 
+        verifyNoInteractions(scheduler);
+    }
+
+    @Test
+    void shouldStartAndResumeAllWhenTakingLeadership() throws Exception {
+        proxy.takeLeadership();
+        proxy.takeLeadership();
+
+        verify(scheduler, times(1)).start();
+        verify(scheduler, times(1)).resumeAll();
+    }
+
+    @Test
+    void shouldMoveTriggersPastTheirFireTimeToTheNextOneWhenTakingLeadership() throws Exception {
+        Date now = new Date();
+        OperableTrigger missed = cronTrigger("missed", "0/3 * * * * ?", new Date(now.getTime() - 60_000));
+        OperableTrigger future = cronTrigger("future", "0/3 * * * * ?", new Date(now.getTime() + 60_000));
+        triggersInStore(missed, future);
+
+        proxy.takeLeadership();
+
+        ArgumentCaptor<Trigger> moved = ArgumentCaptor.forClass(Trigger.class);
+        verify(scheduler).rescheduleJob(eq(missed.getKey()), moved.capture());
+        assertTrue(moved.getValue().getStartTime().after(now));
+        assertTrue(moved.getValue().getStartTime().getTime() <= now.getTime() + 4_000);
+        verify(scheduler, never()).rescheduleJob(eq(future.getKey()), any());
+        InOrder inOrder = inOrder(scheduler);
+        inOrder.verify(scheduler).rescheduleJob(eq(missed.getKey()), any());
+        inOrder.verify(scheduler).start();
+    }
+
+    @Test
+    void shouldRemoveATriggerWithNoFireTimeLeftWhenTakingLeadership() throws Exception {
+        OperableTrigger expired = cronTrigger("expired", "0 0 12 1 1 ? 2020", Date.from(Instant.parse("2019-06-01T00:00:00Z")));
+        triggersInStore(expired);
+
+        proxy.takeLeadership();
+
+        verify(scheduler).unscheduleJob(expired.getKey());
+        verify(scheduler, never()).rescheduleJob(any(), any());
         verify(scheduler).start();
     }
 
     @Test
-    void shouldDelegateStartDelayedWhenNotSuspended() throws Exception {
+    void shouldMoveMissedTriggersWhenResumingAfterABlueGreenSuspension() throws Exception {
+        when(scheduler.isInStandbyMode()).thenReturn(true);
+        proxy.suspendScheduler();
+        proxy.takeLeadership();
+        OperableTrigger missed = cronTrigger("missed", "0/3 * * * * ?", new Date(System.currentTimeMillis() - 60_000));
+        triggersInStore(missed);
+
+        proxy.resumeScheduler();
+
+        verify(scheduler).rescheduleJob(eq(missed.getKey()), any());
+        verify(scheduler).start();
+    }
+
+    @Test
+    void shouldDelegateStartWhenLeaderAndNotSuspended() throws Exception {
+        proxy.takeLeadership();
+        clearInvocations(scheduler);
+
+        proxy.start();
         proxy.startDelayed(5);
 
+        verify(scheduler).start();
         verify(scheduler).startDelayed(5);
+    }
+
+    @Test
+    void shouldPutSchedulerIntoStandbyWhenReleasingLeadership() throws Exception {
+        when(scheduler.isInStandbyMode()).thenReturn(false);
+        proxy.takeLeadership();
+
+        proxy.releaseLeadership();
+        proxy.releaseLeadership();
+        proxy.start();
+
+        verify(scheduler, times(1)).standby();
+        verify(scheduler, times(1)).start();
+    }
+
+    @Test
+    void shouldStartOnlyOnceBothLeadingAndResumed() throws Exception {
+        when(scheduler.isInStandbyMode()).thenReturn(true);
+        proxy.suspendScheduler();
+
+        proxy.takeLeadership();
+        verify(scheduler, never()).start();
+
+        proxy.resumeScheduler();
+        verify(scheduler).start();
+        verify(scheduler).resumeAll();
+    }
+
+    @Test
+    void shouldNotStartWhenResumedWithoutLeadership() throws Exception {
+        when(scheduler.isInStandbyMode()).thenReturn(true);
+        proxy.suspendScheduler();
+
+        proxy.resumeScheduler();
+
+        verify(scheduler, never()).start();
     }
 
     @Test
@@ -143,6 +245,8 @@ class SchedulerProxyTest {
     @Test
     void shouldStartAndResumeAllWhenResumingAfterSuspend() throws Exception {
         when(scheduler.isInStandbyMode()).thenReturn(false);
+        proxy.takeLeadership();
+        clearInvocations(scheduler);
 
         proxy.suspendScheduler();
         proxy.resumeScheduler();
@@ -169,6 +273,25 @@ class SchedulerProxyTest {
         proxy.commitScheduledJobs();
 
         verifyNoInteractions(scheduler);
+    }
+
+    private static OperableTrigger cronTrigger(String name, String cron, Date startAt) {
+        OperableTrigger trigger = (OperableTrigger) TriggerBuilder.newTrigger()
+                .withIdentity(TriggerKey.triggerKey(name, "default-group"))
+                .withSchedule(CronScheduleBuilder.cronSchedule(cron))
+                .startAt(startAt)
+                .build();
+        trigger.computeFirstFireTime(null);
+        return trigger;
+    }
+
+    private void triggersInStore(Trigger... triggers) throws Exception {
+        Set<TriggerKey> keys = new HashSet<>();
+        for (Trigger trigger : triggers) {
+            keys.add(trigger.getKey());
+            when(scheduler.getTrigger(trigger.getKey())).thenReturn(trigger);
+        }
+        when(scheduler.getTriggerKeys(any())).thenReturn(keys);
     }
 
     private JobDetail job(String name) {

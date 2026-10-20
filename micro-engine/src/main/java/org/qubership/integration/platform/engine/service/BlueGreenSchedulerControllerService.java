@@ -15,8 +15,8 @@ public class BlueGreenSchedulerControllerService {
     @Inject
     QuartzSchedulerService quartzSchedulerService;
 
-    // Blocking: resuming the scheduler runs a Quartz transaction under its database lock.
-    @ConsumeEvent(value = BlueGreenStateService.BLUE_GREEN_STATE_EVENT_ADDRESS, blocking = true)
+    // Blocking: it waits on the scheduler lock. Ordered: a quick switch and rollback apply in order.
+    @ConsumeEvent(value = BlueGreenStateService.BLUE_GREEN_STATE_EVENT_ADDRESS, blocking = true, ordered = true)
     public void onStateChange(BlueGreenStateService.BlueGreenStateChange stateChange) {
         resolveBlueGreenState(stateChange.oldState(), stateChange.newState());
     }

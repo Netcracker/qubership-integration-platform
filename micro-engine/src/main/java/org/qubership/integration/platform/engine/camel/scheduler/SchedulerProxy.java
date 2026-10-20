@@ -21,6 +21,8 @@ import org.quartz.JobDetail;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.Trigger;
+import org.quartz.TriggerKey;
+import org.quartz.impl.matchers.GroupMatcher;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -36,6 +38,9 @@ public class SchedulerProxy extends DelegatingScheduler {
 
     private boolean isSuspended = false;
 
+    // The jobs live in memory on every pod of the domain, and only the elected leader runs them.
+    private boolean isLeader = false;
+
     public SchedulerProxy(Scheduler scheduler) {
         super(scheduler);
     }
@@ -50,7 +55,7 @@ public class SchedulerProxy extends DelegatingScheduler {
     @Override
     public void start() throws SchedulerException {
         synchronized (lock) {
-            if (!isSuspended) {
+            if (!isSuspended && isLeader) {
                 super.start();
             }
         }
@@ -59,7 +64,7 @@ public class SchedulerProxy extends DelegatingScheduler {
     @Override
     public void startDelayed(int seconds) throws SchedulerException {
         synchronized (lock) {
-            if (!isSuspended) {
+            if (!isSuspended && isLeader) {
                 super.startDelayed(seconds);
             }
         }
@@ -91,15 +96,58 @@ public class SchedulerProxy extends DelegatingScheduler {
     public void resumeScheduler() throws SchedulerException {
         synchronized (lock) {
             if (isSuspended) {
-                startAndResumeJobs();
+                if (isLeader) {
+                    startAndResumeJobs();
+                }
                 isSuspended = false;
             }
         }
     }
 
+    public void takeLeadership() throws SchedulerException {
+        synchronized (lock) {
+            if (!isLeader) {
+                if (!isSuspended) {
+                    startAndResumeJobs();
+                }
+                isLeader = true;
+            }
+        }
+    }
+
+    public void releaseLeadership() throws SchedulerException {
+        synchronized (lock) {
+            if (isLeader) {
+                isLeader = false;
+                if (!super.isInStandbyMode()) {
+                    super.standby();
+                }
+            }
+        }
+    }
+
     private void startAndResumeJobs() throws SchedulerException {
+        skipMissedFireTimes();
         super.start();
         super.resumeAll();
+    }
+
+    // While this scheduler stood by, the previous leader or the other blue-green version ran these fire times,
+    // so firing them now would run a chain twice. A trigger with no fire time left after now is removed.
+    private void skipMissedFireTimes() throws SchedulerException {
+        Date now = new Date();
+        for (TriggerKey key : super.getTriggerKeys(GroupMatcher.anyTriggerGroup())) {
+            Trigger trigger = super.getTrigger(key);
+            if (trigger.getNextFireTime() == null || !trigger.getNextFireTime().before(now)) {
+                continue;
+            }
+            Date next = trigger.getFireTimeAfter(now);
+            if (next == null) {
+                super.unscheduleJob(key);
+            } else {
+                super.rescheduleJob(key, trigger.getTriggerBuilder().startAt(next).build());
+            }
+        }
     }
 
     public void clearDelayedJobs() {
