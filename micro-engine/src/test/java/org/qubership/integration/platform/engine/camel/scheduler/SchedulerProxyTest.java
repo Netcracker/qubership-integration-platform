@@ -22,6 +22,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TimeZone;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -90,8 +91,8 @@ class SchedulerProxyTest {
 
     @Test
     void shouldStartAndResumeAllWhenTakingLeadership() throws Exception {
-        proxy.takeLeadership();
-        proxy.takeLeadership();
+        proxy.takeLeadership(null, Set.of());
+        proxy.takeLeadership(null, Set.of());
 
         verify(scheduler, times(1)).start();
         verify(scheduler, times(1)).resumeAll();
@@ -104,7 +105,7 @@ class SchedulerProxyTest {
         OperableTrigger future = cronTrigger("future", "0/3 * * * * ?", new Date(now.getTime() + 60_000));
         triggersInStore(missed, future);
 
-        proxy.takeLeadership();
+        proxy.takeLeadership(null, Set.of());
 
         ArgumentCaptor<Trigger> moved = ArgumentCaptor.forClass(Trigger.class);
         verify(scheduler).rescheduleJob(eq(missed.getKey()), moved.capture());
@@ -121,7 +122,7 @@ class SchedulerProxyTest {
         OperableTrigger expired = cronTrigger("expired", "0 0 12 1 1 ? 2020", Date.from(Instant.parse("2019-06-01T00:00:00Z")));
         triggersInStore(expired);
 
-        proxy.takeLeadership();
+        proxy.takeLeadership(null, Set.of());
 
         verify(scheduler).unscheduleJob(expired.getKey());
         verify(scheduler, never()).rescheduleJob(any(), any());
@@ -129,10 +130,62 @@ class SchedulerProxyTest {
     }
 
     @Test
+    void shouldFireOnceATriggerOfThePreviousLeaderWhoseRecentFireTimeFellIntoTheGap() throws Exception {
+        Date now = new Date();
+        // Created when this pod started, after the fire time the previous leader missed.
+        OperableTrigger trigger = cronTrigger("restarted", "0 * * * * ?", now);
+        triggersInStore(trigger);
+
+        proxy.takeLeadership(now.toInstant().minusSeconds(90), Set.of(trigger.getKey()));
+
+        ArgumentCaptor<Trigger> moved = ArgumentCaptor.forClass(Trigger.class);
+        verify(scheduler).rescheduleJob(eq(trigger.getKey()), moved.capture());
+        Date start = moved.getValue().getStartTime();
+        assertFalse(start.after(now));
+        assertTrue(start.getTime() > now.getTime() - 60_000);
+        assertEquals(0, start.getTime() % 60_000);
+    }
+
+    @Test
+    void shouldLeaveAnOldMissedFireTimeToTheMisfireInstruction() throws Exception {
+        OperableTrigger trigger = cronTrigger("once", "0 0 12 1 1 ? 2025", Date.from(Instant.parse("2024-06-01T00:00:00Z")));
+        triggersInStore(trigger);
+
+        proxy.takeLeadership(Instant.parse("2024-12-31T00:00:00Z"), Set.of(trigger.getKey()));
+
+        ArgumentCaptor<Trigger> moved = ArgumentCaptor.forClass(Trigger.class);
+        verify(scheduler).rescheduleJob(eq(trigger.getKey()), moved.capture());
+        assertEquals(Instant.parse("2025-01-01T12:00:00Z"), moved.getValue().getStartTime().toInstant());
+    }
+
+    @Test
+    void shouldNotFireATriggerThePreviousLeaderDidNotRun() throws Exception {
+        Date now = new Date();
+        OperableTrigger ownTrigger = cronTrigger("own", "0 * * * * ?", now);
+        triggersInStore(ownTrigger);
+
+        proxy.takeLeadership(now.toInstant().minusSeconds(90), Set.of(TriggerKey.triggerKey("previous", "default-group")));
+
+        verify(scheduler, never()).rescheduleJob(any(), any());
+        verify(scheduler).start();
+    }
+
+    @Test
+    void shouldNotFireATriggerWhenThePreviousLeaderOutlivedItsLastFireTime() throws Exception {
+        OperableTrigger trigger = cronTrigger("once", "0 0 12 1 1 ? 2025", Date.from(Instant.parse("2024-06-01T00:00:00Z")));
+        triggersInStore(trigger);
+
+        proxy.takeLeadership(Instant.parse("2025-06-01T00:00:00Z"), Set.of(trigger.getKey()));
+
+        verify(scheduler).unscheduleJob(trigger.getKey());
+        verify(scheduler, never()).rescheduleJob(any(), any());
+    }
+
+    @Test
     void shouldMoveMissedTriggersWhenResumingAfterABlueGreenSuspension() throws Exception {
         when(scheduler.isInStandbyMode()).thenReturn(true);
         proxy.suspendScheduler();
-        proxy.takeLeadership();
+        proxy.takeLeadership(null, Set.of());
         OperableTrigger missed = cronTrigger("missed", "0/3 * * * * ?", new Date(System.currentTimeMillis() - 60_000));
         triggersInStore(missed);
 
@@ -144,7 +197,7 @@ class SchedulerProxyTest {
 
     @Test
     void shouldDelegateStartWhenLeaderAndNotSuspended() throws Exception {
-        proxy.takeLeadership();
+        proxy.takeLeadership(null, Set.of());
         clearInvocations(scheduler);
 
         proxy.start();
@@ -157,7 +210,7 @@ class SchedulerProxyTest {
     @Test
     void shouldPutSchedulerIntoStandbyWhenReleasingLeadership() throws Exception {
         when(scheduler.isInStandbyMode()).thenReturn(false);
-        proxy.takeLeadership();
+        proxy.takeLeadership(null, Set.of());
 
         proxy.releaseLeadership();
         proxy.releaseLeadership();
@@ -172,7 +225,7 @@ class SchedulerProxyTest {
         when(scheduler.isInStandbyMode()).thenReturn(true);
         proxy.suspendScheduler();
 
-        proxy.takeLeadership();
+        proxy.takeLeadership(null, Set.of());
         verify(scheduler, never()).start();
 
         proxy.resumeScheduler();
@@ -245,7 +298,7 @@ class SchedulerProxyTest {
     @Test
     void shouldStartAndResumeAllWhenResumingAfterSuspend() throws Exception {
         when(scheduler.isInStandbyMode()).thenReturn(false);
-        proxy.takeLeadership();
+        proxy.takeLeadership(null, Set.of());
         clearInvocations(scheduler);
 
         proxy.suspendScheduler();
@@ -278,7 +331,7 @@ class SchedulerProxyTest {
     private static OperableTrigger cronTrigger(String name, String cron, Date startAt) {
         OperableTrigger trigger = (OperableTrigger) TriggerBuilder.newTrigger()
                 .withIdentity(TriggerKey.triggerKey(name, "default-group"))
-                .withSchedule(CronScheduleBuilder.cronSchedule(cron))
+                .withSchedule(CronScheduleBuilder.cronSchedule(cron).inTimeZone(TimeZone.getTimeZone("UTC")))
                 .startAt(startAt)
                 .build();
         trigger.computeFirstFireTime(null);

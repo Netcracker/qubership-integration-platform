@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.engine.camel.scheduler;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.quartz.CronExpression;
+import org.quartz.CronTrigger;
 import org.quartz.JobDetail;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
@@ -24,6 +26,8 @@ import org.quartz.Trigger;
 import org.quartz.TriggerKey;
 import org.quartz.impl.matchers.GroupMatcher;
 
+import java.text.ParseException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -37,6 +41,8 @@ public class SchedulerProxy extends DelegatingScheduler {
     private final ConcurrentMap<Thread, List<Pair<JobDetail, Trigger>>> delayedScheduledJobsMap = new ConcurrentHashMap<>();
 
     private boolean isSuspended = false;
+
+    private static final long RECENT_FIRE_TIMES_MILLIS = 60_000;
 
     // The jobs live in memory on every pod of the domain, and only the elected leader runs them.
     private boolean isLeader = false;
@@ -97,6 +103,7 @@ public class SchedulerProxy extends DelegatingScheduler {
         synchronized (lock) {
             if (isSuspended) {
                 if (isLeader) {
+                    moveMissedFireTimes(null, Set.of());
                     startAndResumeJobs();
                 }
                 isSuspended = false;
@@ -104,10 +111,17 @@ public class SchedulerProxy extends DelegatingScheduler {
         }
     }
 
-    public void takeLeadership() throws SchedulerException {
+    /**
+     * Starts the scheduler on the pod that has just been elected. A trigger the previous leader also ran fires once
+     * if one of its fire times fell after {@code previousLeaderSeenAt}, as a misfire on a persistent store would.
+     * Every other fire time missed while this pod stood by is skipped.
+     */
+    public void takeLeadership(Instant previousLeaderSeenAt, Set<TriggerKey> previousLeaderTriggers)
+            throws SchedulerException {
         synchronized (lock) {
             if (!isLeader) {
                 if (!isSuspended) {
+                    moveMissedFireTimes(previousLeaderSeenAt, previousLeaderTriggers);
                     startAndResumeJobs();
                 }
                 isLeader = true;
@@ -127,27 +141,56 @@ public class SchedulerProxy extends DelegatingScheduler {
     }
 
     private void startAndResumeJobs() throws SchedulerException {
-        skipMissedFireTimes();
         super.start();
         super.resumeAll();
     }
 
-    // While this scheduler stood by, the previous leader or the other blue-green version ran these fire times,
-    // so firing them now would run a chain twice. A trigger with no fire time left after now is removed.
-    private void skipMissedFireTimes() throws SchedulerException {
+    private void moveMissedFireTimes(Instant previousLeaderSeenAt, Set<TriggerKey> previousLeaderTriggers)
+            throws SchedulerException {
         Date now = new Date();
         for (TriggerKey key : super.getTriggerKeys(GroupMatcher.anyTriggerGroup())) {
             Trigger trigger = super.getTrigger(key);
-            if (trigger.getNextFireTime() == null || !trigger.getNextFireTime().before(now)) {
-                continue;
-            }
-            Date next = trigger.getFireTimeAfter(now);
-            if (next == null) {
-                super.unscheduleJob(key);
-            } else {
-                super.rescheduleJob(key, trigger.getTriggerBuilder().startAt(next).build());
+            Date missed = previousLeaderTriggers.contains(key)
+                    ? fireTimeMissedSince(trigger, previousLeaderSeenAt, now)
+                    : null;
+            if (missed != null) {
+                super.rescheduleJob(key, trigger.getTriggerBuilder().startAt(missed).build());
+            } else if (trigger.getNextFireTime() != null && trigger.getNextFireTime().before(now)) {
+                // The previous leader or the other blue-green version ran these fire times.
+                Date next = trigger.getFireTimeAfter(now);
+                if (next == null) {
+                    super.unscheduleJob(key);
+                } else {
+                    super.rescheduleJob(key, trigger.getTriggerBuilder().startAt(next).build());
+                }
             }
         }
+    }
+
+    // A fire time between since and now that makes Quartz fire the trigger once. An old one is a misfire, which
+    // the trigger's FireAndProceed instruction runs once; within the last minute only the latest one is.
+    private static Date fireTimeMissedSince(Trigger trigger, Instant since, Date now) {
+        if (since == null || !(trigger instanceof CronTrigger cronTrigger)) {
+            return null;
+        }
+        CronExpression expression;
+        try {
+            expression = new CronExpression(cronTrigger.getCronExpression());
+        } catch (ParseException e) {
+            return null;
+        }
+        expression.setTimeZone(cronTrigger.getTimeZone());
+        Date first = expression.getTimeAfter(Date.from(since));
+        if (first == null || first.after(now)) {
+            return null;
+        }
+        Date recentFrom = new Date(Math.max(first.getTime() - 1, now.getTime() - RECENT_FIRE_TIMES_MILLIS));
+        Date latest = null;
+        for (Date time = expression.getTimeAfter(recentFrom); time != null && !time.after(now);
+                time = expression.getTimeAfter(time)) {
+            latest = time;
+        }
+        return latest != null ? latest : first;
     }
 
     public void clearDelayedJobs() {

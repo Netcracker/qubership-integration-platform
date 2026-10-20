@@ -28,11 +28,14 @@ import org.apache.camel.component.quartz.QuartzEndpoint;
 import org.apache.camel.pollconsumer.quartz.QuartzScheduledPollConsumerScheduler;
 import org.apache.camel.spi.ScheduledPollConsumerScheduler;
 import org.quartz.*;
+import org.quartz.impl.matchers.GroupMatcher;
 import org.qubership.integration.platform.engine.camel.scheduler.SchedulerProxy;
 
 import java.lang.reflect.Field;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @ApplicationScoped
@@ -126,13 +129,17 @@ public class QuartzSchedulerService {
         }
     }
 
-    public void takeLeadership() {
+    public void takeLeadership(Instant previousLeaderSeenAt, Set<TriggerKey> previousLeaderTriggers) {
         try {
             log.info("This pod leads the scheduler of its domain");
-            schedulerProxy.takeLeadership();
+            schedulerProxy.takeLeadership(previousLeaderSeenAt, previousLeaderTriggers);
         } catch (SchedulerException e) {
             log.error("Failed to start scheduler after taking leadership", e);
         }
+    }
+
+    public Set<TriggerKey> getTriggerKeys() throws SchedulerException {
+        return schedulerProxy.getTriggerKeys(GroupMatcher.anyTriggerGroup());
     }
 
     public void releaseLeadership() {

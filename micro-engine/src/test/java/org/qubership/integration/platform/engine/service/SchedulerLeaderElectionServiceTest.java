@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.engine.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.runtime.ShutdownEvent;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.consul.KeyValue;
@@ -16,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.quartz.TriggerKey;
 import org.qubership.integration.platform.engine.consul.ConsulKeyValidator;
 import org.qubership.integration.platform.engine.model.engine.EngineInfo;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -24,12 +27,16 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -44,7 +51,9 @@ class SchedulerLeaderElectionServiceTest {
     private static final String KEY = "config/qip-e2e/cip-engine-configurations/scheduler-leaders/orders-v1";
     private static final String HOST = "10.244.0.26";
     private static final Instant START = Instant.parse("2026-10-20T09:00:00Z");
+    private static final TriggerKey TRIGGER = TriggerKey.triggerKey("d33d6c3d-ea43a3d4", "default-group");
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private SchedulerLeaderElectionService service;
 
     @Mock
@@ -53,22 +62,25 @@ class SchedulerLeaderElectionServiceTest {
     QuartzSchedulerService quartzSchedulerService;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         service = new SchedulerLeaderElectionService();
         service.consulClientSupplier = () -> consulClient;
         service.consulKeyValidator = new ConsulKeyValidator();
         service.quartzSchedulerService = quartzSchedulerService;
         service.engineInfo = EngineInfo.builder().host(HOST).domain("orders").build();
+        service.objectMapper = objectMapper;
         service.keyPrefix = "config/qip-e2e";
         service.keyEngineConfigRoot = "/cip-engine-configurations";
         service.keySchedulerLeaders = "/scheduler-leaders";
         service.bgVersion = "v1";
         service.clock = Clock.fixed(START, ZoneOffset.UTC);
+        lenient().when(quartzSchedulerService.getTriggerKeys()).thenReturn(Set.of(TRIGGER));
     }
 
     @Test
-    void shouldTakeLeadershipWhenItAcquiresTheDomainKey() {
+    void shouldTakeLeadershipAndRecordItsTriggersWhenItAcquiresAFreeKey() throws Exception {
         sessionCreated();
+        keyAbsent();
         acquireReturns(true);
 
         service.elect();
@@ -77,28 +89,52 @@ class SchedulerLeaderElectionServiceTest {
         verify(consulClient).createSessionWithOptions(options.capture());
         assertEquals(10L, options.getValue().getTtl());
         assertEquals(15L, options.getValue().getLockDelay());
-        assertEquals(SessionBehavior.DELETE, options.getValue().getBehavior());
-        verify(consulClient).putValueWithOptions(eq(KEY), eq(HOST),
+        assertEquals(SessionBehavior.RELEASE, options.getValue().getBehavior());
+        ArgumentCaptor<String> value = ArgumentCaptor.forClass(String.class);
+        verify(consulClient).putValueWithOptions(eq(KEY), value.capture(),
                 argThat(kv -> SESSION_ID.equals(kv.getAcquireSession())));
-        verify(quartzSchedulerService).takeLeadership();
+        assertEquals(record(START, TRIGGER), objectMapper.readTree(value.getValue()));
+        verify(quartzSchedulerService).takeLeadership(null, Set.of());
     }
 
     @Test
-    void shouldStayInStandbyWhileAnotherPodHoldsTheKey() {
+    void shouldPassThePreviousLeadersRecordWhenItTakesAReleasedKey() throws Exception {
         sessionCreated();
-        acquireReturns(false);
-        keyHeldBy(OTHER_SESSION_ID);
+        keyHeldBy(null, recordText(START.minusSeconds(40), TRIGGER));
+        acquireReturns(true);
 
         service.elect();
 
-        verify(quartzSchedulerService, never()).takeLeadership();
-        verify(quartzSchedulerService, never()).releaseLeadership();
+        verify(quartzSchedulerService).takeLeadership(START.minusSeconds(40), Set.of(TRIGGER));
+    }
+
+    @Test
+    void shouldTakeAKeyWithAnUnreadableValueAsAFreeOne() {
+        sessionCreated();
+        keyHeldBy(null, HOST);
+        acquireReturns(true);
+
+        service.elect();
+
+        verify(quartzSchedulerService).takeLeadership(null, Set.of());
+    }
+
+    @Test
+    void shouldStayInStandbyWithoutAcquiringWhileAnotherPodHoldsTheKey() {
+        sessionCreated();
+        keyHeldBy(OTHER_SESSION_ID, recordText(START, TRIGGER));
+
+        service.elect();
+
+        verify(consulClient, never()).putValueWithOptions(anyString(), anyString(), any());
+        verify(quartzSchedulerService, never()).takeLeadership(any(), any());
     }
 
     @Test
     void shouldRenewItsSessionAndKeepLeadershipOnLaterRounds() {
         sessionCreated();
         sessionRenewed();
+        keyAbsent();
         acquireReturns(true);
 
         service.elect();
@@ -106,7 +142,7 @@ class SchedulerLeaderElectionServiceTest {
 
         verify(consulClient, times(1)).createSessionWithOptions(any());
         verify(consulClient).renewSession(SESSION_ID);
-        verify(quartzSchedulerService, times(1)).takeLeadership();
+        verify(quartzSchedulerService, times(1)).takeLeadership(any(), any());
         verify(quartzSchedulerService, never()).releaseLeadership();
     }
 
@@ -115,12 +151,14 @@ class SchedulerLeaderElectionServiceTest {
         sessionCreated();
         sessionRenewed();
         acquireReturns(true, false);
-        keyHeldBy(SESSION_ID);
+        when(consulClient.getValue(KEY)).thenReturn(
+                Uni.createFrom().item(new KeyValue().setKey(KEY)),
+                Uni.createFrom().item(new KeyValue().setKey(KEY).setSession(SESSION_ID)));
 
         service.elect();
         service.elect();
 
-        verify(quartzSchedulerService).takeLeadership();
+        verify(quartzSchedulerService).takeLeadership(null, Set.of());
         verify(quartzSchedulerService, never()).releaseLeadership();
     }
 
@@ -129,7 +167,9 @@ class SchedulerLeaderElectionServiceTest {
         sessionCreated();
         sessionRenewed();
         acquireReturns(true, false);
-        keyHeldBy(OTHER_SESSION_ID);
+        when(consulClient.getValue(KEY)).thenReturn(
+                Uni.createFrom().item(new KeyValue().setKey(KEY)),
+                Uni.createFrom().item(new KeyValue().setKey(KEY).setSession(OTHER_SESSION_ID)));
 
         service.elect();
         service.elect();
@@ -140,6 +180,7 @@ class SchedulerLeaderElectionServiceTest {
     @Test
     void shouldStepDownAndCreateANewSessionWhenItsSessionIsGone() {
         sessionCreated();
+        keyAbsent();
         acquireReturns(true);
         service.elect();
         when(consulClient.renewSession(SESSION_ID))
@@ -154,9 +195,7 @@ class SchedulerLeaderElectionServiceTest {
 
     @Test
     void shouldKeepLeadershipThroughAConsulOutageShorterThanTheTtl() {
-        sessionCreated();
-        acquireReturns(true);
-        service.elect();
+        leading();
         consulUnreachable();
 
         service.clock = Clock.fixed(START.plusSeconds(9), ZoneOffset.UTC);
@@ -167,9 +206,7 @@ class SchedulerLeaderElectionServiceTest {
 
     @Test
     void shouldStepDownWhenConsulStaysUnreachableForLongerThanTheTtl() {
-        sessionCreated();
-        acquireReturns(true);
-        service.elect();
+        leading();
         consulUnreachable();
 
         service.clock = Clock.fixed(START.plusSeconds(11), ZoneOffset.UTC);
@@ -181,6 +218,7 @@ class SchedulerLeaderElectionServiceTest {
     @Test
     void shouldCountTheTtlFromBeforeItsLastSuccessfulRenewal() {
         sessionCreated();
+        keyAbsent();
         acquireReturns(true);
         // The first reading is taken before the renewal, any later one after six seconds of slow Consul calls.
         service.clock = new Clock() {
@@ -213,48 +251,52 @@ class SchedulerLeaderElectionServiceTest {
     }
 
     @Test
-    void shouldStandByBeforeDeletingTheKeyOnShutdownWhenLeading() {
-        sessionCreated();
-        acquireReturns(true);
-        when(consulClient.deleteValue(KEY)).thenReturn(Uni.createFrom().voidItem());
+    void shouldStandByBeforeReleasingTheKeyWithItsRecordOnShutdownWhenLeading() throws Exception {
+        leading();
         when(consulClient.destroySession(SESSION_ID)).thenReturn(Uni.createFrom().voidItem());
-        service.elect();
+        service.clock = Clock.fixed(START.plusSeconds(30), ZoneOffset.UTC);
 
         service.releaseOnShutdown(new ShutdownEvent());
 
         InOrder inOrder = inOrder(quartzSchedulerService, consulClient);
         inOrder.verify(quartzSchedulerService).releaseLeadership();
-        inOrder.verify(consulClient).deleteValue(KEY);
+        ArgumentCaptor<String> value = ArgumentCaptor.forClass(String.class);
+        inOrder.verify(consulClient).putValueWithOptions(eq(KEY), value.capture(),
+                argThat(kv -> SESSION_ID.equals(kv.getReleaseSession())));
         inOrder.verify(consulClient).destroySession(SESSION_ID);
+        assertEquals(record(START.plusSeconds(30), TRIGGER), objectMapper.readTree(value.getValue()));
     }
 
     @Test
     void shouldLeaveTheLeadersKeyAloneOnShutdownWhenFollowing() {
         sessionCreated();
-        acquireReturns(false);
-        keyHeldBy(OTHER_SESSION_ID);
+        keyHeldBy(OTHER_SESSION_ID, recordText(START, TRIGGER));
         when(consulClient.destroySession(SESSION_ID)).thenReturn(Uni.createFrom().voidItem());
         service.elect();
 
         service.releaseOnShutdown(new ShutdownEvent());
 
-        verify(consulClient, never()).deleteValue(any());
+        verify(consulClient, never()).putValueWithOptions(anyString(), anyString(), any());
         verify(consulClient).destroySession(SESSION_ID);
     }
 
     @Test
     void shouldNotTakeTheKeyAgainAfterShutdown() {
-        sessionCreated();
-        acquireReturns(true);
-        when(consulClient.deleteValue(KEY)).thenReturn(Uni.createFrom().voidItem());
+        leading();
         when(consulClient.destroySession(SESSION_ID)).thenReturn(Uni.createFrom().voidItem());
-        service.elect();
         service.releaseOnShutdown(new ShutdownEvent());
 
         service.elect();
 
         verify(consulClient, times(1)).createSessionWithOptions(any());
-        verify(quartzSchedulerService, times(1)).takeLeadership();
+        verify(quartzSchedulerService, times(1)).takeLeadership(any(), any());
+    }
+
+    private void leading() {
+        sessionCreated();
+        keyAbsent();
+        acquireReturns(true);
+        service.elect();
     }
 
     private void sessionCreated() {
@@ -269,17 +311,31 @@ class SchedulerLeaderElectionServiceTest {
         when(consulClient.renewSession(SESSION_ID)).thenReturn(Uni.createFrom().failure(new RuntimeException("Connection refused")));
     }
 
-    private void keyHeldBy(String session) {
-        when(consulClient.getValue(KEY)).thenReturn(Uni.createFrom().item(new KeyValue().setKey(KEY).setSession(session)));
+    private void keyAbsent() {
+        when(consulClient.getValue(KEY)).thenReturn(Uni.createFrom().item(new KeyValue().setKey(KEY)));
+    }
+
+    private void keyHeldBy(String session, String value) {
+        when(consulClient.getValue(KEY)).thenReturn(Uni.createFrom().item(
+                new KeyValue().setKey(KEY).setSession(session).setValue(value)));
     }
 
     private void acquireReturns(boolean acquired) {
-        when(consulClient.putValueWithOptions(eq(KEY), eq(HOST), any(KeyValueOptions.class)))
+        when(consulClient.putValueWithOptions(eq(KEY), anyString(), any(KeyValueOptions.class)))
                 .thenReturn(Uni.createFrom().item(acquired));
     }
 
     private void acquireReturns(boolean first, boolean second) {
-        when(consulClient.putValueWithOptions(eq(KEY), eq(HOST), any(KeyValueOptions.class)))
+        when(consulClient.putValueWithOptions(eq(KEY), anyString(), any(KeyValueOptions.class)))
                 .thenReturn(Uni.createFrom().item(first), Uni.createFrom().item(second));
+    }
+
+    private String recordText(Instant seenAt, TriggerKey trigger) {
+        return record(seenAt, trigger).toString();
+    }
+
+    private JsonNode record(Instant seenAt, TriggerKey trigger) {
+        return objectMapper.valueToTree(new SchedulerLeaderElectionService.LeaderRecord(HOST, seenAt.toEpochMilli(),
+                List.of(new SchedulerLeaderElectionService.TriggerName(trigger.getGroup(), trigger.getName()))));
     }
 }

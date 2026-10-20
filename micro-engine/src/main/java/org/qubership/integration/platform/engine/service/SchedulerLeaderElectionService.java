@@ -1,7 +1,10 @@
 package org.qubership.integration.platform.engine.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.scheduler.Scheduled;
+import io.smallrye.common.annotation.Identifier;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.consul.KeyValue;
 import io.vertx.ext.consul.KeyValueOptions;
@@ -13,6 +16,8 @@ import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.quartz.SchedulerException;
+import org.quartz.TriggerKey;
 import org.qubership.integration.platform.engine.consul.ConsulKeyValidator;
 import org.qubership.integration.platform.engine.consul.ConsulSessionService;
 import org.qubership.integration.platform.engine.model.engine.EngineInfo;
@@ -20,9 +25,12 @@ import org.qubership.integration.platform.engine.model.engine.EngineInfo;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
@@ -35,6 +43,9 @@ import static java.util.Objects.nonNull;
  * than the TTL plus the lock delay after the leader's last renewal. A leader that cannot confirm the key steps
  * down a TTL after its last confirmed renewal, plus at most one election interval and three Consul calls, which
  * is still inside that window.
+ *
+ * <p>The key keeps when its leader was last confirmed and which triggers it ran, also after the leader stops or
+ * its session expires, so the next leader fires once what fell into the gap.
  */
 @Slf4j
 @ApplicationScoped
@@ -46,6 +57,12 @@ public class SchedulerLeaderElectionService {
     private static final long LOCK_DELAY_SECONDS = 15;
     private static final Duration CONSUL_TIMEOUT = Duration.ofSeconds(3);
     private static final long RELEASE_TIMEOUT_SECONDS = 2;
+
+    record LeaderRecord(String host, long seenAt, List<TriggerName> triggers) {
+    }
+
+    record TriggerName(String group, String name) {
+    }
 
     @ConfigProperty(name = "consul.keys.prefix")
     String keyPrefix;
@@ -71,13 +88,17 @@ public class SchedulerLeaderElectionService {
     @Inject
     EngineInfo engineInfo;
 
+    @Inject
+    @Identifier("jsonMapper")
+    ObjectMapper objectMapper;
+
     Clock clock = Clock.systemUTC();
 
     private String sessionId;
     private boolean leader;
     private Instant confirmedAt;
     private boolean consulFailing;
-    // The scheduled election keeps running during shutdown and would take the deleted key again.
+    // The scheduled election keeps running during shutdown and would take the released key again.
     private boolean stopped;
 
     @Scheduled(every = ELECTION_INTERVAL, executeWith = Scheduled.SIMPLE,
@@ -93,27 +114,35 @@ public class SchedulerLeaderElectionService {
             } else {
                 renewSession();
             }
-            boolean acquired = acquireKey();
-            if (acquired) {
-                confirmedAt = attemptedAt;
+            if (leader) {
+                if (acquireKey(attemptedAt) || heldByThisSession(readKey())) {
+                    confirmedAt = attemptedAt;
+                } else {
+                    stepDown();
+                }
+            } else {
+                KeyValue previous = readKey();
+                if (!heldByAnotherSession(previous) && acquireKey(attemptedAt)) {
+                    confirmedAt = attemptedAt;
+                    lead(parse(previous));
+                }
             }
             consulFailing = false;
-            setLeader(acquired);
         } catch (Exception e) {
             if (ConsulSessionService.sessionNotFoundError(e)) {
                 log.warn("Scheduler leader session {} is gone, will create a new one", sessionId);
                 sessionId = null;
-                setLeader(false);
+                stepDown();
             } else {
                 logConsulFailure(e);
                 if (leader && clock.instant().isAfter(confirmedAt.plusSeconds(SESSION_TTL_SECONDS))) {
-                    setLeader(false);
+                    stepDown();
                 }
             }
         }
     }
 
-    // Deleting the key before destroying the session skips the lock delay, so another pod takes over at once.
+    // Releasing the key, unlike letting the session expire, skips the lock delay, so another pod takes over at once.
     void releaseOnShutdown(@Observes ShutdownEvent event) {
         try {
             CompletableFuture.runAsync(this::release)
@@ -127,25 +156,31 @@ public class SchedulerLeaderElectionService {
     private synchronized void release() {
         stopped = true;
         boolean wasLeader = leader;
-        setLeader(false);
+        stepDown();
         if (nonNull(sessionId)) {
-            ConsulClient client = consulClientSupplier.get();
             if (wasLeader) {
-                awaitConsul(client.deleteValue(key()));
+                writeKey(clock.instant(), new KeyValueOptions().setReleaseSession(sessionId));
             }
-            awaitConsul(client.destroySession(sessionId));
+            awaitConsul(consulClientSupplier.get().destroySession(sessionId));
             sessionId = null;
         }
     }
 
-    private void setLeader(boolean leader) {
-        if (leader != this.leader) {
-            this.leader = leader;
-            if (leader) {
-                quartzSchedulerService.takeLeadership();
-            } else {
-                quartzSchedulerService.releaseLeadership();
-            }
+    private void lead(LeaderRecord previous) {
+        leader = true;
+        if (isNull(previous)) {
+            quartzSchedulerService.takeLeadership(null, Set.of());
+        } else {
+            quartzSchedulerService.takeLeadership(Instant.ofEpochMilli(previous.seenAt()), previous.triggers().stream()
+                    .map(trigger -> TriggerKey.triggerKey(trigger.name(), trigger.group()))
+                    .collect(Collectors.toSet()));
+        }
+    }
+
+    private void stepDown() {
+        if (leader) {
+            leader = false;
+            quartzSchedulerService.releaseLeadership();
         }
     }
 
@@ -164,7 +199,7 @@ public class SchedulerLeaderElectionService {
                 .setName(SESSION_NAME_PREFIX + engineInfo.getHost())
                 .setTtl(SESSION_TTL_SECONDS)
                 .setLockDelay(LOCK_DELAY_SECONDS)
-                .setBehavior(SessionBehavior.DELETE);
+                .setBehavior(SessionBehavior.RELEASE);
         return awaitConsul(consulClientSupplier.get().createSessionWithOptions(options));
     }
 
@@ -172,17 +207,51 @@ public class SchedulerLeaderElectionService {
         awaitConsul(consulClientSupplier.get().renewSession(sessionId));
     }
 
+    private boolean acquireKey(Instant seenAt) {
+        return writeKey(seenAt, new KeyValueOptions().setAcquireSession(sessionId));
+    }
+
+    private boolean writeKey(Instant seenAt, KeyValueOptions options) {
+        return Boolean.TRUE.equals(awaitConsul(consulClientSupplier.get().putValueWithOptions(key(), record(seenAt),
+                options)));
+    }
+
+    private KeyValue readKey() {
+        return awaitConsul(consulClientSupplier.get().getValue(key()));
+    }
+
     // Consul refuses an acquire during a key's lock delay even to the session that holds the key. That happens
     // when the previous holder's session expires just as this pod takes the key.
-    private boolean acquireKey() {
-        ConsulClient client = consulClientSupplier.get();
-        boolean acquired = Boolean.TRUE.equals(awaitConsul(client.putValueWithOptions(key(), engineInfo.getHost(),
-                new KeyValueOptions().setAcquireSession(sessionId))));
-        if (acquired) {
-            return true;
+    private boolean heldByThisSession(KeyValue keyValue) {
+        return nonNull(keyValue) && sessionId.equals(keyValue.getSession());
+    }
+
+    private boolean heldByAnotherSession(KeyValue keyValue) {
+        return nonNull(keyValue) && nonNull(keyValue.getSession()) && !sessionId.equals(keyValue.getSession());
+    }
+
+    private String record(Instant seenAt) {
+        try {
+            List<TriggerName> triggers = quartzSchedulerService.getTriggerKeys().stream()
+                    .map(key -> new TriggerName(key.getGroup(), key.getName()))
+                    .toList();
+            return objectMapper.writeValueAsString(new LeaderRecord(engineInfo.getHost(), seenAt.toEpochMilli(),
+                    triggers));
+        } catch (JsonProcessingException | SchedulerException e) {
+            throw new IllegalStateException("Failed to describe the scheduler for its leader key", e);
         }
-        KeyValue holder = awaitConsul(client.getValue(key()));
-        return nonNull(holder) && sessionId.equals(holder.getSession());
+    }
+
+    // A key written before the record existed, or by hand, holds no record.
+    private LeaderRecord parse(KeyValue keyValue) {
+        if (isNull(keyValue) || isNull(keyValue.getValue())) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(keyValue.getValue(), LeaderRecord.class);
+        } catch (JsonProcessingException e) {
+            return null;
+        }
     }
 
     private String key() {

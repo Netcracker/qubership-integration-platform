@@ -123,7 +123,7 @@ class QuartzSchedulerServiceTest {
     @Test
     void shouldSuspendAndResumeTheSchedulerOfTheLeader() throws Exception {
         when(scheduler.isInStandbyMode()).thenReturn(false);
-        service.takeLeadership();
+        service.takeLeadership(null, Set.of());
         clearInvocations(scheduler);
 
         service.suspendAllSchedulers();
@@ -140,7 +140,7 @@ class QuartzSchedulerServiceTest {
     void shouldPutTheSchedulerIntoStandbyWhenLeadershipIsLost() throws Exception {
         when(scheduler.isInStandbyMode()).thenReturn(false);
 
-        service.takeLeadership();
+        service.takeLeadership(null, Set.of());
         service.releaseLeadership();
 
         InOrder inOrder = inOrder(scheduler);
