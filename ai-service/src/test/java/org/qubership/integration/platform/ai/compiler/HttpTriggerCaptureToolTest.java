@@ -59,6 +59,8 @@ class HttpTriggerCaptureToolTest {
     String diagnostic = feedback.lastPlanFailure(CONVERSATION).orElseThrow().summary();
     assertTrue(diagnostic.contains("INVALID_TYPE"), diagnostic);
     assertTrue(diagnostic.contains("/capture/endpoints/0/externalRoute"), diagnostic);
+    assertTrue(diagnostic.contains("http-entry"), diagnostic);
+    assertTrue(diagnostic.contains("http-trigger-1"), diagnostic);
   }
 
   @Test void providerFeedbackIncludesItsStoredReferenceAndArrayPositionCannotCreateCredit() throws Exception {

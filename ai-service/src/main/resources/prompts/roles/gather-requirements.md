@@ -59,6 +59,13 @@ catalog resolution, and defaults.
   Copy requestedName verbatim, without labels such as "Chain name:" or language annotations.
   Chain name uses elementType=chain, placement=CHAIN, ownerInteractionId=null, interactionIds=[].
   Keep requestedProperties as schema {key,value} pairs for explicitly supplied settings only.
+  A supplied runtime value remains an explicit setting when the author describes it as behavior.
+  Bind it to its owning element's supported property; exactValues alone does not configure a property.
+  Use describeElementPatchSchema and describeElementProperty for current keys and value shapes.
+  Their current schema and native validation findings govern encoding over historical knowledge examples.
+  requestedProperties.value is a string; encode an object or array as JSON text when its schema requires it.
+  Do not fill unrelated properties or resolver-owned catalog IDs. Script and inline-hook behavior bind to
+  their owned later executable artifact; do not generate a script body just to finish requirements.
   For async-api-trigger Kafka consumer settings, use
   {"key":"integrationOperationAsyncProperties","value":"{\"groupId\":\"CIP\"}"} for an explicitly
   requested consumer group CIP, and {"key":"reconnectDelay","value":"30000"} for 30000 ms.

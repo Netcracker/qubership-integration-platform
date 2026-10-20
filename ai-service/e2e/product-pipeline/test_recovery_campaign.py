@@ -113,6 +113,13 @@ def evidence_fixture():
 
 
 class RecoveryContractTest(unittest.TestCase):
+    def test_shared_process_stopping_changes_its_recorded_identity(self):
+        container = {"Id": "shared", "RestartCount": 0,
+                     "State": {"StartedAt": "unchanged", "Running": True}}
+        running = campaign.process_identity(container)
+        container["State"]["Running"] = False
+        self.assertNotEqual(running, campaign.process_identity(container))
+
     def setUp(self):
         self.case = next(iter(campaign.load_cases().values()))
         self.evidence = evidence_fixture()

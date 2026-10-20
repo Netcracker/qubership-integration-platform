@@ -98,6 +98,8 @@ class RequirementCaptureToolsTest {
       var result = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
       assertFalse(result.accepted(), result.toString());
       assertTrue(result.issues().stream().anyMatch(i -> "UNBOUND_REQUIRED_LITERAL".equals(i.code())), result.toString());
+      assertTrue(result.issues().stream().anyMatch(i -> i.message().contains("message")
+          && i.message().contains("describeElementProperty")), result.toString());
       for (boolean keepLevel : List.of(false, true)) {
         var props = new ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
         props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", literal));
