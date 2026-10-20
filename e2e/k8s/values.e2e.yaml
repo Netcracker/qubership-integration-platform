@@ -10,6 +10,11 @@ global:
     testingService:
       # On in Compose (engine-dev.env); off by default in the chart.
       engineMockingEnabled: true
+    # Off as in Compose, where the AI service runs only under its own profile. Its image
+    # is not published, so the pod would never start; the bundle is built without the
+    # health check (support/ui-server.ts).
+    ai:
+      enabled: false
     ui:
       e2eLocations: true
       # No sidecar, so nginx's own answers reach the host as Compose serves them: an inbound
