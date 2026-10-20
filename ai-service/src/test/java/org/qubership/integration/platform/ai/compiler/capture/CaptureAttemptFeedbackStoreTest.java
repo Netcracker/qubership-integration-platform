@@ -26,6 +26,36 @@ class CaptureAttemptFeedbackStoreTest {
   }
 
   @Test
+  void unmappedTypedFailureAndItsCreditSurviveRestart() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    first.beginScope("chat", "http", java.util.Map.of("approved", "source-1"));
+    first.beginRejectedProposal("chat", "http", "captureHttpTriggers", "{invalid", "call-1");
+    var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+        first.fingerprintStore(), first);
+    gateway.onTypedPlanFailure("chat", "http", "captureHttpTriggers", new TypedIssue("INVALID_JSON", "/capture", "Bad JSON"));
+    var feedback = first.lastPlanFailure("chat").orElseThrow();
+    var saved = artifacts.payload(artifacts.get(sessions.active("chat"), feedback.evidenceReference()).orElseThrow(),
+        CaptureAttemptFeedbackStore.Observation.class);
+    assertEquals("{invalid", saved.proposal().arguments().asText());
+    assertEquals("call-1", saved.proposal().toolCallId());
+    assertEquals("INVALID_JSON", saved.feedback().issues().getFirst().code());
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    restored.beginScope("chat", "http", java.util.Map.of("approved", "source-1"));
+    assertEquals(feedback.evidenceReference(), restored.lastPlanFailure("chat").orElseThrow().evidenceReference());
+    restored.beginRejectedProposal("chat", "http", "captureHttpTriggers", "{different", "call-2");
+    var second = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+        restored.fingerprintStore(), restored);
+    org.junit.jupiter.api.Assertions.assertThrows(CaptureValidationException.class, () -> second.onTypedPlanFailure(
+        "chat", "http", "captureHttpTriggers", new TypedIssue("INVALID_JSON", "/capture", "Reworded explanation")));
+    org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> second.onTypedPlanFailure("chat", "http", "captureHttpTriggers",
+        new TypedIssue("MISSING_FIELD", "/capture/endpoints/0/externalRoute", "Bad JSON")));
+  }
+
+  @Test
   void patchTraceIdsDoNotChangeTheMutationAndCleanAliasesRetainHistory() {
     store.beginScope("chat", "skill", java.util.Map.of("run", "r1", "inputs", "i1"));
     store.beginProposal("chat", "skill", "captureGraphPatch", java.util.Map.of(

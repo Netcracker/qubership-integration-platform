@@ -4,5 +4,6 @@ package org.qubership.integration.platform.ai.plan;
 public enum RequirementDiscoveryDirective {
   NONE,
   STAY,
+  DISCUSS,
   CONTINUE
 }

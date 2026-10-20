@@ -117,8 +117,9 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
         requestBudget.estimateInputTokens(chatRequest),
         chatRequest.maxOutputTokens() == null ? 8192 : chatRequest.maxOutputTokens());
     var deadline = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>>();
+    String evidenceId = requestBudget == null ? null : requestBudget.recordProviderRequest(chatRequest, runId);
     var observer = observingHandler(handler, chatRequest, rateLimitAttempt, transientAttempt,
-        tokensStarted, contextRebuilt, ticket, deadline);
+        tokensStarted, contextRebuilt, ticket, deadline, evidenceId);
     if (ticket != null) { scheduleDeadline(ticket, observer, deadline); }
     try { delegate.chat(chatRequest, observer); }
     catch (RuntimeException failure) { observer.onError(failure); }
@@ -142,7 +143,7 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
       int rateLimitAttempt,
       int transientAttempt,
       AtomicBoolean tokensStarted, boolean contextRebuilt, LlmRunBudget.Ticket ticket,
-      java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>> deadline) {
+      java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>> deadline, String evidenceId) {
     AtomicBoolean completed = new AtomicBoolean();
     var handle = new java.util.concurrent.atomic.AtomicReference<dev.langchain4j.model.chat.response.StreamingHandle>();
     return new StreamingChatResponseHandler() {
@@ -196,6 +197,7 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
       public synchronized void onCompleteToolCall(CompleteToolCall completeToolCall) {
         if (completed.get()) { return; }
         tokensStarted.set(true);
+        if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "tool-" + java.util.UUID.randomUUID(), completeToolCall);
         forward(() -> handler.onCompleteToolCall(completeToolCall));
       }
 
@@ -212,6 +214,7 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
             if (refusal != null) { throw new LlmRunBudget.Exhausted(refusal); }
           }
         } catch (RuntimeException failure) { forward(() -> handler.onError(failure)); return; }
+        if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "response", ProviderBoundaryEvidence.response(completeResponse));
         forward(() -> handler.onCompleteResponse(completeResponse));
       }
 
@@ -221,6 +224,9 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
           if (runBudget != null && !(error instanceof LlmRunBudget.Exhausted)) { runBudget.complete(ticket, null); }
           return;
         }
+        if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "error",
+            java.util.Map.of("type", error.getClass().getName(), "message", String.valueOf(error.getMessage()),
+                "partialOutput", tokensStarted.get()));
         if (deadline.get() != null) { deadline.get().cancel(false); }
         if (error instanceof LlmRunBudget.Exhausted && handle.get() != null) { cancel(handle.get()); }
         try {

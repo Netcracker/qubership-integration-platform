@@ -64,6 +64,8 @@ public class ChainSemanticCaptureTool {
   private final CatalogElementDescriptorLoader descriptorLoader;
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
 
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+
   @Inject
   public ChainSemanticCaptureTool(
       ChainSemanticCaptureAdapter adapter,
@@ -137,7 +139,21 @@ public class ChainSemanticCaptureTool {
     long startMs = System.currentTimeMillis();
     String conversationId = ToolSession.resolveConversationId();
     ToolTraceLog.logToolInvoke(LOG, TOOL_NAME, conversationId, shape(capture));
+    if (recoveryControl != null) {
+      var original = capture;
+      capture = recoveryControl.semantic(conversationId, capture, () -> {
+        var binding = ProductCapabilityCaptureContext.designBinding(conversationId).orElse(null);
+        if (binding == null || binding.approvedBrief() == null) return false;
+        try {
+          var contract = contractRepository.require(CompilerContract.V1);
+          validator.validate(adapter.adapt(original, binding.runId(), binding.approvedBrief(), contract),
+              contract, binding.approvedBrief());
+          return true;
+        } catch (IllegalArgumentException rejectedOriginal) { return false; }
+      });
+    }
     String result = encode(capture(capture, conversationId));
+    if (recoveryControl != null) recoveryControl.semanticOutcome(conversationId, capture, result);
     ToolTraceLog.logToolComplete(
         LOG, TOOL_NAME, conversationId, System.currentTimeMillis() - startMs, result);
     return result;

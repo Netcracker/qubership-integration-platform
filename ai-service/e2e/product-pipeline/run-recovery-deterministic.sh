@@ -34,7 +34,10 @@ RECOVERY_TESTS+="MaterializationCapabilityTest#focusedCheckpointRequiresNativeAd
 RECOVERY_TESTS+=",ScriptedStreamingChatModelTest,ScriptedRecoveryTest,ProductAnalysisRepairLoopTest,"
 RECOVERY_TESTS+="RateLimitAwareChatModelTest,RateLimitAwareStreamingChatModelTest,"
 RECOVERY_TESTS+="RateLimitStreamingChatModelTest,LlmRunBudgetTest"
-RECOVERY_TESTS+=",ToolCallErrorHandlerTest,StringifiedToolArgumentsNormalizerTest"
+RECOVERY_TESTS+=",ToolCallErrorHandlerTest,StringifiedToolArgumentsNormalizerTest,"
+RECOVERY_TESTS+="RequirementDiscoveryCapabilityTest,RequirementCaptureToolsTest,RequirementCaptureProviderTest,"
+RECOVERY_TESTS+="CaptureAttemptFeedbackStoreTest,RecoveryDecisionValidatorTest,CompilerQualityValidatorTest,"
+RECOVERY_TESTS+="ProviderBoundaryEvidenceTest,HaltExitGuaranteeMatrixTest"
 
 python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
 

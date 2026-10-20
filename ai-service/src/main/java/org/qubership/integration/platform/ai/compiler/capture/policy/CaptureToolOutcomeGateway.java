@@ -90,7 +90,7 @@ public class CaptureToolOutcomeGateway {
         logical.append('/').append(part);
         continue;
       }
-      if ((i == 1 && ("draft".equals(part) || "changes".equals(part)))
+      if ((i == 1 && ("draft".equals(part) || "changes".equals(part) || "capture".equals(part)))
           || ("flow".equals(part) && (i == 1 || i == 2 && "draft".equals(parts[1])))) {
         continue;
       }
@@ -105,6 +105,7 @@ public class CaptureToolOutcomeGateway {
         case "addQuestions", "updateQuestions", "removeQuestionIds", "openQuestions" -> "questions[]";
         case "addTransitions", "removeTransitions", "transitions" -> "transitions[]";
         case "interactionIds" -> "interactionIds[]";
+        case "endpoints" -> "endpoints[]";
         default -> part;
       };
       logical.append('/').append(normalized);
@@ -211,6 +212,22 @@ public class CaptureToolOutcomeGateway {
       throw new CaptureValidationException(cveMessage(decision));
     }
     return decision.message();
+  }
+
+  /** Uses the same failure policy with typed, source-scoped defect identity. */
+  public void onTypedPlanFailure(String conversationId, String capabilityId, String toolName, TypedIssue issue) {
+    String logicalPath = logicalRequirementPath(issue.path());
+    String fingerprint = fingerprintStore.fingerprint(toolName, capabilityId,
+        List.of(feedbackStore.inputScope(conversationId, capabilityId), issue.code(), logicalPath,
+            issue.entityId() == null ? "" : issue.entityId()));
+    String message = issue.code() + " " + issue.path() + ": " + issue.message();
+    var decision = policy.decide(CaptureFailureClass.CORRECTABLE,
+        CaptureAttemptState.forFingerprint(fingerprintStore.softCreditUsed(conversationId, fingerprint)), message);
+    feedbackStore.recordTypedPlanFailure(conversationId, capabilityId, CaptureFailureKind.VALIDATION,
+        decision.failureClass(), decision.outerAllowed(), message, List.of(issue));
+    recordMetrics(decision, capabilityId, toolName);
+    if (decision.softToolResult()) { fingerprintStore.consumeSoftCredit(conversationId, fingerprint); }
+    if (decision.throwCve()) { throw new CaptureValidationException(cveMessage(decision)); }
   }
 
   public void beginProposal(String conversationId, String capabilityId, String toolName, Object arguments) {

@@ -261,7 +261,7 @@ public record RecoveryCause(
       case "MISSING_REQUIRED_PROPERTY" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
       case "GRAPH_STRUCTURE" -> RecoveryCauseCode.GRAPH_STRUCTURE;
       case "MISSING_BRIEF_FACTS" -> RecoveryCauseCode.MISSING_BRIEF_FACTS;
-      case "BRIEF_CONTRACT" -> RecoveryCauseCode.BRIEF_CONTRACT;
+      case "BRIEF_CONTRACT", "UNBOUND_REQUIRED_LITERAL" -> RecoveryCauseCode.BRIEF_CONTRACT;
       case "CATALOG_RESOLUTION" -> RecoveryCauseCode.CATALOG_RESOLUTION;
       case "MAPPING_CONTRACT",
               "MAPPING_UNKNOWN_TARGET",

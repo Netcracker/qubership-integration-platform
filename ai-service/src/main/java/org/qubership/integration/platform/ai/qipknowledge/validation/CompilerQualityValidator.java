@@ -77,6 +77,14 @@ public class CompilerQualityValidator {
     List<ValidationIssue> issues = new ArrayList<>();
     if (brief != null && graph != null) {
       issues.addAll(MaterializationRequirementsValidator.validateRequestedHooks(graph, brief.facts()));
+      for (var fact : brief.facts()) {
+        if (!RequiredLiteralBindings.unbound(fact, brief.facts()).isEmpty()) issues.add(new ValidationIssue(
+            "unbound-required-literal", ValidationSeverity.BLOCKER,
+            "Required literal lacks an implementation binding: " + fact.sourceFactId(), OWNER,
+            List.of(fact.elementIntent().elementRef()), List.of(),
+            "Complete the source owner's typed requirement binding before regenerating.",
+            "UNBOUND_REQUIRED_LITERAL", fact.sourceFactId(), "/elementIntent/requestedProperties"));
+      }
       java.util.stream.Stream.concat(brief.facts().stream(), brief.requirements().stream())
           .filter(fact -> fact.policyConflict() != null && fact.policyConflict().decision() != null)
           .forEach(fact -> fact.interactionIds().forEach(id -> {

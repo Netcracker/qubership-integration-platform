@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
@@ -81,7 +82,12 @@ public class CaptureAttemptFeedbackStore {
   }
 
   public record PendingProposal(String capabilityId, String inputScope, String scope, String toolName,
-      com.fasterxml.jackson.databind.JsonNode arguments) {}
+      com.fasterxml.jackson.databind.JsonNode arguments, String toolCallId) {
+    public PendingProposal(String capabilityId, String inputScope, String scope, String toolName,
+        com.fasterxml.jackson.databind.JsonNode arguments) {
+      this(capabilityId, inputScope, scope, toolName, arguments, null);
+    }
+  }
   public record Observation(String channel, String capabilityId, PendingProposal proposal, CaptureAttemptFeedback feedback) {}
 
   /** The runtime pins effective inputs and contract before a skill turn; history grants no authority. */
@@ -138,7 +144,7 @@ public class CaptureAttemptFeedbackStore {
     var previous = prior.orElseThrow();
     var feedback = previous.feedback();
     var duplicate = observe(conversationId, previous.channel(), new CaptureAttemptFeedback(
-        feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true));
+        feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true, null, feedback.issues()));
     cache(conversationId, capability, previous.channel(), duplicate);
     throw new CaptureNoProgressException("REPAIR_NO_PROGRESS: The same proposal was rejected under the current inputs. " + duplicate.summary(),
         new CaptureFailureEvidence(duplicate, null, duplicate.evidenceReference(), List.of()));
@@ -165,7 +171,7 @@ public class CaptureAttemptFeedbackStore {
   private CaptureAttemptFeedback observe(String conversationId, String channel, String channelCapability,
       CaptureAttemptFeedback feedback) {
     var captured = pending.remove(conversationId);
-    var proposal = feedback.kind() == CaptureFailureKind.TOOL_ARGUMENTS ? null : captured;
+    var proposal = captured;
     String capability = proposal == null ? channelCapability : proposal.capabilityId();
     var observation = new Observation(channel, capability, proposal, feedback);
     if (artifacts != null) {
@@ -187,7 +193,28 @@ public class CaptureAttemptFeedbackStore {
         .projectValues(relevant, json, org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET)
         .toString();
     return new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
-        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference());
+        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference(), feedback.issues());
+  }
+
+  /** Retains unmapped input verbatim; validation identity never depends on its payload. */
+  public void beginRejectedProposal(String conversationId, String capabilityId, String toolName,
+      String rawArguments, String toolCallId) {
+    if (conversationId == null) { return; }
+    String capability = capabilityId == null ? "" : capabilityId;
+    String scope = inputScope(conversationId, capability);
+    pending.put(conversationId, new PendingProposal(capability, scope, scope, toolName,
+        JSON.getNodeFactory().textNode(rawArguments == null ? "" : rawArguments), toolCallId));
+  }
+
+  public String inputScope(String conversationId, String capabilityId) {
+    return scopes.getOrDefault(scopeKey(conversationId, capabilityId == null ? "" : capabilityId), "");
+  }
+
+  public void recordTypedPlanFailure(String conversationId, String capabilityId,
+      CaptureFailureKind kind, CaptureFailureClass failureClass, boolean outerAllowed,
+      String summary, List<TypedIssue> issues) {
+    cache(conversationId, capabilityId, "PLAN", observe(conversationId, "PLAN", capabilityId,
+        new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, List.of(), "", false, null, issues)));
   }
 
   public String repairHistory(String conversationId, String capabilityId) {
@@ -320,6 +347,11 @@ public class CaptureAttemptFeedbackStore {
   }
 
   public record RequirementRejection(CaptureAttemptFeedback feedback, List<TypedIssue> issues) {}
+
+  public Optional<Reference> lastRequirementFeedbackReference(String conversationId) {
+    return artifacts == null ? Optional.empty() : sessions.current(conversationId)
+        .flatMap(link -> artifacts.latest(link.compilationId(), Kind.REQUIREMENT_CAPTURE_FEEDBACK)).map(Revision::reference);
+  }
 
   public Optional<RequirementRejection> lastRequirementRejection(String conversationId) {
     if (conversationId == null || conversationId.isBlank()) {

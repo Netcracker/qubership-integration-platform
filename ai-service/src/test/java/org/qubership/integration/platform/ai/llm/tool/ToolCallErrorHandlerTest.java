@@ -51,14 +51,14 @@ class ToolCallErrorHandlerTest {
   @ValueSource(strings = {"conv-1", "compiler-skill/conv-1/cip-trigger-generator"})
   void httpMapperFailureUsesTheConversationInsteadOfTheCompilerMemoryId(String memoryId) {
     handler.httpTriggerTool = mock(HttpTriggerCaptureTool.class);
-    when(handler.httpTriggerTool.rejectArguments(eq("conv-1"), any())).thenReturn("native rejection");
+    when(handler.httpTriggerTool.rejectArguments(eq("conv-1"), any(), any())).thenReturn("native rejection");
     ToolErrorContext context = ToolErrorContext.builder()
         .toolExecutionRequest(ToolExecutionRequest.builder()
             .id("call-http").name("captureHttpTriggers").arguments("{}").build())
         .memoryId(memoryId).build();
 
     assertEquals("native rejection", handler.handle(new ToolArgumentsException("bad type"), context).text());
-    verify(handler.httpTriggerTool).rejectArguments(eq("conv-1"), any());
+    verify(handler.httpTriggerTool).rejectArguments(eq("conv-1"), any(), any());
   }
 
   @Test

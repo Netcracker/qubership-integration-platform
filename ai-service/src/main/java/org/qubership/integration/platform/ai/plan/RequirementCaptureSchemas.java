@@ -118,6 +118,9 @@ public final class RequirementCaptureSchemas {
     if (type instanceof ParameterizedType parameterized
         && parameterized.getRawType() == List.class) {
       return JsonArraySchema.builder()
+          .description("exactValues".equals(name)
+              ? "Mandatory runtime literals bound to this owner's supported property, script, hook, or native capability."
+                  + " Names belong in requestedName; do not list type or language display names." : null)
           .items(schema(parameterized.getActualTypeArguments()[0], name + "[]"))
           .build();
     }
@@ -154,7 +157,7 @@ public final class RequirementCaptureSchemas {
       return JsonEnumSchema.builder().enumValues(List.copyOf(keys)).build();
     }
     if ("directive".equals(name)) {
-      return JsonEnumSchema.builder().enumValues("STAY", "CONTINUE").build();
+      return JsonEnumSchema.builder().enumValues("STAY", "CONTINUE", "DISCUSS").build();
     }
     if (clazz.isEnum()) {
       return JsonEnumSchema.builder().enumValues(

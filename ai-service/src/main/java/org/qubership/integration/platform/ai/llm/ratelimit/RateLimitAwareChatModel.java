@@ -97,6 +97,7 @@ public final class RateLimitAwareChatModel implements ChatModel {
       var ticket = runBudget == null ? null : runBudget.reserve(runId,
           requestBudget.estimateInputTokens(chatRequest),
           chatRequest.maxOutputTokens() == null ? 8192 : chatRequest.maxOutputTokens());
+      String evidenceId = requestBudget == null ? null : requestBudget.recordProviderRequest(chatRequest, runId);
       try {
         ChatRequest sent = chatRequest;
         ChatResponse response = runBudget == null ? delegate.chat(sent)
@@ -106,8 +107,11 @@ public final class RateLimitAwareChatModel implements ChatModel {
               if (refusal != null) { throw new LlmRunBudget.Exhausted(refusal); }
               return completed;
             });
+        if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "response", ProviderBoundaryEvidence.response(response));
         return response;
       } catch (RuntimeException error) {
+        if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "error",
+            java.util.Map.of("type", error.getClass().getName(), "message", String.valueOf(error.getMessage())));
         if (!contextRebuilt && requestBudget != null && LlmRequestBudget.isOverflow(error)) {
           ChatRequest rebuilt = requestBudget.rebuild(chatRequest);
           if (!rebuilt.messages().equals(chatRequest.messages())) {

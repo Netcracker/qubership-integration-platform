@@ -44,6 +44,7 @@ public class RequirementCaptureTools {
   private final CatalogFolders catalogFolders;
   private final UploadedSpecOperations uploadedSpecs;
   @Inject org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService elementSchemas;
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
   org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
@@ -111,20 +112,25 @@ public class RequirementCaptureTools {
       Never send complete, decision, assembledText, catalog bindings, or revision references.
       """)
   public String captureRequirementDraft(@P("Authored requirement snapshot") DraftInput draft) {
-    return traced("captureRequirementDraft", draft, () -> {
+    String conversation = ToolSession.resolveConversationId();
+    DraftInput proposal = recoveryControl != null && recoveryControl.needsLiteralFault(conversation)
+        && RequirementCaptureEditor.initialize(draft).accepted()
+        && validateElementEvidence(conversation, draft, store.get(conversation).orElse(null)).isEmpty()
+        ? recoveryControl.requirements(conversation, draft) : draft;
+    return traced("captureRequirementDraft", proposal, () -> {
       String conversationId = ToolSession.resolveConversationId();
       synchronized (store) {
         RequirementDraft previous = store.get(conversationId).orElse(null);
         if (previous != null && previous.authoredDraft() != null) {
-          if (Objects.equals(previous.authoredDraft(), draft)) {
-            return publish(conversationId, draft, previous, null, List.of());
+          if (Objects.equals(previous.authoredDraft(), proposal)) {
+            return publish(conversationId, proposal, previous, null, List.of());
           }
           return view(previous, false, false, List.of(new Issue(
               "DRAFT_ALREADY_EXISTS", "/draft", null,
               "Read the accepted draft and use updateRequirementDraft for changes.")));
         }
-        EditResult edit = RequirementCaptureEditor.initialize(draft);
-        return publish(conversationId, draft, previous, null, edit.issues());
+        EditResult edit = RequirementCaptureEditor.initialize(proposal);
+        return publish(conversationId, proposal, previous, null, edit.issues());
       }
     });
   }
@@ -220,14 +226,14 @@ public class RequirementCaptureTools {
   }
 
   @Tool("""
-      Finish the requirement-discovery turn once, after captures and lookups. Use STAY for discussion
-      and CONTINUE only when the author asked to proceed and the saved draft has no missing fields.
+      Finish the requirement-discovery turn once, after captures and lookups. Use DISCUSS only to answer a question about the paused draft without changing it;
+      use STAY for a justified remaining author question and CONTINUE only when the author asked to proceed and the saved draft has no missing fields.
       A partial draft with nextAction RUN_IMPORT may CONTINUE to the upload import stage. Other
       partial drafts refuse CONTINUE. Do not tell the user the draft is ready until
       CONTINUE is accepted. This does not mutate or approve the accepted draft.
       """)
   public String finishRequirementDiscoveryTurn(
-      @P("STAY for discussion; CONTINUE for an authorized next step")
+      @P("STAY for missing author data; DISCUSS for a question about the draft; CONTINUE for an authorized next step")
           RequirementDiscoveryDirective directive) {
     return traced("finishRequirementDiscoveryTurn", directive, () -> {
       String conversationId = ToolSession.resolveConversationId();
@@ -243,9 +249,13 @@ public class RequirementCaptureTools {
       if (directive == null || directive == RequirementDiscoveryDirective.NONE) {
         return view(store.get(conversationId).orElse(null), false, false,
             List.of(new Issue("INVALID_ENUM", "/directive", null,
-                "Use STAY or CONTINUE.")));
+                "Use STAY, DISCUSS, or CONTINUE.")));
       }
       RequirementDraft current = refreshCatalogBindings(conversationId);
+      if (directive == RequirementDiscoveryDirective.DISCUSS && !store.discussionAllowed(conversationId)) {
+        return view(current, false, false, List.of(new Issue("DISCUSSION_NOT_AUTHORIZED", "/directive", null,
+            "Complete the producer work. DISCUSS requires a new author question about a paused draft.")));
+      }
       if (directive == RequirementDiscoveryDirective.CONTINUE) {
         var preservation = store.validateCurrent(conversationId);
         if (!preservation.isEmpty()) {
@@ -259,6 +269,9 @@ public class RequirementCaptureTools {
               "CONTINUATION_NOT_AUTHORIZED", "/directive", null, refusal.get())));
         }
       }
+      var questions = directive == RequirementDiscoveryDirective.DISCUSS ? List.<Issue>of()
+          : store.validateAuthorQuestions(conversationId);
+      if (!questions.isEmpty()) return view(current, false, false, questions);
       store.finishTurn(conversationId, directive);
       return view(current, true, false, List.of());
     });
@@ -462,6 +475,16 @@ public class RequirementCaptureTools {
         }
       }
     }
+    if (RequirementCaptureEditor.validate(input).isEmpty()) {
+    for (var fact : RequirementCaptureProjection.facts(input)) {
+      var unbound = org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings.unbound(fact, RequirementCaptureProjection.facts(input));
+      if (!unbound.isEmpty()) issues.add(new Issue("UNBOUND_REQUIRED_LITERAL",
+          "/draft/facts/" + fact.sourceFactId() + "/elementIntent/requestedProperties", fact.sourceFactId(),
+          "Bind required literals " + unbound + " to supported properties or an owned executable artifact."
+              + " Use the saved author source; preserve the fact, exactValues, and existing values."
+              + " Names, descriptions, unrelated nodes, and comments cannot implement runtime values."));
+    }
+    }
     return issues;
   }
 
@@ -581,6 +604,9 @@ public class RequirementCaptureTools {
         }
         return recordOutcome(toolName, arguments, action.get());
       });
+      if (recoveryControl != null && "captureRequirementDraft".equals(toolName) && arguments instanceof DraftInput draft) {
+        recoveryControl.requirementOutcome(conversationId, draft, result);
+      }
       String encoded = encode(result);
       String summary = "accepted=" + result.accepted() + " changed=" + result.changed()
           + " readiness=" + result.readiness() + " issues="

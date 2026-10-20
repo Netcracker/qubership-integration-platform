@@ -60,6 +60,88 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextA
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+  @Test
+  void requiredLiteralNeedsAnOwnedRuntimeBinding() throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks and log exactly audit-value.");
+    var base = readyHttpDraft();
+    var intent = new RequirementElementIntent("audit", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, "entry", null, List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("logLevel", "Info")), List.of("audit-value"));
+    var fact = new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Log exactly audit-value.", null, null, intent);
+    var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+        base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertFalse(result.accepted(), result.toString());
+      assertTrue(result.issues().stream().anyMatch(i -> "UNBOUND_REQUIRED_LITERAL".equals(i.code())), result.toString());
+      for (boolean keepLevel : List.of(false, true)) {
+        var props = new ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
+        props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", "audit-value"));
+        if (keepLevel) props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("logLevel", "Info"));
+        var corrected = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+            intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(), null, props, intent.exactValues());
+        var candidate = new DraftInput(base.flow(), List.of(base.facts().getFirst(), new FactInput(fact.sourceFactId(),
+            fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(), null, null, corrected)),
+            base.capabilities(), base.openQuestions(), base.settings());
+        var outcome = h.mapper().readValue(h.tools().captureRequirementDraft(candidate), RequirementCaptureResult.class);
+        assertEquals(keepLevel, outcome.accepted(), outcome.toString());
+        if (!keepLevel) assertTrue(outcome.issues().stream().anyMatch(i -> "REPAIR_FACT_LOSS".equals(i.code())));
+      }
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void aSavedAnswerMustResolveItsQuestionOrExplainTheRemainingAmbiguity(boolean ambiguous) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "answer-" + UUID.randomUUID();
+    String text = "Accept POST /tasks and submit it. Ask for the target URI.";
+    var first = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, first, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var base = readyHttpDraft();
+    var missing = new CapabilityInput("submit", "http-sender", null, HttpMethod.POST, null, null, null, null);
+    var question = new RequirementCaptureInput.QuestionInput("target-uri", List.of("submit"), "Which URI?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("submit", "path",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(first.turnId())));
+    var input = new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst(), missing),
+        List.of(question), base.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      assertTrue(mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class).accepted());
+      assertTrue(mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class).accepted());
+      String reply = ambiguous ? "I have not chosen the URI yet." : "Use https://example.com/tasks";
+      var answer = archive.beginInput(chat, reply, null);
+      archive.resolveInput(chat, answer, reply);
+      h.store().beginTurn(chat, reply);
+      h.store().associateClarification(chat);
+      assertEquals("UNAPPLIED_AUTHOR_ANSWER", h.store().validateAuthorQuestions(chat).getFirst().code());
+      var restored = persistentHarness(blobs, mapper, conversations, chat);
+      restored.store().beginTurn(chat, reply);
+      assertEquals("UNAPPLIED_AUTHOR_ANSWER", restored.store().validateAuthorQuestions(chat).getFirst().code());
+      var reviewed = new RequirementCaptureInput.QuestionInput(question.questionId(), question.interactionIds(),
+          "Which exact target URI should be used?", new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+              "submit", "path", org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+              List.of(first.turnId(), answer.turnId())));
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), ambiguous ? List.of() : List.of(base.capabilities().getLast()), List.of(), List.of(),
+          ambiguous ? List.of(reviewed) : List.of(), ambiguous ? List.of() : List.of(question.questionId()), null);
+      var result = mapper.readValue(restored.tools().updateRequirementDraft(update), RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+      assertTrue(restored.store().validateAuthorQuestions(chat).isEmpty());
+      assertEquals(ambiguous, !restored.store().get(chat).orElseThrow().openQuestions().isEmpty());
+    }
+  }
+
   @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"false,true", "true,true", "false,false", "true,false"})
   void nativeChainCallClarificationUsesTheCatalogPickerWithoutChangingAuthorQuestions(
@@ -534,7 +616,7 @@ class RequirementCaptureToolsTest {
       var script = new FactInput("prepare-script", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
           "Run Prepare request in Groovy; export the script as groovy.", null, null,
           new RequirementElementIntent("prepare", "script", RequirementElementIntent.Placement.LOCAL_NODE,
-              "entry", "submit", "entry", "Prepare request", properties, List.of("Groovy")));
+              "entry", "submit", "entry", "Prepare request", properties, List.of("groovy")));
       return new DraftInput(base.flow(), List.of(base.facts().getFirst(), trigger, script),
           base.capabilities(), base.openQuestions(), base.settings());
     };
@@ -1147,7 +1229,9 @@ class RequirementCaptureToolsTest {
       assertTrue(store.get(chat).isEmpty());
       String literal = "{\"error\":\"test-header incorrect value\"}";
       var correct = new RequirementElementIntent(wrong.elementRef(), wrong.elementType(), wrong.placement(),
-          wrong.ownerInteractionId(), null, null, null, List.of(), List.of(literal));
+          wrong.ownerInteractionId(), null, null, null,
+          List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", "return '" + literal + "'")),
+          List.of(literal));
       var accepted = mapper.readValue(tools.captureRequirementDraft(new DraftInput(input.flow(),
           List.of(new FactInput("error-body", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
               "Respond with " + literal, null, null, correct)), input.capabilities(), input.openQuestions(),

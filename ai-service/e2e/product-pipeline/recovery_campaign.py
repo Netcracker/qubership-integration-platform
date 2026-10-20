@@ -73,11 +73,16 @@ def load_cases(path=DEFAULT_CASES):
                 raise ValueError(
                     "Clarification controls need missing input and no synthetic fault"
                 )
-        elif not case.get("fault") or case["fault"].get("applications") != 1:
-            raise ValueError("The pilot requires one finite fault")
+        elif not case.get("fault") or case["fault"].get("applications") != (
+            2 if case["fault"].get("kind") == "http-distinct-fields" else 1
+        ):
+            raise ValueError("Cases require the declared finite fault count")
         elif case["fault"].get("kind") not in {
             "http-semantic-reference",
             "http-exposure-type",
+            "http-distinct-fields",
+            "semantic-required-node",
+            "requirement-literal-binding",
         }:
             raise ValueError("Unsupported pilot fault")
         cases[case["id"]] = case
@@ -91,7 +96,8 @@ def graph_errors(case, graph):
     if sorted(node.get("type", "") for node in nodes) != sorted(expected["exactTypes"]):
         errors.append("Graph element types differ from the case")
     for check in expected["properties"]:
-        matches = [node for node in nodes if node.get("type") == check["type"]]
+        matches = [node for node in nodes if node.get("type") == check["type"]
+                   and (not check.get("label") or node.get("label") == check["label"])]
         if len(matches) != 1:
             errors.append("Expected one " + check["type"])
             continue
@@ -106,6 +112,17 @@ def graph_errors(case, graph):
         for node in scripts
     ):
         errors.append("Script does not preserve the required response")
+    for check in expected.get("scriptSnippets", []):
+        matching = [node for node in scripts if node.get("label") == check["label"]]
+        if len(matching) != 1 or not any(prop.get("key") == "script" and check["contains"] in prop.get("value", "")
+                                         for prop in matching[0].get("properties", [])):
+            errors.append("Required script value is absent from its owner")
+    if expected.get("namedEdges") is not None:
+        labels = {node["nodeId"]: node.get("label") for node in nodes}
+        actual = sorted([labels.get(edge.get("fromNodeId")), labels.get(edge.get("toNodeId"))]
+                        for edge in graph.get("edges", []))
+        if actual != sorted(expected["namedEdges"]):
+            errors.append("Directed edges differ from the named author steps")
     node_ids = {node.get("nodeId") for node in nodes}
     edges = graph.get("edges", [])
     if len(edges) != expected["edges"]:
@@ -133,6 +150,191 @@ def graph_errors(case, graph):
     ):
         errors.append("HTTP trigger does not lead to the script")
     return errors
+
+
+def model_boundary_errors(case, evidence):
+    records = evidence.get("providerBoundary", [])
+    requests = {row.get("id"): row for row in records if "request" in row
+                and row.get("runId") == evidence.get("runId")}
+    outcomes = {row.get("requestId") for row in records if row.get("kind") in {"response", "error"}}
+    if len(requests) != evidence.get("budget", {}).get("requests") or set(requests) != outcomes.intersection(requests):
+        return ["Required provider request/outcome recording is incomplete"]
+    for row in requests.values():
+        context = row.get("context", {})
+        if context.get("runId") != evidence.get("runId") or not context.get("attemptId"):
+            return ["Provider request lacks the actual run/stage/attempt binding"]
+        if not row.get("originalRequestHash") or not row.get("redactedRequestHash"):
+            return ["Provider request hashes are missing"]
+    return []
+
+
+def fault_scope_errors(kind, original, mutated):
+    expected = copy.deepcopy(original)
+    if kind in {"http-exposure-type", "http-distinct-fields"}:
+        if mutated.get("endpoints", [{}])[0].get("semanticNodeId") is False:
+            expected["endpoints"][0]["semanticNodeId"] = False
+        else:
+            expected["endpoints"][0]["externalRoute"] = str(expected["endpoints"][0]["externalRoute"]).lower()
+    elif kind == "semantic-required-node":
+        variants = [original["operations"][:index] + original["operations"][index + 1:]
+                    for index in range(len(original.get("operations", [])))]
+        if mutated.get("operations") not in variants:
+            return ["Semantic fault must omit exactly one processing node"]
+        expected["operations"] = mutated["operations"]
+    elif kind == "requirement-literal-binding":
+        changed = 0
+        for before, after in zip(expected["facts"], mutated.get("facts", [])):
+            if before != after and isinstance(before.get("elementIntent"), dict):
+                changed += 1
+                intent = before["elementIntent"]
+                values = after.get("elementIntent", {}).get("exactValues", [])
+                if not intent.get("exactValues") and (len(values) != 1 or not any(
+                    row.get("value") == values[0] and values[0] in before.get("text", "")
+                    for row in intent.get("requestedProperties", []))):
+                    return ["Fault invented a literal instead of retaining supplied data"]
+                intent["requestedProperties"] = []
+                if not intent.get("exactValues"):
+                    intent["exactValues"] = values
+        if changed != 1:
+            return ["Literal fault must affect one declared owner"]
+    if expected != mutated:
+        return ["Fault changed fields outside its declared mutation"]
+    return []
+
+
+def catalog_graph_errors(evidence, graph):
+    revisions = evidence.get("pipelineArtifacts", [])
+    by_ref = {(row["kind"], row["artifactId"], row["contentHash"]): row for row in revisions}
+    completed = [row["payload"] for row in revisions if row["kind"] == "MATERIALIZATION_RESULT"
+                 and row["payload"].get("completedPhase") == "COMPLETE"]
+    if not completed:
+        return ["No completed native materialization"]
+    result = completed[-1]
+    def payload(reference):
+        reference = reference or {}
+        return by_ref.get(tuple(reference.get(key) for key in ("kind", "artifactId", "contentHash")), {}).get("payload", {})
+    snapshot = payload(result.get("catalogSnapshotRef"))
+    reconcile = payload(result.get("reconcileResultRef"))
+    if reconcile.get("matches") is not True:
+        return ["Native catalog reconciliation did not pass"]
+    elements = {row["elementId"]: row for row in snapshot.get("elements", [])}
+    mapping = result.get("materializationMap", {}).get("nodeIdToElementId", {})
+    if len(elements) != len(graph.get("nodes", [])):
+        return ["Catalog element count differs from the admitted graph"]
+    def decoded(value):
+        if not isinstance(value, str):
+            return value
+        try:
+            return json.loads(value)
+        except ValueError:
+            return value
+    for node in graph.get("nodes", []):
+        actual = elements.get(mapping.get(node["nodeId"]), {})
+        if actual.get("type") != node.get("type") or actual.get("name") != node.get("label"):
+            return ["Catalog element identity, type, or name differs from the graph"]
+        if any(decoded(actual.get("properties", {}).get(prop["key"])) != decoded(prop.get("value"))
+               for prop in node.get("properties", [])):
+            return ["Catalog properties differ from the admitted graph"]
+    expected_edges = sorted((mapping.get(edge["fromNodeId"]), mapping.get(edge["toNodeId"]))
+                            for edge in graph.get("edges", []))
+    actual_edges = sorted((row["fromElementId"], row["toElementId"]) for row in snapshot.get("dependencies", []))
+    if actual_edges != expected_edges:
+        return ["Catalog directed topology differs from the admitted graph"]
+    return []
+
+
+def capture_value(value):
+    # Capture records normalize absent optional lists to empty lists and nullable members to null.
+    if isinstance(value, dict):
+        return {key: capture_value(child) for key, child in value.items() if child is not None and child != [] and child != {}}
+    if isinstance(value, list):
+        return [capture_value(child) for child in value]
+    return value
+
+
+def text_fragments(value):
+    if isinstance(value, dict):
+        for child in value.values():
+            yield from text_fragments(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from text_fragments(child)
+    elif isinstance(value, str):
+        yield value
+        try:
+            decoded = json.loads(value)
+        except ValueError:
+            return
+        if decoded != value:
+            yield from text_fragments(decoded)
+
+
+def typed_recovery_errors(case, evidence, checkpoint):
+    evidence["providerProof"] = []
+    faults = [row for row in evidence.get("events", []) if row.get("type") == "FAULT_APPLIED"]
+    if len(faults) != case["fault"]["applications"]:
+        return ["Declared finite faults were not all exercised"]
+    artifacts = evidence.get("captureArtifacts", []) + evidence.get("pipelineArtifacts", [])
+    by_ref = {(row["kind"], row["artifactId"], row["contentHash"]): row for row in artifacts}
+    records = evidence.get("providerBoundary", [])
+    requests = {row.get("id"): row for row in records if "request" in row
+                and row.get("runId") == evidence.get("runId")}
+    for fault in faults:
+        scope_errors = fault_scope_errors(case["fault"]["kind"], fault["original"], fault["mutated"])
+        if scope_errors:
+            return scope_errors
+        if fault.get("original") == fault.get("mutated"):
+            return ["Fault did not change the candidate"]
+        rejections = [row for row in evidence.get("events", []) if row.get("type") == "CAPTURE_REJECTED"
+                      and row.get("tool") == fault.get("tool") and row.get("proposal") == fault.get("mutated")
+                      and row.get("sequence", 0) > fault["sequence"]]
+        if not rejections:
+            return ["Missing correlated native refusal of the injected candidate"]
+        refusal = rejections[0]
+        native = refusal.get("nativeResult", {})
+        if native.get("accepted") is not False or not native.get("issues"):
+            return ["Injected candidate was not rejected by native admission"]
+        reference = refusal.get("rejectionRef") or {}
+        saved = by_ref.get(tuple(reference.get(key) for key in ("kind", "artifactId", "contentHash")))
+        if saved is None:
+            return ["Native refusal has no immutable stored evidence"]
+        accepted = [row for row in evidence.get("events", []) if row.get("type") == "CAPTURE_ACCEPTED"
+                    and row.get("tool") == fault.get("tool") and row.get("source") == "model-tool"
+                    and row.get("sequence", 0) > refusal["sequence"]]
+        if not accepted:
+            return ["No subsequent model candidate passed native admission"]
+        repaired = accepted[-1]
+        if repaired.get("proposal") == fault.get("mutated"):
+            return ["Accepted proposal did not correct the rejected candidate"]
+        proven = False
+        for response in records:
+            if response.get("kind") != "response" or native_time(response["at"]) < native_time(refusal["observedAt"]):
+                continue
+            request = requests.get(response.get("requestId"), {})
+            if native_time(request.get("at", 0)) <= native_time(refusal["observedAt"]):
+                continue
+            packet = "\n".join(text_fragments(request.get("request", {}).get("messages", [])))
+            if not any(issue.get("message") in packet and (
+                issue.get("code") not in {"INVALID_TYPE", "INVALID_JSON", "MISSING_FIELD", "DUPLICATE_JSON_KEY"}
+                or issue.get("code") in packet and issue.get("path") in packet)
+                for issue in native["issues"] if issue.get("code") and issue.get("message")):
+                continue
+            message = response.get("value", {}).get("message") or {}
+            for call in message.get("toolExecutionRequests", []):
+                try:
+                    arguments = json.loads(call.get("arguments", ""))
+                except (TypeError, ValueError):
+                    continue
+                if call.get("name") == fault.get("tool") and capture_value(arguments.get(fault.get("parameter", "capture"))) == capture_value(repaired.get("proposal")):
+                    proven = True
+                    evidence["providerProof"].append({"faultSequence": fault["sequence"], "requestId": response["requestId"],
+                        "modelCallId": call.get("id"), "tool": call["name"], "rejectionRef": reference,
+                        "acceptedSequence": repaired["sequence"], "consumerSequence": checkpoint["sequence"]})
+        if not proven:
+            return ["Actual next provider request and corrected model tool call are not proven"]
+        if checkpoint.get("sequence", 0) <= repaired["sequence"]:
+            return ["Consumer did not continue after native model correction"]
+    return []
 
 
 def verdict(case, evidence):
@@ -271,6 +473,10 @@ def verdict(case, evidence):
                 "RECOVERY_FAILURE",
                 "Construction invented the missing value before its answer",
             )
+    elif case.get("requireProviderEvidence"):
+        errors = typed_recovery_errors(case, evidence, checkpoint)
+        if errors:
+            return result("RECOVERY_FAILURE", *errors)
     else:
         faults = [
             event
@@ -337,8 +543,10 @@ def verdict(case, evidence):
                     and any(
                         issue.get("code") == "INVALID_TYPE"
                         and issue.get("path") == "/capture/endpoints/0/externalRoute"
-                        and issue.get("message")
-                        == native.get("payload", {}).get("feedback", {}).get("summary")
+                        and (issue.get("message") == native.get("payload", {}).get("feedback", {}).get("summary")
+                             or any(typed.get("code") == issue.get("code") and typed.get("path") == issue.get("path")
+                                    and typed.get("message") == issue.get("message")
+                                    for typed in native.get("payload", {}).get("feedback", {}).get("issues", [])))
                         for issue in issues
                     )
                 ):
@@ -404,6 +612,10 @@ def verdict(case, evidence):
             return result(
                 "RECOVERY_FAILURE", "No continuation after accepted correction"
             )
+    if case.get("requireProviderEvidence"):
+        errors = model_boundary_errors(case, evidence)
+        if errors:
+            return result("RECOVERY_FAILURE", *errors)
     if case["boundary"] == "checkpoint":
         if evidence.get("catalogWritten"):
             return result(
@@ -418,6 +630,10 @@ def verdict(case, evidence):
         return result(
             "RECOVERY_FAILURE", "Construction and catalog readback are incomplete"
         )
+    if case.get("requireProviderEvidence"):
+        errors = catalog_graph_errors(evidence, graph_revision["payload"])
+        if errors:
+            return result("RECOVERY_FAILURE", *errors)
     return result("COMPLETION_PASS")
 
 
@@ -898,6 +1114,8 @@ def run_case(case, output, image, baseline="qip-ai-service"):
             read_json(path)
             for path in sorted((instance.control / "events").glob("*.json"))
         ]
+        evidence["providerBoundary"] = [read_json(path) for path in sorted(
+            (instance.control / "provider-boundary").glob("*.json"))]
         if (instance.control / "checkpoint.json").exists():
             evidence["checkpoint"] = read_json(instance.control / "checkpoint.json")
         evidence["interactions"] = [
