@@ -46,6 +46,9 @@ data:
   routes.conf: |-
     server {
       listen 8080;
+      # The Service publishes 8080 on another port, so a redirect nginx sends itself
+      # stays relative and keeps the port the browser used.
+      absolute_redirect off;
 
       error_page 502 503 504 @error;
 
