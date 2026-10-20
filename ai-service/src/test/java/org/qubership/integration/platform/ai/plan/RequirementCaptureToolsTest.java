@@ -63,6 +63,47 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextA
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+  @ParameterizedTest
+  @ValueSource(strings = {"invalid local ref", "9invalid"})
+  void rejectedLocalIdentityDoesNotBecomeAProtectedValue(String invalidRef) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(),
+        "Accept POST /tasks, log audit-event with a Log Record named Audit stage, then submit one task.");
+    var base = readyHttpDraft();
+    RequirementCaptureResult rejected = null;
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      for (String ref : List.of(invalidRef, "audit-step")) {
+        var intent = new RequirementElementIntent(ref, "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+            "entry", null, "entry", null, "Audit stage",
+            List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", "audit-event")),
+            List.of("audit-event"));
+        var fact = new FactInput("audit-requirement", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Log audit-event in Audit stage.", null, null, intent);
+        var facts = new ArrayList<>(base.facts());
+        facts.add(fact);
+        var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(), facts,
+            base.capabilities(), base.openQuestions(), base.settings())), RequirementCaptureResult.class);
+        if (ref.equals(invalidRef)) {
+          assertFalse(result.accepted());
+          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("INVALID_VALUE")
+              && issue.path().equals("/draft/facts/audit-requirement/elementIntent/elementRef")
+              && issue.entityId() == null), result.toString());
+          rejected = result;
+        } else {
+          assertTrue(result.accepted(), result.toString());
+          assertEquals(facts, h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts());
+        }
+      }
+      assertNotNull(rejected);
+      var protectedFact = rejected.repairConstraints().facts().stream()
+          .filter(fact -> fact.sourceFactId().equals("audit-requirement")).findFirst().orElseThrow();
+      assertEquals("Log audit-event in Audit stage.", protectedFact.text());
+      assertTrue(protectedFact.elementIntent() == null);
+    }
+  }
+
   @Test
   void scriptBehaviorBindsToItsOwnedArtifactBeforeTheScriptIsGenerated() throws Exception {
     var h = harness();

@@ -278,9 +278,11 @@ public final class RequirementCaptureEditor {
     for (int i = 0; i < input.facts().size(); i++) {
       FactInput fact = input.facts().get(i);
       String prefix = "/draft/facts/" + i;
+      String stablePrefix = fact == null ? prefix : "/draft/facts/" + fact.sourceFactId();
       List<Issue> factIssues = issues.stream().filter(issue ->
-          (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/"))
-              && !issue.path().equals(prefix + "/sourceFactId")
+          (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/")
+              || issue.path().equals(stablePrefix) || issue.path().startsWith(stablePrefix + "/"))
+              && !issue.path().endsWith("/sourceFactId")
               || Objects.equals(issue.entityId(), fact == null ? null : fact.sourceFactId())
                   && (issue.path().startsWith("/draft/facts/") || issue.path().startsWith("/changes/facts/"))
                   && !issue.path().endsWith("/sourceFactId")).toList();
