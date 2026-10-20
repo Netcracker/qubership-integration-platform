@@ -408,7 +408,7 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
  *
  * All 40 are `covered`. Four specs assert what the service does:
  * `specs/api/testing-service-mocks.spec.ts` covers the endpoint mocks, including
- * `/endpoint-mocks/call` on all eight methods it serves (`routes.conf:130` blocks that path at the
+ * `/endpoint-mocks/call` on all eight methods it serves (`routes.conf:133` blocks that path at the
  * proxy, so it is called on the service's own port); `specs/api/testing-service-portability.spec.ts`
  * covers the four export and import rows; `specs/runtime/testing-service-cases.spec.ts` covers the
  * test cases; and `specs/runtime/testing-service-runs.spec.ts` covers both run families,

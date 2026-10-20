@@ -10,14 +10,14 @@
  * `location` blocks whose rewrites disagree, so the shape depends on the resource: measured, the
  * form the UI builds — `/api/v1/cip/catalog/{rest}` — reaches `folders`, `chains` and `library` and
  * answers **404** for `systems` and `common-variables`. The general form is the catch-all at
- * `routes.conf:145`, which strips one segment and proxies the rest to the catalog, so
+ * `routes.conf:148`, which strips one segment and proxies the rest to the catalog, so
  * `/api/cip` + the service path reaches every catalog endpoint including `/v3/api-docs`.
  *
  * Two irregular shapes are worth knowing rather than deriving:
  *
- * - `routes.conf:46` matches greedily on the **last** `/catalog/`, so `/v1/catalog/runtime-deployments`
+ * - `routes.conf:49` matches greedily on the **last** `/catalog/`, so `/v1/catalog/runtime-deployments`
  *   is addressed as `/api/v1/cip/catalog/catalog/runtime-deployments` — the segment doubles.
- * - `routes.conf:64` intercepts `v2/snapshots` and rewrites it to `/v2/catalog/snapshots`, which the
+ * - `routes.conf:67` intercepts `v2/snapshots` and rewrites it to `/v2/catalog/snapshots`, which the
  *   catch-all would not have done.
  *
  * The table matters because the Helm chart keeps a **separately maintained copy** of this config in
@@ -58,7 +58,7 @@ export interface ApiRoute {
  */
 export const API_ROUTES: ApiRoute[] = [
   {
-    line: 19,
+    line: 22,
     role: "runtime-catalog",
     api: "/api/v1/cip/catalog/chains/00000000-0000-0000-0000-000000000000/deployments",
     service: "/v1/catalog/chains/00000000-0000-0000-0000-000000000000/deployments",
@@ -66,7 +66,7 @@ export const API_ROUTES: ApiRoute[] = [
     note: "chain deployments and snapshots keep the /catalog/ segment on the way through",
   },
   {
-    line: 28,
+    line: 31,
     role: "runtime-catalog",
     api: "/api/v1/cip/catalog/chains/roles",
     service: "/v1/catalog/chains/roles",
@@ -74,7 +74,7 @@ export const API_ROUTES: ApiRoute[] = [
     note: "GET is not mapped, so both surfaces answer 405 application/problem+json",
   },
   {
-    line: 37,
+    line: 40,
     role: "runtime-catalog",
     api: "/api/v1/cip/catalog/folders",
     service: "/v1/folders",
@@ -82,7 +82,7 @@ export const API_ROUTES: ApiRoute[] = [
     note: "the form the UI builds; it strips /catalog/ and covers only six resource families",
   },
   {
-    line: 46,
+    line: 49,
     role: "runtime-catalog",
     api: "/api/v1/cip/catalog/catalog/runtime-deployments",
     service: "/v1/catalog/runtime-deployments",
@@ -90,14 +90,14 @@ export const API_ROUTES: ApiRoute[] = [
     note: "irregular: the greedy match on the last /catalog/ doubles the segment",
   },
   {
-    line: 55,
+    line: 58,
     role: "runtime-catalog",
     api: "/api/cip/v1/maas-actions/kafka",
     service: "/v1/maas-actions/kafka",
     outcome: "proxied",
   },
   {
-    line: 64,
+    line: 67,
     role: "runtime-catalog",
     api: "/api/cip/v2/snapshots/bulk-delete",
     service: "/v2/catalog/snapshots/bulk-delete",
@@ -105,14 +105,14 @@ export const API_ROUTES: ApiRoute[] = [
     note: "irregular: v2/snapshots is rewritten to /v2/catalog/snapshots, which the catch-all is not",
   },
   {
-    line: 73,
+    line: 76,
     role: "runtime-catalog",
     api: "/api/v1/cip/variables-management/common-variables",
     service: "/v1/common-variables",
     outcome: "proxied",
   },
   {
-    line: 82,
+    line: 85,
     role: "runtime-catalog",
     api: "/api/cip/v1/folders",
     service: "/v1/folders",
@@ -120,7 +120,7 @@ export const API_ROUTES: ApiRoute[] = [
     note: "same target as line 37 by a different rule; both are live and both are load-bearing",
   },
   {
-    line: 91,
+    line: 94,
     role: "runtime-catalog",
     api: "/api/cip/v1/import/system",
     service: "/v1/import/system",
@@ -128,21 +128,21 @@ export const API_ROUTES: ApiRoute[] = [
     note: "GET on the import endpoint answers 400 on both surfaces",
   },
   {
-    line: 100,
+    line: 103,
     role: "runtime-catalog",
     api: "/api/v1/cip/systems-catalog/systems",
     service: "/v1/systems",
     outcome: "proxied",
   },
   {
-    line: 109,
+    line: 112,
     role: "sessions-management",
     api: "/api/v1/cip/sessions-management/sessions",
     service: "/v1/sessions",
     outcome: "proxied",
   },
   {
-    line: 118,
+    line: 121,
     role: "engine",
     api: "/api/v1/cip/engine/live-exchanges",
     service: "/v1/engine/live-exchanges",
@@ -150,7 +150,7 @@ export const API_ROUTES: ApiRoute[] = [
     note: "the engine keeps its /engine/ segment on the way through, unlike every other service",
   },
   {
-    line: 130,
+    line: 133,
     role: "testing-service",
     api: "/api/v1/cip/testing-service/endpoint-mocks/call",
     service: "/api/v1/endpoint-mocks/call",
@@ -158,7 +158,7 @@ export const API_ROUTES: ApiRoute[] = [
     note: "the engine calls endpoint mocks from inside the network; the proxy returns 404 on purpose",
   },
   {
-    line: 136,
+    line: 139,
     role: "testing-service",
     api: "/api/v1/cip/testing-service/swagger/doc.json",
     service: "/api/v1/swagger/doc.json",
@@ -166,7 +166,7 @@ export const API_ROUTES: ApiRoute[] = [
     note: "the testing service serves /api/v1/, so this rule keeps the prefix instead of stripping it",
   },
   {
-    line: 145,
+    line: 148,
     role: "runtime-catalog",
     api: "/api/cip/v1/systems",
     service: "/v1/systems",
@@ -179,14 +179,14 @@ export const API_ROUTES: ApiRoute[] = [
  * Shapes that reach the service directly and 404 through the proxy.
  *
  * They are in the table because the failure is silent otherwise: the UI's form works for the six
- * families at `routes.conf:37` and a spec that generalises from `folders` to `systems` gets a 404
+ * families at `routes.conf:40` and a spec that generalises from `folders` to `systems` gets a 404
  * it will read as the platform's answer.
  */
 export const NOT_PROXIED: Array<{ api: string; service: string; why: string }> = [
   {
     api: "/api/v1/cip/catalog/systems",
     service: "/v1/systems",
-    why: "systems is not one of the six families the /catalog/ rule at routes.conf:37 lists",
+    why: "systems is not one of the six families the /catalog/ rule at routes.conf:40 lists",
   },
   {
     api: "/api/v1/cip/catalog/common-variables",
@@ -196,7 +196,7 @@ export const NOT_PROXIED: Array<{ api: string; service: string; why: string }> =
 ];
 
 /**
- * `/api/` paths that answer 404 because `location /api/` at `routes.conf:158` claims them.
+ * `/api/` paths that answer 404 because `location /api/` at `routes.conf:161` claims them.
  *
  * A prefix location loses to every regex above it and wins only when none matched, so this is the
  * guard against the SPA answering 200 `text/html` for a path no service serves.

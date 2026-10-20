@@ -83,29 +83,29 @@ test("the table covers every /api/ rule the config declares", { tag: ["@infra", 
 
 test("the two irregular shapes are the ones the config still produces", { tag: ["@infra", "@tier1"] }, () => {
   // The greedy match on the **last** `/catalog/`, which doubles the segment.
-  expect(lines[45]).toContain('location ~ "^/api/(v\\d+)/.*/catalog/"');
-  const doubled = API_ROUTES.find((route) => route.line === 46)!;
+  expect(lines[48]).toContain('location ~ "^/api/(v\\d+)/.*/catalog/"');
+  const doubled = API_ROUTES.find((route) => route.line === 49)!;
   expect(doubled.api).toContain("/catalog/catalog/");
   expect(doubled.service).toBe("/v1/catalog/runtime-deployments");
 
   // `v2/snapshots` intercepted and rewritten to `/v2/catalog/snapshots`, which the catch-all is not.
-  expect(lines[63]).toContain('location ~ "^/api/.*/v2/snapshots"');
-  expect(lines[65]).toContain("/v2/catalog/$1");
-  const snapshots = API_ROUTES.find((route) => route.line === 64)!;
+  expect(lines[66]).toContain('location ~ "^/api/.*/v2/snapshots"');
+  expect(lines[68]).toContain("/v2/catalog/$1");
+  const snapshots = API_ROUTES.find((route) => route.line === 67)!;
   expect(snapshots.service).toContain("/v2/catalog/snapshots");
 });
 
 test("the catch-all is the general form and the UI's form is not", { tag: ["@infra", "@tier1"] }, () => {
   // The catch-all strips one segment and proxies the rest to the catalog, which is why
   // `/api/cip` + a service path reaches all of it.
-  expect(lines[144]).toContain("location ~ ^/api/[^/]+/(v\\d+)/");
+  expect(lines[147]).toContain("location ~ ^/api/[^/]+/(v\\d+)/");
   expect(apiPath("runtime-catalog", "/v1/systems")).toBe("/api/cip/v1/systems");
   expect(apiPath("runtime-catalog", "/v1/catalog/runtime-deployments")).toBe(
     "/api/cip/v1/catalog/runtime-deployments",
   );
 
   // The form the UI builds lists six families and no more; `systems` is not among them.
-  expect(lines[36]).toContain("chains|detailed-design|design-generator|library|folders|cr");
+  expect(lines[39]).toContain("chains|detailed-design|design-generator|library|folders|cr");
   expect(NOT_PROXIED.map((each) => each.api)).toContain("/api/v1/cip/catalog/systems");
 });
 
@@ -118,9 +118,9 @@ test("each non-catalog service is addressed through its own segment", { tag: ["@
     "/api/v1/cip/testing-service/swagger/doc.json",
   );
   // The rewrites these rules perform are exactly what the table's shapes encode.
-  expect(lines[110]).toContain("/sessions-management/(.*)$");
-  expect(lines[119]).toContain("/$1/engine/$2");
-  expect(lines[137]).toContain("/api/$1/$2");
+  expect(lines[113]).toContain("/sessions-management/(.*)$");
+  expect(lines[122]).toContain("/$1/engine/$2");
+  expect(lines[140]).toContain("/api/$1/$2");
 });
 
 test("a path shaped for the wrong service is refused rather than silently mis-addressed", { tag: ["@infra", "@tier1"] }, () => {
@@ -132,7 +132,7 @@ test("a path shaped for the wrong service is refused rather than silently mis-ad
 test("the unclaimed /api/ path is claimed by a rule rather than by the SPA", { tag: ["@infra", "@tier1"] }, () => {
   // A prefix location loses to every regex above it and wins only when none matched. Without it
   // `/api/v1/nonsense` falls through and answers 200 text/html.
-  expect(lines[157]).toContain("location /api/");
-  expect(lines[158]).toContain("return 404");
+  expect(lines[160]).toContain("location /api/");
+  expect(lines[161]).toContain("return 404");
   expect(UNCLAIMED_API_PATH.startsWith("/api/")).toBe(true);
 });
