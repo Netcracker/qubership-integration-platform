@@ -26,12 +26,13 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementRevisionAdmissionTest {
 
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  void rejectedInteractionIdentityDoesNotProtectItsTransitions(boolean recreateStore) throws Exception {
+  @org.junit.jupiter.params.provider.CsvSource({"false, invalid recipient", "true, invalid recipient",
+      "false, invalid/recipient", "true, invalid/recipient", "false, invalid~1recipient", "true, invalid~1recipient"})
+  void rejectedInteractionIdentityDoesNotProtectItsTransitions(boolean recreateStore, String rejectedId) throws Exception {
     var h = new Harness();
     h.begin("Receive POST /tasks and send it to Task API and Audit API. Proceed without IDS.");
     try (var ignored = ToolSession.open(h.chat)) {
-      var rejected = h.capture(parallelHttpDraft("invalid recipient"));
+      var rejected = h.capture(parallelHttpDraft(rejectedId));
       assertFalse(rejected.accepted());
       assertTrue(rejected.issues().stream().anyMatch(issue -> "INVALID_VALUE".equals(issue.code())));
       var retained = h.store.repairConstraints(h.chat).values().path("transitions").path("entry");
@@ -42,7 +43,7 @@ class RequirementRevisionAdmissionTest {
       }
       var corrected = h.capture(parallelHttpDraft("delivery"));
       assertTrue(corrected.accepted(), corrected.toString());
-      assertFalse(retained.toString().contains("invalid recipient"));
+      assertFalse(retained.toString().contains(rejectedId));
       assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
       var removed = new DraftUpdate(List.of(), List.of(), List.of(), List.of(),
           List.of(new TransitionInput("entry", "audit")), List.of(), List.of(), List.of(), List.of(), List.of(),
@@ -55,7 +56,9 @@ class RequirementRevisionAdmissionTest {
   void historicalRejectedValuesReleaseTransitionsToInvalidIdentities() {
     var values = new ObjectMapper().createObjectNode();
     values.putObject("interactions").putNull("invalid recipient");
-    values.putObject("transitions").putArray("entry").add("invalid recipient").add("audit");
+    var transitions = values.putObject("transitions");
+    transitions.putArray("entry").add("invalid recipient").add("audit");
+    transitions.putArray("invalid recipient").add("delivery");
     var issues = RequirementRevisionAdmission.validate(null, parallelHttpDraft("delivery"), List.of(), values,
         java.util.Set.of(), java.util.Set.of(), java.util.Map.of(), fact -> false);
     assertTrue(issues.isEmpty(), issues.toString());
