@@ -22,7 +22,10 @@ public final class AuthorQuestionAdmission {
       return;
     }
     if (inputIds.isEmpty() || !inputIds.equals(new HashSet<>(question.reviewedInputIds()))) {
-      findings.add("ASK_USER requires review of every saved author input. Missing source review cannot prove absence.");
+      findings.add("Question evidence reviewedInputIds must contain exactly the saved author input IDs: "
+          + inputIds.stream().sorted().toList() + ". Recorded reviewedInputIds: " + question.reviewedInputIds()
+          + ". Update this field in the saved question evidence after reviewing the source;"
+          + " reading the source alone does not change the recorded IDs.");
     }
     var scoped = facts.stream().filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
         .filter(fact -> fact.targetsInteraction(question.interactionId())

@@ -28,6 +28,38 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureProjectionTest {
 
   @Test
+  void inlineResponseMayContinueIntoAnAuthoredLocalNode() {
+    for (String placement : List.of("after", "anchor-link", "before", "other-owner", "negative", "absent", "self")) {
+      var intent = new RequirementElementIntent(placement.equals("self") ? "call" : "reply", "script",
+          RequirementElementIntent.Placement.LOCAL_NODE,
+          placement.equals("other-owner") ? "entry" : "call", placement.equals("before") ? "call" : null,
+          placement.equals("anchor-link") ? null : placement.equals("before") ? "entry" : "call",
+          "Render response", List.of(), List.of());
+      var local = new FactInput("reply-behavior", List.of("call"), FactKind.BEHAVIOR,
+          placement.equals("negative") ? Polarity.NEGATIVE : Polarity.POSITIVE,
+          "Render the call's success or failure in the local response script.", null, null, intent);
+      var facts = new java.util.ArrayList<FactInput>();
+      if (!placement.equals("absent")) facts.add(local);
+      if (placement.equals("anchor-link")) facts.add(new FactInput("call-anchor", List.of("call"),
+          FactKind.CONSTRAINT, Polarity.POSITIVE, "Continue into the response script.", null, null,
+          new RequirementElementIntent("call", "service-call", RequirementElementIntent.Placement.ANCHOR,
+              "call", "reply", null, "Remote call", List.of(), List.of())));
+      var input = new DraftInput(new FlowInput(List.of(
+          new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /work", null, null, null),
+          new InteractionInput("call", Direction.OUTBOUND, "Remote", "create", null,
+              org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.INLINE_RESPONSE, null)),
+          List.of(new TransitionInput("entry", "call"))),
+          facts, List.of(), List.of(), new DraftSettings(false, null));
+      boolean after = placement.equals("after") || placement.equals("anchor-link");
+      assertEquals(!after, RequirementCaptureProjection.pending(input, List.of()).stream()
+          .anyMatch(work -> work.code().equals("FAILURE_RESPONSE_REQUIRED")), placement);
+      assertEquals(!after, RequirementFlowValidator.validateBindings(RequirementCaptureProjection.flow(input),
+          RequirementCaptureProjection.facts(input), List.of())
+          .filter(message -> message.contains("no successor response interaction")).isPresent(), placement);
+    }
+  }
+
+  @Test
   void rbacNeedsAnExplicitRoleBeforePlanning() {
     for (String roles : List.of("", "[]", "[\"\"]", "[\"*\"]", "[\"qip-viewer\"]")) {
       var properties = new java.util.ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();

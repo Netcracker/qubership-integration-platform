@@ -108,7 +108,7 @@ def graph_errors(case, graph):
         if properties.get(check["key"]) != check["equals"]:
             errors.append("Lost requirement: " + check["key"])
     scripts = [node for node in nodes if node.get("type") == "script"]
-    if not any(
+    if expected.get("scriptContains") and not any(
         expected["scriptContains"] in str(node.get("properties", []))
         for node in scripts
     ):

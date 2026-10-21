@@ -127,6 +127,15 @@ class RecoveryContractTest(unittest.TestCase):
     def outcome(self):
         return campaign.verdict(self.case, self.evidence)["outcome"]
 
+    def test_named_script_checks_do_not_require_a_global_script_literal(self):
+        del self.case["checks"]["scriptContains"]
+        graph = self.evidence["pipelineArtifacts"][0]["payload"]
+        graph["nodes"][1]["label"] = "Response"
+        self.case["checks"]["scriptSnippets"] = [{"label": "Response", "contains": "Hello world"}]
+        self.assertEqual([], campaign.graph_errors(self.case, graph))
+        graph["nodes"][1]["properties"][0]["value"] = 'return "Wrong value"'
+        self.assertIn("Required script value is absent from its owner", campaign.graph_errors(self.case, graph))
+
     def test_tool_prohibition_allows_negative_text_and_tool_schemas(self):
         self.enhanced()
         self.case["checks"]["forbiddenTools"] = ["getApiHubDocument"]

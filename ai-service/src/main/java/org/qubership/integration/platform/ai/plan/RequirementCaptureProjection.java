@@ -222,7 +222,8 @@ public final class RequirementCaptureProjection {
                 && (fact.kind() == RequirementCaptureInput.FactKind.BEHAVIOR
                     || fact.kind() == RequirementCaptureInput.FactKind.ROUTING));
         boolean hasSuccessor = input.flow().transitions().stream().anyMatch(edge ->
-            id.equals(edge.sourceInteractionId()));
+            id.equals(edge.sourceInteractionId()))
+            || RequirementFlowValidator.hasLocalResponseSuccessor(id, facts(input));
         if (!hasSupportingFact || (interaction.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE
             && !hasSuccessor)) {
           pending.add(new PendingWork("FAILURE_RESPONSE_REQUIRED", id, null,
