@@ -42,41 +42,45 @@ async function answer(request: import("@playwright/test").APIRequestContext, url
   return { status: response.status(), type: (response.headers()["content-type"] ?? "").split(";")[0] };
 }
 
-for (const route of API_ROUTES.filter((each) => each.outcome === "proxied")) {
-  test(`routes.conf:${route.line} — ${route.api} reaches ${route.role}`, { tag: ["@infra", "@tier1"] }, async ({ request, env }) => {
-    const throughProxy = await answer(request, `${proxyUrl()}${route.api}`);
-    // The failure this whole table exists for: no location matched and the SPA answered instead.
-    expect(throughProxy.type, `${route.api} was answered by the SPA`).not.toBe("text/html");
+test.describe("API prefixes", { tag: ["@infra"] }, () => {
+  for (const route of API_ROUTES.filter((each) => each.outcome === "proxied")) {
+    test(`routes.conf:${route.line} — ${route.api} reaches ${route.role}`, async ({ request, env }) => {
+      const throughProxy = await answer(request, `${proxyUrl()}${route.api}`);
+      // The failure this whole table exists for: no location matched and the SPA answered instead.
+      expect(throughProxy.type, `${route.api} was answered by the SPA`).not.toBe("text/html");
 
-    if (STATE_DEPENDENT.has(route.service)) {
-      expect([200, 204], `${route.api} did not reach ${route.role}`).toContain(throughProxy.status);
-      return;
-    }
+      if (STATE_DEPENDENT.has(route.service)) {
+        expect([200, 204], `${route.api} did not reach ${route.role}`).toContain(throughProxy.status);
+        return;
+      }
 
-    const direct = await answer(request, `${env.url(route.role)}${route.service}`);
-    expect(throughProxy, `${route.api} vs ${route.service}`).toEqual(direct);
-  });
-}
-
-for (const route of API_ROUTES.filter((each) => each.outcome === "blocked")) {
-  test(`routes.conf:${route.line} — ${route.api} is blocked on purpose`, { tag: ["@infra", "@tier1"] }, async ({ request, env }) => {
-    // The engine calls endpoint mocks from inside the network. The rule returns 404 itself, so the
-    // service still serves the path — which is what makes the block worth asserting.
-    expect((await answer(request, `${proxyUrl()}${route.api}`)).status).toBe(404);
-    expect((await answer(request, `${env.url(route.role)}${route.service}`)).status).not.toBe(404);
-  });
-}
-
-test("the UI's /catalog/ form does not generalize", { tag: ["@infra", "@tier1"] }, async ({ request, env }) => {
-  for (const shape of NOT_PROXIED) {
-    const throughProxy = await answer(request, `${proxyUrl()}${shape.api}`);
-    const direct = await answer(request, `${env.url("runtime-catalog")}${shape.service}`);
-    expect(throughProxy.status, shape.why).toBe(404);
-    expect(direct.status, shape.why).toBe(200);
+      const direct = await answer(request, `${env.url(route.role)}${route.service}`);
+      expect(throughProxy, `${route.api} vs ${route.service}`).toEqual(direct);
+    });
   }
-});
 
-test("an /api/ path no service claims answers 404 rather than the SPA", { tag: ["@infra", "@tier1"] }, async ({ request }) => {
-  const unclaimed = await answer(request, `${proxyUrl()}${UNCLAIMED_API_PATH}`);
-  expect(unclaimed.status).toBe(404);
+  for (const route of API_ROUTES.filter((each) => each.outcome === "blocked")) {
+    test(`routes.conf:${route.line} — ${route.api} is blocked on purpose`, async ({ request, env }) => {
+      // The engine calls endpoint mocks from inside the network. The rule returns 404 itself, so the
+      // service still serves the path — which is what makes the block worth asserting.
+      expect((await answer(request, `${proxyUrl()}${route.api}`)).status).toBe(404);
+      expect((await answer(request, `${env.url(route.role)}${route.service}`)).status).not.toBe(404);
+    });
+  }
+
+  test("the UI's /catalog/ form does not generalize", async ({ request, env }) => {
+    for (const shape of NOT_PROXIED) {
+      const throughProxy = await answer(request, `${proxyUrl()}${shape.api}`);
+      const direct = await answer(request, `${env.url("runtime-catalog")}${shape.service}`);
+      expect(throughProxy.status, shape.why).toBe(404);
+      expect(direct.status, shape.why).toBe(200);
+    }
+  });
+
+  test("an /api/ path no service claims answers 404, not the SPA", async ({ request }) => {
+    const response = await request.get(`${proxyUrl()}${UNCLAIMED_API_PATH}`, { failOnStatusCode: false });
+    expect(response.status()).toBe(404);
+    // The shell of ui/index.html, which the SPA location serves for any path.
+    expect(await response.text()).not.toContain('<div id="root">');
+  });
 });

@@ -121,85 +121,87 @@ async function waitForRouteGone(
     .toBe(404);
 }
 
-test("a chain from its own export runs the same way the API-built original did", { tag: ["@catalog", "@engine", "@sessions", "@tier1"] }, async ({ catalog, env, folder, request, run, sessions }) => {
-  const name = tokenized(run, "equivalence");
-  const contextPath = tokenized(run, "equivalence");
-  const built = await createDeployableChain(catalog, {
-    name,
-    parentId: folder.id,
-    contextPath,
-    marker: "built",
-  });
+test.describe("creation-path equivalence", { tag: ["@catalog", "@engine", "@sessions"] }, () => {
+  test("a chain from its own export runs like the API-built original", async ({ catalog, env, folder, request, run, sessions }) => {
+    const name = tokenized(run, "equivalence");
+    const contextPath = tokenized(run, "equivalence");
+    const built = await createDeployableChain(catalog, {
+      name,
+      parentId: folder.id,
+      contextPath,
+      marker: "built",
+    });
 
-  let bodyFailed = true;
-  try {
-    // Session recording is off by default — `DeploymentRuntimeProperties` defaults to
-    // `SessionsLoggingLevel.OFF` and nothing is written at that level — and the properties travel
-    // to the engine with the deployment, so this has to happen before the deploy rather than after.
-    await catalog.saveLoggingProperties(built.id, SEED_LOGGING);
-    await deployAndServe(catalog, request, env, built);
+    let bodyFailed = true;
+    try {
+      // Session recording is off by default — `DeploymentRuntimeProperties` defaults to
+      // `SessionsLoggingLevel.OFF` and nothing is written at that level — and the properties travel
+      // to the engine with the deployment, so this has to happen before the deploy rather than after.
+      await catalog.saveLoggingProperties(built.id, SEED_LOGGING);
+      await deployAndServe(catalog, request, env, built);
 
-    // The count both lookups wait for is the chain's whole trace, so a partial read cannot pass for
-    // a divergence in either direction.
-    const fromApi = await drive(request, env, sessions, built, RECORDED_STEPS);
-    expect(fromApi.status).toBe(200);
-    expect(fromApi.steps.length, "the API-built chain recorded a trace of another shape").toBe(
-      RECORDED_STEPS,
-    );
+      // The count both lookups wait for is the chain's whole trace, so a partial read cannot pass for
+      // a divergence in either direction.
+      const fromApi = await drive(request, env, sessions, built, RECORDED_STEPS);
+      expect(fromApi.status).toBe(200);
+      expect(fromApi.steps.length, "the API-built chain recorded a trace of another shape").toBe(
+        RECORDED_STEPS,
+      );
 
-    // The bytes the exporter wrote, imported unchanged. Re-zipping an unpacked tree imports as a
-    // no-op that answers success, which is how this assertion would quietly stop asserting.
-    const archive = await catalog.exportChain(built.id);
+      // The bytes the exporter wrote, imported unchanged. Re-zipping an unpacked tree imports as a
+      // no-op that answers success, which is how this assertion would quietly stop asserting.
+      const archive = await catalog.exportChain(built.id);
 
-    // Delete before importing, and undeploy first so the route is free when the copy claims it.
-    await catalog.undeployAll(built.id);
-    await waitForRouteGone(request, env, built);
-    await catalog.deleteChain(built.id);
-    expect((await catalog.raw("get", `/v1/chains/${built.id}`)).status()).toBe(404);
+      // Delete before importing, and undeploy first so the route is free when the copy claims it.
+      await catalog.undeployAll(built.id);
+      await waitForRouteGone(request, env, built);
+      await catalog.deleteChain(built.id);
+      expect((await catalog.raw("get", `/v1/chains/${built.id}`)).status()).toBe(404);
 
-    const response = await catalog.importChains(archive, `${name}.zip`);
-    expect(response.status(), await response.text()).toBe(200);
-    const rows = ((await response.json()) as ImportResult).chains ?? [];
-    // `CREATED` is the row that says the import built the chain rather than updating one that was
-    // already there — which is the whole point of having deleted it first.
-    expect(rows.map((each) => `${each.name} ${each.status}`)).toEqual([`${name} CREATED`]);
-    expect(rows[0].id).toBe(built.id);
+      const response = await catalog.importChains(archive, `${name}.zip`);
+      expect(response.status(), await response.text()).toBe(200);
+      const rows = ((await response.json()) as ImportResult).chains ?? [];
+      // `CREATED` is the row that says the import built the chain rather than updating one that was
+      // already there — which is the whole point of having deleted it first.
+      expect(rows.map((each) => `${each.name} ${each.status}`)).toEqual([`${name} CREATED`]);
+      expect(rows[0].id).toBe(built.id);
 
-    await catalog.saveLoggingProperties(built.id, SEED_LOGGING);
-    await deployAndServe(catalog, request, env, built);
-    const fromDocument = await drive(request, env, sessions, built, fromApi.steps.length);
+      await catalog.saveLoggingProperties(built.id, SEED_LOGGING);
+      await deployAndServe(catalog, request, env, built);
+      const fromDocument = await drive(request, env, sessions, built, fromApi.steps.length);
 
-    expectSameRun(fromDocument, fromApi);
-    bodyFailed = false;
-  } finally {
-    // `releaseChains` rather than two hops of this spec's own, and it is the same policy for the
-    // same reasons: the Consul key first, because a `finally` cut short by the test timeout may
-    // never reach the second hop and the key is the one thing that stops being addressable; and the
-    // chain moved to the root when that delete fails, because until the import this chain sits in
-    // the worker folder and the `folder` fixture cascades that folder away after the worker's last
-    // test. Keeping a chain the cascade is about to take keeps nothing. Both logging writes above
-    // are under one id, so one delete covers them.
-    const seeded = [{ id: built.id, name }];
-    // `false` where `releaseChains` takes `bodyFailed`, so the failure comes back here instead of
-    // being logged inside: this spec has a hop of its own to skip over exactly that failure.
-    const released = await releaseChains(catalog, seeded, false).then(
-      () => null,
-      (cause: unknown) => (cause instanceof Error ? cause : new Error(String(cause))),
-    );
+      expectSameRun(fromDocument, fromApi);
+      bodyFailed = false;
+    } finally {
+      // `releaseChains` rather than two hops of this spec's own, and it is the same policy for the
+      // same reasons: the Consul key first, because a `finally` cut short by the test timeout may
+      // never reach the second hop and the key is the one thing that stops being addressable; and the
+      // chain moved to the root when that delete fails, because until the import this chain sits in
+      // the worker folder and the `folder` fixture cascades that folder away after the worker's last
+      // test. Keeping a chain the cascade is about to take keeps nothing. Both logging writes above
+      // are under one id, so one delete covers them.
+      const seeded = [{ id: built.id, name }];
+      // `false` where `releaseChains` takes `bodyFailed`, so the failure comes back here instead of
+      // being logged inside: this spec has a hop of its own to skip over exactly that failure.
+      const released = await releaseChains(catalog, seeded, false).then(
+        () => null,
+        (cause: unknown) => (cause instanceof Error ? cause : new Error(String(cause))),
+      );
 
-    if (released === null) {
-      // Deleted rather than left to a sweep, and this is where this spec parts from the two runtime
-      // ones: after the import the chain sits at the root, where the worker folder cascade never
-      // reaches it. The key is gone, so the id it was filed under is free to go too.
-      await catalog.deleteChain(built.id).catch((cause: unknown) => {
-        console.error(`[cleanup] ${name} was not deleted: ${String(cause)}`);
-      });
-    } else if (bodyFailed) {
-      // A teardown error raised over a real assertion failure replaces the finding with its own, and
-      // the reader then has the leak instead of the reason for it.
-      console.error(`[cleanup] ${released.message}`);
-    } else {
-      throw released;
+      if (released === null) {
+        // Deleted rather than left to a sweep, and this is where this spec parts from the two runtime
+        // ones: after the import the chain sits at the root, where the worker folder cascade never
+        // reaches it. The key is gone, so the id it was filed under is free to go too.
+        await catalog.deleteChain(built.id).catch((cause: unknown) => {
+          console.error(`[cleanup] ${name} was not deleted: ${String(cause)}`);
+        });
+      } else if (bodyFailed) {
+        // A teardown error raised over a real assertion failure replaces the finding with its own, and
+        // the reader then has the leak instead of the reason for it.
+        console.error(`[cleanup] ${released.message}`);
+      } else {
+        throw released;
+      }
     }
-  }
+  });
 });

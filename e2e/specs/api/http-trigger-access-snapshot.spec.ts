@@ -36,64 +36,66 @@ function policyRefs(xml: string): string[] {
   return [...xml.matchAll(/<policy\b[^>]*\bref="([^"]+)"/g)].map((match) => match[1]);
 }
 
-test("accessControlType NONE compiles the validation step with no policy around it", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  covers("http-trigger", "accessControlType", "NONE");
-  const xml = await compiledWith(catalog, run, folder.id, "none", { accessControlType: "NONE" });
+test.describe("http-trigger accessControlType snapshot", { tag: ["@catalog"] }, () => {
+  test("NONE compiles the validation step with no policy around it", async ({ catalog, folder, run }) => {
+    covers("http-trigger", "accessControlType", "NONE");
+    const xml = await compiledWith(catalog, run, folder.id, "none", { accessControlType: "NONE" });
 
-  expect(xml, "the snapshot compiled no trigger").toContain("httpTriggerProcessor");
-  expect(policyRefs(xml)).toEqual([]);
-  expect(xml).not.toContain("internalProperty_rbac_access_policy");
-  expect(xml).not.toContain("abacParameters_operation");
-});
-
-test("accessControlType RBAC wraps the validation step in rbacPolicy with the roles inlined", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  covers("http-trigger", "accessControlType", "RBAC");
-  const xml = await compiledWith(catalog, run, folder.id, "rbac", {
-    accessControlType: "RBAC",
-    roles: ["e2e-access-role"],
+    expect(xml, "the snapshot compiled no trigger").toContain("httpTriggerProcessor");
+    expect(policyRefs(xml)).toEqual([]);
+    expect(xml).not.toContain("internalProperty_rbac_access_policy");
+    expect(xml).not.toContain("abacParameters_operation");
   });
 
-  expect(policyRefs(xml)).toEqual(["rbacPolicy"]);
-  expect(xml).toContain("internalProperty_rbac_access_policy");
-  expect(xml).toContain("e2e-access-role");
-  expect(xml).not.toContain("abacParameters_operation");
-});
+  test("RBAC wraps validation in rbacPolicy with the roles inlined", async ({ catalog, folder, run }) => {
+    covers("http-trigger", "accessControlType", "RBAC");
+    const xml = await compiledWith(catalog, run, folder.id, "rbac", {
+      accessControlType: "RBAC",
+      roles: ["e2e-access-role"],
+    });
 
-test("accessControlType ABAC wraps the validation step in abacPolicy with a String resource", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  // String is the default `resourceDataType`, so the ABAC case is its case too.
-  covers("http-trigger", "accessControlType", "ABAC");
-  covers("http-trigger", "abacParameters/resourceDataType", "String");
-  const xml = await compiledWith(catalog, run, folder.id, "abac-string", {
-    accessControlType: "ABAC",
-    abacParameters: {
-      resourceType: "CHAIN",
-      operation: "ALL",
-      resourceDataType: "String",
-      resourceString: "e2e-access-resource",
-    },
+    expect(policyRefs(xml)).toEqual(["rbacPolicy"]);
+    expect(xml).toContain("internalProperty_rbac_access_policy");
+    expect(xml).toContain("e2e-access-role");
+    expect(xml).not.toContain("abacParameters_operation");
   });
 
-  expect(policyRefs(xml)).toEqual(["abacPolicy"]);
-  expect(xml).toContain("abacParameters_resourceString");
-  expect(xml).toContain("e2e-access-resource");
-  expect(xml).not.toContain("abacParameters_resourceMap_");
-  expect(xml).not.toContain("internalProperty_rbac_access_policy");
-});
+  test("ABAC wraps validation in abacPolicy with a String resource", async ({ catalog, folder, run }) => {
+    // String is the default `resourceDataType`, so the ABAC case is its case too.
+    covers("http-trigger", "accessControlType", "ABAC");
+    covers("http-trigger", "abacParameters/resourceDataType", "String");
+    const xml = await compiledWith(catalog, run, folder.id, "abac-string", {
+      accessControlType: "ABAC",
+      abacParameters: {
+        resourceType: "CHAIN",
+        operation: "ALL",
+        resourceDataType: "String",
+        resourceString: "e2e-access-resource",
+      },
+    });
 
-test("resourceDataType Map compiles one ABAC property per map entry and no String resource", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  covers("http-trigger", "abacParameters/resourceDataType", "Map");
-  const xml = await compiledWith(catalog, run, folder.id, "abac-map", {
-    accessControlType: "ABAC",
-    abacParameters: {
-      resourceType: "CHAIN",
-      operation: "ALL",
-      resourceDataType: "Map",
-      resourceMap: { tenant: "e2e-access-tenant" },
-    },
+    expect(policyRefs(xml)).toEqual(["abacPolicy"]);
+    expect(xml).toContain("abacParameters_resourceString");
+    expect(xml).toContain("e2e-access-resource");
+    expect(xml).not.toContain("abacParameters_resourceMap_");
+    expect(xml).not.toContain("internalProperty_rbac_access_policy");
   });
 
-  expect(policyRefs(xml)).toEqual(["abacPolicy"]);
-  expect(xml).toContain("abacParameters_resourceMap_tenant");
-  expect(xml).toContain("e2e-access-tenant");
-  expect(xml).not.toContain("abacParameters_resourceString");
+  test("resourceDataType Map compiles one ABAC property per entry", async ({ catalog, folder, run }) => {
+    covers("http-trigger", "abacParameters/resourceDataType", "Map");
+    const xml = await compiledWith(catalog, run, folder.id, "abac-map", {
+      accessControlType: "ABAC",
+      abacParameters: {
+        resourceType: "CHAIN",
+        operation: "ALL",
+        resourceDataType: "Map",
+        resourceMap: { tenant: "e2e-access-tenant" },
+      },
+    });
+
+    expect(policyRefs(xml)).toEqual(["abacPolicy"]);
+    expect(xml).toContain("abacParameters_resourceMap_tenant");
+    expect(xml).toContain("e2e-access-tenant");
+    expect(xml).not.toContain("abacParameters_resourceString");
+  });
 });

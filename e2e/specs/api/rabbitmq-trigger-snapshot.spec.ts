@@ -35,19 +35,21 @@ function uriParameter(xml: string, parameter: string): string[] {
   return [...uri.replaceAll("&amp;", "&").matchAll(new RegExp(`[?&]${parameter}=([^&]*)`, "g"))].map((match) => match[1]);
 }
 
-for (const axis of ["exchangeType", "deadLetterExchangeType"] as const) {
-  for (const value of EXCHANGE_TYPES) {
-    test(`rabbitmq-trigger-2 ${axis} ${value} compiles into the consumer URI`, { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-      covers("rabbitmq-trigger-2", axis, value);
-      const chainId = await emptyChain(catalog, run, folder.id, `rabbitmq-snapshot-${axis}-${value}`);
-      const trigger = await catalog.createElement(chainId, "rabbitmq-trigger-2");
-      await catalog.patchElementProperties(chainId, trigger.id, { ...BASE_PROPERTIES, [axis]: value });
-      const built = await catalog.createSnapshot(chainId);
-      const xml = (await catalog.getSnapshot(chainId, built.id)).xmlDefinition ?? "";
+test.describe("rabbitmq-trigger-2 snapshot", { tag: ["@catalog"] }, () => {
+  for (const axis of ["exchangeType", "deadLetterExchangeType"] as const) {
+    for (const value of EXCHANGE_TYPES) {
+      test(`${axis} ${value} compiles into the consumer URI`, async ({ catalog, folder, run }) => {
+        covers("rabbitmq-trigger-2", axis, value);
+        const chainId = await emptyChain(catalog, run, folder.id, `rabbitmq-snapshot-${axis}-${value}`);
+        const trigger = await catalog.createElement(chainId, "rabbitmq-trigger-2");
+        await catalog.patchElementProperties(chainId, trigger.id, { ...BASE_PROPERTIES, [axis]: value });
+        const built = await catalog.createSnapshot(chainId);
+        const xml = (await catalog.getSnapshot(chainId, built.id)).xmlDefinition ?? "";
 
-      const other = axis === "exchangeType" ? "deadLetterExchangeType" : "exchangeType";
-      expect(uriParameter(xml, axis)).toEqual([value]);
-      expect(uriParameter(xml, other)).toEqual(["direct"]);
-    });
+        const other = axis === "exchangeType" ? "deadLetterExchangeType" : "exchangeType";
+        expect(uriParameter(xml, axis)).toEqual([value]);
+        expect(uriParameter(xml, other)).toEqual(["direct"]);
+      });
+    }
   }
-}
+});

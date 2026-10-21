@@ -39,6 +39,7 @@ import {
 import { assembleFixture, readFixtureDocument, renderFixtureTree } from "../../fixtures/templating.js";
 import path from "node:path";
 import { tokenized } from "../../support/run.js";
+import { expectImportedServices } from "../../support/chain-import.js";
 
 function archive(name: string): FrozenArchive {
   const found = FROZEN_ARCHIVES.find((each) => each.name === name);
@@ -90,162 +91,161 @@ async function removeChainAndFolder(
   }
 }
 
-test("a [100, 101] chain imports, and the migrations it was missing have run", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-  const entry = archive("chain-100-101");
-  const { id, name, bytes } = await frozen(entry, run);
+test.describe("legacy import", { tag: ["@catalog"] }, () => {
+  test("a [100, 101] chain imports with the missing migrations run", async ({ catalog, run }) => {
+    const entry = archive("chain-100-101");
+    const { id, name, bytes } = await frozen(entry, run);
 
-  try {
-    // Delete before importing. The id is frozen, so an interrupted earlier run can leave it live,
-    // and an import over a live id is an update that would report success either way.
-    await catalog.deleteChain(id).catch(() => {});
+    try {
+      // Delete before importing. The id is frozen, so an interrupted earlier run can leave it live,
+      // and an import over a live id is an update that would report success either way.
+      await catalog.deleteChain(id).catch(() => {});
 
-    const response = await catalog.importChains(bytes);
-    expect(response.status()).toBe(200);
-    expect((await response.json()).chains).toEqual([
-      expect.objectContaining({ id, name, status: "CREATED" }),
-    ]);
+      const response = await catalog.importChains(bytes);
+      expect(response.status()).toBe(200);
+      expect((await response.json()).chains).toEqual([
+        expect.objectContaining({ id, name, status: "CREATED" }),
+      ]);
 
-    // V108 is the visible one: the frozen document carries `content.folder`, the current format
-    // carries `metaInfo.group`, and the migration is what turns one into the other. The chain
-    // landing in a root folder of that name is the only observable that says it ran.
-    const chain = await catalog.getChain(id);
-    const parent = await catalog.getFolder(chain.parentId as string);
-    expect(parent.name).toBe(tokenized(run, "frozen-100-101"));
-    expect(parent.parentId ?? null).toBeNull();
+      // V108 is the visible one: the frozen document carries `content.folder`, the current format
+      // carries `metaInfo.group`, and the migration is what turns one into the other. The chain
+      // landing in a root folder of that name is the only observable that says it ran.
+      const chain = await catalog.getChain(id);
+      const parent = await catalog.getFolder(chain.parentId as string);
+      expect(parent.name).toBe(tokenized(run, "frozen-100-101"));
+      expect(parent.parentId ?? null).toBeNull();
 
-    const exported = await exportedDocument(await catalog.exportChain(id));
-    expect((exported.metaInfo as { group?: string })?.group).toBe(tokenized(run, "frozen-100-101"));
-    expect(exported.content).not.toHaveProperty("folder");
-    // The whole current list, not merely more than it declared: this is the assertion that goes
-    // red when a `V109` lands, which is the moment a new floor has to be frozen.
-    expect(declaredFloor(exported)).toEqual(currentMigrationVersions("chain"));
-    expect(floorKey(declaredFloor(exported))).not.toBe(floorKey(entry.floor));
-  } finally {
-    await removeChainAndFolder(catalog, id, tokenized(run, "frozen-100-101"));
-  }
-});
+      const exported = await exportedDocument(await catalog.exportChain(id));
+      expect((exported.metaInfo as { group?: string })?.group).toBe(tokenized(run, "frozen-100-101"));
+      expect(exported.content).not.toHaveProperty("folder");
+      // The whole current list, not merely more than it declared: this is the assertion that goes
+      // red when a `V109` lands, which is the moment a new floor has to be frozen.
+      expect(declaredFloor(exported)).toEqual(currentMigrationVersions("chain"));
+      expect(floorKey(declaredFloor(exported))).not.toBe(floorKey(entry.floor));
+    } finally {
+      await removeChainAndFolder(catalog, id, tokenized(run, "frozen-100-101"));
+    }
+  });
 
-test("a [100, 101, 108] chain imports with its group path intact", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-  const entry = archive("chain-100-101-108");
-  const { id, name, bytes } = await frozen(entry, run);
+  test("a [100, 101, 108] chain imports with its group path intact", async ({ catalog, run }) => {
+    const entry = archive("chain-100-101-108");
+    const { id, name, bytes } = await frozen(entry, run);
 
-  try {
-    await catalog.deleteChain(id).catch(() => {});
+    try {
+      await catalog.deleteChain(id).catch(() => {});
 
-    const response = await catalog.importChains(bytes);
-    expect(response.status()).toBe(200);
-    expect((await response.json()).chains).toEqual([
-      expect.objectContaining({ id, name, status: "CREATED" }),
-    ]);
+      const response = await catalog.importChains(bytes);
+      expect(response.status()).toBe(200);
+      expect((await response.json()).chains).toEqual([
+        expect.objectContaining({ id, name, status: "CREATED" }),
+      ]);
 
-    // This floor has already been through V108, so its folder path travels as `metaInfo.group` and
-    // the importer rebuilds it segment by segment. Three segments, three folders.
-    const chain = await catalog.getChain(id);
-    const inner = await catalog.getFolder(chain.parentId as string);
-    const middle = await catalog.getFolder(inner.parentId as string);
-    const root = await catalog.getFolder(middle.parentId as string);
-    expect([root.name, middle.name, inner.name]).toEqual([
-      tokenized(run, "frozen-100-101-108"),
-      "a",
-      "b",
-    ]);
-    expect(root.parentId ?? null).toBeNull();
+      // This floor has already been through V108, so its folder path travels as `metaInfo.group` and
+      // the importer rebuilds it segment by segment. Three segments, three folders.
+      const chain = await catalog.getChain(id);
+      const inner = await catalog.getFolder(chain.parentId as string);
+      const middle = await catalog.getFolder(inner.parentId as string);
+      const root = await catalog.getFolder(middle.parentId as string);
+      expect([root.name, middle.name, inner.name]).toEqual([
+        tokenized(run, "frozen-100-101-108"),
+        "a",
+        "b",
+      ]);
+      expect(root.parentId ?? null).toBeNull();
 
-    const exported = await exportedDocument(await catalog.exportChain(id));
-    expect((exported.metaInfo as { group?: string })?.group).toBe(
-      `${tokenized(run, "frozen-100-101-108")}/a/b`,
-    );
-    expect(declaredFloor(exported)).toEqual(currentMigrationVersions("chain"));
-  } finally {
-    await removeChainAndFolder(catalog, id, tokenized(run, "frozen-100-101-108"));
-  }
-});
+      const exported = await exportedDocument(await catalog.exportChain(id));
+      expect((exported.metaInfo as { group?: string })?.group).toBe(
+        `${tokenized(run, "frozen-100-101-108")}/a/b`,
+      );
+      expect(declaredFloor(exported)).toEqual(currentMigrationVersions("chain"));
+    } finally {
+      await removeChainAndFolder(catalog, id, tokenized(run, "frozen-100-101-108"));
+    }
+  });
 
-test("a [100, 101, 102, 103] chain imports with every element it declared", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-  const entry = archive("chain-100-101-102-103");
-  const { id, name, bytes } = await frozen(entry, run);
+  test("a [100, 101, 102, 103] chain keeps every declared element", async ({ catalog, run }) => {
+    const entry = archive("chain-100-101-102-103");
+    const { id, name, bytes } = await frozen(entry, run);
 
-  try {
-    await catalog.deleteChain(id).catch(() => {});
+    try {
+      await catalog.deleteChain(id).catch(() => {});
 
-    const response = await catalog.importChains(bytes);
-    expect(response.status()).toBe(200);
-    expect((await response.json()).chains).toEqual([
-      expect.objectContaining({ id, name, status: "CREATED" }),
-    ]);
+      const response = await catalog.importChains(bytes);
+      expect(response.status()).toBe(200);
+      expect((await response.json()).chains).toEqual([
+        expect.objectContaining({ id, name, status: "CREATED" }),
+      ]);
 
-    // The floor closest to the current list, and the one whose payload is worth counting: five
-    // `context-storage` elements, each with an operation a later migration could have dropped.
-    const elements = await catalog.listChainElements(id);
-    expect(elements.map((element) => element.type)).toEqual(Array(5).fill("context-storage"));
-    expect(
-      elements.map((element) => element.properties?.operation).sort(),
-    ).toEqual(["DELETE", "GET", "GET", "GET", "SET"]);
+      // The floor closest to the current list, and the one whose payload is worth counting: five
+      // `context-storage` elements, each with an operation a later migration could have dropped.
+      const elements = await catalog.listChainElements(id);
+      expect(elements.map((element) => element.type)).toEqual(Array(5).fill("context-storage"));
+      expect(
+        elements.map((element) => element.properties?.operation).sort(),
+      ).toEqual(["DELETE", "GET", "GET", "GET", "SET"]);
 
-    const exported = await exportedDocument(await catalog.exportChain(id));
-    expect(declaredFloor(exported)).toEqual(currentMigrationVersions("chain"));
-  } finally {
-    // No folder: this document declares neither `content.folder` nor `metaInfo.group`, so the
-    // chain lands at the root and its name alone is what the sweep would find.
-    await removeChainAndFolder(catalog, id);
-  }
-});
+      const exported = await exportedDocument(await catalog.exportChain(id));
+      expect(declaredFloor(exported)).toEqual(currentMigrationVersions("chain"));
+    } finally {
+      // No folder: this document declares neither `content.folder` nor `metaInfo.group`, so the
+      // chain lands at the root and its name alone is what the sweep would find.
+      await removeChainAndFolder(catalog, id);
+    }
+  });
 
-test("a chain declaring versions the platform does not ship is refused, and says why", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-  const entry = archive("chain-1-30-100-105");
-  const { id, bytes } = await frozen(entry, run);
+  test("a chain with unshipped versions is refused with a reason", async ({ catalog, run }) => {
+    const entry = archive("chain-1-30-100-105");
+    const { id, bytes } = await frozen(entry, run);
 
-  try {
-    await catalog.deleteChain(id).catch(() => {});
+    try {
+      await catalog.deleteChain(id).catch(() => {});
 
-    const response = await catalog.importChains(bytes);
+      const response = await catalog.importChains(bytes);
 
-    // 207, not 400 and not 500: the import reports per row, and one failed row is what makes the
-    // whole response multi-status.
-    expect(response.status()).toBe(207);
-    const rows = (await response.json()).chains;
-    expect(rows).toEqual([
-      expect.objectContaining({
-        id,
-        status: "ERROR",
-        errorMessage: expect.stringContaining("Unable to import an entity exported from a newer version"),
-      }),
-    ]);
-    // And it wrote nothing. A refusal that half-created the chain would still report ERROR.
-    expect((await catalog.raw("get", `/v1/chains/${id}`)).status()).toBe(404);
-  } finally {
-    await removeChainAndFolder(catalog, id, tokenized(run, "frozen-1-30-100-105"));
-  }
-});
+      // 207, not 400 and not 500: the import reports per row, and one failed row is what makes the
+      // whole response multi-status.
+      expect(response.status()).toBe(207);
+      const rows = (await response.json()).chains;
+      expect(rows).toEqual([
+        expect.objectContaining({
+          id,
+          status: "ERROR",
+          errorMessage: expect.stringContaining("Unable to import an entity exported from a newer version"),
+        }),
+      ]);
+      // And it wrote nothing. A refusal that half-created the chain would still report ERROR.
+      expect((await catalog.raw("get", `/v1/chains/${id}`)).status()).toBe(404);
+    } finally {
+      await removeChainAndFolder(catalog, id, tokenized(run, "frozen-1-30-100-105"));
+    }
+  });
 
-test("a [100, 101] service imports through its own endpoint and its own migration list", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-  const entry = archive("service-100-101");
-  const { id, name, bytes } = await frozen(entry, run);
+  test("a [100, 101] service imports through the service endpoint", async ({ catalog, run }) => {
+    const entry = archive("service-100-101");
+    const { id, name, bytes } = await frozen(entry, run);
 
-  try {
-    await catalog.deleteSystem(id).catch(() => {});
+    try {
+      await catalog.deleteSystem(id).catch(() => {});
 
-    // Services do not share the chain import path, and neither prefix answers on the other's.
-    const response = await catalog.importArchive("/v1/import/system", bytes, "services.zip");
-    expect(response.status()).toBe(200);
-    expect(await response.json()).toEqual([
-      expect.objectContaining({ id, name, status: "CREATED" }),
-    ]);
+      // Services do not share the chain import path, and neither prefix answers on the other's.
+      const response = await catalog.importArchive("/v1/import/system", bytes, "services.zip");
+      await expectImportedServices(response, [{ id, name }]);
 
-    // The environments are the payload: a service document carries them inline rather than as
-    // separate entities, so an import that dropped them would still report the service created.
-    const environments = await catalog.listEnvironments(id);
-    expect(environments.map((environment) => environment.address).sort()).toEqual([
-      "http://petstore.swagger.io/v2",
-      "https://petstore.swagger.io/v2",
-    ]);
+      // The environments are the payload: a service document carries them inline rather than as
+      // separate entities, so an import that dropped them would still report the service created.
+      const environments = await catalog.listEnvironments(id);
+      expect(environments.map((environment) => environment.address).sort()).toEqual([
+        "http://petstore.swagger.io/v2",
+        "https://petstore.swagger.io/v2",
+      ]);
 
-    const exported = await exportedDocument(await catalog.exportSystems([id]));
-    // Against the **service** list, `[100, 101, 102]`. Reading a service floor against the chain
-    // list would call this document three versions out of date.
-    expect(declaredFloor(exported)).toEqual(currentMigrationVersions("service"));
-    expect(floorKey(declaredFloor(exported))).not.toBe(floorKey(entry.floor));
-  } finally {
-    await catalog.deleteSystem(id).catch(() => {});
-  }
+      const exported = await exportedDocument(await catalog.exportSystems([id]));
+      // Against the **service** list, `[100, 101, 102]`. Reading a service floor against the chain
+      // list would call this document three versions out of date.
+      expect(declaredFloor(exported)).toEqual(currentMigrationVersions("service"));
+      expect(floorKey(declaredFloor(exported))).not.toBe(floorKey(entry.floor));
+    } finally {
+      await catalog.deleteSystem(id).catch(() => {});
+    }
+  });
 });

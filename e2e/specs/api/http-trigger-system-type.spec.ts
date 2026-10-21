@@ -94,21 +94,23 @@ async function fromUri(catalog: Catalog, chainId: string): Promise<string> {
   return uri!;
 }
 
-test("systemType INTERNAL compiles the service's environment address into the trigger's URI", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  await withBuilt(catalog, async (built) => {
-    const { chain, path } = await implementingChain(catalog, run, folder.id, "INTERNAL", built);
-    expect(await fromUri(catalog, chain.id)).toBe(`servlet-custom:${ADDRESSES.INTERNAL}${path}`);
+test.describe("http-trigger systemType snapshot", { tag: ["@catalog"] }, () => {
+  test("INTERNAL compiles the environment address into the URI", async ({ catalog, folder, run }) => {
+    await withBuilt(catalog, async (built) => {
+      const { chain, path } = await implementingChain(catalog, run, folder.id, "INTERNAL", built);
+      expect(await fromUri(catalog, chain.id)).toBe(`servlet-custom:${ADDRESSES.INTERNAL}${path}`);
+    });
   });
-});
 
-test("systemType EXTERNAL compiles the egress gateway's address for the service into the trigger's URI", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  covers("http-trigger", "systemType", "EXTERNAL");
-  await withBuilt(catalog, async (built) => {
-    const { chain, path } = await implementingChain(catalog, run, folder.id, "EXTERNAL", built);
-    // `<gateway>/system/<design-time trigger id>/<sha1 of the environment address><path>`.
-    const hash = crypto.createHash("sha1").update(ADDRESSES.EXTERNAL).digest("hex");
-    expect(await fromUri(catalog, chain.id)).toMatch(
-      new RegExp(`^servlet-custom:https?://[^/]+/system/${chain.triggerId}/${hash}${path}$`),
-    );
+  test("EXTERNAL compiles the egress gateway address into the URI", async ({ catalog, folder, run }) => {
+    covers("http-trigger", "systemType", "EXTERNAL");
+    await withBuilt(catalog, async (built) => {
+      const { chain, path } = await implementingChain(catalog, run, folder.id, "EXTERNAL", built);
+      // `<gateway>/system/<design-time trigger id>/<sha1 of the environment address><path>`.
+      const hash = crypto.createHash("sha1").update(ADDRESSES.EXTERNAL).digest("hex");
+      expect(await fromUri(catalog, chain.id)).toMatch(
+        new RegExp(`^servlet-custom:https?://[^/]+/system/${chain.triggerId}/${hash}${path}$`),
+      );
+    });
   });
 });

@@ -109,135 +109,137 @@ function attachmentName(response: APIResponse): string | undefined {
   return /filename=([^;]+)/.exec(disposition)?.[1];
 }
 
-test("a GraphQL import produces a compiled library, and the jar endpoint serves it", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-  const fixture = await graphqlService(catalog, run, "jar");
-  try {
-    const response = await catalog.compiledLibrary(fixture.modelId);
-    expect(response.status()).toBe(200);
-    expect(response.headers()["content-type"]).toBe("application/octet-stream");
-    expect(
-      attachmentName(response),
-      "the jar is named for its protocol, its service and its specification version",
-    ).toBe(jarFileName("graphql", fixture.serviceName));
+test.describe("compiled libraries", { tag: ["@catalog"] }, () => {
+  test("a GraphQL import compiles a library the jar endpoint serves", async ({ catalog, run }) => {
+    const fixture = await graphqlService(catalog, run, "jar");
+    try {
+      const response = await catalog.compiledLibrary(fixture.modelId);
+      expect(response.status()).toBe(200);
+      expect(response.headers()["content-type"]).toBe("application/octet-stream");
+      expect(
+        attachmentName(response),
+        "the jar is named for its protocol, its service and its specification version",
+      ).toBe(jarFileName("graphql", fixture.serviceName));
 
-    // What the generator produced, not merely that something did: the document declares one object
-    // type besides Query and Mutation, and the DTO for it is what a script would reach for.
-    const entries = await entryNames(await archiveOf(response));
+      // What the generator produced, not merely that something did: the document declares one object
+      // type besides Query and Mutation, and the DTO for it is what a script would reach for.
+      const entries = await entryNames(await archiveOf(response));
+      const prefix = packagePath(fixture.serviceName, fixture.groupName);
+      expect(entries).toEqual([
+        "META-INF/MANIFEST.MF",
+        `${prefix}/Widget$Builder.class`,
+        `${prefix}/Widget.class`,
+      ]);
+    } finally {
+      await catalog.deleteSystem(fixture.systemId).catch(() => {});
+    }
+  });
+
+  test("an HTTP specification compiles no library and answers 204", async ({ catalog, run }) => {
+    const serviceName = tokenized(run, "lib-none");
+    const groupName = tokenized(run, "libgrp-none");
+    const service = await catalog.createSystem(serviceName, "EXTERNAL");
+    try {
+      const started = await catalog.importSpecificationGroup(
+        service.id,
+        groupName,
+        readSpecificationFixture("widgets.openapi.yaml"),
+        "http",
+      );
+      const imported = await catalog.awaitSpecificationImport(started);
+      // The import succeeded — three operations were parsed — so the 204 below is "no generator for
+      // http", never "the import produced nothing".
+      expect(imported.operations).toHaveLength(3);
+
+      const response = await catalog.compiledLibrary(`${service.id}-${groupName}-${VERSION}`);
+      expect(response.status(), "no @TargetProtocol generator carries HTTP").toBe(204);
+      expect(await response.text(), "204 is empty, not an empty jar").toBe("");
+
+      // And a specification id nothing answers to is a 404 carrying the catalog's error envelope,
+      // which is the shape that tells the two apart.
+      const missing = await catalog.compiledLibrary(ABSENT_UUID);
+      expect(missing.status()).toBe(404);
+      expect(await missing.json()).toMatchObject({
+        serviceName: "Catalog",
+        errorMessage: `Can't find system model with id: ${ABSENT_UUID}`,
+      });
+    } finally {
+      await catalog.deleteSystem(service.id).catch(() => {});
+    }
+  });
+
+  test("a service rename regenerates the library under the new name", async ({ catalog, run }) => {
+    const fixture = await graphqlService(catalog, run, "rename");
+    try {
+      const before = await catalog.compiledLibrary(fixture.modelId);
+      expect(attachmentName(before)).toBe(jarFileName("graphql", fixture.serviceName));
+      expect(await entryNames(await archiveOf(before))).toContain(
+        `${packagePath(fixture.serviceName, fixture.groupName)}/Widget.class`,
+      );
+
+      const renamed = tokenized(run, "lib-renamed");
+      await catalog.patchSystem(fixture.systemId, { name: renamed });
+
+      // `updateSystemModelCompiledLibraryAsync` is `@Async`: the PATCH answers with the old jar still
+      // stored. Poll rather than assert, and poll on the artifact rather than on a sleep.
+      await expect
+        .poll(
+          async () => attachmentName(await catalog.compiledLibrary(fixture.modelId)),
+          { message: "the rename recompiles the library on another thread" },
+        )
+        .toBe(jarFileName("graphql", renamed));
+
+      // The package moved with it, by the other sanitizer: the class a script resolves is at a new
+      // fully-qualified name, which is what makes a rename a lever rather than a cosmetic change.
+      const after = await catalog.compiledLibrary(fixture.modelId);
+      const entries = await entryNames(await archiveOf(after));
+      expect(entries).toContain(`${packagePath(renamed, fixture.groupName)}/Widget.class`);
+      expect(
+        entries.some((entry) => entry.startsWith(packagePath(fixture.serviceName, fixture.groupName))),
+        "nothing is left behind under the old package",
+      ).toBe(false);
+    } finally {
+      await catalog.deleteSystem(fixture.systemId).catch(() => {});
+    }
+  });
+
+  test("a service archive import recompiles its library from source", async ({ catalog, run }) => {
+    const fixture = await graphqlService(catalog, run, "archive");
     const prefix = packagePath(fixture.serviceName, fixture.groupName);
-    expect(entries).toEqual([
-      "META-INF/MANIFEST.MF",
-      `${prefix}/Widget$Builder.class`,
-      `${prefix}/Widget.class`,
-    ]);
-  } finally {
-    await catalog.deleteSystem(fixture.systemId).catch(() => {});
-  }
-});
+    try {
+      expect((await catalog.compiledLibrary(fixture.modelId)).status()).toBe(200);
 
-test("a protocol with no code generator compiles nothing, and the endpoint answers 204", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-  const serviceName = tokenized(run, "lib-none");
-  const groupName = tokenized(run, "libgrp-none");
-  const service = await catalog.createSystem(serviceName, "EXTERNAL");
-  try {
-    const started = await catalog.importSpecificationGroup(
-      service.id,
-      groupName,
-      readSpecificationFixture("widgets.openapi.yaml"),
-      "http",
-    );
-    const imported = await catalog.awaitSpecificationImport(started);
-    // The import succeeded — three operations were parsed — so the 204 below is "no generator for
-    // http", never "the import produced nothing".
-    expect(imported.operations).toHaveLength(3);
+      const archive = await catalog.exportSystems([fixture.systemId]);
+      const entries = await entryNames(archive);
+      // The archive is documents plus the specification source. No jar travels in it, so whatever the
+      // import produces below was compiled by the import.
+      expect(entries.some((entry) => entry.endsWith("/widgets.graphql")), "the source travels").toBe(true);
+      expect(entries.some((entry) => entry.endsWith(".jar")), "the jar does not").toBe(false);
 
-    const response = await catalog.compiledLibrary(`${service.id}-${groupName}-${VERSION}`);
-    expect(response.status(), "no @TargetProtocol generator carries HTTP").toBe(204);
-    expect(await response.text(), "204 is empty, not an empty jar").toBe("");
+      await catalog.deleteSystem(fixture.systemId);
+      expect(
+        (await catalog.compiledLibrary(fixture.modelId)).status(),
+        "the specification is gone with its service",
+      ).toBe(404);
 
-    // And a specification id nothing answers to is a 404 carrying the catalog's error envelope,
-    // which is the shape that tells the two apart.
-    const missing = await catalog.compiledLibrary(ABSENT_UUID);
-    expect(missing.status()).toBe(404);
-    expect(await missing.json()).toMatchObject({
-      serviceName: "Catalog",
-      errorMessage: `Can't find system model with id: ${ABSENT_UUID}`,
-    });
-  } finally {
-    await catalog.deleteSystem(service.id).catch(() => {});
-  }
-});
+      const response = await catalog.importArchive("/v1/import/system", archive, "services.zip");
+      expect(response.status()).toBe(200);
+      expect(await response.json()).toEqual([
+        { id: fixture.systemId, name: fixture.serviceName, status: "CREATED" },
+      ]);
 
-test("renaming the service regenerates the library under the new name", { tag: ["@catalog", "@tier2"] }, async ({ catalog, run }) => {
-  const fixture = await graphqlService(catalog, run, "rename");
-  try {
-    const before = await catalog.compiledLibrary(fixture.modelId);
-    expect(attachmentName(before)).toBe(jarFileName("graphql", fixture.serviceName));
-    expect(await entryNames(await archiveOf(before))).toContain(
-      `${packagePath(fixture.serviceName, fixture.groupName)}/Widget.class`,
-    );
-
-    const renamed = tokenized(run, "lib-renamed");
-    await catalog.patchSystem(fixture.systemId, { name: renamed });
-
-    // `updateSystemModelCompiledLibraryAsync` is `@Async`: the PATCH answers with the old jar still
-    // stored. Poll rather than assert, and poll on the artifact rather than on a sleep.
-    await expect
-      .poll(
-        async () => attachmentName(await catalog.compiledLibrary(fixture.modelId)),
-        { message: "the rename recompiles the library on another thread" },
-      )
-      .toBe(jarFileName("graphql", renamed));
-
-    // The package moved with it, by the other sanitizer: the class a script resolves is at a new
-    // fully-qualified name, which is what makes a rename a lever rather than a cosmetic change.
-    const after = await catalog.compiledLibrary(fixture.modelId);
-    const entries = await entryNames(await archiveOf(after));
-    expect(entries).toContain(`${packagePath(renamed, fixture.groupName)}/Widget.class`);
-    expect(
-      entries.some((entry) => entry.startsWith(packagePath(fixture.serviceName, fixture.groupName))),
-      "nothing is left behind under the old package",
-    ).toBe(false);
-  } finally {
-    await catalog.deleteSystem(fixture.systemId).catch(() => {});
-  }
-});
-
-test("a service archive import recompiles the library from the source it carries", { tag: ["@catalog", "@tier2"] }, async ({ catalog, run }) => {
-  const fixture = await graphqlService(catalog, run, "archive");
-  const prefix = packagePath(fixture.serviceName, fixture.groupName);
-  try {
-    expect((await catalog.compiledLibrary(fixture.modelId)).status()).toBe(200);
-
-    const archive = await catalog.exportSystems([fixture.systemId]);
-    const entries = await entryNames(archive);
-    // The archive is documents plus the specification source. No jar travels in it, so whatever the
-    // import produces below was compiled by the import.
-    expect(entries.some((entry) => entry.endsWith("/widgets.graphql")), "the source travels").toBe(true);
-    expect(entries.some((entry) => entry.endsWith(".jar")), "the jar does not").toBe(false);
-
-    await catalog.deleteSystem(fixture.systemId);
-    expect(
-      (await catalog.compiledLibrary(fixture.modelId)).status(),
-      "the specification is gone with its service",
-    ).toBe(404);
-
-    const response = await catalog.importArchive("/v1/import/system", archive, "services.zip");
-    expect(response.status()).toBe(200);
-    expect(await response.json()).toEqual([
-      { id: fixture.systemId, name: fixture.serviceName, status: "CREATED" },
-    ]);
-
-    // Synchronous, unlike the rename: `SystemExportImportService.compileSystemModelLibraries` runs
-    // inside the import, so the jar is there by the time the import has answered.
-    const rebuilt = await catalog.compiledLibrary(fixture.modelId);
-    expect(rebuilt.status()).toBe(200);
-    expect(attachmentName(rebuilt)).toBe(jarFileName("graphql", fixture.serviceName));
-    expect(await entryNames(await archiveOf(rebuilt))).toEqual([
-      "META-INF/MANIFEST.MF",
-      `${prefix}/Widget$Builder.class`,
-      `${prefix}/Widget.class`,
-    ]);
-  } finally {
-    await catalog.deleteSystem(fixture.systemId).catch(() => {});
-  }
+      // Synchronous, unlike the rename: `SystemExportImportService.compileSystemModelLibraries` runs
+      // inside the import, so the jar is there by the time the import has answered.
+      const rebuilt = await catalog.compiledLibrary(fixture.modelId);
+      expect(rebuilt.status()).toBe(200);
+      expect(attachmentName(rebuilt)).toBe(jarFileName("graphql", fixture.serviceName));
+      expect(await entryNames(await archiveOf(rebuilt))).toEqual([
+        "META-INF/MANIFEST.MF",
+        `${prefix}/Widget$Builder.class`,
+        `${prefix}/Widget.class`,
+      ]);
+    } finally {
+      await catalog.deleteSystem(fixture.systemId).catch(() => {});
+    }
+  });
 });

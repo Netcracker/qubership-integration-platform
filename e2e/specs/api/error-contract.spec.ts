@@ -183,123 +183,125 @@ const PROBES: Probe[] = [
   },
 ];
 
-for (const probe of PROBES) {
-  test(`${probe.role} answers ${probe.what} with a pinned error body`, { tag: [COMPONENT_TAG[probe.role], "@tier2"] }, async ({ request, env, testingService }) => {
-    const response = await probe.send(request, env.url(probe.role), testingService);
+test.describe("error contract", () => {
+  for (const probe of PROBES) {
+    test(`${probe.role} answers ${probe.what} with a pinned error body`, { tag: [COMPONENT_TAG[probe.role]] }, async ({ request, env, testingService }) => {
+      const response = await probe.send(request, env.url(probe.role), testingService);
 
-    expect(response.status()).toBe(probe.status);
-    expect(response.headers()["content-type"]).toContain(probe.contentType);
+      expect(response.status()).toBe(probe.status);
+      expect(response.headers()["content-type"]).toContain(probe.contentType);
 
-    const body = (await response.json()) as Record<string, unknown>;
-    // The whole field set, not a subset: an added field is a contract change the UI has to be told
-    // about, and toMatchObject would let one through.
-    expect(Object.keys(body).sort()).toEqual(probe.fields);
+      const body = (await response.json()) as Record<string, unknown>;
+      // The whole field set, not a subset: an added field is a contract change the UI has to be told
+      // about, and toMatchObject would let one through.
+      expect(Object.keys(body).sort()).toEqual(probe.fields);
 
-    if (probe.serviceName !== undefined) {
-      expect(body.serviceName).toBe(probe.serviceName);
-      expect(String(body.errorMessage)).toContain(probe.says);
-      // A timestamp the UI renders. Pinning the format rather than the value, because an ISO
-      // instant and this space-separated local one are not the same thing to a `Date` constructor.
-      expect(String(body.errorDate)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+$/);
-    } else {
-      expect(body.status).toBe(probe.status);
-      expect(String(body.detail)).toContain(probe.says);
-      expect(body.type).toBe("about:blank");
-    }
-  });
-}
-
-/**
- * The mutation check for the table above.
- *
- * A spec that asserted "some 4xx with some JSON" would pass on any of these answers, so the
- * mutation has to produce a different 4xx: an `Accept` the handler cannot negotiate. Measured, the
- * catalog and the engine answer **406 `application/problem+json`** — a status the table does not
- * hold and a shape the application rows do not have, so both halves of the pin are load-bearing.
- */
-for (const role of ["runtime-catalog", "engine"] as const) {
-  test(`${role} answers an unnegotiable Accept differently from a not-found`, { tag: [COMPONENT_TAG[role], "@tier2"] }, async ({ request, env }) => {
-    const path =
-      role === "runtime-catalog"
-        ? `/v1/chains/${ABSENT_ID}`
-        : `/v1/engine/live-exchanges/${ABSENT_ID}/${ABSENT_ID}`;
-    const response = await request.fetch(`${env.url(role)}${path}`, {
-      method: role === "runtime-catalog" ? "GET" : "DELETE",
-      headers: { accept: "application/xml" },
-      failOnStatusCode: false,
+      if (probe.serviceName !== undefined) {
+        expect(body.serviceName).toBe(probe.serviceName);
+        expect(String(body.errorMessage)).toContain(probe.says);
+        // A timestamp the UI renders. Pinning the format rather than the value, because an ISO
+        // instant and this space-separated local one are not the same thing to a `Date` constructor.
+        expect(String(body.errorDate)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+$/);
+      } else {
+        expect(body.status).toBe(probe.status);
+        expect(String(body.detail)).toContain(probe.says);
+        expect(body.type).toBe("about:blank");
+      }
     });
-
-    expect(response.status()).toBe(406);
-    expect(response.headers()["content-type"]).toContain("application/problem+json");
-    expect(Object.keys((await response.json()) as Record<string, unknown>).sort()).toEqual(
-      PROBLEM_SHAPE,
-    );
-  });
-}
-
-/**
- * The same mutation against sessions-management, which does not survive it.
- *
- * `GlobalExceptionHandler#sessionsNotFoundExceptionHandler` produces a body it can only write as
- * JSON, and with `Accept: application/xml` the resolver throws
- * `HttpMediaTypeNotAcceptableException` **inside** the handler. The 404 becomes a **500 with an
- * empty body** and the container logs the original exception as an unhandled one, where the catalog
- * and the engine answer a clean 406.
- *
- * Carried as `test.fail()` rather than as an assertion that 500 is the contract: pinning the
- * measured 500 would make the fix look like a regression. This turns red the day the handler
- * negotiates, which is the signal to delete the annotation.
- *
- * `test.fail()` accepts *any* failure, so the body narrows itself to the one it carries: with
- * `failOnStatusCode: false` a bare `expect(...).toBe(406)` is failed just as readily by a service
- * that never answered, and the annotation would report that green. `notTheKnownDefect` in
- * `support/known-defect.ts` is that narrowing, shared with the other case that carries one.
- *
- * The status alone does not identify the divergence either. What the container falls back to is a
- * 500 with a **zero-length** body, and a 500 carrying one is some other failure — a handler that
- * did render something, or a service broken for a reason unrelated to negotiation. The emptiness is
- * asserted with the status.
- */
-test.fail("sessions-management negotiates an Accept it cannot write", { tag: [COMPONENT_TAG["sessions-management"], "@tier2"] }, async ({ request, env }) => {
-  const url = `${env.url("sessions-management")}/v1/sessions/${ABSENT_ID}`;
-  const response = await request
-    .get(url, { headers: { accept: "application/xml" }, failOnStatusCode: false })
-    .catch(() => null);
-  if (!response) {
-    notTheKnownDefect(`${url} did not answer at all, so nothing about content negotiation was read`);
   }
 
-  const status = response.status();
-  const body = await response.text();
-  const isTheFallback = status === 500 && body.length === 0;
-  if (!isTheFallback && status !== 406) {
-    notTheKnownDefect(
-      `${url} answered ${status} with ${body.length} bytes, which is neither the empty 500 this ` +
-        `handler produces nor the 406 the catalog and the engine answer. The annotation carries ` +
-        `one divergence and this is not it`,
-    );
+  /**
+   * The mutation check for the table above.
+   *
+   * A spec that asserted "some 4xx with some JSON" would pass on any of these answers, so the
+   * mutation has to produce a different 4xx: an `Accept` the handler cannot negotiate. Measured, the
+   * catalog and the engine answer **406 `application/problem+json`** — a status the table does not
+   * hold and a shape the application rows do not have, so both halves of the pin are load-bearing.
+   */
+  for (const role of ["runtime-catalog", "engine"] as const) {
+    test(`${role} answers an unnegotiable Accept with a 406 problem`, { tag: [COMPONENT_TAG[role]] }, async ({ request, env }) => {
+      const path =
+        role === "runtime-catalog"
+          ? `/v1/chains/${ABSENT_ID}`
+          : `/v1/engine/live-exchanges/${ABSENT_ID}/${ABSENT_ID}`;
+      const response = await request.fetch(`${env.url(role)}${path}`, {
+        method: role === "runtime-catalog" ? "GET" : "DELETE",
+        headers: { accept: "application/xml" },
+        failOnStatusCode: false,
+      });
+
+      expect(response.status()).toBe(406);
+      expect(response.headers()["content-type"]).toContain("application/problem+json");
+      expect(Object.keys((await response.json()) as Record<string, unknown>).sort()).toEqual(
+        PROBLEM_SHAPE,
+      );
+    });
   }
-  expect(status, "the handler now negotiates: delete the test.fail() annotation").toBe(406);
-});
 
-/**
- * The testing service is the reason the mutation above is not one loop over four services.
- *
- * Fiber does no content negotiation, so `Accept: application/xml` changes nothing and the answer is
- * byte-for-byte the not-found contract. What discriminates its rows instead is the status: the same
- * endpoint with an id that is not a UUID answers **400** with the identical field set, so a spec
- * asserting only the shape would pass on the wrong failure.
- */
-test("the testing service ignores Accept, so its status is what discriminates", { tag: [COMPONENT_TAG["testing-service"], "@tier2"] }, async ({ testingService }) => {
-  const negotiated = await testingService.raw("get", `/api/v1/test-cases/${ABSENT_UUID}`, {
-    headers: { accept: "application/xml" },
+  /**
+   * The same mutation against sessions-management, which does not survive it.
+   *
+   * `GlobalExceptionHandler#sessionsNotFoundExceptionHandler` produces a body it can only write as
+   * JSON, and with `Accept: application/xml` the resolver throws
+   * `HttpMediaTypeNotAcceptableException` **inside** the handler. The 404 becomes a **500 with an
+   * empty body** and the container logs the original exception as an unhandled one, where the catalog
+   * and the engine answer a clean 406.
+   *
+   * Carried as `test.fail()` rather than as an assertion that 500 is the contract: pinning the
+   * measured 500 would make the fix look like a regression. This turns red the day the handler
+   * negotiates, which is the signal to delete the annotation.
+   *
+   * `test.fail()` accepts *any* failure, so the body narrows itself to the one it carries: with
+   * `failOnStatusCode: false` a bare `expect(...).toBe(406)` is failed just as readily by a service
+   * that never answered, and the annotation would report that green. `notTheKnownDefect` in
+   * `support/known-defect.ts` is that narrowing, shared with the other case that carries one.
+   *
+   * The status alone does not identify the divergence either. What the container falls back to is a
+   * 500 with a **zero-length** body, and a 500 carrying one is some other failure — a handler that
+   * did render something, or a service broken for a reason unrelated to negotiation. The emptiness is
+   * asserted with the status.
+   */
+  test.fail("sessions-management negotiates an Accept it cannot write", { tag: [COMPONENT_TAG["sessions-management"]] }, async ({ request, env }) => {
+    const url = `${env.url("sessions-management")}/v1/sessions/${ABSENT_ID}`;
+    const response = await request
+      .get(url, { headers: { accept: "application/xml" }, failOnStatusCode: false })
+      .catch(() => null);
+    if (!response) {
+      notTheKnownDefect(`${url} did not answer at all, so nothing about content negotiation was read`);
+    }
+
+    const status = response.status();
+    const body = await response.text();
+    const isTheFallback = status === 500 && body.length === 0;
+    if (!isTheFallback && status !== 406) {
+      notTheKnownDefect(
+        `${url} answered ${status} with ${body.length} bytes, which is neither the empty 500 this ` +
+          `handler produces nor the 406 the catalog and the engine answer. The annotation carries ` +
+          `one divergence and this is not it`,
+      );
+    }
+    expect(status, "the handler now negotiates: delete the test.fail() annotation").toBe(406);
   });
-  expect(negotiated.status()).toBe(404);
-  expect(negotiated.headers()["content-type"]).toContain("application/json");
 
-  const malformed = await testingService.raw("get", "/api/v1/test-cases/not-a-uuid");
-  expect(malformed.status()).toBe(400);
-  const body = (await malformed.json()) as Record<string, unknown>;
-  expect(Object.keys(body).sort()).toEqual(APP_SHAPE_WITH_TRACE);
-  expect(String(body.errorMessage)).toContain("invalid UUID length");
+  /**
+   * The testing service is the reason the mutation above is not one loop over four services.
+   *
+   * Fiber does no content negotiation, so `Accept: application/xml` changes nothing and the answer is
+   * byte-for-byte the not-found contract. What discriminates its rows instead is the status: the same
+   * endpoint with an id that is not a UUID answers **400** with the identical field set, so a spec
+   * asserting only the shape would pass on the wrong failure.
+   */
+  test("testing-service ignores Accept and answers 400 on a bad id", { tag: [COMPONENT_TAG["testing-service"]] }, async ({ testingService }) => {
+    const negotiated = await testingService.raw("get", `/api/v1/test-cases/${ABSENT_UUID}`, {
+      headers: { accept: "application/xml" },
+    });
+    expect(negotiated.status()).toBe(404);
+    expect(negotiated.headers()["content-type"]).toContain("application/json");
+
+    const malformed = await testingService.raw("get", "/api/v1/test-cases/not-a-uuid");
+    expect(malformed.status()).toBe(400);
+    const body = (await malformed.json()) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(APP_SHAPE_WITH_TRACE);
+    expect(String(body.errorMessage)).toContain("invalid UUID length");
+  });
 });

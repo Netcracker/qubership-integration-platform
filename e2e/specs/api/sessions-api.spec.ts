@@ -202,7 +202,8 @@ function ours(page: SessionPage, ids: readonly string[]): string[] {
     .sort();
 }
 
-test("a chain's sessions are listed by chain, light, paged, and scoped to that chain", { tag: ["@sessions", "@catalog", "@engine", "@tier1"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+test.describe("sessions-management API", { tag: ["@sessions"] }, () => {
+  test("a chain's sessions list light, paged, and scoped to it", { tag: ["@catalog", "@engine"] }, async ({ catalog, env, request, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     const built: SeedChain[] = [];
     let bodyFailed = true;
@@ -271,10 +272,10 @@ test("a chain's sessions are listed by chain, light, paged, and scoped to that c
     } finally {
       await releaseChains(catalog, built, bodyFailed);
     }
-  },
-);
+  });
 
-test("the chain name filter matches a full hyphenated name in any case, and only the bare search re-resolves the name", { tag: ["@sessions", "@catalog", "@engine", "@tier1"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+  // The case also pins that only the bare search re-resolves the chain name after a rename.
+  test("the chain name filter matches a hyphenated name in any case", { tag: ["@catalog", "@engine"] }, async ({ catalog, env, request, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     const built: SeedChain[] = [];
     let bodyFailed = true;
@@ -364,10 +365,9 @@ test("the chain name filter matches a full hyphenated name in any case, and only
     } finally {
       await releaseChains(catalog, built, bodyFailed);
     }
-  },
-);
+  });
 
-test("a session deletes by id and by id list, and HEAD reports which are gone", { tag: ["@sessions", "@engine", "@tier2"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+  test("sessions delete by id and by id list, and HEAD answers 404", { tag: ["@engine"] }, async ({ catalog, env, request, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     const built: SeedChain[] = [];
     let bodyFailed = true;
@@ -421,10 +421,9 @@ test("a session deletes by id and by id list, and HEAD reports which are gone", 
     } finally {
       await releaseChains(catalog, built, bodyFailed);
     }
-  },
-);
+  });
 
-test("a chain's sessions delete together, alone or in a named set", { tag: ["@sessions", "@engine", "@tier2"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+  test("a chain's sessions delete together, alone or in a named set", { tag: ["@engine"] }, async ({ catalog, env, request, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     const built: SeedChain[] = [];
     let bodyFailed = true;
@@ -462,10 +461,9 @@ test("a chain's sessions delete together, alone or in a named set", { tag: ["@se
     } finally {
       await releaseChains(catalog, built, bodyFailed);
     }
-  },
-);
+  });
 
-test("a chain's sessions delete while the chain is still recording them", { tag: ["@sessions", "@engine", "@tier2"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+  test("a chain's sessions delete while the chain records more", { tag: ["@engine"] }, async ({ catalog, env, request, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     const built: SeedChain[] = [];
     let bodyFailed = true;
@@ -515,10 +513,9 @@ test("a chain's sessions delete while the chain is still recording them", { tag:
       await Promise.allSettled(callers);
       await releaseChains(catalog, built, bodyFailed);
     }
-  },
-);
+  });
 
-test("the element payload endpoint serves the body the listing withholds", { tag: ["@sessions", "@engine", "@tier2"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+  test("the element payload endpoint serves the withheld body", { tag: ["@engine"] }, async ({ catalog, env, request, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     const built: SeedChain[] = [];
     let bodyFailed = true;
@@ -570,10 +567,9 @@ test("the element payload endpoint serves the body the listing withholds", { tag
     } finally {
       await releaseChains(catalog, built, bodyFailed);
     }
-  },
-);
+  });
 
-test("sessions export and import back, and an import over a live id is refused", { tag: ["@sessions", "@engine", "@tier2"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+  test("exported sessions import back, and a live id is refused", { tag: ["@engine"] }, async ({ catalog, env, request, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     const built: SeedChain[] = [];
     let bodyFailed = true;
@@ -662,10 +658,9 @@ test("sessions export and import back, and an import over a live id is refused",
       if (imported !== undefined) await sessions.bulkDelete([imported]);
       await releaseChains(catalog, built, bodyFailed);
     }
-  },
-);
+  });
 
-test("the search takes an empty body and refuses a request carrying none", { tag: ["@sessions", "@tier1"] }, async ({ sessions, run }) => {
+  test("the search takes an empty body and refuses a missing one", async ({ sessions, run }) => {
     // One session of this case's own first, so the index is never empty while the page below is
     // read. It is not decoration: the assertions say a page of one row comes back, and under eight
     // workers the sibling cases here delete every session they created — measured, this case went
@@ -704,10 +699,9 @@ test("the search takes an empty body and refuses a request carrying none", { tag
       // chain name and deletes them by chain id — cannot reach this one.
       await sessions.bulkDelete([own]);
     }
-  },
-);
+  });
 
-test("a filter clause that names no column is refused", { tag: ["@sessions", "@tier2"] }, async ({ sessions }) => {
+  test("a filter clause that names no column is refused", async ({ sessions }) => {
     // A platform defect. PR #769 guarded an absent `filterRequestList`; a clause *inside* the list
     // that omits `feature` or `condition` still reaches the switch and is dereferenced there. It is
     // the easy mistake to make from the catalog side, where the same idea is spelled `column`:
@@ -726,33 +720,33 @@ test("a filter clause that names no column is refused", { tag: ["@sessions", "@t
         },
       ),
     ).toBe(400);
-  },
-);
-
-test("the external-id lookup answers the session a token produced, with its trace only on request", { tag: ["@sessions", "@engine", "@tier1"] }, async ({ env, request, sessions }) => {
-  // A seeded chain, because the case is about the lookup and not about a chain of its own.
-  const chain = seedChain(readCorpusState(), "http-echo");
-  const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "external-id" } });
-  expect(call.response.status()).toBe(200);
-
-  const detailed = await sessions.byExternalId(call.token, { elements: 3 });
-  expect(detailed).toMatchObject({
-    chainId: chain.id,
-    chainName: chain.name,
-    externalSessionCipId: call.token,
-    executionStatus: "COMPLETED_NORMALLY",
   });
-  expect(detailed.sessionElements, "includeDetails=true carries the trace").not.toBeNull();
 
-  const light = await sessions.attemptByExternalId(call.token, false);
-  expect(light.status).toBe(200);
-  expect(light.session).toMatchObject({ id: detailed.id, chainId: chain.id, externalSessionCipId: call.token });
-  expect(light.session?.sessionElements, "the trace is left out unless includeDetails asks for it").toBeNull();
+  test("the external-id lookup returns the session, trace on request", { tag: ["@engine"] }, async ({ env, request, sessions }) => {
+    // A seeded chain, because the case is about the lookup and not about a chain of its own.
+    const chain = seedChain(readCorpusState(), "http-echo");
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "external-id" } });
+    expect(call.response.status()).toBe(200);
 
-  const never = callToken("never-sent");
-  const missing = await sessions.raw("get", `/v1/sessions/external-id/${never}`);
-  expect(missing.status()).toBe(404);
-  expect(((await missing.json()) as { errorMessage: string }).errorMessage).toBe(
-    `Can't find session by external id ${never}`,
-  );
+    const detailed = await sessions.byExternalId(call.token, { elements: 3 });
+    expect(detailed).toMatchObject({
+      chainId: chain.id,
+      chainName: chain.name,
+      externalSessionCipId: call.token,
+      executionStatus: "COMPLETED_NORMALLY",
+    });
+    expect(detailed.sessionElements, "includeDetails=true carries the trace").not.toBeNull();
+
+    const light = await sessions.attemptByExternalId(call.token, false);
+    expect(light.status).toBe(200);
+    expect(light.session).toMatchObject({ id: detailed.id, chainId: chain.id, externalSessionCipId: call.token });
+    expect(light.session?.sessionElements, "the trace is left out unless includeDetails asks for it").toBeNull();
+
+    const never = callToken("never-sent");
+    const missing = await sessions.raw("get", `/v1/sessions/external-id/${never}`);
+    expect(missing.status()).toBe(404);
+    expect(((await missing.json()) as { errorMessage: string }).errorMessage).toBe(
+      `Can't find session by external id ${never}`,
+    );
+  });
 });
