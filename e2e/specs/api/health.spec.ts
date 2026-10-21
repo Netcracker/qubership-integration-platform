@@ -108,14 +108,12 @@ test.describe("actuator health", () => {
       expect(down, `${role} reports these components as not UP`).toEqual([]);
     });
 
-    test("answers both probe groups with every component UP", async ({ request, env }) => {
+    // A probe group document carries no components map, measured on every service even with
+    // show-details set, so the case above reads the components off the main document.
+    test("answers both probe groups", async ({ request, env }) => {
       for (const group of PROBE_GROUPS) {
         const document = await health(request, `${env.url(role)}/actuator/health/${group}`);
         expect(document.status, `${role} ${group}`).toBe("UP");
-        const components = Object.entries(document.components ?? {});
-        expect(components.length, `${role} ${group} publishes no components`).toBeGreaterThan(0);
-        const down = components.filter(([, component]) => component.status !== "UP").map(([name]) => name);
-        expect(down, `${role} ${group} reports these components as not UP`).toEqual([]);
       }
     });
   }
