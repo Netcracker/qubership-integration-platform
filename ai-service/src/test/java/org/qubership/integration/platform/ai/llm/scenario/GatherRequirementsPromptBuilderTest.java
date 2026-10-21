@@ -84,7 +84,8 @@ class GatherRequirementsPromptBuilderTest {
       when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
           .thenThrow(new IllegalStateException("skill unavailable"));
     }
-    String source = "Use the exact prefix a=b, then one separator and the original id. Retain the complete original record.";
+    String source = "Set object property receiptLabel=ready-for-review. Use the exact prefix a=b, then one separator"
+        + " and the original id. Retain the complete original record.";
 
     String input = builder.wrap("literal-contract", source, "en");
 
@@ -93,6 +94,10 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("complete executable"), input);
     assertTrue(input.contains("literal component or prefix byte-for-byte"), input);
     assertTrue(input.contains("compose separators and runtime expressions outside"), input);
+    assertTrue(input.contains("object property assignment or binding"), input);
+    assertTrue(input.contains("exact key and any actual fixed scalar separately"), input);
+    assertTrue(input.contains("whole key=value clause is a required constant only"), input);
+    assertTrue(input.replaceAll("\\s+", " ").contains("explicitly requests that complete string as a literal"), input);
     assertTrue(input.contains("whole binding, computation, and composition descriptions in BEHAVIOR text"), input);
     assertTrue(input.contains("FIELD_MAPPING on a real business transition"), input);
     assertTrue(input.contains("Source occurrence alone"), input);

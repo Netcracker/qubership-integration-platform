@@ -28,6 +28,10 @@ class GatherRequirementsAgentTest {
       assertTrue(prompt.contains("complete executable constants"), prompt);
       assertTrue(prompt.contains("literal component or prefix byte-for-byte in exactValues"), prompt);
       assertTrue(prompt.contains("Compose separators and runtime expressions outside"), prompt);
+      assertTrue(prompt.contains("object property assignment or binding"), prompt);
+      assertTrue(prompt.contains("exact key and any actual fixed scalar separately"), prompt);
+      assertTrue(prompt.contains("whole key=value clause is a required constant only"), prompt);
+      assertTrue(prompt.contains("explicitly requests that complete string as a literal"), prompt);
       assertTrue(prompt.contains("whole binding, computation, and composition descriptions in BEHAVIOR text"), prompt);
       assertTrue(prompt.contains("Do not list whole assignment descriptions"), prompt);
       assertTrue(prompt.contains("A complete literal such as \"a=b\" remains valid"), prompt);

@@ -65,10 +65,45 @@ class RequirementCaptureProviderTest {
     assertTrue(description.contains("complete executable"), description);
     assertTrue(description.contains("literal component or prefix byte-for-byte"), description);
     assertTrue(description.contains("compose separators and runtime expressions outside"), description);
+    assertTrue(description.contains("object property assignment or binding"), description);
+    assertTrue(description.contains("exact key and any actual fixed scalar separately"), description);
+    assertTrue(description.contains("whole key=value clause is a required constant only"), description);
+    assertTrue(description.contains("explicitly requests that complete string as a literal"), description);
     assertTrue(description.contains("BEHAVIOR text"), description);
     assertTrue(description.contains("FIELD_MAPPING on a real business transition"), description);
     assertTrue(description.contains("Source occurrence alone"), description);
     assertTrue(description.contains("'a=b'"), description);
+  }
+
+  @Test
+  void fixedPropertyBindingRetainsSeparateConstantsAndTheCompleteBehaviorThroughNativeCapture() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var tools = new RequirementCaptureTools(store, new RequirementDraftTool(store), mapper);
+    tools.elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService.createForUnitTests(mapper);
+    var provider = new RequirementCaptureToolProvider(tools, mapper).provideTools(null);
+    String behavior = "The Script must output a JSON object with receiptLabel=ready-for-review."
+        + " Copy the original id into sourceId and retain the complete original parameters in details.";
+    String chat = "fixed-property-binding-" + UUID.randomUUID();
+    store.beginTurn(chat, "Receive POST /work. " + behavior);
+    var intent = new RequirementElementIntent("reply", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, "entry", null, List.of(), List.of("receiptLabel", "ready-for-review"));
+    var fact = new FactInput("reply", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        behavior, null, null, intent);
+    var input = withNativeAnchors(new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /work", null, null, null)), List.of()),
+        List.of(fact), List.of(new RequirementCaptureInput.CapabilityInput("entry", "http-trigger",
+            RequirementCaptureInput.HttpMode.CUSTOM, RequirementCaptureInput.HttpMethod.POST, "/work", null, null, null)),
+        List.of(), new DraftSettings(null, null)));
+
+    var result = mapper.readTree(provider.toolExecutorByName("captureRequirementDraft").execute(
+        ToolExecutionRequest.builder().id("fixed-property-binding").name("captureRequirementDraft")
+            .arguments(mapper.writeValueAsString(Map.of("draft", input))).build(), chat));
+
+    assertTrue(result.path("accepted").asBoolean(), result.toString());
+    assertEquals(input, store.get(chat).orElseThrow().authoredDraft());
+    assertEquals(fact, store.get(chat).orElseThrow().authoredDraft().facts().stream()
+        .filter(value -> value.sourceFactId().equals("reply")).findFirst().orElseThrow());
   }
 
   @org.junit.jupiter.params.ParameterizedTest
