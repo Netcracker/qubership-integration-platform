@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -33,6 +35,7 @@ import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
@@ -72,6 +75,57 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("ANCHOR"), input);
     assertTrue(input.contains("participant"), input);
     assertTrue(input.contains("requestedName"), input);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void nativeRepairScopeReachesTheMandatoryPrompt(boolean documentUnavailable) {
+    if (documentUnavailable) {
+      when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
+          .thenThrow(new IllegalStateException("skill unavailable"));
+    }
+    var selected = authoredDraft("Preserve the request ID.");
+    draftStore.put("repair-scope", selected);
+    ProductCapabilityCaptureContext.bindDiscovery("run", "repair-scope", selected, Map.of(),
+        Set.of("/facts/goal/text"), ignored -> {});
+    try {
+      String input = builder.wrap("repair-scope", "Automatic correction.");
+
+      assertTrue(input.contains("Writable stable paths: [/facts/goal/text]"), input);
+      assertTrue(input.contains("Use amendments: []"), input);
+      assertTrue(input.contains("saved author source"), input);
+      assertTrue(input.contains("confirmed answers"), input);
+    } finally {
+      ProductCapabilityCaptureContext.unbind("repair-scope");
+    }
+  }
+
+  @Test
+  void nativeRepairScopeRequiresTheSelectedDiscoveryBaseAndConversation() {
+    var selected = authoredDraft("Preserve the request ID.");
+    draftStore.put("repair-scope", selected);
+    ProductCapabilityCaptureContext.bindDiscovery("run", "repair-scope", selected, Map.of(),
+        Set.of("/facts/goal/text"), ignored -> {});
+    try {
+      assertFalse(builder.wrap("another-chat", "Continue.").contains("<native-requirement-repair>"));
+      ProductCapabilityCaptureContext.bindDiscovery("run", "repair-scope", authoredDraft("Different base."), Map.of(),
+          Set.of("/facts/goal/text"), ignored -> {});
+      assertFalse(builder.wrap("repair-scope", "Continue.").contains("<native-requirement-repair>"));
+      ProductCapabilityCaptureContext.bindAnalysis("run", "repair-scope", selected, ignored -> {});
+      assertFalse(builder.wrap("repair-scope", "Continue.").contains("<native-requirement-repair>"));
+    } finally {
+      ProductCapabilityCaptureContext.unbind("repair-scope");
+    }
+    assertFalse(builder.wrap("repair-scope", "Continue.").contains("<native-requirement-repair>"));
+  }
+
+  private static RequirementDraft authoredDraft(String goal) {
+    return RequirementCaptureProjection.toDraft(new DraftInput(
+        new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /work", null, null, null)),
+            List.of()),
+        List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, goal)),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+            "/work", null, null, null)), List.of(), new DraftSettings(false, null)), null, List.of(), "1", "hash");
   }
 
   @Test

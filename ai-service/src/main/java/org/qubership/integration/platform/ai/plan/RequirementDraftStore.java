@@ -198,6 +198,10 @@ public class RequirementDraftStore {
     return List.copyOf(issues);
   }
 
+  public java.util.Set<String> activeRequirementRepairPaths(String conversationId) {
+    return activeRepairPaths(conversationId, get(conversationId).map(RequirementDraft::authoredDraft).orElse(null));
+  }
+
   private java.util.Set<String> activeRepairPaths(String conversationId, RequirementCaptureInput.DraftInput base) {
     return org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
         .binding(conversationId)

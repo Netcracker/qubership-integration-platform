@@ -68,6 +68,7 @@ public class GatherRequirementsPromptBuilder {
     Set<String> uploadedInteractions = uploadedSpecs == null ? Set.of()
         : uploadedSpecs.pendingInteractionIds(conversationId, draft.orElse(null));
     String mandatory = currentDraftBlock(draft) + repairConstraintsBlock(conversationId)
+        + nativeRepairScopeBlock(conversationId)
         + incompleteDraftBlock(draft, uploadedInteractions)
         + lastCaptureRejectionBlock(conversationId, draft)
         + sourceDialogueBlock(conversationId, userMessage)
@@ -175,12 +176,29 @@ public class GatherRequirementsPromptBuilder {
     }
   }
 
+  private String nativeRepairScopeBlock(String conversationId) {
+    var paths = draftStore == null ? Set.<String>of() : draftStore.activeRequirementRepairPaths(conversationId);
+    if (paths.isEmpty()) {
+      return "";
+    }
+    return """
+
+        <native-requirement-repair>
+        Native validation permits technical correction of the current draft at these fields.
+        Writable stable paths: %s
+        Use amendments: [] for these corrections, using the saved author source; no new author answer is required.
+        Preserve all other accepted content and confirmed answers. Apply affected corrections atomically.
+        Native admission still validates the proposal; this scope grants no permission to invent requirements.
+        </native-requirement-repair>
+        """.formatted(paths.stream().sorted().toList());
+  }
+
   private String sourceDialogueBlock(String conversationId, String currentText) {
     StringBuilder body = new StringBuilder("\n<requirement-source>\n");
     body.append("Use the current draft as accepted state. Apply explicit author amendments; ")
         .append("retain unrelated requirements. Prior sources are evidence, and superseded values ")
         .append("do not override accepted changes. Read an earlier source by its turn id when needed. ")
-        .append("When changing or removing accepted content, include amendments in updateRequirementDraft: ")
+        .append("For explicit author changes to accepted content, include amendments in updateRequirementDraft: ")
         .append("each has the exact stable path, pending author sourceTurnId, and a verbatim quote of the amendment. ")
         .append("Examples: /facts/goal/text, /facts/goal for removal, /capabilities/entry/path, /transitions/entry for outgoing transitions. ")
         .append("Apply one author amendment atomically to every affected representation. When an endpoint URL changes, ")
