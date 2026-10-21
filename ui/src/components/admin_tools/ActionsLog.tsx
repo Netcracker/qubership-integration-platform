@@ -428,7 +428,6 @@ export const ActionsLog: React.FC = () => {
         onChange: setSearchTerm,
         onSearchConfirm: confirmSearch,
         placeholder: "Search audit log...",
-        allowClear: true,
       }}
       columnSettingsButton={columnSettingsButton}
       filterButton={filterButton}

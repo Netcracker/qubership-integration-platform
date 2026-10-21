@@ -15,12 +15,7 @@ export type TableToolbarVariant = "admin" | "chain-tab" | "default";
 
 export type TableToolbarSearch = Pick<
   CompactSearchProps,
-  | "value"
-  | "onChange"
-  | "onClear"
-  | "onSearchConfirm"
-  | "placeholder"
-  | "allowClear"
+  "value" | "onChange" | "onClear" | "onSearchConfirm" | "placeholder"
 > & {
   className?: string;
   style?: CSSProperties;
@@ -138,7 +133,6 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
           onClear={search.onClear}
           onSearchConfirm={search.onSearchConfirm}
           placeholder={search.placeholder}
-          allowClear={search.allowClear}
           className={clsx(
             styles.search,
             searchClassNameByVariant[variant],

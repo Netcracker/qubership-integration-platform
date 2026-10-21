@@ -340,7 +340,6 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
             setSelectedRowKeys([]);
           },
           placeholder: "Search matchers...",
-          allowClear: true,
           style: { minWidth: 160, maxWidth: 320, flex: "0 1 auto" },
         }}
         actions={
