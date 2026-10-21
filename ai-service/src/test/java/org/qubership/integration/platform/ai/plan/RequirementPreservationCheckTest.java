@@ -23,6 +23,8 @@ import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -53,31 +55,50 @@ class RequirementPreservationCheckTest {
         + " Proceed without IDS.");
     assertTrue(h.capture(policyDraft(null, "NONE")).accepted());
     var answerSource = h.begin(reply);
-    assertTrue(h.update(updateFacts(List.of(policyFact(Decision.USE_RECOMMENDED)), List.of("policy-choice")))
-        .accepted());
-    var answer = h.store.confirmedAnswers(h.chat).getFirst();
-    assertEquals(Decision.USE_RECOMMENDED, answer.policy().decision());
-    assertFalse(answer.sourceInputs().isEmpty());
+    var captured = h.update(updateFacts(List.of(policyFact(Decision.USE_RECOMMENDED)), List.of("policy-choice")));
+    assertFalse(captured.accepted());
+    assertTrue(captured.issues().stream().anyMatch(issue -> issue.code().equals("POLICY_RESPONSE_REQUIRED")));
+    assertTrue(h.store.confirmedAnswers(h.chat).isEmpty());
+    assertTrue(h.store.trustedPolicyChoices(h.chat).isEmpty());
     assertTrue(h.archive.readSource(h.chat, answerSource.turnId(), 0, 4096).contains(reply));
+    assertNotEquals(VERIFIED, h.evaluate(h.lastAttempt(), null).outcome());
+    assertEquals(policyDraft(null, "NONE"), h.store.get(h.chat).orElseThrow().authoredDraft());
+  }
 
-    var candidate = policyDraft(Decision.USE_RECOMMENDED, "RBAC");
-    var brief = brief(candidate);
-    var graph = policyGraph("RBAC");
-    assertTrue(new CompilerSecurityValidator().validate(graph, brief).valid());
-    assertTrue(CompilerQualityValidator.validateApprovedValues(graph, brief).isEmpty());
-    assertFalse(new CompilerSecurityValidator().validate(policyGraph("NONE"), brief).valid());
-    assertTrue(RequirementCaptureProjection.pending(candidate, List.of()).isEmpty());
-
-    assertFalse(h.update(updateFacts(List.of(accessFact("RBAC")), List.of())).accepted());
-    var result = h.evaluate(h.lastAttempt(), new NativeInputs(brief, graph));
-    assertEquals(UNPROVEN, result.outcome(), result.toString());
-    assertTrue(result.changedPaths().stream().anyMatch(path -> path.contains("requestedProperties")));
-    assertTrue(result.findings().stream().anyMatch(finding -> finding.outcome() == UNPROVEN));
-    assertEquals(Decision.USE_RECOMMENDED, h.store.confirmedAnswers(h.chat).getFirst().policy().decision());
-    assertEquals("NONE", h.store.get(h.chat).orElseThrow().authoredDraft().facts().stream()
-        .filter(fact -> fact.sourceFactId().equals("access")).findFirst().orElseThrow().elementIntent()
-        .requestedProperties().stream().filter(property -> property.key().equals("accessControlType"))
-        .findFirst().orElseThrow().value());
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void anIndependentSelectedValueCanProveOnlyItsExactAtomicPolicyCorrection(boolean intentOnPolicyFact) throws Exception {
+    var h = new Harness();
+    h.begin("Create external POST /policy-check with NONE. If RBAC is selected, use role qip-viewer."
+        + " Proceed without IDS.");
+    var base = policyDraft(null, "NONE", intentOnPolicyFact);
+    assertTrue(h.capture(base).accepted());
+    var accepted = h.store.latestRevision(h.chat).orElseThrow().reference();
+    h.selectPolicy("use-recommended");
+    var expected = policyDraft(Decision.USE_RECOMMENDED, "RBAC", intentOnPolicyFact);
+    var refused = h.update(updateFacts(expected.facts().stream().filter(fact -> !fact.sourceFactId().equals("goal")).toList(),
+        List.of("policy-choice")));
+    assertFalse(refused.accepted(), refused.toString());
+    assertEquals(accepted, h.store.latestRevision(h.chat).orElseThrow().reference());
+    assertEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
+    assertTrue(h.store.confirmedAnswers(h.chat).isEmpty());
+    assertEquals(h.store.trustedPolicyChoices(h.chat).getFirst().selection().sourceTurnId(),
+        h.archive.pendingInputs(h.chat).getFirst().id());
+    var before = h.documents();
+    var result = h.evaluate(h.lastAttempt(), new NativeInputs(brief(expected), policyGraph("RBAC")));
+    assertEquals(VERIFIED, result.outcome(), result.toString());
+    assertTrue(result.changedPaths().containsAll(List.of(
+        "/facts/" + (intentOnPolicyFact ? "policy" : "access") + "/elementIntent/requestedProperties/1/value",
+        "/facts/policy/policyConflict/decision", "/openQuestions/policy-choice/text", "/recordOrder/openQuestions/0")),
+        result.changedPaths().toString());
+    assertTrue(result.findings().stream().anyMatch(finding -> finding.checker().equals("author-origin")
+        && finding.outcome() == VERIFIED && finding.evidenceReferences().contains(
+            h.store.trustedPolicyChoices(h.chat).getFirst().reference())));
+    assertEquals(before, h.documents(), "The checker must remain read-only.");
+    assertEquals(UNPROVEN, h.evaluate(h.lastAttempt(), null).outcome(), "Consumer inputs remain mandatory.");
+    h.restartStore();
+    assertEquals(result, h.evaluate(h.lastAttempt(), new NativeInputs(brief(expected), policyGraph("RBAC"))));
+    assertEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft(), "Diagnostic proof alone must not grant admission.");
   }
 
   @Test
@@ -86,7 +107,7 @@ class RequirementPreservationCheckTest {
     h.begin("Create external POST /policy-check with NONE. If RBAC is selected, use role qip-viewer."
         + " Proceed without IDS.");
     assertTrue(h.capture(policyDraft(null, "NONE")).accepted());
-    h.begin("Keep NONE despite the RBAC recommendation.");
+    h.selectPolicy("keep-requested");
     assertTrue(h.update(updateFacts(List.of(policyFact(Decision.KEEP_REQUESTED)), List.of("policy-choice")))
         .accepted());
     var candidate = policyDraft(Decision.KEEP_REQUESTED, "RBAC");
@@ -334,6 +355,15 @@ class RequirementPreservationCheckTest {
         : List.of(), base.settings());
   }
 
+  private static DraftInput policyDraft(Decision decision, String access, boolean intentOnPolicyFact) {
+    var draft = policyDraft(decision, access);
+    if (!intentOnPolicyFact) return draft;
+    var policy = policyFact(decision);
+    var combined = new FactInput(policy.sourceFactId(), policy.interactionIds(), policy.kind(), policy.polarity(),
+        policy.text(), policy.fieldMapping(), policy.policyConflict(), accessFact(access).elementIntent());
+    return new DraftInput(draft.flow(), List.of(goal(), combined), draft.capabilities(), draft.openQuestions(), draft.settings());
+  }
+
   private static FactInput policyFact(Decision decision) {
     return new FactInput("policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
         "Requested NONE; corporate RBAC recommendation.", null, new RequirementPolicyConflict(
@@ -419,6 +449,22 @@ class RequirementPreservationCheckTest {
       try (var ignored = ToolSession.open(chat)) {
         return mapper.readValue(tools.updateRequirementDraft(update), RequirementCaptureResult.class);
       }
+    }
+
+    void selectPolicy(String action) {
+      var choices = new PolicyChoiceSelection(artifacts, sessions, conversations);
+      var offered = choices.pending(chat, 7).orElseThrow();
+      var command = new ChatDecisionCommand();
+      command.setArtifactType(PolicyChoiceSelection.ARTIFACT_TYPE);
+      command.setArtifactHash(offered.hash());
+      command.setRevision(7);
+      command.setAction(action);
+      String marker = ChatDecisionService.transcriptMarker(command);
+      var decision = mapper.valueToTree(command);
+      var source = archive.beginInput(chat, marker, decision);
+      archive.resolveInput(chat, source, marker, decision);
+      store.beginTurn(chat, marker);
+      assertTrue(choices.confirm(chat, command, 7).isPresent());
     }
 
     Reference lastAttempt() {

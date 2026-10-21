@@ -975,6 +975,44 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void typedContinuationKeepsTheFreshApprovalQuestionOnOneDurableCard() {
+    var facade = mock(CreateChainApplicationFacade.class);
+    var blank = new CreateChainPendingAction.Approve("requirement-brief", "sha256:brief", 5L, "");
+    when(facade.snapshot("conv-1")).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        "conv-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 5L, blank, "")));
+    when(facade.restartCheckpoints("conv-1")).thenReturn(List.of(RestartCheckpoint.BEGINNING));
+    when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().items(
+        new CreateChainEvent.Waiting(new CreateChainPendingAction.Approve(
+            "requirement-brief", "sha256:brief", 5L, "Approve the selected RBAC endpoint requirements?")),
+        new CreateChainEvent.Waiting(blank)));
+    var blobs = new InMemoryArtifactBlobStore();
+    var questions = new ApprovalQuestionStore(blobs);
+    var service = new ChatDecisionService(facade, questions, new RequirementDraftStore());
+    service.promptAgent = mock(ApprovalPromptAgent.class);
+
+    var events = service.apply("conv-1",
+        command(ChatEvent.REQUEST_CHANGES_ACTION, "requirement-brief", "sha256:previous", "Use the selected policy."))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(1, events.size());
+    var emitted = assertInstanceOf(ChatEvent.Decision.class, events.getFirst());
+    assertEquals("approve:sha256:brief", emitted.id());
+    assertEquals("approve", emitted.kind());
+    assertEquals("requirement-brief", emitted.artifactType());
+    assertEquals("sha256:brief", emitted.artifactHash());
+    assertEquals(5L, emitted.revision());
+    assertEquals("Approve the selected RBAC endpoint requirements?", emitted.question());
+    assertEquals(List.of(ChatEvent.APPROVE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION,
+        ChatEvent.RESTART_FROM_BEGINNING_ACTION), emitted.actions());
+    assertEquals(Optional.of(emitted.question()), questions.find("conv-1", "sha256:brief"));
+    assertTrue(questions.find("conv-1", "sha256:previous").isEmpty());
+    assertTrue(questions.find("other-conversation", "sha256:brief").isEmpty());
+    var restored = new ChatDecisionService(facade, new ApprovalQuestionStore(blobs), new RequirementDraftStore());
+    assertEquals(emitted, restored.openDecision("conv-1").orElseThrow());
+    org.mockito.Mockito.verifyNoInteractions(service.promptAgent);
+  }
+
+  @Test
   void openDecisionKeepsApprovalActionsWhenRestartCheckpointsAreAvailable() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-1"))

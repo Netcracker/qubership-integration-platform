@@ -33,6 +33,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -83,6 +86,7 @@ class RequirementAdmissionFeasibilityIT {
   @Inject ObjectMapper json;
   @Inject RequirementCaptureTools tools;
   @Inject RequirementDraftStore drafts;
+  @Inject PolicyChoiceSelection policyChoices;
   @Inject ConversationService conversations;
   @Inject DeterministicElementSchemaService schemas;
   @Inject RequirementDiscoveryCapability discovery;
@@ -179,6 +183,8 @@ class RequirementAdmissionFeasibilityIT {
         Turn.tool("corrected", request -> {
           assertFalse(lastTool(request).path("accepted").asBoolean());
           assertTrue(lastTool(request).path("issues").toString().contains("INVALID_VALUE"), lastTool(request).toString());
+          assertTrue(lastTool(request).path("issues").toString().contains("[A-Za-z][A-Za-z0-9_-]{0,63}"),
+              "The next provider request must contain the complete native identity constraint.");
         }, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", valid))),
         Turn.tool("continue", request -> assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString()),
             "finishRequirementDiscoveryTurn", "{\"directive\":\"CONTINUE\"}"),
@@ -215,60 +221,89 @@ class RequirementAdmissionFeasibilityIT {
       var answer = emptyUpdate();
       answer.withArray("updateFacts").add(json.valueToTree(policyFact(RequirementPolicyConflict.Decision.USE_RECOMMENDED)));
       answer.withArray("removeQuestionIds").add("policy-choice");
-      var correction = emptyUpdate();
-      correction.withArray("updateFacts").add(json.valueToTree(accessFact("RBAC")));
-      var graph = new ChainPlanGraph("1.0", new ChainSection("Policy.Check", ""),
-          List.of(new ChainPlanNode("entry", "http-trigger", "Entry", null, null, accessProperties("RBAC"))), List.of());
-      var expectedAnswer = RequirementCaptureEditor.apply(unresolved, json.convertValue(answer, DraftUpdate.class));
-      assertTrue(expectedAnswer.accepted(), expectedAnswer.issues().toString());
-      var expectedCorrection = RequirementCaptureEditor.apply(expectedAnswer.draft(),
-          json.convertValue(correction, DraftUpdate.class));
-      assertTrue(expectedCorrection.accepted(), expectedCorrection.issues().toString());
-      var proposed = expectedCorrection.draft();
-      var brief = RequirementBriefProjector.project(new RequirementBrief("Check policy handling", List.of(), List.of(),
-          List.of(), List.of(), "", null, "", RequirementCaptureProjection.facts(proposed))
-          .withFlow(RequirementCaptureProjection.flow(proposed)));
-      var inputs = new RequirementRevisionAdmission.NativeInputs(brief, graph);
       var script = new ScriptedStreamingChatModel(
           Turn.tool("modeled-answer", request -> {}, "updateRequirementDraft",
               json.writeValueAsString(Map.of("changes", answer))),
-          Turn.tool("representation-correction", request -> {
-            assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
-            assertEquals(RequirementPolicyConflict.Decision.USE_RECOMMENDED,
-                drafts.confirmedAnswers(chat).getFirst().policy().decision());
-            assertTrue(drafts.get(chat).orElseThrow().authoredDraft().openQuestions().isEmpty());
-          }, "updateRequirementDraft", json.writeValueAsString(Map.of("changes", correction))),
-          Turn.tool("retain-refusal", request -> {
+          Turn.tool("retain-unselected-question", request -> {
             assertFalse(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
-            var report = inspectRejectedCandidate(chat, request, inputs);
-            assertEquals(RequirementRevisionAdmission.PreservationOutcome.UNPROVEN, report.outcome());
-            assertTrue(report.findings().stream().anyMatch(finding -> finding.checker().contains("policy")
-                && finding.outcome() == RequirementRevisionAdmission.PreservationOutcome.VERIFIED),
-                report.findings().toString());
-            for (String checker : List.of("RequirementBriefCoverageValidator", "RequestedElementValues",
-                "CompilerQualityValidator", "CompilerSecurityValidator")) {
-              assertTrue(report.findings().stream().anyMatch(finding -> checker.equals(finding.checker())
-                  && finding.outcome() == RequirementRevisionAdmission.PreservationOutcome.VERIFIED),
-                  checker + ": " + report.findings());
-            }
-            assertTrue(report.findings().stream().anyMatch(finding -> "author-origin".equals(finding.checker())
-                && finding.outcome() == RequirementRevisionAdmission.PreservationOutcome.UNPROVEN));
-            var diagnostic = (ObjectNode) diagnostics.get(chat);
-            diagnostic.put("authorReply", reply);
-            diagnostic.put("modeledChoice", "USE_RECOMMENDED");
-            diagnostic.put("nativeConsumerInputs", "Diagnostic typed brief and graph fixtures; no construction artifact was produced");
-            diagnostic.set("diagnosticGraph", json.valueToTree(graph));
-            diagnostic.set("diagnosticBrief", json.valueToTree(brief));
+            assertTrue(lastTool(request).path("issues").toString().contains("POLICY_RESPONSE_REQUIRED"));
+            assertTrue(drafts.confirmedAnswers(chat).isEmpty());
+            assertTrue(drafts.trustedPolicyChoices(chat).isEmpty());
+            assertEquals(unresolved, drafts.get(chat).orElseThrow().authoredDraft());
+            inspectRejectedCandidate(chat, request);
           }, "finishRequirementDiscoveryTurn", "{\"directive\":\"STAY\"}"),
-          Turn.text("settled", request -> {}, "Native refusal retained; author authority remains unproven."));
+          Turn.text("settled", request -> {}, "The persisted choice still requires a validated option selection."));
       var outcome = execute(chat, reply, script);
       assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
-      assertEquals("NONE", drafts.get(chat).orElseThrow().authoredDraft().facts().stream()
-          .filter(fact -> fact.sourceFactId().equals("access")).findFirst().orElseThrow().elementIntent()
-          .requestedProperties().stream().filter(property -> property.key().equals("accessControlType"))
-          .findFirst().orElseThrow().value());
+      assertTrue(outcome.recoveryCause().findings().stream().anyMatch(finding ->
+          "AUTHOR_QUESTION_NOT_SUPPORTED".equals(finding.code())),
+          "The old question has not reviewed the new reply; this is producer work, not proof of missing author data.");
+      assertEquals(unresolved, drafts.get(chat).orElseThrow().authoredDraft());
       save(variant, chat, script, outcome);
     }
+  }
+
+  @Test
+  void independentlySelectedPropertyCorrectionPassesNativePreservationChecksBeforeAdmissionChanges() throws Exception {
+    String chat = "typed-policy-correction-" + UUID.randomUUID();
+    String source = "Create external POST /policy-check with externalRoute=true and accessControlType=NONE. "
+        + "If RBAC is selected use exactly role qip-viewer. Proceed without IDS.";
+    var input = archiveSource(chat, source);
+    var unresolved = policyDraft(input.turnId());
+    var first = new ScriptedStreamingChatModel(
+        Turn.tool("question", request -> {}, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", unresolved))),
+        Turn.tool("wait", request -> assertTrue(lastTool(request).path("accepted").asBoolean()),
+            "finishRequirementDiscoveryTurn", "{\"directive\":\"STAY\"}"),
+        Turn.text("asked", request -> {}, "Keep NONE or use recommended RBAC?"));
+    var awaiting = executeArchived(chat, source, first);
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, awaiting.outcomeClass());
+    save("typed-policy-question", chat, first, awaiting);
+    var offer = policyChoices.pending(chat, 7).orElseThrow();
+    var command = new ChatDecisionCommand();
+    command.setArtifactType(PolicyChoiceSelection.ARTIFACT_TYPE);
+    command.setArtifactHash(offer.hash());
+    command.setRevision(7);
+    command.setAction("use-recommended");
+    String marker = ChatDecisionService.transcriptMarker(command);
+    var selectedSource = archiveSource(chat, marker, command);
+    var selected = policyChoices.confirm(chat, command, 7).orElseThrow();
+    var correction = emptyUpdate();
+    correction.withArray("updateFacts").add(json.valueToTree(policyFact(RequirementPolicyConflict.Decision.USE_RECOMMENDED)));
+    correction.withArray("updateFacts").add(json.valueToTree(accessFact("RBAC")));
+    correction.withArray("removeQuestionIds").add("policy-choice");
+    var proposed = RequirementCaptureEditor.apply(unresolved, json.convertValue(correction, DraftUpdate.class)).draft();
+    var brief = RequirementBriefProjector.project(new RequirementBrief("Check policy handling", List.of(), List.of(),
+        List.of(), List.of(), "", null, "", RequirementCaptureProjection.facts(proposed))
+        .withFlow(RequirementCaptureProjection.flow(proposed)));
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Policy.Check", ""), List.of(
+        new ChainPlanNode("entry", "http-trigger", "Entry", null, null, accessProperties("RBAC"))), List.of());
+    var consumers = new RequirementRevisionAdmission.NativeInputs(brief, graph);
+    var script = new ScriptedStreamingChatModel(
+        Turn.tool("selected-policy-correction", request -> assertTrue(requestText(request).contains(marker)),
+            "updateRequirementDraft", json.writeValueAsString(Map.of("changes", correction))),
+        Turn.tool("inspect-native-refusal", request -> {
+          assertFalse(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
+          assertEquals(unresolved, drafts.get(chat).orElseThrow().authoredDraft());
+          assertTrue(drafts.confirmedAnswers(chat).isEmpty());
+          assertEquals(selectedSource.turnId(), conversations.archive().pendingInputs(chat).getFirst().id());
+          var report = inspectRejectedCandidate(chat, request, consumers, true);
+          assertTrue(report.changedPaths().containsAll(List.of("/facts/access/elementIntent/requestedProperties/1/value",
+              "/facts/policy/policyConflict/decision", "/openQuestions/policy-choice/text", "/recordOrder/openQuestions/0")),
+              report.changedPaths().toString());
+          assertTrue(report.findings().stream().anyMatch(finding -> finding.checker().equals("author-origin")
+              && finding.evidenceReferences().contains(selected.reference())));
+          for (String checker : List.of("RequirementBriefCoverageValidator", "RequestedElementValues",
+              "CompilerQualityValidator", "CompilerSecurityValidator")) {
+            assertTrue(report.findings().stream().anyMatch(finding -> checker.equals(finding.checker())
+                && finding.outcome() == RequirementRevisionAdmission.PreservationOutcome.VERIFIED), checker);
+          }
+        }, "finishRequirementDiscoveryTurn", "{\"directive\":\"STAY\"}"),
+        Turn.text("settled", request -> {}, "Diagnostic preservation verified; live admission is still unchanged."));
+    var outcome = executeArchived(chat, marker, script);
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+    assertEquals(unresolved, drafts.get(chat).orElseThrow().authoredDraft());
+    assertEquals(selectedSource.turnId(), conversations.archive().pendingInputs(chat).getFirst().id());
+    save("typed-policy-correction", chat, script, outcome);
   }
 
   private DraftInput policyDraft(String sourceTurnId) {
@@ -308,8 +343,13 @@ class RequirementAdmissionFeasibilityIT {
   }
 
   private ConversationArchive.Input archiveSource(String chat, String source) throws Exception {
-    var input = conversations.archive().beginInput(chat, source, null);
-    conversations.archive().resolveInput(chat, input, source);
+    return archiveSource(chat, source, null);
+  }
+
+  private ConversationArchive.Input archiveSource(String chat, String source, ChatDecisionCommand command) throws Exception {
+    var decision = command == null ? null : json.valueToTree(command);
+    var input = conversations.archive().beginInput(chat, source, decision);
+    conversations.archive().resolveInput(chat, input, source, decision);
     String sourceRead = conversations.archive().readSource(chat, input.turnId(), 0, 16000);
     assertEquals(source, json.readTree(sourceRead.substring(sourceRead.indexOf('\n') + 1)).path("rawText").asText());
     return input;
@@ -369,12 +409,18 @@ class RequirementAdmissionFeasibilityIT {
 
   private RequirementRevisionAdmission.PreservationReport inspectRejectedCandidate(String chat,
       ChatRequest nextRequest, RequirementRevisionAdmission.NativeInputs nativeInputs) {
+    return inspectRejectedCandidate(chat, nextRequest, nativeInputs, false);
+  }
+
+  private RequirementRevisionAdmission.PreservationReport inspectRejectedCandidate(String chat,
+      ChatRequest nextRequest, RequirementRevisionAdmission.NativeInputs nativeInputs, boolean expectVerified) {
     var pinned = drafts.rejectedCaptureRevision(chat).orElseThrow().reference();
     RejectedCandidate candidate = rejectedCandidate(chat, pinned, drafts, artifacts, conversations);
     assertEquals(json.valueToTree(candidate.changes()), lastToolCallArguments(nextRequest).path("changes"));
     var before = state(chat);
     var report = RequirementRevisionAdmission.evaluate(chat, pinned, drafts, artifacts, conversations, schemas, nativeInputs);
-    assertNotEquals(RequirementRevisionAdmission.PreservationOutcome.VERIFIED, report.outcome());
+    if (expectVerified) assertEquals(RequirementRevisionAdmission.PreservationOutcome.VERIFIED, report.outcome(), report.toString());
+    else assertNotEquals(RequirementRevisionAdmission.PreservationOutcome.VERIFIED, report.outcome());
     assertEquals(candidate.attemptRevision().reference(), report.attemptReference());
     assertEquals(candidate.baseRevision().reference(), report.baseReference());
     assertEquals(candidate.source().generation(), report.sourceGeneration());

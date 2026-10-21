@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection.TrustedSelection;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -128,11 +129,18 @@ final class RequirementRevisionAdmission {
     var after = diagnosticTree(candidate);
     var changed = new ArrayList<String>();
     changedPaths(before, after, "", changed);
+    var selectedChanges = selectedPolicyChanges(base, candidate, attempt.acceptedDraftReference(),
+        attempt.sourceGeneration(), attempt.sourceTurnId(), drafts.trustedPolicyChoices(conversationId));
     for (var path : changed) {
+      var selection = selectedChanges.get(path);
+      var originRefs = new ArrayList<>(references);
+      if (selection != null) originRefs.addAll(selection);
       findings.add(finding(path, owners(path, base, candidate), before.at(path).isMissingNode()
-          ? "candidate-addition" : "accepted-extraction", references, "author-origin", PreservationOutcome.UNPROVEN,
-          "No independent typed author selection or native meaning contract discharges this changed obligation."
-              + " Source occurrence, model labels, and an earlier draft do not establish its meaning."));
+          ? "candidate-addition" : selection == null ? "accepted-extraction" : "validated-policy-choice", originRefs,
+          "author-origin", selection == null ? PreservationOutcome.UNPROVEN : PreservationOutcome.VERIFIED,
+          selection == null ? "No independent typed author selection or native meaning contract discharges this changed obligation."
+              + " Source occurrence, model labels, and an earlier draft do not establish its meaning."
+              : "The exact policy decision, offered-question closure, or existing property value implements an independently validated selection for this unchanged owner and policy contract."));
     }
     if (changed.isEmpty()) {
       findings.add(finding("/", List.of(), "accepted-extraction", references, "representation-retention",
@@ -166,19 +174,22 @@ final class RequirementRevisionAdmission {
               PreservationOutcome.VERIFIED, "All recorded protected rejected values remain unchanged."));
         }
         losses.forEach(path -> findings.add(finding(path, owners(path, base, candidate), "rejected-capture-protection",
-            protectionRefs, "protected-retention", PreservationOutcome.UNPROVEN,
-            "A protected rejected value changed or disappeared; its independent meaning and dependencies remain unproved.")));
+            protectionRefs, "protected-retention", selectedChanges.containsKey(path)
+                ? PreservationOutcome.VERIFIED : PreservationOutcome.UNPROVEN,
+            selectedChanges.containsKey(path) ? "The independently selected option supersedes only this exact protected policy value."
+                : "A protected rejected value changed or disappeared; its independent meaning and dependencies remain unproved.")));
       }
     } else if (drafts.repairConstraints(conversationId) != null) {
       findings.add(finding("/protection", List.of(), "unresolved", references, "protection-identity",
           PreservationOutcome.UNPROVEN, "Active rejected protection has no matching persisted snapshot for this attempt."));
     }
     if (validation.isEmpty()) {
+      var bindingBase = selectedChanges.isEmpty() ? base : amended(base, candidate, selectedChanges.keySet());
       var bindings = baseDraft == null ? List.<org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint>of()
-          : baseDraft.catalogBindings().stream().filter(binding -> stableOwner(binding.interactionId(), base, candidate)).toList();
+          : baseDraft.catalogBindings().stream().filter(binding -> stableOwner(binding.interactionId(), bindingBase, candidate)).toList();
       var targets = new LinkedHashMap<String, String>();
       RequirementCaptureProjection.resolvedTargets(baseDraft).forEach((owner, target) -> {
-        if (stableOwner(owner, base, candidate)) targets.put(owner, target);
+        if (stableOwner(owner, bindingBase, candidate)) targets.put(owner, target);
         else findings.add(finding("/interactions/" + escape(owner), List.of(owner), "accepted-target-resolution", references,
             "binding-inputs", PreservationOutcome.UNPROVEN, "The owner changed; the accepted target cannot resolve this candidate."));
       });
@@ -200,8 +211,11 @@ final class RequirementRevisionAdmission {
         checkConsumers(candidate, baseDraft, bindings, targets, inputs, references, findings);
         for (var path : changed) {
           findings.add(finding(path, dependentOwners(owners(path, base, candidate), base, candidate),
-              "typed-consumer-dependencies", references, "consumer-coverage", PreservationOutcome.UNPROVEN,
-              "Independent origin and complete affected-consumer coverage are not established."
+              "typed-consumer-dependencies", references, "consumer-coverage", selectedChanges.containsKey(path)
+                  ? PreservationOutcome.VERIFIED : PreservationOutcome.UNPROVEN,
+              selectedChanges.containsKey(path)
+                  ? "This exact policy decision, offered-question closure, or selected property value follows the supported policy contract. Native schema, brief coverage, requested-value, quality, and security checks cover the correction; other changes retain their own findings."
+                  : "Independent origin and complete affected-consumer coverage are not established."
                   + " Kind, capability, binding, mapping, question, and order changes require their own native inputs;"
                   + " a disappearing readiness finding does not prove preservation."));
         }
@@ -217,6 +231,78 @@ final class RequirementRevisionAdmission {
   private static PreservationFinding finding(String path, List<String> owners, String origin, List<Reference> refs,
       String checker, PreservationOutcome outcome, String message) {
     return new PreservationFinding(path, List.copyOf(owners), origin, List.copyOf(refs), checker, outcome, message);
+  }
+
+  private static Map<String, List<Reference>> selectedPolicyChanges(DraftInput base, DraftInput candidate,
+      Reference baseReference, String sourceGeneration, String sourceTurnId, List<TrustedSelection> selections) {
+    var proven = new LinkedHashMap<String, List<Reference>>();
+    if (base == null || candidate == null || !RequirementCaptureEditor.validate(candidate).isEmpty()) return proven;
+    for (var trusted : selections) {
+      var selection = trusted.selection();
+      var offered = selection.offered().fact();
+      var policy = offered.policyConflict();
+      if (!CompilerSecurityValidator.matchesExternalRbacPolicy(policy)
+          || !Objects.equals(baseReference, selection.offered().draftReference())
+          || !Objects.equals(sourceGeneration, selection.sourceGeneration())
+          || !Objects.equals(sourceTurnId, selection.sourceTurnId()) || !base.facts().contains(offered)) continue;
+      var answered = new FactInput(offered.sourceFactId(), offered.interactionIds(), offered.kind(), offered.polarity(),
+          offered.text(), offered.fieldMapping(), new RequirementPolicyConflict(policy.policyId(), policy.propertyKey(),
+              policy.requestedValue(), policy.recommendedValue(), policy.questionId(), selection.decision()), offered.elementIntent());
+      var selectedFact = candidate.facts().stream().filter(fact -> fact.sourceFactId().equals(offered.sourceFactId()))
+          .findFirst().orElse(null);
+      if (selectedFact == null || !Objects.equals(selectedFact.policyConflict(), answered.policyConflict())) continue;
+      var propertyChanges = new LinkedHashMap<String, List<Reference>>();
+      var evidence = List.of(trusted.reference(), selection.offered().draftReference(),
+          selection.offered().questionDraftReference(), selection.sourceInput());
+      for (var fact : base.facts()) {
+        var intent = fact.elementIntent();
+        if (fact.polarity() != Polarity.POSITIVE || intent == null
+            || intent.placement() != RequirementElementIntent.Placement.ANCHOR
+            || !"http-trigger".equals(intent.elementType())
+            || intent.requestedProperties().stream().noneMatch(property -> "externalRoute".equals(property.key())
+                && "true".equalsIgnoreCase(property.value()))
+            || !Objects.equals(intent.elementRef(), intent.ownerInteractionId())
+            || !offered.interactionIds().equals(List.of(intent.elementRef()))
+            || base.flow().interactions().stream().noneMatch(owner -> owner.interactionId().equals(intent.elementRef())
+                && owner.direction() == org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND
+                && candidate.flow().interactions().contains(owner))
+            || base.capabilities().stream().noneMatch(capability -> capability.interactionId().equals(intent.elementRef())
+                && "http-trigger".equals(capability.capabilityKey()) && candidate.capabilities().contains(capability))) continue;
+        var replacement = candidate.facts().stream().filter(value -> value.sourceFactId().equals(fact.sourceFactId()))
+            .findFirst().map(FactInput::elementIntent).orElse(null);
+        if (replacement == null || !Objects.equals(intent.elementRef(), replacement.elementRef())
+            || !Objects.equals(intent.elementType(), replacement.elementType())
+            || intent.placement() != replacement.placement()
+            || !Objects.equals(intent.ownerInteractionId(), replacement.ownerInteractionId())
+            || intent.requestedProperties().size() != replacement.requestedProperties().size()) continue;
+        for (int index = 0; index < intent.requestedProperties().size(); index++) {
+          var before = intent.requestedProperties().get(index);
+          var after = replacement.requestedProperties().get(index);
+          if (Objects.equals(before.key(), policy.propertyKey()) && Objects.equals(before.key(), after.key())
+              && !Objects.equals(before.value(), after.value()) && Objects.equals(after.value(), selection.selectedValue())) {
+            propertyChanges.put("/facts/" + escape(fact.sourceFactId()) + "/elementIntent/requestedProperties/" + index + "/value", evidence);
+          }
+        }
+      }
+      if (propertyChanges.isEmpty()) continue;
+      String decisionPath = "/facts/" + escape(offered.sourceFactId()) + "/policyConflict/decision";
+      var policyPaths = new java.util.HashSet<>(propertyChanges.keySet());
+      policyPaths.add(decisionPath);
+      var normalized = amended(base, candidate, policyPaths);
+      if (!normalized.facts().stream().filter(fact -> fact.sourceFactId().equals(offered.sourceFactId()))
+          .findFirst().filter(selectedFact::equals).isPresent()) continue;
+      proven.putAll(propertyChanges);
+      proven.put(decisionPath, evidence);
+      var question = selection.offered().question();
+      var remainingQuestions = base.openQuestions().stream().filter(value -> !value.questionId().equals(question.questionId())).toList();
+      if (base.openQuestions().contains(question) && remainingQuestions.equals(candidate.openQuestions())) {
+        var closed = new DraftInput(base.flow(), base.facts(), base.capabilities(), remainingQuestions, base.settings());
+        var closurePaths = new ArrayList<String>();
+        changedPaths(diagnosticTree(base), diagnosticTree(closed), "", closurePaths);
+        closurePaths.forEach(path -> proven.put(path, evidence));
+      }
+    }
+    return Map.copyOf(proven);
   }
 
   private static PreservationReport report(Reference base, Reference attempt, String generation, String turn,

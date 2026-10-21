@@ -175,8 +175,9 @@ class RequirementCaptureProviderTest {
     String repeated = provider.toolExecutorByName("captureRequirementDraft").execute(
         ToolExecutionRequest.builder().id("2").name("captureRequirementDraft")
             .arguments("{\"draft\":{},\"draft\":{}}").build(), conversationId);
-    assertEquals("STOP", mapper.readTree(repeated).get("nextAction").asText());
-    assertTrue(mapper.readTree(repeated).get("issues").toString()
-        .contains("REPEATED_REJECTION"));
+    assertEquals("REPAIR_CAPTURE", mapper.readTree(repeated).get("nextAction").asText());
+    assertEquals("DUPLICATE_JSON_KEY", mapper.readTree(repeated).get("issues").get(0)
+        .get("code").asText());
+    assertTrue(store.get(conversationId).isEmpty());
   }
 }

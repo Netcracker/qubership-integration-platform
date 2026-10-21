@@ -81,7 +81,7 @@ class RequirementCaptureProjectionTest {
       boolean supplied = roles.equals("[\"qip-viewer\"]");
 
       assertEquals(supplied, draft.readyForPlan(), roles);
-      assertEquals(supplied, draft.openQuestions().isEmpty(), roles);
+      assertTrue(draft.openQuestions().isEmpty(), "Pending roles do not establish an author question: " + roles);
       assertEquals(input, draft.authoredDraft());
       if (!supplied) {
         var question = RequirementCaptureProjection.pending(input, List.of()).stream()
@@ -106,7 +106,7 @@ class RequirementCaptureProjectionTest {
               "/check", null, null, null)), List.of(), new DraftSettings(false, null));
       var draft = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
       assertEquals(decision == RequirementPolicyConflict.Decision.KEEP_REQUESTED, draft.readyForPlan());
-      assertEquals(decision == RequirementPolicyConflict.Decision.KEEP_REQUESTED, draft.openQuestions().isEmpty());
+      assertTrue(draft.openQuestions().isEmpty());
       assertEquals(policy, draft.authoredDraft().facts().getFirst().policyConflict());
     }
   }
@@ -232,6 +232,7 @@ class RequirementCaptureProjectionTest {
 
       assertEquals(example.getValue(), draft.readyForPlan(), example.getKey());
       assertEquals(example.getValue(), pending.isEmpty(), example.getKey());
+      assertTrue(draft.openQuestions().isEmpty(), "Review the source before asking for an endpoint.");
       assertTrue(draft.facts().stream().anyMatch(f -> f.sourceFactId().equals("helper-behavior")
           && f.text().equals(input.facts().getFirst().text())));
       if (!example.getValue()) {

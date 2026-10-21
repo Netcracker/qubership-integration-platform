@@ -23,6 +23,9 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.compiler.artifact.*;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.*;
@@ -148,13 +151,25 @@ class LateRequirementDraftRecoveryTest {
     Harness(String observingStage, boolean briefOnly, boolean rejectedCandidate,
         boolean omitBriefCandidate, boolean mixedFindings) throws Exception {
       when(conversations.archive()).thenReturn(archive);
-      drafts = new RequirementDraftStore(storage, new CompilationSessions(blobs, JSON, clock), conversations);
+      var sessions = new CompilationSessions(blobs, JSON, clock);
+      drafts = new RequirementDraftStore(storage, sessions, conversations);
       tools = new RequirementCaptureTools(drafts, mock(RequirementDraftTool.class), JSON);
       source("Create POST /tasks. Preserve request IDs and all inputs. Use NONE access control. Proceed without IDS.");
       String initialText = briefOnly ? CORRECT : WRONG;
       try (var ignored = ToolSession.open(CHAT)) {
         accepted(tools.captureRequirementDraft(draft(initialText, null)));
-        source("Keep NONE despite the RBAC recommendation.");
+        var choices = new PolicyChoiceSelection(storage, sessions, conversations);
+        var offered = choices.pending(CHAT, 7).orElseThrow();
+        var command = new ChatDecisionCommand();
+        command.setAction(ChatEvent.KEEP_REQUESTED_ACTION);
+        command.setArtifactType(PolicyChoiceSelection.ARTIFACT_TYPE);
+        command.setArtifactHash(offered.hash());
+        command.setRevision(7);
+        String marker = ChatDecisionService.transcriptMarker(command);
+        var selectedSource = archive.beginInput(CHAT, marker, JSON.valueToTree(command));
+        archive.resolveInput(CHAT, selectedSource, marker, JSON.valueToTree(command));
+        drafts.beginTurn(CHAT, marker);
+        assertTrue(choices.confirm(CHAT, command, 7).isPresent());
         accepted(tools.updateRequirementDraft(edit(List.of(
             draft(initialText, RequirementPolicyConflict.Decision.KEEP_REQUESTED).facts().get(2)), List.of("choice"))));
       }

@@ -5,16 +5,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Base64;
 import java.time.Clock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 
 class CaptureAttemptFeedbackStoreTest {
 
@@ -143,6 +148,68 @@ class CaptureAttemptFeedbackStoreTest {
         artifacts, sessions).lastRequirementRejection("chat").isEmpty());
     assertEquals(2, artifacts.history(sessions.active("chat"),
         CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_FEEDBACK).size());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void nativeRequirementEvidenceReachesRecoveryAfterReloadWithoutWriting(boolean legacyPayload) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        artifacts, sessions);
+    var issues = List.of(new TypedIssue("INVALID_REQUESTED_PROPERTY",
+        "/draft/facts/http-settings/elementIntent/requestedProperties/roles", "Use an array of role names.",
+        "http-settings", mapper.valueToTree(Map.of("expectedType", "array"))),
+        new TypedIssue("UNKNOWN_INTERACTION_REFERENCE", "/draft/facts/2/interactionIds/0",
+            "Target must name an accepted interaction.", "context"));
+    if (legacyPayload) {
+      var legacyFeedback = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "Rejected native fields",
+          CaptureFailureClass.IDENTICAL_SPAM, false, List.of(), "", true);
+      var payload = mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(
+          new CaptureAttemptFeedbackStore.RequirementFeedback(
+              new CaptureAttemptFeedbackStore.RequirementRejection(legacyFeedback, issues)));
+      ((com.fasterxml.jackson.databind.node.ObjectNode) payload.at("/rejection/feedback"))
+          .remove(List.of("issues", "evidenceReference"));
+      artifacts.append(new CompilationArtifacts.AppendCommand(sessions.active("chat"),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_FEEDBACK, "1", "requirement-capture-feedback", "1",
+          payload, List.of(), null));
+    } else {
+      first.recordClassifiedRequirementFailure("chat", CaptureFailureKind.VALIDATION,
+          CaptureFailureClass.IDENTICAL_SPAM, false, "Rejected native fields", issues, true);
+    }
+    var saved = artifacts.latest(sessions.active("chat"),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_FEEDBACK).orElseThrow();
+    var beforeReads = blobSnapshot(blobs);
+    var original = first.lastRequirementFailure("chat").orElseThrow();
+    var reloadedArtifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var reloadedSessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var restored = new CaptureAttemptFeedbackStore(
+        new ToolCallFingerprintStore(mapper, reloadedArtifacts, reloadedSessions), reloadedArtifacts, reloadedSessions);
+    var feedback = restored.lastRequirementFailure("chat").orElseThrow();
+    assertEquals(original, feedback);
+    assertEquals(saved.reference(), feedback.evidenceReference());
+    assertEquals(issues, feedback.issues());
+    var cause = RecoveryCause.captureFailure(feedback, List.of(), null);
+    assertTrue(cause.noProgress());
+    assertEquals(issues.stream().map(TypedIssue::code).toList(),
+        cause.findings().stream().map(finding -> finding.code()).toList());
+    assertEquals(issues.stream().map(TypedIssue::entityId).toList(),
+        cause.findings().stream().map(finding -> finding.originRecordId()).toList());
+    assertEquals(issues.stream().map(TypedIssue::path).toList(),
+        cause.findings().stream().map(finding -> finding.fieldPointer()).toList());
+    assertEquals(issues, cause.captureFailure().feedback().issues());
+    assertEquals(saved.reference(), cause.captureFailure().feedback().evidenceReference());
+    assertEquals(saved.reference(), restored.lastRequirementFeedbackReference("chat").orElseThrow());
+    assertEquals(beforeReads, blobSnapshot(blobs));
+  }
+
+  private static Map<String, String> blobSnapshot(InMemoryArtifactBlobStore blobs) {
+    return blobs.list("").stream().collect(java.util.stream.Collectors.toMap(key -> key, key -> {
+      var blob = blobs.getVersioned(key).orElseThrow();
+      return blob.version() + ":" + Base64.getEncoder().encodeToString(blob.content());
+    }));
   }
 
   @Test

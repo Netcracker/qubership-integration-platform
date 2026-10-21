@@ -320,6 +320,21 @@ class RequirementCaptureEditorTest {
   }
 
   @Test
+  void invalidIdentityFeedbackContainsTheCompleteNativeConstraint() {
+    for (String id : List.of("7start", "salesforce.createTask", "two words", "a".repeat(65))) {
+      var invalid = new DraftInput(new FlowInput(List.of(new InteractionInput(id, Direction.INBOUND,
+          "Caller", "start", null, null, null)), List.of()), List.of(), List.of(), List.of(),
+          new DraftSettings(false, null));
+      var issue = RequirementCaptureEditor.initialize(invalid).issues().stream()
+          .filter(value -> "INVALID_VALUE".equals(value.code())
+              && "/draft/flow/interactions/0/interactionId".equals(value.path())).findFirst().orElseThrow();
+      assertTrue(issue.message().contains("[A-Za-z][A-Za-z0-9_-]{0,63}"), issue.message());
+    }
+    assertTrue(RequirementCaptureEditor.validFactId("a".repeat(64)));
+    assertTrue(RequirementCaptureEditor.validFactId("sf_create-Task9"));
+  }
+
+  @Test
   void missingInteractionIdentityReturnsIssue() {
     DraftInput invalid = new DraftInput(
         new FlowInput(List.of(new InteractionInput(null, Direction.INBOUND,

@@ -993,7 +993,8 @@ public final class RequirementCaptureEditor {
   private static void checkId(List<Issue> issues, String id, String path) {
     if (id == null || !LOCAL_ID.matcher(id).matches()) {
       add(issues, "INVALID_VALUE", path, null,
-          "Use a local ID beginning with a letter and at most 64 characters.");
+          "Use a local ID matching " + LOCAL_ID.pattern()
+              + ": start with an ASCII letter, then use letters, digits, underscores, or hyphens.");
     }
   }
 

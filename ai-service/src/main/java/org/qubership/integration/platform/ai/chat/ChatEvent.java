@@ -19,6 +19,10 @@ public sealed interface ChatEvent {
 
   String REQUEST_CHANGES_ACTION = "request-changes";
 
+  String KEEP_REQUESTED_ACTION = "keep-requested";
+
+  String USE_RECOMMENDED_ACTION = "use-recommended";
+
   /** Leaves requirement discussion and starts planning from the ready draft. */
   String CONTINUE_TO_PLANNING_ACTION = "continue-to-planning";
 

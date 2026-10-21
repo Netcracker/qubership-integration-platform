@@ -11,6 +11,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.HttpTriggerCaptureTool;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool.CaptureIssue;
 import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
@@ -42,6 +43,9 @@ public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgu
 
   @Override
   public ToolErrorHandlerResult handle(Throwable error, ToolErrorContext context) {
+    for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+      if (cause instanceof CaptureNoProgressException stopped) throw stopped;
+    }
     String toolName =
         context == null || context.toolExecutionRequest() == null
             ? "the tool"
