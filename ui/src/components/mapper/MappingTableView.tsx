@@ -1829,8 +1829,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 setSearchString(v);
                 updateControlsState({ searchString: v });
               }}
-              placeholder="Full text search"
-              allowClear
+              placeholder="Search attributes..."
             />
             {columnSettingsButton}
             <Dropdown

@@ -108,7 +108,6 @@ export const CommonVariables = () => {
               value: searchTerm,
               onChange: setSearchTerm,
               placeholder: "Search variables...",
-              allowClear: true,
             }}
             filterButton={filterButton}
             actions={

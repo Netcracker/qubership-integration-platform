@@ -4,12 +4,14 @@ import { MenuItem } from "./ElementsLibrarySidebar";
 
 type SidebarSearchProps = {
   items: readonly MenuItem[];
+  placeholder: string;
   onSearch: (filtered: MenuItem[], openKeys: string[]) => void;
   onClear: () => void;
 };
 
 export const SidebarSearch: React.FC<SidebarSearchProps> = ({
   items,
+  placeholder,
   onSearch,
   onClear,
 }) => {
@@ -61,6 +63,7 @@ export const SidebarSearch: React.FC<SidebarSearchProps> = ({
   return (
     <CompactSearch
       style={{ width: "100%" }}
+      placeholder={placeholder}
       value={value}
       onChange={(v) => {
         setValue(v);
@@ -68,7 +71,6 @@ export const SidebarSearch: React.FC<SidebarSearchProps> = ({
         else onClear();
       }}
       onClear={onClear}
-      allowClear
     />
   );
 };

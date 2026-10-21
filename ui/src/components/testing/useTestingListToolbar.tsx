@@ -36,7 +36,6 @@ export function useTestingListToolbar({
           onChange: onSearchChange,
           onSearchConfirm,
           placeholder: searchPlaceholder,
-          allowClear: true,
         }}
         filterButton={filterButton}
         columnSettingsButton={columnSettingsButton}

@@ -433,7 +433,6 @@ export const Diagnostic: React.FC = () => {
           value={searchString}
           onChange={setSearchString}
           placeholder="Search validations..."
-          allowClear
           className={commonStyles["searchField"]}
         />
         {columnSettingsButton}
