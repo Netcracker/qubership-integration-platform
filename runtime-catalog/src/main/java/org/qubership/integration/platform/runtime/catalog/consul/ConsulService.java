@@ -60,9 +60,6 @@ public class ConsulService {
     @Value("${consul.keys.engines-state}")
     private String keyEnginesState;
 
-    @Value("${consul.keys.scheduler-leaders}")
-    private String keySchedulerLeaders;
-
     @Value("${consul.keys.libraries-update}")
     private String keyLibrariesUpdate;
 
@@ -166,19 +163,6 @@ public class ConsulService {
     public void updateLibraries(List<CompiledLibraryUpdate> libs) {
         log.debug("Update deployments modification timestamp");
         client.createOrUpdateKV(keyPrefix + keyEngineConfigRoot + keyLibrariesUpdate, libs);
-    }
-
-    public List<KeyResponse> getSchedulerLeaderKeys() {
-        try {
-            return client.getKV(keyPrefix + keyEngineConfigRoot + keySchedulerLeaders + "/", true);
-        } catch (KVNotFoundException e) {
-            return List.of();
-        }
-    }
-
-    // Consul lists a key without the leading slash that the catalog's key paths start with.
-    public boolean deleteSchedulerLeaderKey(KeyResponse key) {
-        return client.deleteKeyIfUnchanged("/" + key.getKey(), key.getModifyIndex());
     }
 
     public void deleteChainRuntimeConfig(String chainId) {

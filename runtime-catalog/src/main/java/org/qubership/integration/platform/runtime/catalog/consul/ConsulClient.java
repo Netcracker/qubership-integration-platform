@@ -54,7 +54,6 @@ public class ConsulClient {
     public static final String CONSUL_TXN_PATH = "/v1/txn";
     public static final String CONSUL_KV_QUERY_PARAMS = "?recurse={recurse}&index={index}&wait={wait}";
     public static final String CONSUL_KV_DELETE_PARAMS = "?recurse={recurse}";
-    public static final String CONSUL_KV_CAS_PARAMS = "?cas={cas}";
 
     private final String consulUrl;
 
@@ -106,18 +105,6 @@ public class ConsulClient {
         if (!"true".equalsIgnoreCase(response.getBody())) {
             throw new RuntimeException("Failed remove KEY in consul, response: " + response);
         }
-    }
-
-    /**
-     * Deletes {@code key} only while its modify index is still {@code modifyIndex}.
-     *
-     * @return whether Consul deleted the key
-     */
-    public boolean deleteKeyIfUnchanged(String key, long modifyIndex) {
-        HttpEntity<Object> entity = new HttpEntity<>(buildCommonHeaders());
-        ResponseEntity<String> response = restTemplate.exchange(consulUrl + CONSUL_KV_PATH + key + CONSUL_KV_CAS_PARAMS,
-                HttpMethod.DELETE, entity, String.class, Map.of("cas", modifyIndex));
-        return "true".equalsIgnoreCase(response.getBody());
     }
 
     /**
