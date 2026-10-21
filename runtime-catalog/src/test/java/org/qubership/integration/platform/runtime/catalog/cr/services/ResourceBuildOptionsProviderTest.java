@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.cr.services;
 
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.camelk.model.options.DBaaSOperatorType;
+import org.qubership.integration.platform.camelk.model.options.DBaaSOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildOptionsCustomizer;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
@@ -34,13 +36,21 @@ import static org.mockito.Mockito.verify;
 
 /**
  * Covers {@link ResourceBuildOptionsProvider#getOptions}: the configured scalar values reach the
- * built options, the environment map is merged with the monitoring and default-secret flags, and
- * every registered customizer runs against the request and the built options.
+ * built options, the environment map is merged with the monitoring and default-secret flags, the
+ * {@code cip.cr.build.dbaas} properties bind into the DBaaS options, and every registered
+ * customizer runs against the request and the built options.
  */
 class ResourceBuildOptionsProviderTest {
 
     private ResourceBuildOptionsProvider provider(List<ResourceBuildOptionsCustomizer> customizers) {
-        ResourceBuildOptionsProvider provider = new ResourceBuildOptionsProvider(new MockEnvironment(), customizers);
+        return provider(new MockEnvironment(), customizers);
+    }
+
+    private ResourceBuildOptionsProvider provider(
+            MockEnvironment environment,
+            List<ResourceBuildOptionsCustomizer> customizers
+    ) {
+        ResourceBuildOptionsProvider provider = new ResourceBuildOptionsProvider(environment, customizers);
         ReflectionTestUtils.setField(provider, "namespace", "team-namespace");
         ReflectionTestUtils.setField(provider, "replicas", 3);
         ReflectionTestUtils.setField(provider, "serviceAccount", "build-runner");
@@ -68,6 +78,32 @@ class ResourceBuildOptionsProviderTest {
                 .containsEntry("LOG_LEVEL", "DEBUG")
                 .containsEntry("MONITORING_ENABLED", "true")
                 .containsEntry("DEFAULT_SECRET_ENABLED", "true");
+    }
+
+    @Test
+    void getOptionsBindsTheDbaasProperties() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("cip.cr.build.dbaas.enabled", "false")
+                .withProperty("cip.cr.build.dbaas.operatorType", "DBAAS")
+                .withProperty("cip.cr.build.dbaas.operatorNamespace", "dbaas-system");
+        ResourceDeployRequest request = ResourceDeployRequest.builder().name("orders-service").build();
+
+        DBaaSOptions dbaas = provider(environment, List.of()).getOptions(request).getDbaas();
+
+        assertThat(dbaas.isEnabled()).isFalse();
+        assertThat(dbaas.getOperatorType()).isEqualTo(DBaaSOperatorType.DBAAS);
+        assertThat(dbaas.getOperatorNamespace()).isEqualTo("dbaas-system");
+    }
+
+    @Test
+    void getOptionsUsesTheDbaasDefaultsWhenNoPropertyIsSet() {
+        ResourceDeployRequest request = ResourceDeployRequest.builder().name("orders-service").build();
+
+        DBaaSOptions dbaas = provider(List.of()).getOptions(request).getDbaas();
+
+        assertThat(dbaas.isEnabled()).isTrue();
+        assertThat(dbaas.getOperatorType()).isEqualTo(DBaaSOperatorType.CORE);
+        assertThat(dbaas.getOperatorNamespace()).isEqualTo("dbaas");
     }
 
     @Test
