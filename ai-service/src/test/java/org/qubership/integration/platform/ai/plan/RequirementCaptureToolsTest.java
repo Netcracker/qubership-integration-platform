@@ -63,6 +63,41 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextA
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+  @Test
+  void rejectedPropertyCarriesItsRuntimeSchemaAndCorrectedJsonTextCanContinue() throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(),
+        "Accept POST /tasks with RBAC role qip-auditor, then submit one task to https://example.com/tasks.");
+    var base = readyHttpDraft();
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      for (String roles : List.of("{}", "[\"qip-auditor\"]")) {
+        var intent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+            "entry", null, null, null, List.of(
+                new org.qubership.integration.platform.ai.plan.model.PlanProperty("accessControlType", "RBAC"),
+                new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", roles)), List.of());
+        var fact = new FactInput("access", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+            "Use RBAC role qip-auditor.", null, null, intent);
+        var facts = new ArrayList<>(base.facts());
+        facts.add(fact);
+        var result = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(new DraftInput(
+            base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings()))), RequirementCaptureResult.class);
+        if (roles.equals("{}")) {
+          assertFalse(result.accepted());
+          var issue = result.issues().stream().filter(i -> i.code().equals("INVALID_REQUESTED_PROPERTY"))
+              .findFirst().orElseThrow();
+          assertTrue(issue.message().contains(h.tools().elementSchemas.describeElementProperty("http-trigger", "roles")),
+              issue.message());
+        } else {
+          assertTrue(result.accepted(), result.toString());
+          assertTrue(h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+              RequirementCaptureResult.class).accepted());
+        }
+      }
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"invalid local ref", "9invalid"})
   void rejectedLocalIdentityDoesNotBecomeAProtectedValue(String invalidRef) throws Exception {
