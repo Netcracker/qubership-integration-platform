@@ -62,13 +62,13 @@ class AsyncapiSpecificationParserSchemaTest {
     private static final String ORDER_MESSAGE = "Order: {payload: " + ORDER_SCHEMA + "}";
     private static final String ALIAS_MESSAGE = "Alias: {$ref: '#/components/messages/Order'}";
     private static final String JSON_SCHEMA_FORMAT = "'application/schema+json;version=draft-07'";
-    private static final String CLOSED_SCHEMAS = "schemas: {Closed: {schemaFormat: " + JSON_SCHEMA_FORMAT
-            + ", schema: " + CLOSED_OBJECT + "}}";
+    private static final String CLOSED_ENTRY = "Closed: {schemaFormat: " + JSON_SCHEMA_FORMAT + ", schema: " + CLOSED_OBJECT + "}";
+    private static final String CLOSED_SCHEMAS = "schemas: {" + CLOSED_ENTRY + "}";
     private static final String CLOSED_COMPONENT = "{" + CLOSED_SCHEMAS + "}";
-    // Instance data that happens to look like a reference into a multi-format component.
+    // Instance data and extension data that happen to look like a reference into a multi-format component.
     private static final String CLOSED_REF = "{$ref: '#/components/schemas/Closed/schema'}";
     private static final String LITERAL_REFS = "{type: object, properties: {marker: {const: " + CLOSED_REF + ", enum: ["
-            + CLOSED_REF + "], default: " + CLOSED_REF + ", example: " + CLOSED_REF + ", examples: [" + CLOSED_REF + "]}}}";
+            + CLOSED_REF + "], default: " + CLOSED_REF + ", example: " + CLOSED_REF + ", examples: [" + CLOSED_REF + "], x-data: " + CLOSED_REF + "}}}";
     private static final String AVRO_SCHEMA = "{schemaFormat: 'application/vnd.apache.avro;version=1.9.0', "
             + "schema: {type: record, name: Order, fields: [{name: id, type: string}]}}";
 
@@ -160,6 +160,11 @@ class AsyncapiSpecificationParserSchemaTest {
                         v3("{order: " + ref("Order") + "}", "{messages: {Order: {payload: {$ref: '#/components/schemas/Closed/schema'}}}, "
                                 + CLOSED_SCHEMAS + "}"),
                         "Order", CLOSED_OBJECT),
+                Arguments.of("v3 component schema with a reference into a multi-format component",
+                        v3("{order: " + payload("{$ref: '#/components/schemas/Wrapper'}") + "}",
+                                "{schemas: {Wrapper: {type: object, properties: {closed: " + CLOSED_REF + "}}, " + CLOSED_ENTRY + "}}"),
+                        "payload", "{type: object, properties: {closed: {$ref: '#/definitions/Closed'}}, "
+                                + "definitions: {Closed: " + CLOSED_OBJECT + "}}"),
                 Arguments.of("v3 nested reference into a multi-format component",
                         v3("{order: " + payload("{type: object, properties: {closed: {$ref: '#/components/schemas/Closed/schema'}}}")
                                 + "}", CLOSED_COMPONENT),
@@ -180,6 +185,19 @@ class AsyncapiSpecificationParserSchemaTest {
                         v3("{order: " + payload("{type: object, properties: {default: " + CLOSED_REF + "}}") + "}", CLOSED_COMPONENT),
                         "payload", "{type: object, properties: {default: {$ref: '#/definitions/Closed'}}, "
                                 + "definitions: {Closed: " + CLOSED_OBJECT + "}}"),
+                Arguments.of("v3 reference under dependencies",
+                        v3("{order: " + payload("{type: object, properties: {a: {type: string}}, "
+                                + "dependencies: {a: {$ref: '#/components/schemas/Dependent'}}}") + "}",
+                                "{schemas: {Dependent: {type: object, required: [b]}}}"),
+                        "payload", "{type: object, properties: {a: {type: string}}, "
+                                + "dependencies: {a: {$ref: '#/definitions/Dependent'}}, "
+                                + "definitions: {Dependent: {type: object, required: [b]}}}"),
+                Arguments.of("v3 array with dependencies",
+                        v3("{order: " + payload("{type: array, items: {$ref: '#/components/schemas/Dependent'}, "
+                                + "dependencies: {a: [b]}}") + "}",
+                                "{schemas: {Dependent: {type: object, required: [b]}}}"),
+                        "payload", "{type: array, items: {$ref: '#/definitions/Dependent'}, dependencies: {a: [b]}, "
+                                + "definitions: {Dependent: {type: object, required: [b]}}}"),
                 Arguments.of("v3 multi-format Avro component",
                         v3("{order: " + payload("{$ref: '#/components/schemas/Order'}") + "}",
                                 "{schemas: {Order: " + AVRO_SCHEMA + "}}"),

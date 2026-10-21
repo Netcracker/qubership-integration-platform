@@ -229,6 +229,14 @@ export class AsyncApiSchemaResolver {
         nestedRefs.forEach((value, key) => result.set(key, value));
       }
     }
+    // Property dependencies apply next to any shape above, so they are walked
+    // whichever branch ran.
+    this.collectSchemaNodeProperties(
+      result,
+      schemaNode.dependencies,
+      componentsNode,
+      visited,
+    );
 
     return result;
   }

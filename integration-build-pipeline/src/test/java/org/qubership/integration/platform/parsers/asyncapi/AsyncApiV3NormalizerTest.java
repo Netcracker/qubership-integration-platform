@@ -742,6 +742,38 @@ class AsyncApiV3NormalizerTest {
         return yamlMapper.readValue(content, AsyncapiV3Specification.class);
     }
 
+    // %1$s marks every position that holds a schema, and %2$s every value that is data.
+    private static final String SCHEMA_POSITIONS = """
+            {type: object,
+             properties: {p: %1$s, default: %1$s,
+                          marker: {const: %2$s, enum: [%2$s], default: %2$s, example: %2$s, examples: [%2$s], x-data: %2$s}},
+             patternProperties: {'^a': %1$s}, definitions: {D: %1$s}, dependencies: {p: %1$s, q: [p]},
+             additionalProperties: %1$s, items: [%1$s], additionalItems: %1$s, contains: %1$s, propertyNames: %1$s,
+             not: %1$s, if: %1$s, then: %1$s, else: %1$s, allOf: [%1$s], anyOf: [%1$s], oneOf: [%1$s]}
+            """;
+
+    @Test
+    void rewritesReferencesIntoAnUnwrappedSchemaOnlyWhereASchemaIs() throws IOException {
+        String into = "{$ref: '#/components/schemas/Closed/schema'}";
+        String unwrapped = "{$ref: '#/components/schemas/Closed'}";
+        AsyncapiV3Specification v3 = yamlMapper.readValue("""
+                asyncapi: 3.0.0
+                info: {title: t, version: 1.0.0}
+                channels:
+                  ch: {address: the/topic, messages: {M: {payload: %s}}}
+                operations:
+                  op: {action: receive, channel: {$ref: '#/channels/ch'}}
+                components:
+                  schemas:
+                    Closed: {schemaFormat: 'application/schema+json;version=draft-07', schema: {type: string}}
+                """.formatted(SCHEMA_POSITIONS.formatted(into, into).replace("\n", " ")), AsyncapiV3Specification.class);
+
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        Object payload = v2.getChannels().get("the/topic").getSubscribe().getMessage().getPayload();
+        assertEquals(yamlMapper.readValue(SCHEMA_POSITIONS.formatted(unwrapped, into), Map.class), payload);
+    }
+
     private AsyncapiV3Specification readJsonV3(String path) throws IOException {
         String content = readResource(path);
         return jsonMapper.readValue(content, AsyncapiV3Specification.class);

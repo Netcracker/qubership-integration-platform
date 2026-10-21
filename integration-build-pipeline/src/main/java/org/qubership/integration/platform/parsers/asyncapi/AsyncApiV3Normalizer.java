@@ -45,10 +45,11 @@ public class AsyncApiV3Normalizer {
     private static final String ACTION_SEND = MethodType.SEND.getMethodName();
     private static final String ACTION_RECEIVE = MethodType.RECEIVE.getMethodName();
     private static final List<String> SCHEMA_FORMAT_PREFIXES = List.of("application/vnd.aai.asyncapi", "application/schema+");
-    // Values under these keywords are instance data, so a $ref inside them is not a reference.
-    private static final Set<String> LITERAL_KEYWORDS = Set.of("const", "enum", "default", "example", "examples");
-    // The keys of these maps are names, so a property named "default" is not a keyword.
-    private static final Set<String> NAMED_MAPS = Set.of("properties", "patternProperties", "definitions", "$defs", "schemas", "messages");
+    // Draft-07 keywords whose value is a map of names to schemas, a schema or a list of them, and a list of schemas.
+    private static final Set<String> SCHEMA_MAPS = Set.of("properties", "patternProperties", "definitions", "dependencies");
+    private static final Set<String> SCHEMA_VALUES = Set.of("additionalProperties", "items", "additionalItems", "contains",
+            "propertyNames", "not", "if", "then", "else");
+    private static final Set<String> SCHEMA_LISTS = Set.of("allOf", "anyOf", "oneOf");
     private static final TypeReference<Map<String, Object>> SCHEMA_TYPE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
@@ -136,9 +137,14 @@ public class AsyncApiV3Normalizer {
             }
         }
         if (v3.getChannels() != null) {
-            v3.getChannels().values().forEach(channel -> rewriteRefs(channel == null ? null : channel.getMessages(), true, movedRefs));
+            v3.getChannels().values().forEach(channel -> rewriteMessageRefs(channel == null ? null : channel.getMessages(), movedRefs));
         }
-        rewriteRefs(v3.getComponents(), false, movedRefs);
+        if (v3.getComponents() != null) {
+            rewriteMessageRefs(v3.getComponents().get("messages"), movedRefs);
+            if (v3.getComponents().get("schemas") instanceof Map<?, ?> schemas) {
+                schemas.values().forEach(schema -> rewriteSchemaRefs(schema, movedRefs));
+            }
+        }
     }
 
     private void unwrapMultiFormatPayloads(Object messages, String refPrefix, Map<String, String> movedRefs) {
@@ -161,25 +167,38 @@ public class AsyncApiV3Normalizer {
         return true;
     }
 
-    private void rewriteRefs(Object node, boolean named, Map<String, String> movedRefs) {
-        if (node instanceof Map<?, ?> map) {
-            if (map.get("$ref") instanceof String ref) {
-                movedRefs.forEach((from, to) -> {
-                    if (ref.equals(from) || ref.startsWith(from + "/")) {
-                        asStringObjectMap(map).put("$ref", to + ref.substring(from.length()));
-                    }
-                });
+    private void rewriteMessageRefs(Object messages, Map<String, String> movedRefs) {
+        if (messages instanceof Map<?, ?> messageMap) {
+            for (Object message : messageMap.values()) {
+                if (message instanceof Map<?, ?> msgMap) {
+                    rewriteSchemaRefs(msgMap.get("payload"), movedRefs);
+                }
             }
-            map.forEach((key, value) -> {
-                if (named) {
-                    rewriteRefs(value, false, movedRefs);
-                } else if (!LITERAL_KEYWORDS.contains(key)) {
-                    rewriteRefs(value, NAMED_MAPS.contains(key), movedRefs);
+        }
+    }
+
+    // Only positions that hold a schema are followed, so data such as const values, examples, and x- extensions
+    // stays as written.
+    private void rewriteSchemaRefs(Object schema, Map<String, String> movedRefs) {
+        if (!(schema instanceof Map<?, ?> map)) {
+            return;
+        }
+        if (map.get("$ref") instanceof String ref) {
+            movedRefs.forEach((from, to) -> {
+                if (ref.equals(from) || ref.startsWith(from + "/")) {
+                    asStringObjectMap(map).put("$ref", to + ref.substring(from.length()));
                 }
             });
-        } else if (node instanceof List<?> list) {
-            list.forEach(item -> rewriteRefs(item, false, movedRefs));
         }
+        map.forEach((keyword, value) -> {
+            if (SCHEMA_MAPS.contains(keyword) && value instanceof Map<?, ?> named) {
+                named.values().forEach(each -> rewriteSchemaRefs(each, movedRefs));
+            } else if ((SCHEMA_LISTS.contains(keyword) || SCHEMA_VALUES.contains(keyword)) && value instanceof List<?> list) {
+                list.forEach(each -> rewriteSchemaRefs(each, movedRefs));
+            } else if (SCHEMA_VALUES.contains(keyword)) {
+                rewriteSchemaRefs(value, movedRefs);
+            }
+        });
     }
 
     // A multi-format schema in an AsyncAPI or JSON Schema format becomes the schema object it holds, and one in any

@@ -123,31 +123,51 @@ describe("AsyncApiV3Normalizer", () => {
     });
   });
 
-  it("rewrites references into an unwrapped schema and leaves reference-shaped instance data alone", () => {
-    // A fresh object each time, because the normalizer rewrites in place.
-    const ref = () => ({ $ref: "#/components/schemas/Closed/schema" });
-    const literals = () => ({
-      const: ref(),
-      enum: [ref()],
-      default: ref(),
-      example: ref(),
-      examples: [ref()],
-    });
-    const closed = { type: "object", properties: { id: { type: "string" } } };
+  // `schema` fills every position that holds a schema, and `data` every value
+  // that is data.
+  function schemaPositions(schema: () => object, data: () => object) {
+    return {
+      type: "object",
+      properties: {
+        p: schema(),
+        default: schema(),
+        marker: {
+          const: data(),
+          enum: [data()],
+          default: data(),
+          example: data(),
+          examples: [data()],
+          "x-data": data(),
+        },
+      },
+      patternProperties: { "^a": schema() },
+      definitions: { D: schema() },
+      dependencies: { p: schema(), q: ["p"] },
+      additionalProperties: schema(),
+      items: [schema()],
+      additionalItems: schema(),
+      contains: schema(),
+      propertyNames: schema(),
+      not: schema(),
+      if: schema(),
+      then: schema(),
+      else: schema(),
+      allOf: [schema()],
+      anyOf: [schema()],
+      oneOf: [schema()],
+    };
+  }
+
+  it("rewrites references into an unwrapped schema only where a schema is", () => {
+    const into = () => ({ $ref: "#/components/schemas/Closed/schema" });
+    const unwrapped = () => ({ $ref: "#/components/schemas/Closed" });
     const result = AsyncApiV3Normalizer.normalize({
       asyncapi: "3.0.0",
       info: { title: "t", version: "1.0.0" },
       channels: {
         ch: {
           address: "the/topic",
-          messages: {
-            M: {
-              payload: {
-                type: "object",
-                properties: { marker: literals(), default: ref() },
-              },
-            },
-          },
+          messages: { M: { payload: schemaPositions(into, into) } },
         },
       },
       operations: {
@@ -157,17 +177,14 @@ describe("AsyncApiV3Normalizer", () => {
         schemas: {
           Closed: {
             schemaFormat: "application/schema+json;version=draft-07",
-            schema: closed,
+            schema: { type: "string" },
           },
         },
       },
     });
 
-    const payload = result.channels["the/topic"].subscribe!.message!.payload;
-    expect(payload.properties.marker).toEqual(literals());
-    expect(payload.properties.default).toEqual({
-      $ref: "#/components/schemas/Closed",
-    });
-    expect(result.components!.schemas.Closed).toEqual(closed);
+    expect(result.channels["the/topic"].subscribe!.message!.payload).toEqual(
+      schemaPositions(unwrapped, into),
+    );
   });
 });

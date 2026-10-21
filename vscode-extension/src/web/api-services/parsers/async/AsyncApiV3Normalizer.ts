@@ -20,25 +20,26 @@ const SCHEMA_FORMAT_PREFIXES = [
   "application/vnd.aai.asyncapi",
   "application/schema+",
 ];
-// Values under these keywords are instance data, so a $ref inside them is not
-// a reference.
-const LITERAL_KEYWORDS = new Set([
-  "const",
-  "enum",
-  "default",
-  "example",
-  "examples",
-]);
-// The keys of these maps are names, so a property named "default" is not a
-// keyword.
-const NAMED_MAPS = new Set([
+// Draft-07 keywords whose value is a map of names to schemas, a schema or a
+// list of them, and a list of schemas.
+const SCHEMA_MAPS = new Set([
   "properties",
   "patternProperties",
   "definitions",
-  "$defs",
-  "schemas",
-  "messages",
+  "dependencies",
 ]);
+const SCHEMA_VALUES = new Set([
+  "additionalProperties",
+  "items",
+  "additionalItems",
+  "contains",
+  "propertyNames",
+  "not",
+  "if",
+  "then",
+  "else",
+]);
+const SCHEMA_LISTS = new Set(["allOf", "anyOf", "oneOf"]);
 
 type AnyRecord = Record<string, any>;
 
@@ -140,9 +141,14 @@ export class AsyncApiV3Normalizer {
       }
     }
     for (const v3Channel of Object.values(v3.channels ?? {})) {
-      this.rewriteRefs(v3Channel?.messages, true, movedRefs);
+      this.rewriteMessageRefs(v3Channel?.messages, movedRefs);
     }
-    this.rewriteRefs(v3.components, false, movedRefs);
+    this.rewriteMessageRefs(v3.components?.messages, movedRefs);
+    if (isObject(schemas)) {
+      for (const schema of Object.values(schemas)) {
+        this.rewriteSchemaRefs(schema, movedRefs);
+      }
+    }
   }
 
   private static unwrapMultiFormatPayloads(
@@ -173,28 +179,49 @@ export class AsyncApiV3Normalizer {
     return true;
   }
 
-  private static rewriteRefs(
-    node: unknown,
-    named: boolean,
+  private static rewriteMessageRefs(
+    messages: unknown,
     movedRefs: Map<string, string>,
   ): void {
-    if (Array.isArray(node)) {
-      node.forEach((item) => this.rewriteRefs(item, false, movedRefs));
-    } else if (isObject(node)) {
-      const ref = node.$ref;
-      if (typeof ref === "string") {
-        for (const [from, to] of movedRefs) {
-          if (ref === from || ref.startsWith(from + "/")) {
-            node.$ref = to + ref.substring(from.length);
-          }
+    if (!isObject(messages)) {
+      return;
+    }
+    for (const message of Object.values(messages)) {
+      if (isObject(message)) {
+        this.rewriteSchemaRefs(message.payload, movedRefs);
+      }
+    }
+  }
+
+  // Only positions that hold a schema are followed, so data such as const
+  // values, examples, and x- extensions stays as written.
+  private static rewriteSchemaRefs(
+    schema: unknown,
+    movedRefs: Map<string, string>,
+  ): void {
+    if (!isObject(schema)) {
+      return;
+    }
+    const ref = schema.$ref;
+    if (typeof ref === "string") {
+      for (const [from, to] of movedRefs) {
+        if (ref === from || ref.startsWith(from + "/")) {
+          schema.$ref = to + ref.substring(from.length);
         }
       }
-      for (const [key, value] of Object.entries(node)) {
-        if (named) {
-          this.rewriteRefs(value, false, movedRefs);
-        } else if (!LITERAL_KEYWORDS.has(key)) {
-          this.rewriteRefs(value, NAMED_MAPS.has(key), movedRefs);
-        }
+    }
+    for (const [keyword, value] of Object.entries(schema)) {
+      if (SCHEMA_MAPS.has(keyword) && isObject(value)) {
+        Object.values(value).forEach((each) =>
+          this.rewriteSchemaRefs(each, movedRefs),
+        );
+      } else if (
+        (SCHEMA_LISTS.has(keyword) || SCHEMA_VALUES.has(keyword)) &&
+        Array.isArray(value)
+      ) {
+        value.forEach((each) => this.rewriteSchemaRefs(each, movedRefs));
+      } else if (SCHEMA_VALUES.has(keyword)) {
+        this.rewriteSchemaRefs(value, movedRefs);
       }
     }
   }

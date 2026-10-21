@@ -346,6 +346,25 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
         { Order: { ...CLOSED_OBJECT, definitions: {} } },
       ],
       [
+        "a component schema with a reference into a multi-format component",
+        document(
+          { order: { payload: { $ref: "#/components/schemas/Wrapper" } } },
+          {
+            schemas: {
+              Wrapper: { type: "object", properties: { closed: CLOSED_REF } },
+              ...CLOSED_SCHEMAS.schemas,
+            },
+          },
+        ),
+        {
+          payload: {
+            type: "object",
+            properties: { closed: { $ref: "#/definitions/Closed" } },
+            definitions: { Closed: CLOSED_OBJECT },
+          },
+        },
+      ],
+      [
         "a nested reference into a multi-format component",
         document(
           {
@@ -415,6 +434,52 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
             type: "object",
             properties: { default: { $ref: "#/definitions/Closed" } },
             definitions: { Closed: CLOSED_OBJECT },
+          },
+        },
+      ],
+      [
+        "a reference under dependencies",
+        document(
+          {
+            order: {
+              payload: {
+                type: "object",
+                properties: { a: { type: "string" } },
+                dependencies: { a: { $ref: "#/components/schemas/Dependent" } },
+              },
+            },
+          },
+          { schemas: { Dependent: { type: "object", required: ["b"] } } },
+        ),
+        {
+          payload: {
+            type: "object",
+            properties: { a: { type: "string" } },
+            dependencies: { a: { $ref: "#/definitions/Dependent" } },
+            definitions: { Dependent: { type: "object", required: ["b"] } },
+          },
+        },
+      ],
+      [
+        "an array with dependencies",
+        document(
+          {
+            order: {
+              payload: {
+                type: "array",
+                items: { $ref: "#/components/schemas/Dependent" },
+                dependencies: { a: ["b"] },
+              },
+            },
+          },
+          { schemas: { Dependent: { type: "object", required: ["b"] } } },
+        ),
+        {
+          payload: {
+            type: "array",
+            items: { $ref: "#/definitions/Dependent" },
+            dependencies: { a: ["b"] },
+            definitions: { Dependent: { type: "object", required: ["b"] } },
           },
         },
       ],
