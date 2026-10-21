@@ -2,8 +2,10 @@ package org.qubership.integration.platform.engine.camel;
 
 import org.apache.camel.CamelContext;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.google.pubsub.GooglePubsubComponent;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.observation.MicrometerObservationTracer;
+import org.apache.camel.spi.ComponentCustomizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
@@ -11,10 +13,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.engine.camel.components.pubsub.CustomGooglePubSubComponent;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
@@ -67,6 +72,23 @@ class ContextCustomizerTest {
             });
 
             assertDoesNotThrow(context::start);
+        }
+    }
+
+    @Test
+    void shouldRegisterThePubSubComponentThatComponentCustomizersConfigure() throws Exception {
+        try (CamelContext context = new DefaultCamelContext()) {
+            // As PubSubComponentCustomizerProducer points the component at an emulator.
+            ComponentCustomizer customizer = ComponentCustomizer.builder(GooglePubsubComponent.class)
+                    .build(component -> component.setEndpoint("pubsub-emulator:8085"));
+            context.getRegistry().bind("pubSubComponentCustomizer", customizer);
+
+            contextCustomizer.configure(context);
+
+            // hasComponent reads the components already added and resolves no service file.
+            CustomGooglePubSubComponent component =
+                    assertInstanceOf(CustomGooglePubSubComponent.class, context.hasComponent("google-pubsub"));
+            assertEquals("pubsub-emulator:8085", component.getEndpoint());
         }
     }
 
