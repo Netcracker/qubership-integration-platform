@@ -615,5 +615,44 @@ class RecoveryContractTest(unittest.TestCase):
                     )
 
 
+class ElementPatchEvidenceTest(unittest.TestCase):
+    def test_actual_messages_preserve_complete_schema_data(self):
+        issue = {"code": "enum", "entityId": "element", "path": "/properties/options/mode",
+                 "message": "Rejected mode", "details": {"rejectedValue": "invalid",
+                 "constraint": {"enum": ["value-" + str(index) for index in range(90)]},
+                 "propertySchema": {"if": {"properties": {"kind": {"const": "Map"}}},
+                                    "then": {"required": ["mapping"]}}}}
+        text = "Remaining validation issues (recheck every issue; preserve corrections):\n" + json.dumps([issue])
+        for payload in (text, json.dumps(text)):
+            self.assertIn(issue, campaign.delivered_capture_issues([{"text": payload}]))
+        self.assertEqual([], campaign.delivered_capture_issues([{"text": text[:800]}]))
+
+    def test_shared_constraints_resolve_to_the_exact_native_schema(self):
+        constraint = {"enum": ["value-" + str(index) for index in range(160)]}
+        native = [{"code": "enum", "path": "/properties/mode", "entityId": str(index),
+                   "details": {"rejectedValue": "invalid", "constraint": constraint}} for index in range(4)]
+        shared = copy.deepcopy(native)
+        for issue in shared:
+            issue["details"]["constraint"] = {"$ref": "#/constraints/c0"}
+        packet = {"issues": shared, "constraints": {"c0": copy.deepcopy(constraint)}}
+        marker = "Remaining validation issues (recheck every issue; preserve corrections):\n"
+        self.assertEqual(native, campaign.delivered_capture_issues([{"text": marker + json.dumps(packet)}]))
+        packet["constraints"]["c0"]["enum"].pop()
+        self.assertNotEqual(native, campaign.delivered_capture_issues([{"text": marker + json.dumps(packet)}]))
+
+    def test_element_fault_scope_preserves_other_fields(self):
+        original = {"patchId": "same", "propertyPatches": [
+            {"key": "logLevel", "targetNodeId": "element", "operation": "ADD", "scalarValue": "Info", "value": {}},
+            {"key": "message", "targetNodeId": "element", "scalarValue": "retained"}]}
+        mutated = copy.deepcopy(original)
+        mutated["propertyPatches"][0]["scalarValue"] = "invalid"
+        for field in ("arrayValue", "mapEntries", "mapValue"):
+            mutated["propertyPatches"][0][field] = None
+        parameters = {"propertyValues": {"logLevel": "invalid"}}
+        self.assertEqual([], campaign.fault_scope_errors("element-property-values", original, mutated, parameters))
+        mutated["propertyPatches"][1]["scalarValue"] = "destroyed"
+        self.assertTrue(campaign.fault_scope_errors("element-property-values", original, mutated, parameters))
+
+
 if __name__ == "__main__":
     unittest.main()

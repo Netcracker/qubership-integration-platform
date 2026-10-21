@@ -489,6 +489,52 @@ public final class ElementPatchValidator {
     return List.copyOf(messages);
   }
 
+  /** Keeps native locations, values, and schema constraints intact for capture repair. */
+  public static ArrayNode validatePropertyIssues(String propertyKey, JsonNode value,
+      JsonNode schema, SchemaRefResolver resolver, ObjectMapper mapper) {
+    ArrayNode errors = mapper.createArrayNode();
+    for (var violation : resolver.validate(schema, value)) {
+      String pointer = "";
+      var location = violation.getInstanceLocation();
+      for (int i = 0; i < location.getNameCount(); i++) {
+        pointer += "/" + location.getName(i).replace("~", "~0").replace("/", "~1");
+      }
+      boolean missing = "required".equals(violation.getType());
+      if (missing) {
+        pointer += "/" + violation.getProperty().replace("~", "~0").replace("/", "~1");
+      }
+      ObjectNode error = errors.addObject();
+      error.put("code", violation.getType());
+      error.put("path", "/properties/" + propertyKey.replace("~", "~0").replace("/", "~1") + pointer);
+      error.put("message", "enum".equals(violation.getType())
+          ? "Value is not in the schema enum" : violation.getMessage());
+      error.put("valueMissing", missing);
+      error.set("rejectedValue", missing ? mapper.nullNode() : value.at(pointer));
+      error.put("schemaLocation", violation.getSchemaLocation().toString());
+      ObjectNode constraint = mapper.createObjectNode();
+      constraint.set(violation.getType(), violation.getSchemaNode());
+      error.set("constraint", constraint);
+      var schemaLocation = violation.getSchemaLocation();
+      JsonNode schemaRoot = schemaLocation.getAbsoluteIri() == null ? schema
+          : resolver.loadDocumentRoot(schemaLocation.getAbsoluteIri().toString());
+      String prefix = "";
+      ArrayNode conditions = mapper.createArrayNode();
+      for (int i = 0; i < schemaLocation.getFragment().getNameCount(); i++) {
+        String segment = schemaLocation.getFragment().getName(i);
+        JsonNode rule = schemaRoot.at(prefix);
+        if (("then".equals(segment) || "else".equals(segment)) && rule.has("if")) {
+          ObjectNode condition = conditions.addObject().put("branch", segment);
+          condition.set("if", rule.get("if"));
+        }
+        prefix += "/" + segment.replace("~", "~0").replace("/", "~1");
+      }
+      if (!conditions.isEmpty()) {
+        error.set("conditions", conditions);
+      }
+    }
+    return errors;
+  }
+
   private static void validateValueForSchema(
       ObjectMapper objectMapper,
       String path,

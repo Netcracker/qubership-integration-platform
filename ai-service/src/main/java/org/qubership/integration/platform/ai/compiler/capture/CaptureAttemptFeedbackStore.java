@@ -217,6 +217,23 @@ public class CaptureAttemptFeedbackStore {
         new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, List.of(), "", false, null, issues)));
   }
 
+  /** A smaller remaining issue set is progress; changing rejected values alone is not. */
+  public boolean recordTypedPatchFailure(String conversationId, String capabilityId, List<TypedIssue> issues) {
+    var identities = issues.stream().map(issue -> issue.code() + ":" + issue.entityId() + ":" + issue.path())
+        .sorted().toList();
+    String fingerprint = fingerprintStore.fingerprint("captureGraphPatch", capabilityId,
+        List.of(inputScope(conversationId, capabilityId), identities));
+    boolean repeated = fingerprintStore.softCreditUsed(conversationId, fingerprint);
+    fingerprintStore.consumeSoftCredit(conversationId, fingerprint);
+    String summary = issues.stream().map(issue -> issue.entityId() + " " + issue.path() + ": " + issue.message())
+        .collect(java.util.stream.Collectors.joining("\n"));
+    var failure = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, summary,
+        repeated ? CaptureFailureClass.IDENTICAL_SPAM : CaptureFailureClass.CORRECTABLE,
+        !repeated, List.of(), "", false, null, issues);
+    cache(conversationId, capabilityId, "PATCH", observe(conversationId, "PATCH", capabilityId, failure));
+    return repeated;
+  }
+
   public String repairHistory(String conversationId, String capabilityId) {
     String scope = scopes.get(scopeKey(conversationId, capabilityId));
     if (scope == null) { return ""; }

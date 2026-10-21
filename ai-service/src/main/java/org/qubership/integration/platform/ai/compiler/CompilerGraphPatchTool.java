@@ -30,6 +30,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessa
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicy;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
@@ -83,6 +84,7 @@ public class CompilerGraphPatchTool {
   private final CaptureSession captureSession;
   private final ChainPlanStore planStore;
   private final DeterministicElementSchemaService schemaService;
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
   private final ObjectMapper objectMapper;
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final CipKnowledgePackRepository packRepository;
@@ -229,6 +231,11 @@ public class CompilerGraphPatchTool {
 
       GraphPatch graphPatch;
       try {
+        List<TypedIssue> issues =
+            propertyIssues(conversationId, patch);
+        if (!issues.isEmpty()) {
+          return finish(conversationId, startMs, propertyFailure(conversationId, capabilityId, issues, patch));
+        }
         graphPatch = toGraphPatch(conversationId, patch);
       } catch (IllegalArgumentException e) {
         String message = "Invalid property value: " + e.getMessage();
@@ -286,7 +293,7 @@ public class CompilerGraphPatchTool {
           preview = runPreview(conversationId, capabilityId, graphPatch);
         }
       }
-      if (preview.failure().isPresent()) {
+      if (preview.failure().isPresent() && !preview.readinessFailure()) {
         String message = preview.failure().get();
         return finish(
             conversationId, startMs, wrapValidationMessage(conversationId, capabilityId, message));
@@ -308,11 +315,32 @@ public class CompilerGraphPatchTool {
                     schemaService.requiredPatchPropertyKeys(
                         node.type(), OwnedSchemaRequiredPropertyGate.propertyMap(node)));
         if (!gaps.isEmpty()) {
-          String message =
-              OwnedSchemaRequiredPropertyGate.formatCorrectableMessage(capabilityId, gaps);
-          return finish(
-              conversationId, startMs, wrapValidationMessage(conversationId, capabilityId, message));
+          List<TypedIssue> requiredIssues = new ArrayList<>();
+          for (var gap : gaps) {
+            var model = schemaService.elementPropertiesSchemaModel(gap.elementType());
+            for (String key : gap.missingPropertyKeys()) {
+              ObjectNode details = objectMapper.createObjectNode();
+              var rejected = graphForGate.nodes().stream().filter(node -> node.nodeId().equals(gap.nodeId()))
+                  .findFirst().map(OwnedSchemaRequiredPropertyGate::propertyMap).orElse(Map.of());
+              details.put("elementType", gap.elementType()).put("valueMissing", !rejected.containsKey(key));
+              details.set("rejectedValue", objectMapper.valueToTree(rejected.get(key)));
+              details.put("schemaDocument", model.elementDocumentUri());
+              details.set("unconditionalRequired", objectMapper.valueToTree(model.unconditionalRequired()));
+              details.set("conditionalBranches", objectMapper.valueToTree(model.conditionalBranches()));
+              details.set("rootOneOfGroups", objectMapper.valueToTree(model.rootOneOfGroups()));
+              details.set("propertySchema", model.propertyDefs().get(key));
+              requiredIssues.add(new TypedIssue("required",
+                  "/properties/" + key.replace("~", "~0").replace("/", "~1"),
+                  "Owned schema required properties missing: " + key, gap.nodeId(), details));
+            }
+          }
+          return finish(conversationId, startMs, propertyFailure(conversationId, capabilityId, requiredIssues, patch));
         }
+      }
+
+      if (preview.failure().isPresent()) {
+        return finish(conversationId, startMs,
+            wrapValidationMessage(conversationId, capabilityId, preview.failure().get()));
       }
 
       Optional<String> mappingCaptureError =
@@ -321,6 +349,13 @@ public class CompilerGraphPatchTool {
         String message = mappingCaptureError.get();
         return finish(
             conversationId, startMs, wrapValidationMessage(conversationId, capabilityId, message));
+      }
+      if (recoveryControl != null && recoveryControl.observesElementPatches(conversationId)) {
+        JsonNode original = objectMapper.valueToTree(patch);
+        JsonNode mutated = recoveryControl.elementPatch(conversationId, capabilityId, original);
+        if (mutated != original) {
+          return captureGraphPatch(objectMapper.convertValue(mutated, GraphPatchCapture.class));
+        }
       }
       graphPatch =
           withHopBodyMappingCoverage(conversationId, capabilityId, graphPatch, graphForGate);
@@ -344,6 +379,9 @@ public class CompilerGraphPatchTool {
       String accepted =
           captureSession.accept(key, graphPatch, successMessage, DUPLICATE_CAPTURE_MESSAGE);
       feedbackStore.clearPatch(conversationId, capabilityId);
+      if (recoveryControl != null) {
+        recoveryControl.elementPatchOutcome(conversationId, capabilityId, patch, true, null);
+      }
       LOG.infof(
           "captureGraphPatch: stored conversationId=%s capabilityId=%s patchId=%s notApplicable=%s nodePatches=%d edgePatches=%d propertyPatches=%d chainPatches=%d",
           conversationId,
@@ -419,7 +457,11 @@ public class CompilerGraphPatchTool {
     return planStore.get(conversationId).orElse(null);
   }
 
-  private record PreviewOutcome(Optional<String> failure, ChainPlanGraph graphForGate) {}
+  private record PreviewOutcome(Optional<String> failure, ChainPlanGraph graphForGate, boolean readinessFailure) {
+    private PreviewOutcome(Optional<String> failure, ChainPlanGraph graphForGate) {
+      this(failure, graphForGate, false);
+    }
+  }
 
   private PreviewOutcome runPreview(
       String conversationId, String capabilityId, GraphPatch graphPatch) {
@@ -455,7 +497,9 @@ public class CompilerGraphPatchTool {
       message =
           "Patch produced invalid graph: " + String.join("; ", preview.structuralValidation());
     } else if (!preview.readinessGaps().isEmpty()) {
-      message = completenessSummary(preview.readinessGaps(), preview.patchedGraph());
+      return new PreviewOutcome(
+          Optional.of(completenessSummary(preview.readinessGaps(), preview.patchedGraph())),
+          preview.patchedGraph(), true);
     } else {
       message = "Graph patch preview validation failed";
     }
@@ -502,6 +546,40 @@ public class CompilerGraphPatchTool {
     return summary.toString();
   }
 
+  private String propertyFailure(String conversationId, String capabilityId, List<TypedIssue> issues, GraphPatchCapture proposal) {
+    boolean repeated = feedbackStore.recordTypedPatchFailure(conversationId, capabilityId, issues);
+    var feedback = feedbackStore.lastPatchFailure(conversationId, capabilityId).orElseThrow();
+    String message = "Invalid property value: " + repairMessageBuilder.build(feedback, "captureGraphPatch");
+    if (recoveryControl != null) {
+      recoveryControl.elementPatchOutcome(conversationId, capabilityId, proposal, false, feedback);
+    }
+    if (repeated) {
+      throw new CaptureValidationException(message);
+    }
+    return message;
+  }
+
+  private List<TypedIssue>
+      propertyIssues(String conversationId, GraphPatchCapture patch) {
+    var issues = new ArrayList<TypedIssue>();
+    if (patch.propertyPatches() == null) {
+      return issues;
+    }
+    for (PropertyPatchCapture property : patch.propertyPatches()) {
+      String type = resolveTargetNodeType(conversationId, patch, property.targetNodeId());
+      JsonNode value = capturedPropertyValue(type, property);
+      for (JsonNode error : schemaService.capturePropertyIssues(type, property.key(), value)) {
+        ObjectNode details = ((ObjectNode) error).deepCopy();
+        details.remove(List.of("code", "path", "message"));
+        details.put("elementType", type);
+        issues.add(new TypedIssue(
+            error.path("code").asText(), error.path("path").asText(), error.path("message").asText() + arrayCaptureHint(type, property.key(), value),
+            property.targetNodeId(), details));
+      }
+    }
+    return List.copyOf(issues);
+  }
+
   private GraphPatch toGraphPatch(String conversationId, GraphPatchCapture patch) {
     return new GraphPatch(
         patch.patchId(),
@@ -538,24 +616,6 @@ public class CompilerGraphPatchTool {
               + elementType
               + ") property 'headerModificationToAdd' is {}. Put add/keep pairs in mapEntries as"
               + " name=value strings, for example [\"X-Trace=1\", \"X-Keep=\"]. Do not send {}.");
-    }
-    if (elementType != null) {
-      Optional<String> validationError = schemaService.validateCapturePropertyValue(
-          elementType, propertyPatch.key(), capturedValue);
-      if (validationError.isPresent()) {
-        throw new IllegalArgumentException(
-            "node '"
-                + propertyPatch.targetNodeId()
-                + "' ("
-                + elementType
-                + ") property '"
-                + propertyPatch.key()
-                + "': "
-                + validationError.get()
-                + "; received value: "
-                + capturedValue
-                + arrayCaptureHint(elementType, propertyPatch.key(), capturedValue));
-      }
     }
     try {
       String asString = propertyValueToString(capturedValue);

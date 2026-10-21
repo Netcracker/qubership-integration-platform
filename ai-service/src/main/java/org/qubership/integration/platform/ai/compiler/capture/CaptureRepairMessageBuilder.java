@@ -12,12 +12,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
-/** Builds compact repair user messages from capture failures. */
+/** Builds repair messages without truncating validation constraints. */
 @ApplicationScoped
 public class CaptureRepairMessageBuilder {
 
+  private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
   private static final int MAX_MESSAGE_CHARS = 800;
-  private static final int MAX_VALIDATION_LINES = 3;
   private static final int MAX_ALLOWED_KEYS = 8;
 
   private static final Pattern UNKNOWN_PROPERTY_KEY =
@@ -47,7 +47,36 @@ public class CaptureRepairMessageBuilder {
       case VALIDATION ->
           validationMessage(feedback.summary(), captureToolName, feedback.fieldHints());
     };
-    return message + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(feedback.repairHistoryJson());
+    return message + issueDetails(feedback) + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(feedback.repairHistoryJson());
+  }
+
+  /** Structured repair data is independent of the prose preview and its size limit. */
+  public String issueDetails(CaptureAttemptFeedback feedback) {
+    if (feedback == null || feedback.issues().isEmpty()) {
+      return "";
+    }
+    com.fasterxml.jackson.databind.node.ArrayNode issues = JSON.valueToTree(feedback.issues());
+    issues = issues.deepCopy();
+    var constraints = JSON.createObjectNode();
+    Map<String, String> references = new LinkedHashMap<>();
+    for (var issue : issues) {
+      var details = issue.path("details");
+      var constraint = details.get("constraint");
+      if (constraint == null) {
+        continue;
+      }
+      String id = references.computeIfAbsent(constraint.toString(), key -> {
+        String name = "c" + constraints.size();
+        constraints.set(name, constraint);
+        return name;
+      });
+      ((com.fasterxml.jackson.databind.node.ObjectNode) details).set("constraint",
+          JSON.createObjectNode().put("$ref", "#/constraints/" + id));
+    }
+    var packet = JSON.createObjectNode();
+    packet.set("issues", issues);
+    packet.set("constraints", constraints);
+    return "\nRemaining validation issues (recheck every issue; preserve corrections):\n" + packet;
   }
 
   public String toolArgumentsMessage(String captureToolName) {
@@ -157,11 +186,8 @@ public class CaptureRepairMessageBuilder {
 
   private String conversionMessage(String summary, String captureToolName) {
     String detail = summary != null ? summary.trim() : "Invalid property value";
-    return truncate(
-        detail
-            + " Resubmit one complete "
-            + captureToolName
-            + " with structured JSON property values (not JSON inside strings).");
+    return detail + " Resubmit one complete " + captureToolName
+        + " with structured JSON property values (not JSON inside strings).";
   }
 
   private String validationMessage(
@@ -205,7 +231,7 @@ public class CaptureRepairMessageBuilder {
       message.append(
           "\nCall describeElementPatchSchema for allowed property keys before adding properties.");
     }
-    return truncate(message.toString());
+    return message.toString();
   }
 
   private static List<String> validationLines(String summary) {
@@ -231,9 +257,6 @@ public class CaptureRepairMessageBuilder {
       String line = rawLine.trim();
       if (!line.isEmpty()) {
         lines.add(line);
-      }
-      if (lines.size() >= MAX_VALIDATION_LINES) {
-        break;
       }
     }
     return lines;

@@ -49,6 +49,12 @@ capture policy, element schemas, and graph consumer. Only model inference and ex
 dependencies use local fixtures. The ordinary retry settings come from `AppConfig`; a recording sleeper
 checks delays without waiting. No capture tool, validator, or successful repair result is mocked.
 
+`ScriptedPatchRecoveryTest` checks element patches through the actual next `ChatRequest` and native graph consumer.
+It covers nested paths, conditional required properties, six sequential corrections, and shared enums with 160 values.
+Production schema checks cover ABAC and RBAC; large-enum stress checks use a test-only schema resource.
+Current errors retain their complete constraints and rejected values. Shared constraints use local JSON references;
+compact history retains issue identities and progress without duplicating those constraints.
+
 | Check | Required result |
 | --- | --- |
 | Malformed JSON, wrong types, missing fields, unknown fields, and duplicate keys | Native rejection reaches the next model request; corrected capture reaches the graph consumer |
@@ -84,6 +90,23 @@ Independent cases can also use `http-exposure-type`: after a genuine model call 
 normalization and schema checks, the test changes the first endpoint's boolean `externalRoute` to a string.
 The ordinary schema boundary must reject it. Its exact stored rejection reference and native issue must
 precede the accepted model correction and consumer checkpoint. The test supplies no repair response.
+Independent cases can use `element-property-values` to exercise element schema refusals:
+
+```json
+{
+  "kind": "element-property-values",
+  "applications": 1,
+  "propertyValues": {"logLevel": "unsupported"}
+}
+```
+
+The control replaces the first matching property value for each declared key after the original patch passes
+native validation. It runs once in the owned instance and conversation. Native admission must reject the changed
+patch, and its stored proposal must match the observed fault exactly. Every native issue, including the complete
+schema constraint and rejected value, must reach the first subsequent provider request. The oracle resolves local
+constraint references before comparing data. A corrected model capture and a later consumer checkpoint are required;
+full cases also require catalog materialization and readback. Model, retry, context, and time limits stay unchanged.
+
 An optional `checks.edgeTypes` lists the exact directed type pairs for a case with distinct element types;
 this supports held-out topologies without assuming a direct trigger-to-script edge.
 `checks.forbiddenTools` lists prohibited tool names. It checks completed stream tool calls and response tool calls

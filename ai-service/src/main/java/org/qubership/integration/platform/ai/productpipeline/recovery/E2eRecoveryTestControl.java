@@ -208,6 +208,65 @@ public class E2eRecoveryTestControl {
         org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.class);
   }
 
+  public boolean observesElementPatches(String conversationId) {
+    return owns(conversationId) && "element-property-values".equals(plan.path("mutation").asText());
+  }
+
+  /** Corrupts only declared property values after the original patch passed native validation. */
+  public synchronized JsonNode elementPatch(String conversationId, String capabilityId, JsonNode proposal) {
+    if (!observesElementPatches(conversationId) || injected || !plan.path("propertyValues").isObject()
+        || plan.path("propertyValues").isEmpty()) {
+      return proposal;
+    }
+    var mutated = proposal.deepCopy();
+    var selected = new ArrayList<ObjectNode>();
+    for (var field : plan.path("propertyValues").properties()) {
+      ObjectNode target = null;
+      for (JsonNode property : mutated.path("propertyPatches")) {
+        if (field.getKey().equals(property.path("key").asText())
+            && !"REMOVE".equals(property.path("operation").asText())) {
+          target = (ObjectNode) property;
+          break;
+        }
+      }
+      if (target == null) {
+        return proposal;
+      }
+      selected.add(target);
+    }
+    int index = 0;
+    for (var field : plan.path("propertyValues").properties()) {
+      ObjectNode target = selected.get(index++);
+      for (String fieldName : List.of("arrayValue", "mapEntries", "mapValue")) {
+        target.putNull(fieldName);
+      }
+      target.putObject("value");
+      target.put("scalarValue", field.getValue().isTextual() ? field.getValue().asText() : field.getValue().toString());
+    }
+    var event = event("FAULT_APPLIED", conversationId);
+    event.put("capabilityId", capabilityId).put("tool", "captureGraphPatch").put("parameter", "patch");
+    event.set("original", proposal);
+    event.set("mutated", mutated);
+    saveEvent(event);
+    injected = true;
+    return mutated;
+  }
+
+  public synchronized void elementPatchOutcome(String conversationId, String capabilityId, Object proposal,
+      boolean accepted, org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback feedback) {
+    if (!observesElementPatches(conversationId) || !injected) {
+      return;
+    }
+    var nativeResult = mapper.createObjectNode().put("accepted", accepted);
+    nativeResult.set("issues", mapper.valueToTree(feedback == null ? List.of() : feedback.issues()));
+    var event = nativeOutcome(conversationId, "captureGraphPatch", proposal, accepted, nativeResult);
+    event.put("capabilityId", capabilityId);
+    if (feedback != null) {
+      event.set("rejectionRef", mapper.valueToTree(feedback.evidenceReference()));
+    }
+    saveEvent(event);
+  }
+
   private void recordFault(String conversationId, String tool, String parameter, JsonNode original, JsonNode mutated) {
     var event = event("FAULT_APPLIED", conversationId);
     event.put("tool", tool);
