@@ -10,6 +10,7 @@ import org.apache.camel.model.StepDefinition;
 import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.reifier.ProcessorReifier;
 import org.apache.camel.spi.CamelContextCustomizer;
+import org.qubership.integration.platform.engine.camel.components.grpc.GrpcCustomComponent;
 import org.qubership.integration.platform.engine.camel.reifiers.CustomStepReifier;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
@@ -36,5 +37,8 @@ public class ContextCustomizer implements CamelContextCustomizer {
 
         // Lets chains with an empty step element deploy, as they do in engine.
         ProcessorReifier.registerReifier(StepDefinition.class, CustomStepReifier::new);
+
+        // Registered here because Camel Quarkus resolves the grpc scheme from the camel-grpc jar's service file.
+        camelContext.addComponent("grpc", new GrpcCustomComponent());
     }
 }
