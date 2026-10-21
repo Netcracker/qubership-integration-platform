@@ -309,14 +309,14 @@ A change takes effect when the engine restarts. No chain has to be redeployed.
 
 At startup the engine also loads settings from Consul KV. A key under one of the paths below sets the property named by the rest of the key, with every `/` read as `.`:
 
-- `config/<NAMESPACE>/<MICROSERVICE_NAME>/` - settings of this engine only. `MICROSERVICE_NAME` defaults to `qip-engine`.
+- `config/<NAMESPACE>/<MICROSERVICE_NAME>/` - settings of this engine only. `MICROSERVICE_NAME` defaults to `cip-engine`.
 - `config/<NAMESPACE>/application/` - settings shared by every service of the namespace that loads its configuration from Consul.
 
 For example, these keys switch mocking off and point the engine at another testing service address:
 
 ```text
-config/<NAMESPACE>/qip-engine/qip/testing/enabled = false
-config/<NAMESPACE>/qip-engine/qip/testing/address = http://<TESTING_SERVICE_HOST>:8080
+config/<NAMESPACE>/cip-engine/cip/testing/enabled = false
+config/<NAMESPACE>/cip-engine/cip/testing/address = http://<TESTING_SERVICE_HOST>:8080
 ```
 
 A Consul key takes precedence over `TESTING_SERVICE_ENABLED` and `TESTING_SERVICE_ADDRESS`. A key under the engine path takes precedence over the same key under `application`.

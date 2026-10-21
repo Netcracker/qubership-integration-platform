@@ -1,0 +1,59 @@
+caseId: cip-parallel-generator-not-applicable
+skillId: cip-parallel-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Fan out work across async parallel branches.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Fan out work across async parallel branches.
+  approvedDraftReference: approved-draft-cip-parallel-generator-not-applicable
+  approvedDraftText: Fan out work across async parallel branches.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Parallel.Demo.Fanout
+    description: Fan out async parallel work.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: POST /fanout
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+  edges: []
+capturedPatch:
+  patchId: cip-parallel-generator-no-changes
+  ownerCapabilityId: cip-parallel-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Parallel.Demo.Fanout
+    description: Fan out async parallel work.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: POST /fanout
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+  edges: []

@@ -10,6 +10,9 @@ dependencies:
     - Netcracker/qubership-ai-packages/agent-packages/english-developer-style
     - Netcracker/qubership-ai-packages/agent-packages/codex-review
     - Netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry
+    - path: ./integration-platform-skills
+      skills:
+        - rocky-binding-mapping
 devDependencies:
   apm:
     - Netcracker/qubership-ai-packages/agent-packages/apm-authoring
@@ -22,7 +25,7 @@ compilation:
     - .claude/**
     - .cursor/**
     - .agents/**
-    - apm_modules/**
+    # apm_modules/ is left in: excluding it drops dependency instructions from AGENTS.md.
     # Build output. Placement scores are ratios over every scanned directory, so
     # leaving these in moves module guidance between AGENTS.md files depending on
     # whether the tree has been built.

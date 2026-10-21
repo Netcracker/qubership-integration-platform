@@ -1,0 +1,1681 @@
+package org.qubership.integration.platform.ai.productpipeline.create;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.mutiny.Multi;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessageBuilder;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairRunner;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.plan.DraftDecision;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult;
+import org.qubership.integration.platform.ai.plan.RequirementBriefCapture;
+import org.qubership.integration.platform.ai.plan.RequirementBriefTool;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+
+class RequirementAnalysisCapabilityTest {
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"feedback", "direct", "wrapped", "network"})
+  void captureStopSurvivesAnalysisCompletionAndAsyncFailure(String mode) {
+    var feedback = new CaptureAttemptFeedbackStore();
+    var knowledge = knowledgeWithMandatoryObjects();
+    var capability = new RequirementAnalysisCapability(knowledge, knowledge,
+        new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(), new CaptureSession(),
+        feedback, null, null, (conversationId, message) -> {
+          feedback.beginScope(conversationId, "requirement-analysis", Map.of("approved", "unchanged"));
+          feedback.beginProposal(conversationId, "requirement-analysis", "captureRequirementBrief", Map.of("candidate", "invalid"));
+          feedback.recordPlanValidationFailure(conversationId, "Invalid mapping");
+          try {
+            feedback.beginProposal(conversationId, "requirement-analysis", "captureRequirementBrief", Map.of("candidate", "invalid"));
+          } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException stop) {
+            return switch (mode) {
+              case "feedback" -> Multi.createFrom().empty();
+              case "wrapped" -> Multi.createFrom().failure(new java.util.concurrent.CompletionException(stop));
+              case "network" -> Multi.createFrom().failure(new java.net.UnknownHostException("example.invalid"));
+              default -> Multi.createFrom().failure(stop);
+            };
+          }
+          throw new AssertionError("Identical proposal was accepted");
+        }, null);
+    var outcome = runWithUserText(capability, RequirementFactFixtures.greetingsApprovedDraft(),
+        "analysis-stop-" + mode, "Create the approved chain.").outcome();
+    assertEquals(mode.equals("network") ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE
+        : StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    if (!mode.equals("network")) {
+      assertTrue(outcome.recoveryCause().noProgress());
+      assertFalse(outcome.recoveryCause().captureFailure().feedback().outerAllowed());
+    }
+  }
+
+  @Test
+  void greetingsBriefPreservesEverySourceFactIdExactlyOnce() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief brief = coveringBrief(approved, "Greetings HTTP script");
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge, knowledge, new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(), ctx -> brief);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+    // Capability itself returns SUCCEEDED when profile has no approval gate (create-plan /
+    // unit tests). create-chain profile gates on brief approval via CANDIDATE.
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    RequirementBrief candidate =
+        (RequirementBrief) completed.outcome().candidates().get(0).payload();
+    assertEquals(approved.facts().size(), candidate.facts().size());
+    assertEquals(
+        approved.facts().stream().map(RequirementFact::sourceFactId).sorted().toList(),
+        candidate.facts().stream().map(RequirementFact::sourceFactId).sorted().toList());
+    assertEquals(
+        13,
+        candidate.facts().stream()
+            .filter(fact -> fact.polarity() == RequirementFactPolarity.NEGATIVE)
+            .count());
+  }
+
+  @Test
+  void langRouterBriefPreservesRouteAndSixExclusions() {
+    RequirementDraft approved = RequirementFactFixtures.langRouterApprovedDraft();
+    RequirementBrief brief = coveringBrief(approved, "LangRouter preferredLang routing");
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge, knowledge, new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(), ctx -> brief);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    RequirementBrief candidate =
+        (RequirementBrief) completed.outcome().candidates().get(0).payload();
+    assertTrue(
+        candidate.facts().stream().anyMatch(fact -> fact.text().contains("/lang-router")
+            || fact.text().contains("GET /lang-router")));
+    assertEquals(
+        6,
+        candidate.facts().stream()
+            .filter(fact -> fact.polarity() == RequirementFactPolarity.NEGATIVE)
+            .count());
+  }
+
+  @Test
+  void unresolvedGeneratedMappingRequestsProducerRepair() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief brief =
+        coveringBrief(approved, "Greetings HTTP script")
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "", "$.personId", null, MappingRuleStatus.UNRESOLVED)))));
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> brief);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("$.personId"));
+    assertEquals(org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.MISSING_BRIEF_FACTS,
+        completed.outcome().recoveryCause().causeCode());
+    assertEquals(brief, completed.outcome().candidates().getFirst().payload());
+  }
+
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void generatedMappingDefectRepairsInTheSameRun(boolean omittedIntent) {
+    var input = new RequirementCaptureInput.DraftInput(
+        new RequirementCaptureInput.FlowInput(List.of(
+            new RequirementCaptureInput.InteractionInput("http-in", Direction.INBOUND, "Caller", "POST /input", null, null, null),
+            new RequirementCaptureInput.InteractionInput("http-out", Direction.OUTBOUND, "https://example.com/tasks", "POST", null, null, null)),
+            List.of(new RequirementCaptureInput.TransitionInput("http-in", "http-out"))),
+        List.of(new RequirementCaptureInput.FactInput("goal", List.of(), RequirementCaptureInput.FactKind.GOAL,
+                RequirementCaptureInput.Polarity.POSITIVE, "Create a task."),
+            new RequirementCaptureInput.FactInput("subject-map", List.of("http-in", "http-out"),
+            RequirementCaptureInput.FactKind.FIELD_MAPPING, RequirementCaptureInput.Polarity.POSITIVE,
+            "Map subject to Subject.", new RequirementCaptureInput.FieldMappingInput("http-in", "$.subject", "http-out", "$.Subject", null))),
+        List.of(new RequirementCaptureInput.CapabilityInput("http-in", "http-trigger", RequirementCaptureInput.HttpMode.CUSTOM,
+                RequirementCaptureInput.HttpMethod.POST, "/input", null, null, null),
+            new RequirementCaptureInput.CapabilityInput("http-out", "http-sender", null,
+                RequirementCaptureInput.HttpMethod.POST, "https://example.com/tasks", null, null, null)),
+        List.of(), new RequirementCaptureInput.DraftSettings(false, null));
+    var approved = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+    assertTrue(approved.readyForPlan(), approved.readinessError().orElse(""));
+    var good = coveringBrief(approved, "Create a task").withMappingIntents(List.of(new MappingIntent(
+        "subject-map", "http-in", MappingPort.OUTPUT, "http-out", MappingPort.REQUEST,
+        List.of(new MappingIntentRule("$.subject", "$.Subject", null, MappingRuleStatus.USER_DEFINED)))));
+    var bad = omittedIntent ? good.withMappingIntents(List.of()) : good.withMappingIntents(List.of(new MappingIntent(
+        "subject-map", "http-in", MappingPort.OUTPUT, "http-out", MappingPort.REQUEST,
+        List.of(new MappingIntentRule("", "$.Subject", null, MappingRuleStatus.UNRESOLVED)))));
+    var calls = new AtomicInteger();
+    var knowledge = knowledgeWithMandatoryObjects();
+    var analysis = new RequirementAnalysisCapability(knowledge, knowledge,
+        new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+        ctx -> calls.incrementAndGet() == 1 ? bad : good);
+    StageCapability discovery = new StageCapability() {
+      public String capabilityId() { return "test-draft"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(CompilationArtifacts.Kind.REQUIREMENT_DRAFT, approved, List.of())), "draft ready", null)));
+      }
+    };
+    var profile = new ProductPipelineProfile(1, "analysis-repair", "1", List.of(), List.of(
+        new ProfileStage("requirement-discovery", "test-draft", List.of(),
+            List.of(new ArtifactTypeRef("requirement-draft", 2)), null, null, new RetryPolicy(0, 1L)),
+        new ProfileStage("requirement-analysis", "requirement-analysis", List.of(new ArtifactTypeRef("requirement-draft", 2)),
+            List.of(new ArtifactTypeRef("requirement-brief", 1)), null, null, new RetryPolicy(0, 1L))),
+        new TerminalPolicy("requirement-analysis", "PLAN_APPROVED"), List.of("test-draft", "requirement-analysis"));
+    var mapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+    var blobs = new InMemoryArtifactBlobStore();
+    var clock = java.time.Clock.systemUTC();
+    var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
+    var runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts, new StageCapabilityRegistry(List.of(discovery, analysis)), clock)
+        .mappingRepairCaptureValidator(new MappingRepairCaptureValidator(artifacts, mapper,
+            mock(org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader.class))).build();
+    var runtime = new CreateChainTestOrchestrator(support, runs);
+    runtime.startOrResume(new StartOrResumeCommand("conv-generated-mapping", "run-generated-mapping", profile,
+        new RunManifest("run-generated-mapping", null, List.of(), "product", profile.profileId(), profile.profileVersion(), "profile-hash",
+            "baseline", "hash", List.of(), "closure-hash", knowledge.identity().packageRef(), "2026.1", List.of(), null)))
+        .collect().asList().await().indefinitely();
+    var run = runs.load("run-generated-mapping").orElseThrow();
+    assertEquals(RunStatus.PLAN_APPROVED, run.run().status());
+    assertEquals(2, calls.get());
+    assertEquals("conv-generated-mapping", run.run().conversationId());
+    assertTrue(run.attempts().stream().anyMatch(attempt -> attempt.outcome()
+        == org.qubership.integration.platform.ai.productpipeline.store.StageStatus.FAILED));
+    var brief = artifacts.payload(artifacts.latest("run-generated-mapping", CompilationArtifacts.Kind.REQUIREMENT_BRIEF).orElseThrow(), RequirementBrief.class);
+    assertEquals("$.subject", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertEquals("$.Subject", brief.mappingIntents().getFirst().rules().getFirst().targetPath());
+  }
+
+  @Test
+  void mapper2PreferenceWithExpressionKeepsBriefInNeedsInput() {
+    RequirementDraft approved =
+        RequirementFactFixtures.readyDraft("Create a task")
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-in", Direction.INBOUND, "http", "POST /", ""),
+                        new Interaction(
+                            "create-task", Direction.OUTBOUND, "Salesforce", "createTask", "")),
+                    List.of(new Transition("http-in", "create-task"))))
+            .withBoundInteraction(
+                "create-task",
+                new CatalogBindingHint(
+                    "3", "create-task", "create-task", "create-task", "salesforce", "group-1",
+                    "spec-1", "op-create-task", "http", "POST", "/tasks", "catalog",
+                    Instant.EPOCH, "test"));
+    RequirementBrief brief =
+        coveringBrief(approved, "Create a task")
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "http-in",
+                        MappingPort.OUTPUT,
+                        "create-task",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.name",
+                                "$.fullName",
+                                "uppercase the name",
+                                MappingRuleStatus.USER_DEFINED)),
+                        "MAPPER_2")));
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> brief);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+    assertEquals(
+        StageOutcomeClass.NEEDS_INPUT,
+        completed.outcome().outcomeClass(),
+        completed.outcome().message());
+    assertTrue(completed.outcome().message().contains("MAPPER_2"));
+    assertTrue(completed.outcome().message().contains("SCRIPT"));
+    assertTrue(completed.outcome().candidates().isEmpty());
+  }
+
+  @Test
+  void missingBriefWithConversationIdFailureIsNotNeedsInput() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            ctx -> {
+              feedbackStore.recordPlanValidationFailure(
+                  ctx.conversationId(),
+                  "conversationId is required (no active chat session)");
+              return null;
+            },
+            null,
+            null);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, "conv-session-missing", null);
+
+    assertNotEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
+    assertEquals(
+        StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(
+        completed.outcome().message().contains("conversationId is required"),
+        completed.outcome().message());
+    assertFalse(
+        completed.outcome().message().toLowerCase().contains("mapping port"),
+        completed.outcome().message());
+  }
+
+  @Test
+  void missingBriefWithoutRecordedFailureIsNotNeedsInput() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> null);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+
+    assertNotEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(
+        completed.outcome().message().contains("did not capture a requirement brief"),
+        completed.outcome().message());
+    assertFalse(
+        completed.outcome().message().toLowerCase().contains("mapping port"),
+        completed.outcome().message());
+  }
+
+  @Test
+  void prefersPostImportDraftFromStoreOverStaleNeedsInputAttribute() {
+    RequirementFact call = serviceCall("call-greeting", "Greetings", "getGreeting");
+    RequirementDraft staleDiscovery =
+        new RequirementDraft(
+            false,
+            "stale discovery draft",
+            DraftDecision.NEEDS_INPUT,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(call, RequirementFactFixtures.httpTriggerFact("start", "POST", "/start")),
+            false)
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("start", Direction.INBOUND, "Caller", "start", ""),
+                        new Interaction(
+                            call.serviceCallId(),
+                            Direction.OUTBOUND,
+                            call.participant(),
+                            call.operation(),
+                            "")),
+                    List.of(new Transition("start", call.serviceCallId()))));
+    RequirementDraft postImport =
+        staleDiscovery.withBoundInteraction(
+            call.serviceCallId(),
+            new CatalogBindingHint(
+                "3",
+                call.serviceCallId(),
+                call.sourceFactId(),
+                call.operation().isBlank() ? "service-call" : call.operation(),
+                "sys-1",
+                "group-1",
+                "spec-1",
+                "op-1",
+                "http",
+                "GET",
+                "/greetings",
+                "catalog",
+                Instant.EPOCH,
+                "test"));
+    assertTrue(postImport.readyForPlan());
+    assertFalse(staleDiscovery.readyForPlan());
+
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.put("conv-import", postImport);
+    RequirementBrief brief = coveringBrief(postImport, "Greetings after import");
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> brief,
+            null,
+            null,
+            store);
+
+    // Attribute still holds the pre-import NEEDS_INPUT snapshot; store has READY_FOR_PLAN.
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, staleDiscovery, "conv-import", null);
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+  }
+
+  @Test
+  void reportsTheReadinessViolationInsteadOfClaimingTheDraftIsMissing() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    List<RequirementFact> facts =
+        approved.facts().stream()
+            .map(
+                fact ->
+                    "http-trigger".equals(fact.capabilityKey())
+                        ? new RequirementFact(
+                            fact.sourceFactId() + "-trigger",
+                            fact.polarity(),
+                            fact.kind(),
+                            fact.capabilityKey(),
+                            fact.text(),
+                            fact.participant(),
+                            fact.operation(),
+                            fact.topic(),
+                            fact.httpMethod(),
+                            fact.path(),
+                            fact.serviceCallId())
+                        : fact)
+            .toList();
+    RequirementDraft invalid = approved.withFacts(facts);
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> coveringBrief(approved, "unused"));
+
+    CapabilitySignal.Completed completed = run(capability, invalid);
+
+    assertEquals(StageOutcomeClass.MISSING_MANDATORY_INPUT, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("has no matching inbound interaction"));
+    assertFalse(completed.outcome().message().contains("is required for analysis"));
+  }
+
+  @Test
+  void analysisRejectsBriefMissingSourceFact() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    List<RequirementFact> incomplete = approved.facts().subList(0, approved.facts().size() - 1);
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Greetings",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "incomplete",
+            "draft-ref",
+            approved.planningText(),
+            incomplete);
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge, knowledge, new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(), ctx -> brief);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("coverage failed"));
+  }
+
+  @Test
+  void analysisSeedsWorkspaceWithApprovedDraftPlanningTextOnly() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief brief = coveringBrief(approved, "Greetings");
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge, knowledge, new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(), ctx -> brief);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(
+        approved.planningText(),
+        RequirementAnalysisCapability.seedWorkspaceWithApprovedDraftOnly(approved)
+            .get(org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType.RAW_USER_REQUEST)
+            .map(
+                a ->
+                    ((org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload
+                                .RawUserRequestPayload)
+                            a.payload())
+                        .effectiveText())
+            .orElseThrow());
+  }
+
+  @Test
+  void mappingUserTextDoesNotRewritePlanningText() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    String conversationId = "conv-mapping-append";
+    draftStore.put(conversationId, approved);
+    String userText = "Request mapping from greetings OUTPUT to script: body = Hello world!";
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> coveringBrief(draftStore.get(conversationId).orElseThrow(), "Greetings"),
+            null,
+            null,
+            draftStore);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, conversationId, userText);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    RequirementDraft stored = draftStore.get(conversationId).orElseThrow();
+    assertEquals(approved.planningText(), stored.planningText());
+    assertEquals(approved.decision(), stored.decision());
+    assertEquals(approved.facts(), stored.facts());
+    assertEquals(approved.flow(), stored.flow());
+  }
+
+  @Test
+  void mappingUserTextIsNotCopiedIntoPlanningTextOnSecondExecute() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    String conversationId = "conv-mapping-append-twice";
+    draftStore.put(conversationId, approved);
+    String userText = "Request mapping from greetings OUTPUT to script: body = Hello world!";
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> coveringBrief(draftStore.get(conversationId).orElseThrow(), "Greetings"),
+            null,
+            null,
+            draftStore);
+
+    runWithUserText(capability, approved, conversationId, userText);
+    runWithUserText(capability, approved, conversationId, userText);
+
+    assertEquals(
+        approved.planningText(), draftStore.get(conversationId).orElseThrow().planningText());
+  }
+
+  @Test
+  void initialAnalysisDoesNotReapplySeedAsMappingEdit() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    AtomicInteger mappingTurns = new AtomicInteger();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> coveringBrief(approved, "Greetings"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            (brief, text) -> {
+              mappingTurns.incrementAndGet();
+              return MappingTurnResult.changes();
+            },
+            null);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(
+            capability,
+            approved,
+            "conv-initial-mapping-seed",
+            "Request mapping from greetings OUTPUT to script: body = Hello world!");
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(0, mappingTurns.get());
+  }
+
+  @Test
+  void amendedDraftDoesNotInheritMappingRulesFromThePriorBrief() {
+    RequirementDraft approved = RequirementFactFixtures.readyDraft("Create a task").withFlow(
+        new RequirementFlow(List.of(
+            new Interaction("http-in", Direction.INBOUND, "Caller", "GET /", ""),
+            new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", "")),
+            List.of(new Transition("http-in", "create-task"))))
+        .withBoundInteraction("create-task", new CatalogBindingHint(
+            "3", "create-task", "create-task", "create-task", "system-1", "group-1", "spec-1",
+            "op-1", "http", "POST", "/create-task", "catalog", Instant.EPOCH, "test"));
+    MappingIntent amendedMapping = new MappingIntent(
+        "map-subject", "http-in", MappingPort.OUTPUT, "create-task", MappingPort.REQUEST,
+        List.of(new MappingIntentRule("", "$.Subject", "'Current task'")));
+    RequirementBrief fresh = coveringBrief(approved, "Task integration")
+        .withMappingIntents(List.of(amendedMapping));
+    RequirementBrief prior = new RequirementBrief(
+        fresh.goal(), fresh.inputs(), fresh.constraints(), fresh.assumptions(), fresh.citations(),
+        fresh.summary(), "prior-draft", fresh.approvedDraftText(), fresh.facts())
+        .withMappingIntents(List.of(amendedMapping.withRules(
+            List.of(new MappingIntentRule("", "$.Subject", "'Prior task'")))));
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    AtomicInteger mappingTurns = new AtomicInteger();
+    RequirementAnalysisCapability capability = new RequirementAnalysisCapability(
+        knowledge, knowledge,
+        new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+        null, null, null, ctx -> fresh, null, null, null, null, null,
+        (brief, text) -> {
+          mappingTurns.incrementAndGet();
+          return MappingTurnResult.changes();
+        }, null);
+    StageExecutionContext context = new StageExecutionContext(
+        "run-amended", "conv-amended", "requirement-analysis", "exec-1", "attempt-1",
+        null, null, List.of(), Map.of("approvedDraft", approved, "requirementBrief", prior,
+            "userText", "continue-to-planning"));
+
+    CapabilitySignal.Completed completed = capability.execute(context).collect().asList()
+        .await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass(),
+        completed.outcome().message());
+    RequirementBrief candidate = (RequirementBrief) completed.outcome().candidates().getFirst().payload();
+    assertEquals(List.of(amendedMapping), candidate.mappingIntents());
+    assertEquals(0, mappingTurns.get());
+  }
+
+  @Test
+  void paraphrasedMappingUserTextDoesNotNeedEnglishControlPhrases() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String userText = "Copy the greeting name onto the script body.";
+    String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved, userText);
+    assertTrue(message.contains("Change request for this analysis turn:"));
+    assertTrue(message.contains(userText));
+    assertTrue(message.contains(approved.planningText()));
+  }
+
+  @Test
+  void laterMappingBlockIsForwardedWhenAnEarlierBlockAlreadyExists() {
+    RequirementDraft approved =
+        RequirementFactFixtures.greetingsApprovedDraft()
+            .withAssembledText(
+                RequirementFactFixtures.greetingsApprovedDraft().planningText()
+                    + "\n\nRequest mapping from greetings OUTPUT to script: body = Hello world!");
+    String laterBlock = "Also copy name onto Subject for the Salesforce task.";
+    String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved, laterBlock);
+    assertTrue(message.contains("Request mapping"), message);
+    assertTrue(message.contains(laterBlock), message);
+  }
+
+  @Test
+  void blankUserTextDoesNotRewriteAssembledText() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    String conversationId = "conv-mapping-blank";
+    draftStore.put(conversationId, approved);
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> coveringBrief(draftStore.get(conversationId).orElseThrow(), "Greetings"),
+            null,
+            null,
+            draftStore);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, conversationId, "   ");
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(
+        approved.planningText(), draftStore.get(conversationId).orElseThrow().planningText());
+  }
+
+  @Test
+  void buildAnalysisUserMessageIncludesChangeRequestText() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String message =
+        RequirementAnalysisCapability.buildAnalysisUserMessage(approved, "add quartz scheduler");
+    assertTrue(message.contains("Change request for this analysis turn:"));
+    assertTrue(message.contains("add quartz scheduler"));
+    assertTrue(message.contains(approved.planningText()));
+    assertTrue(message.contains("summarize in pinned response locale en"));
+    assertTrue(message.contains("do not infer another language from Planning text"));
+  }
+
+  @Test
+  void buildAnalysisUserMessageDoesNotAskToInventMappingsWithoutServiceCallFacts() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
+
+    assertFalse(message.contains("dataMappings"));
+    assertTrue(message.contains("Leave mappingIntents empty"));
+    assertTrue(message.contains("There are no projected outbound interactions"), message);
+    assertTrue(message.contains("RequirementFlow"), message);
+    assertTrue(message.contains("interactionId"), message);
+    assertTrue(message.contains("INBOUND"), message);
+    assertTrue(message.contains("OUTBOUND"), message);
+    assertTrue(message.contains("Do not author ENDPOINT or SERVICE_CALL topology facts"), message);
+    assertFalse(message.contains("Capture typed dataMappings"), message);
+    assertFalse(message.contains("every required edge"), message);
+    assertFalse(message.contains("There are no positive SERVICE_CALL"), message);
+  }
+
+  @Test
+  void buildAnalysisUserMessageDoesNotAskToFillAMappingRowForEveryLinearEdge() {
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Create order via HTTP POST /orders then call Inventory",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(
+                new RequirementFact(
+                    "http-in",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.ENDPOINT,
+                    "http-trigger",
+                    "HTTP POST /orders"),
+                serviceCall(
+                    "call-inventory", "Inventory API", "Inventory API: reserve stock")))
+        .withFlow(
+            new RequirementFlow(
+                List.of(
+                    new Interaction("http-in", Direction.INBOUND, "Caller", "POST /orders", ""),
+                    new Interaction(
+                        "call-inventory",
+                        Direction.OUTBOUND,
+                        "Inventory API",
+                        "reserve stock",
+                        "")),
+                List.of(new Transition("http-in", "call-inventory"))));
+    String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
+
+    assertTrue(message.contains("Pass-through is the absence of a mapping intent"));
+    assertTrue(message.contains("mappingIntents"));
+    assertTrue(message.contains("capture mappingIntents"));
+    assertTrue(message.contains("selected flow transition"), message);
+    assertTrue(message.contains("Transitions:"), message);
+    assertTrue(message.contains("http-in -> call-inventory"), message);
+    assertTrue(message.contains("only allowed sourceRef and targetRef"), message);
+    assertTrue(message.contains("interactionId=call-inventory"), message);
+    assertTrue(message.contains("direction=OUTBOUND"), message);
+    assertFalse(message.contains("source-to-target boundary"), message);
+    assertFalse(message.contains("Capture typed dataMappings"), message);
+    assertFalse(message.contains("every required edge"), message);
+    assertFalse(message.contains("PASS_THROUGH"), message);
+  }
+
+  @Test
+  void runAnalyzerEscapesBracesInUserMessageForAiService() {
+    String jsonBody = "{\"message\":\"hello world!\"}";
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Return JSON " + jsonBody + " from script",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(
+                RequirementFactFixtures.httpTriggerFact("script-out", "POST", "/script"),
+                RequirementFact.of(
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CONSTRAINT,
+                    "response",
+                    "body must be " + jsonBody)))
+        .withFlow(RequirementFactFixtures.nativeHttpInbound("script-out", "POST /script"));
+    AtomicReference<String> lastUserMessage = new AtomicReference<>();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability analyzerOnly =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            null,
+            (conversationId, userMessage) -> {
+              lastUserMessage.set(userMessage);
+              org.jboss.logmanager.MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+              return Multi.createFrom().item(ChatEvent.token("ok"));
+            },
+            null);
+
+    runWithUserText(analyzerOnly, approved, "conv-escape", null);
+    String escaped = lastUserMessage.get();
+    assertTrue(escaped != null && !escaped.isBlank());
+    assertTrue(escaped.contains("\\{\"message\":\"hello world!\"}"), escaped);
+    assertFalse(escaped.contains(" JSON {\"message\""), escaped);
+  }
+
+  @Test
+  void reExecutionClearsRequirementBriefSoSecondCaptureSucceeds() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    RequirementBriefTool briefTool =
+        new RequirementBriefTool(
+            captureSession,
+            new ObjectMapper(),
+            feedbackStore,
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
+
+    RequirementBrief firstBrief = coveringBrief(approved, "Greetings first");
+    captureSession.accept(
+        CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, "conv-analysis-rerun"),
+        firstBrief,
+        "first ok",
+        "duplicate");
+
+    AtomicInteger captures = new AtomicInteger();
+    AtomicReference<String> lastUserMessage = new AtomicReference<>();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            null,
+            (conversationId, userMessage) -> {
+              lastUserMessage.set(userMessage);
+              org.jboss.logmanager.MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+              String goal =
+                  captures.incrementAndGet() == 1
+                      ? "Greetings refined"
+                      : "Greetings with quartz";
+              String result =
+                  briefTool.captureRequirementBrief(
+                      new RequirementBriefCapture(
+                          goal,
+                          List.of(),
+                          List.of(),
+                          List.of(),
+                          goal,
+                          null,
+                          approved.planningText(),
+                          approved.facts(),
+                          List.of()));
+              assertTrue(result.contains("Requirement brief captured"), result);
+              return Multi.createFrom().item(ChatEvent.token("ok"));
+            },
+            null);
+
+    CapabilitySignal.Completed first =
+        runWithUserText(capability, approved, "conv-analysis-rerun", "add quartz scheduler");
+    assertEquals(StageOutcomeClass.SUCCEEDED, first.outcome().outcomeClass());
+    RequirementBrief firstCandidate =
+        (RequirementBrief) first.outcome().candidates().get(0).payload();
+    assertEquals("Greetings refined", firstCandidate.goal());
+    assertTrue(lastUserMessage.get().contains("add quartz scheduler"));
+
+    CapabilitySignal.Completed second =
+        runWithUserText(capability, approved, "conv-analysis-rerun", "also add retry");
+    assertEquals(StageOutcomeClass.SUCCEEDED, second.outcome().outcomeClass());
+    RequirementBrief secondCandidate =
+        (RequirementBrief) second.outcome().candidates().get(0).payload();
+    assertEquals("Greetings with quartz", secondCandidate.goal());
+    assertEquals(2, captures.get());
+    assertTrue(lastUserMessage.get().contains("also add retry"));
+  }
+
+  @Test
+  void modelDraftParaphraseIsReplacedWithApprovedText() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    draftStore.put("conv-draft-mismatch", approved);
+    RequirementBriefTool briefTool =
+        new RequirementBriefTool(
+            captureSession,
+            new ObjectMapper(),
+            feedbackStore,
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
+    AppConfig appConfig = mock(AppConfig.class);
+    AppConfig.CaptureConfig captureConfig = mock(AppConfig.CaptureConfig.class);
+    when(appConfig.capture()).thenReturn(captureConfig);
+    when(captureConfig.maxRepairAttempts()).thenReturn(1);
+    CaptureRepairRunner repairRunner =
+        new CaptureRepairRunner(
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)),
+            feedbackStore,
+            appConfig);
+    AtomicInteger calls = new AtomicInteger();
+    String originalUserText = "Create Greetings with the approved draft";
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            null,
+            (conversationId, userMessage) -> {
+              calls.incrementAndGet();
+              org.jboss.logmanager.MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+              try {
+                briefTool.captureRequirementBrief(
+                    new RequirementBriefCapture(
+                        "Greetings",
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        "Greetings",
+                        null,
+                        "paraphrased draft that is not the pinned planning text",
+                        approved.facts(),
+                        List.of()));
+                return Multi.createFrom().item(ChatEvent.token("captured"));
+              } catch (CaptureValidationException e) {
+                return Multi.createFrom().failure(e);
+              }
+            },
+            null,
+            draftStore,
+            repairRunner,
+            mock(ChatMemorySanitizer.class));
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, "conv-draft-mismatch", originalUserText);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(1, calls.get());
+    RequirementBrief stored =
+        captureSession
+            .get(
+                CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, "conv-draft-mismatch"),
+                RequirementBrief.class)
+            .orElseThrow();
+    assertEquals(approved.planningText(), stored.approvedDraftText());
+    assertEquals(
+        approved.planningText(),
+        draftStore.get("conv-draft-mismatch").orElseThrow().planningText());
+  }
+
+  @Test
+  void terminalValidationFailureRepairsMemoryAndRetriesAnalysisOnce() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    ChatMemorySanitizer sanitizer = mock(ChatMemorySanitizer.class);
+    AppConfig appConfig = mock(AppConfig.class);
+    AppConfig.CaptureConfig captureConfig = mock(AppConfig.CaptureConfig.class);
+    when(appConfig.capture()).thenReturn(captureConfig);
+    when(captureConfig.maxRepairAttempts()).thenReturn(1);
+    CaptureRepairRunner repairRunner =
+        new CaptureRepairRunner(
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)),
+            feedbackStore,
+            appConfig);
+    AtomicInteger calls = new AtomicInteger();
+    AtomicReference<String> repairMessage = new AtomicReference<>();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            null,
+            (conversationId, userMessage) -> {
+              if (calls.incrementAndGet() == 1) {
+                String validation =
+                    "Requirement brief coverage failed: INITIALIZATION mapping required. "
+                        + "Set dataMappings to include the expected PASS_THROUGH mapping.";
+                feedbackStore.recordPlanValidationFailure(
+                    conversationId, validation, "unchanged invalid payload");
+                return Multi.createFrom().failure(new CaptureValidationException(validation));
+              }
+              repairMessage.set(userMessage);
+              captureSession.accept(
+                  CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
+                  coveringBrief(approved, "Repaired brief"),
+                  "captured",
+                  "duplicate");
+              return Multi.createFrom().item(ChatEvent.token("repaired"));
+            },
+            null,
+            null,
+            repairRunner,
+            sanitizer);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, "conv-terminal-repair", null);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(2, calls.get());
+    assertTrue(repairMessage.get().contains("INITIALIZATION mapping required"), repairMessage.get());
+    verify(sanitizer)
+        .repairDanglingToolCalls(
+            "conv-terminal-repair",
+            "Requirement brief coverage failed: INITIALIZATION mapping required. "
+                + "Set dataMappings to include the expected PASS_THROUGH mapping.");
+  }
+
+  @Test
+  void clearAnalysisCaptureStateRemovesPriorBriefAndFeedback() {
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    CaptureKey key = CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, "conv-clear");
+    captureSession.accept(
+        key,
+        coveringBrief(RequirementFactFixtures.greetingsApprovedDraft(), "prior"),
+        "ok",
+        "dup");
+    feedbackStore.recordPlanValidationFailure("conv-clear", "prior failure");
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            null,
+            null,
+            null);
+    capability.clearAnalysisCaptureState("conv-clear");
+
+    assertFalse(captureSession.isPresent(key));
+    assertTrue(feedbackStore.lastPlanFailure("conv-clear").isEmpty());
+  }
+
+  @Test
+  void analysisEmitsRequirementAnalyzerSkillProgress() throws Exception {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief brief = coveringBrief(approved, "Greetings HTTP script");
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> brief);
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-analysis-skill",
+            "conv-analysis-skill",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            null,
+            null,
+            List.of(),
+            Map.of("approvedDraft", approved));
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+
+    assertTrue(
+        signals.stream()
+            .anyMatch(
+                s ->
+                    s instanceof CapabilitySignal.SkillProgress sp
+                        && RequirementAnalysisCapability.SKILL_ID.equals(sp.skillId())
+                        && "running".equals(sp.status())));
+    assertTrue(
+        signals.stream()
+            .anyMatch(
+                s ->
+                    s instanceof CapabilitySignal.SkillProgress sp
+                        && RequirementAnalysisCapability.SKILL_ID.equals(sp.skillId())
+                        && "completed".equals(sp.status())));
+  }
+
+  @Test
+  void analysisWithApprovalGateEmitsCandidate() throws Exception {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief brief = coveringBrief(approved, "Greetings HTTP script");
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge, knowledge, new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(), ctx -> brief);
+
+    ProductPipelineProfile profile;
+    try (java.io.InputStream in =
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+      profile = ProductPipelineProfileParser.parse(in);
+    }
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-analysis",
+            "conv-analysis",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            profile,
+            null,
+            List.of(),
+            Map.of("approvedDraft", approved));
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+    CapabilitySignal.Completed completed =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.outcome().outcomeClass());
+  }
+
+  @Test
+  void repairTurnInjectsFindingsAndPriorBriefIntoAnalyzerPrompt() throws Exception {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief prior = coveringBrief(approved, "Greetings without RBAC");
+    RequirementBrief repaired =
+        coveringBrief(approved, "Greetings with RBAC access control");
+    AtomicReference<String> seenMessage = new AtomicReference<>();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    AppConfig appConfig = mock(AppConfig.class);
+    AppConfig.CaptureConfig captureConfig = mock(AppConfig.CaptureConfig.class);
+    when(appConfig.capture()).thenReturn(captureConfig);
+    when(captureConfig.maxRepairAttempts()).thenReturn(0);
+    CaptureRepairRunner repairRunner =
+        new CaptureRepairRunner(
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)),
+            feedbackStore,
+            appConfig);
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            null,
+            (conversationId, userMessage) -> {
+              seenMessage.set(userMessage);
+              captureSession.accept(
+                  CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
+                  repaired,
+                  "captured",
+                  "duplicate");
+              return Multi.createFrom().item(ChatEvent.token("repaired"));
+            },
+            null,
+            null,
+            repairRunner,
+            mock(ChatMemorySanitizer.class));
+
+    ProductPipelineProfile profile;
+    try (java.io.InputStream in =
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+      profile = ProductPipelineProfileParser.parse(in);
+    }
+
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    attributes.put("requirementBrief", prior);
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_CONTEXT_ATTR,
+        "Phase 5 plan validation failed. Findings: security-1: External route requires"
+            + " accessControlType=RBAC");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_OUTCOME_ATTR,
+        "VALIDATION_FAILURE");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_FAILED_STAGE_ATTR,
+        "design-execution");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_FINDINGS_ATTR,
+        "security-1: External route requires accessControlType=RBAC (blocker)");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .HALT_FOLLOW_UP_TEXT_ATTR,
+        "add rbac");
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-repair",
+            "conv-repair",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            profile,
+            null,
+            List.of(),
+            attributes);
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+
+    String prompt = seenMessage.get();
+    assertTrue(prompt.contains("Repair the previously approved requirement brief"), prompt);
+    assertTrue(prompt.contains("VALIDATION_FAILURE"), prompt);
+    assertTrue(prompt.contains("design-execution"), prompt);
+    assertTrue(prompt.contains("accessControlType=RBAC"), prompt);
+    assertTrue(prompt.contains("add rbac"), prompt);
+    assertTrue(prompt.contains("Greetings without RBAC"), prompt);
+    assertTrue(prompt.contains("Do not restart discovery"), prompt);
+
+    CapabilitySignal.Completed completed =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.outcome().outcomeClass());
+    RequirementBrief candidate =
+        (RequirementBrief) completed.outcome().candidates().get(0).payload();
+    assertEquals("Greetings with RBAC access control", candidate.goal());
+    assertTrue(completed.outcome().message().contains("Approve to rebuild the plan"));
+  }
+
+  @Test
+  void mappingRepairKeepsCapturedResponseRulesInsteadOfReplayingOldRequestText() {
+    RequirementDraft approved =
+        RequirementFactFixtures.readyDraft("Create a task and return its result")
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-in", Direction.INBOUND, "http", "POST /", ""),
+                        new Interaction(
+                            "create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+                        new Interaction(
+                            "task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                    List.of(
+                        new Transition("http-in", "create-task"),
+                        new Transition("create-task", "task-result"))));
+    for (String interactionId : List.of("create-task", "task-result")) {
+      approved =
+          approved.withBoundInteraction(
+              interactionId,
+              new CatalogBindingHint(
+                  "3", interactionId, interactionId, interactionId, "system-" + interactionId,
+                  "group-1", "spec-1", "op-" + interactionId, "http", "POST", "/" + interactionId,
+                  "catalog", Instant.EPOCH, "test"));
+    }
+    assertTrue(approved.readyForPlan(), approved.readinessError().orElse(""));
+    MappingIntent request =
+        new MappingIntent(
+            "request", "http-in", MappingPort.OUTPUT, "create-task", MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("$.name", "$.Subject", null),
+                new MappingIntentRule("$.executionId", "$.executionId", null),
+                new MappingIntentRule("$.orderId", "$.orderId", null)));
+    MappingIntent response =
+        new MappingIntent(
+            "response", "create-task", MappingPort.RESPONSE, "task-result", MappingPort.REQUEST,
+            List.of(new MappingIntentRule("\"completeTask\"", "$.commandType", null)));
+    RequirementBrief prior =
+        coveringBrief(approved, "Task integration").withMappingIntents(List.of(request, response));
+    MappingIntent repairedResponse =
+        response.withRules(
+            List.of(
+                response.rules().getFirst(),
+                new MappingIntentRule(
+                    "", "$.executionId", "Read executionId from saved request context"),
+                new MappingIntentRule(
+                    "", "$.orderId", "Read orderId from saved request context")));
+    RequirementBrief repaired = prior.withMappingIntents(List.of(request, repairedResponse));
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    AtomicInteger mappingTurns = new AtomicInteger();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge, knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null, null, null, ctx -> repaired, null, null, null, null, null,
+            (brief, text) -> {
+              mappingTurns.incrementAndGet();
+              return MappingTurnResult.changes();
+            },
+            null);
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    attributes.put("requirementBrief", prior);
+    attributes.put(
+        "userText",
+        "Request mapping: Subject = name. Keep executionId and orderId for the response.");
+    attributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "Unresolved required target field $.executionId");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, "MAPPING_CONTRACT");
+    attributes.put(
+        ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR,
+        "Use the saved request IDs in the result message.");
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-mapping-repair", "conv-mapping-repair", "requirement-analysis", "exec-1",
+            "attempt-1", null, null, List.of(), attributes);
+
+    CapabilitySignal.Completed completed =
+        capability.execute(context).collect().asList().await().indefinitely().stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(
+        StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass(), completed.outcome().message());
+    RequirementBrief candidate =
+        (RequirementBrief) completed.outcome().candidates().getFirst().payload();
+    assertEquals(List.of(request, repairedResponse), candidate.mappingIntents());
+    assertEquals(0, mappingTurns.get());
+  }
+
+  @Test
+  void repairTurnWithBriefProducerEmitsChangeSummaryMessage() throws Exception {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief prior = coveringBrief(approved, "Greetings without RBAC");
+    RequirementBrief repaired = coveringBrief(approved, "Greetings with RBAC");
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> repaired);
+
+    ProductPipelineProfile profile;
+    try (java.io.InputStream in =
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+      profile = ProductPipelineProfileParser.parse(in);
+    }
+
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    attributes.put("requirementBrief", prior);
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_CONTEXT_ATTR,
+        "External route requires accessControlType=RBAC");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_FINDINGS_ATTR,
+        "security-1: External route requires accessControlType=RBAC (blocker)");
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-repair-producer",
+            "conv-repair-producer",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            profile,
+            null,
+            List.of(),
+            attributes);
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+
+    assertTrue(
+        signals.stream()
+            .anyMatch(
+                s ->
+                    s instanceof CapabilitySignal.Message message
+                        && message.text().contains("I updated the requirement brief")
+                        && message.text().contains("plan will be rebuilt")));
+    CapabilitySignal.Completed completed =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.outcome().outcomeClass());
+  }
+
+  @Test
+  void buildAnalysisUserMessageAppendsRepairEvidenceBlock() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String message =
+        RequirementAnalysisCapability.buildAnalysisUserMessage(
+            approved,
+            null,
+            "en",
+            new RequirementAnalysisCapability.BriefRepairEvidence(
+                "VALIDATION_FAILURE",
+                "design-execution",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
+                "Phase 5 plan validation failed",
+                "add rbac",
+                "recovery-hash-1",
+                List.of(
+                    new org.qubership.integration.platform.ai.productpipeline.recovery
+                            .ProposedBriefChange(
+                        "timeout-fact",
+                        "timeoutSeconds",
+                        "0",
+                        "",
+                        "CONFLICTING_TIMEOUT",
+                        true)),
+                "Goal: prior brief", "{\"readOnly\":true,\"partial\":false,\"attempts\":[{\"failureId\":\"prior-failure\"}]}"));
+    assertTrue(message.contains("Repair the previously approved requirement brief"));
+    assertTrue(message.contains("outcomeClass: VALIDATION_FAILURE"));
+    assertTrue(message.contains("failedStageId: design-execution"));
+    assertTrue(message.contains("accessControlType=RBAC"));
+    assertTrue(message.contains("Prior requirement brief:"));
+    assertTrue(message.contains("Goal: prior brief"));
+    assertTrue(message.contains("<repair-history>"));
+    assertTrue(message.contains("prior-failure"));
+    assertTrue(message.contains("previousValue=0"));
+    assertTrue(message.contains("proposedValue="));
+    assertTrue(message.contains("authorDecisionRequired=true"));
+    assertTrue(message.contains("do not invent values when authorDecisionRequired is true"));
+  }
+
+  @Test
+  void repairTurnWithExclusiveFactsStillRequiresApproval() throws Exception {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief prior = coveringBrief(approved, "Greetings with conflicting timeout");
+    RequirementBrief repaired = coveringBrief(approved, "Greetings with timeout 10 seconds");
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            FakeKnowledgeClient.defaultFixture(),
+            FakeKnowledgeClient.defaultFixture(),
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> repaired);
+
+    ProductPipelineProfile profile;
+    try (java.io.InputStream in =
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+      profile = ProductPipelineProfileParser.parse(in);
+    }
+
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    attributes.put("requirementBrief", prior);
+    attributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Conflicting timeout requirements");
+    attributes.put(
+        ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR,
+        List.of(
+            new org.qubership.integration.platform.ai.productpipeline.recovery.ProposedBriefChange(
+                "timeout-fact",
+                "timeoutSeconds",
+                "0",
+                "",
+                "CONFLICTING_TIMEOUT",
+                true)));
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-repair-exclusive",
+            "conv-repair-exclusive",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            profile,
+            null,
+            List.of(),
+            attributes);
+    CapabilitySignal.Completed completed =
+        capability.execute(context).collect().asList().await().indefinitely().stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.outcome().outcomeClass());
+    assertNotEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+  }
+
+  @Test
+  void repairChangeSummaryMentionsProposedFieldValues() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Conflicting timeout requirements");
+    attributes.put(
+        ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR,
+        List.of(
+            new org.qubership.integration.platform.ai.productpipeline.recovery.ProposedBriefChange(
+                "timeout-fact",
+                "timeoutSeconds",
+                "0",
+                "10",
+                "CONFLICTING_TIMEOUT",
+                true)));
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-summary",
+            "conv-summary",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            null,
+            null,
+            List.of(),
+            attributes);
+    String summary =
+        RequirementAnalysisCapability.repairChangeSummary(
+            context, coveringBrief(approved, "Greetings with timeout"));
+
+    assertTrue(summary.contains("timeoutSeconds"));
+    assertTrue(summary.contains("0 -> 10"));
+  }
+
+  @Test
+  void authorOverrideAtApprovalCardIsPassedAsChangeRequest() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String message =
+        RequirementAnalysisCapability.buildAnalysisUserMessage(
+            approved,
+            "timeout 10 seconds",
+            "en",
+            null);
+    assertTrue(message.contains("Change request for this analysis turn:"));
+    assertTrue(message.contains("timeout 10 seconds"));
+  }
+
+  private static CapabilitySignal.Completed run(
+      RequirementAnalysisCapability capability, RequirementDraft approved) {
+    return runWithUserText(capability, approved, "conv-analysis", null);
+  }
+
+  private static CapabilitySignal.Completed runWithUserText(
+      RequirementAnalysisCapability capability,
+      RequirementDraft approved,
+      String conversationId,
+      String userText) {
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    if (userText != null) {
+      attributes.put("userText", userText);
+    }
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-analysis",
+            conversationId,
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            null,
+            null,
+            List.of(),
+            attributes);
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+    return signals.stream()
+        .filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast)
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("expected Completed signal, got " + signals));
+  }
+
+  private static RequirementBrief coveringBrief(RequirementDraft approved, String goal) {
+    return RequirementBriefProjector.project(
+        new RequirementBrief(
+                goal,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                goal,
+                "approved-draft",
+                approved.planningText(),
+                approved.facts())
+            .withFlow(approved.flow())
+            .withCatalogBindings(approved.catalogBindings()));
+  }
+
+  private static RequirementFact serviceCall(
+      String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        serviceCallId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
+  }
+
+  private static FakeKnowledgeClient knowledgeWithMandatoryObjects() {
+    FakeKnowledgeClient client = FakeKnowledgeClient.defaultFixture();
+    client.put(
+        "CORPORATE_CIP_STANDARDS",
+        "Standard",
+        "CORPORATE_CIP_STANDARDS",
+        "Corporate CIP standards.",
+        List.of("CORPORATE_CIP_STANDARDS"));
+    client.put(
+        "pattern-standards",
+        "Standard",
+        "pattern-standards",
+        "Pattern standards.",
+        List.of("pattern-standards"));
+    client.put(
+        "element-standards",
+        "Standard",
+        "element-standards",
+        "Element standards.",
+        List.of("element-standards"));
+    return client;
+  }
+}

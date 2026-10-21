@@ -1,4 +1,4 @@
-export const BROWSER_TAB_DEFAULT_TITLE = "QIP";
+export const BROWSER_TAB_DEFAULT_TITLE = "CIP";
 
 export const OPERATION_INFO_TAB_TITLE = "Operation info";
 

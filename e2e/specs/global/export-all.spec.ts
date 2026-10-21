@@ -54,9 +54,8 @@ test("the export of everything carries a chain exactly as its own export does", 
 
 /**
  * `GET /v1/catalog/export/api-spec` with no chain, snapshot, or deployment named exports every
- * deployed HTTP trigger, and answers 500 on an NPE once one of them has an external route
- * (`docs/product-defects.md`, "`GET /v1/catalog/export/api-spec` reports nothing with `chainIds`,
- * and 500s without it"). Every corpus trigger is internal, and the default `externalRoutes=true`
+ * deployed HTTP trigger, and answers 500 on an NPE once one of them has an external route, a defect
+ * decided as won't fix. Every corpus trigger is internal, and the default `externalRoutes=true`
  * filters those out before the NPE, so the case deploys an external trigger of its own. Without one
  * the export answers 200 with `paths: {}`, as it did on a cluster holding the corpus alone.
  *

@@ -121,7 +121,7 @@ paths:
     post:
       deprecated: true
       description: Get action logs
-      operationId: findBySearchRequest_3
+      operationId: findBySearchRequest_2
       requestBody:
         content:
           application/json:
@@ -330,7 +330,7 @@ paths:
       - deployment-controller
     get:
       description: Get all deployments for specified chain
-      operationId: findAllByChainId_1
+      operationId: findAllByChainId
       parameters:
       - description: Chain id
         in: path
@@ -351,7 +351,7 @@ paths:
       - deployment-controller
     post:
       description: Create deployment for the chain
-      operationId: create_5
+      operationId: create_2
       parameters:
       - description: Chain id
         in: path
@@ -408,7 +408,7 @@ paths:
   /v1/catalog/chains/{chainId}/deployments/{deploymentId}:
     delete:
       description: Delete specific deployment for the chain
-      operationId: deleteById_3
+      operationId: deleteById_2
       parameters:
       - description: Chain id
         in: path
@@ -429,7 +429,7 @@ paths:
       - deployment-controller
     get:
       description: Get particular deployment of the chain
-      operationId: findById_5
+      operationId: findById_3
       parameters:
       - description: Chain id
         in: path
@@ -511,7 +511,7 @@ paths:
   /v1/catalog/chains/{chainId}/snapshots/{snapshotId}:
     delete:
       description: Delete specified snapshot
-      operationId: deleteById_1
+      operationId: deleteById
       parameters:
       - description: Chain id
         in: path
@@ -532,7 +532,7 @@ paths:
       - snapshot-controller
     get:
       description: Get particular snapshot
-      operationId: findById_2
+      operationId: findById_1
       parameters:
       - description: Chain id
         in: path
@@ -1247,7 +1247,7 @@ paths:
     post:
       deprecated: true
       description: Import chains from file
-      operationId: importFile_1
+      operationId: importFile
       parameters:
       - description: Import requests
         in: query
@@ -1623,7 +1623,7 @@ paths:
       - mcp-system-controller
     post:
       description: Create MCP system
-      operationId: create_4
+      operationId: create
       requestBody:
         content:
           application/json:
@@ -1780,7 +1780,7 @@ paths:
       - mcp-system-controller
     put:
       description: Update MCP system
-      operationId: update_2
+      operationId: update
       parameters:
       - in: path
         name: id
@@ -1962,7 +1962,7 @@ paths:
       - chain-controller
     post:
       description: Create a new chain
-      operationId: create_2
+      operationId: create_4
       requestBody:
         content:
           application/json:
@@ -2012,7 +2012,7 @@ paths:
   /v1/chains/diff:
     post:
       description: Find differences between chains/snapshots
-      operationId: difference_1
+      operationId: difference
       requestBody:
         content:
           application/json:
@@ -2130,7 +2130,7 @@ paths:
   /v1/chains/{chainId}:
     delete:
       description: Delete chain
-      operationId: deleteById
+      operationId: deleteById_1
       parameters:
       - description: Chain id
         in: path
@@ -2145,7 +2145,7 @@ paths:
       - chain-controller
     get:
       description: Find chain with its elements
-      operationId: findById_1
+      operationId: findById_2
       parameters:
       - description: Chain id
         in: path
@@ -2183,7 +2183,7 @@ paths:
       x-api-kind: bwc
     put:
       description: Update existing chain
-      operationId: update_1
+      operationId: update_2
       parameters:
       - description: Chain id
         in: path
@@ -2262,7 +2262,7 @@ paths:
       - dependency-controller
     get:
       description: Find all dependencies by chain
-      operationId: findAllByChainId
+      operationId: findAllByChainId_1
       parameters:
       - description: Chain id
         in: path
@@ -2310,7 +2310,7 @@ paths:
     delete:
       deprecated: true
       description: Delete specific dependency in the chain
-      operationId: deleteById_2
+      operationId: deleteById_3
       parameters:
       - description: Chain id
         in: path
@@ -3118,7 +3118,7 @@ paths:
   /v1/common-variables:
     delete:
       description: Delete set of variables
-      operationId: deleteVariables_2
+      operationId: deleteVariables_1
       parameters:
       - description: Set of variables to remove
         in: query
@@ -3136,7 +3136,7 @@ paths:
       x-api-kind: bwc
     get:
       description: Get all common variables
-      operationId: getVariables_2
+      operationId: getVariables_1
       responses:
         "200":
           content:
@@ -3150,7 +3150,7 @@ paths:
       - common-variables-controller
     post:
       description: Add new common variable(s)
-      operationId: addVariables_2
+      operationId: addVariables_1
       requestBody:
         content:
           application/json:
@@ -3815,7 +3815,7 @@ paths:
       - folder-controller
     put:
       description: Update specified folder
-      operationId: update
+      operationId: update_1
       parameters:
       - description: Folder id
         in: path
@@ -4610,7 +4610,7 @@ paths:
   /v1/secured-variables:
     delete:
       description: Delete set of secured variables
-      operationId: deleteVariables_1
+      operationId: deleteVariables
       parameters:
       - description: Set of names of secured variables
         in: query
@@ -4628,7 +4628,7 @@ paths:
       - secured-variable-controller
     get:
       description: Get all secured variables names
-      operationId: getVariables_1
+      operationId: getVariables
       responses:
         "200":
           content:
@@ -4643,7 +4643,7 @@ paths:
       - secured-variable-controller
     post:
       description: Add new secured variable(s)
-      operationId: addVariables_1
+      operationId: addVariables
       requestBody:
         content:
           application/json:
@@ -5245,7 +5245,7 @@ paths:
   /v2/catalog/actions-log:
     post:
       description: Get action logs with offset/limit pagination
-      operationId: findBySearchRequest_2
+      operationId: findBySearchRequest_3
       requestBody:
         content:
           application/json:
@@ -5282,7 +5282,7 @@ paths:
   /v2/catalog/snapshots/{snapshotId}/full:
     get:
       description: Get snapshot
-      operationId: findById_3
+      operationId: findById_5
       parameters:
       - description: Snapshot id
         in: path
@@ -5335,7 +5335,7 @@ paths:
   /v2/folders:
     post:
       description: Create a new folder
-      operationId: create
+      operationId: create_5
       requestBody:
         content:
           application/json:
@@ -5684,7 +5684,7 @@ paths:
   /v2/secured-variables:
     delete:
       description: Delete secured variables from multiple specified secrets
-      operationId: deleteVariables
+      operationId: deleteVariables_2
       requestBody:
         content:
           application/json:
@@ -5708,7 +5708,7 @@ paths:
       - secured-variable-controller-v-2
     get:
       description: Get all secured variables names from all secrets
-      operationId: getVariables
+      operationId: getVariables_2
       responses:
         "200":
           content:
@@ -5740,7 +5740,7 @@ paths:
       - secured-variable-controller-v-2
     post:
       description: Add new secured variables
-      operationId: addVariables
+      operationId: addVariables_2
       requestBody:
         content:
           application/json:
@@ -5823,7 +5823,7 @@ paths:
     post:
       description: Import chains and related to them services and variables from an
         archive file
-      operationId: importFile
+      operationId: importFile_1
       parameters:
       - description: Import request object
         in: query
@@ -5888,9 +5888,9 @@ paths:
       x-api-kind: bwc
   /v3/import/chains/diff:
     post:
-      description: Find differences between the chain stored in the QIP database and
+      description: Find differences between the chain stored in the CIP database and
         the imported one
-      operationId: difference
+      operationId: difference_1
       requestBody:
         content:
           multipart/form-data:

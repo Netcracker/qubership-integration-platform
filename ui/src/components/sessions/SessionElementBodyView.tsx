@@ -87,7 +87,7 @@ export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
 
   return (
     <Editor
-      className="qip-editor"
+      className="cip-editor"
       wrapperProps={{ "data-testid": dataTestId }}
       language={language}
       value={body}

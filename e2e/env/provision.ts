@@ -51,7 +51,7 @@ export interface ProvisionReport {
   staleSupport: string[];
   /** Whether nginx was reloaded, which only the Compose provisioner does. */
   proxyReloaded: boolean;
-  /** The reload was for `infrastructure/nginx/` rather than for a container that changed address. */
+  /** The reload was for `infrastructure/docker/nginx/` rather than for a container that changed address. */
   proxyConfigChanged: boolean;
 }
 
@@ -107,7 +107,7 @@ export function formatReport(report: ProvisionReport): string {
   if (report.proxyReloaded) {
     lines.push(
       report.proxyConfigChanged
-        ? "[provision]   nginx reloaded: infrastructure/nginx changed"
+        ? "[provision]   nginx reloaded: infrastructure/docker/nginx changed"
         : "[provision]   nginx reloaded",
     );
   }

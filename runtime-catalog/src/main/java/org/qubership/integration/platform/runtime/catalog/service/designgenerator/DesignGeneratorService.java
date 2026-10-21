@@ -176,7 +176,7 @@ public class DesignGeneratorService {
         }
 
         participants.put(DiagramBuilderEscapeUtil.removeOrReplaceUnsupportedCharacters(chainId),
-                "QIP chain: " + chainFinderService.findById(chainId).getName());
+                "CIP chain: " + chainFinderService.findById(chainId).getName());
 
         for (ChainElement trigger : triggers) {
             for (ChainElement nextElement : getNextElements(trigger, fromElementMap)) {

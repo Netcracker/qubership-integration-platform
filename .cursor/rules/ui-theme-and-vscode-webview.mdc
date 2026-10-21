@@ -1,6 +1,6 @@
 ---
-description: "Theme and VS Code webview guidance for QIP UI."
-globs: "ui/**/*.{ts,tsx,css,scss}"
+description: Theme and VS Code webview guidance for QIP UI.
+globs: ui/**/*.{ts,tsx,css,scss}
 ---
 
 When implementing or changing UI styling, color logic, icon rendering, or

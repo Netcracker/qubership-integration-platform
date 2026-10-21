@@ -1,0 +1,31 @@
+name: qip-k8s-dev
+description: qip dev char for deploying in k8s
+version: 0.0.1
+apiVersion: v2
+keywords:
+  - qip-k8s-dev
+dependencies:
+  - name: camelk
+    version: 0.0.1
+  - name: consul
+    version: 0.0.1
+  - name: gateways
+    version: 0.0.1
+  - name: general
+    version: 0.0.1
+  - name: opensearch
+    version: 0.0.1
+  - name: postgres
+    version: 0.0.1
+  - name: qip-ai-service
+    version: 0.0.1
+  - name: qip-engine
+    version: 0.0.1
+  - name: qip-runtime-catalog
+    version: 0.0.1
+  - name: qip-sessions-management
+    version: 0.0.1
+  - name: qip-testing-service
+    version: 0.0.1
+  - name: ui
+    version: 0.0.1

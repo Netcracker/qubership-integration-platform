@@ -1,0 +1,78 @@
+caseId: cip-security-generator-applicable
+skillId: cip-security-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Protect the HTTP trigger with RBAC.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Protect the HTTP trigger with RBAC.
+  approvedDraftReference: approved-draft-cip-security-generator-applicable
+  approvedDraftText: Protect the HTTP trigger with RBAC.
+  facts:
+    - sourceFactId: security-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: security
+      text: Apply RBAC roles to the HTTP trigger.
+upstreamArtifacts:
+  CONFIGURED_TRIGGER_SET:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Security.Demo.Rbac
+    description: Protect external HTTP trigger with RBAC.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /secure
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "true"
+  edges: []
+capturedPatch:
+  patchId: cip-security-generator-valid-patch-rbac-http-trigger
+  ownerCapabilityId: cip-security-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: http-trigger-1
+      property:
+        key: accessControlType
+        value: "RBAC"
+    - operation: ADD
+      targetNodeId: http-trigger-1
+      property:
+        key: roles
+        value: "[\"qip-viewer\"]"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Apply RBAC to an existing external HTTP trigger. Trigger endpoint fields are owned by cip-trigger-generator; security patches do not create or replace endpoint fields.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Security.Demo.Rbac
+    description: Protect external HTTP trigger with RBAC.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /secure
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "true"
+        - key: accessControlType
+          value: "RBAC"
+        - key: roles
+          value: "[\"qip-viewer\"]"
+  edges: []

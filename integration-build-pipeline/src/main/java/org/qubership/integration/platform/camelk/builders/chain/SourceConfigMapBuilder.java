@@ -105,11 +105,12 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
             return yamlMapper.writeValueAsString(configMapNode);
         } catch (Exception e) {
             String message = String.format(
-                    "Failed to build integration source ConfigMap for snapshot '%s' (%s) of chain '%s' (%s)",
+                    "Failed to build integration source ConfigMap for snapshot '%s' (%s) of chain '%s' (%s): %s",
                     snapshot.getId(),
                     snapshot.getName(),
                     chain.getName(),
-                    chain.getId()
+                    chain.getId(),
+                    e.getMessage()
             );
             log.error(message, e);
             throw new ResourceBuildError(message, e);

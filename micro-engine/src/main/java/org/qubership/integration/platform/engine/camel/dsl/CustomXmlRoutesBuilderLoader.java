@@ -168,6 +168,13 @@ public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
             public void addLifecycleInterceptor(RouteBuilderLifecycleStrategy interceptor) {
                 builder.addLifecycleInterceptor(interceptor);
             }
+
+            // The wrapped builder creates the route definitions, and each takes its resource from it.
+            @Override
+            public void setResource(Resource resource) {
+                super.setResource(resource);
+                builder.setResource(resource);
+            }
         };
     }
 

@@ -14,16 +14,19 @@ import java.util.Map;
 
 @Singleton
 public class JsonLogProvider implements JsonProvider {
-    private static final Map<String, String> MDC_MAPPING = Map.of(
-            "requestId", "request_id",
-            "X-B3-TraceId", "traceId",
-            "X-B3-SpanId", "spanId",
-            "logType", "log_type",
-            "internalProperty_sessionId", "session_id",
-            "chainId", "chain_id",
-            "chainName", "chain",
-            "elementId", "chain_element_id",
-            "elementName", "chain_element");
+    static final Map<String, String> MDC_MAPPING = Map.ofEntries(
+            Map.entry("requestId", "request_id"),
+            Map.entry("tenantId", "tenant_id"),
+            Map.entry("trace_id", "traceId"),
+            Map.entry("span_id", "spanId"),
+            Map.entry("businessIdentifiers", "business_identifiers"),
+            Map.entry("originating-bi-id", "originating_bi_id"),
+            Map.entry("logType", "log_type"),
+            Map.entry("internalProperty_sessionId", "session_id"),
+            Map.entry("chainId", "chain_id"),
+            Map.entry("chainName", "chain"),
+            Map.entry("elementId", "chain_element_id"),
+            Map.entry("elementName", "chain_element"));
 
     @Override
     public void writeTo(JsonGenerator generator, ExtLogRecord event) throws IOException {

@@ -170,7 +170,7 @@ export const BatchExportRunner: React.FC = () => {
       <Result
         status="error"
         title="No export targets provided"
-        subTitle="Provide targets when calling qip.exportImages."
+        subTitle="Provide targets when calling cip.exportImages."
       />
     );
   }

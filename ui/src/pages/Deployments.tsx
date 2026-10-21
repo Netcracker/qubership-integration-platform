@@ -23,6 +23,7 @@ import {
   CreateDeploymentOptions,
   DeploymentCreate,
 } from "../components/modal/DeploymentCreate.tsx";
+import { toDomains } from "../misc/domain-utils.ts";
 import { api } from "../api/api.ts";
 import { LongActionButton } from "../components/LongActionButton.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
@@ -34,7 +35,7 @@ import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { DeleteDeploymentWarningModal } from "../components/modal/DeleteDeploymentWarningModal.tsx";
 
 function deploymentMatchesSearch(
@@ -243,13 +244,19 @@ export const Deployments: React.FC = () => {
     [chainId, notificationService, onDeploymentCreated],
   );
 
+  const initialDomains = useMemo(() => toDomains(deployments), [deployments]);
+
   const onCreateClick = useCallback(() => {
     showModal({
       component: (
-        <DeploymentCreate chainId={chainId} onSubmit={createDeployment} />
+        <DeploymentCreate
+          chainId={chainId}
+          initialDomains={initialDomains}
+          onSubmit={createDeployment}
+        />
       ),
     });
-  }, [showModal, chainId, createDeployment]);
+  }, [showModal, chainId, createDeployment, initialDomains]);
 
   const chainTabToolbar = useMemo(
     () => (
@@ -281,15 +288,9 @@ export const Deployments: React.FC = () => {
     [searchTerm, columnSettingsButton, onCreateClick, refresh, isLoading],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    searchTerm,
-    onCreateClick,
-    refresh,
-    isLoading,
-  ]);
-
   return (
     <TablePageLayout>
+      <ChainHeaderActions>{chainTabToolbar}</ChainHeaderActions>
       <Table
         className="flex-table"
         size="small"

@@ -33,6 +33,7 @@ public abstract class AbstractAsyncApiSpecificationResolver implements AsyncApiS
 
     private static final String PAYLOAD_FIELD_NAME = "payload";
     private static final String MESSAGES_PREFIX = "#/components/messages/";
+    private static final String REF_KEY = "\"$ref\"";
     private static final String REF_FIELD_NAME = "$ref";
     private static final String EMPTY_STRING_REPLACEMENT = "";
     private static final String SCHEMA_RESOLVING_ERROR = "An error occurred during schema resolving";
@@ -55,7 +56,8 @@ public abstract class AbstractAsyncApiSpecificationResolver implements AsyncApiS
         if (operationObject.getMessage() != null) {
             Message message = operationObject.getMessage();
             if (message.getPayload() != null) {
-                messageSchema.put(PAYLOAD_FIELD_NAME, objectMapper.valueToTree(message.getPayload()));
+                JsonNode payload = objectMapper.valueToTree(message.getPayload());
+                messageSchema.put(PAYLOAD_FIELD_NAME, getPayloadNode(PAYLOAD_FIELD_NAME, payload, componentsFor(payload, components)));
                 return messageSchema;
             }
 
@@ -97,10 +99,26 @@ public abstract class AbstractAsyncApiSpecificationResolver implements AsyncApiS
                 } else if (refs.size() > 1) {
                     key = PAYLOAD_FIELD_NAME + "_" + i;
                 }
-                result.put(key, refNode.get(PAYLOAD_FIELD_NAME));
+                result.put(key, getPayloadNode(key, refNode.get(PAYLOAD_FIELD_NAME), importedComponents));
             }
         }
         return result;
+    }
+
+    // Converting the components costs as much as the document; a payload without a reference needs none of it.
+    private JsonNode componentsFor(JsonNode payload, Components components) {
+        return payload.toString().contains(REF_KEY) ? objectMapper.valueToTree(components) : objectMapper.createObjectNode();
+    }
+
+    private JsonNode getPayloadNode(String name, JsonNode payload, JsonNode importedComponents) {
+        if (!payload.isObject()) {
+            return payload;
+        }
+        try {
+            return objectMapper.readTree(asyncApiSchemaResolver.resolveSchema(name, (ObjectNode) payload, importedComponents));
+        } catch (JsonProcessingException e) {
+            throw new SpecificationParserException(SCHEMA_RESOLVING_ERROR, e);
+        }
     }
 
     private MutablePair<String, JsonNode> getRefNode(String ref, JsonNode importedComponents) {

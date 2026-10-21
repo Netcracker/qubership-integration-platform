@@ -33,7 +33,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/specificationGroups/import")
+@RequestMapping({"/v1/specificationGroups/import", "/api/v1/cip/systems-catalog/specificationGroups/import"})
 @Tag(name = "specification-group-import-controller", description = "Specification Group Import Controller")
 public class SpecificationGroupImportController {
     private final SpecificationGroupService specificationGroupService;

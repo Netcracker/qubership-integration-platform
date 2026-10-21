@@ -32,8 +32,8 @@ import org.apache.camel.tracing.Tracer;
 import org.apache.commons.lang3.tuple.Pair;
 import org.codehaus.groovy.control.CompilationFailedException;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.engine.camel.CipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.CustomResilienceReifier;
-import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.context.propagation.constant.BusinessIds;
 import org.qubership.integration.platform.engine.camel.converters.FormDataConverter;
 import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
@@ -59,7 +59,7 @@ import org.qubership.integration.platform.engine.model.deployment.engine.EngineD
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.*;
-import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
+import org.qubership.integration.platform.engine.security.CipSecurityAccessPolicy;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
@@ -462,6 +462,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             throw e;
         }
 
+        deploymentProcessingService.processAfterContextStarted(context, deploymentInfo, configuration);
+
         contextsToStop.forEach(p -> stopSupersededContext(p.getRight(), p.getLeft()));
 
         quartzSchedulerService.commitScheduledJobs();
@@ -567,7 +569,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             String.class,
             formDataConverter);
         context.getTypeConverterRegistry().addTypeConverter(
-            QipSecurityAccessPolicy.class,
+            CipSecurityAccessPolicy.class,
             String.class,
             securityAccessPolicyConverter);
         context.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, "true");
@@ -621,7 +623,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             .toList();
         ClassLoader classLoader = externalLibraryService
                 .getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader());
-        return new QipCustomClassResolver(classLoader);
+        return new CipCustomClassResolver(classLoader);
     }
 
     private void startContext(SpringCamelContext context) {

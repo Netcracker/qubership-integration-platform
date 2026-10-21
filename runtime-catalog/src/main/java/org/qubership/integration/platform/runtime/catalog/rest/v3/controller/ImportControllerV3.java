@@ -54,7 +54,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v3/import", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v3/import", "/api/cip/v3/import"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "import-controller-v-3", description = "Import Controller V3")
 public class ImportControllerV3 {
@@ -155,7 +155,7 @@ public class ImportControllerV3 {
         return ResponseEntity.status(responseStatus).body(importSessionResponse);
     }
 
-    @Operation(description = "Find differences between the chain stored in the QIP database and the imported one",
+    @Operation(description = "Find differences between the chain stored in the CIP database and the imported one",
         requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
             mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
             schemaProperties = {

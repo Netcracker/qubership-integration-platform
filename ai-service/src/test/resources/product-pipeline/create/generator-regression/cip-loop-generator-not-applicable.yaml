@@ -1,0 +1,57 @@
+caseId: cip-loop-generator-not-applicable
+skillId: cip-loop-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Paginate backend results with a do-while loop.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Paginate backend results with a do-while loop.
+  approvedDraftReference: approved-draft-cip-loop-generator-not-applicable
+  approvedDraftText: Paginate backend results with a do-while loop.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Loop.Demo.Paginate
+    description: Paginate until exhausted.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: loop-1
+      type: loop-2
+      label: Paginate results
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: cip-loop-generator-no-changes
+  ownerCapabilityId: cip-loop-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Loop.Demo.Paginate
+    description: Paginate until exhausted.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: loop-1
+      type: loop-2
+      label: Paginate results
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []

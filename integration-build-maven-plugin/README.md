@@ -65,14 +65,14 @@ source root:
 src/main/integration/
 ├── chains/
 │   └── c0273e0b-d143-4704-b4ee-266f045c6631/
-│       ├── c0273e0b-d143-4704-b4ee-266f045c6631.chain.qip.yaml
+│       ├── c0273e0b-d143-4704-b4ee-266f045c6631.chain.cip.yaml
 │       └── resources/
 │           └── script-a81e8f34-72ef-4f95-a80b-7a5049d52547.groovy
 └── services/
     └── 1acc68e3-.../
-        ├── 1acc68e3-....service.qip.yaml
-        ├── <groupId>.specification-group.qip.yaml
-        ├── <specificationId>.specification.qip.yaml
+        ├── 1acc68e3-....service.cip.yaml
+        ├── <groupId>.specification-group.cip.yaml
+        ├── <specificationId>.specification.cip.yaml
         └── resources/
             └── openapi.json
 ```
@@ -94,7 +94,7 @@ continues. With no chains found, `build-crs` writes nothing.
 | `controlPlaneType` | `ISTIO` or `CORE` | `cip.controlPlaneType` | `ISTIO` | `ISTIO` generates the route resources; `CORE` skips them. |
 | `defaultSecretEnabled` | `boolean` | `cip.defaultSecretEnabled` | `false` | Sets `DEFAULT_SECRET_ENABLED` in the engine container's environment. |
 | `outputTimestamp` | `String` | none | `${project.build.outputTimestamp}` | Build time stamped into the resources. See [Build timestamp](#build-timestamp). |
-| `libraryUrlTemplate` | `String` | `cip.libraryUrlTemplate` | `http://{appPrefix}-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar` | URL the engine loads each DTO library from. See [Library URL](#library-url). |
+| `libraryUrlTemplate` | `String` | `cip.libraryUrlTemplate` | `http://cip-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar` | URL the engine loads each DTO library from. See [Library URL](#library-url). |
 | `options` | object | none | see [Resource options](#resource-options) | Shapes the generated deployment. |
 
 Set a parameter in the plugin's `<configuration>`, or on the command line through its user property:
@@ -129,12 +129,8 @@ reproducible on its own; see [Snapshots](#snapshots).
 ### Library URL
 
 The integrations configuration tells the engine where to load each DTO library from. `libraryUrlTemplate`
-builds that URL from two placeholders:
-
-| Placeholder | Value |
-| --- | --- |
-| `{specificationId}` | The id of the specification the library was generated from. |
-| `{appPrefix}` | The plugin's application prefix, `qip`. |
+builds that URL from one placeholder, `{specificationId}`: the id of the specification the library was
+generated from.
 
 The default points at runtime-catalog, which serves the library it generated itself. To load the
 libraries that `build-libs` publishes instead, point the template at your repository:
@@ -145,7 +141,7 @@ libraries that `build-libs` publishes instead, point the template at your reposi
 </configuration>
 ```
 
-The placeholders take single braces, not `${...}`, because Maven would substitute a property of the same
+The placeholder takes single braces, not `${...}`, because Maven would substitute a property of the same
 name before the plugin sees the template. A placeholder the plugin does not know stays in the URL
 unchanged, so a typo such as `{specId}` surfaces only when the engine fails to fetch the library.
 
@@ -167,7 +163,7 @@ domains. With `deployAll`, a chain that names no micro-domain goes into `default
 
 Each domain is built separately, into one set of resources: one engine deployment running every chain of
 that domain. The domain name becomes the deployment name and prefixes the resource names, for example
-`qip-engine-<domain>-routes`.
+`cip-engine-<domain>-routes`.
 
 ### Output
 
@@ -177,7 +173,7 @@ kind with one name fail the build with `Duplicate resource '...'`.
 
 Each file is also attached to the project as an artifact of type `yaml`, classified by its file name
 without the extension. `mvn install` and `mvn deploy` publish it next to the project's own artifact, for
-example `my-app-1.0-Service-qip-engine-orders-domain-v1.yaml`. To depend on one resource, name its
+example `my-app-1.0-Service-cip-engine-orders-domain-v1.yaml`. To depend on one resource, name its
 classifier:
 
 ```xml
@@ -186,7 +182,7 @@ classifier:
   <artifactId>my-app</artifactId>
   <version>1.0</version>
   <type>yaml</type>
-  <classifier>Service-qip-engine-orders-domain-v1</classifier>
+  <classifier>Service-cip-engine-orders-domain-v1</classifier>
 </dependency>
 ```
 
@@ -356,8 +352,7 @@ mvn compile -Dcip.failFast=false
 ## Migrations
 
 Exported chain and service files carry a format version, and the pipeline migrates each file to the
-current format before reading it. The plugin reuses runtime-catalog's import migrations unchanged, with
-one difference: the fallback for files that carry no version at all.
+current format before reading it. The plugin reuses runtime-catalog's import migrations unchanged.
 
 ### How the version of a file is found
 
@@ -367,23 +362,20 @@ takes the first answer:
 1. `content.migrations`, a list such as `[100, 101, 102]` inside `content`.
 2. `migrations` at the top level.
 3. `fileVersion`, the oldest format: `fileVersion: N` means migrations `1` through `N`.
-4. The plugin's `AssumeActualVersion` fallback, for a file with none of these fields.
 
 The migrations the file lacks are then applied in ascending order. A file that lists a migration the
 plugin does not know was exported by a newer QIP version, and the build fails with
 `Unable to import an entity exported from a newer version`. Upgrade the plugin to read it.
 
-### The fallback: files without migration metadata
+### Files without migration metadata
 
-In runtime-catalog, a file with no migration metadata is an error. The plugin instead treats it as
-already current: `AssumeActualVersion` answers with every migration the plugin knows, so none is applied.
-This fits chains written by hand or by the VS Code extension in the current format. An old file that lost
-its metadata is read as current and fails later, on the first field the old format names differently.
+A file with none of these fields is read as current, and no migration is applied to it. Every export the
+catalog writes carries `migrations` or `fileVersion`. The VS Code extension writes files in the current
+format without either field, and so does a person writing a file by hand. runtime-catalog reads such a
+file the same way.
 
-The fallback tells files apart by `$schema`: a value containing `service` gets the service migrations,
-anything else the chain migrations. A service file with neither metadata nor `$schema` is therefore told it
-carries chain migrations, and fails as coming from a newer version. Add a `migrations`
-field or a `$schema` to such a file.
+An old file that lost its metadata is read as current too, and nothing moves its fields into `content`. A
+chain then fails to read, while a service is read with only its id and name.
 
 Specification group and specification files have no version of their own. A file already in the `content`
 layout is read as is; an older one is migrated with the versions of the service file it belongs to.

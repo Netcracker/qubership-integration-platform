@@ -1,0 +1,27 @@
+id: 50a90000-0000-4000-8000-000000000000
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+name: import-50a90000
+content:
+  integrationSystemType: INTERNAL
+  migrations: "[100, 101, 102]"
+  description: ""
+  activeEnvironmentId: 50a9da7a-0000-4000-8000-000000000004
+  extendedProtocol: SOAP
+  specification: ""
+  environments:
+    - id: 50a9da7a-0000-4000-8000-000000000004
+      name: OrdersPort
+      address: http://orders.qip.test:8080/orders
+      description: Environment created for orders specification group
+      sourceType: MANUAL
+      systemId: 50a90000-0000-4000-8000-000000000000
+      properties:
+        connectTimeout: "120000"
+        soTimeout: "120000"
+        connectionRequestTimeout: "120000"
+        responseTimeout: "120000"
+        getWithBody: "false"
+        deleteWithBody: "false"
+      labels: []
+  labels: []
+  protocol: SOAP

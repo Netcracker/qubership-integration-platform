@@ -108,7 +108,7 @@ site for a button a shared hook renders), the `-editor` IDs passed through Monac
 `aria-label` and `aria-expanded` on `TreeExpandIcon`, and `deployment-status-<status>` on
 `DeploymentStatusTag`. Renaming or removing one breaks a browser case, and a new icon-only button
 gets its own id. Check a change with `cd e2e && npm test -- --project=ui`, which rebuilds the bundle
-when `src` changed. "The browser layer" in `e2e/AGENTS.md` has the selector rules.
+when `src` changed. The selector rules are in `browser.md` of the `e2e-spec-authoring` skill.
 
 ## jsdom prerequisites
 

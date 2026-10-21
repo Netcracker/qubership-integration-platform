@@ -1,4 +1,8 @@
 # Project-scoped Codex configuration.
+
+# The default 32 KiB cuts off testing-service/AGENTS.md, which is 38 KB together with the root AGENTS.md.
+project_doc_max_bytes = 65536
+
 # Subagents are behind a feature flag; without it the definitions in
 # .codex/agents/ are never spawned.
 [features]

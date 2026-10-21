@@ -22,6 +22,7 @@ on:
       - 'runtime-catalog/**'
       - 'integration-build-maven-plugin/**'
       - 'sessions-management/**'
+      - 'ai-service/**'
       - 'parent/**'
       - 'pom.xml'
       - 'schemas/**'
@@ -50,6 +51,7 @@ jobs:
           - micro-engine
           - runtime-catalog
           - sessions-management
+          - ai-service
           - integration-build-maven-plugin
     permissions:
       contents: read

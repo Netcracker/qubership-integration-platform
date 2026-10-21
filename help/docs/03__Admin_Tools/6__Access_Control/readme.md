@@ -35,6 +35,7 @@ Tab "Access Control" contains a table, representing the unique endpoint, that is
 
 At the top of the table the following options are available:
 - **Search access control** - search box, provides ability to find respective data in the table.
+- ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter endpoints by **Endpoint**, **Type**, **Access Control Type**, **Roles**, **Chain**, and **Chain Status**.
 - ![setting](img/setting.svg) - opens column settings.
 - ![carry-out](img/carry-out.svg) - selects unsaved chains.
 - ![send](img/send.svg) -  redeploys chain(s) with unsaved changes.

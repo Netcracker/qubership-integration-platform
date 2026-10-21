@@ -7,11 +7,11 @@ import {
 
 declare global {
   interface Window {
-    QIP_UI_CONFIG?: Partial<AppConfig>;
+    CIP_UI_CONFIG?: Partial<AppConfig>;
   }
 }
 
-const CONFIG_FILE_PATHS = ["./config.json", "./qip-ui-config.json"];
+const CONFIG_FILE_PATHS = ["./config.json", "./cip-ui-config.json"];
 
 export async function loadConfig(): Promise<AppConfig> {
   const envConfig = loadConfigFromEnv();
@@ -24,29 +24,29 @@ export async function loadConfig(): Promise<AppConfig> {
       const loadedConfig = await loadConfigFromJson(path);
       config = { ...config, ...loadedConfig };
       loadedFromFile = true;
-      console.log(`[QIP UI Config] Configuration loaded from: ${path}`);
+      console.log(`[CIP UI Config] Configuration loaded from: ${path}`);
       break;
     } catch {
       continue;
     }
   }
 
-  if (window.QIP_UI_CONFIG) {
-    config = { ...config, ...window.QIP_UI_CONFIG };
+  if (window.CIP_UI_CONFIG) {
+    config = { ...config, ...window.CIP_UI_CONFIG };
     console.log(
-      "[QIP UI Config] Configuration merged from window.QIP_UI_CONFIG",
+      "[CIP UI Config] Configuration merged from window.CIP_UI_CONFIG",
     );
   }
 
   if (hasEnvConfig) {
     console.log(
-      "[QIP UI Config] Configuration loaded from environment variables",
+      "[CIP UI Config] Configuration loaded from environment variables",
     );
   }
 
-  if (!loadedFromFile && !window.QIP_UI_CONFIG && !hasEnvConfig) {
+  if (!loadedFromFile && !window.CIP_UI_CONFIG && !hasEnvConfig) {
     console.log(
-      "[QIP UI Config] No external configuration found, using defaults",
+      "[CIP UI Config] No external configuration found, using defaults",
     );
   }
 
@@ -56,9 +56,9 @@ export async function loadConfig(): Promise<AppConfig> {
 export async function initializeConfig(): Promise<void> {
   try {
     const config = await loadConfig();
-    console.log("[QIP UI Config] loadConfig returned:", config);
+    console.log("[CIP UI Config] loadConfig returned:", config);
     configure(config);
-    console.log("[QIP UI Config] configure() called with config:", config);
+    console.log("[CIP UI Config] configure() called with config:", config);
   } catch (error) {
     console.warn("Failed to load external config, using defaults:", error);
   }

@@ -7,31 +7,14 @@ jest.mock("axios-rate-limit", () => ({
   default: (instance: unknown) => instance,
 }));
 
-// Mock app config to avoid relying on import.meta in Jest runtime
-// and to control appName dynamically.
-jest.mock("../../../src/appConfig", () => {
-  let currentAppName = "pip";
-  let currentGateway = "https://api.example.com";
-
-  return {
-    __esModule: true,
-    getAppName: () => currentAppName,
-    getConfig: () => ({ apiGateway: currentGateway }),
-    __setTestAppName: (next: string) => {
-      currentAppName = next;
-    },
-    __setTestGateway: (next: string) => {
-      currentGateway = next;
-    },
-  };
-});
+// Mock app config to avoid relying on import.meta in Jest runtime.
+jest.mock("../../../src/appConfig", () => ({
+  getConfig: () => ({ apiGateway: "https://api.example.com" }),
+}));
 
 describe("RestApi variables-management", () => {
-  it("uses current appName in request path (no import-time freeze)", async () => {
+  it("sends variables-management requests under /api/v1/cip", async () => {
     const { RestApi } = await import("../../../src/api/rest/restApi");
-    const cfg = (await import("../../../src/appConfig")) as unknown as {
-      __setTestAppName: (v: string) => void;
-    };
 
     let lastUrl: string | undefined;
     const api = new RestApi();
@@ -50,13 +33,8 @@ describe("RestApi variables-management", () => {
       } as never;
     }) as AxiosAdapter;
 
-    cfg.__setTestAppName("pip");
     await api.getCommonVariables();
-    expect(lastUrl).toContain("/api/v1/pip/variables-management");
-
-    cfg.__setTestAppName("pip-next");
-    await api.getCommonVariables();
-    expect(lastUrl).toContain("/api/v1/pip-next/variables-management");
+    expect(lastUrl).toContain("/api/v1/cip/variables-management");
   });
 
   it("applies installRequestHeaders() to variables-management requests", async () => {

@@ -1,4 +1,4 @@
-import { SpecificationGroup, Specification } from "./servicesTypes";
+import type { Specification, SpecificationGroup } from "@netcracker/qip-ui";
 import { ApiSpecificationType } from "./importApiTypes";
 import {
   SoapSpecificationParser,
@@ -104,10 +104,9 @@ export class SpecificationProcessorService {
     );
     const specification = this.createSpecificationEntity(
       file,
-      specificationGroup.id,
+      specificationGroup,
       specificationId,
       version,
-      specificationType,
       operations,
     );
 
@@ -168,20 +167,18 @@ export class SpecificationProcessorService {
 
   private createSpecificationEntity(
     file: File,
-    groupId: string,
+    specificationGroup: SpecificationGroup,
     specificationId: string,
     version: string,
-    specificationType: ApiSpecificationType,
     operations: Specification["operations"],
   ): Specification {
     return {
       id: specificationId,
       name: version,
       description: `Specification for ${file.name}`,
-      parentId: groupId,
+      specificationGroupId: specificationGroup.id,
+      systemId: specificationGroup.systemId,
       version,
-      format: specificationType.toString(),
-      content: "",
       deprecated: false,
       source: file.name,
       operations: operations || [],
@@ -620,6 +617,7 @@ export class SpecificationProcessorService {
       case ".wsdl":
         return ApiSpecificationType.SOAP;
       case ".graphql":
+      case ".graphqls":
       case ".gql":
         return ApiSpecificationType.GRAPHQL;
       case ".proto":

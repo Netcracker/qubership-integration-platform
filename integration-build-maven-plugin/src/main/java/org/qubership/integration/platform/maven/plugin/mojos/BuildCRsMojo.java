@@ -81,7 +81,7 @@ public class BuildCRsMojo extends AbstractMojo {
     @Parameter(
         name = "libraryUrlTemplate",
         property = PARAMETER_PROPERTY_PREFIX + "libraryUrlTemplate",
-        defaultValue = "http://{appPrefix}-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar"
+        defaultValue = "http://cip-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar"
     )
     private String libraryUrlTemplate;
 

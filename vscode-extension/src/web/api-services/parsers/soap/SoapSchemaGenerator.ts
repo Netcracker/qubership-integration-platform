@@ -255,38 +255,9 @@ export class SoapSchemaGenerator {
     complexType: Element,
     context: SchemaBuildContext,
   ): any {
-    const sequence = this.findFirstChildElement(complexType, "sequence");
-    if (sequence) {
-      return this.buildSequenceSchema(sequence, context);
-    }
-
-    const all = this.findFirstChildElement(complexType, "all");
-    if (all) {
-      return this.buildSequenceSchema(all, context);
-    }
-
-    const choice = this.findFirstChildElement(complexType, "choice");
-    if (choice) {
-      const options: any[] = [];
-      this.forEachChildElement(choice, (child) => {
-        if (
-          child.namespaceURI === XML_SCHEMA_NS &&
-          child.localName === "element"
-        ) {
-          const elementQName = this.resolveElementQualifiedName(child);
-          const childSchema = elementQName
-            ? this.buildSchemaFromElement(elementQName, context)
-            : this.buildAnonymousElementSchema(child, context);
-          if (childSchema) {
-            options.push(childSchema);
-          }
-        }
-      });
-      if (options.length > 0) {
-        return {
-          anyOf: options,
-        };
-      }
+    const modelGroup = this.buildModelGroupSchema(complexType, context);
+    if (modelGroup) {
+      return modelGroup;
     }
 
     const simpleContent = this.findFirstChildElement(
@@ -320,13 +291,14 @@ export class SoapSchemaGenerator {
         let baseSchema: any = baseType
           ? this.buildSchemaForTypeReference(baseType, context)
           : { type: "object" };
-        const sequenceChild = this.findFirstChildElement(extension, "sequence");
-        if (sequenceChild) {
-          const sequenceSchema = this.buildSequenceSchema(
-            sequenceChild,
-            context,
+        // Whichever model group the extension declares, not `xsd:sequence` alone: an `xsd:all`
+        // merges the same way, and an `xsd:choice` keeps its options beside the base's fields.
+        const extensionSchema = this.buildModelGroupSchema(extension, context);
+        if (extensionSchema) {
+          baseSchema = this.composeExtensionSchema(
+            this.dereferenceDefinition(baseSchema, context),
+            extensionSchema,
           );
-          baseSchema = this.mergeObjectSchemas(baseSchema, sequenceSchema);
         }
         return baseSchema;
       }
@@ -335,6 +307,66 @@ export class SoapSchemaGenerator {
     return {
       type: "object",
     };
+  }
+
+  // One place decides which model group a complex type or an extension of one declares, so the two
+  // call sites cannot disagree about which groups they handle.
+  private buildModelGroupSchema(
+    parent: Element,
+    context: SchemaBuildContext,
+  ): any | undefined {
+    const sequence = this.findFirstChildElement(parent, "sequence");
+    if (sequence) {
+      return this.buildSequenceSchema(sequence, context);
+    }
+
+    const all = this.findFirstChildElement(parent, "all");
+    if (all) {
+      return this.buildSequenceSchema(all, context);
+    }
+
+    const choice = this.findFirstChildElement(parent, "choice");
+    if (choice) {
+      return this.buildChoiceSchema(choice, context);
+    }
+
+    return undefined;
+  }
+
+  // Each option is the object that carries the one element the option declares, so the declared
+  // name survives. `buildSequenceElementSchema` reads it: a `ref` resolves against the top-level
+  // declarations, a local declaration is read where it stands, and `minOccurs`/`maxOccurs` apply as
+  // they do inside a sequence.
+  private buildChoiceSchema(
+    choice: Element,
+    context: SchemaBuildContext,
+  ): any | undefined {
+    const options: any[] = [];
+    let index = 0;
+
+    this.forEachChildElement(choice, (child) => {
+      if (
+        child.namespaceURI !== XML_SCHEMA_NS ||
+        child.localName !== "element"
+      ) {
+        return;
+      }
+      index += 1;
+      const option = this.buildSequenceElementSchema(child, context, index);
+      if (!option) {
+        return;
+      }
+      const optionSchema: any = {
+        type: "object",
+        properties: { [option.propertyName]: option.schema },
+      };
+      if (option.required) {
+        optionSchema.required = [option.propertyName];
+      }
+      options.push(optionSchema);
+    });
+
+    return options.length > 0 ? { anyOf: options } : undefined;
   }
 
   private buildSequenceSchema(
@@ -519,6 +551,55 @@ export class SoapSchemaGenerator {
     return { type: "string" };
   }
 
+  // A named base type resolves to a `$ref`, and `mergeObjectSchemas` needs the fields it points at:
+  // merging the reference itself dropped every inherited field. A definition still being built is
+  // absent from the map, so a type that extends itself keeps the reference.
+  private dereferenceDefinition(
+    schema: any,
+    context: SchemaBuildContext,
+  ): any {
+    const ref: unknown = schema.$ref;
+    if (typeof ref !== "string") {
+      return schema;
+    }
+    const name = ref.replace("#/definitions/", "");
+    return context.definitions[name] ?? schema;
+  }
+
+  // The base and the extension each declare fields, constraints, or both, and the extension adds
+  // to what the base declares rather than replacing it. An `xsd:choice` arrives as an `anyOf`, and
+  // a base that already composes two of them arrives as an `allOf`; `mergeObjectSchemas` keeps
+  // neither, so both are collected here before it runs on what is left. A single choice sits
+  // beside the fields, and several keep one `anyOf` each under `allOf`, where assigning the
+  // extension's options over the base's dropped every alternative the base declared.
+  private composeExtensionSchema(base: any, extension: any): any {
+    const constraints: any[] = [];
+    const fields: any[] = [];
+    for (const schema of [base, extension]) {
+      const { anyOf, allOf, ...rest } = schema ?? {};
+      if (Array.isArray(allOf)) {
+        constraints.push(...allOf);
+      }
+      if (Array.isArray(anyOf)) {
+        constraints.push({ anyOf });
+      }
+      if (Object.keys(rest).length > 0) {
+        fields.push(rest);
+      }
+    }
+
+    const composed: any =
+      fields.length === 2
+        ? this.mergeObjectSchemas(fields[0], fields[1])
+        : { ...fields[0] };
+    if (constraints.length === 1 && constraints[0].anyOf) {
+      composed.anyOf = constraints[0].anyOf;
+    } else if (constraints.length > 0) {
+      composed.allOf = constraints;
+    }
+    return composed;
+  }
+
   private mergeObjectSchemas(baseSchema: any, extensionSchema: any): any {
     if (
       !baseSchema ||
@@ -615,21 +696,6 @@ export class SoapSchemaGenerator {
     };
   }
 
-  private resolveElementQualifiedName(
-    element: Element,
-  ): WsdlQualifiedName | undefined {
-    const nameAttr = element.getAttribute("name");
-    const schemaNamespace = this.getSchemaTargetNamespace(element);
-    if (nameAttr) {
-      return {
-        namespace: schemaNamespace,
-        name: nameAttr,
-      };
-    }
-    const refAttr = element.getAttribute("ref");
-    return refAttr ? this.resolveQualifiedName(element, refAttr) : undefined;
-  }
-
   private resolveQualifiedName(
     node: Element,
     value: string,
@@ -672,10 +738,11 @@ export class SoapSchemaGenerator {
         const ns = current.getAttribute("targetNamespace");
         return ns || undefined;
       }
-      current =
-        current.parentNode instanceof Element
-          ? (current.parentNode as Element)
-          : null;
+      // `Element` is exposed on Window only, and the extension host is a web worker, so an
+      // `instanceof Element` here threw `ReferenceError` for every schema it walked. `Node` is not a
+      // webworker global either, so `Node.ELEMENT_NODE` cannot name the value below.
+      const parent = current.parentNode as Element | null;
+      current = parent && parent.nodeType === 1 ? parent : null; // 1 = ELEMENT_NODE
     }
     return undefined;
   }

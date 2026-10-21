@@ -389,7 +389,7 @@ public class OpenSearchInitializer {
         }
         return Policy.builder()
                 .policyId(policyId)
-                .description("QIP old index rollover policy.")
+                .description("CIP old index rollover policy.")
                 .defaultState("schedule_to_delete")
                 .states(List.of(
                         State.builder()
@@ -411,7 +411,7 @@ public class OpenSearchInitializer {
         String mask = getIndexNameMask(prefix);
         return Policy.builder()
                 .policyId(policyId)
-                .description("QIP " + mask + " rollover policy.")
+                .description("CIP " + mask + " rollover policy.")
                 .defaultState("rollover")
                 .states(List.of(
                         State.builder()

@@ -46,7 +46,7 @@ spring:
 
 cloud:
   microservice:
-    name: ${MICROSERVICE_NAME:qip-sessions-management}
+    name: ${MICROSERVICE_NAME:cip-sessions-management}
     bg_version: ${DEPLOYMENT_VERSION:v1}
     namespace: ${NAMESPACE}
 
@@ -97,7 +97,7 @@ cip:
     index:
       prefix: ${OPENSEARCH_PREFIX:}
       elements:
-        name: qip-elements-${spring.application.namespace}-session-elements
+        name: cip-elements-${spring.application.namespace}-session-elements
     session:
       default-buffer-limit: ${OPENSEARCH_SESSION_DEFAULT_BUFFER_LIMIT:104857600}
   internal-services:

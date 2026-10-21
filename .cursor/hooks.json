@@ -3,16 +3,28 @@
     "afterAgentResponse": [
       {
         "command": "ai-agent-telemetry ingest --agent=cursor"
+      },
+      {
+        "command": "ai-agent-telemetry ingest --agent=cursor",
+        "_apm_source": "ai-agent-telemetry"
       }
     ],
     "afterMCPExecution": [
       {
         "command": "ai-agent-telemetry ingest --agent=cursor"
+      },
+      {
+        "command": "ai-agent-telemetry ingest --agent=cursor",
+        "_apm_source": "ai-agent-telemetry"
       }
     ],
     "subagentStop": [
       {
         "command": "ai-agent-telemetry ingest --agent=cursor"
+      },
+      {
+        "command": "ai-agent-telemetry ingest --agent=cursor",
+        "_apm_source": "ai-agent-telemetry"
       }
     ]
   },

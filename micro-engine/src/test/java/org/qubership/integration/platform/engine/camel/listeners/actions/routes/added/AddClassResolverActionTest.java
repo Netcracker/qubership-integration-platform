@@ -12,7 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
+import org.qubership.integration.platform.engine.camel.CipCustomClassResolver;
 import org.qubership.integration.platform.engine.metadata.ChainInfo;
 import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
 import org.qubership.integration.platform.engine.metadata.ElementInfo;
@@ -119,7 +119,7 @@ class AddClassResolverActionTest {
             ));
 
             ClassResolver classResolver = classResolverCaptor.getValue();
-            assertInstanceOf(QipCustomClassResolver.class, classResolver);
+            assertInstanceOf(CipCustomClassResolver.class, classResolver);
         }
     }
 

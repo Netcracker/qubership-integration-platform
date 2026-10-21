@@ -42,7 +42,10 @@ import java.util.List;
 @RestController
 @Validated
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/systems/{systemId}/environments")
+@RequestMapping({
+    "/v1/systems/{systemId}/environments",
+    "/api/v1/cip/systems-catalog/systems/{systemId}/environments"
+})
 @Tag(name = "environment-controller", description = "Environment Controller")
 public class EnvironmentController {
 

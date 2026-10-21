@@ -1,19 +1,20 @@
-import {
-  IntegrationSystem,
-  Environment,
-  SpecificationGroup,
-  Specification,
-  SystemOperation,
-  OperationInfo,
+import type {
   BaseEntity,
-  IntegrationSystemType,
-} from "../api-services/servicesTypes";
+  ContextSystem,
+  Environment,
+  IntegrationSystem,
+  MCPSystem,
+  OperationInfo,
+  Specification,
+  SpecificationGroup,
+  SystemOperation,
+} from "@netcracker/qip-ui";
+import { IntegrationSystemType } from "../api-services/servicesTypes";
 import { Uri } from "vscode";
 import * as vscode from "vscode";
 import { fileApi } from "./file/fileApiProvider";
 import { LabelUtils } from "../api-services/LabelUtils";
-import { getExtensionsForUri } from "./file/fileExtensions";
-import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
+import { FILE_EXTENSIONS } from "./file/fileExtensions";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 
 export async function getCurrentServiceId(
@@ -38,7 +39,7 @@ export async function getService(
   let actualServiceFileUri = serviceFileUri;
   let service: any = await getMainService(serviceFileUri);
   if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
+    const ext = FILE_EXTENSIONS;
     actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
     service = await getMainService(actualServiceFileUri);
 
@@ -62,12 +63,11 @@ export async function getService(
     name: service.name,
     description: service.content?.description || "",
     activeEnvironmentId: service.content?.activeEnvironmentId || "",
-    integrationSystemType: service.content?.integrationSystemType || "",
     type: service.content?.integrationSystemType || "",
+    internalServiceName: "",
     protocol: storedProtocol === "soap" ? "http" : storedProtocol,
     extendedProtocol: service.content?.extendedProtocol || "",
     specification: service.content?.specification || "",
-    environments: service.content?.environments || [],
     labels: LabelUtils.toEntityLabels(service.content?.labels || []),
   };
 }
@@ -77,7 +77,7 @@ export async function getContextService(
   serviceId: string,
 ): Promise<ContextSystem> {
   // A chain asks for the context services its elements use, which live in their own files.
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   const contextServiceFileUri = serviceFileUri.path.endsWith(ext.contextService)
     ? serviceFileUri
     : await fileApi.findFileById(serviceId, ext.contextService);
@@ -97,7 +97,7 @@ export async function getContextService(
 export async function getContextServices(
   serviceFileUri: Uri,
 ): Promise<ContextSystem[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   if (serviceFileUri.path.endsWith(ext.contextService)) {
     const service: any = await getMainService(serviceFileUri);
     if (!service) {
@@ -120,7 +120,7 @@ export async function getContextServices(
 export async function getMcpServices(
   serviceFileUri: Uri,
 ): Promise<MCPSystem[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   if (serviceFileUri.path.endsWith(ext.mcpService)) {
     const service: any = await getMainService(serviceFileUri);
     if (!service) {
@@ -165,7 +165,7 @@ export async function getEnvironment(
   let service: any = await getMainService(serviceFileUri);
 
   if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
+    const ext = FILE_EXTENSIONS;
     actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
     service = await getMainService(actualServiceFileUri);
 
@@ -177,7 +177,11 @@ export async function getEnvironment(
     }
   }
 
-  return findEnvironmentById(service.content?.environments, environmentId);
+  return findEnvironmentById(
+    service.content?.environments,
+    environmentId,
+    serviceId,
+  );
 }
 
 export async function getEnvironments(
@@ -188,7 +192,7 @@ export async function getEnvironments(
   let service: any = await getMainService(serviceFileUri);
 
   if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
+    const ext = FILE_EXTENSIONS;
     actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
     service = await getMainService(actualServiceFileUri);
 
@@ -200,12 +204,13 @@ export async function getEnvironments(
     }
   }
 
-  return parseEnvironments(service.content?.environments || []);
+  return parseEnvironments(service.content?.environments || [], serviceId);
 }
 
-function parseEnvironment(env: any): Environment {
+function parseEnvironment(env: any, systemId: string): Environment {
   return {
     id: env.id,
+    systemId,
     name: env.name,
     description: env.description || "",
     address: env.address || "",
@@ -218,22 +223,26 @@ function parseEnvironment(env: any): Environment {
 function findEnvironmentById(
   environments: any[],
   environmentId: string,
+  systemId: string,
 ): Environment {
   if (environments && environments.length) {
     for (const env of environments) {
       if (environmentId === env.id) {
-        return parseEnvironment(env);
+        return parseEnvironment(env, systemId);
       }
     }
   }
   throw new Error(`Unable to find environment with id = ${environmentId}`);
 }
 
-function parseEnvironments(environments: any[]): Environment[] {
+function parseEnvironments(
+  environments: any[],
+  systemId: string,
+): Environment[] {
   const result: Environment[] = [];
   if (environments && environments.length) {
     for (const env of environments) {
-      result.push(parseEnvironment(env));
+      result.push(parseEnvironment(env, systemId));
     }
   }
   return result;
@@ -243,7 +252,7 @@ export async function getApiSpecifications(
   currentFile: Uri,
   serviceId: string,
 ): Promise<SpecificationGroup[]> {
-  const ext = getExtensionsForUri(currentFile);
+  const ext = FILE_EXTENSIONS;
   const serviceFileUri = currentFile.path.endsWith(ext.service)
     ? currentFile
     : await fileApi.findFileById(serviceId, ext.service);
@@ -281,10 +290,8 @@ export async function getApiSpecifications(
         const group = {
           id: parsed.id,
           name: parsed.name,
-          description: parsed.content.description || "",
           specifications: specifications,
           synchronization: parsed.content.synchronization || false,
-          parentId: parsed.content.parentId,
           labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
           chains: chains,
           systemId: parsed.content.parentId,
@@ -326,7 +333,7 @@ export async function getSpecificationModel(
   groupId: string,
 ): Promise<Specification[]> {
   let actualServiceFileUri = serviceFileUri;
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
 
   if (!serviceFileUri.path.endsWith(ext.service)) {
     try {
@@ -359,10 +366,7 @@ export async function getSpecificationModel(
           name: parsed.name,
           description: parsed.content.description || "",
           version: parsed.content.version || "",
-          format: parsed.content.format || "",
-          content: parsed.content.content || "",
           deprecated: parsed.content.deprecated || false,
-          parentId: parsed.content.parentId,
           labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
           specificationGroupId: parsed.content.parentId,
           source: parsed.content.content || "",
@@ -385,7 +389,7 @@ export async function getOperations(
   serviceFileUri: Uri,
   modelId: string,
 ): Promise<SystemOperation[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   let actualServiceFileUri = serviceFileUri;
 
   const parts = modelId.split("-");
@@ -442,7 +446,7 @@ export async function getOperationInfo(
     const service: any = await getMainService(serviceFileUri);
 
     if (service.id !== serviceId) {
-      const ext = getExtensionsForUri(serviceFileUri);
+      const ext = FILE_EXTENSIONS;
       try {
         actualServiceFileUri = await fileApi.findFileById(
           serviceId,
@@ -527,6 +531,7 @@ async function getChainsUsingOperation(
             return {
               id: chainYaml.id,
               name: chainYaml.name,
+              description: chainYaml.content.description,
             };
           }
         }
@@ -542,19 +547,23 @@ async function getChainsUsingOperation(
 async function getChainsUsingSpecificationGroup(
   serviceId: string,
   groupId: string,
-): Promise<Partial<Chain>[]> {
-  const result: Partial<Chain>[] = [];
+): Promise<BaseEntity[]> {
+  const result: BaseEntity[] = [];
 
   await fileApi.findAndBuildChainsRecursively(
     fileApi.getRootDirectory(),
-    (chainYaml: any): Partial<Chain> | undefined => {
+    (chainYaml: any): BaseEntity | undefined => {
       if (chainYaml.content.elements) {
         for (const element of chainYaml.content.elements) {
           if (
             element?.properties?.integrationSystemId === serviceId &&
             element?.properties?.integrationSpecificationGroupId === groupId
           ) {
-            return { id: chainYaml.id, name: chainYaml.name };
+            return {
+              id: chainYaml.id,
+              name: chainYaml.name,
+              description: chainYaml.content.description,
+            };
           }
         }
       }
@@ -569,19 +578,23 @@ async function getChainsUsingSpecificationGroup(
 async function getChainsUsingSpecification(
   serviceId: string,
   specificationId: string,
-): Promise<Partial<Chain>[]> {
-  const result: Partial<Chain>[] = [];
+): Promise<BaseEntity[]> {
+  const result: BaseEntity[] = [];
 
   await fileApi.findAndBuildChainsRecursively(
     fileApi.getRootDirectory(),
-    (chainYaml: any): Partial<Chain> | undefined => {
+    (chainYaml: any): BaseEntity | undefined => {
       if (chainYaml.content.elements) {
         for (const element of chainYaml.content.elements) {
           if (
             element?.properties?.integrationSystemId === serviceId &&
             element?.properties?.integrationSpecificationId === specificationId
           ) {
-            return { id: chainYaml.id, name: chainYaml.name };
+            return {
+              id: chainYaml.id,
+              name: chainYaml.name,
+              description: chainYaml.content.description,
+            };
           }
         }
       }
@@ -596,7 +609,7 @@ async function getChainsUsingSpecification(
 export async function getServices(
   serviceFileUri: Uri,
 ): Promise<IntegrationSystem[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
+  const ext = FILE_EXTENSIONS;
   if (serviceFileUri.path.endsWith(ext.service)) {
     const service: any = await getMainService(serviceFileUri);
     if (!service) {

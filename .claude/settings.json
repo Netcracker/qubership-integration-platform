@@ -11,6 +11,17 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-agent-telemetry ingest --agent=claude",
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
+          }
+        ]
       }
     ],
     "UserPromptExpansion": [
@@ -22,6 +33,16 @@
             "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
             "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-agent-telemetry ingest --agent=claude",
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
           }
         ]
       }
@@ -37,6 +58,17 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-agent-telemetry ingest --agent=claude",
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [
@@ -48,6 +80,17 @@
             "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
             "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-agent-telemetry ingest --agent=claude",
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
           }
         ]
       }

@@ -91,6 +91,7 @@ public class JsonSessionStepLogger implements SessionStepLogger {
                 .and(append("element_id", logRecord.elementId()))
                 .and(append("parent_element_id", logRecord.parentElementId()))
                 .and(append("element_name", logRecord.elementName()))
+                .and(append("session_log_details", details.name()))
                 .and(logExchangeMarkers.buildExchangeMarkers(
                         logRecord.bodyAfter(), logRecord.headersAfter(), logRecord.propertiesAfter()));
 
@@ -112,7 +113,8 @@ public class JsonSessionStepLogger implements SessionStepLogger {
         LogstashMarker markers = append("domain", session.getDomain())
                 .and(append("domain_type",
                         session.getDomainType() == null ? null : session.getDomainType().name()))
-                .and(append("snapshot", session.getSnapshotName()));
+                .and(append("snapshot", session.getSnapshotName()))
+                .and(append("session_log_details", details.name()));
 
         LOG.info(markers, "Session started");
     }

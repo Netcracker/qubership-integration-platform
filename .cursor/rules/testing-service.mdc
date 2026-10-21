@@ -1,0 +1,137 @@
+---
+description: 'Testing service, the Go module: layout, public surface, migrations, and the invariants that are easy to break while changing it.'
+globs: testing-service/**
+---
+
+The one Go module in the repository. `testing-service/README.md` covers running and embedding the service; this
+instruction covers the constraints that are easy to break while changing it. The repository's Maven and npm commands do
+not cover the module: build and test it with the Go toolchain from inside `testing-service/`.
+
+When you change engine-address resolution, add a DAO repository, or change create or update validation, load the
+`testing-service-internals` skill.
+
+### Layout
+
+The `internal/` packages follow one dependency order. The compiler does not check it, so place a new package in it:
+
+```text
+config → model → httpfield → dao → matching → qip → triggers → services → controllers → root facade → cmd
+```
+
+`db` and `testsupport` stay outside the order: `db` imports nothing internal and only `cmd` uses it
+outside tests, and `testsupport` serves tests only. `qip` and `httpfield` import nothing internal, and `matching` imports only `model`, `httpfield`, and
+`matching/predicates`. `matching` declares the values of the `entity_type` enum, because its data getter table
+dispatches on them. `DecodeTestingContext` lives in `model` so that `matching` can decode the header.
+
+`New` is the one place that normalizes its inputs, through `Config.WithDefaults()` and `Deps.WithDefaults()`. Everything
+under it takes `cfg` and `deps` already normalized, so no constructor repeats a default or guards against a nil logger.
+
+`TestingContext`, its header name, and the standard padded base64 alphabet are a contract with `TestingContext.java` in
+`engine` and in `micro-engine`. Golden literals in `internal/model/testing_context_test.go` and in both Java
+`TestingContextTest` classes hold the three copies in step, so a change lands in all three.
+
+### Public surface
+
+Package `testingservice` exports one name per thing a host overrides. Treat a new exported name as an API decision:
+every downstream host has to keep it working.
+
+- `Deps.DB` is the single method `GetBunDb(ctx) (*bun.DB, error)`, the only one the DAO calls. The downstream database
+  client already has it, so it satisfies the interface without an adapter.
+- `Config.Production` stays a `*bool`. `GET /mode` tells the frontend to hide the operations unsafe on a live
+  installation, so an installation that names no mode is reported as production. With a bare `bool`, or an inverted
+  `NonProduction bool`, the zero value would be the permissive answer.
+
+### The library and the binary
+
+The library mounts routes and runs the executor. Everything else belongs to the host:
+
+- `cmd/testing-service` owns the database DSN, schema creation, health, pprof, metrics, the API prefix, and the routes
+  beside the API. New infrastructure concerns go there too, so that no host inherits their dependencies.
+- `Mount` registers relative paths (`/test-cases`), and the binary mounts them under `/api/v1`, which
+  `infrastructure/docker/nginx/routes.conf` assumes. That file returns 404 for `/endpoint-mocks/call` on purpose: only
+  the engine calls it, from inside the network.
+- No default is written down twice. `defaultAppConfig` fills in what the binary owns, and `application.yaml` and the
+  Helm ConfigMap leave the library's settings unset for `Config.WithDefaults`.
+
+### Wire compatibility with the ported service
+
+A downstream vendor runs the service this module was ported from, and a separate frontend plan is written against these
+endpoints, so the bytes on the wire change only to fix a defect. `optionalTime` writes the CSV timestamps of test case
+runs with `(*time.Time).String()` rather than RFC 3339. The deliberate changes are the run's own id in column 2 of that
+export, the spreadsheet-formula escaping, and the nil guard in `optionalTime`.
+
+### Naming
+
+The DAO surface keeps the initialisms it was ported with (`FindById`, `FindByIds`, `GetDb`, `GetSqlSortingOrder`,
+`GetIdFilterConfiguration`) and its pointer-to-slice parameters (`ids *[]uuid.UUID`, `filters *[]model.Filter`). Both
+are applied consistently across every repository, service and fake, so changing them is churn without a behavioral gain.
+New code goes the Go way instead: `ID`, `IDs`, `URL` and `UUID` in locals, unexported helpers and struct fields, and a
+bulk method takes the same pointer-to-slice its siblings take.
+
+### Migrations
+
+- Numbered from 100, because the downstream host keeps its own migrations 01 and 02, and idempotent per object: `if not
+  exists`, `exception when duplicate_object` for an enum, `create or replace`, `drop trigger if exists`.
+- Migration 100 is released: every `testing-service/v*` tag carries it. The bun migrator records applied names, not
+  checksums, so an edit to it never reaches an installed database. A schema change goes in migration 101 or later.
+- Migrations never create the schema. The downstream schema is provisioned elsewhere under another name. The binary
+  creates it before `migrator.Init`, because bun writes its bookkeeping table first.
+- Keep the `.tx.up.sql` suffix. A file with no `--bun:split` directive runs as one `ExecContext`, and only this suffix
+  wraps it in a transaction; a plain `.up.sql` leaves partial DDL behind when it fails.
+- `test_case_runs_view` selects `test_case_run.*`, which PostgreSQL expands when the view is created, and `create or
+  replace view` can only append columns after the joined ones. A column added to `test_case_runs` therefore needs the
+  view dropped and recreated.
+
+### The executor
+
+`Config.EngineAddress` is a fallback. A test case activates its trigger on the host the catalog reports in
+`runtime.states` for the chain's deployment, with the scheme and port of `EngineAddress`. A worker claims a case under
+a lease, and `lease_owner` is the fencing token:
+
+- Every worker write carries the owner. `UpdateOwned`, `InsertOwned`, and `RenewLease` take it as an explicit parameter,
+  never from the context, and return `dao.ErrLeaseLost` when the fence rejects the write. A swept worker is still
+  running, and a write guarded only by `status = 'running'` would overwrite the row of the next owner.
+- The sweep stays one data-modifying-CTE statement (`reclaimExpiredQuery`). A select followed by an update by id can
+  take a lease that was renewed in between.
+- Leases are stamped and compared against the database clock (`now() + make_interval(secs => ?)`), never the pod clock.
+- Renewal stops only on `dao.ErrLeaseLost`. It runs three times per lease so that the next tick absorbs any other error.
+
+### Empty selections
+
+`dao.AddSpecification` gives `SelectionSpecification.Ids` three states: `nil` adds no id predicate, a non-empty list
+becomes `id IN (…)`, and a present but empty list becomes `FALSE`, so an empty export or rerun selects nothing. A
+caller that can answer without a query returns early, as `testsRunsService.startNew` does with `ErrEmptyTestCaseList`.
+
+### Save-time validation
+
+A matcher that cannot be built (a bad regular expression, an unparseable JSON sample, a missing parameter, or an entity
+name no request can carry) is a 400 at save time and degrades at runtime. `matcherViolations` builds every matcher,
+disabled ones included, on create, update, and import. At runtime `Call` skips a mock carrying one, and the executor
+records an unbuildable rule as a validation error, because a row stored before these checks still has to be served.
+
+- `getJsonSchema` installs a loader that refuses every reference outside the schema, because the library default
+  `FileLoader` would let a stored `{"$ref": "file:///..."}` read the filesystem. The refusal leaves out the resolved
+  URL, which names the working directory of the process.
+- `internal/matching` states each entity-name grammar as what a name may be, such as an RFC 9110 token for a header.
+  Extend a grammar the same way; `TestEntityNameValidationAcceptsExactlyTheMatchableNames` checks it over every byte.
+- Each `violation` is keyed by the offending value alone, not by the element carrying it. `doCreate` refuses any
+  violation; `doUpdate` reads the stored row first and refuses only those whose key that row does not already carry.
+
+### Testing and linting
+
+```bash
+go test ./...                    # the default suite, no Docker needed
+go test -tags integration ./...  # PostgreSQL through testcontainers
+golangci-lint run                # a v1 binary; .golangci.yml uses the v1 schema
+```
+
+Real SQL belongs behind the `integration` tag; unit tests fake the runner and the repository interfaces both. After
+changing a route, a JSON field name, the import and export envelope, or a CSV export, rebuild the container and run
+`npx playwright test --project=api --project=runtime` from `e2e/`.
+
+### Toolchain and dependencies
+
+The `go` directive stays at 1.22: the downstream build pins `GOTOOLCHAIN=local` to a 1.22 toolchain, and so do CI and
+the Dockerfile. Check the `go` directive of every dependency you add or upgrade, and record a held-back version in a
+`// held back:` comment in `go.mod`. A new dependency source means adding its prefix to the allowlist in
+`scripts/check-go-dependencies.sh`.

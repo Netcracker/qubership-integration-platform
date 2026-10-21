@@ -2,7 +2,7 @@ import { Uri } from "vscode";
 import { deleteService } from "../../../src/web/response/serviceApiModify";
 import { fileApi } from "../../../src/web/response/file/fileApiProvider";
 import { ContentParser } from "../../../src/web/api-services/parsers/ContentParser";
-import { QipFileType } from "../../../src/web/response/serviceApiUtils";
+import { CipFileType } from "../../../src/web/response/serviceApiUtils";
 
 jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
@@ -75,7 +75,7 @@ describe("deleteService", () => {
     jest.clearAllMocks();
     mockGetDirectoriesToRemove.mockResolvedValue([resourcesUri, serviceFolderUri]);
     mockDeleteFile.mockResolvedValue(undefined);
-    mockGetFileType.mockResolvedValue(QipFileType.SERVICE);
+    mockGetFileType.mockResolvedValue(CipFileType.SERVICE);
     mockGetSpecGroupFiles.mockResolvedValue([]);
     mockGetSpecFiles.mockResolvedValue([]);
     mockParse.mockResolvedValue({ id: "group-1", name: "g", content: {} });
@@ -99,7 +99,7 @@ describe("deleteService", () => {
     });
 
     it("should not call getSpecificationGroupFiles when fileType is CONTEXT_SERVICE", async () => {
-      mockGetFileType.mockResolvedValue(QipFileType.CONTEXT_SERVICE);
+      mockGetFileType.mockResolvedValue(CipFileType.CONTEXT_SERVICE);
 
       await deleteService(serviceFileUri);
 
@@ -108,7 +108,7 @@ describe("deleteService", () => {
     });
 
     it("should not call getSpecificationGroupFiles when fileType is MCP_SERVICE", async () => {
-      mockGetFileType.mockResolvedValue(QipFileType.MCP_SERVICE);
+      mockGetFileType.mockResolvedValue(CipFileType.MCP_SERVICE);
 
       await deleteService(serviceFileUri);
 
@@ -116,7 +116,7 @@ describe("deleteService", () => {
     });
 
     it("should not call getSpecificationGroupFiles when fileType is UNKNOWN", async () => {
-      mockGetFileType.mockResolvedValue(QipFileType.UNKNOWN);
+      mockGetFileType.mockResolvedValue(CipFileType.UNKNOWN);
 
       await deleteService(serviceFileUri);
 
@@ -271,7 +271,7 @@ describe("deleteService", () => {
     });
 
     it("should handle CONTEXT_SERVICE directory without resources", async () => {
-      mockGetFileType.mockResolvedValue(QipFileType.CONTEXT_SERVICE);
+      mockGetFileType.mockResolvedValue(CipFileType.CONTEXT_SERVICE);
       mockGetDirectoriesToRemove.mockResolvedValue([serviceFolderUri]);
 
       await deleteService(serviceFileUri);
@@ -282,7 +282,7 @@ describe("deleteService", () => {
     });
 
     it("should handle single directory (MCP without resources)", async () => {
-      mockGetFileType.mockResolvedValue(QipFileType.MCP_SERVICE);
+      mockGetFileType.mockResolvedValue(CipFileType.MCP_SERVICE);
       mockGetDirectoriesToRemove.mockResolvedValue([serviceFolderUri]);
 
       await deleteService(serviceFileUri);

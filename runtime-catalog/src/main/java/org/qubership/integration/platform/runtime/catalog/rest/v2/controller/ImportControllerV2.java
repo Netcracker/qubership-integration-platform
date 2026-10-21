@@ -49,7 +49,8 @@ import java.util.*;
  */
 @Slf4j
 @RestController
-@RequestMapping(value = ImportControllerV2.REQUEST_PATH, produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {ImportControllerV2.REQUEST_PATH, "/cip/catalog/api/v2/import"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Deprecated(since = "2023.4")
 @Tag(name = "import-controller-v-2", description = "Import Controller V2")

@@ -5,14 +5,36 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Recording agent telemetry",
+            "command": "ai-agent-telemetry ingest --agent=codex",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "ai-agent-telemetry ingest --agent=codex",
             "timeout": 30,
             "statusMessage": "Recording agent telemetry"
           }
-        ]
+        ],
+        "_apm_source": "ai-agent-telemetry"
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Recording agent telemetry",
+            "command": "ai-agent-telemetry ingest --agent=codex",
+            "timeout": 30
+          }
+        ]
+      },
       {
         "matcher": "mcp__.*",
         "hooks": [
@@ -22,7 +44,8 @@
             "timeout": 30,
             "statusMessage": "Recording agent telemetry"
           }
-        ]
+        ],
+        "_apm_source": "ai-agent-telemetry"
       }
     ]
   }

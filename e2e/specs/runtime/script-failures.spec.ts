@@ -2,15 +2,17 @@
  * What a Script element does when it goes wrong: at deploy, when it does not compile, and at run
  * time, caught and uncaught.
  *
- * **A compile failure is not one outcome.** Both engines compile eagerly before the routes are
- * added — `IntegrationRuntimeService.compileGroovyScript` on classic, `CompileGroovyScriptsAction`
- * on `RouteAddedEvent` on micro — and the exception they raise decides what the catalog reports. A
- * script that does not parse raises a plain `RuntimeException` and the deployment lands **FAILED**;
- * a script naming a class the engine cannot resolve raises `DeploymentRetriableException` and the
- * deployment stays **PROCESSING**, retrying on the engine's 30 s schedule, with the *same*
+ * **A compile failure is not one outcome on classic.**
+ * `IntegrationRuntimeService.compileGroovyScript` compiles every script before the routes start,
+ * and the exception it raises decides what the catalog reports. A script that does not parse raises
+ * a plain `RuntimeException` and the deployment lands **FAILED**; a script naming a class the
+ * engine cannot resolve raises `DeploymentRetriableException` and the deployment stays
+ * **PROCESSING**, retrying on the engine's 30 s schedule, with the *same*
  * `Failed to compile groovy script.` message on both. So a case asserting "the deployment fails"
  * never sees `FAILED` on the second one — it times out — and the two are asserted apart here: the
- * status, and for the retriable one the retry itself.
+ * status, and for the retriable one the retry itself. The micro engine compiles in the Camel K
+ * `Starting` phase (`GroovyScriptCompilationService`), where nothing retries, so both land
+ * **FAILED** there.
  *
  * Getting an unresolved class is harder than it looks and the fixture says so: Groovy resolves a
  * dotted expression dynamically, so `org.qubership.nothing.Missing.class` in the body compiles and
@@ -287,7 +289,7 @@ test("a whitespace-only script is a no-op and the body passes through it", { tag
   // not, which reads as a divergence and is not one: the two engines use different chain loaders,
   // `camel-xml-io-dsl` drops a whitespace-only expression body where the Spring engine's JAXB
   // loader keeps it, and the override restores the behavior this case asserts. To Groovy an empty
-  // source and a whitespace-only one are the same thing. `docs/product-defects.md` carries it.
+  // source and a whitespace-only one are the same thing.
   const chain = seedChain(readCorpusState(), "script-empty.yaml");
   const sent = { ping: "empty" };
   const call = await callChain(request, env.chainUrl(chain.contextPath), { data: sent });

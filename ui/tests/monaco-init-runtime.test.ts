@@ -80,7 +80,7 @@ describe("monaco-init-runtime", () => {
       Object.defineProperty(global, "window", {
         value: {
           location: {},
-          __QIP_MONACO_WORKER_BASE__: "https://host/assets/monaco",
+          __CIP_MONACO_WORKER_BASE__: "https://host/assets/monaco",
         },
         configurable: true,
       });

@@ -106,7 +106,7 @@ const R_RABBITMQ_ACK_NONE =
   "case covers the redelivery contract that leaves";
 
 const R_KAFKA_PLAINTEXT_ONLY =
-  "the overlay's Kafka listener is PLAINTEXT (infrastructure/docker-compose.kafka.yml), so no SASL " +
+  "the overlay's Kafka listener is PLAINTEXT (infrastructure/docker/docker-compose.kafka.yml), so no SASL " +
   "mechanism and no securityProtocol or sslProtocol beyond PLAINTEXT is reachable locally; Kafka over " +
   "SSL was deferred on 2026-09-07";
 const R_KAFKA_OFFSET_RESET_NONE =
@@ -132,10 +132,11 @@ const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
 
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
 // `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close as a
-// byproduct of building those two chains. Its method, systemType, idempotency and acknowledgeMode
-// axes have no case.
+// byproduct of building those two chains. A third kafka case validates messages against the
+// operation's schema and declares no covers(). Its method, systemType, idempotency and
+// acknowledgeMode axes have no case.
 const R_ASYNC_API_TRIGGER_METHOD_V3 =
-  "the two async-api-trigger cases exercise one AsyncAPI 2.6 document each, which resolves to " +
+  "the async-api-trigger cases exercise AsyncAPI 2.6 documents only, which resolve to " +
   "subscribe (kafka) and publish (amqp, via AMQPSpecificationResolver.getMethod: a channel's " +
   "subscribe: block with no v3 action reports PUBLISH, not SUBSCRIBE — measured, not a typo here); " +
   "send and receive need an AsyncAPI 3.0 document, and no case builds one for the trigger";
@@ -152,11 +153,10 @@ const R_ASYNC_API_TRIGGER_SYSTEM_TYPE =
 const R_ASYNC_API_TRIGGER_UNCOVERED = "no case: the async-api-trigger cases vary only the protocol axis";
 // The `script` element has no axis row: it is covered at tier 1 by a fixture chain, and none of the
 // six axes the script specs sweep is a discriminator the schemas declare, so the extractor produces
-// no row for any of them. What those specs settled is written in their headers —
-// `specs/api/script-source.spec.ts`,
-// `specs/runtime/script-{exchange,libraries,failures,in-container}.spec.ts` and
-// `specs/global/script-external-library.spec.ts` — and in `docs/product-defects.md` where it is a
-// finding about the platform. Two facts belong here rather than there:
+// no row for any of them. What those specs settled is written in their headers:
+// `specs/api/script-source.spec.ts` and
+// `specs/runtime/script-{exchange,libraries,failures,in-container,external-library}.spec.ts`. Two
+// facts belong here rather than there:
 //
 // - `propertiesFilename`, with `exportFileExtension` and `propertiesToExportInSeparateFile`,
 //   describes an archive and not a run, so it is not an axis even though it reads like one. The
@@ -164,12 +164,11 @@ const R_ASYNC_API_TRIGGER_UNCOVERED = "no case: the async-api-trigger cases vary
 //   the importer reads the file into `script` and drops the name. A chain on the platform always
 //   carries the script inline. `specs/api/script-source.spec.ts` asserts that round trip and
 //   declares no `covers()`, because the `script` row is `@engine` and that spec deploys nothing.
-// - **Every script in `fixtures/script/` is textually unique**, and the comment line at the top of
-//   each is what keeps it that way — `specs/schema/fixtures.spec.ts` refuses a duplicate. The
-//   compiled-script cache is keyed on the trimmed source alone and every per-chain Camel context
-//   shares one language bean, so two chains carrying identical script text share one compiled
-//   class and a per-chain assertion can be satisfied by another chain's compilation. Do not
-//   deduplicate them.
+// - **No two scripts in one chain under `fixtures/script/` carry the same text**, and the comment
+//   line at the top of each keeps them apart; `specs/schema/fixtures.spec.ts` refuses a duplicate.
+//   Each chain's Camel context has its own compiled-script cache, keyed on the trimmed source, so
+//   two identical scripts in one chain share one compiled class, and an assertion about one of them
+//   can be satisfied by the compilation of the other. Do not deduplicate them.
 //
 // Two deliberate gaps, both decided rather than deferred.
 const R_JMS =
@@ -346,6 +345,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "catch", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("catch"), tags: ENGINE },
   { family: "catch-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "chain-call-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "chain-call-2", kind: "axis", axisPath: "block", value: true, tier: 2, status: NOT_COVERED, reason: "The schema fixes this option; no live test asserts it yet.", tags: ENGINE },
+  { family: "chain-call-2", kind: "axis", axisPath: "failIfNoConsumers", value: false, tier: 2, status: NOT_COVERED, reason: "The schema fixes this option; no live test asserts it yet.", tags: ENGINE },
   { family: "chain-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "checkpoint", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "checkpoint", kind: "axis", axisPath: "externalRoute", value: false, tier: 2, status: NOT_COVERED, reason: R_CHECKPOINT_EXTERNAL_ROUTE, tags: ENGINE },

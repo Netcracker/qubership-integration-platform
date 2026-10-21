@@ -201,9 +201,8 @@ test("a patch that omits parentElementId lifts the element out of its container"
   // Not a defect so much as the endpoint's contract, and it is the one that catches a client out:
   // `ElementController.patchElement` re-parents whenever the request's `parentElementId` differs
   // from the element's, and an omitted key reads as `null`. So a patch meant to set one property
-  // restructures the chain, and answers 200. Filed in `docs/product-defects.md` under "a PATCH
-  // without `parentElementId` moves the element out of its container"; `patchElementProperties`
-  // round-trips the key, which is why every other case here can patch a nested element safely.
+  // restructures the chain, and answers 200. Filed as #1003; `patchElementProperties` round-trips
+  // the key, which is why every other case here can patch a nested element safely.
   const chainId = await emptyChain(catalog, run, folder.id, "elements-patch-parent");
   const container = await catalog.createElement(chainId, "try-catch-finally-2");
   const branches = branchesOf(container);

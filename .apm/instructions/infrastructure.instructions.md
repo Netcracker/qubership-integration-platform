@@ -5,23 +5,23 @@ applyTo: "infrastructure/**"
 
 ### Project Overview
 
-Infrastructure and deployment assets for the QIP local stack — **no application code**. Holds the Docker Compose definitions for the local dev stack, Helm charts (`qip-dev/`) for Kubernetes, the Nginx reverse-proxy routing config, Consul/OpenSearch/PostgreSQL config, and the `init-db` SQL. Stack: Docker Compose, Helm (camel-k), Nginx, Consul, PostgreSQL, OpenSearch.
+Infrastructure and deployment assets for the QIP local stack — **no application code**. Holds the Docker Compose definitions for the local dev stack under `docker/`, the Helm chart (`helm/qip-dev/`) for Kubernetes, the Nginx reverse-proxy routing config, Consul/OpenSearch/PostgreSQL config, and the `init-db` SQL. Stack: Docker Compose, Helm (camel-k), Nginx, Consul, PostgreSQL, OpenSearch.
 
 ### Local Stack Commands
 
 ```bash
 # Bring up the full local stack (builds Java service images from sibling module dirs)
-docker compose -f infrastructure/docker-compose.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml up -d --build
 
 # Add optional brokers/caches via overlay files (compose them together with the base)
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.kafka.yml up -d --build
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.rabbitmq.yml up -d --build
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.redis.yml up -d --build
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.pubsub.yml up -d --build
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.sftp.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.kafka.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.rabbitmq.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.redis.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.pubsub.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.sftp.yml up -d --build
 
 # Tear down
-docker compose -f infrastructure/docker-compose.yml down
+docker compose -f infrastructure/docker/docker-compose.yml down
 ```
 
 #### The service file format round trip
@@ -38,13 +38,13 @@ archive imports as 204 with an empty body, because `ArchiveWriter` builds `servi
 
 The flag goes on through a throwaway compose override plus `up -d --no-deps --force-recreate`. `--no-deps` matters:
 `qip-runtime-catalog` declares `depends_on: postgres`, and postgres mounts no named volume, so a recreate without it
-wipes the database. Never set the flag in `qip-dev.env` — `qip-engine` and `qip-sessions-management` read that file too.
+wipes the database. Never set the flag in `docker/qip-dev.env` — `qip-engine` and `qip-sessions-management` read that file too.
 
-User-facing documentation lives in `README.md`, which is the tracked file; this note is the reasoning behind it.
+User-facing documentation lives in `docker/README.md`, which is the tracked file; this note is the reasoning behind it.
 
 The UI is **not** containerized — `ui-proxy` (Nginx, port 8080) proxies non-`/api` paths to `host.docker.internal:4200`, so run the UI dev server separately (`npm -w @netcracker/qip-ui run dev`).
 
-#### Helm (Kubernetes) — `qip-dev/`
+#### Helm (Kubernetes) — `helm/qip-dev/`
 
 ```bash
 # Camel-K operator is a prerequisite (camelk subchart references it)
@@ -52,7 +52,7 @@ helm repo add camel-k https://apache.github.io/camel-k/charts/
 helm install camel-k camel-k/camel-k -n camel-k --create-namespace --set-string operator.global=true
 
 # Install the platform chart
-helm install --create-namespace --namespace qip qip infrastructure/qip-dev
+helm install --create-namespace --namespace qip qip infrastructure/helm/qip-dev
 
 # Wipe a namespace's data
 kubectl delete all,secrets,configmaps,pvc -n <NAMESPACE> --all
@@ -63,35 +63,38 @@ the string `true`, and `--set 'operator.global="true"'` stores the quotes too, s
 no RBAC and an Integration never starts a pod.
 
 The end-to-end suite installs this chart into namespace `qip-e2e` with `e2e/k8s/values.e2e.yaml` and the
-values it sets on the command line, so a change under `qip-dev/` also changes what the Kubernetes
+values it sets on the command line, so a change under `helm/qip-dev/` also changes what the Kubernetes
 target runs. A new value's default must render exactly what the chart rendered before the value
-existed; `qip-dev/README.md`, "Values for the platform services", lists the values the suite uses.
+existed; `helm/qip-dev/README.md`, "Values for the platform services", lists the values the suite uses.
 
-Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `qip-dev/values.yaml`); like Compose it only proxies to a locally-served UI. `values.yaml` toggles `qip.deploy.classic` (Spring engine) vs `qip.deploy.micro` (Quarkus micro-engine, image `ghcr.io/netcracker/qubership-integration-micro-engine:latest`).
+Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `helm/qip-dev/values.yaml`); like Compose it only proxies to a locally-served UI. `values.yaml` toggles `qip.deploy.classic` (Spring engine) vs `qip.deploy.micro` (Quarkus micro-engine, image `ghcr.io/netcracker/qubership-integration-micro-engine:latest`).
 
 ### Structure
 
 ```text
-docker-compose.yml          # base local stack: runtime-catalog, engine, sessions-management,
-                            # testing-service, ui-proxy, postgres, opensearch, consul
-docker-compose.kafka.yml    # optional: kafka in KRaft mode (9092) + akhq UI (8099)
-docker-compose.rabbitmq.yml # optional: rabbitmq (5672) + management UI (15672)
-docker-compose.redis.yml    # optional: redis (6379)
-docker-compose.pubsub.yml   # optional: GCP Pub/Sub emulator (8085)
-docker-compose.sftp.yml     # optional: SFTP server (2222), the e2e file transports' endpoint
-qip-dev.env / engine-dev.env # env files mounted into the Spring Boot service containers
-nginx/
-  nginx.conf                # http block; includes routes.conf
-  routes.conf               # reverse-proxy routing (see Platform Context)
-consul/
-  server.json               # single-node bootstrap config (UI enabled, gossip encrypt key)
-  consul-acl.json
-opensearch/opensearch.yml   # single-node OpenSearch config
-init-db/init.sql            # creates engine_qrtz_db + engine_checkpoints_db
-kafka-ssl/                  # client/server cert dirs (mounted into engine)
-qip-dev/                    # Helm umbrella chart (version 0.0.1) + per-component subcharts
-  charts/{camelk,consul,opensearch,postgres,ui,qip-engine,qip-runtime-catalog,qip-sessions-management}
-docs/adr/                   # architecture decision records (0001 PostgreSQL types)
+docker/                       # Docker Compose local stack
+  README.md                   # user-facing guide to the Compose stack
+  docker-compose.yml          # base local stack: runtime-catalog, engine, sessions-management,
+                              # testing-service, ui-proxy, postgres, opensearch, consul
+  docker-compose.kafka.yml    # optional: kafka in KRaft mode (9092) + akhq UI (8099)
+  docker-compose.rabbitmq.yml # optional: rabbitmq (5672) + management UI (15672)
+  docker-compose.redis.yml    # optional: redis (6379)
+  docker-compose.pubsub.yml   # optional: GCP Pub/Sub emulator (8085)
+  docker-compose.sftp.yml     # optional: SFTP server (2222), the e2e file transports' endpoint
+  qip-dev.env / engine-dev.env # env files mounted into the Spring Boot service containers
+  nginx/
+    nginx.conf                # http block; includes routes.conf
+    routes.conf               # reverse-proxy routing (see Platform Context)
+  consul/
+    server.json               # single-node bootstrap config (UI enabled, gossip encrypt key)
+    consul-acl.json
+  opensearch/opensearch.yml   # single-node OpenSearch config
+  init-db/init.sql            # creates engine_qrtz_db + engine_checkpoints_db
+  kafka-ssl/                  # client/server cert dirs (mounted into engine)
+helm/
+  qip-dev/                    # Helm umbrella chart (version 0.0.1) + per-component subcharts
+    charts/{camelk,consul,opensearch,postgres,ui,qip-engine,qip-runtime-catalog,qip-sessions-management}
+docs/adr/                     # architecture decision records (0001 PostgreSQL types)
 ```
 
 #### Compose ports (host → container)
@@ -107,20 +110,20 @@ docs/adr/                   # architecture decision records (0001 PostgreSQL typ
 | opensearch | 9200, 9300 | `opensearchproject/opensearch:2.19.6`, single-node |
 | consul | 8500, 8600 (tcp/udp) | `hashicorp/consul:1.15.4`, `-bootstrap-expect=1` |
 
-The three Java services run Spring profile `development`, build from their module dirs, and have actuator healthchecks at `/actuator/health`. `qip-testing-service` is the Go one: it builds from `../testing-service`, runs `read_only`, and answers its healthcheck at `/health`.
+The three Java services run Spring profile `development`, build from their module dirs, and have actuator healthchecks at `/actuator/health`. `qip-testing-service` is the Go one: it builds from `../../testing-service`, runs `read_only`, and answers its healthcheck at `/health`.
 
 ### Platform Context
 
 This module orchestrates the local/dev deployment of the whole platform; it contains no service logic of its own. See `README.md` for the repository layout.
 
-The base `docker-compose.yml` builds and runs four services from **in-repo module dirs** via relative build
-contexts — `../runtime-catalog`, `../engine`, `../sessions-management` and `../testing-service` (one level up
-from `infrastructure/`, i.e. the monorepo root). After monorepo consolidation these are sibling directories
+The base `docker/docker-compose.yml` builds and runs four services from **in-repo module dirs** via relative build
+contexts — `../../runtime-catalog`, `../../engine`, `../../sessions-management` and `../../testing-service` (two levels up
+from `infrastructure/docker/`, i.e. the monorepo root). After monorepo consolidation these are sibling directories
 inside this repo, not separate clones.
 
 It also stands up the shared infra they depend on: PostgreSQL (catalog + `engine_qrtz_db` /
-`engine_checkpoints_db` created by `init-db/init.sql`), OpenSearch (engine session recording +
+`engine_checkpoints_db` created by `docker/init-db/init.sql`), OpenSearch (engine session recording +
 sessions-management storage), and Consul (config + deployment publishing). Optional brokers and caches (Kafka,
 RabbitMQ, Redis, Pub/Sub) are opt-in via overlay compose files for chains that use them.
 
-`nginx/routes.conf` is the single entrypoint (port 8080) and encodes the platform's API routing: `^/api/{ver}/.*/catalog/...` and `variables-management` / `systems-catalog` → `runtime-catalog:8080`; `.../sessions-management` → `sessions-management:8080`; `.../engine` → `engine:8080`; everything else (the UI and `/doc/` help assets) proxies to `host.docker.internal:4200` (the locally-served UI/Vite dev server).
+`docker/nginx/routes.conf` is the single entrypoint (port 8080) and encodes the platform's API routing: `^/api/{ver}/.*/catalog/...` and `variables-management` / `systems-catalog` → `runtime-catalog:8080`; `.../sessions-management` → `sessions-management:8080`; `.../engine` → `engine:8080`; everything else (the UI and `/doc/` help assets) proxies to `host.docker.internal:4200` (the locally-served UI/Vite dev server).

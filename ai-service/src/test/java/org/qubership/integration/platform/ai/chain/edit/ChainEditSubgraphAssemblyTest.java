@@ -1,0 +1,1594 @@
+package org.qubership.integration.platform.ai.chain.edit;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBody;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBranch;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphConnection;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphElement;
+
+/**
+ * The imported chain and a capture of what the edit adds go in, the proposed graph comes out.
+ *
+ * <p>The chain under test is the one the live wrap scenario failed on: an HTTP trigger, a service
+ * call, and a script in a row, with a request to add error handling to the service call.
+ */
+class ChainEditSubgraphAssemblyTest {
+
+  private static final String TRIGGER = "http-entry";
+  private static final String CALL = "call-orders";
+  private static final String SCRIPT = "normalize";
+  private static final String REPLY = "send-reply";
+
+  @Test
+  void onlyTheElementTheEditNamesEndsUpInsideTheContainer() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), errorHandling(), wrap(CALL), permissiveCache());
+
+    ChainPlanNode container = nodeOfType(assembled, "try-catch-finally-2");
+    ChainPlanNode tryBranch = nodeOfType(assembled, "try-2");
+    assertNull(container.parentNodeId());
+    assertEquals(container.nodeId(), tryBranch.parentNodeId());
+    assertEquals(tryBranch.nodeId(), node(assembled, CALL).parentNodeId());
+    assertNull(node(assembled, SCRIPT).parentNodeId());
+    assertNull(node(assembled, TRIGGER).parentNodeId());
+  }
+
+  @Test
+  void theWrappedElementKeepsItsIncomingAndOutgoingConnectionsThroughTheContainer() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), errorHandling(), wrap(CALL), permissiveCache());
+
+    String container = nodeOfType(assembled, "try-catch-finally-2").nodeId();
+    assertTrue(connects(assembled, TRIGGER, container));
+    assertTrue(connects(assembled, container, SCRIPT));
+    assertFalse(connects(assembled, TRIGGER, CALL));
+    assertFalse(connects(assembled, CALL, SCRIPT));
+    assertEquals(
+        List.of("trigger-to-call", "call-to-script"),
+        assembled.edges().stream()
+            .filter(edge -> edge.scopeNodeId() == null)
+            .map(ChainPlanEdge::edgeId)
+            .toList());
+  }
+
+  @Test
+  void anOmWrapKeepsTryInternalEdgesAndDropsTheCrossBranchReporterEdge() {
+    ChainPlanGraph imported =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("OM", "OM"),
+            List.of(
+                new ChainPlanNode(TRIGGER, "async-api-trigger", "Task start", null, 1, List.of()),
+                new ChainPlanNode(CALL, "service-call", "Create task", null, 2, List.of()),
+                new ChainPlanNode(SCRIPT, "script", "Success payload", null, 3, List.of()),
+                new ChainPlanNode(REPLY, "service-call", "Task result", null, 4, List.of())),
+            List.of(
+                new ChainPlanEdge("start-to-call", TRIGGER, CALL, null),
+                new ChainPlanEdge("call-to-success", CALL, SCRIPT, null),
+                new ChainPlanEdge("success-to-reporter", SCRIPT, REPLY, null)));
+    ChainEditSubgraph capture =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL, SCRIPT),
+                catchBranch("java.lang.Exception", null, "failed-payload"),
+                new ChainEditSubgraphBranch(
+                    "finally-2", "Finally", List.of(), null, List.of(REPLY), null)));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            imported, capture, wrap(CALL, SCRIPT, REPLY), permissiveCache());
+
+    String tryBranchId = nodeOfType(assembled, "try-2").nodeId();
+    String finallyBranchId = nodeOfType(assembled, "finally-2").nodeId();
+    String container = nodeOfType(assembled, "try-catch-finally-2").nodeId();
+    assertEquals(tryBranchId, node(assembled, CALL).parentNodeId());
+    assertEquals(tryBranchId, node(assembled, SCRIPT).parentNodeId());
+    assertEquals(finallyBranchId, node(assembled, REPLY).parentNodeId());
+    assertTrue(connects(assembled, CALL, SCRIPT), assembled.edges().toString());
+    assertFalse(connects(assembled, SCRIPT, REPLY), assembled.edges().toString());
+    assertTrue(connects(assembled, TRIGGER, container), assembled.edges().toString());
+  }
+
+  @Test
+  void anExistingElementKeepsEverythingTheChainAlreadyGivesIt() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), errorHandling(), wrap(CALL), permissiveCache());
+
+    ChainPlanNode wrapped = node(assembled, CALL);
+    assertEquals("service-call", wrapped.type());
+    assertEquals("Call orders", wrapped.label());
+    assertEquals(List.of(new PlanProperty("retryCount", "3")), wrapped.properties());
+  }
+
+  @Test
+  void aNewElementNestsInTheBranchThatDeclaredItAndCarriesNoProperties() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), errorHandling(), wrap(CALL), permissiveCache());
+
+    ChainPlanNode catchBranch = nodeOfType(assembled, "catch-2");
+    ChainPlanNode handler = node(assembled, "log-failure");
+    assertEquals(catchBranch.nodeId(), handler.parentNodeId());
+    assertEquals(List.of(), handler.properties());
+  }
+
+  @Test
+  void aConnectionInsideABranchIsScopedToThatBranch() {
+    ChainEditSubgraph capture =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                new ChainEditSubgraphBranch(
+                    "catch-2",
+                    "Catch",
+                    List.of(),
+                    null,
+                    List.of(),
+                    new ChainEditSubgraphBody(
+                        List.of(
+                            new ChainEditSubgraphElement("log-failure", "script", "Log failure"),
+                            new ChainEditSubgraphElement("error-reply", "script", "Error reply")),
+                        List.of(
+                            new ChainEditSubgraphConnection("log-failure", "error-reply"))))));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(importedChain(), capture, wrap(CALL), permissiveCache());
+
+    ChainPlanEdge inCatch =
+        assembled.edges().stream()
+            .filter(edge -> "log-failure".equals(edge.fromNodeId()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals("error-reply", inCatch.toNodeId());
+    assertEquals(nodeOfType(assembled, "catch-2").nodeId(), inCatch.scopeNodeId());
+  }
+
+  @Test
+  void aBranchKeepsThePropertyAndOrderThatTellItFromItsSibling() {
+    ChainEditSubgraph twoCatches =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                catchBranch("java.net.SocketTimeoutException", 0, "log-timeout"),
+                catchBranch("java.lang.Exception", 1, "log-failure")));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), twoCatches, wrap(CALL), permissiveCache());
+
+    List<ChainPlanNode> catches =
+        assembled.nodes().stream().filter(node -> "catch-2".equals(node.type())).toList();
+    assertEquals(2, catches.size());
+    assertEquals(
+        List.of(new PlanProperty("exception", "java.net.SocketTimeoutException")),
+        catches.get(0).properties());
+    assertEquals(0, catches.get(0).order());
+    assertEquals(1, catches.get(1).order());
+  }
+
+  @Test
+  void aLoneBranchGetsThePriorityTheCatalogRequiresWithoutTheCaptureNamingIt() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(true);
+    ChainEditSubgraph withoutAnOrder =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(tryBranch(CALL), catchBranch("java.lang.Exception", null, "log-failure")));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), withoutAnOrder, wrap(CALL), descriptors);
+
+    ChainPlanNode caught =
+        assembled.nodes().stream()
+            .filter(node -> "catch-2".equals(node.type()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(
+        List.of(
+            new PlanProperty("exception", "java.lang.Exception"),
+            new PlanProperty("priority", "1")),
+        caught.properties());
+  }
+
+  @Test
+  void branchOrderFollowsThePriorityPropertyRatherThanTheCaptureListPosition() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(true);
+    ChainEditSubgraph reversedInTheCapture =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                catchBranch("java.lang.Exception", 1, "log-failure"),
+                catchBranch("java.net.SocketTimeoutException", 0, "log-timeout")));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), reversedInTheCapture, wrap(CALL), descriptors);
+
+    List<ChainPlanNode> catches =
+        assembled.nodes().stream().filter(node -> "catch-2".equals(node.type())).toList();
+    assertEquals(2, catches.size());
+    assertEquals(0, catches.get(0).order());
+    assertEquals(1, catches.get(1).order());
+    assertEquals(
+        List.of(
+            new PlanProperty("exception", "java.net.SocketTimeoutException"),
+            new PlanProperty("priority", "0")),
+        catches.get(0).properties());
+  }
+
+  @Test
+  void aRepeatableRoleOtherThanCatchIsOrderedByTheDescriptorsOwnPriorityProperty() {
+    CatalogElementDescriptorCache descriptors = ifDescriptors(true, "branchPriority");
+    ChainEditSubgraph reversedInTheCapture =
+        new ChainEditSubgraph(
+            "if-2",
+            "Route by amount",
+            List.of(whenBranch("true", 1, SCRIPT), whenBranch("payload.amount > 100", 0, CALL)));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), reversedInTheCapture, wrap(CALL, SCRIPT), descriptors);
+
+    List<ChainPlanNode> branches =
+        assembled.nodes().stream().filter(node -> "when-2".equals(node.type())).toList();
+    assertEquals(2, branches.size());
+    assertEquals(branches.get(0).nodeId(), node(assembled, CALL).parentNodeId());
+    assertEquals(branches.get(1).nodeId(), node(assembled, SCRIPT).parentNodeId());
+    assertEquals(
+        List.of(
+            new PlanProperty("condition", "payload.amount > 100"),
+            new PlanProperty("branchPriority", "0")),
+        branches.get(0).properties());
+  }
+
+  @Test
+  void aBranchWithNeitherNewNorMovedElementsIsLeftToChildlessContainerPruning() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptorsWithOptionalFinally();
+    ChainEditSubgraph withAnEmptyFinally =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                catchBranch("java.lang.Exception", null, "log-failure"),
+                new ChainEditSubgraphBranch(
+                    "finally-2", "Finally", List.of(), null, List.of(), null)));
+
+    ChainPlanGraph assembled =
+        assertDoesNotThrow(
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), withAnEmptyFinally, wrap(CALL), descriptors));
+
+    assertEquals("finally-2", nodeOfType(assembled, "finally-2").type());
+  }
+
+  @Test
+  void wrappingAnElementInsideAContainerLeavesTheWrapperInThatContainer() {
+    ChainPlanGraph nested =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(
+                new ChainPlanNode("split", "split-2", "Split", null, null, List.of()),
+                new ChainPlanNode(
+                    "split-element", "split-element-2", "Element", "split", null, List.of()),
+                new ChainPlanNode(
+                    CALL, "service-call", "Call orders", "split-element", null, List.of())),
+            List.of());
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(nested, errorHandling(), wrap(CALL), permissiveCache());
+
+    assertEquals("split-element", nodeOfType(assembled, "try-catch-finally-2").parentNodeId());
+  }
+
+  @Test
+  void movingAnElementTheEditDoesNotNameIsRefusedNamingThatElement() {
+    ChainEditSubgraph movesTheNeighbourToo =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL, SCRIPT),
+                catchBranch("java.lang.Exception", null, "log-failure")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), movesTheNeighbourToo, wrap(CALL), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains(SCRIPT), refused.getMessage());
+    assertFalse(refused.unsatisfiable());
+  }
+
+  @Test
+  void leavingOutAnElementTheEditNamesIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), errorHandling(), wrap(CALL, SCRIPT), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains(SCRIPT), refused.getMessage());
+  }
+
+  @Test
+  void anIntentTargetTheChainDoesNotHoldEndsTheTurn() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), tryOnly("ghost"), wrap("ghost"), permissiveCache()));
+
+    assertTrue(refused.unsatisfiable(), refused.getMessage());
+  }
+
+  @Test
+  void creatingAnElementUnderAnIdTheChainAlreadyUsesIsRefused() {
+    ChainEditSubgraph reusesAnId =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                new ChainEditSubgraphBranch(
+                    "catch-2",
+                    "Catch",
+                    List.of(),
+                    null,
+                    List.of(),
+                    new ChainEditSubgraphBody(
+                        List.of(new ChainEditSubgraphElement(SCRIPT, "script", "Log failure")),
+                        List.of()))));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), reusesAnId, wrap(CALL), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains(SCRIPT), refused.getMessage());
+  }
+
+  @Test
+  void connectingToAnElementAnotherBranchCreatesIsRefused() {
+    ChainEditSubgraph crossesBranches =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                new ChainEditSubgraphBranch(
+                    "try-2",
+                    "Try",
+                    List.of(),
+                    null,
+                    List.of(CALL),
+                    new ChainEditSubgraphBody(
+                        List.of(new ChainEditSubgraphElement("audit", "script", "Audit")),
+                        List.of(new ChainEditSubgraphConnection("audit", "log-failure")))),
+                new ChainEditSubgraphBranch(
+                    "catch-2",
+                    "Catch",
+                    List.of(),
+                    null,
+                    List.of(),
+                    new ChainEditSubgraphBody(
+                        List.of(
+                            new ChainEditSubgraphElement("log-failure", "script", "Log failure")),
+                        List.of()))));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), crossesBranches, wrap(CALL), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("log-failure"), refused.getMessage());
+  }
+
+  @Test
+  void aCaptureWithoutABranchIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph("try-catch-finally-2", "Error handler", List.of()),
+                    wrap(CALL),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("try-catch-finally-2"), refused.getMessage());
+  }
+
+  @Test
+  void aBranchTypeTheContainerDoesNotAllowIsRefusedNamingTheTypeAndTheContainer() {
+    CatalogElementDescriptorCache descriptors =
+        cacheWithContainer(
+            container("try-catch-finally-2", Map.of("try-2", CatalogChildQuantity.ONE), false));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), errorHandling(), wrap(CALL), descriptors));
+
+    assertTrue(refused.getMessage().contains("catch-2"), refused.getMessage());
+    assertTrue(refused.getMessage().contains("try-catch-finally-2"), refused.getMessage());
+  }
+
+  @Test
+  void twoTryBranchesExceedTheContainersQuantityBoundsAndAreRefused() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(false);
+    ChainEditSubgraph twoTries =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                new ChainEditSubgraphBranch("try-2", "Try", List.of(), null, List.of(), null),
+                catchBranch("java.lang.Exception", null, "log-failure")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () -> ChainEditSubgraphAssembly.assemble(importedChain(), twoTries, wrap(CALL), descriptors));
+
+    assertTrue(refused.getMessage().contains("try-2"), refused.getMessage());
+    assertTrue(refused.getMessage().contains("at most 1"), refused.getMessage());
+  }
+
+  @Test
+  void twoCatchBranchesFallWithinTheContainersQuantityBoundsAndAreAccepted() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(false);
+    ChainEditSubgraph twoCatches =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                catchBranch("java.net.SocketTimeoutException", null, "log-timeout"),
+                catchBranch("java.lang.Exception", null, "log-failure")));
+
+    assertDoesNotThrow(
+        () -> ChainEditSubgraphAssembly.assemble(importedChain(), twoCatches, wrap(CALL), descriptors));
+  }
+
+  @Test
+  void aRepeatedBranchMissingItsDistinguishingPropertyIsRefused() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(false);
+    ChainEditSubgraph undistinguished =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                new ChainEditSubgraphBranch(
+                    "catch-2",
+                    "Catch",
+                    List.of(),
+                    null,
+                    List.of(),
+                    new ChainEditSubgraphBody(
+                        List.of(new ChainEditSubgraphElement("log-timeout", "script", "Log timeout")),
+                        List.of())),
+                catchBranch("java.lang.Exception", null, "log-failure")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), undistinguished, wrap(CALL), descriptors));
+
+    assertTrue(refused.getMessage().contains("catch-2"), refused.getMessage());
+    assertTrue(refused.getMessage().contains("no property to tell it from its sibling"),
+        refused.getMessage());
+  }
+
+  @Test
+  void aRepeatedOrderedRoleMissingItsOrderIsRefused() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(true);
+    ChainEditSubgraph unordered =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                catchBranch("java.net.SocketTimeoutException", null, "log-timeout"),
+                catchBranch("java.lang.Exception", 1, "log-failure")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), unordered, wrap(CALL), descriptors));
+
+    assertTrue(refused.getMessage().contains("catch-2"), refused.getMessage());
+    assertTrue(refused.getMessage().contains("no order"), refused.getMessage());
+  }
+
+  @Test
+  void theAssembledGraphIsCheckedAgainstTheDescriptorPreflightInTheSameTurn() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptorsWithMandatoryInnerBranches();
+    ChainEditSubgraph emptyCatch =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                new ChainEditSubgraphBranch(
+                    "catch-2",
+                    "Catch",
+                    List.of(new PlanProperty("exception", "java.lang.Exception")),
+                    null,
+                    List.of(),
+                    null)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), emptyCatch, wrap(CALL), descriptors));
+
+    assertTrue(refused.getMessage().contains("requires inner content"), refused.getMessage());
+  }
+
+  @Test
+  void aCaptureThatSatisfiesARestrictiveOrderedDescriptorIsUnaffected() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(true);
+
+    assertDoesNotThrow(
+        () -> ChainEditSubgraphAssembly.assemble(importedChain(), errorHandling(), wrap(CALL), descriptors));
+  }
+
+  @Test
+  void everyElementOfAnAdjacentGroupMovesIntoTheBranchThatClaimsThem() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            chainWithATail(),
+            errorHandlingAround(CALL, SCRIPT),
+            wrap(CALL, SCRIPT),
+            permissiveCache());
+
+    String tryBranch = nodeOfType(assembled, "try-2").nodeId();
+    assertEquals(tryBranch, node(assembled, CALL).parentNodeId());
+    assertEquals(tryBranch, node(assembled, SCRIPT).parentNodeId());
+    assertNull(node(assembled, TRIGGER).parentNodeId());
+    assertNull(node(assembled, REPLY).parentNodeId());
+  }
+
+  @Test
+  void aConnectionBetweenTwoElementsOfTheGroupIsKeptAsItWas() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            chainWithATail(),
+            errorHandlingAround(CALL, SCRIPT),
+            wrap(CALL, SCRIPT),
+            permissiveCache());
+
+    ChainPlanEdge withinTheGroup = edge(assembled, "call-to-script");
+    assertEquals(CALL, withinTheGroup.fromNodeId());
+    assertEquals(SCRIPT, withinTheGroup.toNodeId());
+  }
+
+  @Test
+  void theConnectionsIntoAndOutOfTheGroupAttachToTheContainer() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            chainWithATail(),
+            errorHandlingAround(CALL, SCRIPT),
+            wrap(CALL, SCRIPT),
+            permissiveCache());
+
+    String container = nodeOfType(assembled, "try-catch-finally-2").nodeId();
+    assertTrue(connects(assembled, TRIGGER, container));
+    assertTrue(connects(assembled, container, REPLY));
+    assertFalse(connects(assembled, TRIGGER, CALL));
+    assertFalse(connects(assembled, SCRIPT, REPLY));
+  }
+
+  @Test
+  void everyBranchTakesTheElementItNamesAndTheirUnionIsTheApprovedGroup() {
+    ChainEditSubgraph condition =
+        new ChainEditSubgraph(
+            "if-2",
+            "Route by amount",
+            List.of(
+                whenBranch("payload.amount > 100", 0, CALL),
+                whenBranch("true", 1, SCRIPT)));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), condition, wrap(CALL, SCRIPT), permissiveCache());
+
+    List<ChainPlanNode> branches =
+        assembled.nodes().stream().filter(node -> "when-2".equals(node.type())).toList();
+    assertEquals(branches.get(0).nodeId(), node(assembled, CALL).parentNodeId());
+    assertEquals(branches.get(1).nodeId(), node(assembled, SCRIPT).parentNodeId());
+  }
+
+  @Test
+  void movingOneElementIntoTwoBranchesIsRefused() {
+    ChainEditSubgraph claimedTwice =
+        new ChainEditSubgraph(
+            "if-2",
+            "Route by amount",
+            List.of(whenBranch("payload.amount > 100", 0, CALL), whenBranch("true", 1, CALL)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), claimedTwice, wrap(CALL), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains(CALL), refused.getMessage());
+    assertTrue(refused.getMessage().contains("more than one branch"), refused.getMessage());
+  }
+
+  @Test
+  void severalLinkedElementsSpliceIntoOneRunBetweenTheNamedAddress() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(),
+            insertion(
+                List.of(element("audit"), element("notify")),
+                List.of(new ChainEditSubgraphConnection("audit", "notify"))),
+            insertBetween(CALL, SCRIPT),
+            permissiveCache());
+
+    assertTrue(connects(assembled, CALL, "audit"));
+    assertTrue(connects(assembled, "audit", "notify"));
+    assertTrue(connects(assembled, "notify", SCRIPT));
+    assertFalse(connects(assembled, CALL, SCRIPT));
+  }
+
+  @Test
+  void theAddressElementsStayExactlyWhereTheyAreAndKeepTheirOtherConnections() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), insertion(element("audit")), insertBetween(CALL, SCRIPT), permissiveCache());
+
+    assertEquals(node(importedChain(), CALL), node(assembled, CALL));
+    assertEquals(node(importedChain(), SCRIPT), node(assembled, SCRIPT));
+    assertTrue(connects(assembled, TRIGGER, CALL), "the address element's other connections are untouched");
+  }
+
+  @Test
+  void namingOnlyThePrecedingElementInsertsBeforeItsSoleSuccessor() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), insertion(element("audit")), insertBetween(CALL), permissiveCache());
+
+    assertTrue(connects(assembled, CALL, "audit"));
+    assertTrue(connects(assembled, "audit", SCRIPT));
+    assertFalse(connects(assembled, CALL, SCRIPT));
+  }
+
+  @Test
+  void anInsertionAfterAnElementWithNoSuccessorAppendsAtTheEnd() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), insertion(element("audit")), insertBetween(SCRIPT), permissiveCache());
+
+    assertTrue(connects(assembled, SCRIPT, "audit"));
+  }
+
+  @Test
+  void anAddressNamedAloneWithMoreThanOneSuccessorIsUnsatisfiable() {
+    ChainPlanGraph branching =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(
+                new ChainPlanNode(CALL, "service-call", "Call orders", null, null, List.of()),
+                new ChainPlanNode("branch-a", "script", "Branch A", null, null, List.of()),
+                new ChainPlanNode("branch-b", "script", "Branch B", null, null, List.of())),
+            List.of(
+                new ChainPlanEdge("edge-a", CALL, "branch-a", null),
+                new ChainPlanEdge("edge-b", CALL, "branch-b", null)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    branching, insertion(element("audit")), insertBetween(CALL), permissiveCache()));
+
+    assertTrue(refused.unsatisfiable(), refused.getMessage());
+  }
+
+  @Test
+  void aContainerNamedForAnInsertionIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph("try-catch-finally-2", "Wrap", List.of()),
+                    insertBetween(CALL, SCRIPT),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("try-catch-finally-2"), refused.getMessage());
+  }
+
+  @Test
+  void branchesNamedForAnInsertionAreRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph(null, null, List.of(tryBranch(CALL))),
+                    insertBetween(CALL, SCRIPT),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("branches"), refused.getMessage());
+  }
+
+  @Test
+  void anEmptyInsertionBodyIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph(null, null, List.of()),
+                    insertBetween(CALL, SCRIPT),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("creates no elements"), refused.getMessage());
+  }
+
+  @Test
+  void aBodyThatDoesNotFormASingleConnectedRunIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    insertion(List.of(element("audit"), element("notify")), List.of()),
+                    insertBetween(CALL, SCRIPT),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("single linked run"), refused.getMessage());
+  }
+
+  @Test
+  void connectingToAnElementTheInsertionDoesNotCreateIsRefused() {
+    ChainEditSubgraph reachesOutsideTheBody =
+        insertion(
+            List.of(element("audit")), List.of(new ChainEditSubgraphConnection("audit", CALL)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), reachesOutsideTheBody, insertBetween(CALL, SCRIPT), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains(CALL), refused.getMessage());
+    assertTrue(refused.getMessage().contains("does not create"), refused.getMessage());
+  }
+
+  @Test
+  void anInsertionBetweenTwoElementsOfAContainerKeepsTheNewElementsInThatContainer() {
+    ChainPlanGraph nested =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(
+                new ChainPlanNode("split", "split-2", "Split", null, null, List.of()),
+                new ChainPlanNode(
+                    "split-element", "split-element-2", "Element", "split", null, List.of()),
+                new ChainPlanNode(
+                    CALL, "service-call", "Call orders", "split-element", null, List.of()),
+                new ChainPlanNode(SCRIPT, "script", "Normalize payload", "split-element", null, List.of())),
+            List.of(new ChainPlanEdge("call-to-script", CALL, SCRIPT, "split-element")));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            nested, insertion(element("audit")), insertBetween(CALL, SCRIPT), permissiveCache());
+
+    assertEquals("split-element", node(assembled, "audit").parentNodeId());
+  }
+
+  @Test
+  void aReplacementRemovesTheTargetAndSplicesInTheNewBody() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), insertion(element("audit")), replaceElement(CALL), permissiveCache());
+
+    assertTrue(assembled.nodes().stream().noneMatch(candidate -> CALL.equals(candidate.nodeId())));
+    assertEquals("Audit", node(assembled, "audit").label());
+  }
+
+  @Test
+  void everyConnectionTheReplacedElementHadReachesTheNewSubgraph() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), insertion(element("audit")), replaceElement(CALL), permissiveCache());
+
+    assertTrue(connects(assembled, TRIGGER, "audit"), "the incoming connection follows to the entry");
+    assertTrue(connects(assembled, "audit", SCRIPT), "the outgoing connection leaves from the exit");
+    assertFalse(connects(assembled, TRIGGER, CALL));
+    assertFalse(connects(assembled, CALL, SCRIPT));
+  }
+
+  @Test
+  void aReplacementOfSeveralLinkedNewElementsWiresThemInTheOrderTheCaptureGives() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(),
+            insertion(
+                List.of(element("audit"), element("notify")),
+                List.of(new ChainEditSubgraphConnection("audit", "notify"))),
+            replaceElement(CALL),
+            permissiveCache());
+
+    assertTrue(connects(assembled, TRIGGER, "audit"));
+    assertTrue(connects(assembled, "audit", "notify"));
+    assertTrue(connects(assembled, "notify", SCRIPT));
+  }
+
+  @Test
+  void replacingAnAdjacentGroupCollapsesItIntoTheNewSubgraph() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            chainWithATail(),
+            insertion(element("audit")),
+            replaceElement(CALL, SCRIPT),
+            permissiveCache());
+
+    assertTrue(connects(assembled, TRIGGER, "audit"));
+    assertTrue(connects(assembled, "audit", REPLY));
+    assertTrue(assembled.nodes().stream().noneMatch(candidate -> CALL.equals(candidate.nodeId())));
+    assertTrue(assembled.nodes().stream().noneMatch(candidate -> SCRIPT.equals(candidate.nodeId())));
+  }
+
+  @Test
+  void replacingAnElementInsideAContainerKeepsTheNewSubgraphInThatContainer() {
+    ChainPlanGraph nested =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(
+                new ChainPlanNode("split", "split-2", "Split", null, null, List.of()),
+                new ChainPlanNode(
+                    "split-element", "split-element-2", "Element", "split", null, List.of()),
+                new ChainPlanNode(
+                    CALL, "service-call", "Call orders", "split-element", null, List.of()),
+                new ChainPlanNode(SCRIPT, "script", "Normalize payload", "split-element", null, List.of())),
+            List.of(new ChainPlanEdge("call-to-script", CALL, SCRIPT, "split-element")));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            nested, insertion(element("audit")), replaceElement(CALL), permissiveCache());
+
+    assertEquals("split-element", node(assembled, "audit").parentNodeId());
+    assertEquals("split-element", node(assembled, SCRIPT).parentNodeId());
+  }
+
+  @Test
+  void aContainerNamedForAReplacementIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph("try-catch-finally-2", "Wrap", List.of()),
+                    replaceElement(CALL),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("try-catch-finally-2"), refused.getMessage());
+  }
+
+  @Test
+  void branchesNamedForAReplacementAreRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph(null, null, List.of(tryBranch(CALL))),
+                    replaceElement(CALL),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("branches"), refused.getMessage());
+  }
+
+  @Test
+  void anEmptyReplacementBodyIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph(null, null, List.of()),
+                    replaceElement(CALL),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("creates no elements"), refused.getMessage());
+  }
+
+  @Test
+  void aReplacementBodyThatDoesNotFormASingleConnectedRunIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    insertion(List.of(element("audit"), element("notify")), List.of()),
+                    replaceElement(CALL),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("single linked run"), refused.getMessage());
+  }
+
+  @Test
+  void connectingToAnElementTheReplacementDoesNotCreateIsRefused() {
+    ChainEditSubgraph reachesOutsideTheBody =
+        insertion(
+            List.of(element("audit")), List.of(new ChainEditSubgraphConnection("audit", SCRIPT)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), reachesOutsideTheBody, replaceElement(CALL), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains(SCRIPT), refused.getMessage());
+    assertTrue(refused.getMessage().contains("does not create"), refused.getMessage());
+  }
+
+  /**
+   * The live scenario this disposition exists for: a {@code condition} with an existing {@code if}
+   * asks for a second {@code if}, evaluated first, logging to a new element.
+   */
+  @Test
+  void anAttachedBranchJoinsTheContainerBesideItsExistingSiblingAndNestsItsOwnElement() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            conditionChain(), attachedIfBranch(0, "healthy-log"), attach(CONDITION), conditionDescriptors());
+
+    ChainPlanNode container = node(assembled, CONDITION);
+    ChainPlanNode newIf =
+        assembled.nodes().stream()
+            .filter(n -> "if".equals(n.type()) && !EXISTING_IF.equals(n.nodeId()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no new if branch"));
+    ChainPlanNode logRecord = node(assembled, "healthy-log");
+
+    assertEquals(container.nodeId(), newIf.parentNodeId());
+    assertEquals(newIf.nodeId(), logRecord.parentNodeId());
+    assertEquals(container.nodeId(), node(assembled, EXISTING_IF).parentNodeId());
+    assertTrue(newIf.properties().contains(new PlanProperty("priority", "0")));
+    assertTrue(newIf.properties().contains(
+        new PlanProperty("condition", "${exchangeProperty.available} >= 10")));
+  }
+
+  @Test
+  void anAttachDoesNotChangeAConnectionOutsideTheContainer() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            conditionChain(), attachedIfBranch(0, "healthy-log"), attach(CONDITION), conditionDescriptors());
+
+    assertEquals(importedConditionEdges(), assembled.edges());
+  }
+
+  @Test
+  void anAttachNamingANewContainerTypeIsRefused() {
+    ChainEditSubgraph withContainerType =
+        new ChainEditSubgraph(
+            "condition",
+            null,
+            List.of(ifBranch(0, "condition-value", "healthy-log")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(), withContainerType, attach(CONDITION), conditionDescriptors()));
+
+    assertTrue(refused.getMessage().contains("names no new one"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachWithMoreThanOneBranchIsRefused() {
+    ChainEditSubgraph twoBranches =
+        new ChainEditSubgraph(
+            null,
+            null,
+            List.of(
+                ifBranch(0, "condition-value", "healthy-log"),
+                ifBranch(1, "another-value", "other-log")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(), twoBranches, attach(CONDITION), conditionDescriptors()));
+
+    assertTrue(refused.getMessage().contains("exactly one branch"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachNamingMoreThanOneContainerIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(),
+                    attachedIfBranch(0, "healthy-log"),
+                    attach(CONDITION, EXISTING_IF),
+                    conditionDescriptors()));
+
+    assertTrue(refused.getMessage().contains("more than one container"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachToALeafElementIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(),
+                    attachedIfBranch(0, "healthy-log"),
+                    attach(SCRIPT),
+                    // SCRIPT's type is 'script'; every other type falls back to permissive.
+                    cacheWithContainer(CatalogElementDescriptorTestSupport.leaf("script"))));
+
+    assertTrue(refused.getMessage().contains("is not a container"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachedBranchTypeTheContainerDoesNotAllowIsRefused() {
+    CatalogElementDescriptorCache descriptors =
+        cacheWithContainer(container("condition", Map.of("if", CatalogChildQuantity.ONE_OR_MANY), false));
+    ChainEditSubgraph elseBranch =
+        new ChainEditSubgraph(
+            null,
+            null,
+            List.of(
+                new ChainEditSubgraphBranch(
+                    "else", "No pets", List.of(), null, List.of(),
+                    new ChainEditSubgraphBody(
+                        List.of(new ChainEditSubgraphElement("no-pets-log", "script", "Log")),
+                        List.of()))));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(conditionChain(), elseBranch, attach(CONDITION), descriptors));
+
+    assertTrue(refused.getMessage().contains("does not allow a branch of type 'else'"),
+        refused.getMessage());
+  }
+
+  @Test
+  void anAttachExceedingTheContainersQuantityBoundIsRefused() {
+    CatalogElementDescriptorCache descriptors =
+        cacheWithContainer(container("condition", Map.of("if", CatalogChildQuantity.ONE), false));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(), attachedIfBranch(0, "healthy-log"), attach(CONDITION), descriptors));
+
+    assertTrue(refused.getMessage().contains("at most 1"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachedOrderedRoleMissingItsOrderIsRefusedWhenASiblingAlreadyExists() {
+    ChainEditSubgraph noOrder =
+        new ChainEditSubgraph(
+            null,
+            null,
+            List.of(ifBranch(null, "${exchangeProperty.available} >= 10", "healthy-log")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(), noOrder, attach(CONDITION), conditionDescriptors()));
+
+    assertTrue(refused.getMessage().contains("set order"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachedBranchStillRunsThroughTheDescriptorPreflight() {
+    CatalogElementDescriptorCache descriptors = conditionDescriptorsWithMandatoryInnerIf();
+    ChainEditSubgraph emptyIf =
+        new ChainEditSubgraph(
+            null,
+            null,
+            List.of(
+                new ChainEditSubgraphBranch(
+                    "if",
+                    "Healthy",
+                    List.of(new PlanProperty("condition", "${exchangeProperty.available} >= 10")),
+                    0,
+                    List.of(),
+                    null)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () -> ChainEditSubgraphAssembly.assemble(conditionChain(), emptyIf, attach(CONDITION), descriptors));
+
+    assertTrue(refused.getMessage().contains("requires inner content"), refused.getMessage());
+  }
+
+  private static final String CONDITION = "available-condition";
+  private static final String EXISTING_IF = "available-if";
+
+  private static ChainEditIntent attach(String... targetNodeIds) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "add a branch for stock at or above ten, logging a healthy message",
+        null,
+        "if",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.ATTACH);
+  }
+
+  private static ChainEditSubgraph attachedIfBranch(Integer order, String logNodeId) {
+    return new ChainEditSubgraph(
+        null, null, List.of(ifBranch(order, "${exchangeProperty.available} >= 10", logNodeId)));
+  }
+
+  private static ChainEditSubgraphBranch ifBranch(Integer order, String condition, String logNodeId) {
+    return new ChainEditSubgraphBranch(
+        "if",
+        "Stock is healthy",
+        List.of(new PlanProperty("condition", condition)),
+        order,
+        List.of(),
+        new ChainEditSubgraphBody(
+            List.of(new ChainEditSubgraphElement(logNodeId, "log-record", "Log healthy inventory")),
+            List.of()));
+  }
+
+  /** A {@code condition} with one existing {@code if}, matching the chain the live edit failed on. */
+  private static ChainPlanGraph conditionChain() {
+    ChainPlanGraph chain = importedChain();
+    List<ChainPlanNode> nodes = new ArrayList<>(chain.nodes());
+    nodes.add(new ChainPlanNode(CONDITION, "condition", "Available pets decision", null, null, List.of()));
+    nodes.add(
+        new ChainPlanNode(
+            EXISTING_IF,
+            "if",
+            "Available is greater than zero",
+            CONDITION,
+            0,
+            List.of(new PlanProperty("condition", "${exchangeProperty.available} > 0"))));
+    return new ChainPlanGraph(chain.schemaVersion(), chain.chain(), nodes, chain.edges());
+  }
+
+  private static List<ChainPlanEdge> importedConditionEdges() {
+    return importedChain().edges();
+  }
+
+  /**
+   * {@code condition} allows any number of {@code if} branches. {@code ordered} and
+   * {@code priorityProperty} land on {@code if}'s own descriptor, not the container's, the same
+   * live-catalog shape {@link #tryCatchDescriptors} documents for {@code try-catch-finally-2}. Every
+   * other type, including the log-record the branch creates, stays permissive.
+   */
+  private static CatalogElementDescriptorCache conditionDescriptors() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "condition" ->
+                    container("condition", Map.of("if", CatalogChildQuantity.ONE_OR_MANY), false);
+                case "if" ->
+                    // container, so the branch's own log-record nests under it, matching the live
+                    // catalog: 'if' holds the elements a matched branch runs.
+                    new CatalogElementDescriptor(
+                        "if", true, Map.of(), List.of(), true, "priority", false, false, false, true);
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+
+  private static CatalogElementDescriptorCache conditionDescriptorsWithMandatoryInnerIf() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "condition" ->
+                    container("condition", Map.of("if", CatalogChildQuantity.ONE_OR_MANY), false);
+                case "if" ->
+                    CatalogElementDescriptorTestSupport.containerRequiringInner("if");
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+
+  private static ChainEditIntent replaceElement(String... targetNodeIds) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "replace the named elements with a script that audits the request",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.REMOVE);
+  }
+
+  private static ChainEditIntent insertBetween(String... targetNodeIds) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "add error handling between the named elements",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.KEEP);
+  }
+
+  private static ChainEditSubgraph insertion(ChainEditSubgraphElement element) {
+    return insertion(List.of(element), List.of());
+  }
+
+  private static ChainEditSubgraph insertion(
+      List<ChainEditSubgraphElement> elements, List<ChainEditSubgraphConnection> connections) {
+    return new ChainEditSubgraph(null, null, List.of(), new ChainEditSubgraphBody(elements, connections));
+  }
+
+  private static ChainEditSubgraphElement element(String nodeId) {
+    return new ChainEditSubgraphElement(nodeId, "script", "Audit");
+  }
+
+  private static ChainEditSubgraph errorHandling() {
+    return errorHandlingAround(CALL);
+  }
+
+  /** The same wrap, around whichever run of existing elements the reader named. */
+  private static ChainEditSubgraph errorHandlingAround(String... moveExisting) {
+    return new ChainEditSubgraph(
+        "try-catch-finally-2",
+        "Error handler",
+        List.of(tryBranch(moveExisting), catchBranch("java.lang.Exception", null, "log-failure")));
+  }
+
+  /** One branch of a condition, claiming the existing elements that route through it. */
+  private static ChainEditSubgraphBranch whenBranch(
+      String condition, Integer order, String... moveExisting) {
+    return new ChainEditSubgraphBranch(
+        "when-2",
+        "When",
+        List.of(new PlanProperty("condition", condition)),
+        order,
+        List.of(moveExisting),
+        null);
+  }
+
+  private static ChainEditSubgraph tryOnly(String... moveExisting) {
+    return new ChainEditSubgraph(
+        "try-catch-finally-2", "Error handler", List.of(tryBranch(moveExisting)));
+  }
+
+  private static ChainEditSubgraphBranch tryBranch(String... moveExisting) {
+    return new ChainEditSubgraphBranch(
+        "try-2", "Try", List.of(), null, List.of(moveExisting), null);
+  }
+
+  private static ChainEditSubgraphBranch catchBranch(
+      String exception, Integer order, String handlerNodeId) {
+    return new ChainEditSubgraphBranch(
+        "catch-2",
+        "Catch",
+        List.of(new PlanProperty("exception", exception)),
+        order,
+        List.of(),
+        new ChainEditSubgraphBody(
+            List.of(new ChainEditSubgraphElement(handlerNodeId, "script", "Log failure")),
+            List.of()));
+  }
+
+  private static ChainEditIntent wrap(String... targetNodeIds) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "add error handling to the service call",
+        null,
+        "try-catch-finally-2",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.NEST);
+  }
+
+  private static ChainPlanGraph importedChain() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Orders", "Orders"),
+        List.of(
+            new ChainPlanNode(TRIGGER, "http-trigger", "HTTP trigger", null, 1, List.of()),
+            new ChainPlanNode(
+                CALL,
+                "service-call",
+                "Call orders",
+                null,
+                2,
+                List.of(new PlanProperty("retryCount", "3"))),
+            new ChainPlanNode(SCRIPT, "script", "Normalize payload", null, 3, List.of())),
+        List.of(
+            new ChainPlanEdge("trigger-to-call", TRIGGER, CALL, null),
+            new ChainPlanEdge("call-to-script", CALL, SCRIPT, null)));
+  }
+
+  /** The same chain with an element after the script, so a group has a hop leaving it as well. */
+  private static ChainPlanGraph chainWithATail() {
+    ChainPlanGraph chain = importedChain();
+    List<ChainPlanNode> nodes = new ArrayList<>(chain.nodes());
+    nodes.add(new ChainPlanNode(REPLY, "script", "Send reply", null, 4, List.of()));
+    List<ChainPlanEdge> edges = new ArrayList<>(chain.edges());
+    edges.add(new ChainPlanEdge("script-to-reply", SCRIPT, REPLY, null));
+    return new ChainPlanGraph(chain.schemaVersion(), chain.chain(), nodes, edges);
+  }
+
+  private static boolean connects(ChainPlanGraph graph, String fromNodeId, String toNodeId) {
+    return graph.edges().stream()
+        .anyMatch(
+            edge -> fromNodeId.equals(edge.fromNodeId()) && toNodeId.equals(edge.toNodeId()));
+  }
+
+  private static ChainPlanNode node(ChainPlanGraph graph, String nodeId) {
+    return graph.nodes().stream()
+        .filter(candidate -> nodeId.equals(candidate.nodeId()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no element " + nodeId));
+  }
+
+  private static ChainPlanEdge edge(ChainPlanGraph graph, String edgeId) {
+    return graph.edges().stream()
+        .filter(candidate -> edgeId.equals(candidate.edgeId()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no connection " + edgeId));
+  }
+
+  private static ChainPlanNode nodeOfType(ChainPlanGraph graph, String type) {
+    return graph.nodes().stream()
+        .filter(candidate -> type.equals(candidate.type()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no element of type " + type));
+  }
+
+  /** Every type is a permissive container, so descriptor validation never fires. */
+  private static CatalogElementDescriptorCache permissiveCache() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    CatalogElementDescriptorTestSupport.stubPermissive(loader);
+    return new CatalogElementDescriptorCache(loader);
+  }
+
+  /** {@code container} is stubbed as given; every other type stays permissive. */
+  private static CatalogElementDescriptorCache cacheWithContainer(
+      CatalogElementDescriptor container) {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return container.name().equals(type)
+                  ? container
+                  : CatalogElementDescriptorTestSupport.permissive(type);
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+
+  private static CatalogElementDescriptor container(
+      String type, Map<String, CatalogChildQuantity> allowedChildren, boolean ordered) {
+    return new CatalogElementDescriptor(
+        type, true, allowedChildren, List.of(), ordered, "priority", false, false, false, true);
+  }
+
+  /**
+   * The wrapper allows exactly one try branch and any number of catch branches. {@code ordered}
+   * lands on {@code catch-2}'s own descriptor, not the container's: the live catalog marks the
+   * container itself unordered and puts {@code ordered} and {@code priorityProperty} on the
+   * repeated role, so a capture's priority is a fact about {@code catch-2}, never about
+   * {@code try-catch-finally-2}.
+   */
+  private static CatalogElementDescriptorCache tryCatchDescriptors(boolean catchOrdered) {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "try-catch-finally-2" ->
+                    container(
+                        type,
+                        Map.of(
+                            "try-2", CatalogChildQuantity.ONE,
+                            "catch-2", CatalogChildQuantity.ONE_OR_MANY),
+                        false);
+                case "catch-2" ->
+                    new CatalogElementDescriptor(
+                        type,
+                        true,
+                        Map.of(),
+                        List.of(),
+                        catchOrdered,
+                        "priority",
+                        false,
+                        false,
+                        false,
+                        true);
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+
+  /**
+   * A repeatable role that is not catch, so descriptor-driven assembly is checked against more than
+   * one container type. {@code priorityProperty} is caller-supplied rather than the catalog default,
+   * so a test using it proves the property name is read from the descriptor rather than hardcoded.
+   * {@code ordered} lands on {@code when-2}, the repeated role, not on the {@code if-2} container.
+   */
+  private static CatalogElementDescriptorCache ifDescriptors(
+      boolean whenOrdered, String priorityProperty) {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "if-2" ->
+                    container(type, Map.of("when-2", CatalogChildQuantity.ONE_OR_MANY), false);
+                case "when-2" ->
+                    new CatalogElementDescriptor(
+                        type,
+                        true,
+                        Map.of(),
+                        List.of(),
+                        whenOrdered,
+                        priorityProperty,
+                        false,
+                        false,
+                        false,
+                        true);
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+
+  /**
+   * Like {@link #tryCatchDescriptors}, but {@code finally-2} is optional and, like try and catch,
+   * requires inner content when present -- so an empty one is only safe when pruned before it is
+   * declared to need content.
+   */
+  private static CatalogElementDescriptorCache tryCatchDescriptorsWithOptionalFinally() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "try-catch-finally-2" ->
+                    container(
+                        type,
+                        Map.of(
+                            "try-2", CatalogChildQuantity.ONE,
+                            "catch-2", CatalogChildQuantity.ONE_OR_MANY,
+                            "finally-2", CatalogChildQuantity.ONE_OR_ZERO),
+                        false);
+                case "finally-2" -> CatalogElementDescriptorTestSupport.containerRequiringInner(type);
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+
+  /** Like {@link #tryCatchDescriptors}, but the try and catch branches require inner content. */
+  private static CatalogElementDescriptorCache tryCatchDescriptorsWithMandatoryInnerBranches() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "try-catch-finally-2" ->
+                    container(
+                        type,
+                        Map.of(
+                            "try-2", CatalogChildQuantity.ONE,
+                            "catch-2", CatalogChildQuantity.ONE_OR_MANY),
+                        false);
+                case "try-2", "catch-2" ->
+                    CatalogElementDescriptorTestSupport.containerRequiringInner(type);
+                default -> CatalogElementDescriptorTestSupport.leaf(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+}

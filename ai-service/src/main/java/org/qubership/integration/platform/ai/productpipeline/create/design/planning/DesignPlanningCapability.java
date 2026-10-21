@@ -1,0 +1,673 @@
+package org.qubership.integration.platform.ai.productpipeline.create.design.planning;
+
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.logging.AiTraceLog;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
+import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanism;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
+import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
+import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
+
+/**
+ * Shared create-chain design-planning capability. Runs the pinned planner, projects the catalog
+ * DAG, and renders the approval-target {@link ImplementationPlan}.
+ */
+@ApplicationScoped
+public class DesignPlanningCapability implements StageCapability {
+  @Inject
+  E2eRecoveryFaultInjector recoveryFaultInjector = new E2eRecoveryFaultInjector("", "");
+
+  @Inject
+  org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget llmBudget;
+
+  @Inject
+  org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore captureFeedback =
+      new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+
+  private static final Logger LOG = Logger.getLogger(DesignPlanningCapability.class);
+
+  public static final String CAPABILITY_ID = "design-planning";
+
+  private final TypedCipDesignPlannerAdapter typedPlanner;
+  private final CipDesignPlannerAdapter legacyPlanner;
+  private final DesignPlanProjector projector;
+  private final DesignPlanReportRenderer reportRenderer;
+  private final DesignImplementationPlanRenderer renderer;
+  private final ProductPipelineArtifactStore artifactStore;
+
+  @Inject
+  public DesignPlanningCapability(
+      DesignPlanSkillRunner runner, ProductPipelineArtifactStore artifactStore) {
+    this(
+        new TypedCipDesignPlannerAdapter(runner),
+        new DesignPlanProjector(),
+        new DesignPlanReportRenderer(),
+        new DesignImplementationPlanRenderer(),
+        artifactStore);
+  }
+
+  /** Compatibility constructor for deterministic fixtures that return legacy planner Markdown. */
+  public DesignPlanningCapability(
+      DesignProcessSkillRunner runner, ProductPipelineArtifactStore artifactStore) {
+    this(
+        new CipDesignPlannerAdapter(runner, new CipDesignPlannerReportParser()),
+        new DesignPlanProjector(),
+        new DesignImplementationPlanRenderer(),
+        artifactStore);
+  }
+
+  DesignPlanningCapability(
+      TypedCipDesignPlannerAdapter planner,
+      DesignPlanProjector projector,
+      DesignPlanReportRenderer reportRenderer,
+      DesignImplementationPlanRenderer renderer,
+      ProductPipelineArtifactStore artifactStore) {
+    this.typedPlanner = Objects.requireNonNull(planner, "planner");
+    this.legacyPlanner = null;
+    this.projector = Objects.requireNonNull(projector, "projector");
+    this.reportRenderer = Objects.requireNonNull(reportRenderer, "reportRenderer");
+    this.renderer = Objects.requireNonNull(renderer, "renderer");
+    this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
+  }
+
+  /** Legacy constructor retained for isolated harness fixtures during the typed cutover. */
+  DesignPlanningCapability(
+      CipDesignPlannerAdapter planner,
+      DesignPlanProjector projector,
+      DesignImplementationPlanRenderer renderer,
+      ProductPipelineArtifactStore artifactStore) {
+    this.typedPlanner = null;
+    this.legacyPlanner = Objects.requireNonNull(planner, "planner");
+    this.projector = Objects.requireNonNull(projector, "projector");
+    this.reportRenderer = new DesignPlanReportRenderer();
+    this.renderer = Objects.requireNonNull(renderer, "renderer");
+    this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
+  }
+
+  @Override
+  public String capabilityId() {
+    return CAPABILITY_ID;
+  }
+
+  @Override
+  public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+    Objects.requireNonNull(context, "context");
+    // Planner agent blocks; must not run on the Vert.x event loop.
+    var turnEmit = SkillActivitySupport.captureTurnEmit(context.conversationId());
+    return Multi.createBy()
+        .concatenating()
+        .streams(
+            Multi.createFrom().item(SkillActivitySupport.running(CipDesignPlannerAdapter.SKILL_ID)),
+            Uni.createFrom()
+                .item(
+                    () -> {
+                      SkillActivitySupport.bindWorker(
+                          CipDesignPlannerAdapter.SKILL_ID, turnEmit);
+                      try {
+                        return SkillActivitySupport.wrapTerminal(
+                            CipDesignPlannerAdapter.SKILL_ID, List.of(executeBlocking(context)));
+                      } finally {
+                        SkillActivitySupport.unbindWorker(turnEmit);
+                      }
+                    })
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .onItem()
+                .transformToMulti(signals -> Multi.createFrom().iterable(signals)));
+  }
+
+  private CapabilitySignal.Completed executeBlocking(StageExecutionContext context) {
+    long startMs = System.currentTimeMillis();
+    LOG.infof(
+        "design-planning started: runId=%s, conversationId=%s",
+        context.runId(), context.conversationId());
+    CapabilitySignal.Completed completed = planBlocking(context);
+    LOG.infof(
+        "design-planning finished: runId=%s, conversationId=%s, durationMs=%d, outcome=%s,"
+            + " candidates=%d, message=%s",
+        context.runId(),
+        context.conversationId(),
+        System.currentTimeMillis() - startMs,
+        completed.outcome().outcomeClass(),
+        completed.outcome().candidates().size(),
+        AiTraceLog.previewOneLine(completed.outcome().message(), 400));
+    return completed;
+  }
+
+  private CapabilitySignal.Completed planBlocking(StageExecutionContext context) {
+    // Held outside the try so a rejection after the planner answered still hands the halt the
+    // artifact it is about. Without that, the next attempt reads the complaint and nothing else.
+    DesignPlanReport report = null;
+    DesignPlanContract contract = null;
+    DesignExecutionPlan projection = null;
+    try {
+      IdsDocument ids = requireIds(context);
+      ChainSemanticRevision revision = requireRevision(context);
+      RequirementBrief brief = requireBrief(context);
+      RunManifest runManifest = requireRunManifest(context);
+      CompilerRunPin pin = requireCompilerPin(runManifest);
+      String pinnedSkillHash = pin.skillSha256ById().get(CipDesignPlannerAdapter.SKILL_ID);
+      if (pinnedSkillHash == null || pinnedSkillHash.isBlank()) {
+        return new CapabilitySignal.Completed(
+            StageOutcome.of(
+                StageOutcomeClass.CONTRACT_FAILURE,
+                "run manifest is missing pinned hash for " + CipDesignPlannerAdapter.SKILL_ID));
+      }
+
+      String release = toApiRelease(runManifest.languageVersion());
+      StageRepairEvidence repair = StageRepairEvidence.from(context);
+      boolean cleanRebuild = StageRepairEvidence.isCleanDesignPlanRebuild(context, repair);
+      String repairEvidenceText =
+          repair == null
+              ? ""
+              : repairEvidenceText(repair, cleanRebuild ? "" : priorPlanMarkdown(context, repair));
+      PlannerRequest plannerRequest =
+          new PlannerRequest(
+              cleanRebuild
+                  ? context.conversationId() + "-clean-plan-" + context.attemptId()
+                  : context.conversationId(),
+              buildPlannerInput(ids, revision, release, brief),
+              pinnedSkillHash,
+              repairEvidenceText);
+      captureFeedback.beginScope(plannerRequest.conversationId(), CAPABILITY_ID, java.util.Map.of(
+          "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "revision", revision, "pin", pin),
+          context.conversationId());
+      captureFeedback.clearPlan(plannerRequest.conversationId());
+      if (typedPlanner != null) {
+        if (llmBudget != null) { llmBudget.linkConversation(context.runId(), plannerRequest.conversationId()); }
+        TypedCipDesignPlannerAdapter.Result result =
+            typedPlanner.plan(plannerRequest, release, revision, brief, pin);
+        contract = result.contract();
+        report = reportRenderer.render(contract);
+        projection = projector.project(contract, report, revision, pin, brief);
+      } else {
+        if (llmBudget != null) { llmBudget.linkConversation(context.runId(), plannerRequest.conversationId()); }
+        report = legacyPlanner.plan(plannerRequest);
+        projection = projector.project(report, revision, pin, brief);
+        contract = legacyContract(report, projection, revision, pin);
+        projection = withContractLineage(projection, contract);
+      }
+      projection = recoveryFaultInjector.corruptDesignPlan(context.runId(), revision.chainIdentity(), projection);
+      ImplementationPlan rendering = renderer.render(report, projection, revision, brief);
+
+      Reference idsRef = requireInputRef(context.inputRefs(), Kind.IDS_DOCUMENT);
+      Reference revisionRef = requireInputRef(context.inputRefs(), Kind.CHAIN_SEMANTIC_REVISION);
+
+      List<ArtifactCandidate> candidates = new ArrayList<>();
+      candidates.add(new ArtifactCandidate(Kind.IDS_DOCUMENT, ids, List.of(idsRef)));
+      candidates.add(
+          new ArtifactCandidate(Kind.CHAIN_SEMANTIC_REVISION, revision, List.of(revisionRef)));
+      if (contract != null) {
+        candidates.add(
+            new ArtifactCandidate(
+                Kind.DESIGN_PLAN_CONTRACT, contract, List.of(idsRef, revisionRef)));
+      }
+      candidates.add(
+          new ArtifactCandidate(Kind.DESIGN_PLAN_REPORT, report, List.of(idsRef, revisionRef)));
+      candidates.add(
+          new ArtifactCandidate(
+              Kind.DESIGN_EXECUTION_PLAN, projection, List.of(idsRef, revisionRef)));
+      candidates.add(
+          new ArtifactCandidate(
+              Kind.IMPLEMENTATION_PLAN, rendering, List.of(idsRef, revisionRef)));
+
+      return new CapabilitySignal.Completed(
+          new StageOutcome(
+              StageOutcomeClass.CANDIDATE,
+              candidates,
+              "design plan ready for approval",
+              null));
+    } catch (PlannerContractException ex) {
+      return haltedSignal(
+          ex.outcomeClass() == null ? StageOutcomeClass.CONTRACT_FAILURE : ex.outcomeClass(),
+          ex.getMessage(),
+          contract,
+          report,
+          projection,
+          ex.recoveryCause());
+    } catch (RuntimeException ex) {
+      var captureFailure = StageOutcome.captureFailure(ex);
+      if (captureFailure.isPresent()) {
+        var outcome = captureFailure.get();
+        return haltedSignal(outcome.outcomeClass(), outcome.message(), contract, report, projection,
+            outcome.recoveryCause());
+      }
+      if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(ex)) {
+        StageOutcome technical = StageOutcome.technicalFailure(ex);
+        return haltedSignal(technical.outcomeClass(), technical.message(), contract, report, projection,
+            technical.recoveryCause());
+      }
+      return haltedSignal(
+          TransientFailures.isTransient(ex)
+              ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE
+              : StageOutcomeClass.CONTRACT_FAILURE,
+          ex.getMessage(),
+          contract,
+          report,
+          projection,
+          null);
+    }
+  }
+
+  /**
+   * Halts carrying whatever this attempt managed to build. The runtime records those artifacts
+   * against the halted attempt without approving them or marking the stage succeeded, which is what
+   * lets the next attempt of this stage read the rejected plan back.
+   */
+  private static CapabilitySignal.Completed haltedSignal(
+      StageOutcomeClass outcomeClass,
+      String message,
+      DesignPlanContract contract,
+      DesignPlanReport report,
+      DesignExecutionPlan projection,
+      RecoveryCause recoveryCause) {
+    List<ArtifactCandidate> produced = new ArrayList<>();
+    if (contract != null) {
+      produced.add(new ArtifactCandidate(Kind.DESIGN_PLAN_CONTRACT, contract, List.of()));
+    }
+    if (report != null) {
+      produced.add(new ArtifactCandidate(Kind.DESIGN_PLAN_REPORT, report, List.of()));
+    }
+    if (projection != null) {
+      produced.add(new ArtifactCandidate(Kind.DESIGN_EXECUTION_PLAN, projection, List.of()));
+    }
+    return new CapabilitySignal.Completed(
+        new StageOutcome(outcomeClass, List.copyOf(produced), message, null, recoveryCause));
+  }
+
+  /** Supplies the new profile artifact to deterministic legacy fixtures during the cutover. */
+  private static DesignPlanContract legacyContract(
+      DesignPlanReport report,
+      DesignExecutionPlan projection,
+      ChainSemanticRevision revision,
+      CompilerRunPin pin) {
+    List<DesignPlanContract.Step> steps =
+        projection.steps().stream()
+            .map(
+                step -> {
+                  DesignPlanContract.Owner owner =
+                      step.ownerKind() == DesignExecutionPlan.OwnerKind.APIHUB_TOOL
+                          ? new DesignPlanContract.Owner(
+                              DesignPlanContract.OwnerKind.APIHUB_TOOL,
+                              step.toolOperationRefs().getFirst())
+                          : new DesignPlanContract.Owner(
+                              DesignPlanContract.OwnerKind.SKILL,
+                              step.owningSkillIds().getFirst());
+                  return new DesignPlanContract.Step(
+                      step.stepId(), step.reportText(), owner, List.of(), step.dependsOn());
+                })
+            .toList();
+    return new DesignPlanContract(
+        "design-plan-contract/legacy",
+        "legacy-" + Integer.toUnsignedString(report.markdown().hashCode(), 16),
+        revision.revisionId(),
+        pin.subjectSha256(),
+        projection.apiRelease(),
+        steps);
+  }
+
+  private static DesignExecutionPlan withContractLineage(
+      DesignExecutionPlan plan, DesignPlanContract contract) {
+    return new DesignExecutionPlan(
+        plan.schemaVersion(),
+        plan.semanticRevisionId(),
+        plan.designAuthority(),
+        plan.designInputRef(),
+        plan.designInputHash(),
+        plan.apiRelease(),
+        plan.bindingResolutionPolicy(),
+        plan.steps(),
+        plan.sourceReportRef(),
+        plan.sourceReportHash(),
+        plan.pinnedSkillHashes(),
+        plan.pinnedAddonHashes(),
+        plan.compilerCatalogHash(),
+        plan.bindingResolutionPolicyHash(),
+        contract.contractId(),
+        DesignPlanProjector.contractHash(contract));
+  }
+
+  /**
+   * Markdown of the plan the halted attempt of this stage wrote, or blank when it never produced
+   * one. Read through the halt evidence rather than through the committed inputs: the pipeline never
+   * approved this report, and only the retry of this same stage is allowed to see it.
+   */
+  private String priorPlanMarkdown(StageExecutionContext context, StageRepairEvidence repair) {
+    return repair
+        .priorOutput(Kind.DESIGN_PLAN_REPORT)
+        .flatMap(ref -> artifactStore.get(context.runId(), ref))
+        .map(revision -> artifactStore.payload(revision, DesignPlanReport.class))
+        .map(DesignPlanReport::markdown)
+        .orElse("");
+  }
+
+  private static IdsDocument requireIds(StageExecutionContext context) {
+    Object value = context.attributes().get("idsDocument");
+    if (value instanceof IdsDocument document) {
+      return document;
+    }
+    throw new PlannerContractException("IDS_DOCUMENT is required for design planning");
+  }
+
+  private static ChainSemanticRevision requireRevision(StageExecutionContext context) {
+    Object value = context.attributes().get("chainSemanticRevision");
+    if (value instanceof ChainSemanticRevision revision) {
+      return revision;
+    }
+    throw new PlannerContractException("CHAIN_SEMANTIC_REVISION is required for design planning");
+  }
+
+  private static RequirementBrief requireBrief(StageExecutionContext context) {
+    Object value = context.attributes().get("requirementBrief");
+    if (value instanceof RequirementBrief brief) {
+      return brief;
+    }
+    throw new PlannerContractException("REQUIREMENT_BRIEF is required for design planning");
+  }
+
+  private static RunManifest requireRunManifest(StageExecutionContext context) {
+    if (context.runManifest() == null) {
+      throw new PlannerContractException("RUN_MANIFEST is required for design planning");
+    }
+    return context.runManifest();
+  }
+
+  private static CompilerRunPin requireCompilerPin(RunManifest runManifest) {
+    if (runManifest.compilerRunPin() == null) {
+      throw new PlannerContractException("compiler run pin is required for design planning");
+    }
+    return runManifest.compilerRunPin();
+  }
+
+  private static Reference requireInputRef(List<Reference> inputRefs, Kind kind) {
+    return inputRefs.stream()
+        .filter(ref -> ref != null && ref.kind() == kind)
+        .findFirst()
+        .orElseThrow(
+            () ->
+                new PlannerContractException(
+                    "design planning requires committed input ref for " + kind.name()));
+  }
+
+  /**
+   * Formats the shared halt evidence for the planner to read on a repair turn, with the rejected
+   * plan alongside the rejection. {@code priorPlanMarkdown} is blank when the failed attempt never
+   * produced a report, in which case the planner reads the complaint alone, as it did before the
+   * halted attempt kept its output.
+   */
+  static String repairEvidenceText(StageRepairEvidence repair, String priorPlanMarkdown) {
+    StringBuilder sb = new StringBuilder(repair.diagnosticText());
+    if (repair.haltFollowUpText() != null
+        && !repair.haltFollowUpText().isBlank()
+        && !isStageIdFollowUp(repair.haltFollowUpText())) {
+      sb.append("- authorFollowUp: ").append(repair.haltFollowUpText().trim()).append('\n');
+    }
+    if (mentionsMappingIntentId(repair)) {
+      sb.append(
+          "- repairHint: Keep the rejected plan's numbered steps. On every mapping-generator "
+              + "line write the literal token mappingIntentId=<id> next to the skill, using an id "
+              + "from Mapping intents. Example: (cip-script-generator mappingIntentId=map-a).\n");
+    }
+    if (priorPlanMarkdown != null && !priorPlanMarkdown.isBlank()) {
+      sb.append("- rejectedPlan:\n").append(priorPlanMarkdown.trim()).append('\n');
+    }
+    return sb.toString().trim();
+  }
+
+  private static boolean mentionsMappingIntentId(StageRepairEvidence repair) {
+    return containsIgnoreCase(repair.errorEvidence(), "mappingIntentId")
+        || containsIgnoreCase(repair.findings(), "mappingIntentId");
+  }
+
+  private static boolean containsIgnoreCase(String text, String token) {
+    return text != null && !text.isBlank() && text.toLowerCase(java.util.Locale.ROOT).contains(token.toLowerCase(java.util.Locale.ROOT));
+  }
+
+  /** Stage-id clicks are not a product correction the planner should copy. */
+  private static boolean isStageIdFollowUp(String text) {
+    return text != null && text.trim().matches("[a-z][a-z0-9]*(-[a-z0-9]+)+");
+  }
+
+  /** The API release an edit or a build targets, derived from the chain's language version. */
+  public static String toApiRelease(String languageVersion) {
+    if (languageVersion == null || languageVersion.isBlank()) {
+      return "UNSPECIFIED";
+    }
+    String trimmed = languageVersion.trim();
+    if (trimmed.matches("\\d{2}\\.\\d+")) {
+      return "20" + trimmed;
+    }
+    return trimmed;
+  }
+
+  /**
+   * Shows the planner the semantic revision its report is checked against.
+   *
+   * <p>{@link DesignPlanProjector} rejects a report that covers no trigger or that leaves a mapping
+   * intent without a transform step.
+   */
+  static String buildPlannerInput(
+      IdsDocument ids, ChainSemanticRevision revision, String release) {
+    return buildPlannerInput(ids, revision, release, null);
+  }
+
+  static String buildPlannerInput(
+      IdsDocument ids, ChainSemanticRevision revision, String release, RequirementBrief brief) {
+    return """
+        API release: %s
+        Semantic revision id: %s
+        Chain identity: %s
+
+        %s
+
+        %s
+        """
+        .formatted(
+            release,
+            revision.revisionId(),
+            revision.chainIdentity(),
+            describeRevision(revision, brief),
+            ids.markdown())
+        .trim();
+  }
+
+  private static String describeRevision(ChainSemanticRevision revision, RequirementBrief brief) {
+    Map<DesignPlanContractValidator.TargetKey, String> expectedOwners =
+        DesignPlanContractValidator.expectedOwners(
+            revision, brief, DesignPlanContractValidator.BindingPolicy.CATALOG_ONLY);
+    StringBuilder text = new StringBuilder();
+    text.append(
+        "Chain semantic revision. Copy targetKind and targetId values exactly into typed claims.\n\n");
+
+    text.append("Entry points:\n");
+    for (SemanticEntryPoint entry : revision.entryPoints()) {
+      text.append("- targetKind=ENTRY_POINT targetId=")
+          .append(entry.entryPointId())
+          .append(" producer=")
+          .append(DesignPlanContractValidator.ownerForEntryPoint(entry, revision, brief))
+          .append(" trigger ")
+          .append(entry.triggerNodeId())
+          .append(" -> ")
+          .append(entry.initialTargetNodeId());
+      if (entry.presentation() != null && entry.presentation().label() != null) {
+        text.append(" (").append(entry.presentation().label()).append(')');
+      }
+      text.append('\n');
+    }
+
+    text.append("\nNodes:\n");
+    for (SemanticNode node : revision.nodes()) {
+      text.append("- ").append(node.nodeId()).append(" (").append(node.kind()).append(')');
+      if (node instanceof SemanticNode.ServiceCall call) {
+        text.append(" targetKind=SERVICE_CALL targetId=")
+            .append(call.serviceCallId())
+            .append(" producer=cip-service-call-generator")
+            .append(" operation=")
+            .append(call.operation())
+            .append(" failureMode=")
+            .append(call.failureMode());
+        RequirementServiceCall approved = serviceCall(brief, call.serviceCallId());
+        if (approved != null) {
+          text.append(" participant=").append(approved.participant());
+          CatalogBindingHint binding = approved.catalogBinding();
+          if (binding != null) {
+            text.append(" systemId=")
+                .append(binding.systemId())
+                .append(" specificationId=")
+                .append(binding.specificationId())
+                .append(" integrationOperationId=")
+                .append(binding.integrationOperationId());
+          } else {
+            text.append(" unresolvedBindingTargetKind=CATALOG_BINDING")
+                .append(" unresolvedBindingTargetId=")
+                .append(call.serviceCallId())
+                .append(" producerOwnerKind=APIHUB_TOOL")
+                .append(
+                    " producerOperation=get_rest_api_operations_specification"
+                        + "|get_api_operation_specification");
+          }
+        }
+      } else if (node instanceof SemanticNode.Trigger trigger) {
+        text.append(" capability=").append(trigger.capabilityKey());
+      } else if (node instanceof SemanticNode.Operation operation
+          && (ChainElementFamilies.isSender(operation.elementType())
+              || ChainElementFamilies.isFileTransfer(operation.elementType()))) {
+        text.append(" targetKind=ELEMENT_NODE targetId=")
+            .append(operation.nodeId())
+            .append(" producer=")
+            .append(DesignPlanContractValidator.ownerForDirectOperation(operation.elementType()))
+            .append(" elementType=")
+            .append(operation.elementType());
+      } else if (node instanceof SemanticNode.Operation operation) {
+        String owner =
+            expectedOwners.get(
+                new DesignPlanContractValidator.TargetKey(
+                    DesignPlanContract.TargetKind.ELEMENT_NODE, operation.nodeId()));
+        if (owner != null) {
+          text.append(" targetKind=ELEMENT_NODE targetId=")
+              .append(operation.nodeId())
+              .append(" producer=")
+              .append(owner)
+              .append(" elementType=")
+              .append(operation.elementType());
+        }
+      }
+      text.append(" sourceFactIds=").append(node.provenance().sourceFactIds()).append('\n');
+    }
+
+    text.append("\nControl-flow regions:\n");
+    if (revision.regions().isEmpty()) {
+      text.append("- none\n");
+    } else {
+      for (SemanticRegion region : revision.regions()) {
+        text.append("- targetKind=REGION targetId=")
+            .append(region.regionId())
+            .append(" kind=")
+            .append(region.kind())
+            .append(" producer=")
+            .append(DesignPlanContractValidator.ownerForRegion(region))
+            .append('\n');
+      }
+    }
+
+    if (revision.mappingBodies(brief).isEmpty()) {
+      text.append("\nMapping intents: none\n");
+    } else {
+      text.append("\nMapping intents:\n");
+      for (MappingIntent mapping : revision.mappingBodies(brief)) {
+        text.append("- targetKind=MAPPING_INTENT targetId=")
+            .append(mapping.mappingIntentId())
+            .append(" producer=");
+        String skill = mappingGeneratorSkill(mapping);
+        if (!skill.isBlank()) {
+          text.append(skill);
+        }
+        text.append(' ')
+            .append(mapping.sourceRef())
+            .append(" -> ")
+            .append(mapping.targetRef())
+            .append('\n');
+      }
+    }
+    List<String> behaviorOwned =
+        DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
+    text.append("\nBehavior-owned script nodes:\n");
+    if (behaviorOwned.isEmpty()) {
+      text.append("- none\n");
+    } else {
+      for (String nodeId : behaviorOwned) {
+        text.append("- targetKind=BEHAVIOR_NODE targetId=")
+            .append(nodeId)
+            .append(" producer=cip-script-generator\n");
+      }
+    }
+    for (String constraint : revision.constraints()) {
+      if (constraint != null && !constraint.isBlank()) {
+        text.append("Constraint: ").append(constraint.trim()).append('\n');
+      }
+    }
+    if (brief != null) {
+      text.append("\nApproved requirements:\n").append(RequirementBriefText.format(brief)).append('\n');
+    }
+    return text.toString();
+  }
+
+  private static RequirementServiceCall serviceCall(RequirementBrief brief, String serviceCallId) {
+    if (brief == null) {
+      return null;
+    }
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (serviceCallId.equals(call.serviceCallId())) {
+        return call;
+      }
+    }
+    return null;
+  }
+
+  private static String mappingGeneratorSkill(MappingIntent mapping) {
+    return MappingMechanismSelector.select(mapping)
+        .map(
+            mechanism ->
+                mechanism == MappingMechanism.SCRIPT
+                    ? DesignPlanProjector.SCRIPT_GENERATOR_SKILL_ID
+                    : DesignPlanProjector.TRANSFORMATION_GENERATOR_SKILL_ID)
+        .orElse("");
+  }
+}

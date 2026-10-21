@@ -12,31 +12,31 @@ import static org.qubership.integration.platform.maven.plugin.domain.services.Mi
 
 class TemplateBasedLibraryLocationGetterTest {
     private static final String DEFAULT_TEMPLATE =
-        "http://{appPrefix}-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar";
+        "http://cip-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar";
 
-    private final TemplateBasedLibraryLocationGetter getter = new TemplateBasedLibraryLocationGetter("qip");
+    private final TemplateBasedLibraryLocationGetter getter = new TemplateBasedLibraryLocationGetter();
 
     /** The default must keep pointing where the catalog serves the library, as it did before the template. */
     @Test
     void resolvesTheDefaultTemplateToTheCatalogUrl() {
         assertEquals(
-            "http://qip-runtime-catalog-v1:8080/v1/models/spec-1/dto/jar",
+            "http://cip-runtime-catalog-v1:8080/v1/models/spec-1/dto/jar",
             getter.apply(context(DEFAULT_TEMPLATE, "spec-1")));
     }
 
     @Test
     void encodesSpecificationIdWithSpacesAndOtherReservedCharacters() {
         assertEquals(
-            "http://qip-runtime-catalog-v1:8080/v1/models/quote-tmf-service-Quote%20Management6.2-6.2/dto/jar",
+            "http://cip-runtime-catalog-v1:8080/v1/models/quote-tmf-service-Quote%20Management6.2-6.2/dto/jar",
             getter.apply(context(DEFAULT_TEMPLATE, "quote-tmf-service-Quote Management6.2-6.2")));
     }
 
     @Test
     void fillsEveryPlaceholderOfACustomTemplate() {
-        String template = "https://repo.example.com/{appPrefix}/{specificationId}/{specificationId}.jar";
+        String template = "https://repo.example.com/{specificationId}/{specificationId}.jar";
 
         assertEquals(
-            "https://repo.example.com/qip/spec-1/spec-1.jar",
+            "https://repo.example.com/spec-1/spec-1.jar",
             getter.apply(context(template, "spec-1")));
     }
 

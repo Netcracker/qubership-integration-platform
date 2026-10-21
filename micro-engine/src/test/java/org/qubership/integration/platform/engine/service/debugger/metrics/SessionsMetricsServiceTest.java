@@ -45,7 +45,7 @@ import static org.mockito.Mockito.when;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class SessionsMetricsServiceTest {
 
-    private static final String INDEX_NAME = "qip-elements-local";
+    private static final String INDEX_NAME = "cip-elements-local";
     private static final String NORMALIZED_SESSION_ELEMENTS_INDEX = "normalized-session-elements";
     private static final String CHAIN_1_NAME = "Test Chain One";
     private static final String CHAIN_2_NAME = "Test Chain Two";

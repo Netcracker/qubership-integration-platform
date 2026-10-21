@@ -1,6 +1,6 @@
 ---
-description: "Monorepo layout, top-level build commands, branch model, CI, and the release process."
-globs: "**/*"
+description: Monorepo layout, top-level build commands, branch model, CI, and the release process.
+globs: **/*
 ---
 
 ### Monorepo nature
@@ -16,7 +16,7 @@ module, scoped by `applyTo` to that module's path:
 - `schemas` — JSON Schema sources + ts-node build/codegen pipeline (npm + Maven publish)
 - `vscode-extension` — offline web extension, embeds `@netcracker/qip-ui`
 - `infrastructure` — Docker Compose + Helm for the local stack
-- `testing-service` — chain test cases and endpoint mocks; the repository's only Go module, with a hand-maintained `testing-service/AGENTS.md`
+- `testing-service` — chain test cases and endpoint mocks; the repository's only Go module, built with the Go toolchain rather than Maven or npm
 - `e2e` — the end-to-end suite (Playwright) against a local stack, Docker Compose or a Kubernetes cluster (`CIP_TARGET`); outside the npm workspaces, with its own `package.json` and lockfile
 - `integration-build-pipeline` — `qip-integration-build-pipeline`, the chain-compilation library runtime-catalog depends on (codegen, parsers, mapper, library, chain, io). No instruction of its own yet.
 
@@ -27,26 +27,13 @@ configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact
 
 Edit these instructions under `.apm/`, never the generated `AGENTS.md` files.
 
-### The `docs/` tree
-
-`docs/` holds working documents that outlive the branch that produced them, and it belongs to no
-module.
-
-- An implementation plan, when one is committed, is `docs/plans/<yyyymmdd>-<slug>.md`, and moves to
-  `docs/plans/completed/` under the same name once its tasks are done.
-- `docs/repro/<slug>/` holds the artifacts of one reproduction — the chain document, the archive,
-  and a `README.md` with the commands. Reference it from whatever entry needed it rather than
-  pasting a ZIP archive into prose.
-- `docs/product-defects.md` is the register of defects found in the platform itself. Every entry
-  carries the `file:line` or the command that proves it; nothing there is inferred.
-
 ### Top-level build commands
 
 #### Maven aggregator (`pom.xml`, `groupId: org.qubership.integration.platform`, `artifactId: qip-monorepo`)
 
 ```bash
 mvn clean install -Dgpg.skip=true              # Build all Java modules (see <modules> in the root pom.xml)
-mvn -pl engine -am clean install -Dgpg.skip=true   # Single module + its dependencies
+mvn -pl engine -am package -Dgpg.skip=true   # Single module + its dependencies, nothing written to ~/.m2
 ```
 
 `-Dgpg.skip=true` is required locally (GPG signing is configured in `parent/pom.xml` for release publishing).
@@ -68,17 +55,17 @@ Node `>=22` required (see `engines` in root `package.json`).
 #### Local stack
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml up -d --build
 ```
 
-See the `infrastructure` instruction and `infrastructure/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`, `.sftp.yml`).
+See the `infrastructure` instruction and `infrastructure/docker/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`, `.sftp.yml`).
 
 ### Build order between workspaces
 
 `@netcracker/qip-ui` imports `@netcracker/qip-schemas` as a workspace dep, and `@netcracker/qip-vscode-extension` embeds the qip-ui library bundle. So the build order matters:
 
 1. `npm -w @netcracker/qip-schemas run build` — writes `schemas/dist/index.mjs` (the runtime `schemasByType` map). Without this, qip-ui's vite build can't resolve `@netcracker/qip-schemas`.
-2. `npm -w @netcracker/qip-ui run build:lib` — writes `ui/dist-lib/index.es.js` + `qip-ui.css` (external library bundle; the one the vscode-extension webview actually loads). `build:lib:bundled` additionally writes `index.bundled.es.js` with React embedded (avoids the esm.sh `<importmap>` fallback in the extension); `build:lib:all` is the full chain — external + bundled + types + `scripts/fix-preload.mjs` (works as of 2026-05-25).
+2. `npm -w @netcracker/qip-ui run build:lib` — writes `ui/dist-lib/index.es.js` + `cip-ui.css` (external library bundle; the one the vscode-extension webview actually loads). `build:lib:bundled` additionally writes `index.bundled.es.js` with React embedded (avoids the esm.sh `<importmap>` fallback in the extension); `build:lib:all` is the full chain — external + bundled + types + `scripts/fix-preload.mjs` (works as of 2026-05-25).
 3. `npm -w @netcracker/qip-vscode-extension run compile-web` — webpack + copy-webpack-plugin pulls `ui/dist-lib` into `vscode-extension/dist/web/qip-ui/`.
 
 Shortcut: `npm -w @netcracker/qip-vscode-extension run build` runs all three steps (1 → 2 → 3) in order.
@@ -106,6 +93,6 @@ release wave, or publishing a snapshot, apply the `release-process` skill.
 ### Cross-module change tips
 
 - A change touching schemas + UI + vscode-extension usually only needs `npm install` once at the root — workspace symlinks propagate. No publish step required for local testing.
-- A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am install -Dgpg.skip=true`.
+- A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am package -Dgpg.skip=true`. `install` writes the branch's snapshots to the shared `~/.m2`, where every other checkout and worktree builds against them.
 - The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.
 - The `qip-checkstyle` rules version is pinned via `qip-checkstyle-revision` in `parent/pom.xml`. Java modules also keep a `checkstyle-suppressions.xml` for module-local exceptions.

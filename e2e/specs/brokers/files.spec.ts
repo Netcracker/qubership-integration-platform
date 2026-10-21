@@ -7,7 +7,7 @@
  * `sftp-upload` sit mid-chain behind an `http-trigger`, so they correlate the ordinary way, through
  * `sessions.byExternalId`.
  *
- * The overlay is a single `atmoz/sftp` server (`infrastructure/docker-compose.sftp.yml`), chrooted
+ * The overlay is a single `atmoz/sftp` server (`infrastructure/docker/docker-compose.sftp.yml`), chrooted
  * so the one writable subtree is `/upload`. Every fixture's `connectUrl` addresses the
  * container-internal listener (`sftp-server:22`); this spec's own `ssh2-sftp-client` calls address
  * the host-mapped one (`SFTP_HOST_CONFIG`, `localhost:2222`) -- the same "two addresses for one

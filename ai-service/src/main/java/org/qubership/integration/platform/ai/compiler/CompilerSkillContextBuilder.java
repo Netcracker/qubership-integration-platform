@@ -1,0 +1,1101 @@
+package org.qubership.integration.platform.ai.compiler;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
+import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
+import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpec;
+import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntimePackageArtifact;
+import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntimePackageIndex;
+import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.mapping.MappingCaptureValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
+import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
+import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeClient;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextPackage;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextRequest;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.CanonicalKnowledgeObject;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
+import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
+import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
+
+/** Builds user messages and input snapshots for compiler skill agents. */
+@ApplicationScoped
+public class CompilerSkillContextBuilder {
+
+  private final ObjectMapper objectMapper;
+  private final CipKnowledgePackRepository repository;
+  private final CompilerSkillAddonRepository addonRepository;
+  private final CompilerSkillRuntimeEligibility runtimeEligibility;
+  private final KnowledgeClient knowledgeClient;
+  private final KnowledgeContextProvider knowledgeContextProvider;
+  private final EvidenceEmitter evidenceEmitter;
+
+  @Inject
+  public CompilerSkillContextBuilder(
+      ObjectMapper objectMapper,
+      CipKnowledgePackRepository repository,
+      CompilerSkillAddonRepository addonRepository,
+      CompilerSkillRuntimeEligibility runtimeEligibility,
+      KnowledgeClient knowledgeClient,
+      KnowledgeContextProvider knowledgeContextProvider,
+      EvidenceEmitter evidenceEmitter) {
+    this.objectMapper = objectMapper;
+    this.repository = repository;
+    this.addonRepository = addonRepository;
+    this.runtimeEligibility = runtimeEligibility;
+    this.knowledgeClient = Objects.requireNonNull(knowledgeClient, "knowledgeClient");
+    this.knowledgeContextProvider =
+        Objects.requireNonNull(knowledgeContextProvider, "knowledgeContextProvider");
+    this.evidenceEmitter = evidenceEmitter;
+  }
+
+  /** Test constructor with an explicit knowledge client and context provider. */
+  public CompilerSkillContextBuilder(
+      ObjectMapper objectMapper,
+      CipKnowledgePackRepository repository,
+      CompilerSkillAddonRepository addonRepository,
+      CompilerSkillRuntimeEligibility runtimeEligibility,
+      KnowledgeClient knowledgeClient,
+      KnowledgeContextProvider knowledgeContextProvider) {
+    this(
+        objectMapper,
+        repository,
+        addonRepository,
+        runtimeEligibility,
+        knowledgeClient,
+        knowledgeContextProvider,
+        null);
+  }
+
+  public CompilerSkillInputSnapshot snapshotFromWorkspace(SkillWorkspace workspace) {
+    return new CompilerSkillInputSnapshot(
+        readRawUserRequest(workspace),
+        readRequirementBrief(workspace),
+        readSelectedPatternText(workspace),
+        readGraph(workspace),
+        readGeneratorPlanManifestSummary(workspace),
+        ChainEditSkillContext.render(workspace));
+  }
+
+  public String buildUserMessage(CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
+    return buildUserMessage(null, document, snapshot, null);
+  }
+
+  public String buildUserMessage(
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot,
+      GeneratorPlan activePlan) {
+    return buildUserMessage(conversationId, document, snapshot, activePlan, defaultCaptureTool(document));
+  }
+
+  public String buildUserMessage(
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot,
+      GeneratorPlan activePlan,
+      CaptureTool captureTool) {
+    runtimeEligibility.requirePromptContext(document.capabilityId());
+
+    StringBuilder body = new StringBuilder();
+    appendPipelineContract(body, document, captureTool);
+    appendCatalogContext(body, document);
+
+    body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
+    body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
+    if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
+      body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
+    }
+    if (!nullToEmpty(snapshot.mappingGenerationContext()).isBlank()) {
+      body.append(snapshot.mappingGenerationContext()).append("\n\n");
+    }
+
+    boolean editStructureCapture =
+        captureTool == CaptureTool.CAPTURE_CHAIN_STRUCTURE
+            && snapshot.editContext() != null
+            && !snapshot.editContext().isBlank();
+    if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
+        || document.phase() == CipKnowledgeCapabilityPhase.VALIDATOR
+        || editStructureCapture) {
+      body.append("Current ChainPlanGraph JSON:\n");
+      body.append(
+              formatGraph(
+                  withTruncatedScriptBodies(snapshot.chainPlanGraph(), document.capabilityId())))
+          .append("\n\n");
+
+      if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR && activePlan != null) {
+        body.append("Active generator plan slice:\n");
+        body.append(formatActivePlan(activePlan)).append("\n\n");
+      }
+      if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
+          && snapshot.editContext() != null
+          && !snapshot.editContext().isBlank()) {
+        body.append(snapshot.editContext()).append("\n\n");
+      }
+      if (editStructureCapture) {
+        body.append(snapshot.editContext()).append("\n\n");
+      }
+    }
+
+    if (document.phase() == CipKnowledgeCapabilityPhase.VALIDATOR
+        && snapshot.generatorPlanManifestSummary() != null
+        && !snapshot.generatorPlanManifestSummary().isBlank()) {
+      body.append("Generator plan manifest:\n");
+      body.append(snapshot.generatorPlanManifestSummary()).append("\n\n");
+    }
+
+    appendAddonSections(body, document);
+
+    body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
+    body.append(document.markdown());
+    appendRuntimeContextPackage(body, conversationId, document, snapshot);
+    appendGeneratorConstraints(body, document, snapshot);
+    appendFinalEditConstraint(body, document, snapshot);
+
+    return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
+  }
+
+  /**
+   * Renders the mapping generator prompt section. Task 13 stores the result in
+   * {@link CompilerSkillInputSnapshot#mappingGenerationContext()}.
+   */
+  public String renderMappingGenerationContext(
+      MappingIntent intent,
+      MappingEnvelope envelope,
+      MappingSchemaSide sourceSide,
+      MappingSchemaSide targetSide) {
+    MappingContract hopSource = JsonSchemaMappingContractFactory.from(sourceSide.schema());
+    return renderMappingGenerationContext(
+        intent,
+        envelope,
+        sourceSide,
+        targetSide,
+        List.of(intent),
+        Map.of(intent.mappingIntentId(), hopSource));
+  }
+
+  public String renderMappingGenerationContext(
+      MappingIntent intent,
+      MappingEnvelope envelope,
+      MappingSchemaSide sourceSide,
+      MappingSchemaSide targetSide,
+      List<MappingIntent> revisionIntents,
+      Map<String, MappingContract> sourceContractsByIntentId) {
+    Objects.requireNonNull(intent, "intent");
+    Objects.requireNonNull(envelope, "envelope");
+    Objects.requireNonNull(sourceSide, "sourceSide");
+    Objects.requireNonNull(targetSide, "targetSide");
+    revisionIntents = revisionIntents == null ? List.of() : revisionIntents;
+    sourceContractsByIntentId =
+        sourceContractsByIntentId == null ? Map.of() : sourceContractsByIntentId;
+
+    StringBuilder section = new StringBuilder();
+    section.append("Mapping generation:\n\n");
+    section.append("mappingIntentId: ").append(intent.mappingIntentId()).append('\n');
+    section
+        .append("source: ")
+        .append(intent.sourceRef())
+        .append(' ')
+        .append(intent.sourcePort())
+        .append('\n');
+    section
+        .append("target: ")
+        .append(intent.targetRef())
+        .append(' ')
+        .append(intent.targetPort())
+        .append("\n\n");
+
+    section.append("Approved rules:\n");
+    for (MappingIntentRule rule : intent.rules()) {
+      section.append("- ").append(rule.sourcePath()).append(" -> ").append(rule.targetPath());
+      if (rule.expression() != null && !rule.expression().isBlank()) {
+        section.append(" (expression: ").append(rule.expression()).append(')');
+      }
+      section.append(" [").append(rule.status()).append("]\n");
+    }
+    List<String> approvedCoverage =
+        new MappingCaptureValidator()
+            .hopBodyCoverage(
+                intent.rules().stream().map(MappingIntentRule::targetPath).toList(), envelope);
+    section.append("Approved hop-body mappingCoverage paths: ")
+        .append(formatJson(approvedCoverage))
+        .append("\n");
+    section.append(
+        "Use these exact paths in mappingCoverage for rules implemented by the script. "
+            + "Do not add source, header, or wrapper paths.\n");
+    section.append(
+        "These paths refer to the outgoing request BODY. Build a target body map and assign it "
+            + "to exchange.in.body. Setting exchange.in.headers does not implement a body "
+            + "mapping, even if the header has the same field name.\n");
+    section.append('\n');
+    appendExchangePropertyGuidance(
+        section, intent, revisionIntents, sourceContractsByIntentId);
+
+    section.append("Schema artifact hashes:\n");
+    section.append("- source: ").append(sourceSide.sha256()).append('\n');
+    section.append("- target: ").append(targetSide.sha256()).append("\n\n");
+
+    section.append("Envelope idToPath:\n");
+    section.append(formatJson(envelope.idToPath())).append("\n\n");
+
+    section.append("Frozen envelope (source and target only):\n");
+    section.append(formatEnvelopeSourceTarget(envelope)).append("\n\n");
+
+    section.append("Original source JSON Schema:\n");
+    section.append(formatJson(sourceSide.schema())).append("\n\n");
+    section.append("Original target JSON Schema:\n");
+    section.append(formatJson(targetSide.schema())).append("\n\n");
+
+    section.append(
+        "Encode only the approved rules above. Extra correspondences fail parity validation. "
+            + "Preserve the original schema constraints, including string formats, in mapped values. "
+            + "Copy source and target from the frozen envelope unchanged; they must be copied "
+            + "unchanged in capture. Replace the complete script body and mappingCoverage; do not "
+            + "patch fragments into a previous script. Successful Groovy compilation is not "
+            + "semantic equivalence.");
+
+    return section.toString();
+  }
+
+  /**
+   * Prompt overlay for behavior-owned script shells that have no {@code MappingIntent}. Empty
+   * mapping intents still require this section when those shells need a body.
+   */
+  public String renderBehaviorScriptGenerationContext(
+      RequirementBrief brief,
+      List<String> nodeIds,
+      ChainPlanGraph graph,
+      ChainSemanticRevision revision) {
+    List<String> ids = nodeIds == null ? List.of() : nodeIds;
+    StringBuilder section = new StringBuilder();
+    section.append("Behavior-owned script generation:\n\n");
+    section.append("Required script node ids:\n");
+    if (ids.isEmpty()) {
+      section.append("- none\n");
+    } else {
+      for (String nodeId : ids) {
+        section.append("- ").append(nodeId).append('\n');
+      }
+    }
+    section.append('\n');
+    section.append("Element roles:\n");
+    appendBehaviorRoles(section, ids, graph);
+    section.append('\n');
+    section.append("Approved behavior facts:\n");
+    appendBehaviorFacts(section, brief, ids, revision);
+    section.append('\n');
+    section.append(
+        "Fill the existing script property on those nodes. Do not add nodes or edges. "
+            + "Do not invent a MappingIntent.");
+    return section.toString();
+  }
+
+  private static void appendBehaviorRoles(
+      StringBuilder section, List<String> nodeIds, ChainPlanGraph graph) {
+    if (graph == null || graph.nodes() == null) {
+      section.append("- none\n");
+      return;
+    }
+    boolean any = false;
+    for (String nodeId : nodeIds) {
+      for (ChainPlanNode node : graph.nodes()) {
+        if (node == null || !nodeId.equals(node.nodeId())) {
+          continue;
+        }
+        any = true;
+        section
+            .append("- roleId=")
+            .append(node.nodeId())
+            .append(" elementType=")
+            .append(node.type() == null ? "" : node.type())
+            .append('\n');
+      }
+    }
+    if (!any) {
+      section.append("- none\n");
+    }
+  }
+
+  private static void appendBehaviorFacts(
+      StringBuilder section,
+      RequirementBrief brief,
+      List<String> nodeIds,
+      ChainSemanticRevision revision) {
+    Set<String> wanted = new LinkedHashSet<>();
+    if (revision != null) {
+      Set<String> idSet = new HashSet<>(nodeIds);
+      for (var node : revision.nodes()) {
+        if (!idSet.contains(node.nodeId())) {
+          continue;
+        }
+        wanted.addAll(node.provenance().sourceFactIds());
+      }
+    }
+    boolean any = false;
+    if (brief != null) {
+      for (RequirementFact fact : brief.facts()) {
+        if (fact == null || !wanted.contains(fact.sourceFactId())) {
+          continue;
+        }
+        any = true;
+        section
+            .append("- ")
+            .append(fact.sourceFactId())
+            .append(": ")
+            .append(fact.text())
+            .append('\n');
+      }
+    }
+    if (!any) {
+      section.append("- none\n");
+    }
+  }
+
+  private static void appendExchangePropertyGuidance(
+      StringBuilder section,
+      MappingIntent intent,
+      List<MappingIntent> revisionIntents,
+      Map<String, MappingContract> sourceContractsByIntentId) {
+    MappingContract hopSource =
+        sourceContractsByIntentId.getOrDefault(
+            intent.mappingIntentId(), MappingContract.unknown());
+    if (!hopSource.known()) {
+      return;
+    }
+    List<String> lines = new ArrayList<>();
+    for (MappingIntentRule rule : intent.rules()) {
+      String sourcePath = rule.sourcePath();
+      if (!isCopyField(sourcePath) || hopSource.field(sourcePath).isPresent()) {
+        continue;
+      }
+      String property = jsonFieldName(sourcePath);
+      String bodyAccess = groovyBodyAccess(sourcePath);
+      StringBuilder line = new StringBuilder();
+      line.append("- ")
+          .append(MappingContract.canonicalPath(sourcePath))
+          .append(" -> ")
+          .append(rule.targetPath())
+          .append(": source not on this hop schema; capture with exchange.setProperty(")
+          .append(groovySingleQuoted(property))
+          .append(", ");
+      if (bodyAccess != null) {
+        line.append(bodyAccess);
+      } else {
+        line.append("the value at ").append(MappingContract.canonicalPath(sourcePath));
+      }
+      line.append(") on the upstream script site whose source schema has this path, then read with")
+          .append(" exchange.getProperty(")
+          .append(groovySingleQuoted(property))
+          .append(") on this script site (CIP GEN-10)");
+      String upstream =
+          upstreamIntentId(
+              sourcePath, intent.mappingIntentId(), revisionIntents, sourceContractsByIntentId);
+      if (upstream != null && !upstream.isBlank()) {
+        line.append(" (mappingIntentId=").append(upstream).append(')');
+      }
+      line.append('.');
+      lines.add(line.toString());
+    }
+    for (MappingIntent sibling : revisionIntents) {
+      if (sibling.mappingIntentId().equals(intent.mappingIntentId())) {
+        continue;
+      }
+      MappingContract siblingSource =
+          sourceContractsByIntentId.getOrDefault(
+              sibling.mappingIntentId(), MappingContract.unknown());
+      if (!siblingSource.known()) {
+        continue;
+      }
+      for (MappingIntentRule siblingRule : sibling.rules()) {
+        String sourcePath = siblingRule.sourcePath();
+        if (!isCopyField(sourcePath)
+            || siblingSource.field(sourcePath).isPresent()
+            || hopSource.field(sourcePath).isEmpty()) {
+          continue;
+        }
+        lines.add(
+            "- Preserve "
+                + jsonFieldName(sourcePath)
+                + " with exchange.setProperty using the JSON field name. Downstream mappingIntentId "
+                + sibling.mappingIntentId()
+                + " reads it with getProperty.");
+      }
+    }
+    if (lines.isEmpty()) {
+      return;
+    }
+    section.append("Exchange properties:\n");
+    for (String line : lines) {
+      section.append(line).append('\n');
+    }
+    section.append('\n');
+  }
+
+  private static String upstreamIntentId(
+      String sourcePath,
+      String currentIntentId,
+      List<MappingIntent> revisionIntents,
+      Map<String, MappingContract> sourceContractsByIntentId) {
+    for (MappingIntent sibling : revisionIntents) {
+      if (sibling.mappingIntentId().equals(currentIntentId)) {
+        continue;
+      }
+      MappingContract siblingSource =
+          sourceContractsByIntentId.getOrDefault(
+              sibling.mappingIntentId(), MappingContract.unknown());
+      if (siblingSource.known() && siblingSource.field(sourcePath).isPresent()) {
+        return sibling.mappingIntentId();
+      }
+    }
+    return null;
+  }
+
+  private static boolean isCopyField(String sourcePath) {
+    return sourcePath != null
+        && !sourcePath.isBlank()
+        && !MappingMechanismSelector.isConstantLiteral(sourcePath);
+  }
+
+  private static String jsonFieldName(String sourcePath) {
+    String canonical = MappingContract.canonicalPath(sourcePath);
+    if (canonical.startsWith("$.")) {
+      return canonical.substring(2);
+    }
+    return canonical;
+  }
+
+  private static String groovyBodyAccess(String sourcePath) {
+    List<String> segments = groovyBodySegments(sourcePath);
+    if (segments == null || segments.isEmpty()) {
+      return null;
+    }
+    StringBuilder access = new StringBuilder("body");
+    for (String segment : segments) {
+      if (isGroovyIdentifier(segment)) {
+        access.append('.').append(segment);
+      } else {
+        access.append('[').append(groovySingleQuoted(segment)).append(']');
+      }
+    }
+    return access.toString();
+  }
+
+  /**
+   * Mapping-contract paths are {@code $.} plus dotted field names from JSON Schema properties.
+   * Bracket JSONPath, wildcards, and empty segments have no safe executable accessor.
+   */
+  private static List<String> groovyBodySegments(String sourcePath) {
+    String field = jsonFieldName(sourcePath);
+    if (field.isEmpty() || field.indexOf('[') >= 0 || field.indexOf(']') >= 0) {
+      return null;
+    }
+    String[] parts = field.split("\\.", -1);
+    List<String> segments = new ArrayList<>();
+    for (String part : parts) {
+      if (part.isEmpty()) {
+        return null;
+      }
+      segments.add(part);
+    }
+    return segments;
+  }
+
+  private static String groovySingleQuoted(String value) {
+    return "'" + escapeGroovySingleQuoted(value) + "'";
+  }
+
+  private static String escapeGroovySingleQuoted(String value) {
+    if (value == null || value.isEmpty()) {
+      return "";
+    }
+    return value.replace("\\", "\\\\").replace("'", "\\'");
+  }
+
+  private static boolean isGroovyIdentifier(String value) {
+    if (value == null || value.isEmpty()) {
+      return false;
+    }
+    if (!Character.isJavaIdentifierStart(value.charAt(0))) {
+      return false;
+    }
+    for (int i = 1; i < value.length(); i++) {
+      if (!Character.isJavaIdentifierPart(value.charAt(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  public String buildScriptRepairMessage(
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot,
+      List<String> missingNodeIds) {
+    return buildScriptRepairMessage(conversationId, document, snapshot, missingNodeIds, false);
+  }
+
+  public String buildScriptRepairMessage(
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot,
+      List<String> requiredNodeIds,
+      boolean editsExistingBodies) {
+    runtimeEligibility.requirePromptContext(document.capabilityId());
+
+    StringBuilder body = new StringBuilder();
+    body.append("Pipeline instruction:\n");
+    body.append(
+        "You are executing compiler skill '"
+            + document.capabilityId()
+            + "' in an automated pipeline.\n");
+    body.append("Call repairScriptBodies exactly once before you finish.\n");
+    boolean mappingTurn = !nullToEmpty(snapshot.mappingGenerationContext()).isBlank();
+    if (mappingTurn) {
+      body.append("Submit script bodies and mappingCoverage for mapping nodes.\n");
+    } else {
+      body.append("Submit only script bodies for the listed targetNodeIds.\n");
+    }
+    body.append("Do not call captureGraphPatch.\n\n");
+    body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
+    body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
+    if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
+      body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
+    }
+    if (!nullToEmpty(snapshot.mappingGenerationContext()).isBlank()) {
+      body.append(snapshot.mappingGenerationContext()).append("\n\n");
+    }
+    if (editsExistingBodies) {
+      body.append(nullToEmpty(snapshot.editContext())).append("\n\n");
+      body.append("Update the existing script bodies for the listed target node IDs. Use each original body")
+          .append(" as the basis for the requested change. Preserve unrelated logic. Return the complete")
+          .append(" updated body for each listed ID through repairScriptBodies. Change only the selected")
+          .append(" scripts and the requested behavior.\n\n");
+      List<Map<String, String>> originals = new ArrayList<>();
+      for (ChainPlanNode node : snapshot.chainPlanGraph().nodes()) {
+        if (requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type())) {
+          String script = node.properties() == null ? "" : node.properties().stream()
+              .filter(property -> "script".equals(property.key()))
+              .map(property -> nullToEmpty(property.value())).findFirst().orElse("");
+          originals.add(Map.of("targetNodeId", node.nodeId(), "script", script));
+        }
+      }
+      body.append("Original script bodies:\n").append(formatJson(originals)).append("\n\n");
+    }
+    body.append(editsExistingBodies ? "Required script node IDs:\n" : "Missing script node ids:\n");
+    for (String nodeId : requiredNodeIds) {
+      body.append("- ").append(nodeId).append('\n');
+    }
+    body.append("\nCall repairScriptBodies with this exact shape (fill each listed id):\n");
+    body.append("{\n");
+    body.append("  \"patchId\": \"script-body\",\n");
+    body.append("  \"scripts\": [\n");
+    for (int i = 0; i < requiredNodeIds.size(); i++) {
+      String nodeId = requiredNodeIds.get(i);
+      body.append("    { \"targetNodeId\": \"")
+          .append(nodeId)
+          .append("\", \"script\": \"exchange.in.body = 'Hello'\\nreturn exchange.in.body\"");
+      if (mappingTurn) {
+        body.append(", \"mappingCoverage\": [\"$.targetPath\"]");
+      }
+      body.append(" }");
+      if (i + 1 < requiredNodeIds.size()) {
+        body.append(',');
+      }
+      body.append('\n');
+    }
+    body.append("  ],\n");
+    body.append(editsExistingBodies
+        ? "  \"rationale\": \"Updated the selected script bodies\"\n"
+        : "  \"rationale\": \"Filled missing script bodies for listed node ids\"\n");
+    body.append("}\n");
+    body.append("Do not call with null/empty scripts. Do not invent extra node ids.\n");
+    if (mappingTurn) {
+      body.append("Set mappingCoverage to the approved target paths.\n");
+    }
+    body.append('\n');
+    body.append("Script node slice:\n");
+    appendScriptNodeSlice(body, snapshot.chainPlanGraph(), requiredNodeIds);
+    body.append('\n');
+    appendAddonSections(body, document);
+    appendRuntimeContextPackage(body, conversationId, document, snapshot);
+    appendGeneratorConstraints(body, document, snapshot);
+    return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
+  }
+
+  private void appendGeneratorConstraints(
+      StringBuilder body, CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
+    if ("cip-naming-generator".equals(document.capabilityId())
+        && snapshot.chainPlanGraph() != null && snapshot.chainPlanGraph().chain() != null
+        && !nullToEmpty(snapshot.chainPlanGraph().chain().name()).isBlank()) {
+      body.append("Approved chain name: ").append(formatJson(snapshot.chainPlanGraph().chain().name()))
+          .append("\nCopy this full value unchanged to chainName. Keep its words, spaces, and run id. "
+              + "The approved name takes precedence over standalone corporate naming examples.\n\n");
+      body.append("Populate labels with {roleId, label} entries for every existing graph nodeId. "
+          + "Use exact element names from the approved brief, including spaces and capitalization. "
+          + "Generate descriptive labels only for roles without a requested name. "
+          + "A roleId is a technical identifier, not its display label.\n\n");
+    }
+    if ("cip-script-generator".equals(document.capabilityId())) {
+      body.append("""
+
+          Script runtime contract:
+          Incoming JSON bodies can be strings or maps. Parse a string before reading event fields.
+          Groovy 4 has no groovy-dateutil module in this runtime. Use Java time APIs for dates.
+          Today's ISO date is java.time.LocalDate.now().toString(); Date.format() and Date.parse()
+          are unavailable.
+          For an approved INLINE_RESPONSE HTTP call, errorThrowing=false means the failed response
+          can arrive without CamelExceptionCaught. Check the HTTP status and the actual body.
+          A successful response with errors=[] is success. A plain-text error must still reach the
+          requested result delivery. Preserve the error response text and all retained input fields.
+          Build the approved response envelope once with its constants and correlation fields on
+          both success and failure paths. Add the requested error fields to that envelope on failure.
+          Do not return an error-only body before assembling the approved fields. A handled inline
+          error does not require session or element failure markers unless an approved behavior
+          fact explicitly requests them; keep the downstream delivery reachable.
+          Use this normalization pattern, then build only the approved output fields:
+
+          ```groovy
+          def raw = exchange.in.body
+          def parsed = raw
+          if (raw instanceof String) {
+              try { parsed = new groovy.json.JsonSlurper().parseText(raw) }
+              catch (Exception ignored) { parsed = null }
+          }
+          def response = parsed instanceof Map ? parsed : [:]
+          def errors = parsed instanceof Collection ? parsed : response.errors
+          def status = exchange.in.getHeader('CamelHttpResponseCode', Integer)
+          def failed = (status != null && status >= 400) || response.success == false ||
+              (errors instanceof Collection && !errors.isEmpty())
+          def errorText = raw instanceof String ? raw : groovy.json.JsonOutput.toJson(raw)
+          ```
+
+          In the response script, replace any eager parseText(raw) before this guarded parse.
+          Do not prepend a ternary JSON parse: it still throws before the error handler can run.
+          Normalize the response once through the guarded pattern above.
+          Apply failure assembly only to the approved response script. Keep the event retention
+          before body replacement. Use the approved error code; do not add a try/catch flow region.
+          """);
+    }
+  }
+
+  private void appendRuntimeContextPackage(
+      StringBuilder body,
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot) {
+    KnowledgeContextPackage contextPackage =
+        knowledgeClient.context(
+            knowledgeContextProvider.forConversation(conversationId),
+            new KnowledgeContextRequest(
+                snapshot.rawUserRequest(),
+                document.capabilityId(),
+                document.phase().name(),
+                activeElementTypes(snapshot.chainPlanGraph()),
+                12,
+                20_000));
+    KnowledgePackageRef ref = contextPackage.identity().packageRef();
+    body.append("\n\n").append(contextPackage.renderMarkdown());
+
+    if (evidenceEmitter != null && conversationId != null) {
+      evidenceEmitter.knowledge(
+          conversationId,
+          ref,
+          contextPackage.objects().stream().map(CanonicalKnowledgeObject::id).toList(),
+          contextPackage.contentChars());
+    }
+  }
+
+  private static List<String> activeElementTypes(ChainPlanGraph graph) {
+    if (graph == null || graph.nodes() == null) {
+      return List.of();
+    }
+    return graph.nodes().stream()
+        .map(node -> node.type())
+        .filter(Objects::nonNull)
+        .map(String::trim)
+        .filter(type -> !type.isEmpty())
+        .distinct()
+        .sorted()
+        .toList();
+  }
+
+  private void appendPipelineContract(
+      StringBuilder body, CompilerSkillDocument document, CaptureTool captureTool) {
+    body.append("Pipeline instruction:\n");
+    body.append(
+        "You are executing compiler skill '"
+            + document.capabilityId()
+            + "' in an automated pipeline.\n");
+    body.append(
+        "Follow the compiler skill addon for this-turn capture steps and skill-specific rules."
+            + " Upstream SKILL.md below owns domain behavior.\n");
+
+    if (captureTool == CaptureTool.CAPTURE_NAMING_MANIFEST) {
+      body.append("Call captureNamingManifest with a naming capture containing chainName and "
+          + "labels: [{roleId, label}]. The server converts the list to labelsByRoleId. "
+          + "Use existing graph nodeIds as roleIds. Do not emit GraphPatch operations.\n");
+      return;
+    }
+
+    switch (document.phase()) {
+      case DISCOVERY -> {
+        body.append(
+            "Call "
+                + captureTool.toolName()
+                + " in this turn before you finish.\n");
+        body.append("Do not call captureChainPlan or captureGraphPatch.\n");
+      }
+      case GRAPH_CONSTRUCTION -> {
+        if (captureTool == CaptureTool.CAPTURE_CHAIN_STRUCTURE) {
+          body.append(
+              "Call "
+                  + captureTool.toolName()
+                  + " with a typed ChainStructure object in this turn before you finish.\n");
+        } else {
+          body.append(
+              "Call "
+                  + captureTool.toolName()
+                  + " with the typed graph object in this turn before you finish.\n");
+        }
+        body.append("Follow the compiler skill addon for skeleton topology and examples.\n");
+        body.append("Do not call captureGraphPatch.\n");
+      }
+      case VALIDATOR -> {
+        body.append(
+            "Call "
+                + captureTool.toolName()
+                + " with a typed validation report in this turn before you finish.\n");
+        body.append("Follow the compiler skill addon for validation scope and severity.\n");
+        body.append("Do not call captureChainPlan or captureGraphPatch.\n");
+      }
+      default -> {
+        body.append(
+            "Call "
+                + captureTool.toolName()
+                + " with a typed GraphPatch object in this turn before you finish.\n");
+        body.append(
+            "Follow the compiler skill addon and global graph-patch-contract for applicability,"
+                + " empty-patch rules, and patch mapping. The addon is authoritative for"
+                + " skill-specific behavior.\n");
+        body.append("ownerCapabilityId must be '").append(document.capabilityId()).append("'.\n");
+      }
+    }
+
+    body.append(
+        "Do not ask the user to confirm; downstream skills run automatically.\n\n");
+  }
+
+  private static CaptureTool defaultCaptureTool(CompilerSkillDocument document) {
+    return switch (document.phase()) {
+      case DISCOVERY -> CaptureTool.CAPTURE_REQUIREMENT_BRIEF;
+      case GRAPH_CONSTRUCTION -> CaptureTool.CAPTURE_CHAIN_PLAN;
+      case VALIDATOR -> CaptureTool.CAPTURE_VALIDATION_RESULT;
+      default -> CaptureTool.CAPTURE_GRAPH_PATCH;
+    };
+  }
+
+  private void appendCatalogContext(StringBuilder body, CompilerSkillDocument document) {
+    repository
+        .loadCompilerSkillCatalog()
+        .find(document.capabilityId())
+        .ifPresent(
+            descriptor -> {
+              body.append("Compiler skill catalog entry:\n");
+              body.append("- disposition: ").append(descriptor.disposition()).append("\n");
+              if (descriptor.category() != null && !descriptor.category().isBlank()) {
+                body.append("- category: ").append(descriptor.category()).append("\n");
+              }
+              if (!descriptor.dependsOn().isEmpty()) {
+                body.append("- depends-on: ").append(String.join(", ", descriptor.dependsOn())).append("\n");
+              }
+              body.append("\n");
+            });
+
+    repository
+        .loadCompilerGeneratorSpecIndex()
+        .findBySkillName(document.capabilityId())
+        .filter(CompilerGeneratorSpec::hasGeneratorId)
+        .ifPresent(
+            spec -> {
+              body.append("Generator specification:\n");
+              body.append("- generator-id: ").append(spec.generatorId()).append("\n");
+              if (spec.compilerStage() != null && !spec.compilerStage().isBlank()) {
+                body.append("- compiler-stage: ").append(spec.compilerStage()).append("\n");
+              }
+              body.append("\n");
+            });
+
+    if ("cip-chain-generator".equals(document.capabilityId())) {
+      appendRuntimePackageIndex(body);
+    }
+  }
+
+  private void appendRuntimePackageIndex(StringBuilder body) {
+    CompilerRuntimePackageIndex runtimePackageIndex = repository.loadCompilerRuntimePackageIndex();
+    if (runtimePackageIndex.artifacts().isEmpty()) {
+      return;
+    }
+    body.append("Compiler runtime package index:\n");
+    for (CompilerRuntimePackageArtifact artifact : runtimePackageIndex.artifacts()) {
+      body.append("- ")
+          .append(artifact.artifactType())
+          .append(": ")
+          .append(artifact.path())
+          .append("\n");
+    }
+    body.append("\n");
+  }
+
+  private static void appendFinalEditConstraint(
+      StringBuilder body, CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
+    if (snapshot.editContext() == null || snapshot.editContext().isBlank()) {
+      return;
+    }
+    if (document.phase() != CipKnowledgeCapabilityPhase.GENERATOR
+        && !"cip-structure-generator".equals(document.capabilityId())) {
+      return;
+    }
+    body.append("\nFinal edit constraint (overrides earlier topology advice):\n");
+    body.append(snapshot.editContext()).append('\n');
+  }
+
+  private void appendAddonSections(StringBuilder body, CompilerSkillDocument document) {
+    CompilerSkillAddonContext addon = addonRepository.loadForSkill(document.capabilityId());
+    if (!addon.hasContent()) {
+      return;
+    }
+
+    for (CompilerSkillAddonDocument addonDocument : addon.globalDocuments()) {
+      body.append("ai-service runtime addon (")
+          .append(addonDocument.relativePath())
+          .append("):\n");
+      body.append(addonDocument.content()).append("\n\n");
+    }
+
+    if (addon.skillAddon() != null) {
+      String promptMaterial =
+          AddonPromptMaterialStripper.stripForPrompt(addon.skillAddon().content());
+      if (!promptMaterial.isBlank()) {
+        body.append("Compiler skill addon (")
+            .append(addon.skillAddon().relativePath())
+            .append("):\n");
+        body.append(promptMaterial).append("\n\n");
+      }
+    }
+
+    for (CompilerSkillAddonDocument example : addon.examples()) {
+      String label =
+          document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
+              ? "GraphPatch example"
+              : "Example";
+      body.append(label).append(" (").append(example.relativePath()).append("):\n");
+      body.append(example.content()).append("\n\n");
+    }
+  }
+
+  private static ChainPlanGraph withTruncatedScriptBodies(ChainPlanGraph graph, String capabilityId) {
+    if (graph == null
+        || graph.nodes() == null
+        || ScriptBodyPromptRedaction.SCRIPT_GENERATOR_CAPABILITY.equals(capabilityId)) {
+      return graph;
+    }
+    java.util.List<ChainPlanNode> redactedNodes =
+        graph.nodes().stream().map(ScriptBodyPromptRedaction::stripScriptBodyProperty).toList();
+    return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), redactedNodes, graph.edges());
+  }
+
+  private String formatEnvelopeSourceTarget(MappingEnvelope envelope) {
+    Map<String, Object> payload = new LinkedHashMap<>();
+    payload.put("source", envelope.source());
+    payload.put("target", envelope.target());
+    return formatJson(payload);
+  }
+
+  private String formatJson(Object value) {
+    if (value == null) {
+      return "(missing)";
+    }
+    try {
+      return objectMapper.writeValueAsString(value);
+    } catch (JsonProcessingException e) {
+      return "(failed to serialize mapping context: " + e.getMessage() + ")";
+    }
+  }
+
+  private String formatActivePlan(GeneratorPlan activePlan) {
+    try {
+      return objectMapper.writeValueAsString(activePlan);
+    } catch (JsonProcessingException e) {
+      return "(failed to serialize active generator plan: " + e.getMessage() + ")";
+    }
+  }
+
+  private String formatGraph(ChainPlanGraph graph) {
+    if (graph == null) {
+      return "(missing)";
+    }
+    try {
+      return objectMapper.writeValueAsString(graph);
+    } catch (JsonProcessingException e) {
+      return "(failed to serialize graph: " + e.getMessage() + ")";
+    }
+  }
+
+  private static void appendScriptNodeSlice(
+      StringBuilder body, ChainPlanGraph graph, List<String> missingNodeIds) {
+    if (graph == null || graph.nodes() == null || graph.nodes().isEmpty()) {
+      body.append("(missing)\n");
+      return;
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (!"script".equals(node.type()) || !missingNodeIds.contains(node.nodeId())) {
+        continue;
+      }
+      body.append("- nodeId: ").append(node.nodeId()).append('\n');
+      body.append("  type: ").append(nullToEmpty(node.type())).append('\n');
+      body.append("  label: ").append(nullToEmpty(node.label())).append('\n');
+      body.append("  parentNodeId: ").append(nullToEmpty(node.parentNodeId())).append('\n');
+      body.append("  parentType: ").append(parentType(graph, node.parentNodeId())).append('\n');
+    }
+  }
+
+  private static String parentType(ChainPlanGraph graph, String parentNodeId) {
+    if (parentNodeId == null || parentNodeId.isBlank() || graph.nodes() == null) {
+      return "";
+    }
+    return graph.nodes().stream()
+        .filter(node -> parentNodeId.equals(node.nodeId()))
+        .map(ChainPlanNode::type)
+        .findFirst()
+        .orElse("");
+  }
+
+  private static ChainPlanGraph readGraph(SkillWorkspace workspace) {
+    return workspace
+        .get(SkillArtifactType.CHAIN_PLAN_GRAPH)
+        .map(a -> ((SkillArtifactPayload.ChainPlanGraphPayload) a.payload()).graph())
+        .orElse(null);
+  }
+
+  private static String readRawUserRequest(SkillWorkspace workspace) {
+    RequirementBrief brief =
+        workspace
+            .get(SkillArtifactType.REQUIREMENT_BRIEF)
+            .map(a -> ((SkillArtifactPayload.RequirementBriefPayload) a.payload()).brief())
+            .orElse(null);
+    if (brief != null) {
+      if (brief.approvedDraftText() != null && !brief.approvedDraftText().isBlank()) {
+        return brief.approvedDraftText();
+      }
+      String formatted = RequirementBriefText.format(brief);
+      if (!formatted.isBlank()) {
+        return formatted;
+      }
+    }
+    return workspace
+        .get(SkillArtifactType.RAW_USER_REQUEST)
+        .map(a -> ((SkillArtifactPayload.RawUserRequestPayload) a.payload()).effectiveText())
+        .orElse("");
+  }
+
+  private static String readRequirementBrief(SkillWorkspace workspace) {
+    RequirementBrief brief =
+        workspace
+            .get(SkillArtifactType.REQUIREMENT_BRIEF)
+            .map(a -> ((SkillArtifactPayload.RequirementBriefPayload) a.payload()).brief())
+            .orElse(null);
+    if (brief == null) {
+      return "";
+    }
+    return RequirementBriefText.format(brief);
+  }
+
+  private static String readSelectedPatternText(SkillWorkspace workspace) {
+    SelectedPattern pattern =
+        workspace
+            .get(SkillArtifactType.SELECTED_PATTERN)
+            .map(a -> ((SkillArtifactPayload.SelectedPatternPayload) a.payload()).pattern())
+            .orElse(null);
+    if (pattern == null) {
+      return "";
+    }
+    StringBuilder sb = new StringBuilder();
+    sb.append("patternId: ").append(nullToEmpty(pattern.patternId())).append('\n');
+    if (!nullToEmpty(pattern.name()).isBlank()) {
+      sb.append("name: ").append(pattern.name()).append('\n');
+    }
+    if (!nullToEmpty(pattern.reason()).isBlank()) {
+      sb.append("reason: ").append(pattern.reason()).append('\n');
+    }
+    if (!nullToEmpty(pattern.summary()).isBlank()) {
+      sb.append("skeleton: ").append(pattern.summary()).append('\n');
+    }
+    return sb.toString().trim();
+  }
+
+  private static String readGeneratorPlanManifestSummary(SkillWorkspace workspace) {
+    GeneratorPlanManifest manifest =
+        workspace
+            .get(SkillArtifactType.GENERATOR_PLAN_MANIFEST)
+            .map(
+                artifact ->
+                    ((SkillArtifactPayload.GeneratorPlanManifestPayload) artifact.payload())
+                        .manifest())
+            .orElse(null);
+    if (manifest == null || manifest.plans() == null || manifest.plans().isEmpty()) {
+      return "";
+    }
+    StringBuilder sb = new StringBuilder();
+    if (manifest.packVersion() != null && !manifest.packVersion().isBlank()) {
+      sb.append("packVersion: ").append(manifest.packVersion()).append('\n');
+    }
+    manifest
+        .plans()
+        .forEach(
+            plan -> {
+              sb.append("- ")
+                  .append(plan.skillId())
+                  .append(": ")
+                  .append(plan.status())
+                  .append('\n');
+            });
+    return sb.toString().trim();
+  }
+
+  private static String nullToEmpty(String value) {
+    return value != null ? value : "";
+  }
+}

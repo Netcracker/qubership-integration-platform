@@ -17,7 +17,7 @@ import { buildGraphUrl } from "../misc/session-graph-utils.ts";
 import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
@@ -370,15 +370,9 @@ export const SessionPage: React.FC = () => {
     ],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    searchTerm,
-    session,
-    expandAllRows,
-    collapseAllRows,
-  ]);
-
   return (
     <TablePageLayout>
+      <ChainHeaderActions>{chainTabToolbar}</ChainHeaderActions>
       <Table<SessionElement>
         size="small"
         rowKey="elementId"

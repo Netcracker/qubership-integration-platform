@@ -95,11 +95,13 @@ export async function handleCreateService(
   return await createService(context, mainFolderUri, payload);
 }
 
-export enum QipFileType {
+export enum CipFileType {
   CHAIN = "CHAIN",
   SERVICE = "SERVICE",
   CONTEXT_SERVICE = "CONTEXT_SERVICE",
   MCP_SERVICE = "MCP_SERVICE",
+  SPECIFICATION_GROUP = "SPECIFICATION_GROUP",
+  SPECIFICATION = "SPECIFICATION",
   FOLDER = "FOLDER",
   UNKNOWN = "UNKNOWN",
 }
@@ -110,7 +112,7 @@ export async function getBaseFolder(
 ): Promise<vscode.Uri | undefined> {
   if (fileOrFolder) {
     const type = await fileApi.getFileType(fileOrFolder);
-    if (type === QipFileType.SERVICE || type === QipFileType.CHAIN) {
+    if (type === CipFileType.SERVICE || type === CipFileType.CHAIN) {
       const lastSlashIndex = fileOrFolder.path.lastIndexOf("/");
       const parentPath =
         lastSlashIndex > 0
