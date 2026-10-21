@@ -81,6 +81,14 @@ export function excerpt(message, limit = ERROR_LINES) {
  */
 export const grepPattern = (title) => title.replace(/[\\^$.*+?()[\]{}|"'`!]/g, ".");
 
+/**
+ * A `-g` pattern for a case under `describe` blocks. Playwright matches `-g` against the titles with
+ * each describe's tags after its title, so the segments are joined with `.*`, never with ` › `.
+ *
+ * @param {string} title the describe path and the case title, joined with ` › `
+ */
+export const grepPathPattern = (title) => title.split(" › ").map(grepPattern).join(".*");
+
 /** @param {string[]} names */
 const joined = (names) => (names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`);
 
@@ -182,7 +190,8 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
         location,
         failedAt: thrown && error?.location ? { text: `${thrown}:${error.location.line}`, href: blob(thrown, error.location.line) } : undefined,
         error: excerpt(error?.message),
-        retry: `npm run test:${target} -- --project=${test.projectName} --no-deps -g "${grepPattern(spec.title)}"`,
+        // Every iteration of a loop shares one file and line, so the pattern picks out the one that failed.
+        retry: `npm run test:${target} -- --project=${test.projectName} --no-deps specs/${spec.file}:${spec.line} -g "${grepPathPattern(title)}"`,
         history: historyOf(testKey(test.projectName, spec.file, title), history),
       });
       const last = failed.at(-1);

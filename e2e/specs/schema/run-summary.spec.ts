@@ -199,9 +199,10 @@ test("the summary writes the run's outcomes, its failed and skipped tests by key
 });
 
 test("the coverage section reads what reconcile wrote and says whether the claims held", { tag: ["@infra", "@tier2"] }, () => {
-  const coverage = { target: "k8s", elements: { covered: 204, total: 437 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 0 };
+  const coverage = { target: "k8s", elements: { covered: 204, total: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 0 };
   expect(summaryMarkdown({ coverage })).toContain(
-    "### Coverage\n\nElements: 204 of 437 registry rows covered on k8s. API operations: 301 of 303 covered, 301 reached. Reconciliation passed.",
+    "### Coverage\n\nElements: 204 of 300 registry rows in scope covered on k8s (136 out of scope, 3 shared). " +
+      "API operations: 301 of 303 covered, 301 reached. Reconciliation passed.",
   );
   expect(summaryMarkdown({ coverage: { ...coverage, problems: 2 } })).toContain("Reconciliation found 2 problems; the reconcile step lists them.");
 });

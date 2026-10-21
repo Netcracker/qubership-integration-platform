@@ -24,12 +24,15 @@ import {
   reconcile,
   reconcileOperations,
   runFilters,
+  staleRows,
+  summarizeElements,
   untaggedSpecs,
   validateRegistry,
   type JsonReport,
   type OperationClaim,
   type RegistryEntry,
 } from "../../registry/elements.js";
+import { coversBehaviour } from "../../registry/covers.js";
 
 /**
  * The mutation seam: run the whole gap detector against a directory holding one element the
@@ -86,7 +89,7 @@ test("no registry row names an element or axis value the schemas no longer decla
     }
   }
 
-  const stale = elementRegistry.map(entryKey).filter((key) => !declared.has(key));
+  const stale = staleRows(elementRegistry, declared);
 
   expect(stale, "registry rows the schemas no longer support").toEqual([]);
 });
@@ -102,7 +105,6 @@ test("a not-covered entry with no reason is rejected", { tag: ["@infra", "@tier1
   const orphan: RegistryEntry = {
     family: "condition",
     kind: "element",
-    tier: 1,
     status: "not-covered",
     tags: ["@engine"],
   };
@@ -119,7 +121,6 @@ test("the shape check catches a malformed row rather than only a missing reason"
   const base: RegistryEntry = {
     family: "condition",
     kind: "element",
-    tier: 1,
     status: "covered",
     tags: ["@engine"],
   };
@@ -140,6 +141,87 @@ test("the shape check catches a malformed row rather than only a missing reason"
   );
 });
 
+const behaviourRow: RegistryEntry = {
+  family: "service-call",
+  kind: "behaviour",
+  behaviour: "retry",
+  status: "not-covered",
+  reason: "no case yet",
+  tags: ["@engine"],
+};
+
+const elementOf = (entry: RegistryEntry): RegistryEntry => ({ ...entry, kind: "element", behaviour: undefined });
+
+test.describe("behaviour and scope rows", { tag: ["@infra", "@tier1"] }, () => {
+  test("a behaviour row is stale only when its family is", () => {
+    const declared = new Set([coverageKey("service-call"), coverageKey("service-call", "retryCount", 2)]);
+    expect(staleRows([behaviourRow], declared)).toEqual([]);
+    expect(staleRows([{ ...behaviourRow, family: "gone-element" }], declared)).toEqual([
+      'gone-element::behaviour="retry"',
+    ]);
+    // Axis and element rows stay keyed on what the schemas declare.
+    expect(staleRows([elementOf(behaviourRow)], declared)).toEqual([]);
+    expect(staleRows([{ ...elementOf(behaviourRow), kind: "axis", axisPath: "retryCount", value: 3 }], declared)).toEqual([
+      "service-call::retryCount=3",
+    ]);
+  });
+
+  test("coversBehaviour declares the key of its row", () => {
+    const annotations = test.info().annotations;
+    coversBehaviour("service-call", "retry");
+    // Taken off again, so this case declares no row in a reconciled run.
+    expect(annotations.pop()).toEqual({ type: "covers", description: entryKey(behaviourRow) });
+    expect(entryKey(behaviourRow)).not.toBe(entryKey(elementOf(behaviourRow)));
+  });
+
+  test("a behaviour row with an axis or no label is rejected", () => {
+    expect(validateRegistry([behaviourRow])).toEqual([]);
+    expect(validateRegistry([{ ...behaviourRow, axisPath: "retryCount" }])).toEqual([
+      'service-call::behaviour="retry": a behaviour row carries an axisPath or a value',
+    ]);
+    expect(validateRegistry([{ ...behaviourRow, value: 2 }])).toEqual([
+      'service-call::behaviour="retry": a behaviour row carries an axisPath or a value',
+    ]);
+    expect(validateRegistry([{ ...behaviourRow, behaviour: " " }])).toEqual([
+      'service-call::behaviour=" ": a behaviour row needs a behaviour label',
+    ]);
+  });
+
+  test("a scope needs a not-covered axis or element row", () => {
+    const scoped: RegistryEntry = { ...elementOf(behaviourRow), scope: "out-of-scope" };
+    expect(validateRegistry([scoped])).toEqual([]);
+    expect(validateRegistry([{ ...scoped, reason: undefined }])).toEqual([
+      "service-call: status is not-covered and no reason is given",
+    ]);
+    expect(validateRegistry([{ ...scoped, status: "covered", reason: undefined }])).toEqual([
+      "service-call: a covered row carries a scope",
+    ]);
+    expect(validateRegistry([{ ...behaviourRow, scope: "shared" }])).toEqual([
+      'service-call::behaviour="retry": a behaviour row carries a scope',
+    ]);
+  });
+
+  test("scoped rows leave the denominator and are counted apart", () => {
+    const row = (family: string, extra: Partial<RegistryEntry> = {}): RegistryEntry => ({
+      family,
+      kind: "element",
+      status: "not-covered",
+      reason: "a reason",
+      tags: ["@engine"],
+      ...extra,
+    });
+    const rows = [
+      row("a", { status: "covered", reason: undefined }),
+      row("b"),
+      row("c", { scope: "out-of-scope" }),
+      row("d", { scope: "out-of-scope" }),
+      row("e", { scope: "shared" }),
+      { ...behaviourRow, status: "covered" as const, reason: undefined },
+    ];
+    expect(summarizeElements(rows)).toEqual({ covered: 2, inScope: 3, outOfScope: 2, shared: 1 });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Reconciliation
 // ---------------------------------------------------------------------------
@@ -151,15 +233,17 @@ test("the shape check catches a malformed row rather than only a missing reason"
  * something else. Playwright reports tags without their leading `@`.
  */
 function reportOf(status: string, ...keys: string[]): JsonReport {
-  return taggedReportOf(["engine", "tier1"], status, ...keys);
+  return taggedReportOf(["engine"], status, ...keys);
 }
 
 function taggedReportOf(tags: string[], status: string, ...keys: string[]): JsonReport {
   return {
     suites: [
       {
+        title: "specs/runtime/condition.spec.ts",
         suites: [
           {
+            title: "condition",
             specs: [
               {
                 title: "a spec",
@@ -183,7 +267,6 @@ function taggedReportOf(tags: string[], status: string, ...keys: string[]): Json
 const coveredRow: RegistryEntry = {
   family: "condition",
   kind: "element",
-  tier: 1,
   status: "covered",
   tags: ["@engine"],
 };
@@ -209,7 +292,7 @@ test("a covered row with no passing test behind it fails the reconciliation", { 
 
 test("a declaration naming a row that does not exist fails the reconciliation", { tag: ["@infra", "@tier1"] }, () => {
   expect(reconcile(reportOf("expected", "condition", "no-such-element"), [coveredRow])).toEqual([
-    "specs/runtime/condition.spec.ts › a spec declares no-such-element, which is not a registry row",
+    "specs/runtime/condition.spec.ts › condition › a spec declares no-such-element, which is not a registry row",
   ]);
 });
 
@@ -228,6 +311,23 @@ test("declarations are read from every nesting level of the report", { tag: ["@i
   expect(found.every((d) => d.passed)).toBe(true);
 });
 
+test("registry messages name the describe path of a case", { tag: ["@infra", "@tier1"] }, () => {
+  const spec = (title: string) => ({ title, file: "runtime/split.spec.ts", tags: [], tests: [{ status: "expected", annotations: [{ type: "covers", description: "split" }] }] });
+  const report: JsonReport = {
+    suites: [{ title: "runtime/split.spec.ts", specs: [spec("flat")], suites: [{ title: "split", suites: [{ title: "branches", specs: [spec("nested")] }] }] }],
+  };
+
+  // The file suite's title stays out of the path, so the file is not named twice.
+  expect(untaggedSpecs(report).map((each) => each.split(":")[0])).toEqual([
+    "runtime/split.spec.ts › flat",
+    "runtime/split.spec.ts › split › branches › nested",
+  ]);
+  expect(declarationsFromReport(report).map((each) => each.test)).toEqual([
+    "runtime/split.spec.ts › flat",
+    "runtime/split.spec.ts › split › branches › nested",
+  ]);
+});
+
 test("the key encodes the value, so false and \"false\" are different rows", { tag: ["@infra", "@tier1"] }, () => {
   expect(coverageKey("http-trigger", "receiveCorrelationId", false)).not.toBe(
     coverageKey("http-trigger", "receiveCorrelationId", "false"),
@@ -238,23 +338,20 @@ test("the key encodes the value, so false and \"false\" are different rows", { t
 test("a spec carrying no component tag fails the reconciliation", { tag: ["@infra", "@tier1"] }, () => {
   // The tag is what `--grep @engine` and the case catalog read, and nothing else does — so an
   // untagged spec is invisible to both and nothing says so. This is where it is said.
-  expect(untaggedSpecs(taggedReportOf(["tier1"], "expected"))).toEqual([
-    "specs/runtime/condition.spec.ts › a spec: no component tag (one of @catalog, @engine, @sessions, @testing-service, @ui, @extension, @infra)",
+  expect(untaggedSpecs(taggedReportOf(["slow"], "expected"))).toEqual([
+    "specs/runtime/condition.spec.ts › condition › a spec: no component tag (one of @catalog, @engine, @sessions, @testing-service, @ui, @infra, @schema, @harness)",
   ]);
-  expect(untaggedSpecs(taggedReportOf(["engine"], "expected"))).toEqual([
-    "specs/runtime/condition.spec.ts › a spec: no tier tag (@tier1 or @tier2)",
-  ]);
-  expect(untaggedSpecs(taggedReportOf(["engine", "tier2"], "expected"))).toEqual([]);
+  expect(untaggedSpecs(taggedReportOf(["engine"], "expected"))).toEqual([]);
+  expect(untaggedSpecs(taggedReportOf(["harness"], "expected"))).toEqual([]);
 });
 
 test("an untagged spec fails the whole reconciliation, not only the tag check", { tag: ["@infra", "@tier1"] }, () => {
   expect(reconcile(taggedReportOf([], "expected", "condition"), [coveredRow])).toEqual([
-    "specs/runtime/condition.spec.ts › a spec: no component tag (one of @catalog, @engine, @sessions, @testing-service, @ui, @extension, @infra)",
-    "specs/runtime/condition.spec.ts › a spec: no tier tag (@tier1 or @tier2)",
+    "specs/runtime/condition.spec.ts › condition › a spec: no component tag (one of @catalog, @engine, @sessions, @testing-service, @ui, @infra, @schema, @harness)",
     // A spec with no tags cannot carry the row's own, so the declaration is reported too. Two
     // readings of one omission, and both are worth printing: the first says the spec is invisible
     // to `--grep` and to the case catalog, the second that the row it claims is unproven.
-    "specs/runtime/condition.spec.ts › a spec declares condition, which is tagged @engine; " +
+    "specs/runtime/condition.spec.ts › condition › a spec declares condition, which is tagged @engine; " +
       "the spec carries no tags",
   ]);
 });
@@ -304,12 +401,12 @@ test("a row is proved by a spec carrying its component tag, not by any spec at a
   // `tags` says which component has to be exercised. Without this reading the field is written and
   // never read, and an `@engine` row can be earned by a `@catalog` spec that never went near the
   // engine.
-  expect(reconcile(taggedReportOf(["catalog", "tier1"], "expected", "condition"), [coveredRow]))
+  expect(reconcile(taggedReportOf(["catalog"], "expected", "condition"), [coveredRow]))
     .toEqual([
-      "specs/runtime/condition.spec.ts › a spec declares condition, which is tagged @engine; " +
-        "the spec carries @catalog, @tier1",
+      "specs/runtime/condition.spec.ts › condition › a spec declares condition, which is tagged @engine; " +
+        "the spec carries @catalog",
     ]);
-  expect(reconcile(taggedReportOf(["engine", "tier1"], "expected", "condition"), [coveredRow]))
+  expect(reconcile(taggedReportOf(["engine"], "expected", "condition"), [coveredRow]))
     .toEqual([]);
 });
 
@@ -412,7 +509,7 @@ function reachedReportOf(status: string, ...keys: string[]): JsonReport {
               {
                 title: "a spec",
                 file: "specs/api/chains.spec.ts",
-                tags: ["catalog", "tier1"],
+                tags: ["catalog"],
                 tests: [
                   {
                     status,

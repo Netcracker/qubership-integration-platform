@@ -17,6 +17,7 @@ const REPORT: JsonReport = {
   stats: { expected: 2, unexpected: 1, skipped: 0, flaky: 0, duration: 91_000 },
   suites: [
     {
+      title: "runtime/routing.spec.ts",
       specs: [
         {
           title: "the chain answers on its route",
@@ -56,6 +57,7 @@ const REPORT: JsonReport = {
       ],
       suites: [
         {
+          title: "orphans",
           specs: [
             {
               title: "a spec nobody tagged",
@@ -103,10 +105,11 @@ const HEADER: StackHeader = {
 
 test("every test in the report becomes a row, nested suites included", { tag: ["@infra", "@tier1"] }, () => {
   const rows = caseRows(REPORT);
+  // A case outside any describe keeps its plain title, and no title carries the file suite's.
   expect(rows.map((each) => each.title)).toEqual([
     "the chain answers on its route",
     "the trace names both branches",
-    "a spec nobody tagged",
+    "orphans › a spec nobody tagged",
   ]);
   expect(rows[0].status).toBe("passed");
   expect(rows[0].covers).toEqual(["condition"]);
@@ -191,7 +194,7 @@ test("the catalog groups by component tag and names the untagged", { tag: ["@inf
   // Two component tags on one test means two tables, because the two people who own those services
   // each read only theirs.
   expect(catalog.split("the trace names both branches").length - 1).toBe(2);
-  expect(catalog).toContain("a spec nobody tagged");
+  expect(catalog).toContain("| orphans › a spec nobody tagged |");
 });
 
 test("a sweep collects a finished run, never one still going", { tag: ["@infra", "@tier1"] }, () => {

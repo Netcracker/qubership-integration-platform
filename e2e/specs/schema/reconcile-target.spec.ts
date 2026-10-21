@@ -12,6 +12,8 @@ import {
   reconcileOperations,
   reportTarget,
   runFilters,
+  runsOn,
+  summarizeElements,
   type JsonReport,
   type OperationClaim,
   type RegistryEntry,
@@ -20,11 +22,10 @@ import { BROKER_PROJECTS, K8S_PROJECTS, MICRO_BROKER_PROJECTS } from "./projects
 
 const COMMON_PROJECTS = ["schema", "api", "seed", "seed-teardown", "tooling", "runtime", "env", "global", "suite-teardown"];
 
-const bothRow: RegistryEntry = { family: "condition", kind: "element", tier: 1, status: "covered", tags: ["@engine"] };
+const bothRow: RegistryEntry = { family: "condition", kind: "element", status: "covered", tags: ["@engine"] };
 const composeRow: RegistryEntry = {
   family: "compose-only-element",
   kind: "element",
-  tier: 1,
   status: "covered",
   tags: ["@engine"],
   target: "compose",
@@ -59,7 +60,7 @@ function runOn(
           {
             title: "a spec",
             file: "specs/runtime/condition.spec.ts",
-            tags: ["engine", "tier1"],
+            tags: ["engine"],
             tests: [
               {
                 status: "expected",
@@ -117,4 +118,33 @@ test("a row proven on the other target's run is reported, not taken as proof", {
   expect(reconcileOperations(composeRun, operations)).toEqual([
     "catalog POST /v1/cr was reached on compose, but its row names the k8s target",
   ]);
+});
+
+test("behaviour and scoped rows reconcile, and each target counts its own", { tag: ["@infra", "@tier1"] }, () => {
+  const behaviourRow: RegistryEntry = { family: "condition", kind: "behaviour", behaviour: "nested", status: "covered", tags: ["@engine"] };
+  const k8sBehaviour: RegistryEntry = { ...behaviourRow, behaviour: "nested-micro", target: "k8s" };
+  const outOfScope: RegistryEntry = {
+    family: "condition",
+    kind: "axis",
+    axisPath: "mode",
+    value: "a",
+    status: "not-covered",
+    reason: "no stack offers it",
+    scope: "out-of-scope",
+    tags: ["@engine"],
+  };
+  const shared: RegistryEntry = { ...outOfScope, value: "b", scope: "shared", reason: "proven on another family", target: "k8s" };
+  const rows = [bothRow, behaviourRow, k8sBehaviour, outOfScope, shared];
+  const k8sRun = (...labels: string[]) =>
+    runOn("k8s", ["condition", ...labels.map((label) => `condition::behaviour="${label}"`)], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+
+  expect(reconcile(k8sRun("nested", "nested-micro"), rows, operations)).toEqual([]);
+  expect(reconcile(k8sRun("nested"), rows, operations)).toEqual([
+    'condition::behaviour="nested-micro": marked covered, but no passing test declares it',
+  ]);
+  expect(reconcile(runOn("compose", ["condition", 'condition::behaviour="nested"'], ["catalog GET /v1/chains"]), rows, operations)).toEqual([]);
+
+  const counted = (target: "compose" | "k8s") => summarizeElements(rows.filter((entry) => runsOn(entry.target, target)));
+  expect(counted("k8s")).toEqual({ covered: 3, inScope: 3, outOfScope: 1, shared: 1 });
+  expect(counted("compose")).toEqual({ covered: 2, inScope: 2, outOfScope: 1, shared: 0 });
 });

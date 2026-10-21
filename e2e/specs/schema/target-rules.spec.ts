@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
+import { declarations, parseCases } from "../../support/title-rules.js";
 
 const SPECS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -34,13 +35,15 @@ function engineKindReads(source: string): number {
   return (source.replace(FIXTURE_PARAMETERS, "").match(/\bengineKind\b/g) ?? []).length;
 }
 
-/** The lines that carry the `@classic-only` tag or the `classic-only` annotation without the other, or the annotation without a reason. */
-function classicOnlyMismatches(source: string): string[] {
-  return source.split("\n").filter((line) => {
-    const tagged = line.includes('"@classic-only"');
-    const annotated = line.includes('type: "classic-only"');
-    return tagged !== annotated || (annotated && !/type: "classic-only", description: "[^"]+"/.test(line));
-  });
+/** The lines of the cases and describes that carry the `@classic-only` tag or the `classic-only` annotation without the other, or the annotation without a reason. */
+function classicOnlyMismatches(source: string): number[] {
+  return declarations(parseCases(source))
+    .filter((each) => {
+      const tagged = each.tags.includes("@classic-only");
+      const annotations = each.annotations.filter((annotation) => annotation.type === "classic-only");
+      return tagged !== annotations.length > 0 || annotations.some((annotation) => !annotation.description);
+    })
+    .map((each) => each.line);
 }
 
 test("only specs/k8s/ imports support/kube.ts", { tag: ["@infra", "@tier1"] }, () => {
@@ -75,10 +78,18 @@ test("a classic-only case carries both the tag and the annotation with its reaso
   // The rule has cases to read.
   expect(all.some((file) => read(file).includes('"@classic-only"'))).toBe(true);
 
-  const tag = 'tag: ["@engine", "@tier2", "@classic-only"]';
+  const tag = 'tag: ["@engine", "@classic-only"]';
   const annotation = 'annotation: { type: "classic-only", description: "a reason" }';
-  expect(classicOnlyMismatches(`test("a", { ${tag}, ${annotation} }, async () => {`)).toEqual([]);
-  expect(classicOnlyMismatches(`test("a", { ${tag} }, async () => {`)).toHaveLength(1);
-  expect(classicOnlyMismatches(`test("a", { tag: ["@engine"], ${annotation} }, async () => {`)).toHaveLength(1);
-  expect(classicOnlyMismatches(`test("a", { ${tag}, annotation: { type: "classic-only", description: "" } }, async () => {`)).toHaveLength(1);
+  expect(classicOnlyMismatches(`test("a", { ${tag}, ${annotation} }, async () => {});`)).toEqual([]);
+  expect(classicOnlyMismatches(`test("a", { ${tag} }, async () => {});`)).toEqual([1]);
+  expect(classicOnlyMismatches(`test("a", { tag: ["@engine"], ${annotation} }, async () => {});`)).toEqual([1]);
+  expect(classicOnlyMismatches(`test("a", { ${tag}, annotation: { type: "classic-only", description: "" } }, async () => {});`)).toEqual([1]);
+  // On a describe, both halves reach every case under it.
+  expect(classicOnlyMismatches(`test.describe("d", { ${tag}, ${annotation} }, () => {\n  test("a", async () => {});\n});`)).toEqual([]);
+  expect(classicOnlyMismatches(`test.describe("d", { ${tag} }, () => {\n  test("a", { ${annotation} }, async () => {});\n});`)).toEqual([1, 2]);
+  // Options on lines of their own belong to the declaration they follow.
+  expect(classicOnlyMismatches(`test(\n  "a",\n  { ${tag}, ${annotation} },\n  async () => {},\n);`)).toEqual([]);
+  expect(classicOnlyMismatches(`test(\n  "a",\n  { ${tag} },\n  async () => {},\n);`)).toEqual([1]);
+  // A sample in a string is not a declaration.
+  expect(classicOnlyMismatches(`const sample = 'test("a", { ${tag} }, async () => {});';`)).toEqual([]);
 });

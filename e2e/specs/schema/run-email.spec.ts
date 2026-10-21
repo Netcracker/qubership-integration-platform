@@ -84,8 +84,59 @@ test("a title or an error carrying markup is escaped in the HTML part and kept a
   expect(html).not.toContain("<b>403");
   expect(emailText(email)).toContain(`* ${title}`);
   // The pattern matches the title, and inside double quotes the shell reads none of its characters.
-  expect(email.failed[0].retry).toBe(`npm run test:k8s -- --project=api --no-deps -g "refuses <admin> & .root. when it.s off"`);
+  expect(email.failed[0].retry).toBe(`npm run test:k8s -- --project=api --no-deps specs/api/case.spec.ts:7 -g "refuses <admin> & .root. when it.s off"`);
   expect(new RegExp(`refuses <admin> & .root. when it.s off`).test(title)).toBe(true);
+});
+
+/** The string Playwright matches `-g` against: each suite's title, then its tags (`_grepTitleWithTags`). */
+function grepTitle(file: string, describes: [string, string[]][], title: string): string {
+  return ["", "api", file, ...describes.flatMap(([name, tags]) => [name, ...tags]), title].join(" ");
+}
+
+const retryOf = (command: string) => new RegExp(command.match(/-g "(.*)"$/)![1]);
+
+test.describe("retry command", () => {
+  // The health form: one case title on one line, under a describe per role.
+  const roles = (title: string, line: number) => [
+    file("engine", [failing("api", title, "Error: down", line)]),
+    file("runtime-catalog", [failing("api", title, "Error: down", line)]),
+  ];
+
+  test("names the file, the line, and the describe path", { tag: ["@infra", "@tier2"] }, () => {
+    const report = reportOf({ api: [] }, [file("api/case.spec.ts", [], [file("actuator health", [], roles("reports UP", 12))])]);
+    const [engine] = emailOf({ report, env: ENV }).failed;
+
+    expect(engine.title).toBe("actuator health › engine › reports UP");
+    expect(engine.retry).toBe(`npm run test:k8s -- --project=api --no-deps specs/api/case.spec.ts:12 -g "actuator health.*engine.*reports UP"`);
+  });
+
+  test("differs for loop cases that share one line", { tag: ["@infra", "@tier2"] }, () => {
+    const loop = [failing("api", "ignore mode", "Error: no", 20), failing("api", "throw mode", "Error: no", 20)];
+    const report = reportOf({ api: [] }, [file("api/case.spec.ts", [], [file("idempotency", loop)])]);
+    const [ignore, throwing] = emailOf({ report, env: ENV }).failed;
+
+    expect(ignore.retry).not.toBe(throwing.retry);
+    const pattern = retryOf(ignore.retry);
+    expect(pattern.test(grepTitle("api/case.spec.ts", [["idempotency", []]], "ignore mode"))).toBe(true);
+    expect(pattern.test(grepTitle("api/case.spec.ts", [["idempotency", []]], "throw mode"))).toBe(false);
+  });
+
+  test("differs for one title under two describes", { tag: ["@infra", "@tier2"] }, () => {
+    const report = reportOf({ api: [] }, [file("api/case.spec.ts", [], [file("actuator health", [], roles("reports UP", 12))])]);
+    const [engine, catalog] = emailOf({ report, env: ENV }).failed;
+
+    expect(engine.retry).not.toBe(catalog.retry);
+    expect(retryOf(catalog.retry).test(grepTitle("api/case.spec.ts", [["actuator health", []], ["engine", ["@engine"]]], "reports UP"))).toBe(false);
+  });
+
+  test("matches past the tags of each describe", { tag: ["@infra", "@tier2"] }, () => {
+    const report = reportOf({ api: [] }, [file("api/case.spec.ts", [], [file("actuator health", [], roles("reports UP", 12))])]);
+    const [engine, catalog] = emailOf({ report, env: ENV }).failed;
+    const tagged = (role: string, tag: string) => grepTitle("api/case.spec.ts", [["actuator health", ["@infra"]], [role, [tag]]], "reports UP @slow");
+
+    expect(retryOf(engine.retry).test(tagged("engine", "@engine"))).toBe(true);
+    expect(retryOf(catalog.retry).test(tagged("runtime-catalog", "@catalog"))).toBe(true);
+  });
 });
 
 test("an error keeps its first lines, each cut at a length, with its ANSI colors and repeated message dropped", { tag: ["@infra", "@tier2"] }, () => {
@@ -361,7 +412,7 @@ test("a project name in prose keeps its hyphens from breaking, and a command, a 
   expect(html).toContain(`>${nb("brokers-micro-seed")}</span>&nbsp; 1 failed<`);
   expect(html).toContain(`<strong>${nb("brokers-micro-seed")}</strong> failed, so this project did not run:`);
   expect(html).toContain(`>${nb("brokers-micro")}</td>`);
-  expect(html).toContain(`--project=brokers-micro-seed --no-deps -g`);
+  expect(html).toContain(`--project=brokers-micro-seed --no-deps specs/brokers-micro-seed/case.spec.ts:7 -g`);
   expect(html).toContain(`>brokers-micro-seed/case.spec.ts:7</a>`);
   expect(html).toContain("Error: chains on e2e-r9u3x9-brokers-micro never answered");
   expect(html).toContain(`${escapeHtml(preheader(email))}&#8199;`);

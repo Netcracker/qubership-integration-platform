@@ -28,7 +28,7 @@ export const METASPACE_ATTACHMENT = "metaspace";
  * @typedef {import("./run-history.mjs").History} History
  * @typedef {{ status: string }} LastRun
  * @typedef {{ workers?: number, provision?: { durationMs?: number }, absent?: { name: string, reason: string }[] }} Stack
- * @typedef {{ target: string, elements: { covered: number, total: number }, operations: { total: number, reached: number, covered: number }, problems: number }} Coverage
+ * @typedef {{ target: string, elements: { covered: number, total: number, outOfScope: number, shared: number }, operations: { total: number, reached: number, covered: number }, problems: number }} Coverage
  * @typedef {{ role: string, memoryBytes: number, cpuPercent: number, samples: number, band: { memoryBytes: number, cpuPercent: number } }} PeakReading
  * @typedef {{ role: string, usedBytes: number, maxBytes: number, band: number }} MetaspaceReading
  * @typedef {{ project: string, location: string, title: string, error: string, history?: History }} FailedTest
@@ -192,7 +192,8 @@ function coverageSection(coverage) {
       : `Reconciliation found ${coverage.problems} ${coverage.problems === 1 ? "problem" : "problems"}; the reconcile step lists them.`;
   return (
     `### Coverage\n\n` +
-    `Elements: ${elements.covered} of ${elements.total} registry rows covered on ${coverage.target}. ` +
+    `Elements: ${elements.covered} of ${elements.total} registry rows in scope covered on ${coverage.target}` +
+    ` (${elements.outOfScope} out of scope, ${elements.shared} shared). ` +
     `API operations: ${operations.covered} of ${operations.total} covered, ${operations.reached} reached. ${verdict}`
   );
 }

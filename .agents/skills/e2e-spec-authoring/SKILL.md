@@ -197,14 +197,50 @@ right now, so a controller added to a service fails a run.
 9. **A flaky spec is fixed or deleted, never skipped.** A skipped spec claims coverage it does not
    have. Fix it where it surfaces, whoever wrote the file, and fix it by asserting what the case is
    about rather than by polling harder.
-10. **Tag every test by component and tier**:
-    `test("…", { tag: ["@engine", "@tier1"] }, …)`. Components are `@catalog`, `@engine`,
-    `@sessions`, `@testing-service`, `@ui`, `@infra`; the tier is `@tier1` for the release floor
-    and `@tier2` for the rest. No case carries `@extension`, because the extension's cases run under
-    their own runner. A case in the `ui` project is tagged `@ui` and its tier, never a backend tag,
-    so a backend grep with `--no-deps` selects no case that needs Chromium. A spec missing either tag
-    fails `npm run reconcile`. `e2e/` has no formatter config, so keep the title, the tag object, and
-    the fixture destructuring on the declaration line, however long it runs.
+10. **Put a file's cases under one `test.describe` that names its subject, and tag the describe.**
+    A file has exactly one top-level describe; nested describes group its sub-topics. Tags come from
+    a closed list:
+
+    | Kind | Tags |
+    | --- | --- |
+    | Component | `@catalog`, `@engine`, `@sessions`, `@testing-service`, `@ui`, `@infra`, `@schema`, `@harness` |
+    | Budget | `@slow`, for a case that needs more than 60 s |
+    | Engine | `@classic-only` (rule 20) |
+    | Broker | `@kafka`, `@rabbitmq`, `@pubsub`, `@sftp` |
+    | API version | `@v1`, `@v2`, `@v3` |
+
+    `@infra` is for the stack's own infrastructure: the nginx proxy, Kubernetes resources,
+    restarts, and metrics. `@schema` is for a stack-less case about a product file (`routes.conf`,
+    a compose file, a migration, a schema), and `@harness` is for a case that tests the suite
+    itself. Only the component tags are read: `--grep @engine` selects a component, and the case
+    catalog groups by them. The other kinds are informational.
+
+    Playwright copies a describe's tags into every case under it, so tags go on the top-level
+    describe, and a nested describe or a case adds only the tags that differ. Every case inherits at
+    least one component tag through its describe chain; a case that inherits none fails
+    `npm run reconcile`. A case in the `ui` project carries `@ui` and never a backend tag, so a
+    backend grep with `--no-deps` selects no case that needs Chromium. A computed tag such as
+    `COMPONENT_TAG[role]` is allowed, and reconcile checks its value in the report.
+
+    Where one file covers several components, the component goes in a nested describe and the
+    cases are declared once in a function, so each title stays a literal:
+
+    ```ts
+    test.describe("actuator health", () => {
+      function actuatorCases(role: ServiceRole) {
+        test("reports UP with both probe groups", …);
+        test("names no component as down", …);
+      }
+      test.describe("runtime-catalog", { tag: ["@catalog"] }, () => actuatorCases("runtime-catalog"));
+      test.describe("engine", { tag: ["@engine"] }, () => actuatorCases("engine"));
+      test.describe("testing-service", { tag: ["@testing-service"] }, () => {
+        test("answers its own /health", …);
+      });
+    });
+    ```
+
+    `e2e/` has no formatter config, so keep the title, the tag object, and the fixture
+    destructuring on the declaration line, however long it runs.
 11. **Call a chain on the engine, never through the proxy.** `http://localhost:8092/routes/…`, not
     `http://localhost:8080/…`. No nginx `location` matches `/routes/`, so a request through the
     proxy falls through to the SPA and answers **200 with `index.html`** whatever the chain did. A
@@ -301,6 +337,19 @@ right now, so a controller added to a service fails a run.
     to serve), deletes it in `afterAll`, and calls the chains through the `env` the helper returns.
     `specs/schema/target-rules.spec.ts` checks this rule, that the tag and the annotation come
     together, and the `support/kube.ts` half of rule 4.
+21. **Name a case by its subject and the outcome it observes, in at most 60 characters.** The
+    describe path supplies the context, so under `testing-service` the title is
+    `answers its own /health`, not `the testing service answers its own /health`. A title never
+    carries `because`, `which is why`, `rather than`, or `so that`: the reason a case exists goes in
+    a comment above it. A title is a string literal, or a template string in a loop over
+    identifiers, an imported list, or a call such as `idempotencyModes(...)`; only the literal part
+    of a template counts toward the 60. A title taken whole from a variable, such as
+    `test(each.title, …)`, has no length limit.
+22. **Merge cases only along a shared path, and make each stage a `test.step`.** Create, export,
+    delete, and import of one archive are one path, so they are one case with a named step per
+    stage: the report shows which stage failed, and the case pays for its setup once. Cases that
+    observe different outcomes of one feature, such as the four idempotency modes, stay separate
+    cases, so a red result names the mode that broke.
 
 ## Assertions that catch a reported success
 
