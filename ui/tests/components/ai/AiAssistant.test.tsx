@@ -440,6 +440,91 @@ describe("AiAssistant", () => {
     ).toBe(true);
   });
 
+  it("should preserve unsent text and saved progress when a stale policy choice is refused", async () => {
+    const gate = decision({
+      id: "requirement-policy-choice:old-hash",
+      kind: "clarify",
+      question: "Keep NONE or use recommended RBAC?",
+      artifactType: "requirement-policy-choice",
+      artifactHash: "old-hash",
+      revision: 7,
+      actions: ["keep-requested", "use-recommended"],
+      actionLabels: {
+        "keep-requested": "Keep NONE",
+        "use-recommended": "Use recommended RBAC",
+      },
+    });
+    const refreshedGate = {
+      ...gate,
+      id: "requirement-policy-choice:new-hash",
+      artifactHash: "new-hash",
+      revision: 8,
+    };
+    const savedActivity = {
+      steps: [],
+      summary: "Requirements saved",
+      collapsed: true,
+    };
+    const id = seed([
+      { role: "user", content: "Build a chain" },
+      {
+        role: "assistant",
+        content: "Your requirements are saved.",
+        activity: savedActivity,
+      },
+    ]);
+    jest.mocked(fetchOpenDecision).mockResolvedValue(gate);
+    stream.mockImplementation(async (_request, emit) => {
+      jest.mocked(fetchOpenDecision).mockResolvedValue(refreshedGate);
+      emit({
+        type: "delta",
+        contentDelta: "The choice changed. Review the current options.",
+      });
+      emit({ type: "decision", decision: refreshedGate });
+      emit({ type: "done", conversationId: "conv-1" });
+    });
+    await open();
+    await screen.findByRole("button", { name: "Keep NONE" });
+    const composer = screen.getByPlaceholderText(
+      "Ask Rocky about this chain...",
+    );
+    fireEvent.change(composer, {
+      target: { value: "Keep my delivery mapping unchanged." },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep NONE" }));
+
+    await waitFor(() => expect(stream).toHaveBeenCalledTimes(1));
+    expect(stream.mock.calls[0][0].decision).toEqual({
+      action: "keep-requested",
+      artifactType: "requirement-policy-choice",
+      artifactHash: "old-hash",
+      revision: 7,
+      comment: undefined,
+    });
+    expect(stream.mock.calls[0][0].messages).toEqual([]);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Keep NONE" })).toBeEnabled(),
+    );
+    expect(composer).toHaveValue("Keep my delivery mapping unchanged.");
+    expect(
+      screen.getByText("Your requirements are saved."),
+    ).toBeInTheDocument();
+    expect(
+      store
+        .getSession(id)
+        ?.messages.some(
+          (message) => message.activity?.summary === savedActivity.summary,
+        ),
+    ).toBe(true);
+    expect(
+      store
+        .getSession(id)
+        ?.messages.find((message) => message.decision?.id === refreshedGate.id)
+        ?.decision,
+    ).toEqual(refreshedGate);
+  });
+
   it("sends clarification text as a user turn with the retained attachments", async () => {
     const gate = decision({ kind: "clarify", actions: [] });
     const id = seed([{ role: "user", content: "Build a chain" }]);
