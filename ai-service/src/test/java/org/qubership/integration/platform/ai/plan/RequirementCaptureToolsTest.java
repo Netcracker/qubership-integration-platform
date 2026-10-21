@@ -65,6 +65,59 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureToolsTest {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
+  void partialDraftCannotAskBeforeCompletingNativeMetadata(boolean suppliedRole) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "partial-anchor-" + UUID.randomUUID();
+    String text = "Accept POST /tasks and submit it."
+        + (suppliedRole ? " Allow exactly the role task-operator." : " Ask which role may access the route.");
+    var turn = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, turn, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var base = readyHttpDraft();
+    var question = new RequirementCaptureInput.QuestionInput("route-role", List.of("entry"), "Which role?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("entry", "roles",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(turn.turnId())));
+    var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(),
+        new FactInput("access", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+            suppliedRole ? "Allow exactly the role task-operator." : "Ask which role may access the route.")),
+        base.capabilities(), List.of(question), base.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      assertTrue(mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class).accepted());
+      var refused = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "MISSING_ANCHOR_INTENT".equals(issue.code())),
+          refused.toString());
+      var entry = nativeAnchorFact("entry", "http-trigger");
+      var intent = entry.elementIntent();
+      if (suppliedRole) {
+        entry = new FactInput(entry.sourceFactId(), entry.interactionIds(), entry.kind(), entry.polarity(),
+            "Allow exactly the role task-operator.", null, null,
+            new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+                intent.ownerInteractionId(), null, null, null,
+                List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", "[\"task-operator\"]")),
+                List.of("task-operator")));
+      }
+      var changes = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(entry, nativeAnchorFact("submit", "http-sender")), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), suppliedRole ? List.of(question.questionId()) : List.of(), null);
+      var corrected = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertTrue(corrected.accepted(), corrected.toString());
+      var finished = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(suppliedRole
+          ? RequirementDiscoveryDirective.CONTINUE : RequirementDiscoveryDirective.STAY), RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(suppliedRole, h.store().get(chat).orElseThrow().openQuestions().isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   void referencesToRejectedIdentitiesRemainRepairable(boolean predecessor) throws Exception {
     var h = harness();
     h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
@@ -257,8 +310,8 @@ class RequirementCaptureToolsTest {
         new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("submit", "path",
             org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
             List.of(first.turnId())));
-    var input = new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst(), missing),
-        List.of(question), base.settings());
+    var input = withNativeAnchors(new DraftInput(base.flow(), base.facts(),
+        List.of(base.capabilities().getFirst(), missing), List.of(question), base.settings()));
     try (var ignored = ToolSession.open(chat)) {
       assertTrue(mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class).accepted());
       assertTrue(mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),

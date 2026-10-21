@@ -175,9 +175,13 @@ public class RequirementDraftStore {
   public List<RequirementCaptureEditor.Issue> validateForContinuation(String conversationId) {
     var issues = new ArrayList<>(validateCurrent(conversationId));
     var current = get(conversationId).orElse(null);
-    if (current == null || current.authoredDraft() == null || !current.readyForPlan()) return issues;
+    if (current == null || current.authoredDraft() == null) return issues;
     var input = current.authoredDraft();
     for (var capability : input.capabilities()) {
+      if (!current.readyForPlan() && input.openQuestions().stream().noneMatch(question ->
+          question.evidence() != null && capability.interactionId().equals(question.evidence().interactionId()))) {
+        continue;
+      }
       boolean declared = input.facts().stream()
           .filter(fact -> fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE)
           .map(RequirementCaptureInput.FactInput::elementIntent)
