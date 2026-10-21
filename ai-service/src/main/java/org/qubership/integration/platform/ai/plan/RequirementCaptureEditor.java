@@ -302,7 +302,9 @@ public final class RequirementCaptureEditor {
           }
         }
         facts.add(factIssues.isEmpty() ? fact : new FactInput(fact.sourceFactId(), List.copyOf(retainedTargets),
-            factIssues.stream().anyMatch(issue -> issue.path().endsWith("/kind")) ? null : fact.kind(),
+            factIssues.stream().anyMatch(issue -> issue.path().endsWith("/kind")
+                || "MAPPING_TRANSITION_REQUIRED".equals(issue.code())
+                || "MAPPING_FIELDS_REQUIRED".equals(issue.code())) ? null : fact.kind(),
             factIssues.stream().anyMatch(issue -> issue.path().endsWith("/polarity")) ? null : fact.polarity(),
             factIssues.stream().anyMatch(issue -> issue.path().endsWith("/text")) ? null : fact.text(),
             mappingToPreserve(fact.fieldMapping(), factIssues),
@@ -426,7 +428,8 @@ public final class RequirementCaptureEditor {
     }
     return (editablePaths.contains("sourcePath") || !saved && original.sourcePath() == null || Objects.equals(original.sourcePath(), updated.sourcePath()))
         && (editablePaths.contains("targetPath") || !saved && original.targetPath() == null || Objects.equals(original.targetPath(), updated.targetPath()))
-        && (!saved && original.expression() == null || Objects.equals(original.expression(), updated.expression()))
+        && (editablePaths.contains("expression") || !saved && original.expression() == null
+            || Objects.equals(original.expression(), updated.expression()))
         && (!interactions.contains(original.sourceInteractionId())
             || Objects.equals(original.sourceInteractionId(), updated.sourceInteractionId()))
         && (!interactions.contains(original.targetInteractionId())
@@ -678,7 +681,9 @@ public final class RequirementCaptureEditor {
                   + " value retained across a call, keep the save-before-call BEHAVIOR and map each"
                   + " result field on the delivery transition with sourcePath=null and an expression"
                   + " reading the saved original field. Preserve its original source and destination."
-                  + " Do not copy from the call response or add a transition that bypasses the call.");
+                  + " Do not copy from the call response or add a transition that bypasses the call."
+                  + " Local script output without a business transition is BEHAVIOR on its owner,"
+                  + " not a FIELD_MAPPING to an invented interaction or back to the incoming caller.");
         }
         if (!fact.interactionIds().contains(mapping.sourceInteractionId())
             || !fact.interactionIds().contains(mapping.targetInteractionId())) {

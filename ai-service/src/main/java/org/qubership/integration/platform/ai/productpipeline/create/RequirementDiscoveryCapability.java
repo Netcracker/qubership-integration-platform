@@ -262,8 +262,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
       userMessage = """
           Repair the selected draft's field paths using the catalog contract findings below.
           Read the accepted draft, then call updateRequirementDraft for the affected FIELD_MAPPING
-          facts. Preserve all fact IDs, text, expressions, source and target interactions, flow,
-          settings, and unrelated requirements. Change only the invalid field paths.
+          facts. Read readRequirementSource and preserve all fact IDs, text, source and
+          target interactions, flow, settings, and unrelated requirements. Change only invalid field
+          paths, or add FIELD_MAPPING facts for the unresolved required targets named by the native
+          findings. Derive their source fields or constants from the saved author messages.
+          If a rejected mapping's derived expression must change with its field binding, implement
+          the same saved requirement; preserve explicit author formulas and unrelated expressions.
           Paths are relative to the actual message body. An operation name, resource name, or schema
           title is not a JSON wrapper. For example, a schema with root property Subject requires
           targetPath Subject; use Task.Subject only if its properties actually contain Task.Subject.
@@ -273,7 +277,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
           Contract findings:
           %s
           %s
-          """.formatted(repair.diagnosticText(), repair.errorEvidence());
+          """.formatted(context.attributes().getOrDefault("mappingRepairFindings", repair.diagnosticText()),
+              repair.errorEvidence());
     }
     var repair = StageRepairEvidence.from(context);
     if (repair != null && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
@@ -348,14 +353,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     AtomicReference<RequirementDraft> captured = new AtomicReference<>();
     String gatherMessage = userMessage;
-    RequirementDraft repairBase = mappingRepairDraft != null ? mappingRepairDraft : draftStore.get(conversationId).orElse(null);
+    RequirementDraft repairBase = draftStore.get(conversationId).orElse(mappingRepairDraft);
     var nativeRepairPaths = requirementRepairPaths(context, repairBase);
     ToolSession.bind(conversationId);
     Context toolSessionContext = ToolSession.attachedContext();
     java.util.function.Supplier<Context> startCapture = () -> {
       Context installed = ProductCapabilityCaptureContext.bindDiscovery(
-        context.runId(), conversationId, nativeRepairPaths.isEmpty() ? mappingRepairDraft : repairBase,
-        mappingRepairPaths(context), nativeRepairPaths, payload -> {
+        context.runId(), conversationId, mappingRepairDraft == null && nativeRepairPaths.isEmpty() ? null : repairBase,
+        mappingRepairPaths(context), nativeRepairPaths, missingMappingTargets(context), payload -> {
           if (payload instanceof RequirementDraft draft) {
             captured.set(draft);
           }
@@ -509,6 +514,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
     }
     RequirementDraft repairDraft = mappingRepairDraft(context);
+    if (repairDraft != null) repairDraft = ProductCapabilityCaptureContext.binding(conversationId)
+        .map(ProductCapabilityCaptureContext.Binding::approvedDraft).orElse(repairDraft);
     if (repairDraft != null && !preservesMappingRepair(context, repairDraft, draft)) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
           "REPAIR_FACT_LOSS: Change only the rejected mapping field paths.",
@@ -757,8 +764,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private static RequirementDraft mappingRepairDraft(StageExecutionContext context) {
     return StageRepairEvidence.isRepairTurn(context)
         && "true".equals(context.attributeAsString("mappingRepairAutomatic"))
-        && RecoveryCauseCode.MAPPING_CONTRACT.name().equals(
+        && (RecoveryCauseCode.MAPPING_CONTRACT.name().equals(
             context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR))
+            || context.attributes().containsKey("mappingRepairFindings"))
         && context.attributes().get("requirementCorrectionDraft") instanceof RequirementDraft draft
         && draft.authoredDraft() != null ? draft : null;
   }
@@ -778,11 +786,22 @@ public class RequirementDiscoveryCapability implements StageCapability {
 
   static boolean preservesMappingRepair(
       StageExecutionContext context, RequirementDraft original, RequirementDraft candidate) {
-    return preservesMappingRepair(mappingRepairPaths(context), original, candidate);
+    return preservesMappingRepair(mappingRepairPaths(context), missingMappingTargets(context), original, candidate);
+  }
+
+  private static List<MappingValidationDetails> missingMappingTargets(StageExecutionContext context) {
+    Object value = context.attributes().get("missingMappingTargets");
+    return value instanceof List<?> targets ? targets.stream().filter(MappingValidationDetails.class::isInstance)
+        .map(MappingValidationDetails.class::cast).toList() : List.of();
   }
 
   public static boolean preservesMappingRepair(
       Map<String, java.util.Set<String>> editable, RequirementDraft original, RequirementDraft candidate) {
+    return preservesMappingRepair(editable, List.of(), original, candidate);
+  }
+
+  public static boolean preservesMappingRepair(Map<String, java.util.Set<String>> editable,
+      List<MappingValidationDetails> missingTargets, RequirementDraft original, RequirementDraft candidate) {
     if (candidate == null || candidate.authoredDraft() == null) {
       return false;
     }
@@ -793,6 +812,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
       String factId = fact.sourceFactId();
       var prior = accepted.facts().stream()
           .filter(value -> value.sourceFactId().equals(factId)).findFirst().orElse(null);
+      var addedMapping = fact.fieldMapping();
+      if (prior == null && fact.kind() == RequirementCaptureInput.FactKind.FIELD_MAPPING
+          && fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE && fact.fieldMapping() != null
+          && missingTargets.stream().anyMatch(target ->
+              target.sourceRef().equals(addedMapping.sourceInteractionId())
+                  && target.targetRef().equals(addedMapping.targetInteractionId())
+                  && target.targetPath().equals(org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract
+                      .canonicalPath(addedMapping.targetPath())))) continue;
       if (prior != null && editable.containsKey(fact.sourceFactId())
           && prior.fieldMapping() != null && fact.fieldMapping() != null) {
         var mapping = fact.fieldMapping();
@@ -801,7 +828,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
                 mapping.sourceInteractionId(), editable.get(factId).contains("sourcePath")
                     ? prior.fieldMapping().sourcePath() : mapping.sourcePath(), mapping.targetInteractionId(),
                 editable.get(factId).contains("targetPath") ? prior.fieldMapping().targetPath() : mapping.targetPath(),
-                mapping.expression()), fact.policyConflict(), fact.elementIntent());
+                editable.get(factId).contains("expression") ? prior.fieldMapping().expression()
+                    : mapping.expression()), fact.policyConflict(), fact.elementIntent());
       }
       retained.add(fact);
     }

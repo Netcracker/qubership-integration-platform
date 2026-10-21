@@ -16,6 +16,23 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifes
 
 class CompilerQualityValidatorTest {
   @Test
+  void actualQuoteCharactersRemainRequiredByTheNativeScriptValidator() {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger", null, null, null, List.of(), List.of("\"quoted-content\""));
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("quoted-response",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Include the quotation marks.",
+        "", "", "", "", "", "", List.of("trigger"), null, intent);
+    var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief("goal", List.of(),
+        List.of(), List.of(), List.of(), "").withFacts(List.of(fact));
+    assertFalse(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = 'quoted-content'"), brief).isEmpty());
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = '\"quoted-content\"'"), brief).isEmpty());
+  }
+
+  @Test
   void anOwnedScriptLiteralIsCheckedAfterGenerationInsteadOfReopeningRequirements() {
     var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script", "script",
         org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
@@ -34,7 +51,8 @@ class CompilerQualityValidatorTest {
       candidate = new ChainPlanGraph(candidate.schemaVersion(), candidate.chain(), nodes, candidate.edges());
       var findings = CompilerQualityValidator.validateApprovedValues(candidate, brief);
       assertTrue(findings.stream().anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())
-          && "/properties/script".equals(issue.fieldPointer())), findings.toString());
+          && "/elementIntent/exactValues".equals(issue.fieldPointer())
+          && "reply".equals(issue.originRecordId())), findings.toString());
     }
     assertTrue(CompilerQualityValidator.validateApprovedValues(
         graph().withNodeProperty("script", "script", "exchange.in.body = 'accepted-body'"), brief).isEmpty());

@@ -363,6 +363,31 @@ class RecoveryDecisionValidatorTest {
     return new UserInput(id, "conversation-source", text, java.time.Instant.EPOCH);
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"valid", "no-source", "wrong-fact", "wrong-field", "other-finding"})
+  void literalSourceCorrectionRequiresTheReportedFactFieldAndAuthorEvidence(String variant) {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("work-script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, List.of(), List.of("recorded-value"));
+    var fact = new RequirementFact("behavior", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Use the supplied value.", "", "", "", "", "", "", List.of("entry"), null, intent);
+    var finding = new SemanticFinding("other-finding".equals(variant) ? "MISSING_REQUIRED_PROPERTY"
+        : "MISSING_REQUIRED_SCRIPT_LITERAL", "Missing script binding", "occurrence", "behavior", "script",
+        List.of(), List.of(), List.of(), "", java.util.Map.of(), List.of(), "{}");
+    var observed = new RecoveryEvidence(1, evidence.failureId(), "MISSING_REQUIRED_PROPERTY", "design-execution",
+        briefRef, semanticRef, List.of(graphRef), List.of(finding), null, List.of());
+    var input = new RecoveryContext(observed, context.approvedBrief().withFacts(List.of(fact)),
+        context.rejectedArtifact(), "en", List.of(authorInput("input-1", "Use supplied-value.")));
+    var decision = new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT, briefRef,
+        "no-source".equals(variant) ? List.of(evidence.failureId()) : List.of(evidence.failureId(), "input-1"),
+        RecoveryAction.REVISE_BRIEF, List.of(new ProposedBriefChange(
+            "wrong-fact".equals(variant) ? "unrelated" : "behavior",
+            "wrong-field".equals(variant) ? "text" : "elementIntent.exactValues",
+            "recorded-value", "supplied-value", "SOURCE_VALUE_MISRECORDED", false)), "", "Correct the recorded value.");
+    org.junit.jupiter.api.Assertions.assertEquals("valid".equals(variant),
+        RecoveryDecisionValidator.validate(decision, input).accepted());
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"UNKNOWN_PROPERTY", "MISSING_REQUIRED_PROPERTY", "CONTRACT_SHAPE", "GRAPH_STRUCTURE"})
   void generatedContractFailureCannotBecomeAnAuthorQuestionByRelabeling(String observedCauseCode) {

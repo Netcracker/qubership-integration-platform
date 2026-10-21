@@ -219,6 +219,11 @@ userSummary has no stage ids; state what failed and what must change in the arti
 by the evidence. Attribute a defect to the requirements only when the context establishes a missing \
 or contradictory requirement. A rejected output alone does not establish a brief defect. \
 BRIEF_CONTRACT identifies accepted input rejected by a deterministic check before generation. \
+MISSING_REQUIRED_SCRIPT_LITERAL compares an owned script with the fact's elementIntent.exactValues. \
+Compare both the recorded value and script with authorInputs before choosing the faulty producer. \
+If saved source proves the recorded value incorrect, propose a scoped elementIntent.exactValues \
+correction citing that source. If the source confirms it, repair the script. Preserve all required \
+characters and unrelated exact values; never clear a requirement merely to pass validation. \
 There is no rejected output for that failure. Compare the affected fact and field with authorInputs; \
 prepare REVISE_BRIEF corrections supported by the source, preserving unrelated requirements and \
 confirmed choices. A parallel flow with a generated successor between sibling branches can be \

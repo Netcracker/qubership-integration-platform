@@ -138,9 +138,11 @@ public class RequirementCaptureTools {
   @Tool("""
       Apply focused requirement changes atomically. Each updated entity is a complete small record.
       Empty lists leave their entity family unchanged. Remove references explicitly when deleting an
-      interaction. Preserve existing fact IDs, kind, full text, polarity,
+      interaction. Preserve accepted fact IDs, kind, full text, polarity,
       and mapping values. Reassign fact references when fixing topology; add omitted requirements as
-      new facts. A new author message permits only its explicit amendments. For each changed accepted
+      new facts. A rejected FIELD_MAPPING classification may become BEHAVIOR when no business
+      transition is intended; retain its fact ID, complete author text, polarity, and valid references.
+      A new author message permits only its explicit amendments. For each changed accepted
       value, supply amendments with path, sourceTurnId, and the exact quote authorizing that change.
       Paths use stable IDs, such as /facts/goal/text, /facts/goal for removal, /capabilities/entry/path,
       or /interactions/entry/operation. Use /transitions/entry for the outgoing transitions of entry.
@@ -340,7 +342,8 @@ public class RequirementCaptureTools {
             && binding.approvedDraft() != null && binding.requirementRepairPaths().isEmpty());
     if (repair.isPresent()
         && !org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
-            .preservesMappingRepair(repair.get().mappingRepairPaths(), repair.get().approvedDraft(), draft)) {
+            .preservesMappingRepair(repair.get().mappingRepairPaths(), repair.get().missingMappingTargets(),
+                repair.get().approvedDraft(), draft)) {
       // Rejected content outside the repair scope must not become protected repair facts.
       return reject(conversationId, null, previous, List.of(new Issue("REPAIR_FACT_LOSS", "/draft", null,
           "Change only the rejected mapping field paths. Preserve the selected draft's facts, flow, and settings.")));

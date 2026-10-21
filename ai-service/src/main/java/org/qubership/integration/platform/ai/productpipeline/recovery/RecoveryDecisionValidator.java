@@ -64,7 +64,7 @@ public final class RecoveryDecisionValidator {
     validateAllowedAction(decision, findings);
     validateEvidenceRefs(decision, context, findings);
     validateFaultArtifactRef(decision, context, findings);
-    validateActionSpecificRules(decision, evidence, findings);
+    validateActionSpecificRules(decision, context, findings);
     if (decision.action() == RecoveryAction.REVISE_BRIEF && context.approvedBrief() != null) {
       for (var change : decision.proposedBriefChanges()) {
         if (change.authorDecisionRequired()) {
@@ -199,13 +199,15 @@ public final class RecoveryDecisionValidator {
   }
 
   private static void validateActionSpecificRules(
-      RecoveryDecision decision, RecoveryEvidence evidence, List<String> findings) {
+      RecoveryDecision decision, RecoveryContext context, List<String> findings) {
+    RecoveryEvidence evidence = context.evidence();
     Reference fault = decision.faultArtifactRef();
     Reference approvedBrief = evidence.approvedBriefRef();
 
     if (evidence.observedCauseCode() != null
         && GENERATED_CONTRACT_CAUSES.contains(evidence.observedCauseCode())
-        && decision.action() != RecoveryAction.REGENERATE_ARTIFACT) {
+        && decision.action() != RecoveryAction.REGENERATE_ARTIFACT
+        && !sourceLiteralCorrection(decision, context)) {
       findings.add(decision.action() + " is not allowed for observed cause " + evidence.observedCauseCode()
           + ". Repair the generated artifact from the saved requirements; the runtime owns recovery limits.");
     }
@@ -244,6 +246,22 @@ public final class RecoveryDecisionValidator {
                 + " side-effect is unknown.");
       }
     }
+  }
+
+  private static boolean sourceLiteralCorrection(RecoveryDecision decision, RecoveryContext context) {
+    return RecoveryCauseCode.MISSING_REQUIRED_PROPERTY.name().equals(context.evidence().observedCauseCode())
+        && decision.action() == RecoveryAction.REVISE_BRIEF && context.approvedBrief() != null
+        && context.authorInputs().stream().anyMatch(input -> decision.evidenceRefs().contains(input.inputId()))
+        && !decision.proposedBriefChanges().isEmpty()
+        && decision.proposedBriefChanges().stream().allMatch(change -> change != null && !change.authorDecisionRequired()
+            && change.field() != null && change.sourceFactId() != null
+            && Set.of("elementIntent.exactValues", "/elementIntent/exactValues").contains(change.field())
+            && context.evidence().findings().stream().anyMatch(finding ->
+                "MISSING_REQUIRED_SCRIPT_LITERAL".equals(finding.code())
+                    && change.sourceFactId().equals(finding.nodeId()))
+            && context.approvedBrief().facts().stream().anyMatch(fact ->
+                change.sourceFactId().equals(fact.sourceFactId()) && fact.elementIntent() != null
+                    && !fact.elementIntent().exactValues().isEmpty()));
   }
 
   private static void validateUserSummary(RecoveryDecision decision, List<String> findings) {

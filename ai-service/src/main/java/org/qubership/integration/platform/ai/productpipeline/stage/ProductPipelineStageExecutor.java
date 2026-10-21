@@ -775,6 +775,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             new StageDecision.WaitForApproval(stage.stageId(), approvable, prompt), emitted);
       }
       case SUCCEEDED -> {
+        StageExecutionResult rejectedRepair = rejectInvalidMappingRepair(
+            doc, stage, resolveProducedCandidates(stage, outcome.candidates()), emitted);
+        if (rejectedRepair != null) yield rejectedRepair;
         technicalRetriesByStage.remove(stageRetryKey(runId, stage.stageId()));
         List<Reference> refs =
             appendCandidates(runId, stage, resolveProducedCandidates(stage, outcome.candidates()));
@@ -882,6 +885,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     Map<String, Object> attributes = attributesByRun.getOrDefault(doc.run().runId(), Map.of());
     Object evidenceRef = attributes.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
     String evidenceHash = evidenceRef instanceof String text ? text : "";
+    var mappingEvidence = mappingRepairEvidenceRevision(doc.run().runId());
+    if (mappingEvidence.isPresent()) evidenceHash = mappingEvidence.get().contentHash();
     if (evidenceHash.isBlank() && isActiveMappingRepair(attributes)) {
       return haltRecoverable(
           doc,
@@ -934,6 +939,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           && candidate.kind() == Kind.REQUIREMENT_BRIEF
           && candidate.payload() instanceof RequirementBrief brief) {
         return brief;
+      }
+      if (candidate != null && candidate.kind() == Kind.REQUIREMENT_DRAFT
+          && candidate.payload() instanceof RequirementDraft draft) {
+        return org.qubership.integration.platform.ai.plan.RequirementBriefProjector.project(
+            new RequirementBrief("", List.of(), List.of(), List.of(), List.of(), "")
+                .withFacts(draft.facts()).withFlow(draft.flow()).withCatalogBindings(draft.catalogBindings())
+                .withMappingIntents(org.qubership.integration.platform.ai.plan.RequirementBriefProjector.authoredMappings(draft)));
       }
     }
     return null;
@@ -1280,6 +1292,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private static boolean usesStructuredContractRecovery(
       ProfileStage stage, StageOutcomeClass outcomeClass, RecoveryCause cause) {
+    if (cause != null && cause.findings().stream()
+        .anyMatch(finding -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(finding.code()))) return true;
     if (stage != null && cause != null && cause.causeCode() == RecoveryCauseCode.SECURITY_POLICY
         && (outcomeClass == StageOutcomeClass.VALIDATION_FAILURE || outcomeClass == StageOutcomeClass.CONTRACT_FAILURE)) {
       return true;
@@ -1637,6 +1651,25 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (mapped instanceof StageDecision.ReopenProducer reopen) {
       if (accepted.action() == RecoveryAction.REVISE_BRIEF) {
+        boolean sourceCorrection = acceptedRecovery.sourceQuestion() != null || !accepted.proposedBriefChanges().isEmpty()
+            && accepted.proposedBriefChanges().stream().allMatch(change -> !change.authorDecisionRequired())
+            && context.authorInputs().stream().anyMatch(input -> acceptedRecovery.decision() != null
+                && acceptedRecovery.decision().evidenceRefs().contains(input.inputId()));
+        if (sourceCorrection) {
+          RecoveryCause sourceCause = new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT,
+              cause.findings(), cause.requestedFact());
+          var draftOwner = reportedDraftOwner(doc, stage, refs, sourceCause);
+          if (draftOwner.isPresent()) {
+            sourceCause = new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT,
+                draftOwner.get().findings(), cause.requestedFact());
+            cause = sourceCause;
+            putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, cause.causeCode().name());
+            putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
+                ProductPipelineRunSupport.recoveryCauseJson(cause));
+            putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, cause.formattedFindings());
+            reopen = new StageDecision.ReopenProducer(stage.stageId(), draftOwner.get().owner(), reopen.authorNote());
+          }
+        }
         if (cause.causeCode() == RecoveryCauseCode.BRIEF_CONTRACT || acceptedRecovery.sourceQuestion() != null) {
           Revision draft = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
           if (draft != null && draft.provenance() != null
@@ -1657,10 +1690,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             runId,
             ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
             reopen.producerStageId());
-        boolean sourceCorrection = acceptedRecovery.sourceQuestion() != null || !accepted.proposedBriefChanges().isEmpty()
-            && accepted.proposedBriefChanges().stream().allMatch(change -> !change.authorDecisionRequired())
-            && context.authorInputs().stream().anyMatch(input -> acceptedRecovery.decision() != null
-                && acceptedRecovery.decision().evidenceRefs().contains(input.inputId()));
         if (sourceCorrection && canCausalReopen(doc, reopen.producerStageId(), cause, evidenceText)) {
           recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, budgetCause, reopen.producerStageId());
           emitted.add(new PipelineSignal.Progress(reopen.producerStageId(), "Restoring requirements from saved author input"));
@@ -2043,12 +2072,31 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   private Optional<RecoveryEvidence> mappingRepairEvidence(String runId) {
+    return mappingRepairEvidenceRevision(runId)
+        .map(revision -> artifactStore.payload(revision, RecoveryEvidence.class));
+  }
+
+  private Optional<Revision> mappingRepairEvidenceRevision(String runId) {
     Object hash = attributesByRun.getOrDefault(runId, Map.of())
         .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
-    return artifactStore.history(runId, Kind.RECOVERY_EVIDENCE).stream()
-        .filter(revision -> revision.contentHash().equals(hash))
-        .map(revision -> artifactStore.payload(revision, RecoveryEvidence.class))
-        .filter(evidence -> "MAPPING_CONTRACT".equals(evidence.observedCauseCode())).findFirst();
+    if (!(hash instanceof String value) || value.isBlank()) return Optional.empty();
+    Map<String, Revision> revisions = new HashMap<>();
+    artifactStore.history(runId, Kind.RECOVERY_EVIDENCE).forEach(revision ->
+        revisions.putIfAbsent(revision.contentHash(), revision));
+    var pending = new java.util.ArrayDeque<String>();
+    var visited = new java.util.HashSet<String>();
+    pending.add(value);
+    while (!pending.isEmpty()) {
+      String next = pending.removeFirst();
+      if (!visited.add(next)) continue;
+      Revision revision = revisions.get(next);
+      if (revision == null) continue;
+      var evidence = artifactStore.payload(revision, RecoveryEvidence.class);
+      if ("MAPPING_CONTRACT".equals(evidence.observedCauseCode())) return Optional.of(revision);
+      evidence.priorAttemptRefs().stream().filter(ref -> ref.kind() == Kind.RECOVERY_EVIDENCE)
+          .forEach(ref -> pending.addLast(ref.contentHash()));
+    }
+    return Optional.empty();
   }
 
   private Optional<String> requirementDraftOwner(String runId, ProductPipelineProfile profile, Revision selected) {
@@ -2901,17 +2949,29 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     putLatestRequirementBrief(runId, attributes);
     attributesByRun.put(runId, attributes);
-    if (isActiveMappingRepair(attributes) && "true".equals(attributes.get("mappingRepairAutomatic"))) {
+    attributes.remove("mappingRepairFindings");
+    attributes.remove("missingMappingTargets");
+    attributes.remove("mappingRepairPaths");
+    if ("true".equals(attributes.get("mappingRepairAutomatic")) && mappingRepairEvidence(runId).isPresent()) {
       mappingDraftRevision(runId, RecoveryCause.mappingContract(List.of())).ifPresent(revision -> {
         RequirementDraft draft = artifactStore.payload(revision, RequirementDraft.class);
         attributes.put("requirementCorrectionDraftReference", revision.reference());
         attributes.put("requirementCorrectionDraft", draft);
         Map<String, Set<String>> editable = new HashMap<>();
+        List<MappingValidationDetails> missingTargets = new ArrayList<>();
+        boolean sourceAvailable = !authorInputs(requireRun(runId)).isEmpty();
+        attributes.put("mappingRepairFindings", mappingRepairEvidence(runId).orElseThrow().findings().stream()
+            .map(org.qubership.integration.platform.ai.productpipeline.recovery.SemanticFinding::rawValidatorJson)
+            .collect(java.util.stream.Collectors.joining("\n")));
         mappingRepairEvidence(runId).ifPresent(evidence -> evidence.findings().forEach(finding -> {
           try {
             var nativeFinding = objectMapper
                 .readValue(finding.rawValidatorJson(), PlanValidationFinding.class);
             var details = nativeFinding.mappingDetails();
+            if ("MAPPING_MISSING_REQUIRED_TARGET".equals(nativeFinding.code()) && details.isPresent()) {
+              missingTargets.add(details);
+              return;
+            }
             String path = switch (nativeFinding.code()) {
               case "MAPPING_INVALID_SOURCE" -> "sourcePath";
               case "MAPPING_UNKNOWN_TARGET" -> "targetPath";
@@ -2928,7 +2988,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                       && details.targetPath().equals(MappingContract.canonicalPath(rule.targetPath()))
                       && details.expression().equals(java.util.Objects.toString(rule.expression(), ""));
                 })
-                .forEach(fact -> editable.computeIfAbsent(fact.sourceFactId(), ignored -> new java.util.HashSet<>()).add(path));
+                .forEach(fact -> editable.computeIfAbsent(fact.sourceFactId(), ignored -> new java.util.HashSet<>())
+                    .addAll(sourceAvailable ? Set.of(path, "expression") : Set.of(path)));
           } catch (Exception ignored) {
             // Text-only evidence cannot authorize an automatic field correction.
           }
@@ -2936,6 +2997,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         attributes.put("mappingRepairPaths", editable.entrySet().stream()
             .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,
                 entry -> Set.copyOf(entry.getValue()))));
+        attributes.put("missingMappingTargets", List.copyOf(missingTargets));
       });
     }
     return attributes;
