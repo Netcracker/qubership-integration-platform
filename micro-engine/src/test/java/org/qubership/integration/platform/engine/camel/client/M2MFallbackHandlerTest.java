@@ -20,6 +20,9 @@ import com.netcracker.cloud.security.core.utils.k8s.impl.UrlCache;
 import org.apache.hc.client5.http.classic.ExecChain;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.io.entity.InputStreamEntity;
 import org.apache.hc.core5.http.message.BasicClassicHttpRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,15 +39,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.util.M2MTokenUtils;
 
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -322,6 +324,30 @@ class M2MFallbackHandlerTest {
         }
         verifyNoInteractions(urlCache, chain);
         tokenUtils.verifyNoInteractions();
+    }
+
+    @Test
+    void resendsNonRepeatableBodyOnFallbackAfter401() throws Exception {
+        byte[] body = "payload".getBytes(StandardCharsets.UTF_8);
+        request.setEntity(new InputStreamEntity(new ByteArrayInputStream(body), body.length,
+            ContentType.TEXT_PLAIN));
+        when(urlCache.containsKey(cacheKey)).thenReturn(false);
+        tokenUtils.when(M2MTokenUtils::getDefaultM2MToken).thenReturn(K8S_TOKEN);
+        tokenUtils.when(M2MTokenUtils::getOldM2MToken).thenReturn(OLD_TOKEN);
+        ClassicHttpResponse unauthorized = response(401);
+        ClassicHttpResponse ok = response(200);
+        List<byte[]> sentBodies = new ArrayList<>();
+        when(chain.proceed(any(), eq(scope))).thenAnswer(invocation -> {
+            ClassicHttpRequest sent = invocation.getArgument(0);
+            sentBodies.add(EntityUtils.toByteArray(sent.getEntity()));
+            return sentBodies.size() == 1 ? unauthorized : ok;
+        });
+
+        handler.execute(request, scope, chain);
+
+        assertEquals(2, sentBodies.size());
+        assertArrayEquals(body, sentBodies.get(0));
+        assertArrayEquals(body, sentBodies.get(1));
     }
 
     private List<ClassicHttpRequest> sentRequests(int expectedCount) throws Exception {

@@ -5,9 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hc.client5.http.classic.ExecChain;
 import org.apache.hc.client5.http.classic.ExecChainHandler;
-import org.apache.hc.core5.http.ClassicHttpRequest;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.*;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.qubership.integration.platform.engine.configuration.security.SecurityConfiguration;
 
@@ -37,6 +37,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
         }
 
         if (!urlCache.containsKey(cacheKey)) {
+            request = toRepeatableRequest(request);
             ClassicHttpRequest alteredRequest;
             try {
                 alteredRequest = buildRequest(request, SecurityConfiguration.getDefaultM2MToken());
@@ -63,6 +64,21 @@ public class M2MFallbackHandler implements ExecChainHandler {
         ClassicHttpRequest fallbackRequest = buildRequest(request, SecurityConfiguration.getOldM2MToken());
         log.debug("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
         return chain.proceed(fallbackRequest, scope);
+    }
+
+    private ClassicHttpRequest toRepeatableRequest(ClassicHttpRequest request) throws IOException {
+        HttpEntity entity = request.getEntity();
+        if (entity == null || entity.isRepeatable()) {
+            return request;
+        }
+
+        ByteArrayEntity bufferedEntity = new ByteArrayEntity(
+                EntityUtils.toByteArray(entity),
+                ContentType.parse(entity.getContentType()),
+                entity.getContentEncoding(),
+                entity.isChunked()
+        );
+        return ClassicRequestBuilder.copy(request).setEntity(bufferedEntity).build();
     }
 
     private ClassicHttpResponse doRequestFallback(
