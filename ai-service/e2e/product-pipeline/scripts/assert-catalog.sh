@@ -221,9 +221,10 @@ if [[ -n "$min_deps" && "$min_deps" != "null" ]]; then
     e2e_pass "catalog skeleton dependencies=${dep_count} (min ${min_deps})"
 fi
 
+trigger_type="$(jq -r --arg s "$SCENARIO" '.[$s].catalog.skeleton.triggerType // "http-trigger"' "$SCENARIOS_FILE")"
 if jq -e --arg s "$SCENARIO" '.[$s].catalog.skeleton.triggerMustHaveOutgoing == true' "$SCENARIOS_FILE" > /dev/null; then
-    trigger_id="$(jq -r '[.. | objects | select(.type? == "http-trigger") | .id] | first // empty' "$elements_json")"
-    [[ -n "$trigger_id" ]] || e2e_fail "catalog skeleton: http-trigger not found"
+    trigger_id="$(jq -r --arg t "$trigger_type" '[.. | objects | select(.type? == $t) | .id] | first // empty' "$elements_json")"
+    [[ -n "$trigger_id" ]] || e2e_fail "catalog skeleton: ${trigger_type} not found"
     outgoing="$(jq -r --arg from "$trigger_id" '[.[] | select(.from == $from)] | length' "$deps_json")"
     if ((outgoing < 1)); then
         e2e_fail "catalog skeleton: trigger has no outgoing dependencies"
@@ -233,7 +234,7 @@ fi
 
 while IFS= read -r reachable_type; do
     [[ -n "$reachable_type" ]] || continue
-    trigger_id="$(jq -r '[.. | objects | select(.type? == "http-trigger") | .id] | first // empty' "$elements_json")"
+    trigger_id="$(jq -r --arg t "$trigger_type" '[.. | objects | select(.type? == $t) | .id] | first // empty' "$elements_json")"
     target_ids="$(jq -r --arg t "$reachable_type" '[.. | objects | select(.type? == $t) | .id] | unique[]' "$elements_json")"
     if [[ -z "$target_ids" ]]; then
         e2e_fail "catalog skeleton: no element of type ${reachable_type}"
