@@ -65,6 +65,45 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureToolsTest {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
+  void aRejectedMappingMayBecomeLocalBehaviorWithoutLosingItsAuthorFact(boolean intermediateMissingMapping)
+      throws Exception {
+    var h = harness();
+    String chat = "rejected-mapping-kind";
+    var fact = new FactInput("reply", List.of("entry", "remote"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Return the remote response to the caller.",
+        new RequirementCaptureInput.FieldMappingInput("remote", "status", "entry", "status", null));
+    var flow = new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /work", null, null, null),
+        new InteractionInput("remote", Direction.OUTBOUND, "Remote", "POST /submit", null, null, null)),
+        List.of(new RequirementCaptureInput.TransitionInput("entry", "remote")));
+    var original = new DraftInput(flow, List.of(fact), List.of(), List.of(), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open(chat)) {
+      h.store().beginTurn(chat, "Receive POST /work, submit it, and return the remote response to the caller. No IDS.");
+      var refused = h.mapper().readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class);
+      assertFalse(refused.accepted());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "MAPPING_TRANSITION_REQUIRED".equals(issue.code())));
+      if (intermediateMissingMapping) {
+        var incomplete = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(),
+            fact.polarity(), fact.text());
+        var stillRefused = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(flow,
+            List.of(incomplete), original.capabilities(), original.openQuestions(), original.settings())),
+            RequirementCaptureResult.class);
+        assertFalse(stillRefused.accepted());
+        assertTrue(stillRefused.issues().stream().anyMatch(issue -> "MAPPING_FIELDS_REQUIRED".equals(issue.code())));
+      }
+      var corrected = new FactInput(fact.sourceFactId(), fact.interactionIds(), FactKind.BEHAVIOR,
+          fact.polarity(), fact.text());
+      var accepted = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(flow,
+          List.of(corrected), original.capabilities(), original.openQuestions(), original.settings())),
+          RequirementCaptureResult.class);
+      assertTrue(accepted.accepted(), accepted.toString());
+      assertEquals(fact.text(), accepted.draft().facts().getFirst().text());
+      assertEquals(FactKind.BEHAVIOR, accepted.draft().facts().getFirst().kind());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   void partialDraftCannotAskBeforeCompletingNativeMetadata(boolean suppliedRole) throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();

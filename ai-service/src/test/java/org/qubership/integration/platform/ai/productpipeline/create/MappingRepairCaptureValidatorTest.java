@@ -156,6 +156,23 @@ class MappingRepairCaptureValidatorTest {
   }
 
   @Test
+  void partialSourceCorrectionKeepsTheOtherRequiredTargetsUntilBothAreCovered() throws Exception {
+    persistSide("call-1", "old-operation", MappingPort.REQUEST, "two-required-targets", MAPPER.readTree("""
+        {"type":"object","properties":{"Subject":{"type":"string"},"reference":{"type":"string"}},
+         "required":["Subject","reference"]}
+        """));
+    String hash = persistRecoveryEvidence("call-1", "two-required-targets");
+    var partial = brief(intent(List.of(new MappingIntentRule("$.subject", "$.Subject", null))));
+    var rejected = validator.validate(RUN_ID, CONVERSATION_ID, hash, partial);
+    assertEquals(Result.Status.BLOCKED, rejected.status());
+    assertEquals(List.of("$.reference"), rejected.findings().stream()
+        .map(finding -> finding.mappingDetails().targetPath()).toList());
+    var complete = brief(intent(List.of(new MappingIntentRule("$.subject", "$.Subject", null),
+        new MappingIntentRule("$.executionId", "$.reference", null))));
+    assertEquals(Result.Status.PASSED, validator.validate(RUN_ID, CONVERSATION_ID, hash, complete).status());
+  }
+
+  @Test
   void sameBoundaryOperationChangeUsesTheNewContract() throws Exception {
     String evidenceHash = persistRecoveryEvidence("node-call");
     schemaLoader.schemasByOperation.set(
@@ -227,6 +244,10 @@ class MappingRepairCaptureValidatorTest {
   }
 
   private String persistRecoveryEvidence(String targetRef) throws Exception {
+    return persistRecoveryEvidence(targetRef, "target-digest");
+  }
+
+  private String persistRecoveryEvidence(String targetRef, String targetDigest) throws Exception {
     PlanValidationFinding finding =
         new PlanValidationFinding(
             "MAPPING_UNKNOWN_TARGET",
@@ -250,7 +271,7 @@ class MappingRepairCaptureValidatorTest {
                 "source-provenance",
                 "call-1",
                 "REQUEST",
-                "target-digest",
+                targetDigest,
                 "target-provenance",
                 "Subject",
                 "$.preserved.executionId"));

@@ -55,6 +55,12 @@ Production schema checks cover ABAC and RBAC; large-enum stress checks use a tes
 Current errors retain their complete constraints and rejected values. Shared constraints use local JSON references;
 compact history retains issue identities and progress without duplicating those constraints.
 
+Source repair checks revalidate authored mappings before either successful discovery handoff.
+New mapping facts need a matching required target in native recovery evidence; accepted facts remain protected.
+Script-literal checks distinguish source metadata from generated code through structured diagnosis and scoped admission.
+Source corrections retain their draft lineage and require a new brief approval. Native checks still require actual
+quote characters when they belong to the requested value.
+
 | Check | Required result |
 | --- | --- |
 | Malformed JSON, wrong types, missing fields, unknown fields, and duplicate keys | Native rejection reaches the next model request; corrected capture reaches the graph consumer |

@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import io.smallrye.mutiny.Context;
 import dev.langchain4j.invocation.InvocationParameters;
 import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,6 +51,7 @@ public final class ProductCapabilityCaptureContext {
       RequirementDraft approvedDraft,
       Map<String, Set<String>> mappingRepairPaths,
       Set<String> requirementRepairPaths,
+      List<org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails> missingMappingTargets,
       String approvedDraftReference,
       RequirementBrief approvedBrief,
       AtomicReference<RequirementDraft> draftCandidate,
@@ -71,6 +73,14 @@ public final class ProductCapabilityCaptureContext {
 
   public static Context bindDiscovery(String runId, String conversationId, RequirementDraft selectedDraft,
       Map<String, Set<String>> mappingRepairPaths, Set<String> requirementRepairPaths, Consumer<Object> onCandidate) {
+    return bindDiscovery(runId, conversationId, selectedDraft, mappingRepairPaths, requirementRepairPaths,
+        List.of(), onCandidate);
+  }
+
+  public static Context bindDiscovery(String runId, String conversationId, RequirementDraft selectedDraft,
+      Map<String, Set<String>> mappingRepairPaths, Set<String> requirementRepairPaths,
+      List<org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails> missingMappingTargets,
+      Consumer<Object> onCandidate) {
     Binding binding =
         new Binding(
             Mode.DISCOVERY,
@@ -84,6 +94,7 @@ public final class ProductCapabilityCaptureContext {
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,
                     entry -> Set.copyOf(entry.getValue()))),
             Set.copyOf(requirementRepairPaths),
+            List.copyOf(missingMappingTargets),
             null,
             null,
             new AtomicReference<>(),
@@ -137,6 +148,7 @@ public final class ProductCapabilityCaptureContext {
             approvedDraft,
             Map.of(),
             Set.of(),
+            List.of(),
             approvedDraftReference,
             null,
             new AtomicReference<>(),
@@ -166,6 +178,7 @@ public final class ProductCapabilityCaptureContext {
             null,
             Map.of(),
             Set.of(),
+            List.of(),
             null,
             approvedBrief,
             new AtomicReference<>(),

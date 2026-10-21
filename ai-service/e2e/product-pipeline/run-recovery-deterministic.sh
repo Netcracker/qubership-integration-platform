@@ -21,7 +21,11 @@ RECOVERY_TESTS+="executionRegenerationRetriesItsProducerUnlessCatalogWasWritten+
 RECOVERY_TESTS+="sequentialFailuresCanReopenDifferentOwnersAndStillComplete+"
 RECOVERY_TESTS+="restartAfterReopenRetainsTheOwnerAndDownstreamInvalidation+"
 RECOVERY_TESTS+="preWriteMaterializationContractShapeReopensSucceededDesignExecution+"
-RECOVERY_TESTS+="repairedUpstreamArtifactCanContinueThroughMaterialization"
+RECOVERY_TESTS+="repairedUpstreamArtifactCanContinueThroughMaterialization+"
+RECOVERY_TESTS+="sourceCandidateMustPassTheActiveMappingGateBeforeHandoff+"
+RECOVERY_TESTS+="scriptLiteralRefusalCanDiagnoseTheSourceInsteadOfOnlyRegeneratingTheScript+"
+RECOVERY_TESTS+="aCaptureRefusalCannotHideTheMappingContractFromTheNextSourceHandoff+"
+RECOVERY_TESTS+="aSourceCitedLiteralCorrectionReopensItsCommittedDraftAndRequiresBriefApproval"
 RECOVERY_TESTS+=",E2eRecoveryFaultInjectorTest,"
 RECOVERY_TESTS+="DesignExecutionCapabilityTest#"
 RECOVERY_TESTS+="configuredRecoveryFaultFailsTheFirstTwoMatchingRunAttempts+"
@@ -41,6 +45,7 @@ RECOVERY_TESTS+="RequirementDiscoveryCapabilityTest,RequirementCaptureToolsTest,
 RECOVERY_TESTS+="CaptureAttemptFeedbackStoreTest,RecoveryDecisionValidatorTest,CompilerQualityValidatorTest,"
 RECOVERY_TESTS+="ProviderBoundaryEvidenceTest,HaltExitGuaranteeMatrixTest"
 RECOVERY_TESTS+=",RequirementSchemaToolWiringTest"
+RECOVERY_TESTS+=",MappingRepairCaptureValidatorTest,ProductRequirementBriefToolTest"
 
 python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
 

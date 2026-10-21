@@ -27,6 +27,21 @@ public final class RequirementBriefProjector {
 
   private RequirementBriefProjector() {}
 
+  /** Uses the same authored mapping rules for analysis and source-repair admission. */
+  public static List<MappingIntent> authoredMappings(RequirementDraft draft) {
+    if (draft.authoredDraft() == null) return List.of();
+    List<MappingIntent> mappings = new ArrayList<>();
+    for (var fact : draft.authoredDraft().facts()) {
+      if (fact.kind() != RequirementCaptureInput.FactKind.FIELD_MAPPING) continue;
+      var mapping = fact.fieldMapping();
+      if (mapping == null) throw new IllegalArgumentException("Approved field mapping lacks structured fields.");
+      mappings.add(new MappingIntent("", mapping.sourceInteractionId(), null, mapping.targetInteractionId(), null,
+          List.of(new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(), mapping.expression())
+              .withRequirementIds(List.of(fact.sourceFactId()))), null));
+    }
+    return List.copyOf(mappings);
+  }
+
   public static RequirementBrief project(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
     List<RequirementFact> facts = brief.facts();

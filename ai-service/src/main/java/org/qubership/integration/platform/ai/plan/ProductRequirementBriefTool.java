@@ -309,20 +309,7 @@ public class ProductRequirementBriefTool {
     if (approved.authoredDraft() == null) {
       return capture.toIntents();
     }
-    List<MappingIntent> pinned = new ArrayList<>();
-    for (RequirementCaptureInput.FactInput fact : approved.authoredDraft().facts()) {
-      if (fact.kind() != RequirementCaptureInput.FactKind.FIELD_MAPPING) {
-        continue;
-      }
-      RequirementCaptureInput.FieldMappingInput mapping = fact.fieldMapping();
-      if (mapping == null) {
-        throw new IllegalArgumentException("Approved field mapping lacks structured fields.");
-      }
-      pinned.add(new MappingIntent("", mapping.sourceInteractionId(), null,
-          mapping.targetInteractionId(), null,
-          List.of(new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(),
-              mapping.expression()).withRequirementIds(List.of(fact.sourceFactId()))), null));
-    }
+    List<MappingIntent> pinned = RequirementBriefProjector.authoredMappings(approved);
     for (MappingIntent proposal : capture.toIntents()) {
       for (MappingIntentRule rule : proposal.rules()) {
         boolean approvedRule = pinned.stream().anyMatch(intent ->

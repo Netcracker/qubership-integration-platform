@@ -771,8 +771,8 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  void automaticMappingRepairRetainsOnlyAuthorizedEditsAcrossRetries(boolean mixedUpdate) throws Exception {
+  @org.junit.jupiter.params.provider.CsvSource({"false,false", "true,false", "true,true"})
+  void automaticMappingRepairRetainsOnlyAuthorizedEditsAcrossRetries(boolean mixedUpdate, boolean missingTarget) throws Exception {
     var h = captureHarness(null);
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var mapping = new FactInput("result-id", List.of("entry", "delivery"), FactKind.FIELD_MAPPING,
@@ -816,8 +816,11 @@ class RequirementDiscoveryCapabilityTest {
       return Multi.createFrom().empty();
     });
     capability.captureFeedback = h.feedback();
+    var targets = missingTarget ? List.of(mapper.convertValue(Map.of("sourceRef", "entry", "targetRef", "delivery",
+        "targetPath", "$.command"), org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails.class))
+        : List.of();
     var context = new StageExecutionContext("repair-run", chat, "requirement-discovery", "exec", "attempt",
-        null, null, List.of(), Map.of("requirementCorrectionDraft", original,
+        null, null, List.of(), Map.of("requirementCorrectionDraft", original, "missingMappingTargets", targets,
             "mappingRepairAutomatic", "true", "mappingRepairPaths", Map.of("result-id", java.util.Set.of("targetPath")),
             org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
             "MAPPING_UNKNOWN_TARGET: id must be parameters.id",
@@ -825,17 +828,18 @@ class RequirementDiscoveryCapabilityTest {
             "MAPPING_CONTRACT"));
     var first = capability.execute(context).collect().asList().await().indefinitely();
     if (mixedUpdate) {
-      assertFalse(mapper.readTree(rejected.get()).path("accepted").asBoolean(), rejected.get());
-      assertTrue(rejected.get().contains("REPAIR_FACT_LOSS"), rejected.get());
+      assertEquals(missingTarget, mapper.readTree(rejected.get()).path("accepted").asBoolean(), rejected.get());
+      if (!missingTarget) assertTrue(rejected.get().contains("REPAIR_FACT_LOSS"), rejected.get());
     }
     for (var signals : List.of(first, capability.execute(context).collect().asList().await().indefinitely())) {
       var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
           .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
       assertEquals(StageOutcomeClass.CANDIDATE, outcome.outcomeClass(), outcome.toString());
     }
-    assertEquals(List.of(initial.facts().getFirst(), corrected,
-            nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("delivery", "http-sender")),
-        h.store().get(chat).orElseThrow().authoredDraft().facts());
+    var expected = new java.util.ArrayList<>(List.of(initial.facts().getFirst(), corrected,
+        nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("delivery", "http-sender")));
+    if (missingTarget) expected.add(addition);
+    assertEquals(expected, h.store().get(chat).orElseThrow().authoredDraft().facts());
     assertTrue(h.feedback().lastRequirementRejection(chat).isEmpty());
     assertEquals(2, calls.get());
   }
@@ -888,6 +892,12 @@ class RequirementDiscoveryCapabilityTest {
         .put("expression", "Invent a different fallback.");
     assertFalse(RequirementDiscoveryCapability.preservesMappingRepair(context, original,
         mapper.treeToValue(changedExpression, RequirementDraft.class)));
+    var authorizedExpression = candidateTree.deepCopy();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) authorizedExpression.at("/authoredDraft/facts/0/fieldMapping"))
+        .put("expression", "Project the original name to this target field.");
+    assertTrue(RequirementDiscoveryCapability.preservesMappingRepair(
+        Map.of("subject-map", java.util.Set.of("targetPath", "expression")), List.of(), original,
+        mapper.treeToValue(authorizedExpression, RequirementDraft.class)));
     ((com.fasterxml.jackson.databind.node.ArrayNode) candidateTree.at("/authoredDraft/facts")).remove(1);
     assertFalse(RequirementDiscoveryCapability.preservesMappingRepair(context, original,
         mapper.treeToValue(candidateTree, RequirementDraft.class)));
