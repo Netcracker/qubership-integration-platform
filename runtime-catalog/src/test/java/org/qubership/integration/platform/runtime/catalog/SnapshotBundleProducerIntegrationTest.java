@@ -51,6 +51,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.i
 import org.qubership.integration.platform.runtime.catalog.service.variables.CommonVariablesService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.RestoreVariablesListener;
 import org.qubership.integration.platform.runtime.catalog.snapshotbundle.SnapshotBundleImportService;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.qubership.integration.platform.snapshotbundle.SnapshotBundleSource;
 import org.qubership.integration.platform.snapshotbundle.SnapshotBundleWriter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -332,12 +333,15 @@ class SnapshotBundleProducerIntegrationTest {
         try (Stream<Path> sourcePaths = Files.walk(sourceDirectory)) {
             List<Path> chainDefinitions = sourcePaths
                     .filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".chain.qip.yaml"))
+                    .filter(path -> ExportImportUtils.isChainFileName(path.getFileName().toString()))
                     .toList();
             for (Path chainDefinition : chainDefinitions) {
                 Path chainDirectory = chainDefinition.getParent();
                 String chainId = chainDirectory.getFileName().toString();
-                assertThat(chainDefinition.getFileName().toString()).isEqualTo(chainId + ".chain.qip.yaml");
+                assertThat(chainDefinition.getFileName().toString()).isIn(
+                        ExportImportUtils.generateChainFileExportName(chainId, false),
+                        chainId + ".chain.qip.yaml",
+                        ExportImportUtils.generateChainFileExportName(chainId, true));
                 copyDirectory(chainDirectory, importDirectory.resolve("chains").resolve(chainId));
                 chainIds.add(chainId);
             }

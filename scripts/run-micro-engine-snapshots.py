@@ -19,7 +19,7 @@ def positive_integer(value):
 def main():
     """Start Maven and return 1 if the process cannot be started."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workers", type=positive_integer, default=6)
+    parser.add_argument("--workers", type=positive_integer, default=4)
     parser.add_argument(
         "maven_arguments",
         nargs=argparse.REMAINDER,

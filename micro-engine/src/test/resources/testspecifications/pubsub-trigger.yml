@@ -1,0 +1,1756 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: auto
+deployments:
+- id: auto
+  route: pubsub-trigger
+- id: manual
+  route: pubsub-trigger-manual-ack
+- id: idempotency-ignore
+  route: pubsub-trigger-idempotency-ignore
+- id: idempotency-throw
+  route: pubsub-trigger-idempotency-throw
+- id: idempotency-subchain
+  route: pubsub-trigger-idempotency-subchain
+fixtures:
+- id: pubsub-auto
+  provider: pubsub-trigger
+  sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  deployment: auto
+- id: pubsub-manual
+  provider: pubsub-trigger
+  sourceElementId: f4993db3-60da-5429-96c0-116344123146
+  deployment: manual
+- id: pubsub-idempotency-ignore
+  provider: pubsub-trigger
+  sourceElementId: 800be329-a255-5d52-8abd-7e2d04b587f4
+  deployment: idempotency-ignore
+- id: pubsub-idempotency-store-ignore
+  provider: idempotency-postgres
+  sourceElementId: d9042d6c-8445-56c1-b2df-f8ef3bec521f
+  deployment: idempotency-ignore
+- id: pubsub-idempotency-throw
+  provider: pubsub-trigger
+  sourceElementId: fa94e0e9-75e3-55cf-a026-ea8eb55c4b43
+  deployment: idempotency-throw
+- id: pubsub-idempotency-store-throw
+  provider: idempotency-postgres
+  sourceElementId: 18766935-13a0-5e96-9dac-823bfe83077f
+  deployment: idempotency-throw
+- id: pubsub-idempotency-subchain
+  provider: pubsub-trigger
+  sourceElementId: 88f3f761-618a-5eb0-83be-e976d8828263
+  deployment: idempotency-subchain
+- id: pubsub-idempotency-store-subchain
+  provider: idempotency-postgres
+  sourceElementId: c68d20bf-3593-5d9f-9e41-5d19f87bc387
+  deployment: idempotency-subchain
+- id: pubsub-idempotency-handler-subchain
+  provider: idempotency-postgres
+  sourceElementId: ed5a8739-cce9-5fd0-be6e-3d962ae75555
+  deployment: idempotency-subchain
+scenarios:
+- id: consumes-values-attributes-and-metadata-with-auto-ack
+  scope: Short
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: utf8-values
+    body: Hello from the café
+    expectedBody: Triggered
+    headers:
+      source: snapshot
+      businessKey: first
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: json-as-raw-bytes
+    body: '{"order":{"id":42,"status":"RECEIVED"}}'
+    expectedBody: Triggered
+    headers:
+      Content-Type: application/json
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: binary-invalid-utf8
+    body:
+    - 0
+    - 255
+    - 128
+    - 254
+    - 10
+    - 13
+    - 127
+    expectedBody: Triggered
+    headers:
+      encoding: binary
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        dataEncoding: bytes
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: empty-with-attributes
+    body: ''
+    expectedBody: Triggered
+    headers:
+      empty: ''
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: null-as-empty-with-attributes
+    body: null
+    expectedBody: Triggered
+    headers:
+      empty: null-source
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: same-payload-distinct-message-ids
+    body: same-payload
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        messageCount: 5
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 5
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: attributes-cannot-forge-metadata
+    body: metadata
+    expectedBody: Triggered
+    headers:
+      Authorization: Bearer attribute-only
+      X-Request-Id: attribute-only
+      CamelGooglePubsubMessageId: forged-id
+      CamelGooglePubsubPublishTime: forged-time
+      snapshotPrevious: attribute-only
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          expectedAbsentHeaders:
+          - Authorization
+          - X-Request-Id
+          - snapshotPrevious
+  - id: clean-message-after-attributed-message
+    body: clean
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          expectedAbsentHeaders:
+          - Authorization
+          - X-Request-Id
+          - snapshotPrevious
+- id: recovers-after-failure-restart-connection-loss-and-subscription-recreation
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: healthy-before-failure
+    body: before
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: script-failure-redelivers-same-message
+    body: fail-once
+    expectedBody: Triggered
+    headers:
+      snapshotFailOnce: 'true'
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 1
+          expectedCompletions:
+          - headers:
+              snapshotDeliveryAttempt: 1
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Pub/Sub snapshot script failure
+              cause: null
+          - body: Triggered
+            headers:
+              snapshotDeliveryAttempt: 2
+    expectedHeaders:
+      snapshotDeliveryAttempt: 2
+  - id: backlog-after-consumer-stop
+    body: backlog
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        messages:
+        - body: backlog-0
+          attributes:
+            index: '0'
+        - body: backlog-1
+          attributes:
+            index: '1'
+        - body: backlog-2
+          attributes:
+            index: '2'
+        - body: backlog-3
+          attributes:
+            index: '3'
+        - body: backlog-4
+          attributes:
+            index: '4'
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 5
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          consumerAction: stop-until-published
+  - id: acked-records-are-excluded-after-restart
+    body: after-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          consumerAction: restart
+  - id: backlog-during-transport-outage
+    body: offline
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          consumerAction: disconnect-until-published
+  - id: recovers-after-subscription-deletion
+    body: after-subscription-recreation
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          subscriptionAction: recreate-after-failures
+- id: acknowledges-and-redelivers-with-manual-ack
+  scope: Long
+  deployment: manual
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: f4993db3-60da-5429-96c0-116344123146
+  invocations:
+  - id: explicit-ack
+    body: manual-ack
+    expectedBody: Triggered
+    headers:
+      snapshotAckAction: ack
+    interactions:
+    - fixture: pubsub-manual
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-manual
+      response:
+        properties: {}
+  - id: explicit-nack-redelivers-same-message
+    body: manual-nack
+    expectedBody: Triggered
+    headers:
+      snapshotAckAction: nack-once
+    interactions:
+    - fixture: pubsub-manual
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-manual
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 1
+    expectedHeaders:
+      snapshotDeliveryAttempt: 2
+  - id: successful-completion-without-ack
+    body: held-message
+    expectedBody: Triggered
+    headers:
+      snapshotAckAction: hold-once
+    interactions:
+    - fixture: pubsub-manual
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-manual
+      response:
+        properties:
+          expectedAcknowledgments: 0
+- id: recovers-when-service-is-unreachable-at-consumer-start
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: backlog-after-startup-outage
+    body: startup-backlog
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          startupUnavailable: true
+  - id: healthy-after-startup-recovery
+    body: after-startup
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+- id: keeps-resources-bounded-during-a-persistent-connection-outage
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: healthy-before-persistent-outage
+    body: before-outage
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: observe-repeated-connections-without-delivery
+    body: null
+    expectedBody: Observed
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        observeOnly: true
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 0
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          consumerAction: probe-unavailable
+          resourceProbe:
+            rounds: 3
+            intervalMillis: 5000
+            maxLiveSubscribers: 2
+            maxHeapGrowthBytes: 33554432
+            maxConnectionGrowth: 2
+            maxThreadGrowth: 12
+  - id: healthy-after-persistent-outage
+    body: after-outage
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+- id: keeps-resources-bounded-while-the-publisher-is-idle
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: last-message-before-publisher-disappears
+    body: before-outage
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: observe-idle-consumer-without-publications
+    body: null
+    expectedBody: Observed
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        observeOnly: true
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 0
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          consumerAction: probe-idle
+          resourceProbe:
+            rounds: 3
+            intervalMillis: 5000
+            maxLiveSubscribers: 2
+            maxHeapGrowthBytes: 33554432
+            maxConnectionGrowth: 2
+            maxThreadGrowth: 12
+  - id: new-message-after-publisher-returns
+    body: after-outage
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+- id: keeps-resources-bounded-while-subscription-is-missing
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: observe-repeated-subscriber-initialization
+    body: null
+    expectedBody: Observed
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        observeOnly: true
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 0
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          missingSubscription: true
+          resourceProbe:
+            rounds: 3
+            intervalMillis: 5000
+            maxLiveSubscribers: 2
+            maxHeapGrowthBytes: 33554432
+            maxConnectionGrowth: 2
+            maxThreadGrowth: 12
+  - id: recovers-after-subscription-creation
+    body: after-creation
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          subscriptionAction: create
+- id: deduplicates-pubsub-business-keys-with-ignore
+  scope: Long
+  deployment: idempotency-ignore
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: 800be329-a255-5d52-8abd-7e2d04b587f4
+  invocations:
+  - id: first-business-key
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-ignore
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-ignore
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: same-business-key-distinct-message-id
+    body: changed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: changed-payload
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-ignore
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-ignore
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: [99, 104, 97, 110, 103, 101, 100, 45, 112, 97, 121, 108, 111, 97, 100]
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: distinct-key-with-same-payload
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-2
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-2
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-ignore
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-ignore
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-2
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-2
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-2
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-2
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: retains-key-after-script-failure-and-auto-redelivery
+    body: failed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-failed
+      snapshotFailOnce: 'true'
+    expectedBody: failed-payload
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-failed
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-ignore
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-ignore
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-failed
+            snapshotFailOnce: 'true'
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 1
+          expectedCompletions:
+          - body: [102, 97, 105, 108, 101, 100, 45, 112, 97, 121, 108, 111, 97, 100]
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Pub/Sub snapshot script failure
+              cause: null
+          - body: [102, 97, 105, 108, 101, 100, 45, 112, 97, 121, 108, 111, 97, 100]
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 2
+          key: orders:order-failed
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys:
+          - orders:order-failed
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: reacquires-failed-key-after-expiry
+    body: after-expiry
+    headers:
+      businessContext: orders
+      businessKey: order-failed
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-failed
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-ignore
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-ignore
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-failed
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-failed
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys:
+          - orders:order-failed
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+      response:
+        properties:
+          # Force expires_at into the past; the next delivery reacquires the exported 600-second TTL.
+          expireKey: orders:order-failed
+  - id: duplicate-after-consumer-restart
+    body: after-restart
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: after-restart
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-ignore
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-ignore
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: [97, 102, 116, 101, 114, 45, 114, 101, 115, 116, 97, 114, 116]
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+          consumerAction: restart
+    - fixture: pubsub-idempotency-store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+- id: deduplicates-pubsub-business-keys-with-throw-exception
+  scope: Long
+  deployment: idempotency-throw
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: fa94e0e9-75e3-55cf-a026-ea8eb55c4b43
+  invocations:
+  - id: first-business-key
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-throw
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-throw
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: same-business-key-distinct-message-id
+    body: changed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: changed-payload
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-throw
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-throw
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 0
+          expectedNegativeAcknowledgments: 2
+          expectedCompletions:
+          - body: [99, 104, 97, 110, 103, 101, 100, 45, 112, 97, 121, 108, 111, 97, 100]
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            count: 2
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+              message: Duplicated idempotency key
+              cause: null
+          maxDeliveriesPerMessage: 2
+    - fixture: pubsub-idempotency-store-throw
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 2
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+      message: Duplicated idempotency key
+      cause: null
+  - id: distinct-key-with-same-payload
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-2
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-2
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-throw
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-throw
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-2
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-2
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-2
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-2
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: retains-key-after-script-failure-and-auto-redelivery
+    body: failed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-failed
+      snapshotFailOnce: 'true'
+    expectedBody: failed-payload
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-failed
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-throw
+      expectedRequest:
+        count: 3
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-throw
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-failed
+            snapshotFailOnce: 'true'
+      response:
+        properties:
+          expectedAcknowledgments: 0
+          expectedNegativeAcknowledgments: 3
+          expectedCompletions:
+          - body: [102, 97, 105, 108, 101, 100, 45, 112, 97, 121, 108, 111, 97, 100]
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Pub/Sub snapshot script failure
+              cause: null
+          - body: [102, 97, 105, 108, 101, 100, 45, 112, 97, 121, 108, 111, 97, 100]
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            count: 2
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+              message: Duplicated idempotency key
+              cause: null
+          maxDeliveriesPerMessage: 3
+    - fixture: pubsub-idempotency-store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 3
+          key: orders:order-failed
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys:
+          - orders:order-failed
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+      message: Duplicated idempotency key
+      cause: null
+  - id: reacquires-failed-key-after-expiry
+    body: after-expiry
+    headers:
+      businessContext: orders
+      businessKey: order-failed
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-failed
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-throw
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-throw
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-failed
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-failed
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys:
+          - orders:order-failed
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+      response:
+        properties:
+          # Force expires_at into the past; the next delivery reacquires the exported 600-second TTL.
+          expireKey: orders:order-failed
+  - id: duplicate-after-consumer-restart
+    body: after-restart
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: after-restart
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-throw
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-throw
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 0
+          expectedNegativeAcknowledgments: 2
+          expectedCompletions:
+          - body: [97, 102, 116, 101, 114, 45, 114, 101, 115, 116, 97, 114, 116]
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            count: 2
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+              message: Duplicated idempotency key
+              cause: null
+          maxDeliveriesPerMessage: 2
+          consumerAction: restart
+    - fixture: pubsub-idempotency-store-throw
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 2
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+      message: Duplicated idempotency key
+      cause: null
+- id: deduplicates-pubsub-business-keys-with-execute-subchain
+  scope: Long
+  deployment: idempotency-subchain
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: 88f3f761-618a-5eb0-83be-e976d8828263
+  invocations:
+  - id: first-business-key
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-subchain
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-subchain
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: pubsub-idempotency-handler-subchain
+      expectedRequest:
+        count: 0
+  - id: same-business-key-distinct-message-id
+    body: changed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Duplicate handled
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-subchain
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-subchain
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Duplicate handled
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-subchain
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: pubsub-idempotency-handler-subchain
+      expectedRequest:
+        count: 1
+  - id: distinct-key-with-same-payload
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-2
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-2
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-subchain
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-subchain
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-2
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-2
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-2
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-2
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: pubsub-idempotency-handler-subchain
+      expectedRequest:
+        count: 0
+  - id: retains-key-after-script-failure-and-auto-redelivery
+    body: failed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-failed
+      snapshotFailOnce: 'true'
+    expectedBody: Duplicate handled
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-failed
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-subchain
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-subchain
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-failed
+            snapshotFailOnce: 'true'
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 1
+          expectedCompletions:
+          - body: [102, 97, 105, 108, 101, 100, 45, 112, 97, 121, 108, 111, 97, 100]
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Pub/Sub snapshot script failure
+              cause: null
+          - body: Duplicate handled
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 2
+          key: orders:order-failed
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys:
+          - orders:order-failed
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: pubsub-idempotency-handler-subchain
+      expectedRequest:
+        count: 1
+  - id: reacquires-failed-key-after-expiry
+    body: after-expiry
+    headers:
+      businessContext: orders
+      businessKey: order-failed
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+      snapshotDeliveryAttempt: 1
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-failed
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-subchain
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-subchain
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-failed
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Processed
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: order-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-failed
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys:
+          - orders:order-failed
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+      response:
+        properties:
+          # Force expires_at into the past; the next delivery reacquires the exported 600-second TTL.
+          expireKey: orders:order-failed
+    - fixture: pubsub-idempotency-handler-subchain
+      expectedRequest:
+        count: 0
+  - id: duplicate-after-consumer-restart
+    body: after-restart
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Duplicate handled
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-subchain
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-subchain
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: order-1
+      response:
+        properties:
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: Duplicate handled
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+          consumerAction: restart
+    - fixture: pubsub-idempotency-store-subchain
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          - orders:order-2
+          - orders:order-failed
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: pubsub-idempotency-handler-subchain
+      expectedRequest:
+        count: 1

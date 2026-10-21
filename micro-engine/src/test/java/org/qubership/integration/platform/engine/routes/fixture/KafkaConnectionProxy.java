@@ -52,6 +52,7 @@ final class KafkaConnectionProxy implements AutoCloseable {
     private InetSocketAddress upstreamAddress;
     private SSLContext serverTlsContext;
     private SSLContext upstreamTlsContext;
+    private SSLContext tlsContextOnNextProduce;
     private boolean unavailable;
     private boolean disconnectBeforeProduce;
     private boolean remainUnavailableAfterProduce;
@@ -92,14 +93,21 @@ final class KafkaConnectionProxy implements AutoCloseable {
         }
     }
 
-    void rotateTlsCertificate(SSLContext serverContext) {
+    void rotateTlsCertificate(SSLContext serverContext, boolean closeOpenConnections) {
         List<Connection> openConnections;
         synchronized (lock) {
             assertTrue(serverTlsContext != null, "Kafka proxy TLS must be configured before rotating its certificate.");
             serverTlsContext = serverContext;
-            openConnections = List.copyOf(connections);
+            openConnections = closeOpenConnections ? List.copyOf(connections) : List.of();
         }
         openConnections.forEach(connection -> connection.close(true));
+    }
+
+    void rotateTlsCertificateOnNextProduce(SSLContext serverContext) {
+        synchronized (lock) {
+            assertTrue(serverTlsContext != null, "Kafka proxy TLS must be configured before rotating its certificate.");
+            tlsContextOnNextProduce = serverContext;
+        }
     }
 
     void disconnectBeforeNextProduce() {
@@ -210,6 +218,7 @@ final class KafkaConnectionProxy implements AutoCloseable {
         synchronized (lock) {
             assertTrue(failures.isEmpty(), () -> String.join("\n", failures));
             assertFalse(disconnectBeforeProduce, "Kafka did not send a Produce request for the armed disconnect.");
+            assertTrue(tlsContextOnNextProduce == null, "Kafka did not send a Produce request for the armed TLS rotation.");
             assertEquals(0, responsesToDrop, "Kafka did not return enough successful Produce responses to drop.");
         }
     }
@@ -219,6 +228,7 @@ final class KafkaConnectionProxy implements AutoCloseable {
         List<Connection> openConnections;
         synchronized (lock) {
             closed = true;
+            tlsContextOnNextProduce = null;
             openConnections = List.copyOf(connections);
         }
         try {
@@ -274,9 +284,15 @@ final class KafkaConnectionProxy implements AutoCloseable {
 
     private boolean shouldDisconnectProduce() {
         boolean permanentDisconnect;
+        List<Connection> connectionsToReset = List.of();
         synchronized (lock) {
-            if (!disconnectBeforeProduce) {
+            if (!disconnectBeforeProduce && tlsContextOnNextProduce == null) {
                 return false;
+            }
+            if (tlsContextOnNextProduce != null) {
+                serverTlsContext = tlsContextOnNextProduce;
+                tlsContextOnNextProduce = null;
+                connectionsToReset = List.copyOf(connections);
             }
             disconnectBeforeProduce = false;
             disconnectedProduceRequests++;
@@ -286,6 +302,7 @@ final class KafkaConnectionProxy implements AutoCloseable {
                 unavailable = true;
             }
         }
+        connectionsToReset.forEach(connection -> connection.close(true));
         if (permanentDisconnect) {
             disconnect();
         }

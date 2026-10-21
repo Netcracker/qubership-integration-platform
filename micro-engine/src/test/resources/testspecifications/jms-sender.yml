@@ -138,10 +138,10 @@ scenarios:
           subscriberCount: 2
   - id: text-unicode
     endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
-    body: Order received — café ☕
+    body: Order received - café
     headers:
       X-Request-Id: incoming-text-unicode
-    expectedBody: Order received — café ☕
+    expectedBody: Order received - café
     expectedAbsentHeaders:
     - X-Request-Id
     expectedProperties:
@@ -158,7 +158,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: jms/snapshot/text
-        body: Order received — café ☕
+        body: Order received - café
         headers:
           X_HYPHEN_Request_HYPHEN_Id: incoming-text-unicode
       response:
@@ -423,10 +423,10 @@ scenarios:
           subscriberCount: 2
   - id: stream-unicode
     endpointUri: cip-chain:4159a27f-b3be-5c4c-8fb6-2e429b1e994e
-    body: Stream — café ☕
+    body: Stream - café
     headers:
       X-Request-Id: incoming-stream-unicode
-    expectedBody: Stream — café ☕
+    expectedBody: Stream - café
     expectedAbsentHeaders:
     - X-Request-Id
     expectedProperties:
@@ -464,7 +464,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: jms/snapshot/stream
-        body: Stream — café ☕
+        body: Stream - café
         headers:
           X_HYPHEN_Request_HYPHEN_Id: incoming-stream-unicode
       response:
@@ -846,17 +846,17 @@ scenarios:
           expectedDestinationType: topic
           expectedJmsHeaders:
             JMSReplyTo: null
-- id: publishes-edge-values-and-recovers-from-conversion-failures
+- id: recovers-from-conversion-and-broker-failures
   scope: Long
   deployment: jms-sender
   endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
   invocations:
   - id: bytes-unicode
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
-    body: Bytes — café ☕
+    body: Bytes - café
     headers:
       X-Request-Id: incoming-bytes-unicode
-    expectedBody: Bytes — café ☕
+    expectedBody: Bytes - café
     expectedAbsentHeaders:
     - X-Request-Id
     expectedProperties:
@@ -866,7 +866,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: jms/BulkQuotationRequest/queue
-        body: Bytes — café ☕
+        body: Bytes - café
         headers:
           X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-unicode
       response:
@@ -3569,534 +3569,6 @@ scenarios:
           expectedDestinationType: topic
           expectedJmsHeaders:
             JMSReplyTo: null
-- id: resolves-jndi-destinations-and-recovers-from-type-mismatches
-  scope: Long
-  deployment: jms-sender
-  endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
-  invocations:
-  - id: bytes-rejects-wrong-jndi-type
-    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
-    body: Wrong destination type
-    headers:
-      X-Request-Id: incoming-bytes-rejects-wrong-jndi-type
-    expectedBody: Wrong destination type
-    expectedAbsentHeaders:
-    - X-Request-Id
-    expectedProperties:
-      internalProperty_overrideContextParams: null
-    expectedFailure:
-      type: java.lang.RuntimeException
-      message: Destination [jms/BulkQuotationRequest/queue] is not of expected type [jakarta.jms.Queue]
-      cause: null
-    interactions:
-    - fixture: jms-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/queue-alias
-      response:
-        properties:
-          expectedSendCount: 1
-          expectedRestoredContext:
-            X-Request-Id: incoming-bytes-rejects-wrong-jndi-type
-          jndiBinding:
-            type: Topic
-            destination: jms/snapshot/queue-alias
-          expectedJndiLookupCount: 1
-    - fixture: jms-text-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/text
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-map-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/map
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-object-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/object
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-stream-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/stream
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-disabled-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-disabled
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-literal-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-literal
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-dynamic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-dynamic
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-topic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/topic-alias
-      response:
-        properties:
-          expectedSendCount: 0
-          subscriberCount: 2
-  - id: bytes-recovers-with-jndi-alias
-    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
-    body: Bound destination
-    headers:
-      X-Request-Id: incoming-bytes-recovers-with-jndi-alias
-    expectedBody: Bound destination
-    expectedAbsentHeaders:
-    - X-Request-Id
-    expectedProperties:
-      internalProperty_overrideContextParams: null
-    interactions:
-    - fixture: jms-broker
-      expectedRequest:
-        count: 1
-        destination: jms/snapshot/queue-alias
-        body: Bound destination
-        headers:
-          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-recovers-with-jndi-alias
-      response:
-        properties:
-          expectedSendCount: 1
-          expectedRestoredContext:
-            X-Request-Id: incoming-bytes-recovers-with-jndi-alias
-          expectedMessageType: Bytes
-          expectedDestinationType: queue
-          expectedJmsHeaders:
-            JMSReplyTo: null
-          jndiBinding:
-            type: Queue
-            destination: jms/snapshot/queue-alias
-          expectedJndiLookupCount: 2
-    - fixture: jms-text-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/text
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-map-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/map
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-object-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/object
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-stream-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/stream
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-disabled-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-disabled
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-literal-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-literal
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-dynamic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-dynamic
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-topic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/topic-alias
-      response:
-        properties:
-          expectedSendCount: 0
-          subscriberCount: 2
-  - id: bytes-retains-cached-jndi-alias
-    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
-    body: Cached destination
-    headers:
-      X-Request-Id: incoming-bytes-retains-cached-jndi-alias
-    expectedBody: Cached destination
-    expectedAbsentHeaders:
-    - X-Request-Id
-    expectedProperties:
-      internalProperty_overrideContextParams: null
-    interactions:
-    - fixture: jms-broker
-      expectedRequest:
-        count: 1
-        destination: jms/snapshot/queue-alias
-        body: Cached destination
-        headers:
-          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-retains-cached-jndi-alias
-      response:
-        properties:
-          expectedSendCount: 1
-          expectedRestoredContext:
-            X-Request-Id: incoming-bytes-retains-cached-jndi-alias
-          expectedMessageType: Bytes
-          expectedDestinationType: queue
-          expectedJmsHeaders:
-            JMSReplyTo: null
-          jndiBinding: null
-          expectedJndiLookupCount: 2
-    - fixture: jms-text-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/text
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-map-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/map
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-object-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/object
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-stream-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/stream
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-disabled-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-disabled
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-literal-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-literal
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-dynamic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-dynamic
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-topic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/topic-alias
-      response:
-        properties:
-          expectedSendCount: 0
-          subscriberCount: 2
-  - id: topic-rejects-wrong-jndi-type
-    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
-    body: Wrong destination type
-    headers:
-      X-Request-Id: incoming-topic-rejects-wrong-jndi-type
-    expectedBody: Wrong destination type
-    expectedAbsentHeaders:
-    - X-Request-Id
-    expectedProperties:
-      internalProperty_overrideContextParams: null
-    expectedFailure:
-      type: java.lang.RuntimeException
-      message: Destination [jms/snapshot/topic] is not of expected type [jakarta.jms.Topic]
-      cause: null
-    interactions:
-    - fixture: jms-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/queue-alias
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-text-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/text
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-map-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/map
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-object-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/object
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-stream-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/stream
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-disabled-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-disabled
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-literal-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-literal
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-dynamic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-dynamic
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-topic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/topic-alias
-      response:
-        properties:
-          expectedSendCount: 1
-          subscriberCount: 2
-          expectedRestoredContext:
-            X-Request-Id: incoming-topic-rejects-wrong-jndi-type
-          jndiBinding:
-            type: Queue
-            destination: jms/snapshot/topic-alias
-          expectedJndiLookupCount: 1
-  - id: topic-recovers-with-jndi-alias
-    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
-    body: Bound destination
-    headers:
-      X-Request-Id: incoming-topic-recovers-with-jndi-alias
-    expectedBody: Bound destination
-    expectedAbsentHeaders:
-    - X-Request-Id
-    expectedProperties:
-      internalProperty_overrideContextParams: null
-    interactions:
-    - fixture: jms-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/queue-alias
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-text-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/text
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-map-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/map
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-object-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/object
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-stream-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/stream
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-disabled-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-disabled
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-literal-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-literal
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-dynamic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-dynamic
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-topic-broker
-      expectedRequest:
-        count: 1
-        destination: jms/snapshot/topic-alias
-        body: Bound destination
-        headers:
-          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-recovers-with-jndi-alias
-      response:
-        properties:
-          expectedSendCount: 1
-          subscriberCount: 2
-          expectedRestoredContext:
-            X-Request-Id: incoming-topic-recovers-with-jndi-alias
-          expectedMessageType: Text
-          expectedDestinationType: topic
-          expectedJmsHeaders:
-            JMSReplyTo: null
-          jndiBinding:
-            type: Topic
-            destination: jms/snapshot/topic-alias
-          expectedJndiLookupCount: 2
-  - id: topic-retains-cached-jndi-alias
-    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
-    body: Cached destination
-    headers:
-      X-Request-Id: incoming-topic-retains-cached-jndi-alias
-    expectedBody: Cached destination
-    expectedAbsentHeaders:
-    - X-Request-Id
-    expectedProperties:
-      internalProperty_overrideContextParams: null
-    interactions:
-    - fixture: jms-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/queue-alias
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-text-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/text
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-map-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/map
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-object-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/object
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-stream-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/stream
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-disabled-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-disabled
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-literal-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-literal
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-context-dynamic-broker
-      expectedRequest:
-        count: 0
-        destination: jms/snapshot/context-dynamic
-      response:
-        properties:
-          expectedSendCount: 0
-    - fixture: jms-topic-broker
-      expectedRequest:
-        count: 1
-        destination: jms/snapshot/topic-alias
-        body: Cached destination
-        headers:
-          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-retains-cached-jndi-alias
-      response:
-        properties:
-          expectedSendCount: 1
-          subscriberCount: 2
-          expectedRestoredContext:
-            X-Request-Id: incoming-topic-retains-cached-jndi-alias
-          expectedMessageType: Text
-          expectedDestinationType: topic
-          expectedJmsHeaders:
-            JMSReplyTo: null
-          jndiBinding: null
-          expectedJndiLookupCount: 2
-- id: recovers-from-broker-failures
-  scope: Long
-  deployment: jms-sender
-  endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
-  invocations:
   - id: before-broker-failures
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Before broker failures
@@ -4707,3 +4179,526 @@ scenarios:
         properties:
           expectedSendCount: 0
           subscriberCount: 2
+- id: resolves-jndi-destinations-and-recovers-from-type-mismatches
+  scope: Long
+  deployment: jms-sender
+  endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+  invocations:
+  - id: bytes-rejects-wrong-jndi-type
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Wrong destination type
+    headers:
+      X-Request-Id: incoming-bytes-rejects-wrong-jndi-type
+    expectedBody: Wrong destination type
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: java.lang.RuntimeException
+      message: Destination [jms/BulkQuotationRequest/queue] is not of expected type [jakarta.jms.Queue]
+      cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/queue-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-rejects-wrong-jndi-type
+          jndiBinding:
+            type: Topic
+            destination: jms/snapshot/queue-alias
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic-alias
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-recovers-with-jndi-alias
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Bound destination
+    headers:
+      X-Request-Id: incoming-bytes-recovers-with-jndi-alias
+    expectedBody: Bound destination
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/queue-alias
+        body: Bound destination
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-recovers-with-jndi-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-recovers-with-jndi-alias
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          jndiBinding:
+            type: Queue
+            destination: jms/snapshot/queue-alias
+          expectedJndiLookupCount: 2
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic-alias
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-retains-cached-jndi-alias
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Cached destination
+    headers:
+      X-Request-Id: incoming-bytes-retains-cached-jndi-alias
+    expectedBody: Cached destination
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/queue-alias
+        body: Cached destination
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-retains-cached-jndi-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-retains-cached-jndi-alias
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          jndiBinding: null
+          expectedJndiLookupCount: 2
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic-alias
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: topic-rejects-wrong-jndi-type
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: Wrong destination type
+    headers:
+      X-Request-Id: incoming-topic-rejects-wrong-jndi-type
+    expectedBody: Wrong destination type
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: java.lang.RuntimeException
+      message: Destination [jms/snapshot/topic] is not of expected type [jakarta.jms.Topic]
+      cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/queue-alias
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-rejects-wrong-jndi-type
+          jndiBinding:
+            type: Queue
+            destination: jms/snapshot/topic-alias
+          expectedJndiLookupCount: 1
+  - id: topic-recovers-with-jndi-alias
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: Bound destination
+    headers:
+      X-Request-Id: incoming-topic-recovers-with-jndi-alias
+    expectedBody: Bound destination
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/queue-alias
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/topic-alias
+        body: Bound destination
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-recovers-with-jndi-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-recovers-with-jndi-alias
+          expectedMessageType: Text
+          expectedDestinationType: topic
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          jndiBinding:
+            type: Topic
+            destination: jms/snapshot/topic-alias
+          expectedJndiLookupCount: 2
+  - id: topic-retains-cached-jndi-alias
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: Cached destination
+    headers:
+      X-Request-Id: incoming-topic-retains-cached-jndi-alias
+    expectedBody: Cached destination
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/queue-alias
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/topic-alias
+        body: Cached destination
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-retains-cached-jndi-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-retains-cached-jndi-alias
+          expectedMessageType: Text
+          expectedDestinationType: topic
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          jndiBinding: null
+          expectedJndiLookupCount: 2

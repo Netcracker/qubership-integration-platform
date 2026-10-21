@@ -40,6 +40,9 @@ public class SnapshotScenarioDriverRegistry {
     public static SnapshotScenarioDriverRegistry withDefaultProviders() {
         return new SnapshotScenarioDriverRegistry(List.of(
                 new HttpTriggerSnapshotScenarioDriverProvider(),
+                new JmsTriggerSnapshotScenarioDriverProvider(),
+                new KafkaTriggerSnapshotScenarioDriverProvider(),
+                new PubSubTriggerSnapshotScenarioDriverProvider(),
                 new FileReadSnapshotScenarioDriverProvider(),
                 new NumericInputSnapshotScenarioDriverProvider(),
                 new BinaryInputSnapshotScenarioDriverProvider(),

@@ -50,9 +50,8 @@ control the external service. The JMS fixture supplies JNDI while production
 code constructs the component. Use these boundaries when adapting a provider.
 
 Register a new provider, validate its parameters, and update the manifest schema
-when its contract changes. Add focused helper tests for new matching or lifecycle
-behavior, followed by a scenario that exercises the capability through generated
-routes. Fixture-only tests do not establish generated-chain coverage.
+when its contract changes. Cover new matching or lifecycle behavior through
+component scenarios that execute generated routes.
 
 Follow `fixture/SnapshotFixture.java` and the runner's lifecycle:
 

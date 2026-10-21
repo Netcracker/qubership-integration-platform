@@ -3,8 +3,8 @@ name: component-testing
 description: >-
   Extend component test coverage for QIP chains through catalog-generated snapshot
   bundles and micro-engine YAML scenarios. Use when adding scenarios, exported test
-  chains, or fixtures to this flow, or assessing its coverage. Small Java unit and
-  CDI configuration tests belong to java-unit-testing.
+  chains, or fixtures to this flow, or assessing its coverage. Unit and CDI
+  configuration tests of production Java code belong to java-unit-testing.
 ---
 
 # Component testing
@@ -19,18 +19,32 @@ scenarios with controlled external dependencies.
 | Requested behavior | Test approach |
 | --- | --- |
 | Generated routes, element settings, component beans, and their runtime interactions | Use this skill and the snapshot scenario framework. |
-| One Java class, Mockito behavior, or a small CDI configuration | Use `java-unit-testing`, including its Quarkus component reference. |
+| One production Java class, Mockito behavior, or a small CDI configuration | Use `java-unit-testing`, including its Quarkus component reference. |
 | Catalog HTTP behavior and PostgreSQL or Consul effects in the local stack | Use `runtime-catalog-api-testing`. |
 | Endpoint options absent from the exported element | Use an endpoint test; state that it does not establish generated-chain support. |
+
+Verify framework code used only by component tests through actual component
+scenarios. Do not create separate unit tests for its fixtures, drivers, broker and
+proxy helpers, runners, launchers, discovery code, models, or assertion utilities. Retain the
+tests that execute component scenarios and the catalog snapshot producer.
 
 The snapshot consumer belongs to `micro-engine`. Do not assume Spring `engine`,
 sessions-management, UI, or the Go testing service has the same runner. For those
 modules, inspect their local test guidance before choosing an approach.
 
 Apply `english-developer-style` when writing identifiers, YAML descriptions, or
-documentation. Apply `java-unit-testing` when changing Java test helpers. A request
-to extend coverage authorizes the necessary test edits and focused local runs;
-carry those through without asking for confirmation at each step.
+documentation. A request to extend coverage authorizes the necessary test edits
+and focused local runs; carry those through without asking for confirmation at
+each step.
+
+Use English text and Latin characters in test specifications, including names,
+descriptions, comments, textual fixture data, and expectations. Replace non-Latin
+words and phrases consistently in inputs and expected values while preserving
+what each assertion checks.
+Use Latin letters with diacritics, such as `café`, in UTF-8 scenarios to preserve
+multibyte coverage.
+Check decoded YAML strings as well as source text. Unicode escapes follow the
+same language rules.
 
 ## Find an observable gap
 

@@ -1,68 +1,1667 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: basic
+deployments:
+  - id: basic
+    route: http-trigger
+
+  - id: idempotency
+    route: http-trigger-idempotency
+fixtures:
+  - id: idempotency-store
+    provider: idempotency-postgres
+    deployment: idempotency
+    sourceElementId: e8b645a7-82b5-4fbd-976e-8a0aa33f8fc4
 scenarios:
-  - id: "handles-get-request"
+  - id: handles-empty-get-requests
     scope: Short
     driver:
-      provider: "http-trigger"
+      provider: http-trigger
+      sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
       parameters:
-        method: "GET"
-        path: "/routes/test"
-    expectedBody: "Http Trigger called successfully"
-    expectedHeaders:
-      CamelHttpResponseCode: 200
-
-  - id: "rejects-non-empty-get-body"
-    scope: Short
-    driver:
-      provider: "http-trigger"
-      parameters:
-        method: "GET"
-        path: "/routes/test"
-    body: "not allowed"
-    expectedBody:
-      code: "QIP-0100"
-      message: "Request has not passed input validations, configured within requested chain"
-      reason: "Chain failed during request validation."
-      extra:
-        sessionId:
-          $match: "uuid"
-        failedElementId:
-          $match: "uuid"
-        validationResult: "Not empty body is not allowed with [GET] method, request rejected"
-    expectedHeaders:
-      CamelHttpResponseCode: 400
-      content-type: "application/json"
-    expectedProperties:
-      internalProperty_sessionFailed: "true"
-      internalProperty_elementFailed: "true"
-
-  - id: "handles-distinct-http-requests-in-one-scenario"
-    scope: Short
-    driver:
-      provider: "http-trigger"
-      parameters:
-        method: "GET"
-        path: "/routes/test?case=first"
+        method: GET
+        path: /routes/trigger-test
     invocations:
-      - id: "first-get"
-        expectedBody: "Http Trigger called successfully"
+      - id: absent-body
+        expectedExchangeHeaders:
+          CamelHttpMethod: GET
+          CamelHttpQuery: null
+        expectedAbsentExchangeHeaders:
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+        expectedBody: Triggered
         expectedHeaders:
           CamelHttpResponseCode: 200
-        expectedExchangeHeaders:
-          CamelHttpMethod: "GET"
-          CamelHttpQuery: "case=first"
-        expectedAbsentHeaders:
-          - "CamelHttpMethod"
-          - "CamelHttpQuery"
-      - id: "second-post"
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_servletRequestUrl:
+            $match: non-empty
+          httpTriggerStepId:
+            $match: non-empty
+          internalProperty_chainSessionTimeoutAfter: null
+      - id: empty-body
+        body: ''
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+    deployment: basic
+
+  - id: preserves-request-headers-and-query-without-response-filtering
+    scope: Short
+    driver:
+      provider: http-trigger
+      sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+      parameters:
+        method: GET
+        path: /routes/trigger-test
+    invocations:
+      - id: encoded-repeated-and-empty-values
         driver:
-          provider: "http-trigger"
+          provider: http-trigger
+          sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
           parameters:
-            method: "POST"
-            path: "/routes/test?case=second"
-        expectedBody: "Http Trigger called successfully"
+            method: GET
+            path: /routes/trigger-test?value=hello%20world&path=a%2Fb&percent=%25&plus=a+b&tag=first&tag=second&empty=
+        headers:
+          X-Snapshot-Request: first
+          Authorization: Bearer snapshot-first
+        expectedExchangeHeaders:
+          CamelHttpMethod: GET
+          CamelHttpQuery: value=hello%20world&path=a%2Fb&percent=%25&plus=a+b&tag=first&tag=second&empty=
+          X-Snapshot-Request: first
+        expectedAbsentExchangeHeaders:
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+        expectedBody: Triggered
         expectedHeaders:
           CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_responseFilterInclude: null
+          internalProperty_responseFilterExclude: null
+      - id: response-filter-parameters
+        driver:
+          provider: http-trigger
+          sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+          parameters:
+            method: GET
+            path: /routes/trigger-test?fields=name%2Cid&excludeFields=secret&fields=other
+        headers:
+          X-Snapshot-Request: second
+          Authorization: Bearer snapshot-second
         expectedExchangeHeaders:
-          CamelHttpMethod: "POST"
-          CamelHttpQuery: "case=second"
+          CamelHttpMethod: GET
+          CamelHttpQuery: fields=name%2Cid&excludeFields=secret&fields=other
+          X-Snapshot-Request: second
+        expectedAbsentExchangeHeaders:
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_responseFilterInclude: null
+          internalProperty_responseFilterExclude: null
+      - id: no-query-after-filter-parameters
+        driver:
+          provider: http-trigger
+          sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+          parameters:
+            method: GET
+            path: /routes/trigger-test
+        headers: {}
+        expectedExchangeHeaders:
+          CamelHttpMethod: GET
+          CamelHttpQuery: null
+        expectedAbsentExchangeHeaders:
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - X-Snapshot-Request
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_responseFilterInclude: null
+          internalProperty_responseFilterExclude: null
+    deployment: basic
+
+  - id: accepts-content-types-without-an-allowlist
+    scope: Short
+    driver:
+      provider: http-trigger
+      sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+      parameters:
+        method: GET
+        path: /routes/trigger-test
+    invocations:
+      - id: json
+        headers:
+          Content-Type: application/json
+        expectedExchangeHeaders:
+          Content-Type: application/json
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+      - id: text-with-charset
+        headers:
+          Content-Type: text/plain; charset=UTF-8
+        expectedExchangeHeaders:
+          Content-Type: text/plain; charset=UTF-8
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+      - id: binary
+        headers:
+          Content-Type: application/octet-stream
+        expectedExchangeHeaders:
+          Content-Type: application/octet-stream
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+      - id: custom
+        headers:
+          Content-Type: application/vnd.snapshot+json
+        expectedExchangeHeaders:
+          Content-Type: application/vnd.snapshot+json
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+      - id: unparsed-content-type
+        headers:
+          Content-Type: snapshot-content
+        expectedExchangeHeaders:
+          Content-Type: snapshot-content
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+    deployment: basic
+
+  - id: runs-validation-script-for-nonempty-bodies-and-recovers
+    scope: Short
+    driver:
+      provider: http-trigger
+      sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+      parameters:
+        method: GET
+        path: /routes/trigger-test
+    invocations:
+      - id: before-validation-failures
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+      - id: text-body
+        body: not allowed
+        headers:
+          Content-Type: text/plain
+          Authorization: Bearer snapshot-rejected
+          X-Snapshot-Request: text-body
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        driver:
+          provider: http-trigger
+          sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+          parameters:
+            method: GET
+            path: /routes/trigger-test?case=rejected&fields=name
+      - id: whitespace-body
+        body: " \t\r\n "
+        headers:
+          Content-Type: text/plain
+          Authorization: Bearer snapshot-rejected
+          X-Snapshot-Request: whitespace-body
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+      - id: empty-json-object
+        body: {}
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer snapshot-rejected
+          X-Snapshot-Request: empty-json-object
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+      - id: empty-json-array
+        body: []
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer snapshot-rejected
+          X-Snapshot-Request: empty-json-array
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+      - id: json-null-literal
+        body: 'null'
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer snapshot-rejected
+          X-Snapshot-Request: json-null-literal
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+      - id: json-zero
+        body: 0
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer snapshot-rejected
+          X-Snapshot-Request: json-zero
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+      - id: json-false
+        body: false
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer snapshot-rejected
+          X-Snapshot-Request: json-false
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+      - id: malformed-json
+        body: '{'
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer snapshot-rejected
+          X-Snapshot-Request: malformed-json
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+      - id: after-validation-failures
+        expectedAbsentExchangeHeaders:
+          - Content-Type
+          - Authorization
+          - X-Snapshot-Request
+          - CamelHttpResponseCode
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+    deployment: basic
+
+  - id: captures-testing-session-id-per-request
+    scope: Short
+    driver:
+      provider: http-trigger
+      sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+      parameters:
+        method: GET
+        path: /routes/trigger-test
+    invocations:
+      - id: first-session
+        headers:
+          external-session-cip-id: snapshot-session-first
+        expectedExchangeHeaders:
+          external-session-cip-id: snapshot-session-first
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_testingSessionId: snapshot-session-first
+      - id: second-session
+        headers:
+          external-session-cip-id: snapshot-session-second
+        expectedExchangeHeaders:
+          external-session-cip-id: snapshot-session-second
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_testingSessionId: snapshot-session-second
+      - id: missing-session
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_testingSessionId: null
+      - id: empty-session
+        headers:
+          external-session-cip-id: ''
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_testingSessionId: null
+      - id: blank-session
+        headers:
+          external-session-cip-id: '   '
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_testingSessionId: null
+      - id: captures-session-before-validation-failure
+        body: rejected
+        headers:
+          external-session-cip-id: snapshot-session-rejected
+        expectedBody: Validation Failure
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+          content-type: application/json
+        expectedAbsentExchangeHeaders:
+          - CamelHttpMethod
+          - CamelHttpQuery
+          - CamelHttpUri
+          - CamelHttpUrl
+          - CamelHttpPath
+          - Authorization
+          - external-session-cip-id
+          - X-Snapshot-Request
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+          internalProperty_testingSessionId: snapshot-session-rejected
+      - id: missing-session-after-validation-failure
+        expectedAbsentExchangeHeaders:
+          - external-session-cip-id
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          internalProperty_testingSessionId: null
+    deployment: basic
+
+  - id: ignores-correlation-headers-when-disabled
+    scope: Short
+    driver:
+      provider: http-trigger
+      sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+      parameters:
+        method: GET
+        path: /routes/trigger-test
+    invocations:
+      - id: first-correlation
+        headers:
+          X-Correlation-Id: correlation-first
+        expectedExchangeHeaders:
+          X-Correlation-Id: correlation-first
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          correlationId: null
+      - id: second-correlation
+        headers:
+          X-Correlation-Id: correlation-second
+        expectedExchangeHeaders:
+          X-Correlation-Id: correlation-second
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          correlationId: null
+      - id: missing-correlation
+        expectedAbsentExchangeHeaders:
+          - X-Correlation-Id
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+          correlationId: null
+    deployment: basic
+
+  - id: executes-repeated-idempotency-keys-when-disabled
+    scope: Short
+    driver:
+      provider: http-trigger
+      sourceElementId: 4f326226-abf6-4aa1-a42c-9fec59398299
+      parameters:
+        method: GET
+        path: /routes/trigger-test
+    invocations:
+      - id: same-key-twice
+        repeat: 2
+        headers:
+          X-Idempotency-Key: snapshot-repeat
+        expectedExchangeHeaders:
+          X-Idempotency-Key: snapshot-repeat
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+      - id: missing-key
+        expectedAbsentExchangeHeaders:
+          - X-Idempotency-Key
+        expectedBody: Triggered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+    deployment: basic
+
+  - id: deduplicates-requests-by-json-body-id
+    scope: Short
+    deployment: idempotency
+    driver:
+      provider: http-trigger
+      sourceElementId: 8b21e4c7-fc5d-47fe-9769-b352ae5aa29e
+      parameters:
+        method: POST
+        path: /routes/test-w-body
+    invocations:
+      - id: first-key
+        body:
+          id: order-1
+          value: first
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:order-1
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+      - id: repeated-key
+        body:
+          id: order-1
+          value: first
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: order-1
+          value: first
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 2
+                key: POST /qip-routes/test-w-body:order-1
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+                updatedKeys: []
+        repeat: 2
+      - id: same-key-with-different-payload-headers-and-query
+        body:
+          id: order-1
+          value: changed
+        headers:
+          Content-Type: application/json
+          X-Idempotency-Key: header-key
+        driver:
+          provider: http-trigger
+          sourceElementId: 8b21e4c7-fc5d-47fe-9769-b352ae5aa29e
+          parameters:
+            method: POST
+            path: /routes/test-w-body?id=query-key
+        expectedBody:
+          id: order-1
+          value: changed
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:order-1
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+                updatedKeys: []
+      - id: different-body-key-with-reused-header
+        body:
+          id: order-2
+        headers:
+          Content-Type: application/json
+          X-Idempotency-Key: header-key
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:order-2
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+                  - POST /qip-routes/test-w-body:order-2
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:order-2
+      - id: original-key-still-reserved
+        body:
+          id: order-1
+          value: latest
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: order-1
+          value: latest
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:order-1
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+                  - POST /qip-routes/test-w-body:order-2
+                updatedKeys: []
+      - id: different-json-formatting
+        body: '{ "value": "formatting", "id": "order-1" }'
+        headers:
+          Content-Type: application/json
+        expectedBody: '{ "value": "formatting", "id": "order-1" }'
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:order-1
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+                  - POST /qip-routes/test-w-body:order-2
+                updatedKeys: []
+      - id: new-key-without-content-type
+        body:
+          id: order-3
+        headers: {}
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:order-3
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+                  - POST /qip-routes/test-w-body:order-2
+                  - POST /qip-routes/test-w-body:order-3
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:order-3
+      - id: duplicate-with-text-content-type
+        body:
+          id: order-3
+        headers:
+          Content-Type: text/plain
+        expectedBody:
+          id: order-3
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:order-3
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:order-1
+                  - POST /qip-routes/test-w-body:order-2
+                  - POST /qip-routes/test-w-body:order-3
+                updatedKeys: []
+
+  - id: uses-string-values-of-json-idempotency-keys
+    scope: Short
+    deployment: idempotency
+    driver:
+      provider: http-trigger
+      sourceElementId: 8b21e4c7-fc5d-47fe-9769-b352ae5aa29e
+      parameters:
+        method: POST
+        path: /routes/test-w-body
+    invocations:
+      - id: numeric-zero
+        body:
+          id: 0
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:0
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:0
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:0
+      - id: equivalent-string-zero
+        body:
+          id: '0'
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: '0'
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:0
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:0
+                updatedKeys: []
+      - id: boolean-false
+        body:
+          id: false
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:false
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:false
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:false
+      - id: equivalent-string-false
+        body:
+          id: 'false'
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: 'false'
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:false
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:false
+                updatedKeys: []
+      - id: decimal-number
+        body:
+          id: 1.5
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:1.5
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:false
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:1.5
+      - id: equivalent-string-decimal
+        body:
+          id: '1.5'
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: '1.5'
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:1.5
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:false
+                updatedKeys: []
+      - id: explicit-null
+        body: '{"id":null}'
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: 'POST /qip-routes/test-w-body:'
+                keyExpiry: 600
+                storedKeys:
+                  - 'POST /qip-routes/test-w-body:'
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:false
+                updatedKeys:
+                  - 'POST /qip-routes/test-w-body:'
+      - id: empty-string
+        body:
+          id: ''
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: ''
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: 'POST /qip-routes/test-w-body:'
+                keyExpiry: 600
+                storedKeys:
+                  - 'POST /qip-routes/test-w-body:'
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:false
+                updatedKeys: []
+      - id: surrounding-whitespace
+        body:
+          id: ' key '
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: 'POST /qip-routes/test-w-body: key '
+                keyExpiry: 600
+                storedKeys:
+                  - 'POST /qip-routes/test-w-body:'
+                  - 'POST /qip-routes/test-w-body: key '
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:false
+                updatedKeys:
+                  - 'POST /qip-routes/test-w-body: key '
+      - id: without-whitespace
+        body:
+          id: key
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:key
+                keyExpiry: 600
+                storedKeys:
+                  - 'POST /qip-routes/test-w-body:'
+                  - 'POST /qip-routes/test-w-body: key '
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:false
+                  - POST /qip-routes/test-w-body:key
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:key
+      - id: different-case
+        body:
+          id: KEY
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:KEY
+                keyExpiry: 600
+                storedKeys:
+                  - 'POST /qip-routes/test-w-body:'
+                  - 'POST /qip-routes/test-w-body: key '
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:KEY
+                  - POST /qip-routes/test-w-body:false
+                  - POST /qip-routes/test-w-body:key
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:KEY
+      - id: punctuation
+        body:
+          id: key:/?&=%
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:key:/?&=%
+                keyExpiry: 600
+                storedKeys:
+                  - 'POST /qip-routes/test-w-body:'
+                  - 'POST /qip-routes/test-w-body: key '
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:KEY
+                  - POST /qip-routes/test-w-body:false
+                  - POST /qip-routes/test-w-body:key
+                  - POST /qip-routes/test-w-body:key:/?&=%
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:key:/?&=%
+      - id: repeated-punctuation
+        body:
+          id: key:/?&=%
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: key:/?&=%
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:key:/?&=%
+                keyExpiry: 600
+                storedKeys:
+                  - 'POST /qip-routes/test-w-body:'
+                  - 'POST /qip-routes/test-w-body: key '
+                  - POST /qip-routes/test-w-body:0
+                  - POST /qip-routes/test-w-body:1.5
+                  - POST /qip-routes/test-w-body:KEY
+                  - POST /qip-routes/test-w-body:false
+                  - POST /qip-routes/test-w-body:key
+                  - POST /qip-routes/test-w-body:key:/?&=%
+                updatedKeys: []
+
+  - id: reacquires-expired-idempotency-keys
+    scope: Short
+    deployment: idempotency
+    driver:
+      provider: http-trigger
+      sourceElementId: 8b21e4c7-fc5d-47fe-9769-b352ae5aa29e
+      parameters:
+        method: POST
+        path: /routes/test-w-body
+    invocations:
+      - id: stable-key
+        body:
+          id: stable
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:stable
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:stable
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:stable
+      - id: expiring-key
+        body:
+          id: expires
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:expires
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:expires
+                  - POST /qip-routes/test-w-body:stable
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:expires
+      - id: duplicate-before-expiration
+        body:
+          id: expires
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: expires
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:expires
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:expires
+                  - POST /qip-routes/test-w-body:stable
+                updatedKeys: []
+      - id: same-key-after-expiration
+        body:
+          id: expires
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:expires
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:expires
+                  - POST /qip-routes/test-w-body:stable
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:expires
+                records:
+                  - key: POST /qip-routes/test-w-body:expires
+                    data:
+                      status: RECEIVED
+                    keyExpiry: 600
+                    active: true
+                  - key: POST /qip-routes/test-w-body:stable
+                    data:
+                      status: RECEIVED
+                    keyExpiry: 600
+                    active: true
+            response:
+              properties:
+                expireKey: POST /qip-routes/test-w-body:expires
+      - id: duplicate-after-renewal
+        body:
+          id: expires
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: expires
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:expires
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:expires
+                  - POST /qip-routes/test-w-body:stable
+                updatedKeys: []
+      - id: unexpired-key-still-reserved
+        body:
+          id: stable
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: stable
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:stable
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:expires
+                  - POST /qip-routes/test-w-body:stable
+                updatedKeys: []
+
+  - id: rejects-missing-idempotency-keys-and-recovers
+    scope: Short
+    deployment: idempotency
+    driver:
+      provider: http-trigger
+      sourceElementId: 8b21e4c7-fc5d-47fe-9769-b352ae5aa29e
+      parameters:
+        method: POST
+        path: /routes/test-w-body
+    invocations:
+      - id: reserves-existing-key
+        body:
+          id: existing
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:existing
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:existing
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:existing
+      - id: missing-id
+        body: {}
+        headers:
+          Content-Type: application/json
+        expectedFailure:
+          type: org.apache.camel.ExpressionEvaluationException
+          message: 'com.jayway.jsonpath.PathNotFoundException: No results for path: $[''id'']'
+          cause:
+            type: com.jayway.jsonpath.PathNotFoundException
+            message: 'No results for path: $[''id'']'
+            cause: null
+        expectedBody:
+          code: CIP-0001
+          message: Chain execution failed due to unexpected business error
+          reason: Unexpected Business error
+          extra:
+            sessionId:
+              $match: uuid
+            failedElementId:
+              $match: uuid
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+          content-type: application/json
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: null
+          systemProperty_keyExpiry: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - POST /qip-routes/test-w-body:existing
+                updatedKeys: []
+      - id: nested-id
+        body:
+          nested:
+            id: unreserved
+        headers:
+          Content-Type: application/json
+        expectedFailure:
+          type: org.apache.camel.ExpressionEvaluationException
+          message: 'com.jayway.jsonpath.PathNotFoundException: No results for path: $[''id'']'
+          cause:
+            type: com.jayway.jsonpath.PathNotFoundException
+            message: 'No results for path: $[''id'']'
+            cause: null
+        expectedBody:
+          code: CIP-0001
+          message: Chain execution failed due to unexpected business error
+          reason: Unexpected Business error
+          extra:
+            sessionId:
+              $match: uuid
+            failedElementId:
+              $match: uuid
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+          content-type: application/json
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: null
+          systemProperty_keyExpiry: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - POST /qip-routes/test-w-body:existing
+                updatedKeys: []
+      - id: null-json-body
+        body: 'null'
+        headers:
+          Content-Type: application/json
+        expectedFailure:
+          type: org.apache.camel.ExpressionEvaluationException
+          message: 'java.lang.IllegalArgumentException: json can not be null'
+          cause:
+            type: java.lang.IllegalArgumentException
+            message: json can not be null
+            cause: null
+        expectedBody:
+          code: CIP-0001
+          message: Chain execution failed due to unexpected business error
+          reason: Unexpected Business error
+          extra:
+            sessionId:
+              $match: uuid
+            failedElementId:
+              $match: uuid
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+          content-type: application/json
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: null
+          systemProperty_keyExpiry: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - POST /qip-routes/test-w-body:existing
+                updatedKeys: []
+      - id: absent-body
+        body: null
+        headers:
+          Content-Type: application/json
+        expectedFailure:
+          type: org.apache.camel.ExpressionEvaluationException
+          message: 'org.apache.camel.CamelExchangeException: Cannot read body as supported JSON value. Exchange[]'
+          cause:
+            type: org.apache.camel.CamelExchangeException
+            message: Cannot read body as supported JSON value. Exchange[]
+            cause: null
+        expectedBody:
+          code: CIP-0001
+          message: Chain execution failed due to unexpected business error
+          reason: Unexpected Business error
+          extra:
+            sessionId:
+              $match: uuid
+            failedElementId:
+              $match: uuid
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+          content-type: application/json
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: null
+          systemProperty_keyExpiry: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - POST /qip-routes/test-w-body:existing
+                updatedKeys: []
+      - id: empty-body
+        body: ''
+        headers:
+          Content-Type: application/json
+        expectedFailure:
+          type: org.apache.camel.ExpressionEvaluationException
+          message: 'org.apache.camel.CamelExchangeException: Cannot read body as supported JSON value. Exchange[]'
+          cause:
+            type: org.apache.camel.CamelExchangeException
+            message: Cannot read body as supported JSON value. Exchange[]
+            cause: null
+        expectedBody:
+          code: CIP-0001
+          message: Chain execution failed due to unexpected business error
+          reason: Unexpected Business error
+          extra:
+            sessionId:
+              $match: uuid
+            failedElementId:
+              $match: uuid
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+          content-type: application/json
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: null
+          systemProperty_keyExpiry: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - POST /qip-routes/test-w-body:existing
+                updatedKeys: []
+      - id: valid-key-after-extraction-failures
+        body:
+          id: unreserved
+        headers:
+          Content-Type: application/json
+        expectedBody: Http Trigger called succesfully
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:unreserved
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:existing
+                  - POST /qip-routes/test-w-body:unreserved
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:unreserved
+      - id: existing-key-remains-reserved
+        body:
+          id: existing
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: existing
+        expectedHeaders:
+          CamelHttpResponseCode: 202
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyContext: POST /qip-routes/test-w-body
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: POST /qip-routes/test-w-body:existing
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:existing
+                  - POST /qip-routes/test-w-body:unreserved
+                updatedKeys: []

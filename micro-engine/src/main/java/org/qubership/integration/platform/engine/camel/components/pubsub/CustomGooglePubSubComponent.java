@@ -16,10 +16,26 @@
 
 package org.qubership.integration.platform.engine.camel.components.pubsub;
 
+import com.google.api.gax.core.CredentialsProvider;
+import com.google.api.gax.core.FixedCredentialsProvider;
+import com.google.api.gax.core.NoCredentialsProvider;
+import com.google.api.gax.grpc.InstantiatingGrpcChannelProvider;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.cloud.pubsub.v1.MessageReceiver;
+import com.google.cloud.pubsub.v1.Subscriber;
+import com.google.cloud.pubsub.v1.stub.PublisherStubSettings;
+import io.grpc.ManagedChannelBuilder;
 import org.apache.camel.Endpoint;
 import org.apache.camel.component.google.pubsub.GooglePubsubComponent;
+import org.apache.camel.component.google.pubsub.GooglePubsubEndpoint;
 import org.apache.camel.spi.annotations.Component;
+import org.apache.camel.support.ResourceHelper;
+import org.apache.camel.util.ObjectHelper;
+import org.apache.camel.util.StringHelper;
+import org.threeten.bp.Duration;
 
+import java.io.IOException;
 import java.util.Map;
 
 /*
@@ -57,5 +73,34 @@ public class CustomGooglePubSubComponent extends GooglePubsubComponent {
         setProperties(pubsubEndpoint, parameters);
 
         return pubsubEndpoint;
+    }
+
+    @Override
+    public Subscriber getSubscriber(String subscriptionName, MessageReceiver messageReceiver, GooglePubsubEndpoint endpoint)
+            throws IOException {
+        if (StringHelper.trimToNull(getEndpoint()) == null) {
+            return super.getSubscriber(subscriptionName, messageReceiver, endpoint);
+        }
+
+        return Subscriber.newBuilder(subscriptionName, messageReceiver)
+                .setChannelProvider(InstantiatingGrpcChannelProvider.newBuilder()
+                        .setEndpoint(getEndpoint())
+                        .setChannelConfigurator(ManagedChannelBuilder::usePlaintext)
+                        .build())
+                .setCredentialsProvider(getSubscriberCredentialsProvider(endpoint))
+                .setMaxAckExtensionPeriod(Duration.ofSeconds(endpoint.getMaxAckExtensionPeriod()))
+                .build();
+    }
+
+    private CredentialsProvider getSubscriberCredentialsProvider(GooglePubsubEndpoint endpoint) throws IOException {
+        if (!endpoint.isAuthenticate()) {
+            return NoCredentialsProvider.create();
+        }
+
+        return FixedCredentialsProvider.create(ObjectHelper.isEmpty(endpoint.getServiceAccountKey())
+                ? GoogleCredentials.getApplicationDefault()
+                : ServiceAccountCredentials.fromStream(ResourceHelper.resolveMandatoryResourceAsInputStream(
+                        getCamelContext(), endpoint.getServiceAccountKey()))
+                        .createScoped(PublisherStubSettings.getDefaultServiceScopes()));
     }
 }

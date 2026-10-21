@@ -11,6 +11,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.NoOffsetForPartitionException;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
@@ -116,6 +117,64 @@ class BGKafkaConsumerExtendedImplTest {
     }
 
     @Test
+    void shouldPreserveNativeNoneAndPropagateMissingOffsetsWithoutAligningPlainGroup() {
+        AtomicReference<Map<String, Object>> properties = new AtomicReference<>();
+        AtomicReference<ConsumerRebalanceListener> listener = new AtomicReference<>();
+        NoOffsetForPartitionException failure = new NoOffsetForPartitionException(Set.of(TOPIC_PARTITION));
+        doAnswer(invocation -> {
+            listener.set(invocation.getArgument(1));
+            return null;
+        }).when(kafkaConsumer).subscribe(eq(Set.of(TOPIC)), any(ConsumerRebalanceListener.class));
+        when(kafkaConsumer.poll(Duration.ZERO)).thenAnswer(invocation -> {
+            listener.get().onPartitionsAssigned(Set.of(TOPIC_PARTITION));
+            throw failure;
+        });
+        consumer = newConsumer(activeState(),
+                Map.of(GROUP_ID_CONFIG, GROUP_ID, AUTO_OFFSET_RESET_CONFIG, "none"), props -> {
+                    properties.set(new HashMap<>(props));
+                    return kafkaConsumer;
+                });
+
+        assertSame(failure, assertThrows(NoOffsetForPartitionException.class, () -> consumer.poll(Duration.ZERO)));
+
+        assertEquals("none", properties.get().get(AUTO_OFFSET_RESET_CONFIG));
+        assertEquals(GROUP_ID, properties.get().get(GROUP_ID_CONFIG));
+        verify(kafkaConsumer).subscribe(eq(Set.of(TOPIC)), any(ConsumerRebalanceListener.class));
+        verify(kafkaConsumer).poll(Duration.ZERO);
+        verifyNoMoreInteractions(kafkaConsumer);
+    }
+
+    @Test
+    void shouldCommitRecordsWhenPlainGroupUsesNativeNone() {
+        AtomicReference<ConsumerRebalanceListener> listener = new AtomicReference<>();
+        ConsumerRecord<String, String> record = new ConsumerRecord<>(TOPIC, 0, 12L, "key", "value");
+        doAnswer(invocation -> {
+            listener.set(invocation.getArgument(1));
+            return null;
+        }).when(kafkaConsumer).subscribe(eq(Set.of(TOPIC)), any(ConsumerRebalanceListener.class));
+        when(kafkaConsumer.poll(Duration.ZERO)).thenAnswer(invocation -> {
+            listener.get().onPartitionsAssigned(Set.of(TOPIC_PARTITION));
+            return consumerRecords(record);
+        });
+        consumer = newConsumer(activeState(),
+                Map.of(GROUP_ID_CONFIG, GROUP_ID, AUTO_OFFSET_RESET_CONFIG, "none"), props -> kafkaConsumer);
+
+        RecordsBatch<String, String> batch = consumer.poll(Duration.ZERO).orElseThrow();
+        Duration timeout = Duration.ofSeconds(1);
+        consumer.commitSync(batch.getCommitMarker());
+        consumer.commitSync(batch.getCommitMarker(), timeout);
+
+        Map<TopicPartition, OffsetAndMetadata> position = Map.of(TOPIC_PARTITION, new OffsetAndMetadata(13L));
+        assertSame(record, batch.getBatch().get(0).getConsumerRecord());
+        assertEquals(position, batch.getCommitMarker().getPosition());
+        verify(kafkaConsumer).subscribe(eq(Set.of(TOPIC)), any(ConsumerRebalanceListener.class));
+        verify(kafkaConsumer).poll(Duration.ZERO);
+        verify(kafkaConsumer).commitSync(position);
+        verify(kafkaConsumer).commitSync(position, timeout);
+        verifyNoMoreInteractions(kafkaConsumer);
+    }
+
+    @Test
     void shouldCommitOnlyMarkersForActiveState() {
         BlueGreenState activeState = activeState();
         when(kafkaConsumer.poll(Duration.ZERO)).thenReturn(ConsumerRecords.empty());
@@ -196,10 +255,17 @@ class BGKafkaConsumerExtendedImplTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private BGKafkaConsumerExtendedImpl<String, String> newConsumer(
             BlueGreenState state, Function<Map<String, Object>, Consumer> consumerSupplier) {
+        return newConsumer(state, consumerProperties(), consumerSupplier);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private BGKafkaConsumerExtendedImpl<String, String> newConsumer(
+            BlueGreenState state, Map<String, Object> properties,
+            Function<Map<String, Object>, Consumer> consumerSupplier) {
         when(blueGreenStatePublisher.getBlueGreenState()).thenReturn(state);
 
         BGKafkaConsumerConfig config = BGKafkaConsumerConfig
-                .builder(consumerProperties(), Set.of(TOPIC), blueGreenStatePublisher)
+                .builder(properties, Set.of(TOPIC), blueGreenStatePublisher)
                 .consumerSupplier(consumerSupplier)
                 .build();
 
