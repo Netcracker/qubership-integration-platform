@@ -1,0 +1,14 @@
+---
+apiVersion: dbaas.netcracker.com/v1
+kind: InternalDatabase
+metadata:
+  name: {{name}}
+  labels:
+    {{domainLabel}}: {{domainName}}
+    deployer.cleanup/allow: "true"
+spec:
+  operatorNamespace: "{{dbaasOperatorNamespace}}"
+  classifier:
+    microserviceName: "{{cloudServiceName}}"
+    scope: tenant
+  type: postgresql

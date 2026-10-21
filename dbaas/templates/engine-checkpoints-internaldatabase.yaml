@@ -1,0 +1,15 @@
+---
+apiVersion: dbaas.netcracker.com/v1
+kind: InternalDatabase
+metadata:
+  name: {{ .Values.ENGINE_SERVICE_NAME }}-checkpoints
+  namespace: {{ .Values.NAMESPACE }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.ENGINE_SERVICE_NAME }}
+    deployer.cleanup/allow: "true"
+spec:
+  operatorNamespace: {{ (index (splitList "." (first (splitList ":" (last (splitList "://" .Values.API_DBAAS_ADDRESS))))) 1) | quote }}
+  classifier:
+    microserviceName: "{{ .Values.ENGINE_SERVICE_NAME }}"
+    scope: tenant
+  type: postgresql

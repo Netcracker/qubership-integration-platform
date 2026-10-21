@@ -83,6 +83,10 @@ spec:
                 configMapKeyRef:
                   key: MICRO_DOMAIN_CONTAINER_IMAGE
                   name: {{ .Release.Name }}-env
+            - name: MICRO_DOMAIN_DBAAS_ENABLED
+              value: "false"
+            - name: MICRO_DOMAIN_DBAAS_OPERATOR_TYPE
+              value: DBAAS
             - name: MICRO_DOMAIN_SERVICE_ACCOUNT
               value: {{ .Release.Name }}-service-account
             - name: MICRO_DOMAIN_ENVIRONMENT

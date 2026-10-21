@@ -7204,6 +7204,18 @@ components:
         validation:
           $ref: "#/components/schemas/PropertyValidation"
           description: Properties validation rules
+    DBaaSOptions:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        operatorNamespace:
+          type: string
+        operatorType:
+          type: string
+          enum:
+          - CORE
+          - DBAAS
     DDSResponse:
       type: object
       description: Chain detailed design response object
@@ -9853,6 +9865,8 @@ components:
       properties:
         container:
           $ref: "#/components/schemas/ContainerOptions"
+        dbaas:
+          $ref: "#/components/schemas/DBaaSOptions"
         environment:
           type: object
           additionalProperties:

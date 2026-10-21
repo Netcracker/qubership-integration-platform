@@ -1,0 +1,25 @@
+---
+apiVersion: dbaas.netcracker.com/v1
+kind: DatabaseAccessPolicy
+metadata:
+  name: {{ .Values.ENGINE_SERVICE_NAME }}-databaseaccesspolicy
+  namespace: {{ .Values.NAMESPACE }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.ENGINE_SERVICE_NAME }}
+    deployer.cleanup/allow: "true"
+spec:
+  operatorNamespace: {{ (index (splitList "." (first (splitList ":" (last (splitList "://" .Values.API_DBAAS_ADDRESS))))) 1) | quote }}
+  microserviceName: {{ .Values.ENGINE_SERVICE_NAME }}
+  services:
+    - name: {{ .Values.SESSIONS_MANAGEMENT_SERVICE_NAME }}
+      roles:
+        - admin
+    {{- if .Values.STREAMING_PLATFORM_SERVICE_NAME }}
+    - name: {{ .Values.STREAMING_PLATFORM_SERVICE_NAME }}
+      roles:
+        - admin
+        - ism
+    {{- end }}
+  policy:
+    - type: opensearch
+      defaultRole: ism

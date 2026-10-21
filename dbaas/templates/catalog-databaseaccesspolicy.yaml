@@ -1,0 +1,21 @@
+---
+apiVersion: dbaas.netcracker.com/v1
+kind: DatabaseAccessPolicy
+metadata:
+  name: {{ .Values.CATALOG_SERVICE_NAME }}-databaseaccesspolicy
+  namespace: {{ .Values.NAMESPACE }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.CATALOG_SERVICE_NAME }}
+    deployer.cleanup/allow: "true"
+spec:
+  operatorNamespace: {{ (index (splitList "." (first (splitList ":" (last (splitList "://" .Values.API_DBAAS_ADDRESS))))) 1) | quote }}
+  microserviceName: {{ .Values.CATALOG_SERVICE_NAME }}
+  {{- if .Values.SYSTEMS_CATALOG_SERVICE_NAME }}
+  services:
+    - name: {{ .Values.SYSTEMS_CATALOG_SERVICE_NAME }}
+      roles:
+        - admin
+  {{- end }}
+  policy:
+    - type: postgresql
+      defaultRole: admin

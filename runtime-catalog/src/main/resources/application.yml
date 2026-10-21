@@ -256,6 +256,10 @@ cip:
       monitoring:
         enabled: ${MICRO_DOMAIN_MONITORING_ENABLED:false}
         interval: ${MICRO_DOMAIN_MONITORING_INTERVAL:30s}
+      dbaas:
+        enabled: ${MICRO_DOMAIN_DBAAS_ENABLED:true}
+        operatorType: ${MICRO_DOMAIN_DBAAS_OPERATOR_TYPE:CORE}
+        operatorNamespace: ${MICRO_DOMAIN_DBAAS_OPERATOR_NAMESPACE:dbaas}
       namespace: ${NAMESPACE:default}
       environment: ${MICRO_DOMAIN_ENVIRONMENT:T(java.util.Collections).emptyMap()}
   snapshots:
