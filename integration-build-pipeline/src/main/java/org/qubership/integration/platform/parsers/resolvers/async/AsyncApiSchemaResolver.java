@@ -40,6 +40,8 @@ public class AsyncApiSchemaResolver extends CommonSchemaResolver implements Sche
 
         ObjectNode schemaNode = getSchemaNode(schemaRef, currentComponentsNode);
 
+        // A message that aliases another message is replaced with it before its payload is read.
+        resolveInlineRef(schemaNode, currentComponentsNode);
         convertPayloadToSchemaNode(schemaNode);
 
         return resolveSchemaNode(schemaRef, schemaNode, currentComponentsNode);

@@ -90,8 +90,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
                 componentNode.set(payloadField.getKey(), payloadField.getValue());
             }
             componentNode.remove(PAYLOAD_FIELD_NAME);
-            componentNode.remove(HEADERS_FIELD_NAME);
         }
+        componentNode.remove(HEADERS_FIELD_NAME);
     }
 
     protected Map<String, JsonNode> getNestedRefs(ObjectNode schemaNode, JsonNode componentsNode, String modelType, List<String> refList) {
@@ -194,6 +194,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
 
             if ("asyncapi".equals(modelType)) {
                 convertPayloadToSchemaNode(componentNode);
+                // An $id would make the references inside the component resolve against it instead of the root.
+                componentNode.remove(SCHEMA_ID_NODE_NAME);
             }
 
             result.put(refKeyNew.replace(DEFINITIONS_PREFIX, EMPTY_STRING_REPLACEMENT), componentNode);

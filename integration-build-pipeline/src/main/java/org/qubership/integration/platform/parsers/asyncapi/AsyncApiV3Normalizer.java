@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.parsers.asyncapi;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.model.asyncapi.*;
 import org.qubership.integration.platform.parsers.model.asyncapi.components.Components;
-import org.qubership.integration.platform.parsers.model.asyncapi.components.SchemaObject;
 import org.qubership.integration.platform.parsers.model.asyncapi.v3.*;
 
 import java.util.*;
@@ -43,6 +43,8 @@ public class AsyncApiV3Normalizer {
     private static final String MESSAGES_SEGMENT = "/messages/";
     private static final String ACTION_SEND = MethodType.SEND.getMethodName();
     private static final String ACTION_RECEIVE = MethodType.RECEIVE.getMethodName();
+    private static final List<String> SCHEMA_FORMAT_PREFIXES = List.of("application/vnd.aai.asyncapi", "application/schema+");
+    private static final TypeReference<Map<String, Object>> SCHEMA_TYPE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
 
@@ -51,6 +53,15 @@ public class AsyncApiV3Normalizer {
     }
 
     public AsyncapiSpecification normalize(AsyncapiV3Specification v3) {
+        if (v3.getChannels() != null) {
+            v3.getChannels().values().stream()
+                    .filter(Objects::nonNull)
+                    .forEach(channel -> unwrapMultiFormatPayloads(channel.getMessages()));
+        }
+        if (v3.getComponents() != null) {
+            unwrapMultiFormatPayloads(v3.getComponents().get("messages"));
+        }
+
         AsyncapiSpecification v2 = new AsyncapiSpecification();
         v2.setInfo(normalizeInfo(v3.getInfo()));
         v2.setServers(normalizeServers(v3.getServers()));
@@ -103,6 +114,22 @@ public class AsyncApiV3Normalizer {
 
         v2.setChannels(v2Channels);
         return v2;
+    }
+
+    // A multi-format payload in an AsyncAPI or JSON Schema format is replaced with the schema object it holds.
+    private void unwrapMultiFormatPayloads(Object messages) {
+        if (!(messages instanceof Map<?, ?> messageMap)) {
+            return;
+        }
+        for (Object message : messageMap.values()) {
+            if (message instanceof Map<?, ?> msgMap
+                    && msgMap.get("payload") instanceof Map<?, ?> payload
+                    && payload.get("schemaFormat") instanceof String schemaFormat
+                    && SCHEMA_FORMAT_PREFIXES.stream().anyMatch(schemaFormat::startsWith)
+                    && payload.get("schema") instanceof Map<?, ?> schema) {
+                asStringObjectMap(msgMap).put("payload", schema);
+            }
+        }
     }
 
     private Info normalizeInfo(Info v3Info) {
@@ -243,10 +270,10 @@ public class AsyncApiV3Normalizer {
     private Message buildMessageFromMap(Map<String, Object> msgMap, String name) {
         Message message = new Message();
         if (msgMap.containsKey("payload")) {
-            message.setPayload(objectMapper.convertValue(msgMap.get("payload"), SchemaObject.class));
+            message.setPayload(objectMapper.convertValue(msgMap.get("payload"), SCHEMA_TYPE));
         }
         if (msgMap.containsKey("headers")) {
-            message.setHeaders(objectMapper.convertValue(msgMap.get("headers"), SchemaObject.class));
+            message.setHeaders(objectMapper.convertValue(msgMap.get("headers"), SCHEMA_TYPE));
         }
         if (name != null) {
             message.setName(name);

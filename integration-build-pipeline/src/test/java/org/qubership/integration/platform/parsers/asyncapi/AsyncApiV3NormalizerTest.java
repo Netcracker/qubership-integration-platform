@@ -296,10 +296,8 @@ class AsyncApiV3NormalizerTest {
         Message cancelledMsg = cancellationsChannel.getSubscribe().getMessage();
         assertNotNull(cancelledMsg);
         assertNotNull(cancelledMsg.getPayload());
-        assertNotNull(cancelledMsg.getPayload().getRequired());
-        assertTrue(cancelledMsg.getPayload().getRequired().contains("orderId"));
-        assertTrue(cancelledMsg.getPayload().getRequired().contains("reason"));
-        assertNotNull(cancelledMsg.getPayload().getProperties().get("reason"),
+        assertTrue(((List<?>) cancelledMsg.getPayload().get("required")).containsAll(List.of("orderId", "reason")));
+        assertNotNull(((Map<?, ?>) cancelledMsg.getPayload().get("properties")).get("reason"),
                 "reason property with enum should be preserved");
 
         // inventoryUpdates — inline message with additionalProperties on nested metadata
@@ -308,9 +306,8 @@ class AsyncApiV3NormalizerTest {
         Message stockMsg = inventoryChannel.getSubscribe().getMessage();
         assertNotNull(stockMsg);
         assertNotNull(stockMsg.getPayload());
-        assertNotNull(stockMsg.getPayload().getRequired());
-        assertTrue(stockMsg.getPayload().getRequired().contains("sku"));
-        assertNotNull(stockMsg.getPayload().getProperties().get("metadata"),
+        assertTrue(((List<?>) stockMsg.getPayload().get("required")).contains("sku"));
+        assertNotNull(((Map<?, ?>) stockMsg.getPayload().get("properties")).get("metadata"),
                 "metadata property with additionalProperties should be preserved");
 
         // components: schemas with nested refs, required, constraints
@@ -327,20 +324,12 @@ class AsyncApiV3NormalizerTest {
 
         // Verify schema constraints are preserved
         var orderItemSchema = components.getSchemas().get("OrderItem");
-        assertNotNull(orderItemSchema.getRequired());
-        assertEquals(3, orderItemSchema.getRequired().size());
-        assertTrue(orderItemSchema.getRequired().contains("sku"));
-        assertTrue(orderItemSchema.getRequired().contains("quantity"));
-        assertTrue(orderItemSchema.getRequired().contains("unitPrice"));
-        assertNotNull(orderItemSchema.getProperties());
-        assertTrue(orderItemSchema.getProperties().containsKey("sku"));
-        assertTrue(orderItemSchema.getProperties().containsKey("quantity"));
+        assertEquals(3, ((List<?>) orderItemSchema.get("required")).size());
+        assertTrue(((List<?>) orderItemSchema.get("required")).containsAll(List.of("sku", "quantity", "unitPrice")));
+        assertTrue(((Map<?, ?>) orderItemSchema.get("properties")).keySet().containsAll(List.of("sku", "quantity")));
 
         var addressSchema = components.getSchemas().get("Address");
-        assertNotNull(addressSchema.getRequired());
-        assertTrue(addressSchema.getRequired().contains("street"));
-        assertTrue(addressSchema.getRequired().contains("city"));
-        assertTrue(addressSchema.getRequired().contains("country"));
+        assertTrue(((List<?>) addressSchema.get("required")).containsAll(List.of("street", "city", "country")));
     }
 
     @Test
@@ -386,10 +375,7 @@ class AsyncApiV3NormalizerTest {
         Message emailMsg = emailChannel.getSubscribe().getMessage();
         assertNotNull(emailMsg);
         assertNotNull(emailMsg.getPayload());
-        assertNotNull(emailMsg.getPayload().getRequired());
-        assertTrue(emailMsg.getPayload().getRequired().contains("to"));
-        assertTrue(emailMsg.getPayload().getRequired().contains("subject"));
-        assertTrue(emailMsg.getPayload().getRequired().contains("templateId"));
+        assertTrue(((List<?>) emailMsg.getPayload().get("required")).containsAll(List.of("to", "subject", "templateId")));
 
         // DLQ channel bindings — fanout exchange
         Channel dlqChannel = channels.get("notifications.dlq");
