@@ -26,12 +26,9 @@ public class M2MFallbackHandler implements ExecChainHandler {
     @Override
     public ClassicHttpResponse execute(ClassicHttpRequest request, ExecChain.Scope scope, ExecChain chain)
             throws IOException, HttpException {
-        log.info("Show getRequestUri(): {}", request.getRequestUri());
-        log.info("Show getPath(): {}", request.getPath());
         URI requestUri = null;
         try {
             requestUri = request.getUri();
-            log.info("Show getUri(): {}", requestUri);
         } catch (Exception e) {
             log.error("Can't fetch request URI", e);
         }
@@ -40,7 +37,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
             ClassicHttpRequest alteredRequest;
             try {
                 alteredRequest = buildRequest(request, SecurityConfiguration.getDefaultM2MToken());
-                log.info("Sending request to {} with kubernetes token", requestUri);
+                log.debug("Sending request to {} with kubernetes token", requestUri);
             } catch (IllegalStateException | IllegalArgumentException e) {
                 log.warn("Error acquiring kubernetes token for m2m communication", e);
 
@@ -50,7 +47,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
 
             ClassicHttpResponse response = chain.proceed(alteredRequest, scope);
             if (response.getCode() == 401) {
-                log.info("Failed to establish m2m connection to {} with kubernetes token. Cause: 401 Unauthorized",
+                log.debug("Failed to establish m2m connection to {} with kubernetes token. Cause: 401 Unauthorized",
                         requestUri);
                 response.close();
 
@@ -61,7 +58,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
         }
 
         ClassicHttpRequest fallbackRequest = buildRequest(request, SecurityConfiguration.getOldM2MToken());
-        log.info("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
+        log.debug("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
         return chain.proceed(fallbackRequest, scope);
     }
 
@@ -71,7 +68,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
             ExecChain chain,
             String cacheKey
     ) throws HttpException, IOException {
-        log.info("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
+        log.debug("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
         ClassicHttpResponse fallbackResponse = chain.proceed(fallbackRequest, scope);
         if (isResponseSuccessful(fallbackResponse)) {
             urlCache.store(cacheKey);
@@ -83,7 +80,6 @@ public class M2MFallbackHandler implements ExecChainHandler {
         if (StringUtils.isEmpty(token)) {
             throw new IllegalStateException("M2M token is empty");
         }
-        log.info("M2M TOKEN: {}", token);
 
         return ClassicRequestBuilder.copy(initialRequest)
                 .setHeader("Authorization", "Bearer " + token)
