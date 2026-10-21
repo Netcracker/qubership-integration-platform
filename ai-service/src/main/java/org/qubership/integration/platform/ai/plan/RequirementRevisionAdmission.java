@@ -283,8 +283,9 @@ final class RequirementRevisionAdmission {
         if (pointer.tail().getMatchingIndex() >= 0 && array.path(pointer.tail().getMatchingIndex()).isObject()) {
           key = array.path(pointer.tail().getMatchingIndex()).path("interactionId").asText();
         }
-        path = "/" + family + "/" + key + pointer.tail().tail();
-        if (path.endsWith("/interactionId")) path = "/" + family + "/" + key;
+        var entity = JsonPointer.compile("/" + family).appendProperty(key);
+        path = entity.append(pointer.tail().tail()).toString();
+        if (path.endsWith("/interactionId")) path = entity.toString();
       }
       if (path.startsWith("/transitions")) {
         var pointer = JsonPointer.compile(path);
