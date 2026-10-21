@@ -493,7 +493,8 @@ public class RequirementCaptureTools {
       var unbound = org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings.unbound(fact, RequirementCaptureProjection.facts(input));
       if (!unbound.isEmpty()) issues.add(new Issue("UNBOUND_REQUIRED_LITERAL",
           "/draft/facts/" + fact.sourceFactId() + "/elementIntent/requestedProperties", fact.sourceFactId(),
-          "Bind required literals " + unbound + " to supported properties or an owned executable artifact."
+          "Required literals at /draft/facts/" + fact.sourceFactId() + "/elementIntent/exactValues lack an implementation binding: "
+              + mapper.valueToTree(unbound) + ". Bind each unchanged literal to supported properties or an owned executable artifact."
               + (elementSchemas == null ? "" : " Current runtime property keys for " + fact.elementIntent().elementType()
                   + ": " + new java.util.TreeSet<>(elementSchemas.allowedPatchPropertyKeys(fact.elementIntent().elementType()))
                   + ". Use describeElementProperty for the selected property's current value schema.")
@@ -525,12 +526,13 @@ public class RequirementCaptureTools {
             + mapper.valueToTree(accepted == null || accepted.authoredDraft() == null ? List.of()
                 : accepted.authoredDraft().facts().stream()
                     .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
-            + ". Validated fields from rejected inputs: "
+            + ". Pending preservation constraints copied from rejected inputs: "
             + mapper.valueToTree(facts.stream()
                 .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
-            + ". Rejected-input records are partial preservation constraints, not replacement records."
-            + " Null does not instruct you to clear an accepted value. Retain accepted values and validated"
-            + " pending fields; correct only reported invalid fields or explicitly authorized amendments."
+            + ". These partial constraints do not prove that every native consumer check has run or passed;"
+            + " some checks may be deferred. They are not replacement records."
+            + " Null does not instruct you to clear an accepted value. Retain accepted values and pending"
+            + " constrained fields; correct only reported invalid fields or explicitly authorized amendments."
             + " During automatic repair, keep accepted elementIntent unchanged. Add extra source-backed settings through addFacts"
             + " on the same elementRef, rather than updating its accepted fact."))
         .toList();
