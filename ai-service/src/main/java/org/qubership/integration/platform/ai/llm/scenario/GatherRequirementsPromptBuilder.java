@@ -397,7 +397,9 @@ public class GatherRequirementsPromptBuilder {
     var constraints = draftStore == null ? null : draftStore.repairConstraints(conversationId);
     if (constraints == null) return "";
     return "\n<requirement-repair-constraints>\n"
-        + "Validated fields from rejected proposals, not an accepted draft. Preserve the listed valid IDs and fields. "
+        + "Pending preservation constraints copied from rejected proposals, not an accepted draft. "
+        + "They do not prove that every native consumer check has run or passed; some checks may be deferred. "
+        + "Preserve the listed IDs and constrained fields. "
         + "Correct reported invalid fields from the saved author source and current schemas. Missing or null fields "
         + "are not instructions to clear accepted content. Use readRequirementDraft for the complete current view.\n"
         + DRAFT_MAPPER.valueToTree(constraints)

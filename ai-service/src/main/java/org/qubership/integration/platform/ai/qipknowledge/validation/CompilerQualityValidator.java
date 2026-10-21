@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.qipknowledge.validation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifes
 @ApplicationScoped
 public class CompilerQualityValidator {
 
+  private static final ObjectMapper JSON = new ObjectMapper();
   private static final String OWNER = "cip-quality-validator";
   private static final Pattern CHAIN_NAME_PATTERN =
       Pattern.compile("^[A-Z][A-Za-z0-9]*\\.[A-Z][A-Za-z0-9]*\\.[A-Z][A-Za-z0-9]*$");
@@ -85,9 +87,11 @@ public class CompilerQualityValidator {
             "cip-script-generator", List.of(fact.elementIntent().elementRef()), List.of(),
             "Restore the required values in this script using the approved behavior and saved author source.",
             "MISSING_REQUIRED_SCRIPT_LITERAL", fact.sourceFactId(), "/elementIntent/exactValues"));
-        if (!RequiredLiteralBindings.unbound(fact, brief.facts()).isEmpty()) issues.add(new ValidationIssue(
+        var unbound = RequiredLiteralBindings.unbound(fact, brief.facts());
+        if (!unbound.isEmpty()) issues.add(new ValidationIssue(
             "unbound-required-literal", ValidationSeverity.BLOCKER,
-            "Required literal lacks an implementation binding: " + fact.sourceFactId(), OWNER,
+            "Required literals at /elementIntent/exactValues lack an implementation binding: "
+                + JSON.valueToTree(unbound) + " from fact " + fact.sourceFactId(), OWNER,
             List.of(fact.elementIntent().elementRef()), List.of(),
             "Complete the source owner's typed requirement binding before regenerating.",
             "UNBOUND_REQUIRED_LITERAL", fact.sourceFactId(), "/elementIntent/requestedProperties"));
