@@ -260,6 +260,20 @@ class RecoveryDecisionValidatorTest {
   }
 
   @Test
+  void aKnownPolicyIdDoesNotAuthorizeAnInventedRecommendation() {
+    var policy = new RequirementPolicyConflict(
+        org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY,
+        "accessControlType", "RBAC", "NONE", "access-choice", null);
+    var fact = new RequirementFact("access", RequirementFactPolarity.POSITIVE, RequirementFactKind.CONSTRAINT,
+        "http-trigger", "Use RBAC for external access", "", "", "", "", "", "", List.of("entry"), policy);
+    var decision = ask("entry", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE, List.of("input-1"));
+    var result = RecoveryDecisionValidator.validate(decision, new RecoveryContext(policyEvidence("entry"),
+        context.approvedBrief().withFacts(List.of(fact)), null, "en",
+        List.of(authorInput("input-1", "Use RBAC for external access"))));
+    assertFalse(result.accepted());
+  }
+
+  @Test
   void policyQuestionUsesTheFindingOwnerAndExactRule() {
     String corporate = org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY;
     var unrelatedConfirmed = policyFact("other-rule", "OTHER_POLICY", "entry", RequirementPolicyConflict.Decision.KEEP_REQUESTED);

@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
@@ -36,6 +38,54 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSec
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 
 class RequirementPolicyConsultationTest {
+
+  @ParameterizedTest
+  @CsvSource({"RBAC, NONE", "NONE, ABAC"})
+  void aKnownPolicyCannotAcquireAnInventedRecommendation(String requested, String recommended) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    RequirementDraftTool bindings = mock();
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var tools = new RequirementCaptureTools(store, bindings, mapper);
+    String chat = "invented-policy-" + requested;
+    String text = "Use " + requested + " for external access.";
+    store.beginTurn(chat, text);
+    var base = draft(null);
+    var policy = new RequirementPolicyConflict(CompilerSecurityValidator.EXTERNAL_RBAC_POLICY,
+        "accessControlType", requested, recommended, "policy-choice", null);
+    var fact = new FactInput("policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE, text, null, policy);
+    try (var ignored = ToolSession.open(chat)) {
+      var rejected = mapper.readValue(tools.captureRequirementDraft(new DraftInput(base.flow(), List.of(fact),
+          base.capabilities(), base.openQuestions(), new DraftSettings(null, null))), RequirementCaptureResult.class);
+      assertFalse(rejected.accepted(), rejected.toString());
+      assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("INVALID_POLICY_CONFLICT")),
+          rejected.toString());
+      var ordinary = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+          fact.text());
+      var corrected = mapper.readValue(tools.captureRequirementDraft(new DraftInput(base.flow(), List.of(ordinary),
+          base.capabilities(), List.of(), new DraftSettings(null, null))), RequirementCaptureResult.class);
+      assertTrue(corrected.accepted(), corrected.toString());
+      assertEquals(text, corrected.draft().facts().getFirst().text());
+    }
+  }
+
+  @Test
+  void anInventedPolicyCannotOverrideValidGraphAccessControl() {
+    var source = draft(null);
+    var invented = new FactInput("policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "Use RBAC for external access.", null, new RequirementPolicyConflict(
+            CompilerSecurityValidator.EXTERNAL_RBAC_POLICY, "accessControlType", "RBAC", "NONE", "policy-choice",
+            Decision.USE_RECOMMENDED));
+    var facts = RequirementCaptureProjection.facts(new DraftInput(source.flow(), List.of(invented),
+        source.capabilities(), List.of(), source.settings()));
+    var brief = new RequirementBrief("Policy test", List.of(), List.of(), List.of(), List.of(), "", "approved", "", facts);
+    var node = graph("entry", "RBAC").nodes().getFirst();
+    var properties = new java.util.ArrayList<>(node.properties());
+    properties.add(new PlanProperty("roles", "[\"test-role\"]"));
+    var result = new CompilerSecurityValidator().validate(new ChainPlanGraph("1.0", new ChainSection("Policy", ""),
+        List.of(new ChainPlanNode("entry", "http-trigger", "Entry", null, null, properties)), List.of()), brief);
+    assertTrue(result.valid(), result.summary());
+  }
 
   @Test
   void policyChoiceRequiresASeparateUserReplyAndSurvivesProjection() throws Exception {

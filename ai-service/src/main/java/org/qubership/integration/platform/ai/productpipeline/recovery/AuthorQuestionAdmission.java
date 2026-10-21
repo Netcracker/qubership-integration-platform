@@ -7,6 +7,7 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
 
 /** Shared source and value admission for discovery and recovery questions. */
 public final class AuthorQuestionAdmission {
@@ -79,11 +80,12 @@ public final class AuthorQuestionAdmission {
       }
       case POLICY_CHOICE -> {
         if (policies.stream().noneMatch(policy -> policy.decision() == null
-            && org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY
-                .equals(policy.policyId())) || policies.stream().anyMatch(policy -> policy.decision() != null
-                && org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY
-                    .equals(policy.policyId()))) {
-          findings.add("ASK_USER requires the unresolved policy rule and owner identified by the finding; preserve confirmed choices.");
+            && CompilerSecurityValidator.matchesExternalRbacPolicy(policy))
+            || policies.stream().anyMatch(policy -> policy.decision() != null
+                && CompilerSecurityValidator.matchesExternalRbacPolicy(policy))) {
+          findings.add("ASK_USER requires the unresolved policy rule and owner identified by the finding; preserve confirmed choices."
+              + " The external HTTP policy recommends RBAC for requested NONE or ABAC. A policy ID alone cannot"
+              + " establish that recommendation; correct invented policy metadata without asking the author.");
         }
       }
       case CATALOG_CHOICE -> {
