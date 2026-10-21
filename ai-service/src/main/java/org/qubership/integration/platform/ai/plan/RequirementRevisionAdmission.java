@@ -11,15 +11,465 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureProposal;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.*;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /** Admits source-scoped changes while retaining validated content and author answers. */
 final class RequirementRevisionAdmission {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private RequirementRevisionAdmission() {}
+
+  enum PreservationOutcome { VERIFIED, VIOLATED, UNPROVEN }
+
+  record NativeInputs(RequirementBrief brief, ChainPlanGraph graph) {}
+
+  record PreservationFinding(String path, List<String> ownerInteractionIds, String baselineOrigin,
+      List<Reference> evidenceReferences, String checker, PreservationOutcome outcome, String message) {}
+
+  record PreservationReport(PreservationOutcome outcome, Reference baseReference, Reference attemptReference,
+      String sourceGeneration, String sourceTurnId, String baseHash, String protectionHash, String candidateHash,
+      String sourceHash, List<String> changedPaths, List<PreservationFinding> findings,
+      List<Issue> nativeFindings, List<RequirementCaptureProjection.PendingWork> pendingWork) {}
+
+  /** Read-only diagnostics for a persisted refusal; this result grants no admission authority. */
+  static PreservationReport evaluate(String conversationId, Reference attemptRef, RequirementDraftStore drafts,
+      CompilationArtifacts artifacts, ConversationService conversations, DeterministicElementSchemaService schemas,
+      NativeInputs inputs) {
+    var findings = new ArrayList<PreservationFinding>();
+    var nativeFindings = new ArrayList<Issue>();
+    var pending = new ArrayList<RequirementCaptureProjection.PendingWork>();
+    var current = drafts.latestRevision(conversationId).orElse(null);
+    var rejected = drafts.rejectedCaptureRevision(conversationId).orElse(null);
+    String compilationId = current != null ? current.compilationId()
+        : rejected == null ? null : rejected.compilationId();
+    var attemptRevision = compilationId == null || attemptRef == null ? null
+        : artifacts.get(compilationId, attemptRef).filter(value -> value.kind() == Kind.REQUIREMENT_CAPTURE_ATTEMPT)
+            .orElse(null);
+    if (attemptRevision == null) {
+      findings.add(finding("/attempt", List.of(), "unresolved", List.of(), "persisted-attempt",
+          PreservationOutcome.UNPROVEN, "The exact capture attempt is unavailable in this conversation's compilation."));
+      return report(null, attemptRef, null, null, null, null, null, null, List.of(), findings, nativeFindings, pending);
+    }
+    var attempt = artifacts.payload(attemptRevision, RequirementDraftStore.RequirementCaptureAttempt.class);
+    var references = attempt.acceptedDraftReference() == null ? List.of(attemptRef)
+        : List.of(attempt.acceptedDraftReference(), attemptRef);
+    var baseRevision = attempt.acceptedDraftReference() == null ? null
+        : artifacts.get(compilationId, attempt.acceptedDraftReference())
+            .filter(value -> value.kind() == Kind.REQUIREMENT_DRAFT).orElse(null);
+    var baseDraft = baseRevision == null ? null : artifacts.payload(baseRevision, RequirementDraft.class);
+    var base = baseDraft == null ? null : baseDraft.authoredDraft();
+    String baseHash = CaptureProposal.digest(base);
+    var source = conversations == null ? null : conversations.archive().read(conversationId);
+    String sourceHash = source == null ? null : CaptureProposal.digest(source);
+    if (source == null || attempt.sourceTurnId() == null
+        || !Objects.equals(source.generation(), attempt.sourceGeneration())
+        || !Objects.equals(ConversationArchive.latestInputId(source), attempt.sourceTurnId())
+        || source.activeTurns().stream().noneMatch(turn -> Objects.equals(turn.id(), attempt.sourceTurnId())
+            && turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+            && "READY".equals(turn.status()))) {
+      findings.add(finding("/source", List.of(), "conversation-archive", references, "source-identity",
+          PreservationOutcome.UNPROVEN, "The attempt does not resolve to the current archived source generation and turn."));
+    }
+    if (!Objects.equals(current == null ? null : current.reference(), attempt.acceptedDraftReference())
+        || attempt.acceptedDraftReference() != null && base == null) {
+      findings.add(finding("/base", List.of(), "accepted-revision", references, "base-identity",
+          PreservationOutcome.UNPROVEN, "The exact accepted base is missing or stale; later revisions cannot supply its authority."));
+    }
+    if (attempt.accepted() || !"requirement-capture-tools".equals(attemptRevision.producerId())
+        || !List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())) {
+      findings.add(finding("/attempt", List.of(), "capture-attempt", references, "candidate-reconstruction",
+          PreservationOutcome.UNPROVEN, "The native producer and a rejected capture or update are required to reconstruct the exact base."));
+      return report(attempt.acceptedDraftReference(), attemptRef, attempt.sourceGeneration(), attempt.sourceTurnId(),
+          baseHash, null, null, sourceHash, List.of(), findings, nativeFindings, pending);
+    }
+    attempt.issues().forEach(issue -> nativeFindings.add(new Issue(issue.code(), issue.path(), issue.entityId(), issue.message())));
+    DraftInput candidate;
+    List<Issue> validation;
+    try {
+      if ("captureRequirementDraft".equals(attempt.toolName())) {
+        candidate = MAPPER.convertValue(attempt.arguments(), DraftInput.class);
+        validation = RequirementCaptureEditor.initialize(candidate).issues();
+      } else {
+        var edit = RequirementCaptureEditor.apply(base, MAPPER.convertValue(attempt.arguments(), DraftUpdate.class));
+        candidate = edit.candidate();
+        validation = edit.issues();
+      }
+    } catch (IllegalArgumentException invalidArguments) {
+      findings.add(finding("/attempt/arguments", List.of(), "capture-attempt", references, "candidate-reconstruction",
+          PreservationOutcome.UNPROVEN, "The persisted arguments cannot reconstruct a typed candidate: " + invalidArguments.getMessage()));
+      return report(attempt.acceptedDraftReference(), attemptRef, attempt.sourceGeneration(), attempt.sourceTurnId(),
+          baseHash, null, null, sourceHash, List.of(), findings, nativeFindings, pending);
+    }
+    nativeFindings.addAll(validation);
+    validation.forEach(issue -> findings.add(finding(issue.path(), issue.entityId() == null ? List.of() : List.of(issue.entityId()),
+        "native-capture-contract", references, "RequirementCaptureEditor", PreservationOutcome.VIOLATED, issue.message())));
+    if (candidate == null) {
+      findings.add(finding("/candidate", List.of(), "capture-attempt", references, "candidate-reconstruction",
+          PreservationOutcome.UNPROVEN, "The native editor did not produce a complete candidate."));
+      return report(attempt.acceptedDraftReference(), attemptRef, attempt.sourceGeneration(), attempt.sourceTurnId(),
+          baseHash, null, null, sourceHash, List.of(), findings, nativeFindings, pending);
+    }
+    var before = diagnosticTree(base);
+    var after = diagnosticTree(candidate);
+    var changed = new ArrayList<String>();
+    changedPaths(before, after, "", changed);
+    for (var path : changed) {
+      findings.add(finding(path, owners(path, base, candidate), before.at(path).isMissingNode()
+          ? "candidate-addition" : "accepted-extraction", references, "author-origin", PreservationOutcome.UNPROVEN,
+          "No independent typed author selection or native meaning contract discharges this changed obligation."
+              + " Source occurrence, model labels, and an earlier draft do not establish its meaning."));
+    }
+    if (changed.isEmpty()) {
+      findings.add(finding("/", List.of(), "accepted-extraction", references, "representation-retention",
+          PreservationOutcome.VERIFIED, "The captured representation is unchanged; this does not establish source completeness."));
+    }
+    var protectionRevision = artifacts.history(compilationId, Kind.REQUIREMENT_CAPTURE_PROTECTION).stream()
+        .filter(value -> value.sequence() < attemptRevision.sequence())
+        .filter(value -> {
+          var protection = artifacts.payload(value, RequirementDraftStore.CaptureFactProtection.class);
+          return Objects.equals(protection.sourceGeneration(), attempt.sourceGeneration())
+              && Objects.equals(protection.sourceTurnId(), attempt.sourceTurnId());
+        }).reduce((first, last) -> last).orElse(null);
+    String protectionHash = null;
+    if (protectionRevision != null) {
+      var protection = artifacts.payload(protectionRevision, RequirementDraftStore.CaptureFactProtection.class);
+      protectionHash = CaptureProposal.digest(protection);
+      var protectionRefs = new ArrayList<>(references);
+      protectionRefs.add(protectionRevision.reference());
+      if (!Objects.equals(protection.baseIdentity(), base == null ? null : baseHash)) {
+        findings.add(finding("/protection", List.of(), "rejected-capture-protection", protectionRefs, "protection-identity",
+            PreservationOutcome.UNPROVEN, "Protected rejected content belongs to a different accepted base."));
+      } else {
+        var protectedTree = protection.values() != null && protection.values().isObject()
+            ? (ObjectNode) protection.values().deepCopy() : MAPPER.createObjectNode();
+        var protectedFacts = protectedTree.putObject("facts");
+        protection.facts().forEach(fact -> protectedFacts.set(fact.sourceFactId(), MAPPER.valueToTree(fact)));
+        var losses = new ArrayList<String>();
+        protectedChanges(protectedTree, after, "", losses);
+        if (losses.isEmpty()) {
+          findings.add(finding("/protection", List.of(), "rejected-capture-protection", protectionRefs, "protected-retention",
+              PreservationOutcome.VERIFIED, "All recorded protected rejected values remain unchanged."));
+        }
+        losses.forEach(path -> findings.add(finding(path, owners(path, base, candidate), "rejected-capture-protection",
+            protectionRefs, "protected-retention", PreservationOutcome.UNPROVEN,
+            "A protected rejected value changed or disappeared; its independent meaning and dependencies remain unproved.")));
+      }
+    } else if (drafts.repairConstraints(conversationId) != null) {
+      findings.add(finding("/protection", List.of(), "unresolved", references, "protection-identity",
+          PreservationOutcome.UNPROVEN, "Active rejected protection has no matching persisted snapshot for this attempt."));
+    }
+    if (validation.isEmpty()) {
+      var bindings = baseDraft == null ? List.<org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint>of()
+          : baseDraft.catalogBindings().stream().filter(binding -> stableOwner(binding.interactionId(), base, candidate)).toList();
+      var targets = new LinkedHashMap<String, String>();
+      RequirementCaptureProjection.resolvedTargets(baseDraft).forEach((owner, target) -> {
+        if (stableOwner(owner, base, candidate)) targets.put(owner, target);
+        else findings.add(finding("/interactions/" + escape(owner), List.of(owner), "accepted-target-resolution", references,
+            "binding-inputs", PreservationOutcome.UNPROVEN, "The owner changed; the accepted target cannot resolve this candidate."));
+      });
+      if (baseDraft != null) baseDraft.catalogBindings().stream().filter(binding -> !bindings.contains(binding)).forEach(binding ->
+          findings.add(finding("/interactions/" + escape(binding.interactionId()), List.of(binding.interactionId()),
+              "accepted-catalog-binding", references, "binding-inputs", PreservationOutcome.UNPROVEN,
+              "The interaction, capability, or owned facts changed; fresh isolated catalog evidence is missing.")));
+      pending.addAll(RequirementCaptureProjection.pending(candidate, bindings, targets));
+      var projectedFacts = RequirementCaptureProjection.facts(candidate, targets);
+      var order = RequirementCaptureEditor.validateElementOrder(RequirementCaptureProjection.flow(candidate), projectedFacts);
+      nativeFindings.addAll(order);
+      order.forEach(issue -> findings.add(finding(issue.path(), owners(issue.path(), base, candidate), "native-flow-contract",
+          references, "RequirementCaptureEditor.validateElementOrder", PreservationOutcome.VIOLATED, issue.message())));
+      findings.add(finding("/candidate", List.of(), "native-capture-contract", references, "RequirementCaptureProjection",
+          PreservationOutcome.VERIFIED, "Pure fact, flow, and pending-work projections ran; pending work is retained separately."));
+      checkSchemas(candidate, schemas, references, findings, nativeFindings);
+      checkPolicyContracts(conversationId, drafts, artifacts, compilationId, candidate, references, findings);
+      if (!changed.isEmpty()) {
+        checkConsumers(candidate, baseDraft, bindings, targets, inputs, references, findings);
+        for (var path : changed) {
+          findings.add(finding(path, dependentOwners(owners(path, base, candidate), base, candidate),
+              "typed-consumer-dependencies", references, "consumer-coverage", PreservationOutcome.UNPROVEN,
+              "Independent origin and complete affected-consumer coverage are not established."
+                  + " Kind, capability, binding, mapping, question, and order changes require their own native inputs;"
+                  + " a disappearing readiness finding does not prove preservation."));
+        }
+      }
+    } else {
+      findings.add(finding("/candidate", List.of(), "native-capture-contract", references, "consumer-coverage",
+          PreservationOutcome.UNPROVEN, "Pure projections and downstream checks cannot cover the invalid candidate."));
+    }
+    return report(attempt.acceptedDraftReference(), attemptRef, attempt.sourceGeneration(), attempt.sourceTurnId(),
+        baseHash, protectionHash, CaptureProposal.digest(candidate), sourceHash, changed, findings, nativeFindings, pending);
+  }
+
+  private static PreservationFinding finding(String path, List<String> owners, String origin, List<Reference> refs,
+      String checker, PreservationOutcome outcome, String message) {
+    return new PreservationFinding(path, List.copyOf(owners), origin, List.copyOf(refs), checker, outcome, message);
+  }
+
+  private static PreservationReport report(Reference base, Reference attempt, String generation, String turn,
+      String baseHash, String protectionHash, String candidateHash, String sourceHash, List<String> changed,
+      List<PreservationFinding> findings, List<Issue> nativeFindings, List<RequirementCaptureProjection.PendingWork> pending) {
+    var outcome = findings.stream().anyMatch(value -> value.outcome() == PreservationOutcome.VIOLATED)
+        ? PreservationOutcome.VIOLATED : findings.isEmpty()
+            || findings.stream().anyMatch(value -> value.outcome() == PreservationOutcome.UNPROVEN)
+                ? PreservationOutcome.UNPROVEN : PreservationOutcome.VERIFIED;
+    return new PreservationReport(outcome, base, attempt, generation, turn, baseHash, protectionHash, candidateHash,
+        sourceHash, List.copyOf(changed), List.copyOf(findings), nativeFindings.stream().distinct().toList(), List.copyOf(pending));
+  }
+
+  private static ObjectNode diagnosticTree(DraftInput input) {
+    if (input == null) return MAPPER.createObjectNode();
+    boolean addressable = input.facts() != null && input.capabilities() != null && input.openQuestions() != null
+        && input.flow() != null && input.flow().interactions() != null && input.flow().transitions() != null
+        && uniqueIds(input.facts().stream().map(fact -> fact == null ? null : fact.sourceFactId()).toList())
+        && uniqueIds(input.capabilities().stream().map(value -> value == null ? null : value.interactionId()).toList())
+        && uniqueIds(input.flow().interactions().stream().map(value -> value == null ? null : value.interactionId()).toList())
+        && uniqueIds(input.openQuestions().stream().map(value -> value == null ? null : value.questionId()).toList());
+    if (!addressable) {
+      var raw = MAPPER.createObjectNode();
+      raw.set("unaddressableDraft", MAPPER.valueToTree(input));
+      return raw;
+    }
+    var value = tree(input);
+    var questions = value.putObject("openQuestions");
+    input.openQuestions().forEach(question -> questions.set(question.questionId(), MAPPER.valueToTree(question)));
+    var order = value.putObject("recordOrder");
+    order.set("facts", MAPPER.valueToTree(input.facts().stream().map(FactInput::sourceFactId).toList()));
+    order.set("capabilities", MAPPER.valueToTree(input.capabilities().stream().map(CapabilityInput::interactionId).toList()));
+    order.set("interactions", MAPPER.valueToTree(input.flow().interactions().stream().map(InteractionInput::interactionId).toList()));
+    order.set("openQuestions", MAPPER.valueToTree(input.openQuestions().stream().map(QuestionInput::questionId).toList()));
+    order.set("transitions", MAPPER.valueToTree(input.flow().transitions()));
+    return value;
+  }
+
+  private static boolean stableOwner(String owner, DraftInput base, DraftInput candidate) {
+    if (base == null) return false;
+    return Objects.equals(base.flow().interactions().stream().filter(value -> owner.equals(value.interactionId())).findFirst(),
+        candidate.flow().interactions().stream().filter(value -> owner.equals(value.interactionId())).findFirst())
+        && Objects.equals(base.capabilities().stream().filter(value -> owner.equals(value.interactionId())).findFirst(),
+            candidate.capabilities().stream().filter(value -> owner.equals(value.interactionId())).findFirst())
+        && base.facts().stream().filter(fact -> owns(fact, owner)).toList()
+            .equals(candidate.facts().stream().filter(fact -> owns(fact, owner)).toList());
+  }
+
+  private static boolean owns(FactInput fact, String owner) {
+    var owners = new java.util.LinkedHashSet<String>();
+    addOwners(owners, fact);
+    return owners.contains(owner);
+  }
+
+  private static boolean uniqueIds(List<String> ids) {
+    return ids.stream().noneMatch(Objects::isNull) && new java.util.HashSet<>(ids).size() == ids.size();
+  }
+
+  private static void changedPaths(JsonNode before, JsonNode after, String path, List<String> changes) {
+    if (before.equals(after)) return;
+    if (before.isObject() || after.isObject()) {
+      var keys = new java.util.TreeSet<String>();
+      before.fieldNames().forEachRemaining(keys::add);
+      after.fieldNames().forEachRemaining(keys::add);
+      if (!keys.isEmpty()) {
+        keys.forEach(key -> changedPaths(before.path(key), after.path(key), path + "/" + escape(key), changes));
+        return;
+      }
+    } else if (before.isArray() || after.isArray()) {
+      int size = Math.max(before.size(), after.size());
+      if (size > 0) {
+        for (int i = 0; i < size; i++) changedPaths(before.path(i), after.path(i), path + "/" + i, changes);
+        return;
+      }
+    }
+    changes.add(path.isEmpty() ? "/" : path);
+  }
+
+  private static void protectedChanges(JsonNode before, JsonNode after, String path, List<String> changes) {
+    if (before.isNull() || before.isMissingNode()) return;
+    if (before.isObject()) {
+      before.fields().forEachRemaining(field -> protectedChanges(field.getValue(), after.path(field.getKey()),
+          path + "/" + escape(field.getKey()), changes));
+    } else if (!before.equals(after)) changes.add(path);
+  }
+
+  private static String escape(String value) {
+    return value.replace("~", "~0").replace("/", "~1");
+  }
+
+  private static List<String> owners(String path, DraftInput base, DraftInput candidate) {
+    var owners = new java.util.LinkedHashSet<String>();
+    var pointer = JsonPointer.compile(path);
+    String family = pointer.getMatchingProperty();
+    String id = pointer.tail().getMatchingProperty();
+    if (Set.of("interactions", "capabilities", "transitions").contains(family) && id != null) owners.add(id);
+    for (var draft : new DraftInput[] {base, candidate}) {
+      if (draft == null || draft.facts() == null) continue;
+      String ownerFamily = "recordOrder".equals(family) ? pointer.tail().getMatchingProperty() : family;
+      String ownerId = "recordOrder".equals(family) ? diagnosticTree(draft).at(path).asText(null) : id;
+      if (ownerId == null) continue;
+      if ("recordOrder".equals(family) && Set.of("interactions", "capabilities", "transitions").contains(ownerFamily)) owners.add(ownerId);
+      if ("facts".equals(ownerFamily)) draft.facts().stream().filter(fact -> fact != null && Objects.equals(fact.sourceFactId(), ownerId))
+          .forEach(fact -> addOwners(owners, fact));
+      if ("openQuestions".equals(ownerFamily) && draft.openQuestions() != null) draft.openQuestions().stream()
+          .filter(question -> question != null && Objects.equals(ownerId, question.questionId()))
+          .filter(question -> question.interactionIds() != null).forEach(question -> owners.addAll(question.interactionIds()));
+    }
+    owners.remove(null);
+    return List.copyOf(owners);
+  }
+
+  private static void addOwners(Set<String> owners, FactInput fact) {
+    if (fact.interactionIds() != null) owners.addAll(fact.interactionIds());
+    if (fact.elementIntent() != null) owners.add(fact.elementIntent().ownerInteractionId());
+    if (fact.fieldMapping() != null) {
+      owners.add(fact.fieldMapping().sourceInteractionId());
+      owners.add(fact.fieldMapping().targetInteractionId());
+    }
+  }
+
+  private static List<String> dependentOwners(List<String> initial, DraftInput base, DraftInput candidate) {
+    var owners = new java.util.LinkedHashSet<>(initial);
+    int previous;
+    do {
+      previous = owners.size();
+      for (var draft : new DraftInput[] {base, candidate}) {
+        if (draft == null) continue;
+        if (draft.facts() != null) for (var fact : draft.facts()) {
+          if (fact == null) continue;
+          var related = new java.util.LinkedHashSet<String>();
+          addOwners(related, fact);
+          if (related.stream().anyMatch(owners::contains)) owners.addAll(related);
+        }
+        if (draft.flow() != null && draft.flow().transitions() != null) for (var edge : draft.flow().transitions()) {
+          if (edge != null && (owners.contains(edge.sourceInteractionId()) || owners.contains(edge.targetInteractionId()))) {
+            owners.add(edge.sourceInteractionId());
+            owners.add(edge.targetInteractionId());
+          }
+        }
+      }
+      owners.remove(null);
+    } while (previous != owners.size());
+    return List.copyOf(owners);
+  }
+
+  private static void checkSchemas(DraftInput candidate, DeterministicElementSchemaService schemas, List<Reference> refs,
+      List<PreservationFinding> findings, List<Issue> nativeFindings) {
+    for (var fact : candidate.facts()) {
+      var intent = fact.elementIntent();
+      if (intent == null || intent.placement() == RequirementElementIntent.Placement.CHAIN) continue;
+      String path = "/facts/" + escape(fact.sourceFactId()) + "/elementIntent";
+      if (schemas == null || !schemas.hasElementSchema(intent.elementType())) {
+        findings.add(finding(path, fact.interactionIds(), "native-schema", refs, "element-schema", PreservationOutcome.UNPROVEN,
+            "The native element schema is unavailable for " + intent.elementType() + "."));
+        continue;
+      }
+      var keys = schemas.allowedPatchPropertyKeys(intent.elementType());
+      var used = new java.util.HashSet<String>();
+      for (int index = 0; index < intent.requestedProperties().size(); index++) {
+        var property = intent.requestedProperties().get(index);
+        String propertyPath = path + "/requestedProperties/" + index;
+        if (property == null || property.key() == null || !keys.contains(property.key()) || !used.add(property.key())) {
+          String message = "The native schema requires a unique declared property key.";
+          nativeFindings.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath, fact.sourceFactId(), message));
+          findings.add(finding(propertyPath, fact.interactionIds(), "native-schema", refs, "element-schema",
+              PreservationOutcome.VIOLATED, message));
+        } else if (property.value() == null) {
+          findings.add(finding(propertyPath, fact.interactionIds(), "native-schema", refs, "element-schema",
+              PreservationOutcome.UNPROVEN, "The requested property value is missing."));
+        } else {
+          var error = schemas.validateCapturePropertyValue(intent.elementType(), property.key(), MAPPER.valueToTree(
+              schemas.coercePatchPropertyValue(intent.elementType(), property.key(), property.value())));
+          error.ifPresent(message -> nativeFindings.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath, fact.sourceFactId(), message)));
+          findings.add(finding(propertyPath, fact.interactionIds(), "native-schema", refs, "element-schema",
+              error.isPresent() ? PreservationOutcome.VIOLATED : PreservationOutcome.VERIFIED,
+              error.orElse("The value satisfies its native property schema; the schema does not establish author intent.")));
+        }
+      }
+    }
+  }
+
+  private static void checkPolicyContracts(String conversationId, RequirementDraftStore drafts, CompilationArtifacts artifacts,
+      String compilationId, DraftInput candidate, List<Reference> refs, List<PreservationFinding> findings) {
+    for (var answer : drafts.confirmedAnswers(conversationId)) {
+      var evidence = new ArrayList<>(refs);
+      evidence.add(answer.admittedRevision());
+      evidence.addAll(answer.sourceInputs());
+      boolean resolved = artifacts.get(compilationId, answer.admittedRevision()).isPresent()
+          && !answer.sourceInputs().isEmpty()
+          && answer.sourceInputs().stream().allMatch(reference -> artifacts.get(compilationId, reference).isPresent());
+      var fact = candidate.facts().stream().filter(value -> answer.sourceFactId().equals(value.sourceFactId())).findFirst().orElse(null);
+      String path = "/facts/" + escape(answer.sourceFactId()) + "/policyConflict";
+      boolean matches = fact != null && answer.interactionIds().equals(fact.interactionIds())
+          && answer.policy().equals(fact.policyConflict());
+      findings.add(finding(path, answer.interactionIds(), "persisted-policy-contract", evidence, "policy-contract-retention",
+          !resolved ? PreservationOutcome.UNPROVEN : matches ? PreservationOutcome.VERIFIED : PreservationOutcome.VIOLATED,
+          !resolved ? "The policy answer's exact admitted revision or source input cannot be resolved."
+              : matches ? "The persisted typed policy contract is retained. Its model-recorded choice does not prove the author's selected option."
+                  : "The candidate changes or removes the persisted policy contract or its interaction owner."));
+    }
+  }
+
+  private static void checkConsumers(DraftInput candidate, RequirementDraft baseDraft,
+      List<org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint> bindings,
+      Map<String, String> targets, NativeInputs inputs, List<Reference> refs, List<PreservationFinding> findings) {
+    if (inputs == null || inputs.brief() == null || inputs.graph() == null) {
+      findings.add(finding("/consumers", List.of(), "unreached-native-consumers", refs, "consumer-inputs",
+          PreservationOutcome.UNPROVEN, "Candidate brief and graph inputs are missing for native coverage, requested values, quality, and security checks."
+              + " Semantic coverage and mapping checks also need their native artifacts when those obligations change."));
+      return;
+    }
+    String origin = "diagnostic-native-inputs:" + CaptureProposal.digest(inputs);
+    if (inputs.graph().nodes() == null || inputs.graph().chain() == null || inputs.graph().edges() == null
+        || inputs.graph().nodes().stream().anyMatch(node -> node == null || node.nodeId() == null || node.type() == null
+            || node.properties() == null || node.properties().stream().anyMatch(property -> property == null || property.key() == null))) {
+      findings.add(finding("/consumers/graph", List.of(), origin, refs, "consumer-inputs", PreservationOutcome.UNPROVEN,
+          "The native graph input is incomplete; requested-value, quality, and security checks cannot run."));
+      return;
+    }
+    try {
+      var projected = RequirementCaptureProjection.toDraft(candidate, baseDraft, bindings, "diagnostic", "diagnostic", targets);
+      var coverage = new RequirementBriefCoverageValidator().validate(projected, inputs.brief());
+      findings.add(finding("/consumers/brief", List.of(), origin, refs, "RequirementBriefCoverageValidator",
+          coverage.isPresent() ? PreservationOutcome.VIOLATED : PreservationOutcome.VERIFIED,
+          coverage.orElse("Native brief coverage passes; this comparison does not establish changed source meaning.")));
+      try {
+        var applied = RequestedElementValues.apply(inputs.graph(), inputs.brief().facts());
+        findings.add(finding("/consumers/requestedValues", List.of(), origin, refs, "RequestedElementValues",
+            applied.equals(inputs.graph()) ? PreservationOutcome.VERIFIED : PreservationOutcome.VIOLATED,
+            applied.equals(inputs.graph()) ? "The graph retains the brief's requested values."
+                : "Applying the brief's requested values changes the supplied graph."));
+      } catch (IllegalArgumentException invalidIntent) {
+        findings.add(finding("/consumers/requestedValues", List.of(), origin, refs, "RequestedElementValues",
+            PreservationOutcome.VIOLATED, invalidIntent.getMessage()));
+      }
+      var quality = CompilerQualityValidator.validateApprovedValues(inputs.graph(), inputs.brief());
+      if (quality.isEmpty()) findings.add(finding("/consumers/quality", List.of(), origin, refs, "CompilerQualityValidator",
+          PreservationOutcome.VERIFIED, "The native approved-value check passes."));
+      quality.forEach(issue -> findings.add(finding(issue.fieldPointer() == null ? "/consumers/quality" : issue.fieldPointer(),
+          issue.affectedNodeIds(), origin, refs, "CompilerQualityValidator",
+          issue.severity() == ValidationSeverity.BLOCKER ? PreservationOutcome.VIOLATED : PreservationOutcome.UNPROVEN, issue.message())));
+      var security = new CompilerSecurityValidator().validate(inputs.graph(), inputs.brief());
+      if (security.issues().isEmpty()) findings.add(finding("/consumers/security", List.of(), origin, refs, "CompilerSecurityValidator",
+          PreservationOutcome.VERIFIED, "The native security check passes."));
+      security.issues().forEach(issue -> findings.add(finding(issue.fieldPointer() == null ? "/consumers/security" : issue.fieldPointer(),
+          issue.affectedNodeIds(), origin, refs, "CompilerSecurityValidator",
+          issue.severity() == ValidationSeverity.BLOCKER ? PreservationOutcome.VIOLATED : PreservationOutcome.UNPROVEN, issue.message())));
+    } catch (RuntimeException incompleteInput) {
+      findings.add(finding("/consumers", List.of(), origin, refs, "consumer-inputs", PreservationOutcome.UNPROVEN,
+          "Native consumer coverage did not finish: " + incompleteInput.getClass().getSimpleName() + ": " + incompleteInput.getMessage()));
+    }
+  }
 
   static List<Issue> validate(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
       Set<String> authorPaths, Map<String, Set<String>> mappingPaths, Predicate<FactInput> canAnswer) {
