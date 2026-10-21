@@ -26,7 +26,12 @@ public class CaptureToolOutcomeGateway {
 
   public record TypedIssue(String code, String path, String message,
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-      String entityId) {
+      String entityId,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      com.fasterxml.jackson.databind.JsonNode details) {
+    public TypedIssue(String code, String path, String message, String entityId) {
+      this(code, path, message, entityId, null);
+    }
     public TypedIssue(String code, String path, String message) {
       this(code, path, message, null);
     }

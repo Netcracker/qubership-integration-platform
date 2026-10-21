@@ -83,6 +83,7 @@ def load_cases(path=DEFAULT_CASES):
             "http-distinct-fields",
             "semantic-required-node",
             "requirement-literal-binding",
+            "element-property-values",
         }:
             raise ValueError("Unsupported pilot fault")
         cases[case["id"]] = case
@@ -168,13 +169,26 @@ def model_boundary_errors(case, evidence):
     return []
 
 
-def fault_scope_errors(kind, original, mutated):
+def fault_scope_errors(kind, original, mutated, parameters=None):
     expected = copy.deepcopy(original)
     if kind in {"http-exposure-type", "http-distinct-fields"}:
         if mutated.get("endpoints", [{}])[0].get("semanticNodeId") is False:
             expected["endpoints"][0]["semanticNodeId"] = False
         else:
             expected["endpoints"][0]["externalRoute"] = str(expected["endpoints"][0]["externalRoute"]).lower()
+    elif kind == "element-property-values":
+        values = (parameters or {}).get("propertyValues", {})
+        if not values:
+            return ["Element property fault has no declared values"]
+        for key, value in values.items():
+            targets = [row for row in expected.get("propertyPatches", []) if row.get("key") == key and row.get("operation") != "REMOVE"]
+            if not targets:
+                return ["Element property fault has no matching patch field"]
+            target = targets[0]
+            for field in ("arrayValue", "mapEntries", "mapValue"):
+                target[field] = None
+            target["value"] = {}
+            target["scalarValue"] = value if isinstance(value, str) else json.dumps(value, separators=(",", ":"))
     elif kind == "semantic-required-node":
         variants = [original["operations"][:index] + original["operations"][index + 1:]
                     for index in range(len(original.get("operations", [])))]
@@ -269,6 +283,46 @@ def text_fragments(value):
             yield from text_fragments(decoded)
 
 
+def delivered_capture_issues(messages):
+    """Read the structured repair payload from actual provider messages, including quoted tool results."""
+    delivered = []
+    marker = "Remaining validation issues (recheck every issue; preserve corrections):"
+    for fragment in text_fragments(messages):
+        text = fragment
+        for _ in range(2):
+            try:
+                decoded = json.loads(text)
+            except (ValueError, TypeError):
+                break
+            if not isinstance(decoded, str):
+                break
+            text = decoded
+        start = text.find(marker)
+        if start < 0:
+            continue
+        try:
+            issues, _ = json.JSONDecoder().raw_decode(text[start + len(marker):].lstrip())
+        except ValueError:
+            continue
+        if isinstance(issues, dict):
+            constraints = issues.get("constraints", {})
+            issues = copy.deepcopy(issues.get("issues", []))
+            if not isinstance(issues, list) or not isinstance(constraints, dict):
+                continue
+            for issue in issues:
+                if not isinstance(issue, dict) or not isinstance(issue.get("details", {}), dict):
+                    continue
+                details = issue.get("details", {})
+                reference = details.get("constraint", {}).get("$ref") if isinstance(details.get("constraint"), dict) else None
+                if isinstance(reference, str) and reference.startswith("#/constraints/"):
+                    target = constraints.get(reference[len("#/constraints/"):])
+                    if target is not None:
+                        details["constraint"] = target
+        if isinstance(issues, list):
+            delivered.extend(issues)
+    return delivered
+
+
 def typed_recovery_errors(case, evidence, checkpoint):
     evidence["providerProof"] = []
     faults = [row for row in evidence.get("events", []) if row.get("type") == "FAULT_APPLIED"]
@@ -280,7 +334,7 @@ def typed_recovery_errors(case, evidence, checkpoint):
     requests = {row.get("id"): row for row in records if "request" in row
                 and row.get("runId") == evidence.get("runId")}
     for fault in faults:
-        scope_errors = fault_scope_errors(case["fault"]["kind"], fault["original"], fault["mutated"])
+        scope_errors = fault_scope_errors(case["fault"]["kind"], fault["original"], fault["mutated"], case["fault"])
         if scope_errors:
             return scope_errors
         if fault.get("original") == fault.get("mutated"):
@@ -298,8 +352,20 @@ def typed_recovery_errors(case, evidence, checkpoint):
         saved = by_ref.get(tuple(reference.get(key) for key in ("kind", "artifactId", "contentHash")))
         if saved is None:
             return ["Native refusal has no immutable stored evidence"]
+        if case["fault"]["kind"] == "element-property-values":
+            if native["issues"] != saved.get("payload", {}).get("feedback", {}).get("issues"):
+                return ["Observed element refusal differs from immutable native schema findings"]
+            following = [request for request in requests.values()
+                         if native_time(request.get("at", 0)) > native_time(refusal["observedAt"])]
+            if not following:
+                return ["No actual provider request followed the element refusal"]
+            first_request = min(following, key=lambda request: native_time(request["at"]))
+            delivered = delivered_capture_issues(first_request.get("request", {}).get("messages", []))
+            if not all(issue in delivered for issue in native["issues"]):
+                return ["The next actual provider request lost native schema repair details"]
         accepted = [row for row in evidence.get("events", []) if row.get("type") == "CAPTURE_ACCEPTED"
                     and row.get("tool") == fault.get("tool") and row.get("source") == "model-tool"
+                    and (not fault.get("capabilityId") or row.get("capabilityId") == fault["capabilityId"])
                     and row.get("sequence", 0) > refusal["sequence"]]
         if not accepted:
             return ["No subsequent model candidate passed native admission"]
@@ -314,7 +380,7 @@ def typed_recovery_errors(case, evidence, checkpoint):
             if native_time(request.get("at", 0)) <= native_time(refusal["observedAt"]):
                 continue
             packet = "\n".join(text_fragments(request.get("request", {}).get("messages", [])))
-            if not any(issue.get("message") in packet and (
+            if case["fault"]["kind"] != "element-property-values" and not any(issue.get("message") in packet and (
                 issue.get("code") not in {"INVALID_TYPE", "INVALID_JSON", "MISSING_FIELD", "DUPLICATE_JSON_KEY"}
                 or issue.get("code") in packet and issue.get("path") in packet)
                 for issue in native["issues"] if issue.get("code") and issue.get("message")):
@@ -800,7 +866,7 @@ class IsolatedInstance:
                 check=True,
             )
 
-    def start(self, conversation, boundary, mutation=""):
+    def start(self, conversation, boundary, mutation="", property_values=None):
         write_json(
             self.control / "plan.json",
             {
@@ -808,6 +874,7 @@ class IsolatedInstance:
                 "conversationId": conversation,
                 "boundary": boundary,
                 "mutation": mutation,
+                "propertyValues": property_values or {},
             },
         )
         self.compose("config", "--quiet")
@@ -1066,7 +1133,8 @@ def run_case(case, output, image, baseline="qip-ai-service"):
             },
         )
         instance.start(
-            conversation, case["boundary"], (case.get("fault") or {}).get("kind", "")
+            conversation, case["boundary"], (case.get("fault") or {}).get("kind", ""),
+            (case.get("fault") or {}).get("propertyValues")
         )
         environment = {
             **os.environ,

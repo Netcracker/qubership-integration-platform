@@ -22,6 +22,30 @@ class E2eRecoveryTestControlTest {
   @TempDir Path directory;
   private final ObjectMapper mapper = new ObjectMapper();
 
+  @Test void elementFaultChangesOnlyDeclaredValuesOnce() throws Exception {
+    mapper.writeValue(directory.resolve("plan.json").toFile(), Map.of("schemaVersion", 1,
+        "conversationId", "owned", "boundary", "completion", "mutation", "element-property-values",
+        "propertyValues", Map.of("logLevel", "unsupported")));
+    var control = new E2eRecoveryTestControl(directory, mapper);
+    var proposal = mapper.readTree("""
+        {"patchId":"patch","ownerCapabilityId":"monitoring","propertyPatches":[
+          {"operation":"ADD","targetNodeId":"log","key":"logLevel","value":{},"scalarValue":"Info"},
+          {"operation":"ADD","targetNodeId":"log","key":"message","scalarValue":"keep this"}]}
+        """);
+    assertSame(proposal, control.elementPatch("foreign", "monitoring", proposal));
+    assertSame(proposal, new E2eRecoveryTestControl((Path) null, mapper).elementPatch("owned", "monitoring", proposal));
+    var changed = control.elementPatch("owned", "monitoring", proposal);
+    var expected = proposal.deepCopy();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) expected.path("propertyPatches").get(0)).put("scalarValue", "unsupported");
+    for (String field : List.of("arrayValue", "mapEntries", "mapValue")) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) expected.path("propertyPatches").get(0)).putNull(field);
+    }
+    assertEquals(expected, changed);
+    assertEquals("Info", proposal.path("propertyPatches").get(0).path("scalarValue").asText());
+    assertSame(proposal, control.elementPatch("owned", "monitoring", proposal));
+    try (var events = Files.list(directory.resolve("events"))) { assertEquals(1, events.count()); }
+  }
+
   @Test void disabledAndForeignConversationControlsAreInert() throws Exception {
     var proposal = new HttpTriggerCapture(List.of(new HttpTriggerCapture.Endpoint("role", "node", false)));
     assertSame(proposal, new E2eRecoveryTestControl((Path) null, mapper).httpCapture("owned", "trigger", proposal));

@@ -785,20 +785,19 @@ public class CompilerSkillRuntime {
 
   /**
    * Before an outer repair retry, fill unanswered tool_calls with honest dangling text. When the
-   * last failure is VALIDATION with a non-blank summary, reuse that summary (capped locally at 800
-   * chars). Otherwise keep the parse-default filler.
+   * last failure is a validation or conversion refusal, retain its complete repair data.
+   * Otherwise keep the parse-default filler.
    */
   private Runnable sanitizingBeforeRepairRetry(
       String memoryId, Supplier<Optional<CaptureAttemptFeedback>> feedbackSupplier) {
     return () -> {
       Optional<CaptureAttemptFeedback> last = feedbackSupplier.get();
       if (last.isPresent()
-          && last.get().kind() == CaptureFailureKind.VALIDATION
+          && last.get().kind() != CaptureFailureKind.TOOL_ARGUMENTS
           && last.get().summary() != null
           && !last.get().summary().isBlank()) {
         String summary = last.get().summary();
-        int max = 800;
-        String dangling = summary.length() <= max ? summary : summary.substring(0, max);
+        String dangling = summary + repairMessageBuilder.issueDetails(last.get());
         chatMemorySanitizer.repairDanglingToolCalls(memoryId, dangling);
         return;
       }

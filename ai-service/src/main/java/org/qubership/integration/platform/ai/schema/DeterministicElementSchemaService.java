@@ -392,6 +392,24 @@ public class DeterministicElementSchemaService {
     }
   }
 
+  /** All native capture violations; prose summaries must not replace their repair data. */
+  public List<JsonNode> capturePropertyIssues(String elementType, String propertyKey, JsonNode value) {
+    if (elementType == null || propertyKey == null || value == null || value.isNull()
+        || !hasElementSchema(elementType)) {
+      return List.of();
+    }
+    var model = elementPropertiesSchemaModel(elementType);
+    JsonNode schema = model.propertyDefs().get(propertyKey);
+    if (schema == null) {
+      return List.of();
+    }
+    var errors = ElementPatchValidator.validatePropertyIssues(propertyKey, value, schema,
+        schemaRefResolver, objectMapper);
+    List<JsonNode> result = new ArrayList<>();
+    errors.forEach(result::add);
+    return List.copyOf(result);
+  }
+
   /**
    * True when the catalog schema types this property as a JSON string. JSON text stored in that
    * string (MCP trigger {@code inputSchema} and {@code outputSchema}) must stay a string in the
