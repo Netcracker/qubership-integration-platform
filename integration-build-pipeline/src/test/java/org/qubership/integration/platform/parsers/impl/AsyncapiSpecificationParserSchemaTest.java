@@ -69,6 +69,8 @@ class AsyncapiSpecificationParserSchemaTest {
     private static final String CLOSED_REF = "{$ref: '#/components/schemas/Closed/schema'}";
     private static final String LITERAL_REFS = "{type: object, properties: {marker: {const: " + CLOSED_REF + ", enum: ["
             + CLOSED_REF + "], default: " + CLOSED_REF + ", example: " + CLOSED_REF + ", examples: [" + CLOSED_REF + "], x-data: " + CLOSED_REF + "}}}";
+    private static final String DEPENDENT_LITERAL = "{type: object, properties: {trigger: {type: string}}, "
+            + "dependencies: {trigger: {properties: {marker: {const: {$ref: '#/components/schemas/Dependent'}}}}}}";
     private static final String AVRO_SCHEMA = "{schemaFormat: 'application/vnd.apache.avro;version=1.9.0', "
             + "schema: {type: record, name: Order, fields: [{name: id, type: string}]}}";
 
@@ -187,10 +189,12 @@ class AsyncapiSpecificationParserSchemaTest {
                                 + "definitions: {Closed: " + CLOSED_OBJECT + "}}"),
                 Arguments.of("v3 reference under dependencies",
                         v3("{order: " + payload("{type: object, properties: {a: {type: string}}, "
-                                + "dependencies: {a: {$ref: '#/components/schemas/Dependent'}}}") + "}",
+                                + "dependencies: {a: {$ref: '#/components/schemas/Dependent'}, "
+                                + "c: {properties: {d: {$ref: '#/components/schemas/Dependent'}}}}}") + "}",
                                 "{schemas: {Dependent: {type: object, required: [b]}}}"),
                         "payload", "{type: object, properties: {a: {type: string}}, "
-                                + "dependencies: {a: {$ref: '#/definitions/Dependent'}}, "
+                                + "dependencies: {a: {$ref: '#/definitions/Dependent'}, "
+                                + "c: {properties: {d: {$ref: '#/definitions/Dependent'}}}}, "
                                 + "definitions: {Dependent: {type: object, required: [b]}}}"),
                 Arguments.of("v3 array with dependencies",
                         v3("{order: " + payload("{type: array, items: {$ref: '#/components/schemas/Dependent'}, "
@@ -198,6 +202,9 @@ class AsyncapiSpecificationParserSchemaTest {
                                 "{schemas: {Dependent: {type: object, required: [b]}}}"),
                         "payload", "{type: array, items: {$ref: '#/definitions/Dependent'}, dependencies: {a: [b]}, "
                                 + "definitions: {Dependent: {type: object, required: [b]}}}"),
+                Arguments.of("v3 reference-shaped literal under dependencies",
+                        v3("{order: " + payload(DEPENDENT_LITERAL) + "}", "{schemas: {Dependent: {type: object, required: [b]}}}"),
+                        "payload", DEPENDENT_LITERAL),
                 Arguments.of("v3 multi-format Avro component",
                         v3("{order: " + payload("{$ref: '#/components/schemas/Order'}") + "}",
                                 "{schemas: {Order: " + AVRO_SCHEMA + "}}"),

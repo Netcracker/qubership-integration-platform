@@ -209,6 +209,17 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
     };
     const INTEGER_ENUM = { type: "integer", enum: [1, 2, 3] };
     const CLOSED_REF = { $ref: "#/components/schemas/Closed/schema" };
+    const DEPENDENT_LITERAL = {
+      type: "object",
+      properties: { trigger: { type: "string" } },
+      dependencies: {
+        trigger: {
+          properties: {
+            marker: { const: { $ref: "#/components/schemas/Dependent" } },
+          },
+        },
+      },
+    };
     const CLOSED_SCHEMAS = {
       schemas: { Closed: { schemaFormat: JSON_SCHEMA, schema: CLOSED_OBJECT } },
     };
@@ -445,7 +456,14 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
               payload: {
                 type: "object",
                 properties: { a: { type: "string" } },
-                dependencies: { a: { $ref: "#/components/schemas/Dependent" } },
+                dependencies: {
+                  a: { $ref: "#/components/schemas/Dependent" },
+                  c: {
+                    properties: {
+                      d: { $ref: "#/components/schemas/Dependent" },
+                    },
+                  },
+                },
               },
             },
           },
@@ -455,7 +473,10 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
           payload: {
             type: "object",
             properties: { a: { type: "string" } },
-            dependencies: { a: { $ref: "#/definitions/Dependent" } },
+            dependencies: {
+              a: { $ref: "#/definitions/Dependent" },
+              c: { properties: { d: { $ref: "#/definitions/Dependent" } } },
+            },
             definitions: { Dependent: { type: "object", required: ["b"] } },
           },
         },
@@ -482,6 +503,14 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
             definitions: { Dependent: { type: "object", required: ["b"] } },
           },
         },
+      ],
+      [
+        "a reference-shaped literal under dependencies",
+        document(
+          { order: { payload: DEPENDENT_LITERAL } },
+          { schemas: { Dependent: { type: "object", required: ["b"] } } },
+        ),
+        { payload: { ...DEPENDENT_LITERAL, definitions: {} } },
       ],
       [
         "an Avro component",

@@ -230,13 +230,22 @@ export class AsyncApiSchemaResolver {
       }
     }
     // Property dependencies apply next to any shape above, so they are walked
-    // whichever branch ran.
-    this.collectSchemaNodeProperties(
-      result,
-      schemaNode.dependencies,
-      componentsNode,
-      visited,
-    );
+    // whichever branch ran. Each one is read one level deep, as the backend
+    // reads it, so literal values below it stay as written.
+    if (isObject(schemaNode.dependencies)) {
+      for (const dependency of Object.values(schemaNode.dependencies)) {
+        if (isObject(dependency)) {
+          this.getIterablePropertyRefs(
+            dependency,
+            componentsNode,
+            visited,
+          ).forEach((value, key) => result.set(key, value));
+          this.getRefs(dependency, componentsNode, visited).forEach(
+            (value, key) => result.set(key, value),
+          );
+        }
+      }
+    }
 
     return result;
   }
