@@ -635,8 +635,14 @@ public class RequirementDraftStore {
       List<RequirementCaptureEditor.Issue> issues) {
     var base = get(conversationId).map(RequirementDraft::authoredDraft).orElse(null);
     var retained = RequirementRevisionAdmission.retainedAdditions(base, input, issues);
-    var facts = RequirementRevisionAdmission.accumulate(rejectedCaptureFacts(conversationId),
-        retained.facts());
+    var previousFacts = rejectedCaptureFacts(conversationId);
+    var candidateIds = input.facts() == null ? java.util.Set.<String>of() : input.facts().stream()
+        .filter(Objects::nonNull).map(RequirementCaptureInput.FactInput::sourceFactId)
+        .collect(java.util.stream.Collectors.toSet());
+    boolean retainsIdentities = previousFacts.stream()
+        .filter(fact -> RequirementCaptureEditor.validFactId(fact.sourceFactId()))
+        .allMatch(fact -> candidateIds.contains(fact.sourceFactId()));
+    var facts = retainsIdentities ? RequirementRevisionAdmission.accumulate(previousFacts, retained.facts()) : previousFacts;
     var values = RequirementRevisionAdmission.accumulateValues(rejectedCaptureValues.get(conversationId),
         retained.values());
     if (!facts.equals(rejectedCaptureFacts(conversationId)) || !values.equals(rejectedCaptureValues.get(conversationId))) {

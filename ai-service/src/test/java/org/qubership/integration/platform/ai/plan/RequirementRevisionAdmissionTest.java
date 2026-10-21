@@ -325,6 +325,36 @@ class RequirementRevisionAdmissionTest {
     assertEquals(List.of(first, second), RequirementRevisionAdmission.accumulate(List.of(first), List.of(second)));
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rejectedIdentityLossCannotAddAlternativeFactConstraints(boolean recreateStore) throws Exception {
+    var h = new Harness();
+    h.begin("Create tasks, record completion, and preserve request IDs. Proceed without IDS.");
+    java.util.function.BiFunction<String, String, FactInput> event = (id, ref) ->
+        new FactInput(id, List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE, "Record completion.",
+            null, null, new RequirementElementIntent(ref, "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+                "entry", null, "entry", null, List.of(), List.of()));
+    try (var ignored = ToolSession.open(h.chat)) {
+      assertFalse(h.capture(withNativeAnchors(httpDraft(List.of(fact("goal", "Create tasks."),
+          event.apply("completion", "invalid event"))))).accepted());
+      var renamed = withNativeAnchors(httpDraft(List.of(fact("goal", "Create tasks."),
+          event.apply("renamed-completion", "emit"), fact("invalid id", "Preserve request IDs."))));
+      assertFalse(h.capture(renamed).accepted());
+      assertFalse(h.store.rejectedCaptureFacts(h.chat).stream()
+          .anyMatch(fact -> "renamed-completion".equals(fact.sourceFactId())),
+          "Rejected identity loss must not create another mandatory version of the same fact");
+      if (recreateStore) {
+        h.restartStore();
+        h.store.beginTurn(h.chat, "Automatic correction.");
+      }
+      var corrected = withNativeAnchors(httpDraft(List.of(fact("goal", "Create tasks."),
+          event.apply("completion", "emit"), fact("retain-id", "Preserve request IDs."))));
+      var admitted = h.capture(corrected);
+      assertTrue(admitted.accepted(), admitted.toString());
+      assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
+    }
+  }
+
   @Test
   void derivedWriterCannotReplaceAuthoredRequirements() throws Exception {
     var h = new Harness();
