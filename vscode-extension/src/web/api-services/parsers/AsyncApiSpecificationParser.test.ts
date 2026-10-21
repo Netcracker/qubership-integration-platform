@@ -191,7 +191,7 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
     );
   });
 
-  describe("AsyncAPI 3.0 multi-format schemas", () => {
+  describe("AsyncAPI 3.0 schemas stored as the backend stores them", () => {
     // The backend's AsyncapiSpecificationParserSchemaTest reads the same documents.
     const JSON_SCHEMA = "application/schema+json;version=draft-07";
     const AVRO_SCHEMA = {
@@ -513,6 +513,21 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
         { payload: { ...DEPENDENT_LITERAL, definitions: {} } },
       ],
       [
+        "a chain of message aliases",
+        document(
+          { order: { $ref: "#/components/messages/Chained" } },
+          {
+            messages: {
+              Chained: { $ref: "#/components/messages/Middle" },
+              Middle: { $ref: "#/components/messages/Alias" },
+              Alias: { $ref: "#/components/messages/Order" },
+              Order: { payload: INTEGER_ENUM },
+            },
+          },
+        ),
+        { Chained: { ...INTEGER_ENUM, definitions: {} } },
+      ],
+      [
         "an Avro component",
         document(
           { order: { payload: { $ref: "#/components/schemas/Order" } } },
@@ -523,6 +538,20 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
     ])("stores %s as the backend does", async (_name, content, expected) => {
       expect(await storedSchemas(content)).toEqual(expected);
     });
+
+    it("imports a cycle of message aliases", async () => {
+      const content = document(
+        { order: { $ref: "#/components/messages/First" } },
+        {
+          messages: {
+            First: { $ref: "#/components/messages/Second" },
+            Second: { $ref: "#/components/messages/Third" },
+            Third: { $ref: "#/components/messages/Second" },
+          },
+        },
+      );
+      await expect(storedSchemas(content)).resolves.toBeDefined();
+    }, 10000);
   });
 
   // These fixtures intentionally omit a protocol marker (servers/x-protocol);

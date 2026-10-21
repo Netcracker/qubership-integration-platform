@@ -2,6 +2,7 @@ package org.qubership.integration.platform.parsers.impl;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -10,10 +11,12 @@ import org.qubership.integration.platform.parsers.configuration.SpecificationPar
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // Each message schema is stored as the document writes it, with the $id, $schema, and definitions the resolver adds.
@@ -98,6 +101,11 @@ class AsyncapiSpecificationParserSchemaTest {
                 Arguments.of("v3 message alias",
                         v3("{order: " + ref("Alias") + "}", messages(ALIAS_MESSAGE, ORDER_MESSAGE)),
                         "Alias", ORDER_SCHEMA),
+                Arguments.of("v3 chain of message aliases",
+                        v3("{order: " + ref("Chained") + "}",
+                                messages("Chained: {$ref: '#/components/messages/Middle'}",
+                                        "Middle: {$ref: '#/components/messages/Alias'}", ALIAS_MESSAGE, ORDER_MESSAGE)),
+                        "Chained", ORDER_SCHEMA),
                 // Keywords the root of a payload used to lose or fail on.
                 Arguments.of("v2 additionalProperties false",
                         v2(payload(CLOSED_OBJECT), "{}"),
@@ -241,6 +249,15 @@ class AsyncapiSpecificationParserSchemaTest {
         ObjectNode written = (ObjectNode) yamlMapper.readTree(expected);
         written.putIfAbsent("definitions", yamlMapper.createObjectNode());
         assertEquals(written, stored);
+    }
+
+    @Test
+    void importsACycleOfMessageAliases() {
+        String document = v3("{order: " + ref("First") + "}", messages(
+                "First: {$ref: '#/components/messages/Second'}", "Second: {$ref: '#/components/messages/Third'}",
+                "Third: {$ref: '#/components/messages/Second'}"));
+
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> parser.toSystemModel(parser.read(document), "kafka"));
     }
 
     private static String v2(String message, String components) {

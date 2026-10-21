@@ -52,6 +52,17 @@ export class AsyncApiSchemaResolver {
 
     const clonedComponents = deepClone(components);
     const schemaNode = this.getSchemaNode(schemaRef, clonedComponents);
+    // A message that aliases another message, directly or through other
+    // aliases, is replaced with the message it names before its payload is
+    // read. A reference already followed ends a cycle of aliases.
+    const followed = new Set<string>();
+    while (
+      typeof schemaNode[REF_FIELD_NAME] === "string" &&
+      !followed.has(schemaNode[REF_FIELD_NAME])
+    ) {
+      followed.add(schemaNode[REF_FIELD_NAME]);
+      this.resolveInlineRef(schemaNode, clonedComponents);
+    }
     this.convertPayloadToSchemaNode(schemaNode);
 
     return this.resolveSchemaNode(schemaRef, schemaNode, clonedComponents);
