@@ -26,6 +26,42 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementRevisionAdmissionTest {
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rejectedInteractionIdentityDoesNotProtectItsTransitions(boolean recreateStore) throws Exception {
+    var h = new Harness();
+    h.begin("Receive POST /tasks and send it to Task API and Audit API. Proceed without IDS.");
+    try (var ignored = ToolSession.open(h.chat)) {
+      var rejected = h.capture(parallelHttpDraft("invalid recipient"));
+      assertFalse(rejected.accepted());
+      assertTrue(rejected.issues().stream().anyMatch(issue -> "INVALID_VALUE".equals(issue.code())));
+      var retained = h.store.repairConstraints(h.chat).values().path("transitions").path("entry");
+      assertTrue(retained.toString().contains("audit"));
+      if (recreateStore) {
+        h.restartStore();
+        h.store.beginTurn(h.chat, "Automatic correction.");
+      }
+      var corrected = h.capture(parallelHttpDraft("delivery"));
+      assertTrue(corrected.accepted(), corrected.toString());
+      assertFalse(retained.toString().contains("invalid recipient"));
+      assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
+      var removed = new DraftUpdate(List.of(), List.of(), List.of(), List.of(),
+          List.of(new TransitionInput("entry", "audit")), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(), null);
+      assertFalse(h.update(removed).accepted(), "A validated transition still requires author authority to remove");
+    }
+  }
+
+  @Test
+  void historicalRejectedValuesReleaseTransitionsToInvalidIdentities() {
+    var values = new ObjectMapper().createObjectNode();
+    values.putObject("interactions").putNull("invalid recipient");
+    values.putObject("transitions").putArray("entry").add("invalid recipient").add("audit");
+    var issues = RequirementRevisionAdmission.validate(null, parallelHttpDraft("delivery"), List.of(), values,
+        java.util.Set.of(), java.util.Set.of(), java.util.Map.of(), fact -> false);
+    assertTrue(issues.isEmpty(), issues.toString());
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"method", "operation", "fact-text", "fact-kind", "element-property", "element-type", "folder", "ids-choice"})
   void rejectedReplacementCannotInvalidateAcceptedStateAcrossRetryAndReload(String field) throws Exception {
     for (boolean earlyRejection : List.of(false, true)) {
@@ -791,6 +827,19 @@ class RequirementRevisionAdmissionTest {
         "Caller", "POST /tasks", "Task endpoint", null, null)), List.of()), facts,
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
             "/tasks", null, null, null)), List.of(), new DraftSettings(false, null));
+  }
+
+  private static DraftInput parallelHttpDraft(String targetId) {
+    var base = httpDraft(List.of(fact("goal", "Send tasks to Task API and Audit API.")));
+    return withNativeAnchors(new DraftInput(new FlowInput(List.of(base.flow().interactions().getFirst(),
+        new InteractionInput(targetId, Direction.OUTBOUND, "Task API", "Create task", null, null, null),
+        new InteractionInput("audit", Direction.OUTBOUND, "Audit API", "Record task", null, null, null)),
+        List.of(new TransitionInput("entry", targetId), new TransitionInput("entry", "audit"))), base.facts(),
+        List.of(base.capabilities().getFirst(),
+            new CapabilityInput(targetId, "http-sender", null, HttpMethod.POST,
+                "https://example.com/tasks", null, null, null),
+            new CapabilityInput("audit", "http-sender", null, HttpMethod.POST,
+                "https://example.com/audit", null, null, null)), List.of(), base.settings()));
   }
 
   private static FactInput policy(Decision decision) {
