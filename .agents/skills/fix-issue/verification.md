@@ -119,7 +119,7 @@ jq -r --arg c "$CHAIN_ID" '[.update[]|select(.deploymentInfo.chainId==$c)]|last|
 ```
 
 - A body is required; `[]` gives 400. An empty `excludeDeployments` is answered from a cache
-  that goes stale after the first call on this stack, so pass one bogus entry, as the
+  that a change made outside this catalog leaves stale, so pass one bogus entry, as the
   `runtime-catalog` instruction explains.
 - A chain with no trigger compiles to an empty `<routes/>`; add an `http-trigger` with
   `contextPath` and wire it with `POST /v1/chains/{id}/dependencies`.

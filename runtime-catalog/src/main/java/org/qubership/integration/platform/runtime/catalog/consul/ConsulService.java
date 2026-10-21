@@ -30,6 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.model.consul.KVRespons
 import org.qubership.integration.platform.runtime.catalog.model.consul.KeyResponse;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineState;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -103,7 +104,10 @@ public class ConsulService {
      */
     public void updateDeploymentsTimestamp() {
         log.debug("Update deployments modification timestamp");
-        client.createOrUpdateKV(keyPrefix + keyEngineConfigRoot + keyDeploymentsUpdate, new Date().getTime());
+        long timestamp = new Date().getTime();
+        // An engine requests the update as soon as the key changes, before the watcher clears the cache.
+        DeploymentService.clearDeploymentsUpdateCache(timestamp);
+        client.createOrUpdateKV(keyPrefix + keyEngineConfigRoot + keyDeploymentsUpdate, timestamp);
     }
 
     /**

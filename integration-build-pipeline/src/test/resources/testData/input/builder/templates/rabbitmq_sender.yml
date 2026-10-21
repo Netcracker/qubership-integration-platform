@@ -1,0 +1,18 @@
+id: "6e2c8a41-3f9b-4d07-b5e6-1a7d9c0f2e84"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "5a0f3c2e-7d41-4b8e-9a63-2c1e8f4b6d10"
+    name: "RabbitMQ Sender"
+    element-type: "rabbitmq-sender"
+    original-id: "0b7e9d14-6c2a-4f3e-8d51-a9c4e2f7b385"
+    properties:
+      queues: "test-queue"
+      exchange: "test_exchange"
+      password: "client"
+      username: "client"
+      addresses: "rabbitmq-main:8080"
+      routingKey: "test_key"
+      exchangePattern: "InOnly"
+      propagateContext: true
