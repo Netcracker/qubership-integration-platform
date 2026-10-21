@@ -258,12 +258,14 @@ public class RequirementCaptureTools {
         return view(current, false, false, List.of(new Issue("DISCUSSION_NOT_AUTHORIZED", "/directive", null,
             "Complete the producer work. DISCUSS requires a new author question about a paused draft.")));
       }
-      if (directive == RequirementDiscoveryDirective.CONTINUE) {
+      if (directive != RequirementDiscoveryDirective.DISCUSS) {
         var preservation = store.validateForContinuation(conversationId);
         if (!preservation.isEmpty()) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
           return view(current, false, false, preservation);
         }
+      }
+      if (directive == RequirementDiscoveryDirective.CONTINUE) {
         Optional<String> refusal = continueRefusal(current);
         if (refusal.isPresent()) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
