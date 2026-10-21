@@ -21,6 +21,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import javax.annotation.Nullable;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -38,4 +40,8 @@ public class KeyResponse extends KVResponse {
 
     @JsonProperty("ModifyIndex")
     private long modifyIndex;
+
+    @Nullable
+    @JsonProperty("Session")
+    private String session;
 }

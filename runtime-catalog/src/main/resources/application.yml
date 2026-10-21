@@ -116,6 +116,7 @@ consul:
     chains: /chains
     deployments-update: /deployments-update
     engines-state: /engines-state
+    scheduler-leaders: /scheduler-leaders
     libraries-update: /libraries-update
     common-variables-v1: /common-variables
     common-variables-v2: /variables/common
