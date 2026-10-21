@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.engine.client.http.interceptor;
+package org.qubership.integration.platform.engine.camel.client.http.interceptor;
 
 import com.netcracker.cloud.security.core.utils.k8s.impl.UrlCache;
 import lombok.extern.slf4j.Slf4j;
@@ -26,13 +26,16 @@ public class M2MFallbackHandler implements ExecChainHandler {
     @Override
     public ClassicHttpResponse execute(ClassicHttpRequest request, ExecChain.Scope scope, ExecChain chain)
             throws IOException, HttpException {
-        URI requestUri = null;
+        URI requestUri;
+        String cacheKey;
         try {
             requestUri = request.getUri();
+            cacheKey = UrlCache.calculateCacheKey(requestUri);
         } catch (Exception e) {
-            log.error("Can't fetch request URI", e);
+            log.error("Unable to calculate URLCache key", e);
+            throw new IllegalArgumentException("Unable to calculate URLCache key", e);
         }
-        String cacheKey = UrlCache.calculateCacheKey(requestUri.toString());
+
         if (!urlCache.containsKey(cacheKey)) {
             ClassicHttpRequest alteredRequest;
             try {
