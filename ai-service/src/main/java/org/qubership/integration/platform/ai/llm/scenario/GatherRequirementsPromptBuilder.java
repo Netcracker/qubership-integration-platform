@@ -216,6 +216,9 @@ public class GatherRequirementsPromptBuilder {
             script values are checked as complete executable constants. Preserve an explicitly required
             literal component or prefix byte-for-byte even when the output adds a dynamic suffix;
             compose separators and runtime expressions outside that exact constant.
+            For an object property assignment or binding, list the exact key and any actual fixed scalar separately.
+            The whole key=value clause is a required constant only when the author explicitly requests that
+            complete string as a literal.
             Keep whole binding, computation, and composition descriptions in BEHAVIOR text or
             FIELD_MAPPING on a real business transition, not as required standalone constants.
             Source occurrence alone does not establish a runtime constant. Preserve complete literals

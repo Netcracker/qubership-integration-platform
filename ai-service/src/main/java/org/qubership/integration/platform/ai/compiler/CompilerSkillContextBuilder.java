@@ -679,6 +679,10 @@ public class CompilerSkillContextBuilder {
           Preserve the complete approved behavior and field mappings. Their prose is not a runtime
           string to emit. Comments, unused constants, and values in unrelated scripts do not implement
           a requirement. Do not remove or rewrite approved exactValues to bypass a rejected body.
+          A literal-presence finding does not authorize changing a required runtime output value or
+          field binding. Preserve both the approved behavior and the exact constant contract.
+          If they cannot both be satisfied, preserve the required behavior and report the
+          incompatibility in the capture rationale; do not emit a different value or an unused constant.
           Incoming JSON bodies can be strings or maps. Parse a string before reading event fields.
           Groovy 4 has no groovy-dateutil module in this runtime. Use Java time APIs for dates.
           Today's ISO date is java.time.LocalDate.now().toString(); Date.format() and Date.parse()

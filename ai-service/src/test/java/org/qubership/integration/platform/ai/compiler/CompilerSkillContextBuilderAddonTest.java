@@ -511,6 +511,9 @@ class CompilerSkillContextBuilderAddonTest {
       assertTrue(message.contains("runtime expressions outside that constant"), message);
       assertTrue(message.contains("unused constants"), message);
       assertTrue(message.contains("Do not remove or rewrite approved exactValues"), message);
+      assertTrue(message.contains("does not authorize changing a required runtime output value"), message);
+      assertTrue(message.contains("field binding. Preserve both the approved behavior"), message);
+      assertTrue(message.contains("incompatibility in the capture rationale"), message);
     }
   }
 

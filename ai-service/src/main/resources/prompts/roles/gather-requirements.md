@@ -82,6 +82,9 @@ catalog resolution, and defaults.
   constants. Source occurrence alone does not make a description a runtime constant.
   Preserve an explicitly required literal component or prefix byte-for-byte in exactValues even when the output
   adds a dynamic suffix. Compose separators and runtime expressions outside that exact constant.
+  For an object property assignment or binding, list the exact key and any actual fixed scalar separately.
+  The whole key=value clause is a required constant only when the author explicitly requests that
+  complete string as a literal.
   Preserve whole binding, computation, and composition descriptions in BEHAVIOR text, or use FIELD_MAPPING
   for an actual direct business transition. Do not list whole assignment descriptions, computed expressions,
   or descriptions of a composed output as required standalone constants.
