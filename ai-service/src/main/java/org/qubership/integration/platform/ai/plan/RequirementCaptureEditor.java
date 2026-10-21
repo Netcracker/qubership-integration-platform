@@ -27,6 +27,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.RetryI
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /** Validates an authored requirement snapshot and applies focused edits without partial writes. */
@@ -643,6 +644,13 @@ public final class RequirementCaptureEditor {
           add(issues, "INVALID_POLICY_CONFLICT", path + "/policyConflict", fact.sourceFactId(),
               "Use one positive CONSTRAINT tied to one interaction, distinct values, a policy ID,"
                   + " a property key, and a question ID.");
+        }
+        if (CompilerSecurityValidator.EXTERNAL_RBAC_POLICY.equals(conflict.policyId())
+            && !CompilerSecurityValidator.matchesExternalRbacPolicy(conflict)) {
+          add(issues, "INVALID_POLICY_CONFLICT", path + "/policyConflict", fact.sourceFactId(),
+              "The external HTTP access-control policy recommends RBAC for requested NONE or ABAC."
+                  + " Correct the generated policy metadata. If the author already requested RBAC, remove the"
+                  + " invented conflict and its question; preserve the requested access control and roles.");
         }
         boolean questionPresent = draft.openQuestions().stream()
             .anyMatch(q -> q != null && Objects.equals(q.questionId(), conflict.questionId())
