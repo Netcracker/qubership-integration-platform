@@ -12,6 +12,7 @@ import { isObject } from "./asyncJsonUtils";
 
 const CHANNELS_REF_PREFIX = "#/channels/";
 const COMPONENTS_MESSAGES_PREFIX = "#/components/messages/";
+const COMPONENTS_SCHEMAS_PREFIX = "#/components/schemas/";
 const MESSAGES_SEGMENT = "/messages/";
 const ACTION_SEND = "send";
 const ACTION_RECEIVE = "receive";
@@ -30,16 +31,7 @@ type AnyRecord = Record<string, any>;
  */
 export class AsyncApiV3Normalizer {
   static normalize(v3: AsyncApiV3Data): AsyncApiData {
-    for (const v3Channel of Object.values(v3.channels ?? {})) {
-      this.unwrapMultiFormatPayloads(v3Channel?.messages);
-    }
-    this.unwrapMultiFormatPayloads(v3.components?.messages);
-    const schemas = v3.components?.schemas;
-    if (isObject(schemas)) {
-      for (const [name, schema] of Object.entries(schemas)) {
-        schemas[name] = this.fromMultiFormat(schema);
-      }
-    }
+    this.unwrapMultiFormatSchemas(v3);
 
     const channels: Record<string, AsyncApiChannel> = {};
     const v3Channels = v3.channels ?? {};
@@ -100,14 +92,86 @@ export class AsyncApiV3Normalizer {
     };
   }
 
-  private static unwrapMultiFormatPayloads(messages: unknown): void {
+  // A reference into an unwrapped schema, such as
+  // #/components/schemas/Order/schema, is rewritten to the path the schema has
+  // after unwrapping, #/components/schemas/Order.
+  private static unwrapMultiFormatSchemas(v3: AsyncApiV3Data): void {
+    const movedRefs = new Map<string, string>();
+    for (const [key, v3Channel] of Object.entries(v3.channels ?? {})) {
+      this.unwrapMultiFormatPayloads(
+        v3Channel?.messages,
+        CHANNELS_REF_PREFIX + key + MESSAGES_SEGMENT,
+        movedRefs,
+      );
+    }
+    this.unwrapMultiFormatPayloads(
+      v3.components?.messages,
+      COMPONENTS_MESSAGES_PREFIX,
+      movedRefs,
+    );
+    const schemas = v3.components?.schemas;
+    if (isObject(schemas)) {
+      for (const name of Object.keys(schemas)) {
+        if (this.unwrap(schemas, name)) {
+          movedRefs.set(
+            COMPONENTS_SCHEMAS_PREFIX + name + "/schema",
+            COMPONENTS_SCHEMAS_PREFIX + name,
+          );
+        }
+      }
+    }
+    for (const v3Channel of Object.values(v3.channels ?? {})) {
+      this.rewriteRefs(v3Channel?.messages, movedRefs);
+    }
+    this.rewriteRefs(v3.components, movedRefs);
+  }
+
+  private static unwrapMultiFormatPayloads(
+    messages: unknown,
+    refPrefix: string,
+    movedRefs: Map<string, string>,
+  ): void {
     if (!isObject(messages)) {
       return;
     }
-    for (const message of Object.values(messages)) {
-      if (isObject(message) && message.payload !== undefined) {
-        message.payload = this.fromMultiFormat(message.payload);
+    for (const [name, message] of Object.entries(messages)) {
+      if (isObject(message) && this.unwrap(message, "payload")) {
+        movedRefs.set(
+          refPrefix + name + "/payload/schema",
+          refPrefix + name + "/payload",
+        );
       }
+    }
+  }
+
+  private static unwrap(owner: AnyRecord, key: string): boolean {
+    const value = owner[key];
+    const schema = this.fromMultiFormat(value);
+    if (schema === value) {
+      return false;
+    }
+    owner[key] = schema;
+    return true;
+  }
+
+  private static rewriteRefs(
+    node: unknown,
+    movedRefs: Map<string, string>,
+  ): void {
+    if (Array.isArray(node)) {
+      node.forEach((item) => this.rewriteRefs(item, movedRefs));
+    } else if (isObject(node)) {
+      const ref = node.$ref;
+      if (typeof ref === "string") {
+        for (const [from, to] of movedRefs) {
+          if (ref === from || ref.startsWith(from + "/")) {
+            node.$ref = to + ref.substring(from.length);
+          }
+        }
+      }
+      Object.values(node).forEach((value) =>
+        this.rewriteRefs(value, movedRefs),
+      );
     }
   }
 

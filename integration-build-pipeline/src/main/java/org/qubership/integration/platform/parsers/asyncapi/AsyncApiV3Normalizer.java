@@ -40,6 +40,7 @@ public class AsyncApiV3Normalizer {
 
     private static final String CHANNELS_REF_PREFIX = "#/channels/";
     private static final String COMPONENTS_MESSAGES_PREFIX = "#/components/messages/";
+    private static final String COMPONENTS_SCHEMAS_PREFIX = "#/components/schemas/";
     private static final String MESSAGES_SEGMENT = "/messages/";
     private static final String ACTION_SEND = MethodType.SEND.getMethodName();
     private static final String ACTION_RECEIVE = MethodType.RECEIVE.getMethodName();
@@ -53,17 +54,7 @@ public class AsyncApiV3Normalizer {
     }
 
     public AsyncapiSpecification normalize(AsyncapiV3Specification v3) {
-        if (v3.getChannels() != null) {
-            v3.getChannels().values().stream()
-                    .filter(Objects::nonNull)
-                    .forEach(channel -> unwrapMultiFormatPayloads(channel.getMessages()));
-        }
-        if (v3.getComponents() != null) {
-            unwrapMultiFormatPayloads(v3.getComponents().get("messages"));
-            if (v3.getComponents().get("schemas") instanceof Map<?, ?> schemas) {
-                asStringObjectMap(schemas).replaceAll((name, schema) -> fromMultiFormat(schema));
-            }
-        }
+        unwrapMultiFormatSchemas(v3);
 
         AsyncapiSpecification v2 = new AsyncapiSpecification();
         v2.setInfo(normalizeInfo(v3.getInfo()));
@@ -119,14 +110,65 @@ public class AsyncApiV3Normalizer {
         return v2;
     }
 
-    private void unwrapMultiFormatPayloads(Object messages) {
-        if (!(messages instanceof Map<?, ?> messageMap)) {
-            return;
+    // A reference into an unwrapped schema, such as #/components/schemas/Order/schema, is rewritten to the path the
+    // schema has after unwrapping, #/components/schemas/Order.
+    private void unwrapMultiFormatSchemas(AsyncapiV3Specification v3) {
+        Map<String, String> movedRefs = new LinkedHashMap<>();
+        if (v3.getChannels() != null) {
+            v3.getChannels().forEach((key, channel) -> {
+                if (channel != null) {
+                    unwrapMultiFormatPayloads(channel.getMessages(), CHANNELS_REF_PREFIX + key + MESSAGES_SEGMENT, movedRefs);
+                }
+            });
         }
-        for (Object message : messageMap.values()) {
-            if (message instanceof Map<?, ?> msgMap) {
-                asStringObjectMap(msgMap).computeIfPresent("payload", (key, payload) -> fromMultiFormat(payload));
+        if (v3.getComponents() != null) {
+            unwrapMultiFormatPayloads(v3.getComponents().get("messages"), COMPONENTS_MESSAGES_PREFIX, movedRefs);
+            if (v3.getComponents().get("schemas") instanceof Map<?, ?> schemas) {
+                for (String name : asStringObjectMap(schemas).keySet()) {
+                    if (unwrap(schemas, name)) {
+                        movedRefs.put(COMPONENTS_SCHEMAS_PREFIX + name + "/schema", COMPONENTS_SCHEMAS_PREFIX + name);
+                    }
+                }
             }
+        }
+        if (v3.getChannels() != null) {
+            v3.getChannels().values().forEach(channel -> rewriteRefs(channel == null ? null : channel.getMessages(), movedRefs));
+        }
+        rewriteRefs(v3.getComponents(), movedRefs);
+    }
+
+    private void unwrapMultiFormatPayloads(Object messages, String refPrefix, Map<String, String> movedRefs) {
+        if (messages instanceof Map<?, ?> messageMap) {
+            asStringObjectMap(messageMap).forEach((name, message) -> {
+                if (message instanceof Map<?, ?> msgMap && unwrap(msgMap, "payload")) {
+                    movedRefs.put(refPrefix + name + "/payload/schema", refPrefix + name + "/payload");
+                }
+            });
+        }
+    }
+
+    private boolean unwrap(Map<?, ?> owner, String key) {
+        Object value = owner.get(key);
+        Object schema = fromMultiFormat(value);
+        if (schema == value) {
+            return false;
+        }
+        asStringObjectMap(owner).put(key, schema);
+        return true;
+    }
+
+    private void rewriteRefs(Object node, Map<String, String> movedRefs) {
+        if (node instanceof Map<?, ?> map) {
+            if (map.get("$ref") instanceof String ref) {
+                movedRefs.forEach((from, to) -> {
+                    if (ref.equals(from) || ref.startsWith(from + "/")) {
+                        asStringObjectMap(map).put("$ref", to + ref.substring(from.length()));
+                    }
+                });
+            }
+            map.values().forEach(value -> rewriteRefs(value, movedRefs));
+        } else if (node instanceof List<?> list) {
+            list.forEach(item -> rewriteRefs(item, movedRefs));
         }
     }
 

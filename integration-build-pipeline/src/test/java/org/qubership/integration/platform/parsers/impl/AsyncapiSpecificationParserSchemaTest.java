@@ -62,6 +62,9 @@ class AsyncapiSpecificationParserSchemaTest {
     private static final String ORDER_MESSAGE = "Order: {payload: " + ORDER_SCHEMA + "}";
     private static final String ALIAS_MESSAGE = "Alias: {$ref: '#/components/messages/Order'}";
     private static final String JSON_SCHEMA_FORMAT = "'application/schema+json;version=draft-07'";
+    private static final String CLOSED_SCHEMAS = "schemas: {Closed: {schemaFormat: " + JSON_SCHEMA_FORMAT
+            + ", schema: " + CLOSED_OBJECT + "}}";
+    private static final String CLOSED_COMPONENT = "{" + CLOSED_SCHEMAS + "}";
     private static final String AVRO_SCHEMA = "{schemaFormat: 'application/vnd.apache.avro;version=1.9.0', "
             + "schema: {type: record, name: Order, fields: [{name: id, type: string}]}}";
 
@@ -139,12 +142,33 @@ class AsyncapiSpecificationParserSchemaTest {
                         "payload", "{}"),
                 Arguments.of("v3 multi-format JSON Schema component",
                         v3("{order: " + payload("{$ref: '#/components/schemas/Closed'}") + "}",
-                                "{schemas: {Closed: {schemaFormat: " + JSON_SCHEMA_FORMAT + ", schema: " + CLOSED_OBJECT + "}}}"),
+                                CLOSED_COMPONENT),
                         "payload", CLOSED_OBJECT),
                 Arguments.of("v3 schema with a schemaFormat keyword and no schema",
                         v3("{order: " + payload("{$ref: '#/components/schemas/Noted'}") + "}",
                                 "{schemas: {Noted: {type: object, schemaFormat: note, properties: {id: {type: string}}}}}"),
                         "payload", "{type: object, schemaFormat: note, properties: {id: {type: string}}}"),
+                // A reference into a multi-format schema follows it to the schema it holds.
+                Arguments.of("v3 reference into a multi-format component",
+                        v3("{order: " + payload("{$ref: '#/components/schemas/Closed/schema'}") + "}", CLOSED_COMPONENT),
+                        "payload", CLOSED_OBJECT),
+                Arguments.of("v3 component message with a reference into a multi-format component",
+                        v3("{order: " + ref("Order") + "}", "{messages: {Order: {payload: {$ref: '#/components/schemas/Closed/schema'}}}, "
+                                + CLOSED_SCHEMAS + "}"),
+                        "Order", CLOSED_OBJECT),
+                Arguments.of("v3 nested reference into a multi-format component",
+                        v3("{order: " + payload("{type: object, properties: {closed: {$ref: '#/components/schemas/Closed/schema'}}}")
+                                + "}", CLOSED_COMPONENT),
+                        "payload", "{type: object, properties: {closed: {$ref: '#/definitions/Closed'}}, "
+                                + "definitions: {Closed: " + CLOSED_OBJECT + "}}"),
+                Arguments.of("v3 reference below the schema of a multi-format component",
+                        v3("{order: " + payload("{$ref: '#/components/schemas/Closed/schema/properties/id'}") + "}",
+                                CLOSED_COMPONENT),
+                        "payload", "{type: string}"),
+                Arguments.of("v3 reference into a multi-format message payload",
+                        v3("{order: " + payload("{$ref: '#/components/messages/Multi/payload/schema'}") + "}",
+                                messages("Multi: {payload: {schemaFormat: " + JSON_SCHEMA_FORMAT + ", schema: " + INTEGER_ENUM + "}}")),
+                        "payload", INTEGER_ENUM),
                 Arguments.of("v3 multi-format Avro component",
                         v3("{order: " + payload("{$ref: '#/components/schemas/Order'}") + "}",
                                 "{schemas: {Order: " + AVRO_SCHEMA + "}}"),

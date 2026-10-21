@@ -208,6 +208,9 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
       properties: { id: { type: "string" } },
     };
     const INTEGER_ENUM = { type: "integer", enum: [1, 2, 3] };
+    const CLOSED_SCHEMAS = {
+      schemas: { Closed: { schemaFormat: JSON_SCHEMA, schema: CLOSED_OBJECT } },
+    };
 
     function document(messages: unknown, components: unknown = {}): string {
       return JSON.stringify({
@@ -304,11 +307,7 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
         "a JSON Schema component",
         document(
           { order: { payload: { $ref: "#/components/schemas/Closed" } } },
-          {
-            schemas: {
-              Closed: { schemaFormat: JSON_SCHEMA, schema: CLOSED_OBJECT },
-            },
-          },
+          CLOSED_SCHEMAS,
         ),
         { payload: { ...CLOSED_OBJECT, definitions: {} } },
       ],
@@ -319,6 +318,86 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
           { schemas: { Noted: { type: "object", schemaFormat: "note" } } },
         ),
         { payload: { type: "object", schemaFormat: "note", definitions: {} } },
+      ],
+      [
+        "a reference into a multi-format component",
+        document(
+          {
+            order: { payload: { $ref: "#/components/schemas/Closed/schema" } },
+          },
+          CLOSED_SCHEMAS,
+        ),
+        { payload: { ...CLOSED_OBJECT, definitions: {} } },
+      ],
+      [
+        "a component message with a reference into a multi-format component",
+        document(
+          { order: { $ref: "#/components/messages/Order" } },
+          {
+            messages: {
+              Order: {
+                payload: { $ref: "#/components/schemas/Closed/schema" },
+              },
+            },
+            ...CLOSED_SCHEMAS,
+          },
+        ),
+        { Order: { ...CLOSED_OBJECT, definitions: {} } },
+      ],
+      [
+        "a nested reference into a multi-format component",
+        document(
+          {
+            order: {
+              payload: {
+                type: "object",
+                properties: {
+                  closed: { $ref: "#/components/schemas/Closed/schema" },
+                },
+              },
+            },
+          },
+          CLOSED_SCHEMAS,
+        ),
+        {
+          payload: {
+            type: "object",
+            properties: { closed: { $ref: "#/definitions/Closed" } },
+            definitions: { Closed: CLOSED_OBJECT },
+          },
+        },
+      ],
+      [
+        "a reference below the schema of a multi-format component",
+        document(
+          {
+            order: {
+              payload: {
+                $ref: "#/components/schemas/Closed/schema/properties/id",
+              },
+            },
+          },
+          CLOSED_SCHEMAS,
+        ),
+        { payload: { type: "string", definitions: {} } },
+      ],
+      [
+        "a reference into a multi-format message payload",
+        document(
+          {
+            order: {
+              payload: { $ref: "#/components/messages/Multi/payload/schema" },
+            },
+          },
+          {
+            messages: {
+              Multi: {
+                payload: { schemaFormat: JSON_SCHEMA, schema: INTEGER_ENUM },
+              },
+            },
+          },
+        ),
+        { payload: { ...INTEGER_ENUM, definitions: {} } },
       ],
       [
         "an Avro component",
