@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationMessa
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.llm.scenario.ChainListScenario;
@@ -69,6 +70,7 @@ public class ChatDecisionService {
   @ForScenario(ScenarioType.IMPORT_SPECIFICATION)
   ImportSpecificationScenario importScenario;
   @Inject CatalogVersionSelection versionSelections;
+  @Inject PolicyChoiceSelection policyChoices;
 
   @Inject ProductPipelineArtifactStore artifactStore;
 
@@ -125,6 +127,11 @@ public class ChatDecisionService {
     if (uploaded.isPresent()) {
       return uploaded;
     }
+    var policyChoice = snapshot.filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
+        && (clarify.gateId().isBlank() || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId())))
+        .flatMap(current -> policyChoices == null ? Optional.<ChatEvent.Decision>empty()
+            : policyChoices.pending(conversationId, current.revision()).map(pending -> policyChoices.decision(pending, current.revision())));
+    if (policyChoice.isPresent()) return policyChoice;
     var versionChoice = snapshot
         .filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
             && clarify.gateId().isBlank())
@@ -402,6 +409,8 @@ public class ChatDecisionService {
               "Approved " + command.getArtifactType() + " " + command.getArtifactHash();
           case ChatEvent.REQUEST_CHANGES_ACTION ->
               "Requested changes to " + command.getArtifactType();
+          case ChatEvent.KEEP_REQUESTED_ACTION -> "Keep the requested policy value";
+          case ChatEvent.USE_RECOMMENDED_ACTION -> "Use the recommended policy value";
           case ChatEvent.CREATE_ACTION -> "Create the chain in the catalog";
           case ChatEvent.APPLY_CHAIN_PATCH_ACTION -> "Apply the proposed change to the chain";
           case ChatEvent.REDEPLOY_ACTION -> "Redeploy the chain on domain " + domainName;
@@ -463,6 +472,10 @@ public class ChatDecisionService {
         && standaloneImportPending(conversationId)) {
       return importScenario.approve(conversationId, command);
     }
+    if (PolicyChoiceSelection.ARTIFACT_TYPE.equals(command.getArtifactType())
+        || ChatEvent.KEEP_REQUESTED_ACTION.equals(action) || ChatEvent.USE_RECOMMENDED_ACTION.equals(action)) {
+      return selectPolicyChoice(conversationId, command);
+    }
     if (CatalogVersionSelection.ARTIFACT_TYPE.equals(command.getArtifactType())) {
       return selectCatalogVersion(conversationId, command);
     }
@@ -508,6 +521,41 @@ public class ChatDecisionService {
         .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
         .onCompletion()
         .switchTo(() -> createAfterApproval(conversationId));
+  }
+
+  private Multi<ChatEvent> selectPolicyChoice(String conversationId, ChatDecisionCommand command) {
+    var open = openDecision(conversationId);
+    if (policyChoices == null || open.isEmpty() || !PolicyChoiceSelection.ARTIFACT_TYPE.equals(open.get().artifactType())
+        || !Objects.equals(open.get().artifactType(), command.getArtifactType())
+        || !Objects.equals(open.get().artifactHash(), command.getArtifactHash())
+        || open.get().revision() != command.getRevision() || !open.get().actions().contains(command.getAction())) {
+      return openGateEvents(conversationId);
+    }
+    var confirmed = policyChoices.confirm(conversationId, command, open.get().revision());
+    if (confirmed.isEmpty()) return openGateEvents(conversationId);
+    var selection = confirmed.get().selection();
+    var offered = selection.offered();
+    String input = "The author selected " + selection.decision() + " (" + selection.selectedValue()
+        + ") on the validated policy card for sourceFactId=" + offered.fact().sourceFactId()
+        + ", questionId=" + offered.question().questionId() + ". Record exactly this decision, preserve the policy"
+        + " values and owner, and close its question. The trusted selection is " + confirmed.get().reference().artifactId() + ".";
+    var old = draftStore.get(conversationId).stream().flatMap(draft -> draft.authoredDraft().facts().stream())
+        .filter(fact -> fact.sourceFactId().equals(offered.fact().sourceFactId())).findFirst().orElse(null);
+    if (conversationService != null) {
+      var source = conversationService.archive().read(conversationId).activeTurns().stream()
+          .filter(turn -> turn.id().equals(selection.sourceTurnId())).findFirst().orElseThrow();
+      input += " In the same update, reconcile any existing requestedProperties value for propertyKey="
+          + offered.fact().policyConflict().propertyKey() + " on owner=" + offered.fact().interactionIds()
+          + " with the selected value. Use the normal author amendment for each changed existing value;"
+          + " do not capture the decision alone and consume its source before reconciling these values."
+          + " Retain every unrelated fact, value, owner, and policy field. For amendments use sourceTurnId="
+          + selection.sourceTurnId() + " and this exact quote: " + source.message().content();
+      if (old != null && old.policyConflict() != null && old.policyConflict().decision() != null) {
+        input += " Also amend /facts/" + offered.fact().sourceFactId() + "/policyConflict/decision.";
+      }
+    }
+    return projectWithOpenGate(conversationId, facade.continueWithInput(
+        new ContinueCreateChainCommand(conversationId, input, UUID.randomUUID().toString(), InputOrigin.TRUSTED)));
   }
 
   private Multi<ChatEvent> selectCatalogVersion(String conversationId, ChatDecisionCommand command) {
@@ -711,6 +759,9 @@ public class ChatDecisionService {
             event -> {
               if (event instanceof CreateChainEvent.Waiting waiting) {
                 fallback.set(waiting);
+                if (waiting.pendingAction() instanceof PendingAction.Approve approve) {
+                  approvalQuestions.save(conversationId, approve.artifactHash(), approve.prompt());
+                }
               }
             })
         .onItem()

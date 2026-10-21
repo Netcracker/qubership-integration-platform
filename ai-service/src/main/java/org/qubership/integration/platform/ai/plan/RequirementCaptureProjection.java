@@ -456,12 +456,6 @@ public final class RequirementCaptureProjection {
                   .pickerQuestion(unresolved.get().interactionId()))
           : RequirementDraftTool.dropChainCallUuidQuestions(openQuestions);
     }
-    var questions = new ArrayList<>(openQuestions);
-    remaining.stream().filter(item -> "RBAC_ROLES_REQUIRED".equals(item.code())
-            || "CAPABILITY_FIELD_REQUIRED".equals(item.code()) && input.capabilities().stream()
-                .anyMatch(capability -> "http-sender".equals(capability.capabilityKey())
-                    && capability.interactionId().equals(item.interactionId())))
-        .map(PendingWork::message).filter(question -> !questions.contains(question)).forEach(questions::add);
     String candidateInteractionId = previous == null
         ? null : previous.apiHubCandidateInteractionId();
     boolean candidateBound = candidateInteractionId != null && bindings.stream()
@@ -470,7 +464,7 @@ public final class RequirementCaptureProjection {
         ready,
         render(input, bindings),
         ready ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
-        questions,
+        openQuestions,
         RequirementDraftTool.SOURCE_SKILL_ID, sourceVersion, sourceHash,
         previous == null || candidateBound ? null : previous.apiHubCandidate(),
         false,

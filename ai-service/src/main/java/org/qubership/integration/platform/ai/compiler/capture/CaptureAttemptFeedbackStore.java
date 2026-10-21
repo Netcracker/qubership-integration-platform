@@ -353,7 +353,7 @@ public class CaptureAttemptFeedbackStore {
       return;
     }
     var rejection = new RequirementRejection(new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed,
-        List.of(), "", noProgress),
+        List.of(), "", noProgress, null, issues),
         List.copyOf(issues));
     saveRequirementFeedback(conversationId, rejection);
     requirementFailures.put(conversationId, rejection);
@@ -377,8 +377,14 @@ public class CaptureAttemptFeedbackStore {
     if (artifacts != null) {
       return sessions.current(conversationId)
           .flatMap(link -> artifacts.latest(link.compilationId(), Kind.REQUIREMENT_CAPTURE_FEEDBACK))
-          .map(revision -> artifacts.payload(revision, RequirementFeedback.class))
-          .map(RequirementFeedback::rejection);
+          .map(revision -> {
+            var rejection = artifacts.payload(revision, RequirementFeedback.class).rejection();
+            if (rejection == null) return null;
+            var saved = rejection.feedback();
+            return new RequirementRejection(new CaptureAttemptFeedback(saved.kind(), saved.summary(), saved.failureClass(),
+                saved.outerAllowed(), saved.fieldHints(), saved.repairHistoryJson(), saved.noProgress(),
+                revision.reference(), rejection.issues()), rejection.issues());
+          });
     }
     return Optional.ofNullable(requirementFailures.get(conversationId));
   }

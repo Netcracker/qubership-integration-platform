@@ -6,6 +6,7 @@ import static org.qubership.integration.platform.ai.productpipeline.create.Requi
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -38,6 +39,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsLookupService;
@@ -777,8 +779,8 @@ class RequirementCaptureToolsTest {
     try (var ignored = ToolSession.open(h.conversationId())) {
       h.store().beginTurn(h.conversationId(), "Submit one task.");
       h.tools().captureRequirementDraft(invalid);
-      var rejected = h.mapper().readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
-      String original = rejected.issues().stream().filter(issue -> !"REPEATED_REJECTION".equals(issue.code()))
+      var rejected = assertThrows(CaptureNoProgressException.class, () -> h.tools().captureRequirementDraft(invalid));
+      String original = rejected.evidence().feedback().issues().stream()
           .findFirst().orElseThrow().code();
       var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
           RequirementCaptureResult.class);
@@ -932,8 +934,90 @@ class RequirementCaptureToolsTest {
       var again = persistentHarness(blobs, mapper, conversations, chat);
       again.tools().elementSchemas = first.tools().elementSchemas;
       again.store().beginTurn(chat, "Repair the generated property.");
-      assertEquals(NextAction.STOP, mapper.readValue(
-          again.tools().captureRequirementDraft(candidate.apply(propertyKey)), RequirementCaptureResult.class).nextAction());
+      assertThrows(CaptureNoProgressException.class,
+          () -> again.tools().captureRequirementDraft(candidate.apply(propertyKey)));
+    }
+  }
+
+  @Test
+  void partialNativeCorrectionKeepsTheRemainingFindingRepairable() throws Exception {
+    var h = harness();
+    var ready = readyHttpDraft();
+    var factA = new FactInput("factA", List.of("missingA"), FactKind.BEHAVIOR,
+        Polarity.POSITIVE, "Keep the original request context.");
+    var factB = new FactInput("factB", List.of("missingB"), FactKind.BEHAVIOR,
+        Polarity.POSITIVE, "Prepare the outgoing task.");
+    var original = new DraftInput(ready.flow(), List.of(ready.facts().getFirst(), factA, factB),
+        ready.capabilities(), ready.openQuestions(), ready.settings());
+    var correctedA = new FactInput(factA.sourceFactId(), List.of("entry"), factA.kind(), factA.polarity(), factA.text());
+    var partial = new DraftInput(ready.flow(), List.of(ready.facts().getFirst(), correctedA, factB),
+        ready.capabilities(), ready.openQuestions(), ready.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      h.store().beginTurn(h.conversationId(), "Submit one task. Keep the context and prepare the outgoing task.");
+      var initial = h.mapper().readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class);
+      assertEquals(List.of("factA", "factB"), initial.issues().stream().map(issue -> issue.entityId()).toList());
+      var corrected = h.mapper().readValue(h.tools().captureRequirementDraft(partial), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, corrected.nextAction());
+      assertEquals(List.of("factB"), corrected.issues().stream().map(issue -> issue.entityId()).toList());
+      var unfinished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertFalse(unfinished.issues().stream().anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code())));
+      assertFalse(unfinished.nextAction() == NextAction.STOP);
+      assertThrows(CaptureNoProgressException.class, () -> h.tools().captureRequirementDraft(partial));
+    }
+  }
+
+  @Test
+  void identicalRejectedUpdateLeavesTheProducerWithStoredNativeEvidence() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "no-progress-evidence-" + UUID.randomUUID();
+    String text = "Accept POST /tasks and submit the task. Keep its request context.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var ready = readyHttpDraft();
+    var changes = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(new FactInput("context", List.of("missing"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Keep its request context.")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), null);
+    try (var ignored = ToolSession.open(chat)) {
+      assertTrue(mapper.readValue(h.tools().captureRequirementDraft(ready), RequirementCaptureResult.class).accepted());
+      var accepted = h.store().latestRevision(chat).orElseThrow().reference();
+      var first = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, first.nextAction());
+      var beforeSource = archive.read(chat);
+      var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+      var credits = new ToolCallFingerprintStore(mapper, artifacts, new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+      var beforeCredits = credits.softFingerprints(chat);
+
+      var stopped = assertThrows(CaptureNoProgressException.class, () -> h.tools().updateRequirementDraft(changes));
+      var evidence = stopped.evidence();
+      assertNotNull(evidence);
+      assertEquals(accepted, evidence.acceptedBase());
+      assertEquals(h.store().rejectedCaptureRevision(chat).orElseThrow().reference(), evidence.rejectedCandidate());
+      assertNotNull(evidence.feedback().evidenceReference());
+      assertTrue(artifacts.get(h.store().activeCompilationId(chat), evidence.feedback().evidenceReference()).isPresent());
+      assertTrue(evidence.feedback().noProgress());
+      assertFalse(evidence.feedback().outerAllowed());
+      assertTrue(evidence.feedback().issues().stream().anyMatch(issue -> "UNKNOWN_INTERACTION_REFERENCE".equals(issue.code())
+          && "context".equals(issue.entityId())));
+      assertEquals(ready, h.store().get(chat).orElseThrow().authoredDraft());
+      assertEquals(accepted, h.store().latestRevision(chat).orElseThrow().reference());
+      assertEquals(beforeSource, archive.read(chat));
+      assertEquals(beforeCredits, credits.softFingerprints(chat));
+      var outcome = org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome.invocationFailure(stopped);
+      assertEquals(org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.CONTRACT_FAILURE,
+          outcome.outcomeClass());
+      assertEquals(evidence, outcome.recoveryCause().captureFailure());
+      assertTrue(outcome.recoveryCause().findings().stream().anyMatch(issue ->
+          "UNKNOWN_INTERACTION_REFERENCE".equals(issue.code()) && "context".equals(issue.originRecordId())
+              && issue.fieldPointer().equals(CaptureToolOutcomeGateway.logicalRequirementPath(
+                  evidence.feedback().issues().getFirst().path()))));
     }
   }
 
@@ -974,7 +1058,7 @@ class RequirementCaptureToolsTest {
       assertEquals(NextAction.REPAIR_CAPTURE, resultB.nextAction());
       var reordered = new DraftInput(ready.flow(), List.of(invalidB, correctedA, ready.facts().getFirst()),
           ready.capabilities(), ready.openQuestions(), ready.settings());
-      assertEquals(NextAction.STOP,
+      assertEquals(NextAction.REPAIR_CAPTURE,
           mapper.readValue(restored.tools().captureRequirementDraft(reordered), RequirementCaptureResult.class).nextAction());
     }
   }
@@ -1002,8 +1086,7 @@ class RequirementCaptureToolsTest {
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
       assertTrue(restored.store().lastCaptureRejection(chat).orElseThrow().contains("INVALID_VALUE"));
-      assertEquals(NextAction.STOP,
-          mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).nextAction());
+      assertThrows(CaptureNoProgressException.class, () -> restored.tools().captureRequirementDraft(invalid));
       restored.store().recordCaptureRejection(chat, "Repeated invalid sourceFactId.");
 
       var next = archive.beginInput(chat, text, null);
@@ -1058,8 +1141,12 @@ class RequirementCaptureToolsTest {
       assertEquals("INVALID_VALUE", candidate.path("issues").get(0).path("code").asText());
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
-      var repeated = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
-      assertEquals(commitBeforeFailure ? NextAction.STOP : NextAction.REPAIR_CAPTURE, repeated.nextAction());
+      if (commitBeforeFailure) {
+        assertThrows(CaptureNoProgressException.class, () -> restored.tools().captureRequirementDraft(invalid));
+      } else {
+        var repeated = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+        assertEquals(NextAction.REPAIR_CAPTURE, repeated.nextAction());
+      }
       assertTrue(mapper.readValue(restored.tools().captureRequirementDraft(ready), RequirementCaptureResult.class).accepted());
       assertEquals(1, new ToolCallFingerprintStore(mapper, artifacts,
           new CompilationSessions(blobs, mapper, Clock.systemUTC())).softCreditsUsed(chat));
@@ -1275,9 +1362,14 @@ class RequirementCaptureToolsTest {
       }
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
-      var loss = mapper.readValue(restored.tools().updateRequirementDraft(removal), RequirementCaptureResult.class);
-      assertFalse(loss.accepted(), loss.toString());
-      assertEquals("REPAIR_FACT_LOSS", loss.issues().getFirst().code());
+      if (sourceAcknowledgmentFails) {
+        var repeated = assertThrows(CaptureNoProgressException.class, () -> restored.tools().updateRequirementDraft(removal));
+        assertEquals("REPAIR_FACT_LOSS", repeated.evidence().feedback().issues().getFirst().code());
+      } else {
+        var loss = mapper.readValue(restored.tools().updateRequirementDraft(removal), RequirementCaptureResult.class);
+        assertFalse(loss.accepted(), loss.toString());
+        assertEquals("REPAIR_FACT_LOSS", loss.issues().getFirst().code());
+      }
       assertEquals(input.facts(), restored.store().get(chat).orElseThrow().authoredDraft().facts());
 
       var next = archive.beginInput(chat, "Remove the external route requirement.", null);

@@ -38,8 +38,6 @@ public class RequirementDraftStore {
   private final ConcurrentHashMap<String, String> captureMutationScopes = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Boolean> captureMutationRejected = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, String> currentAuthorText = new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<String, RequirementCaptureInput.DraftInput> policyQuestionsAtTurnStart =
-      new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, List<RequirementCaptureInput.FactInput>> rejectedCaptureFacts =
       new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, com.fasterxml.jackson.databind.JsonNode> rejectedCaptureValues = new ConcurrentHashMap<>();
@@ -47,6 +45,7 @@ public class RequirementDraftStore {
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
   private final org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+  private final org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection policyChoices;
   private final ConcurrentHashMap<String, org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Document>
       sourceInputs = new ConcurrentHashMap<>();
 
@@ -58,6 +57,7 @@ public class RequirementDraftStore {
     this.artifacts = artifacts;
     this.sessions = sessions;
     this.conversations = conversations;
+    this.policyChoices = new org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection(artifacts, sessions, conversations);
   }
 
   public RequirementDraftStore(CompilationArtifacts artifacts, CompilationSessions sessions) {
@@ -139,7 +139,7 @@ public class RequirementDraftStore {
               "Requirement path '" + path + "' does not identify an existing amendable field."
                   + (RequirementRevisionAdmission.validPath(base, parent)
                       ? " Amend the existing parent '" + parent + "' when its child does not exist." : "")));
-        } else if (!supportsAmendment(conversationId, normalized)) {
+        } else if (!supportsAmendment(conversationId, normalized, base, draft.authoredDraft())) {
           issues.add(new RequirementCaptureEditor.Issue("INVALID_AUTHOR_AMENDMENT", issuePath, null,
               "Cite a fresh READY author source and its exact nonempty quote for an existing requirement path."
                   + " A repair instruction or an earlier consumed source does not authorize an amendment."));
@@ -151,6 +151,23 @@ public class RequirementDraftStore {
     if (!issues.isEmpty()) {
       return List.copyOf(issues);
     }
+    issues.addAll(validatePolicySelections(conversationId, current.map(Revision::reference).orElse(null), draft.authoredDraft()));
+    if (!issues.isEmpty()) return List.copyOf(issues);
+    if (base != null) for (var fact : draft.authoredDraft().facts()) {
+      if (fact.policyConflict() == null || fact.policyConflict().decision() == null) continue;
+      var old = base.facts().stream().filter(value -> value.sourceFactId().equals(fact.sourceFactId())).findFirst().orElse(null);
+      if (old != null && Objects.equals(old.policyConflict(), fact.policyConflict())
+          && old.interactionIds().equals(fact.interactionIds())) continue;
+      if (!canResolvePolicyChoice(conversationId, fact)) {
+        String decisionPath = "/facts/" + fact.sourceFactId() + "/policyConflict/decision";
+        if (authorPaths.stream().anyMatch(path -> decisionPath.equals(path) || decisionPath.startsWith(path + "/"))) {
+          policyChoices.offerReplacement(conversationId, fact);
+        }
+        issues.add(new RequirementCaptureEditor.Issue("POLICY_RESPONSE_REQUIRED", "/changes/facts", fact.sourceFactId(),
+            "Record the option selected on the current policy card. A free-text reply or amendment does not select an option."));
+      }
+    }
+    if (!issues.isEmpty()) return List.copyOf(issues);
     issues.addAll(RequirementRevisionAdmission.validate(base, draft.authoredDraft(),
         rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, activeRepairPaths(conversationId, base), mappingPaths,
         fact -> canResolvePolicyChoice(conversationId, fact)));
@@ -177,6 +194,8 @@ public class RequirementDraftStore {
     var current = get(conversationId).orElse(null);
     if (current == null || current.authoredDraft() == null) return issues;
     var input = current.authoredDraft();
+    issues.addAll(validatePolicySelections(conversationId,
+        latestRevision(conversationId).map(Revision::reference).orElse(null), input));
     for (var capability : input.capabilities()) {
       if (!current.readyForPlan() && input.openQuestions().stream().noneMatch(question ->
           question.evidence() != null && capability.interactionId().equals(question.evidence().interactionId()))) {
@@ -251,7 +270,8 @@ public class RequirementDraftStore {
     }
   }
 
-  private boolean supportsAmendment(String conversationId, RequirementCaptureInput.AmendmentInput amendment) {
+  private boolean supportsAmendment(String conversationId, RequirementCaptureInput.AmendmentInput amendment,
+      RequirementCaptureInput.DraftInput base, RequirementCaptureInput.DraftInput candidate) {
     if (amendment.quote() == null || amendment.quote().isBlank() || amendmentAlreadyAdmitted(conversationId, amendment.path())) {
       return false;
     }
@@ -263,7 +283,10 @@ public class RequirementDraftStore {
     return source.activeTurns().stream().anyMatch(turn -> Objects.equals(turn.id(), amendment.sourceTurnId())
         && turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
         && "READY".equals(turn.status()) && turn.consumedDraftReference() == null
-        && turn.message().content().contains(amendment.quote()));
+        && (org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection.isPolicyDecisionSource(turn)
+            ? turn.message().content().equals(amendment.quote()) && policyChoices.permitsAmendment(conversationId,
+                latestRevision(conversationId).map(Revision::reference).orElse(null), source.generation(), turn.id(), base, candidate, amendment.path())
+            : turn.message().content().contains(amendment.quote())));
   }
 
   private boolean amendmentAlreadyAdmitted(String conversationId, String path) {
@@ -421,6 +444,67 @@ public class RequirementDraftStore {
     }
   }
 
+  public List<org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection.TrustedSelection>
+      trustedPolicyChoices(String conversationId) {
+    return policyChoices.trusted(conversationId);
+  }
+
+  public Optional<org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection.Pending>
+      pendingPolicyReplacement(String conversationId) {
+    return policyChoices.pendingReplacement(conversationId);
+  }
+
+  private List<org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection.TrustedSelection>
+      activePolicyChoices(String conversationId, Reference base) {
+    if (conversations == null || base == null) return List.of();
+    var source = conversations.archive().read(conversationId);
+    String turnId = org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(source);
+    return policyChoices.trusted(conversationId).stream().filter(choice ->
+        choice.selection().offered().draftReference().equals(base)
+            && Objects.equals(choice.selection().sourceGeneration(), source.generation())
+            && Objects.equals(choice.selection().sourceTurnId(), turnId)).toList();
+  }
+
+  private List<RequirementCaptureEditor.Issue> validatePolicySelections(String conversationId, Reference base,
+      RequirementCaptureInput.DraftInput candidate) {
+    var issues = new ArrayList<RequirementCaptureEditor.Issue>();
+    for (var choice : activePolicyChoices(conversationId, base)) {
+      var selected = choice.selection();
+      var fact = candidate.facts().stream().filter(value ->
+          value.sourceFactId().equals(selected.offered().fact().sourceFactId())).findFirst().orElse(null);
+      if (fact == null || !policyChoices.permits(conversationId, base,
+          selected.sourceGeneration(), selected.sourceTurnId(), fact)) {
+        issues.add(new RequirementCaptureEditor.Issue("POLICY_RESPONSE_REQUIRED",
+            "/draft/facts/" + selected.offered().fact().sourceFactId() + "/policyConflict/decision",
+            selected.offered().fact().sourceFactId(), "Record the validated " + selected.decision()
+                + " selection (" + selected.selectedValue() + ") without changing its policy contract or owner."));
+      }
+      var owner = selected.offered().fact().interactionIds().getFirst();
+      for (var original : get(conversationId).orElseThrow().authoredDraft().facts()) {
+        var intent = original.elementIntent();
+        if (intent == null || intent.placement() != RequirementElementIntent.Placement.ANCHOR
+            || !owner.equals(intent.elementRef()) || !owner.equals(intent.ownerInteractionId())) continue;
+        var replacement = candidate.facts().stream().filter(value -> value.sourceFactId().equals(original.sourceFactId()))
+            .map(RequirementCaptureInput.FactInput::elementIntent).filter(Objects::nonNull).findFirst().orElse(null);
+        for (int index = 0; index < intent.requestedProperties().size(); index++) {
+          var property = intent.requestedProperties().get(index);
+          if (!property.key().equals(selected.offered().fact().policyConflict().propertyKey())) continue;
+          if (replacement == null || !owner.equals(replacement.elementRef()) || !owner.equals(replacement.ownerInteractionId())
+              || replacement.placement() != intent.placement() || !intent.elementType().equals(replacement.elementType())
+              || replacement.requestedProperties().size() <= index
+              || !property.key().equals(replacement.requestedProperties().get(index).key())
+              || !selected.selectedValue().equals(replacement.requestedProperties().get(index).value())) {
+            issues.add(new RequirementCaptureEditor.Issue("POLICY_RESPONSE_REQUIRED",
+                "/draft/facts/" + original.sourceFactId() + "/elementIntent/requestedProperties/" + index + "/value",
+                original.sourceFactId(), "Apply the validated " + selected.decision() + " value (" + selected.selectedValue()
+                    + ") to this existing owned property in the same capture as its decision."));
+          }
+        }
+      }
+    }
+    return List.copyOf(issues);
+  }
+
   public void recordIdsChoice(String conversationId, Boolean choice) {
     withWriteAuthority(conversationId, () -> {
     var previous = get(conversationId).orElseThrow();
@@ -517,7 +601,6 @@ public class RequirementDraftStore {
     captureMutationScopes.remove(conversationId);
     captureMutationRejected.remove(conversationId);
     currentAuthorText.remove(conversationId);
-    policyQuestionsAtTurnStart.remove(conversationId);
     rejectedCaptureFacts.remove(conversationId);
   }
 
@@ -536,7 +619,6 @@ public class RequirementDraftStore {
     captureMutationScopes.remove(conversationId);
     captureMutationRejected.remove(conversationId);
     currentAuthorText.remove(conversationId);
-    policyQuestionsAtTurnStart.remove(conversationId);
     rejectedCaptureFacts.remove(conversationId);
   }
 
@@ -564,9 +646,6 @@ public class RequirementDraftStore {
       if (previousSource != null || currentAuthorText.containsKey(conversationId)) {
         lastCaptureRejection.remove(conversationId);
       }
-      policyQuestionsAtTurnStart.remove(conversationId);
-      get(conversationId).map(RequirementDraft::authoredDraft)
-          .ifPresent(draft -> policyQuestionsAtTurnStart.put(conversationId, draft));
       capturedThisTurn.put(conversationId, capturedFromSource(conversationId, source));
       rejectedCaptureFacts.remove(conversationId);
       rejectedCaptureValues.remove(conversationId);
@@ -621,18 +700,15 @@ public class RequirementDraftStore {
   }
 
   boolean canResolvePolicyChoice(String conversationId, RequirementCaptureInput.FactInput candidate) {
-    if (conversations != null) {
-      var source = sourceInputs.get(conversationId);
-      if (source == null || source.activeTurns().stream().noneMatch(turn ->
-          turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
-              && "READY".equals(turn.status()) && turn.consumedDraftReference() == null)) {
-        return false;
-      }
-    } else if (currentAuthorText.getOrDefault(conversationId, "").isBlank()) {
-      return false;
-    }
-    return RequirementCaptureEditor.wasPolicyQuestionAsked(
-        policyQuestionsAtTurnStart.get(conversationId), candidate);
+    var source = sourceInputs.get(conversationId);
+    if (source == null || conversations == null || !currentSource(conversationId)) return false;
+    String turnId = org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(source);
+    boolean fresh = conversations.archive().read(conversationId).activeTurns().stream().anyMatch(turn ->
+        turn.id().equals(turnId)
+            && turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+            && "READY".equals(turn.status()) && turn.consumedDraftReference() == null);
+    return fresh && policyChoices.permits(conversationId, latestRevision(conversationId).map(Revision::reference).orElse(null),
+        source.generation(), turnId, candidate);
   }
 
   void rememberRejectedCapture(String conversationId, RequirementCaptureInput.DraftInput input,

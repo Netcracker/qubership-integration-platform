@@ -248,12 +248,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
             context.executionKey(), context.attemptId(), context.profile(), context.runManifest(),
             context.inputRefs(), attributes));
       }
-      if (!decided.readyForPlan()) {
-        String questions = String.join("\n", decided.openQuestions());
-        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
-            StageOutcomeClass.NEEDS_INPUT, questions.isBlank()
-                ? "IDS choice saved. The remaining requirements still need clarification." : questions)));
-      }
       return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(decided)));
     }
     RequirementDraft mappingRepairDraft = mappingRepairDraft(context);
@@ -389,10 +383,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
     Multi<ChatEvent> agentStream =
         ToolSession.propagateBinding(
             toolSessionContext,
-            runGather(
+            Multi.createFrom().deferred(() -> runGather(
                 conversationId,
-                userMessage,
-                context.runManifest() == null ? "en" : context.runManifest().responseLocale(), binding));
+                gatherMessage,
+                context.runManifest() == null ? "en" : context.runManifest().responseLocale(), binding)));
     return Multi.createBy()
         .concatenating()
         .streams(
@@ -475,7 +469,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
           PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION,
               "Which catalog folder should contain this chain? Several folders have the requested name.")));
     }
-    if (rejection.isPresent() && rejection.get().issues().stream().allMatch(issue ->
+    if (preservation.isEmpty() && rejection.isPresent() && !rejection.get().issues().isEmpty()
+        && rejection.get().issues().stream().allMatch(issue ->
         "POLICY_RESPONSE_REQUIRED".equals(issue.code())) && draft != null && draft.authoredDraft() != null
         && draft.facts().stream().anyMatch(fact -> fact.policyConflict() != null
             && fact.policyConflict().decision() == null
@@ -484,6 +479,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
         && draftStore.validateAuthorQuestions(conversationId).isEmpty()) {
       captureFeedback.clearRequirement(conversationId);
       rejection = Optional.empty();
+    }
+    if (preservation.isEmpty() && rejection.isPresent() && !rejection.get().issues().isEmpty()
+        && rejection.get().issues().stream().allMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
+      var replacement = draftStore.pendingPolicyReplacement(conversationId);
+      if (replacement.isPresent()) {
+        return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+            PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, replacement.get().question().text())));
+      }
     }
     if (rejection.isPresent() && rejection.get().issues().stream()
         .anyMatch(issue -> !"AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
@@ -536,6 +539,17 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     if (directive == RequirementDiscoveryDirective.DISCUSS) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
+    }
+    if (draft.authoredDraft() != null && !draft.openQuestions().equals(RequirementCaptureProjection.toDraft(
+        draft.authoredDraft(), draft, draft.catalogBindings(), draft.sourceSkillVersion(), draft.sourceSkillHash(),
+        RequirementCaptureProjection.resolvedTargets(draft))
+        .openQuestions())) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Review the saved sources and capture a scoped author question before waiting for more input.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+              "AUTHOR_QUESTION_NOT_SUPPORTED", "Derived pending work does not establish missing author input."
+                  + " Read the saved sources, complete the draft, or capture the remaining question with its evidence.",
+              true, MappingValidationDetails.empty(), "requirement-draft", "/openQuestions")), "")));
     }
     var questionIssues = draftStore.validateAuthorQuestions(conversationId);
     if (!questionIssues.isEmpty()) {
@@ -689,6 +703,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
             .anyMatch(question -> PipelineGates.IDS_PATH_CHOICE.equals(question.questionId()))
         || draft.decision() == DraftDecision.NEEDS_INPUT && draft.openQuestions().isEmpty()
             && !draft.facts().isEmpty() && !draft.flow().interactions().isEmpty()
+            && (draft.authoredDraft() == null || RequirementCaptureProjection.pending(
+                draft.authoredDraft(), draft.catalogBindings(), RequirementCaptureProjection.resolvedTargets(draft)).isEmpty())
             && RequirementFlowValidator.validateBindings(draft.flow(), draft.facts(), draft.catalogBindings()).isEmpty();
   }
 

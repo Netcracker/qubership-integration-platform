@@ -6,6 +6,8 @@ import java.util.Locale;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 
 /**
@@ -33,9 +35,13 @@ public record RecoveryCause(
   public static RecoveryCause captureFailure(
       CaptureAttemptFeedback feedback,
       List<PlanValidationFinding> nativeFindings, CaptureFailureEvidence evidence) {
-    var findings = nativeFindings.isEmpty()
-        ? List.of(new PlanValidationFinding("CAPTURE_" + feedback.kind(), feedback.summary(), true))
-        : nativeFindings;
+    boolean requirementCapture = evidence != null && evidence.rejectedCandidate() != null
+        && evidence.rejectedCandidate().kind() == Kind.REQUIREMENT_CAPTURE_ATTEMPT;
+    var findings = nativeFindings.isEmpty() ? feedback.issues().stream().map(issue -> new PlanValidationFinding(
+        issue.code(), issue.path() + ": " + issue.message(), true, null,
+        requirementCapture && (issue.entityId() == null || issue.entityId().isBlank()) ? "requirement-draft" : issue.entityId(),
+        requirementCapture ? CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()) : issue.path())).toList() : nativeFindings;
+    if (findings.isEmpty()) findings = List.of(new PlanValidationFinding("CAPTURE_" + feedback.kind(), feedback.summary(), true));
     return new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "", feedback.noProgress(),
         evidence == null ? new CaptureFailureEvidence(feedback, null, feedback.evidenceReference(), List.of()) : evidence);
   }

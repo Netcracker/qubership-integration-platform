@@ -14,6 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -299,7 +303,7 @@ class RequirementRevisionAdmissionTest {
     try (var ignored = ToolSession.open(h.chat)) {
       h.begin("Create an external endpoint with NONE. Proceed without IDS.");
       assertTrue(h.capture(policyDraft(null)).accepted());
-      h.begin("Keep NONE despite the RBAC recommendation.");
+      h.select(Decision.KEEP_REQUESTED);
       assertTrue(h.update(editPolicy(Decision.KEEP_REQUESTED, false)).accepted());
       var accepted = h.store.latestRevision(h.chat).orElseThrow();
       if (newMessage) {
@@ -473,7 +477,7 @@ class RequirementRevisionAdmissionTest {
       assertTrue(h.capture(new DraftInput(flow,
           List.of(initial.facts().getFirst(), visibility, roles, initial.facts().getLast()),
           initial.capabilities(), initial.openQuestions(), initial.settings())).accepted());
-      h.begin("Use the recommended RBAC.");
+      h.select(Decision.USE_RECOMMENDED);
       assertTrue(h.update(editPolicy(Decision.USE_RECOMMENDED, false)).accepted());
       String quote = "Change only the endpoint URL to /new-tasks.";
       var source = h.begin(quote);
@@ -512,7 +516,7 @@ class RequirementRevisionAdmissionTest {
     try (var ignored = ToolSession.open(h.chat)) {
       h.begin("Create an external endpoint with NONE. Proceed without IDS.");
       assertTrue(h.capture(policyDraft(null)).accepted());
-      h.begin("Keep NONE despite the RBAC recommendation.");
+      h.select(Decision.KEEP_REQUESTED);
       assertTrue(h.update(editPolicy(Decision.KEEP_REQUESTED, false)).accepted());
       var first = h.store.confirmedAnswers(h.chat).getFirst();
       assertEquals("choice", first.questionId());
@@ -525,7 +529,18 @@ class RequirementRevisionAdmissionTest {
           edit.setCapabilities(), edit.removeCapabilityInteractionIds(), edit.addQuestions(), edit.updateQuestions(),
           List.of(), null, List.of(new AmendmentInput("/facts/policy/policyConflict/decision", source.turnId(),
               "Change my answer: use RBAC.")));
-      var changed = h.update(amendment);
+      var refused = h.update(amendment);
+      assertFalse(refused.accepted(), refused.toString());
+      assertEquals(first, h.store.confirmedAnswers(h.chat).getFirst());
+      var selectedSource = h.select(Decision.USE_RECOMMENDED);
+      String selectedQuote = h.archive.read(h.chat).activeTurns().stream()
+          .filter(turn -> turn.id().equals(selectedSource.turnId())).findFirst().orElseThrow().message().content();
+      var selectedAmendment = new DraftUpdate(amendment.addInteractions(), amendment.updateInteractions(), amendment.removeInteractionIds(),
+          amendment.addTransitions(), amendment.removeTransitions(), amendment.addFacts(), amendment.updateFacts(), amendment.removeFactIds(),
+          amendment.setCapabilities(), amendment.removeCapabilityInteractionIds(), amendment.addQuestions(), amendment.updateQuestions(),
+          amendment.removeQuestionIds(), null, List.of(new AmendmentInput("/facts/policy/policyConflict/decision", selectedSource.turnId(),
+              selectedQuote)));
+      var changed = h.update(selectedAmendment);
       assertTrue(changed.accepted(), changed.toString());
       var second = h.store.confirmedAnswers(h.chat).getFirst();
       assertEquals(Decision.USE_RECOMMENDED, second.policy().decision());
@@ -723,6 +738,15 @@ class RequirementRevisionAdmissionTest {
   @Test
   void derivedBindingRefreshDoesNotConsumePendingAuthorInput() throws Exception {
     var h = new Harness();
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(
+        h.mapper, h.artifacts, h.sessions);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+        fingerprints, h.artifacts, h.sessions);
+    var bindings = mock(RequirementDraftTool.class);
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    h.tools = new RequirementCaptureTools(h.store, bindings, h.mapper,
+        new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
+        feedback, null);
     try (var ignored = ToolSession.open(h.chat)) {
       h.begin("Create tasks. Proceed without IDS.");
       assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
@@ -734,8 +758,18 @@ class RequirementRevisionAdmissionTest {
       h.store.put(h.chat, h.store.get(h.chat).orElseThrow().withImportIntent(true));
       assertEquals(source.turnId(), h.archive.pendingInputs(h.chat).getFirst().id());
       assertTrue(h.store.latestRevision(h.chat).orElseThrow().inputs().isEmpty());
-      assertTrue(h.update(rejected).issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code())),
-          "A binding-only refresh must not grant another identical proposal");
+      var protection = h.store.repairConstraints(h.chat);
+      var stopped = assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+          () -> h.update(rejected), "A binding-only refresh must not grant another identical proposal");
+      assertNotNull(stopped.evidence());
+      assertTrue(stopped.evidence().feedback().noProgress());
+      assertFalse(stopped.evidence().feedback().outerAllowed());
+      assertTrue(stopped.evidence().feedback().issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+          && "/changes/facts/goal".equals(issue.path()) && "goal".equals(issue.entityId())));
+      assertNotNull(stopped.evidence().feedback().evidenceReference());
+      assertTrue(h.artifacts.get(h.store.activeCompilationId(h.chat), stopped.evidence().feedback().evidenceReference()).isPresent());
+      assertEquals(source.turnId(), h.archive.pendingInputs(h.chat).getFirst().id());
+      assertEquals(protection, h.store.repairConstraints(h.chat));
       h.restartStore();
       h.store.beginTurn(h.chat, "Automatic correction.");
       assertFalse(h.store.validateCurrent(h.chat).isEmpty(), "Binding refresh must retain verified pending additions");
@@ -872,6 +906,8 @@ class RequirementRevisionAdmissionTest {
     final InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
     final ConversationArchive archive = new ConversationArchive(blobs, mapper);
     final ConversationService conversations = mock(ConversationService.class);
+    final CompilationArtifacts artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    final CompilationSessions sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
     final String chat = UUID.randomUUID().toString();
     RequirementDraftStore store;
     RequirementCaptureTools tools;
@@ -882,8 +918,7 @@ class RequirementRevisionAdmissionTest {
     }
 
     void restartStore() {
-      store = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
-          new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
+      store = new RequirementDraftStore(artifacts, sessions, conversations);
       var bindings = mock(RequirementDraftTool.class);
       when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
       tools = new RequirementCaptureTools(store, bindings, mapper);
@@ -894,6 +929,22 @@ class RequirementRevisionAdmissionTest {
       archive.resolveInput(chat, input, text);
       store.beginTurn(chat, text);
       return input;
+    }
+
+    ConversationArchive.Input select(Decision decision) {
+      var choices = new PolicyChoiceSelection(artifacts, sessions, conversations);
+      var offered = choices.pending(chat, 7).orElseThrow();
+      var command = new ChatDecisionCommand();
+      command.setAction(decision == Decision.KEEP_REQUESTED ? ChatEvent.KEEP_REQUESTED_ACTION : ChatEvent.USE_RECOMMENDED_ACTION);
+      command.setArtifactType(PolicyChoiceSelection.ARTIFACT_TYPE);
+      command.setArtifactHash(offered.hash());
+      command.setRevision(7);
+      String marker = ChatDecisionService.transcriptMarker(command);
+      var source = archive.beginInput(chat, marker, mapper.valueToTree(command));
+      archive.resolveInput(chat, source, marker, mapper.valueToTree(command));
+      store.beginTurn(chat, marker);
+      assertTrue(choices.confirm(chat, command, 7).isPresent());
+      return source;
     }
 
     RequirementCaptureResult result(String json) throws Exception {

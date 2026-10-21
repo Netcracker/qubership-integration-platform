@@ -10,11 +10,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Clock;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
@@ -90,12 +99,17 @@ class RequirementPolicyConsultationTest {
   @Test
   void policyChoiceRequiresASeparateUserReplyAndSurvivesProjection() throws Exception {
     ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-    RequirementDraftStore store = new RequirementDraftStore();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var conversations = new ConversationService();
+    RequirementDraftStore store = new RequirementDraftStore(artifacts, sessions, conversations);
+    var choices = new PolicyChoiceSelection(artifacts, sessions, conversations);
     RequirementDraftTool bindings = mock(RequirementDraftTool.class);
     when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
     RequirementCaptureTools tools = new RequirementCaptureTools(store, bindings, mapper);
     String conversationId = "policy-consultation";
-    store.beginTurn(conversationId, "Create an external endpoint with NONE. Proceed without IDS.");
+    begin(conversations, store, conversationId, "Create an external endpoint with NONE. Proceed without IDS.");
     try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
       assertFalse(RequirementCaptureEditor.initialize(draft(Decision.KEEP_REQUESTED)).accepted());
       var captured = mapper.readValue(tools.captureRequirementDraft(draft(null)), RequirementCaptureResult.class);
@@ -107,12 +121,23 @@ class RequirementPolicyConsultationTest {
       assertFalse(mapper.readValue(tools.updateRequirementDraft(resolve(Decision.KEEP_REQUESTED)),
           RequirementCaptureResult.class).accepted());
 
-      store.beginTurn(conversationId, "Keep NONE despite the RBAC recommendation.");
+      begin(conversations, store, conversationId, "Keep NONE despite the RBAC recommendation.");
       var extra = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(new FactInput("detail", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
               "Keep the endpoint unchanged.")), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null);
       assertTrue(mapper.readValue(tools.updateRequirementDraft(extra), RequirementCaptureResult.class).accepted());
+      var offered = choices.pending(conversationId, 7).orElseThrow();
+      var command = new ChatDecisionCommand();
+      command.setAction(ChatEvent.KEEP_REQUESTED_ACTION);
+      command.setArtifactType(PolicyChoiceSelection.ARTIFACT_TYPE);
+      command.setArtifactHash(offered.hash());
+      command.setRevision(7);
+      String marker = ChatDecisionService.transcriptMarker(command);
+      var decisionSource = conversations.archive().beginInput(conversationId, marker, mapper.valueToTree(command));
+      conversations.archive().resolveInput(conversationId, decisionSource, marker, mapper.valueToTree(command));
+      store.beginTurn(conversationId, marker);
+      assertTrue(choices.confirm(conversationId, command, 7).isPresent());
       var resolved = mapper.readValue(tools.updateRequirementDraft(resolve(Decision.KEEP_REQUESTED)),
           RequirementCaptureResult.class);
       assertTrue(resolved.accepted(), resolved.toString());
@@ -131,7 +156,7 @@ class RequirementPolicyConsultationTest {
   }
 
   @Test
-  void anAnsweredPersistedQuestionCanAcquireMissingPolicyMetadata() throws Exception {
+  void aLegacyQuestionWithoutTypedOptionsCannotAcquireTrustedPolicyMetadata() throws Exception {
     DraftInput typed = draft(null);
     FactInput policy = policyFact(null);
     DraftInput legacy = new DraftInput(typed.flow(),
@@ -150,10 +175,10 @@ class RequirementPolicyConsultationTest {
     }
     assertFalse(store.canResolvePolicyChoice(id, policyFact(Decision.KEEP_REQUESTED)));
     store.beginTurn(id, "Keep NONE despite the RBAC recommendation.");
-    assertTrue(store.canResolvePolicyChoice(id, policyFact(Decision.KEEP_REQUESTED)));
+    assertFalse(store.canResolvePolicyChoice(id, policyFact(Decision.KEEP_REQUESTED)));
     assertTrue(RequirementCaptureEditor.apply(legacy, resolve(Decision.KEEP_REQUESTED)).accepted());
     try (ToolSession.Handle ignored = ToolSession.open(id)) {
-      assertTrue(mapper.readValue(tools.updateRequirementDraft(resolve(Decision.KEEP_REQUESTED)),
+      assertFalse(mapper.readValue(tools.updateRequirementDraft(resolve(Decision.KEEP_REQUESTED)),
           RequirementCaptureResult.class).accepted());
     }
     var wrongQuestion = new FactInput("policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
@@ -207,6 +232,12 @@ class RequirementPolicyConsultationTest {
         decision == null ? List.of(new QuestionInput("policy-choice", List.of("entry"),
             "NONE has no access control. Corporate section 12.4 recommends RBAC for external routes. Keep NONE or use RBAC?")) : List.of(),
         new DraftSettings(false, null));
+  }
+
+  private static void begin(ConversationService conversations, RequirementDraftStore store, String id, String text) {
+    var source = conversations.archive().beginInput(id, text, null);
+    conversations.archive().resolveInput(id, source, text);
+    store.beginTurn(id, text);
   }
 
   private static FactInput policyFact(Decision decision) {

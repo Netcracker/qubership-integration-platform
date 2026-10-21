@@ -1550,6 +1550,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
         storedEvidence.contentHash());
 
+    Reference selectedFault = accepted.faultArtifactRef();
+    boolean currentRepairTarget = currentRepairEligible && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
+        && (currentProducerFallback || selectedFault != null && artifactStore.get(runId, selectedFault)
+            .filter(candidate -> candidate.provenance() != null
+                && stage.stageId().equals(candidate.provenance().stageId())).isPresent());
+    if (noProgress && !targetedCreditSpent && currentRepairTarget
+        && supportsCleanProducerRebuild(stage.stageId())
+        && !recoveryLedger.mayCleanRebuild(doc.transitions(), recoveryKey)) {
+      changeStrategy = false;
+    }
     StageDecision mapped =
         currentProducerFallback && !changeStrategy
             ? new StageDecision.Retry(stage.stageId(), Duration.ZERO)
@@ -1560,16 +1570,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             stage,
             catalogHasBeenWritten(runId),
             changeStrategy);
-    Reference selectedFault = accepted.faultArtifactRef();
-    boolean currentRepairTarget = currentRepairEligible && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
-        && (currentProducerFallback || selectedFault != null && artifactStore.get(runId, selectedFault)
-            .filter(candidate -> candidate.provenance() != null
-                && stage.stageId().equals(candidate.provenance().stageId())).isPresent());
     if (changeStrategy
         && currentRepairTarget
         && supportsCleanProducerRebuild(stage.stageId())
         && !catalogHasBeenWritten(runId)
-        && !(noProgress && draftEvidence.cleanRebuild())
         && recoveryLedger.mayCleanRebuild(doc.transitions(), recoveryKey)) {
       putRunAttribute(
           runId,

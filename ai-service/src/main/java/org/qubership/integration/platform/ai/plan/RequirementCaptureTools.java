@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.EditResult;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
@@ -27,6 +28,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftI
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 
@@ -242,7 +244,7 @@ public class RequirementCaptureTools {
     return traced("finishRequirementDiscoveryTurn", directive, () -> {
       String conversationId = ToolSession.resolveConversationId();
       var rejection = feedbackStore.lastRequirementRejection(conversationId);
-      if (rejection.filter(value -> value.feedback().failureClass() == CaptureFailureClass.IDENTICAL_SPAM).isPresent()) {
+      if (rejection.filter(value -> value.feedback().noProgress()).isPresent()) {
         store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
         var issues = new ArrayList<>(rejection.orElseThrow().issues().stream()
             .map(issue -> new Issue(issue.code(), issue.path(), issue.entityId(), issue.message())).toList());
@@ -551,19 +553,10 @@ public class RequirementCaptureTools {
         .noneMatch(issue -> "CONTINUATION_NOT_AUTHORIZED".equals(issue.code()))) {
       store.recordCaptureAttempt(conversationId, false);
       String scope = store.captureMutationScope(conversationId);
-      boolean repeated = outcomeGateway.repeatedRequirementIssue(
+      outcomeGateway.repeatedRequirementIssue(
           conversationId, scope, result.issues().stream()
               .map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
                   issue.code(), issue.path(), issue.message(), issue.entityId())).toList());
-      if (repeated) {
-        store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
-        List<RequirementCaptureResult.CaptureIssue> terminal = new ArrayList<>(result.issues());
-        terminal.add(new RequirementCaptureResult.CaptureIssue("REPEATED_REJECTION", "/", null, null,
-            "The same requirement issue was rejected again. Stop automatic repair."));
-        return new RequirementCaptureResult(false, result.changed(), result.revision(), result.readiness(),
-            RequirementCaptureResult.NextAction.STOP, List.copyOf(terminal), result.pendingWork(), result.draft(),
-            result.resolutions(), result.defaults());
-      }
     }
     return result;
   }
@@ -595,7 +588,8 @@ public class RequirementCaptureTools {
       result = store.withWriteAuthority(conversationId, () -> {
         store.captureMutationScope(conversationId);
         var repeated = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)
-            && feedbackStore.lastRequirementRejection(conversationId).isPresent()
+            && (feedbackStore.lastRequirementRejection(conversationId).isPresent()
+                || feedbackStore.fingerprintStore().softCreditsUsed(conversationId) > 0)
             ? store.rejectedProposal(conversationId, toolName, arguments) : java.util.Optional.<RequirementDraftStore.RequirementCaptureAttempt>empty();
         if (repeated.isPresent()) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
@@ -628,6 +622,20 @@ public class RequirementCaptureTools {
           + result.issues().stream().map(RequirementCaptureResult.CaptureIssue::code).toList();
       ToolTraceLog.logToolComplete(
           LOG, toolName, conversationId, System.currentTimeMillis() - started, summary);
+      // shortcut: only identical persisted proposals terminate; changed candidates need a semantic progress proof.
+      if (result.issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code()))) {
+        var rejection = feedbackStore.lastRequirementRejection(conversationId).orElseThrow();
+        var feedback = rejection.feedback();
+        var rejected = store.rejectedCaptureRevision(conversationId).orElseThrow();
+        throw new CaptureNoProgressException("REPAIR_NO_PROGRESS: " + rejection.issues().stream()
+            .map(issue -> issue.code() + " " + issue.path() + ": " + issue.message())
+            .collect(Collectors.joining("\n")),
+            new CaptureFailureEvidence(feedback, result.revision(), rejected.reference(),
+                store.validateForContinuation(conversationId).stream().map(issue ->
+                    new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+                        issue.code(), issue.message(), true, null, issue.entityId(),
+                        CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList()));
+      }
       return encoded;
     } catch (RuntimeException error) {
       ToolTraceLog.logToolFailed(
