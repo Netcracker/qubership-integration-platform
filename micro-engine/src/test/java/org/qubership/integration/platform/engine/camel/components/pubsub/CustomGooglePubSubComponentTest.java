@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.engine.camel.components.pubsub;
 
 import com.google.api.core.ApiService;
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.pubsub.v1.Subscriber;
 import com.google.pubsub.v1.StreamingPullRequest;
 import com.google.pubsub.v1.StreamingPullResponse;
@@ -19,11 +21,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.PubSubTestUtils;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyPairGenerator;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mockStatic;
 
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class CustomGooglePubSubComponentTest {
@@ -149,11 +159,100 @@ class CustomGooglePubSubComponentTest {
         );
     }
 
+    @Test
+    void shouldCreateSubscriberWhenComponentEndpointIsBlank() throws Exception {
+        component.setEndpoint("  ");
+
+        Subscriber subscriber = newSubscriber();
+
+        assertEquals(SUBSCRIPTION_NAME, subscriber.getSubscriptionNameString());
+        assertEquals(ApiService.State.NEW, subscriber.state());
+    }
+
+    @Test
+    void shouldUseApplicationDefaultCredentialsWhenServiceAccountKeyIsEmpty() throws Exception {
+        component.setEndpoint("localhost:8085");
+        CustomGooglePubSubEndpoint endpoint = new CustomGooglePubSubEndpoint(
+                "google-pubsub:project-id:subscription-name", component);
+        endpoint.setAuthenticate(true);
+        GoogleCredentials credentials = GoogleCredentials.create(new AccessToken("test-token", new Date(Long.MAX_VALUE)));
+
+        try (MockedStatic<GoogleCredentials> googleCredentials = mockStatic(GoogleCredentials.class)) {
+            googleCredentials.when(GoogleCredentials::getApplicationDefault).thenReturn(credentials);
+
+            Subscriber subscriber = newSubscriber(endpoint);
+
+            assertEquals(SUBSCRIPTION_NAME, subscriber.getSubscriptionNameString());
+            assertEquals(ApiService.State.NEW, subscriber.state());
+            googleCredentials.verify(GoogleCredentials::getApplicationDefault);
+        }
+    }
+
+    @Test
+    void shouldPropagateFailureWhenApplicationDefaultCredentialsAreUnavailable() {
+        component.setEndpoint("localhost:8085");
+        CustomGooglePubSubEndpoint endpoint = new CustomGooglePubSubEndpoint(
+                "google-pubsub:project-id:subscription-name", component);
+        endpoint.setAuthenticate(true);
+        IOException failure = new IOException("Application default credentials are unavailable");
+
+        try (MockedStatic<GoogleCredentials> googleCredentials = mockStatic(GoogleCredentials.class)) {
+            googleCredentials.when(GoogleCredentials::getApplicationDefault).thenThrow(failure);
+
+            assertSame(failure, assertThrows(IOException.class, () -> newSubscriber(endpoint)));
+        }
+    }
+
+    @Test
+    void shouldCreateSubscriberWhenServiceAccountResourceIsValid(@TempDir Path directory) throws Exception {
+        component.setEndpoint("localhost:8085");
+        CustomGooglePubSubEndpoint endpoint = new CustomGooglePubSubEndpoint(
+                "google-pubsub:project-id:subscription-name", component);
+        endpoint.setAuthenticate(true);
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        keyPairGenerator.initialize(2048);
+        String privateKey = Base64.getEncoder().encodeToString(keyPairGenerator.generateKeyPair().getPrivate().getEncoded());
+        Path serviceAccountKey = directory.resolve("service-account.json");
+        Files.writeString(serviceAccountKey, """
+                {
+                  "type": "service_account",
+                  "project_id": "project-id",
+                  "client_id": "client-id",
+                  "client_email": "subscriber@project-id.iam.gserviceaccount.com",
+                  "private_key_id": "key-id",
+                  "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n"
+                }
+                """.formatted(privateKey));
+        endpoint.setServiceAccountKey(serviceAccountKey.toUri().toString());
+
+        Subscriber subscriber = newSubscriber(endpoint);
+
+        assertEquals(SUBSCRIPTION_NAME, subscriber.getSubscriptionNameString());
+        assertEquals(ApiService.State.NEW, subscriber.state());
+    }
+
+    @Test
+    void shouldRejectMissingServiceAccountResourceWhenAuthenticationIsEnabled() {
+        component.setEndpoint("localhost:8085");
+        CustomGooglePubSubEndpoint endpoint = new CustomGooglePubSubEndpoint(
+                "google-pubsub:project-id:subscription-name", component);
+        endpoint.setAuthenticate(true);
+        endpoint.setServiceAccountKey("classpath:missing-service-account.json");
+
+        IOException failure = assertThrows(IOException.class, () -> newSubscriber(endpoint));
+
+        assertTrue(failure.getMessage().contains("missing-service-account.json"));
+    }
+
     private Subscriber newSubscriber() throws IOException {
         CustomGooglePubSubEndpoint endpoint = new CustomGooglePubSubEndpoint(
                 "google-pubsub:project-id:subscription-name", component);
         endpoint.setAuthenticate(false);
         endpoint.setServiceAccountKey("classpath:missing-service-account.json");
+        return newSubscriber(endpoint);
+    }
+
+    private Subscriber newSubscriber(CustomGooglePubSubEndpoint endpoint) throws IOException {
         Subscriber subscriber = component.getSubscriber(SUBSCRIPTION_NAME, (message, consumer) -> consumer.ack(), endpoint);
         subscribers.add(subscriber);
         return subscriber;
