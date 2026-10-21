@@ -208,6 +208,7 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
       properties: { id: { type: "string" } },
     };
     const INTEGER_ENUM = { type: "integer", enum: [1, 2, 3] };
+    const CLOSED_REF = { $ref: "#/components/schemas/Closed/schema" };
     const CLOSED_SCHEMAS = {
       schemas: { Closed: { schemaFormat: JSON_SCHEMA, schema: CLOSED_OBJECT } },
     };
@@ -398,6 +399,24 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
           },
         ),
         { payload: { ...INTEGER_ENUM, definitions: {} } },
+      ],
+      [
+        "a reference from a property named like a keyword",
+        document(
+          {
+            order: {
+              payload: { type: "object", properties: { default: CLOSED_REF } },
+            },
+          },
+          CLOSED_SCHEMAS,
+        ),
+        {
+          payload: {
+            type: "object",
+            properties: { default: { $ref: "#/definitions/Closed" } },
+            definitions: { Closed: CLOSED_OBJECT },
+          },
+        },
       ],
       [
         "an Avro component",

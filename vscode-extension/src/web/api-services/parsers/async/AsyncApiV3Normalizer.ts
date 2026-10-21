@@ -20,6 +20,25 @@ const SCHEMA_FORMAT_PREFIXES = [
   "application/vnd.aai.asyncapi",
   "application/schema+",
 ];
+// Values under these keywords are instance data, so a $ref inside them is not
+// a reference.
+const LITERAL_KEYWORDS = new Set([
+  "const",
+  "enum",
+  "default",
+  "example",
+  "examples",
+]);
+// The keys of these maps are names, so a property named "default" is not a
+// keyword.
+const NAMED_MAPS = new Set([
+  "properties",
+  "patternProperties",
+  "definitions",
+  "$defs",
+  "schemas",
+  "messages",
+]);
 
 type AnyRecord = Record<string, any>;
 
@@ -121,9 +140,9 @@ export class AsyncApiV3Normalizer {
       }
     }
     for (const v3Channel of Object.values(v3.channels ?? {})) {
-      this.rewriteRefs(v3Channel?.messages, movedRefs);
+      this.rewriteRefs(v3Channel?.messages, true, movedRefs);
     }
-    this.rewriteRefs(v3.components, movedRefs);
+    this.rewriteRefs(v3.components, false, movedRefs);
   }
 
   private static unwrapMultiFormatPayloads(
@@ -156,10 +175,11 @@ export class AsyncApiV3Normalizer {
 
   private static rewriteRefs(
     node: unknown,
+    named: boolean,
     movedRefs: Map<string, string>,
   ): void {
     if (Array.isArray(node)) {
-      node.forEach((item) => this.rewriteRefs(item, movedRefs));
+      node.forEach((item) => this.rewriteRefs(item, false, movedRefs));
     } else if (isObject(node)) {
       const ref = node.$ref;
       if (typeof ref === "string") {
@@ -169,9 +189,13 @@ export class AsyncApiV3Normalizer {
           }
         }
       }
-      Object.values(node).forEach((value) =>
-        this.rewriteRefs(value, movedRefs),
-      );
+      for (const [key, value] of Object.entries(node)) {
+        if (named) {
+          this.rewriteRefs(value, false, movedRefs);
+        } else if (!LITERAL_KEYWORDS.has(key)) {
+          this.rewriteRefs(value, NAMED_MAPS.has(key), movedRefs);
+        }
+      }
     }
   }
 

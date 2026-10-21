@@ -45,6 +45,10 @@ public class AsyncApiV3Normalizer {
     private static final String ACTION_SEND = MethodType.SEND.getMethodName();
     private static final String ACTION_RECEIVE = MethodType.RECEIVE.getMethodName();
     private static final List<String> SCHEMA_FORMAT_PREFIXES = List.of("application/vnd.aai.asyncapi", "application/schema+");
+    // Values under these keywords are instance data, so a $ref inside them is not a reference.
+    private static final Set<String> LITERAL_KEYWORDS = Set.of("const", "enum", "default", "example", "examples");
+    // The keys of these maps are names, so a property named "default" is not a keyword.
+    private static final Set<String> NAMED_MAPS = Set.of("properties", "patternProperties", "definitions", "$defs", "schemas", "messages");
     private static final TypeReference<Map<String, Object>> SCHEMA_TYPE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
@@ -132,9 +136,9 @@ public class AsyncApiV3Normalizer {
             }
         }
         if (v3.getChannels() != null) {
-            v3.getChannels().values().forEach(channel -> rewriteRefs(channel == null ? null : channel.getMessages(), movedRefs));
+            v3.getChannels().values().forEach(channel -> rewriteRefs(channel == null ? null : channel.getMessages(), true, movedRefs));
         }
-        rewriteRefs(v3.getComponents(), movedRefs);
+        rewriteRefs(v3.getComponents(), false, movedRefs);
     }
 
     private void unwrapMultiFormatPayloads(Object messages, String refPrefix, Map<String, String> movedRefs) {
@@ -157,7 +161,7 @@ public class AsyncApiV3Normalizer {
         return true;
     }
 
-    private void rewriteRefs(Object node, Map<String, String> movedRefs) {
+    private void rewriteRefs(Object node, boolean named, Map<String, String> movedRefs) {
         if (node instanceof Map<?, ?> map) {
             if (map.get("$ref") instanceof String ref) {
                 movedRefs.forEach((from, to) -> {
@@ -166,9 +170,15 @@ public class AsyncApiV3Normalizer {
                     }
                 });
             }
-            map.values().forEach(value -> rewriteRefs(value, movedRefs));
+            map.forEach((key, value) -> {
+                if (named) {
+                    rewriteRefs(value, false, movedRefs);
+                } else if (!LITERAL_KEYWORDS.contains(key)) {
+                    rewriteRefs(value, NAMED_MAPS.contains(key), movedRefs);
+                }
+            });
         } else if (node instanceof List<?> list) {
-            list.forEach(item -> rewriteRefs(item, movedRefs));
+            list.forEach(item -> rewriteRefs(item, false, movedRefs));
         }
     }
 

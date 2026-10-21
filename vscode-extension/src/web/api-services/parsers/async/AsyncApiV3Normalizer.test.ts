@@ -122,4 +122,52 @@ describe("AsyncApiV3Normalizer", () => {
       protocol: "amqp",
     });
   });
+
+  it("rewrites references into an unwrapped schema and leaves reference-shaped instance data alone", () => {
+    // A fresh object each time, because the normalizer rewrites in place.
+    const ref = () => ({ $ref: "#/components/schemas/Closed/schema" });
+    const literals = () => ({
+      const: ref(),
+      enum: [ref()],
+      default: ref(),
+      example: ref(),
+      examples: [ref()],
+    });
+    const closed = { type: "object", properties: { id: { type: "string" } } };
+    const result = AsyncApiV3Normalizer.normalize({
+      asyncapi: "3.0.0",
+      info: { title: "t", version: "1.0.0" },
+      channels: {
+        ch: {
+          address: "the/topic",
+          messages: {
+            M: {
+              payload: {
+                type: "object",
+                properties: { marker: literals(), default: ref() },
+              },
+            },
+          },
+        },
+      },
+      operations: {
+        op: { action: "receive", channel: { $ref: "#/channels/ch" } },
+      },
+      components: {
+        schemas: {
+          Closed: {
+            schemaFormat: "application/schema+json;version=draft-07",
+            schema: closed,
+          },
+        },
+      },
+    });
+
+    const payload = result.channels["the/topic"].subscribe!.message!.payload;
+    expect(payload.properties.marker).toEqual(literals());
+    expect(payload.properties.default).toEqual({
+      $ref: "#/components/schemas/Closed",
+    });
+    expect(result.components!.schemas.Closed).toEqual(closed);
+  });
 });
