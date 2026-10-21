@@ -32,7 +32,7 @@ import static java.util.Objects.isNull;
 @ConditionalOnProperty(prefix = "cip.deploy.micro", name = "enabled", havingValue = "true")
 @Profile("!development")
 public class SchedulerLeaderKeysCleanup {
-    private static final long CLEANUP_INTERVAL_MILLIS = 5 * 60 * 1000;
+    private static final long CLEANUP_INTERVAL_MILLIS = 5L * 60 * 1000;
     private static final String ENGINE_DOMAIN_VARIABLE = "CIP_ENGINE_DOMAIN=";
 
     private final ConsulService consulService;

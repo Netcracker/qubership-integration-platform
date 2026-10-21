@@ -109,36 +109,15 @@ public class SchedulerLeaderElectionService {
         }
         Instant attemptedAt = clock.instant();
         try {
-            if (isNull(sessionId)) {
-                sessionId = createSession();
-            } else {
-                renewSession();
-            }
+            createOrRenewSession();
             if (leader) {
-                if (acquireKey(attemptedAt) || heldByThisSession(readKey())) {
-                    confirmedAt = attemptedAt;
-                } else {
-                    stepDown();
-                }
+                confirmLeadership(attemptedAt);
             } else {
-                KeyValue previous = readKey();
-                if (!heldByAnotherSession(previous) && acquireKey(attemptedAt)) {
-                    confirmedAt = attemptedAt;
-                    lead(parse(previous));
-                }
+                tryToLead(attemptedAt);
             }
             consulFailing = false;
         } catch (Exception e) {
-            if (ConsulSessionService.sessionNotFoundError(e)) {
-                log.warn("Scheduler leader session {} is gone, will create a new one", sessionId);
-                sessionId = null;
-                stepDown();
-            } else {
-                logConsulFailure(e);
-                if (leader && clock.instant().isAfter(confirmedAt.plusSeconds(SESSION_TTL_SECONDS))) {
-                    stepDown();
-                }
-            }
+            handleElectionFailure(e);
         }
     }
 
@@ -163,6 +142,43 @@ public class SchedulerLeaderElectionService {
             }
             awaitConsul(consulClientSupplier.get().destroySession(sessionId));
             sessionId = null;
+        }
+    }
+
+    private void createOrRenewSession() {
+        if (isNull(sessionId)) {
+            sessionId = createSession();
+        } else {
+            renewSession();
+        }
+    }
+
+    private void confirmLeadership(Instant attemptedAt) {
+        if (acquireKey(attemptedAt) || heldByThisSession(readKey())) {
+            confirmedAt = attemptedAt;
+        } else {
+            stepDown();
+        }
+    }
+
+    private void tryToLead(Instant attemptedAt) {
+        KeyValue previous = readKey();
+        if (!heldByAnotherSession(previous) && acquireKey(attemptedAt)) {
+            confirmedAt = attemptedAt;
+            lead(parse(previous));
+        }
+    }
+
+    private void handleElectionFailure(Exception e) {
+        if (ConsulSessionService.sessionNotFoundError(e)) {
+            log.warn("Scheduler leader session {} is gone, will create a new one", sessionId);
+            sessionId = null;
+            stepDown();
+        } else {
+            logConsulFailure(e);
+            if (leader && clock.instant().isAfter(confirmedAt.plusSeconds(SESSION_TTL_SECONDS))) {
+                stepDown();
+            }
         }
     }
 
@@ -212,7 +228,7 @@ public class SchedulerLeaderElectionService {
     }
 
     private boolean writeKey(Instant seenAt, KeyValueOptions options) {
-        return Boolean.TRUE.equals(awaitConsul(consulClientSupplier.get().putValueWithOptions(key(), record(seenAt),
+        return Boolean.TRUE.equals(awaitConsul(consulClientSupplier.get().putValueWithOptions(key(), leaderRecord(seenAt),
                 options)));
     }
 
@@ -230,7 +246,7 @@ public class SchedulerLeaderElectionService {
         return nonNull(keyValue) && nonNull(keyValue.getSession()) && !sessionId.equals(keyValue.getSession());
     }
 
-    private String record(Instant seenAt) {
+    private String leaderRecord(Instant seenAt) {
         try {
             List<TriggerName> triggers = quartzSchedulerService.getTriggerKeys().stream()
                     .map(key -> new TriggerName(key.getGroup(), key.getName()))

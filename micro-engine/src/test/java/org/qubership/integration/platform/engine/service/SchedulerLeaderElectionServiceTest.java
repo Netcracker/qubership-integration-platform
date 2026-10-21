@@ -93,12 +93,12 @@ class SchedulerLeaderElectionServiceTest {
         ArgumentCaptor<String> value = ArgumentCaptor.forClass(String.class);
         verify(consulClient).putValueWithOptions(eq(KEY), value.capture(),
                 argThat(kv -> SESSION_ID.equals(kv.getAcquireSession())));
-        assertEquals(record(START, TRIGGER), objectMapper.readTree(value.getValue()));
+        assertEquals(leaderRecord(START, TRIGGER), objectMapper.readTree(value.getValue()));
         verify(quartzSchedulerService).takeLeadership(null, Set.of());
     }
 
     @Test
-    void shouldPassThePreviousLeadersRecordWhenItTakesAReleasedKey() throws Exception {
+    void shouldPassThePreviousLeadersRecordWhenItTakesAReleasedKey() {
         sessionCreated();
         keyHeldBy(null, recordText(START.minusSeconds(40), TRIGGER));
         acquireReturns(true);
@@ -264,7 +264,7 @@ class SchedulerLeaderElectionServiceTest {
         inOrder.verify(consulClient).putValueWithOptions(eq(KEY), value.capture(),
                 argThat(kv -> SESSION_ID.equals(kv.getReleaseSession())));
         inOrder.verify(consulClient).destroySession(SESSION_ID);
-        assertEquals(record(START.plusSeconds(30), TRIGGER), objectMapper.readTree(value.getValue()));
+        assertEquals(leaderRecord(START.plusSeconds(30), TRIGGER), objectMapper.readTree(value.getValue()));
     }
 
     @Test
@@ -331,10 +331,10 @@ class SchedulerLeaderElectionServiceTest {
     }
 
     private String recordText(Instant seenAt, TriggerKey trigger) {
-        return record(seenAt, trigger).toString();
+        return leaderRecord(seenAt, trigger).toString();
     }
 
-    private JsonNode record(Instant seenAt, TriggerKey trigger) {
+    private JsonNode leaderRecord(Instant seenAt, TriggerKey trigger) {
         return objectMapper.valueToTree(new SchedulerLeaderElectionService.LeaderRecord(HOST, seenAt.toEpochMilli(),
                 List.of(new SchedulerLeaderElectionService.TriggerName(trigger.getGroup(), trigger.getName()))));
     }
