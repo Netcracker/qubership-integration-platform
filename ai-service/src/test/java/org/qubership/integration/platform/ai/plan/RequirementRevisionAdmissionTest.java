@@ -528,6 +528,10 @@ class RequirementRevisionAdmissionTest {
               assertEquals(java.util.Set.of("/facts/goal/text"),
                   org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
                       .binding(chat).orElseThrow().requirementRepairPaths());
+              var prompt = new org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder(
+                  null, null, h.store).wrap(chat, "Automatic correction.");
+              assertTrue(prompt.contains("Writable stable paths: [/facts/goal/text]"), prompt);
+              assertTrue(prompt.contains("Use amendments: []"), prompt);
               var bad = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
                   List.of(fact("retain-id", "Preserve request IDs.")),
                   List.of(fact("goal", "Create one task."), fact("sibling", "Drop inputs.")), List.of(), List.of(),
