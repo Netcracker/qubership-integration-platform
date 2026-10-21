@@ -425,7 +425,11 @@ public class RequirementCaptureTools {
                 mapper.valueToTree(elementSchemas.coercePatchPropertyValue(
                     intent.elementType(), property.key(), property.value())))
                 .ifPresent(error -> issues.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath,
-                    fact.sourceFactId(), error)));
+                    fact.sourceFactId(), error
+                        + ". The tool's property value remains a string. Keep runtime strings verbatim;"
+                        + " encode runtime arrays and objects as JSON text inside that string. Preserve the"
+                        + " author-supplied content while correcting its representation. Current runtime schema: "
+                        + elementSchemas.describeElementProperty(intent.elementType(), property.key()))));
           }
         }
       }
