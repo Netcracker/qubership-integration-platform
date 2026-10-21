@@ -246,6 +246,9 @@ quarkus:
         level: INFO
       "org.qubership.integration.platform.engine.service.debugger.sessions.JsonSessionStepLogger":
         level: INFO
+  shutdown:
+    delay-enabled: true
+    delay: 5s # keeps serving after SIGTERM until the proxies drop this pod's endpoint
   http:
     host: 0.0.0.0
     port: 8080
