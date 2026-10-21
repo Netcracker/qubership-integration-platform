@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.engine.camel.components.grpc.GrpcCustomComponent;
 import org.qubership.integration.platform.engine.camel.components.pubsub.CustomGooglePubSubComponent;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -22,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
@@ -57,6 +60,13 @@ class ContextCustomizerTest {
         inOrder.verify(tracer).init(camelContext);
         inOrder.verify(camelContext).setDebugger(debugger);
         inOrder.verify(camelContext).setDebugging(true);
+    }
+
+    @Test
+    void shouldRegisterTheGrpcComponentThatResolvesStubsThroughTheChain() {
+        contextCustomizer.configure(camelContext);
+
+        verify(camelContext).addComponent(eq("grpc"), isA(GrpcCustomComponent.class));
     }
 
     @Test
