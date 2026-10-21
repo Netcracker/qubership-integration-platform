@@ -32,8 +32,8 @@ import { downloadFile } from "../misc/download-utils.ts";
 import { ImportSessions } from "../components/modal/ImportSessions.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
-import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { toStringIds } from "../misc/selection-utils.ts";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import {
@@ -210,7 +210,8 @@ export const Sessions: React.FC<SessionsProps> = ({
           }
         }
 
-        const checkpointSessionsLists = await Promise.all(
+        // A failed domain, such as a deleted micro domain, leaves its sessions without checkpoints.
+        const checkpointSessionsLists = await Promise.allSettled(
           Array.from(groupBy(fetched, (s) => s.domain).entries()).map(
             ([domainName, sessions]) => {
               const domainType = sessions[0].domainType;
@@ -222,7 +223,9 @@ export const Sessions: React.FC<SessionsProps> = ({
           ),
         );
         const checkpointSessions: CheckpointSession[] =
-          checkpointSessionsLists.flat();
+          checkpointSessionsLists.flatMap((result) =>
+            result.status === "fulfilled" ? result.value : [],
+          );
         const checkpointsById = new Map<string, Checkpoint[]>();
         checkpointSessions.forEach((cs) =>
           checkpointsById.set(cs.id, cs.checkpoints),
@@ -459,26 +462,31 @@ export const Sessions: React.FC<SessionsProps> = ({
     };
   }, [isLoading, allSessionsLoaded, offset, fetchSessions]);
 
+  // A correlation group row is not a session, so its key stays out of the selection.
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
-    setSelectedRowKeys(newSelectedRowKeys);
+    const sessionIds = new Set(sessions.map((session) => session.id));
+    setSelectedRowKeys(
+      newSelectedRowKeys.filter((key) => sessionIds.has(String(key))),
+    );
   };
 
   const hasSelection = selectedRowKeys.length > 0;
 
+  const onRefreshSessions = useCallback(() => {
+    setSelectedRowKeys([]);
+    void fetchSessions(0);
+  }, [fetchSessions]);
+
   const deleteSelectedSessions = useCallback(async () => {
     try {
-      const ids = toStringIds(selectedRowKeys);
-      if (selectedRowKeys.length === sessions.length) {
-        await api.deleteSessionsByChainId(chainId);
-        setSessions([]);
-      } else {
-        await api.deleteSessions(ids);
-        setSessions((prevSessions) => filterOutByIds(prevSessions, ids));
-      }
+      await api.deleteSessions(toStringIds(selectedRowKeys));
     } catch (error) {
       notificationService.requestFailed("Failed to delete sessions", error);
+      return;
     }
-  }, [selectedRowKeys, sessions.length, chainId, notificationService]);
+    // The server pages by position, so the list reloads from the start to reach the sessions that remain.
+    onRefreshSessions();
+  }, [selectedRowKeys, notificationService, onRefreshSessions]);
 
   const onDeleteBtnClick = useCallback(() => {
     if (!hasSelection) return;
@@ -514,11 +522,6 @@ export const Sessions: React.FC<SessionsProps> = ({
       ),
     });
   }, [showModal]);
-
-  const onRefreshSessions = useCallback(() => {
-    setSelectedRowKeys([]);
-    void fetchSessions(0);
-  }, [fetchSessions]);
 
   const rowSelection: TableRowSelection<SessionTableItem> = {
     type: "checkbox",
@@ -605,18 +608,6 @@ export const Sessions: React.FC<SessionsProps> = ({
     ],
   );
 
-  useRegisterChainHeaderActions(
-    variant === "chain-tab" ? sessionsToolbar : undefined,
-    [
-      searchString,
-      chainId,
-      selectedRowKeys,
-      onRefreshSessions,
-      variant,
-      isLoading,
-    ],
-  );
-
   const sessionsTable = (
     <TablePageLayout>
       <div
@@ -660,7 +651,10 @@ export const Sessions: React.FC<SessionsProps> = ({
           {sessionsTable}
         </Flex>
       ) : (
-        sessionsTable
+        <>
+          <ChainHeaderActions>{sessionsToolbar}</ChainHeaderActions>
+          {sessionsTable}
+        </>
       )}
     </>
   );

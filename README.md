@@ -15,6 +15,7 @@ This repository is a **monorepo** that consolidates the previously separate `qub
 | `micro-engine/`        | Execution engine (Quarkus variant) — faster startup, lower memory                             | Java 21, Quarkus 3.27, Apache Camel 4.14                                    |
 | `runtime-catalog/`     | Central catalog: chains, elements, deployments, snapshots, specifications, systems, variables | Java 21, Spring Boot 3.5, PostgreSQL, Consul, Flyway                        |
 | `sessions-management/` | Recorded sessions of integration flow executions                                              | Java 21, Spring Boot 3.5, OpenSearch, Consul                                |
+| `ai-service/`          | AI assistant for chain design, planning, and catalog implementation                           | Java 21, Quarkus 3.32, LangChain4j                                          |
 | `testing-service/`     | Test cases, endpoint mocks and test runs for chains — host port 8095 in the local stack        | Go 1.22, Fiber, bun ORM, PostgreSQL                                         |
 | `ui/`                  | Web UI — visual flow editor, chain/service management, session monitoring                     | React 18, TypeScript, Vite, Ant Design 5                                    |
 | `vscode-extension/`    | VS Code extension for offline chain/service editing                                           | TypeScript, VS Code Extension API                                           |
@@ -60,7 +61,7 @@ The `fetch-docs` step copies [`help/docs/`](help/docs/) into `ui/public/doc/`.
 ### Step 4 — Start the local backend stack
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml up -d --build
 ```
 
 Builds four application images — three from the JARs produced in Step 1, plus the testing service from its Go sources — and starts them alongside PostgreSQL, Consul, OpenSearch, and an Nginx proxy. The testing service answers on <http://localhost:8095> directly, and through the proxy under `/api/v1/qip/testing-service/`.
@@ -68,10 +69,18 @@ Builds four application images — three from the JARs produced in Step 1, plus 
 If your integration chains use Kafka, RabbitMQ, Redis, or Google Pub/Sub, start the corresponding optional service alongside the main stack:
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.kafka.yml up -d --build
+docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.kafka.yml up -d --build
 ```
 
 Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `docker-compose.redis.yml`, `docker-compose.pubsub.yml`, `docker-compose.sftp.yml`.
+
+Optional AI service (requires LLM keys in `infrastructure/docker/ai-service-dev.env`):
+
+```bash
+docker compose -f infrastructure/docker/docker-compose.yml --profile ai up -d --build
+```
+
+AI Service (profile `ai`): `http://localhost:8094` (direct), health `GET /q/health`. Nginx proxy routes `/api/chat/`, `/api/v1/storage/`, and `/q/health` when profile `ai` is up.
 
 ### Step 5 — Start the UI dev server
 
@@ -88,12 +97,7 @@ The extension provides offline visual editors for `.chain.cip.yaml` and `.servic
 
 `*.qip.yaml` files from earlier versions do not open in the extension. Rename them to `*.cip.yaml`.
 
-If a workspace `.config.qip.yaml` has a `configs.qip` block, delete the block so the embedded `cip` defaults apply.
-To keep custom settings, move them to `configs.cip`, then change each `extensions` value to end in `.cip.yaml` and
-each `schemaUrls` value to the matching URI in `vscode-extension/configs/default.config.cip.yaml`.
-A block the extension saved holds the old extensions and schema URLs as literal values, and a `configs.cip` block in
-the workspace file replaces the embedded default as a whole. Moved unchanged, the block makes the extension create
-`*.qip.yaml` files that declare the old `$schema`, and its editors do not open them.
+The extension no longer reads `.config.qip.yaml`. File extensions are always `*.cip.yaml`, so you can delete the file.
 
 ```bash
 npm install                                           # if not done already

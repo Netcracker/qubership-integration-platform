@@ -137,8 +137,7 @@ public class MetricsStore {
     private final ServerConfiguration serverConfiguration;
 
     @Autowired
-    public MetricsStore(ServerConfiguration serverConfiguration, MeterRegistry meterRegistry,
-                        @Value("${app.prefix}") String appPrefix) {
+    public MetricsStore(ServerConfiguration serverConfiguration, MeterRegistry meterRegistry) {
         this.serverConfiguration = serverConfiguration;
         this.meterRegistry = meterRegistry;
         this.sessionExecutionTime = Maps.newConcurrentMap();
@@ -151,7 +150,7 @@ public class MetricsStore {
         this.httpPayloadSizeDistributionSummary = Maps.newConcurrentMap();
         this.sessionSizeGauges = Maps.newConcurrentMap();
         this.checkpointsSizeGauges = Maps.newConcurrentMap();
-        this.namePrefix = appPrefix + ".engine.";
+        this.namePrefix = "cip.engine.";
     }
 
     public void processSessionFinish(String chainId, String chainName, String status, long duration) {

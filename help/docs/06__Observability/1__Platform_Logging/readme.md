@@ -31,53 +31,72 @@ Message consist from two different parts:
 
 Following table contains list of CIP-specific parameters, that will be added **on top of** the standardized list.
 
-| Param              | Availability               | Description                                                                                                     |
-|:-------------------|:---------------------------|:----------------------------------------------------------------------------------------------------------------|
-| session\_id        | All types of calls         | Session id.                                                                                                     |
-| chain\_id          | All types of calls         | Chain id, object id of the chain, available in chain list.                                                      |
-| correlation\_id    | All types of calls         | When correlation id is available it will be logged. Its purpose is to logically connect multiple session on UI. |
-| chain              | All types of calls         | Chain name.                                                                                                     |
-| chain\_element\_id | All types of calls         | Object id of the element within the chain, that produced the message.                                           |
-| chain\_element     | All types of calls         | Chain element name.                                                                                             |
-| log\_type          | Inbound and outbound calls | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
-| `url`              | REST outbound calls        | URL, to where call has been passed.                                                                             |
-| responseCode       | REST outbound calls        | Response code, received from source. Blank if direction = request                                               |
-| responseTime       | REST outbound calls        | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
-| direction          | REST outbound calls        | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
+| Param                 | Availability                | Description                                                                                                     |
+|:----------------------|:----------------------------|:----------------------------------------------------------------------------------------------------------------|
+| session\_id           | All types of calls          | Session id.                                                                                                     |
+| chain\_id             | All types of calls          | Chain id, object id of the chain, available in chain list.                                                      |
+| correlation\_id       | All types of calls          | When correlation id is available it will be logged. Its purpose is to logically connect multiple session on UI. |
+| chain                 | All types of calls          | Chain name.                                                                                                     |
+| chain\_element\_id    | All types of calls          | Object id of the element within the chain, that produced the message.                                           |
+| chain\_element        | All types of calls          | Chain element name.                                                                                             |
+| element\_id           | JSON session step entries   | Identifier of the session step.                                                                                 |
+| parent\_element\_id   | JSON session step entries   | Identifier of the parent session step. It lets log consumers reconstruct the execution tree.                    |
+| element\_name         | JSON session step entries   | Name of the chain element or step.                                                                              |
+| session\_log\_details | JSON session detail entries | Selected detail mode: `SENDERS` or `FULL`.                                                                      |
+| log\_type             | Inbound and outbound calls  | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
+| `url`                 | REST outbound calls         | URL, to where call has been passed.                                                                             |
+| responseCode          | REST outbound calls         | Response code, received from source. Blank if direction = request                                               |
+| responseTime          | REST outbound calls         | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
+| direction             | REST outbound calls         | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
 
-**Message sample for successful REST inbound call:**
+When **Session log details** is set to **Senders** or **Full** on the chain [Logging](../../01__Chains/5__Logging/readme.md) tab, the engine writes a session start entry and a session step entry after a step finishes. These entries are available only in JSON microservice logs.
 
-**Text format**
+#### JSON format
 
-```text
-2022-08-17T10:11:07.129388551Z [2022-08-17T10:11:07.129][INFO ] [request_id=1660731067128.0.7228021061350399] [tenant_id=cloud-common ] [traceId=- ] [spanId=- ] [originating_bi_id=- ] [business_identifiers=- ] [thread=0.0-8080-exec-8] [class=o.q.i.platform.engine.service.debugger.CamelDebugger        ] [method=logBeforeProcessByType ] [session_id=b702f2b9-58fa-4f24-8ccb-f7c9a59ad329] [chain_id=ff3ecdb8-1907-4435-8aa1-32061b341ecc] [chain=New Chain ] [chain_element_id=54b43763-8338-4a6a-80ea-2a60d3ae412c] [chain_element=HTTP Trigger ] [log_type=int] Get request from trigger. Headers: {CamelHttpUrl=http://localhost:8092/routes/test1, X-Request-Id=1660731067128.0.7228021061350399}, body: <body not logged>, exchange properties: {}
-```
+*Session step entry:**
 
-**JSON format**
+The following example contains every field emitted by the JSON session-step logger. Parameters that apply to inbound or outbound HTTP calls are not included.
 
 ```json
 {
-    "time":"2026-06-08T15:38:54.388",
-    "level":"INFO",
-    "message":"Get request from trigger.",
-    "request_id":"f78bcac12c746f329dd2ed69f21795ed",
-    "tenant_id":"e393a7a6-1920-4082-87d2-69179fd8e6f0",
-    "thread":"0.0-8080-exec-9",
-    "class":"o.q.i.platform.engine.service.debugger.logging.ChainLogger",
-    "traceId":"-",
-    "spanId":"-",
-    "originating_bi_id":"-",
-    "business_identifiers":"-",
-    "method":"info",
-    "log_type":"int",
-    "session_id":"978ee143-8319-404d-a361-84a9b6d8701d",
-    "chain_id":"3b0e487d-352f-4ed4-a0c2-8ff831be404d",
-    "chain":"test-log-format",
-    "chain_element_id":"76c818eb-f021-40bd-b0f8-430b77638239",
-    "chain_element":"HTTP Trigger",
-    "exchange_properties":"{}",
-    "exchange_headers":"{content-length=0, x-forwarded-proto=https, CamelHttpCharacterEncoding=UTF-8, a-lot-of-other-headers=...}"
+  "time": "2026-10-15T09:41:36.528+0000",
+  "level": "INFO",
+  "message": "Session step finished with status COMPLETED_NORMALLY",
+  "request_id": "f78bcac12c746f329dd2ed69f21795ed",
+  "tenant_id": "e393a7a6-1920-4082-87d2-69179fd8e6f0",
+  "thread": "0.0-8080-exec-9",
+  "class": "org.qubership.integration.platform.engine.service.debugger.sessions.JsonSessionStepLogger",
+  "traceId": "--",
+  "spanId": "--",
+  "originating_bi_id": "--",
+  "business_identifiers": "--",
+  "method": "logAfter",
+  "log_type": "--",
+  "session_id": "978ee143-8319-404d-a361-84a9b6d8701d",
+  "chain_id": "3b0e487d-352f-4ed4-a0c2-8ff831be404d",
+  "chain": "test-log-format",
+  "chain_element_id": "76c818eb-f021-40bd-b0f8-430b77638239",
+  "chain_element": "HTTP Sender",
+  "domain": "default",
+  "domain_type": "CLASSIC",
+  "snapshot": "V1",
+  "element_id": "9a52b9dd-2600-4f83-a829-40bb88970235",
+  "parent_element_id": "5dbdd863-1d6e-47d5-9e0c-7b2990d57477",
+  "element_name": "Send order",
+  "session_log_details": "FULL",
+  "exchange_body": "{\"orderId\":\"9001\",\"status\":\"accepted\"}",
+  "exchange_headers": "{\"CamelHttpResponseCode\":\"200\",\"x-request-id\":\"f78bcac12c746f329dd2ed69f21795ed\"}",
+  "exchange_properties": "{\"orderStatus\":{\"type\":\"java.lang.String\",\"value\":\"accepted\"}}"
 }
+```
+
+#### Text (stdout) format
+
+
+**Message sample for successful REST inbound call:**
+
+```text
+2022-08-17T10:11:07.129388551Z [2022-08-17T10:11:07.129][INFO ] [request_id=1660731067128.0.7228021061350399] [tenant_id=cloud-common ] [traceId=- ] [spanId=- ] [originating_bi_id=- ] [business_identifiers=- ] [thread=0.0-8080-exec-8] [class=o.q.i.platform.engine.service.debugger.CamelDebugger        ] [method=logBeforeProcessByType ] [session_id=b702f2b9-58fa-4f24-8ccb-f7c9a59ad329] [chain_id=ff3ecdb8-1907-4435-8aa1-32061b341ecc] [chain=New Chain ] [chain_element_id=54b43763-8338-4a6a-80ea-2a60d3ae412c] [chain_element=HTTP Trigger ] [log_type=int] Get request from trigger. Headers: {CamelHttpUrl=http://localhost:8092/routes/test1, X-Request-Id=1660731067128.0.7228021061350399}, body: <body not logged>, exchange properties: {}
 ```
 
 **Message sample for successful REST inbound call (with exchange properties):**
@@ -747,7 +766,7 @@ Logging options and level for ***microservice logs,*** ***session logs*** *and* 
 According to the requirements and contracts, Cloud Integration Platform handles logs depending on their type:
 
 - ***microservice messages*** are being produced in a **stdout** (standard output), hence not stored by CIP.
-- **Session logs** are going to the **OpenSearch** and stored there, according to the retention setting (controled by variables SESSIONS\_RETENTION\_CLEANUP\_CRON, SESSIONS\_RETENTION\_CLEANUP\_INTERVAL) and probability settings (controlled by SESSION\_SAMPLER\_PROBABILISTIC variable)
+- **Session logs** are being produces to the **OpenSearch** and stored there, according to the retention setting (controled by variables SESSIONS\_RETENTION\_CLEANUP\_CRON, SESSIONS\_RETENTION\_CLEANUP\_INTERVAL) and probability settings (controlled by SESSION\_SAMPLER\_PROBABILISTIC variable)
 - **Action logs** are being written to the CIP **Database.** There is a possibility to set up a retention policy with ACTION\_LOG\_CLEANUP\_INTERVAL and ACTION\_LOG\_CLEANUP\_CRON variables during the CIP installation.
 - **DPT logs** are being produced and pushed to the DPT via Kafka, hence, although there is no intention to store such logs, they could be still available for some time in the Kafka topic during the processing.
 - No data is intended to be stored while **Tracing** is ON.

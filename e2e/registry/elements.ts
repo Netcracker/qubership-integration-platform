@@ -106,7 +106,7 @@ const R_RABBITMQ_ACK_NONE =
   "case covers the redelivery contract that leaves";
 
 const R_KAFKA_PLAINTEXT_ONLY =
-  "the overlay's Kafka listener is PLAINTEXT (infrastructure/docker-compose.kafka.yml), so no SASL " +
+  "the overlay's Kafka listener is PLAINTEXT (infrastructure/docker/docker-compose.kafka.yml), so no SASL " +
   "mechanism and no securityProtocol or sslProtocol beyond PLAINTEXT is reachable locally; Kafka over " +
   "SSL was deferred on 2026-09-07";
 const R_KAFKA_OFFSET_RESET_NONE =
@@ -132,10 +132,11 @@ const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
 
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
 // `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close as a
-// byproduct of building those two chains. Its method, systemType, idempotency and acknowledgeMode
-// axes have no case.
+// byproduct of building those two chains. A third kafka case validates messages against the
+// operation's schema and declares no covers(). Its method, systemType, idempotency and
+// acknowledgeMode axes have no case.
 const R_ASYNC_API_TRIGGER_METHOD_V3 =
-  "the two async-api-trigger cases exercise one AsyncAPI 2.6 document each, which resolves to " +
+  "the async-api-trigger cases exercise AsyncAPI 2.6 documents only, which resolve to " +
   "subscribe (kafka) and publish (amqp, via AMQPSpecificationResolver.getMethod: a channel's " +
   "subscribe: block with no v3 action reports PUBLISH, not SUBSCRIBE — measured, not a typo here); " +
   "send and receive need an AsyncAPI 3.0 document, and no case builds one for the trigger";
@@ -344,6 +345,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "catch", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("catch"), tags: ENGINE },
   { family: "catch-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "chain-call-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "chain-call-2", kind: "axis", axisPath: "block", value: true, tier: 2, status: NOT_COVERED, reason: "The schema fixes this option; no live test asserts it yet.", tags: ENGINE },
+  { family: "chain-call-2", kind: "axis", axisPath: "failIfNoConsumers", value: false, tier: 2, status: NOT_COVERED, reason: "The schema fixes this option; no live test asserts it yet.", tags: ENGINE },
   { family: "chain-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "checkpoint", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "checkpoint", kind: "axis", axisPath: "externalRoute", value: false, tier: 2, status: NOT_COVERED, reason: R_CHECKPOINT_EXTERNAL_ROUTE, tags: ENGINE },

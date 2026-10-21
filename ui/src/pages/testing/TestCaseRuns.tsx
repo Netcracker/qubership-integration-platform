@@ -48,6 +48,7 @@ import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
 import { RowLink } from "../../components/table/RowLink.tsx";
 import { TestingListActions } from "../../components/testing/TestingListActions.tsx";
 import { useTestingListToolbar } from "../../components/testing/useTestingListToolbar.tsx";
+import { ChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
 // Every column is held to what it actually renders. The three that carry a uuid
 // take 270: the glyphs of a uuid are not all the same width, so the widest ones
@@ -158,8 +159,6 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     refresh,
     getChainName,
     exportEntities,
-    sortBy,
-    sortOrder,
     tableSort,
     handleTableChange: handleServerTableChange,
     selectedRowKeys,
@@ -428,21 +427,6 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     filterButton,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: variant === "chain-tab",
-    registerDependencies: [
-      isLoading,
-      variant,
-      searchString,
-      sortBy,
-      sortOrder,
-      selectedRowKeys,
-      selectAllMatching,
-      canCancelSelection,
-      allLoaded,
-      filters,
-      permissions,
-      isStarting,
-    ],
   });
 
   const table = (
@@ -489,7 +473,10 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
           {table}
         </Flex>
       ) : (
-        table
+        <>
+          <ChainHeaderActions>{toolbar}</ChainHeaderActions>
+          {table}
+        </>
       )}
       <TestCaseRunDrawer
         run={detailsRun}

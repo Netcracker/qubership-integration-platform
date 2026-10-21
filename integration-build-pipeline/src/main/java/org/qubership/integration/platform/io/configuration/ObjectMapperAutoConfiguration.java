@@ -19,7 +19,7 @@ public class ObjectMapperAutoConfiguration {
     @Primary
     @Bean("primaryObjectMapper")
     @ConditionalOnMissingBean(name = "primaryObjectMapper")
-    public ObjectMapper qipPrimaryObjectMapper() {
+    public ObjectMapper primaryObjectMapper() {
         ObjectMapper objectMapper = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
             .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)

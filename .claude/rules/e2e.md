@@ -6,8 +6,8 @@ paths:
 ### Project overview
 
 `e2e/` holds the end-to-end suite. It runs against one of two local targets, which `CIP_TARGET`
-picks: `compose`, the default, is the stack from `infrastructure/docker-compose.yml`, and `k8s` is
-a local cluster where the suite installs `infrastructure/qip-dev` into namespace `qip-e2e`. It
+picks: `compose`, the default, is the stack from `infrastructure/docker/docker-compose.yml`, and `k8s` is
+a local cluster where the suite installs `infrastructure/helm/qip-dev` into namespace `qip-e2e`. It
 answers one question before a release: does the platform still work. It produces a report; a person
 reads the report and decides what to fix.
 
@@ -43,9 +43,11 @@ cannot is a case to fix, not to document.
 
 The VS Code extension's integration tests are a sibling suite with their own runner, not Playwright
 specs. A case that needs the `vscode` API goes under `vscode-extension/src/web/test/suite/`, never
-under `specs/`. The two suites meet on `vscode-extension/src/web/test/golden/`: the extension suite
-checks it still writes those files, and `specs/api/extension-output.spec.ts` imports them into the
-catalog.
+under `specs/`. The suites meet on `vscode-extension/src/web/test/golden/`, which
+`specs/api/extension-output.spec.ts` imports into the catalog, and two suites write it: the eight
+files at its top level come from the extension's own integration suite, and the twenty-one under
+`golden/import/` from the Jest cases in `vscode-extension/tests/web/import/`, which the integration
+bundle never loads. Regenerate a golden in the suite that writes it.
 
 ### No CI job
 
@@ -65,10 +67,10 @@ debugging on the same stack.
 - **Rebuilding takes two commands.** The service Dockerfiles copy a jar the host already built
   (`runtime-catalog/Dockerfile:24`), so `mvn install` runs first and `docker compose up -d --build`
   second. `--build` on its own repackages whatever sits in `target/` and compiles no Java.
-- **Configuration recreates rather than rebuilds.** A change to `infrastructure/docker-compose.yml`
+- **Configuration recreates rather than rebuilds.** A change to `infrastructure/docker/docker-compose.yml`
   or to an env file a service reads is compared against the **container's** creation time rather
   than the image's, and answered with `up -d --force-recreate`; the report names the two apart. A
-  change under `infrastructure/nginx/` is read by a proxy reload instead, since that directory is
+  change under `infrastructure/docker/nginx/` is read by a proxy reload instead, since that directory is
   bind-mounted.
 - **Every created or recreated container is followed by `Env.reloadProxy()`.** nginx resolves
   `proxy_pass http://engine:8080` once, at config load, with no `resolver` in scope, so a recreated
@@ -85,7 +87,7 @@ On `k8s` the suite provisions the namespace, never the cluster. `env/provision/k
 kube-context, the Gateway API CRDs, Istio, the camel-k operator, and metrics-server in that order,
 and fails on the first one missing, naming the section of `e2e/k8s/README.md` that installs it. It
 then builds the images, each tagged with a hash over its own sources, and runs
-`helm upgrade --install qip infrastructure/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`. A chart
+`helm upgrade --install qip infrastructure/helm/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`. A chart
 change the suite needs goes in the chart as an optional value with a default that renders what it
 rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
 

@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { Flex, Spin, Button } from "antd";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../../api/api";
-import { SpecificationGroup, Specification } from "../../../api/apiTypes";
 import {
   useServicesTreeTable,
   ServiceEntity,
@@ -25,12 +24,56 @@ import {
   useServiceContext,
   useServiceParametersToolbar,
 } from "./ServiceParametersPage";
-import { IntegrationSystemType } from "../../../api/apiTypes";
+import {
+  IntegrationSystemType,
+  SpecificationGroup,
+  Specification,
+  SystemOperation,
+} from "../../../api/apiTypes";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { endpointColumnTitleForProtocol } from "../endpointColumnTitle.ts";
+import { CompactSearch } from "../../table/CompactSearch.tsx";
+import { matchesAllTerms } from "../../table/tableSearch.ts";
+import { useDebouncedValue } from "../../../hooks/useDebouncedValue.ts";
 
 const STORAGE_KEY = "systemParameters";
+const OPERATIONS_SEARCH_DEBOUNCE_MS = 300;
+
+const OperationsSearch: React.FC<{
+  onSearch: (value: string) => void;
+}> = ({ onSearch }) => {
+  const [value, setValue] = useState("");
+  const [debounced, flush] = useDebouncedValue(
+    value,
+    OPERATIONS_SEARCH_DEBOUNCE_MS,
+  );
+
+  useEffect(() => {
+    onSearch(debounced);
+  }, [debounced, onSearch]);
+
+  return (
+    <CompactSearch
+      value={value}
+      onChange={setValue}
+      onSearchConfirm={() => flush()}
+      placeholder="Search operations..."
+      style={{ width: 240 }}
+    />
+  );
+};
+
+function operationMatchesSearch(
+  operation: SystemOperation,
+  term: string,
+): boolean {
+  return matchesAllTerms(term, [
+    operation.method,
+    operation.name,
+    operation.path,
+  ]);
+}
 
 const specificationGroupAllColumnKeys = () => [
   "name",
@@ -290,6 +333,14 @@ export const ServiceApiSpecsTab: React.FC = () => {
   }>();
 
   const [operations, setOperations] = useState<ServiceEntity[]>([]);
+  const [operationsSearch, setOperationsSearch] = useState("");
+  const [operationsSearchSpecId, setOperationsSearchSpecId] = useState(specId);
+  const [operationsLoading, setOperationsLoading] = useState(false);
+
+  if (specId !== operationsSearchSpecId) {
+    setOperationsSearchSpecId(specId);
+    setOperationsSearch("");
+  }
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [expandedSpecs, setExpandedSpecs] = useState<string[]>([]);
   const [selectedSpecRowKeys, setSelectedSpecRowKeys] = useState<React.Key[]>(
@@ -297,6 +348,10 @@ export const ServiceApiSpecsTab: React.FC = () => {
   );
   const { showModal } = useModalsContext();
   const notify = useNotificationService();
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  }, [notify]);
   const system = useServiceContext();
   const { setToolbar } = useServiceParametersToolbar() ?? {};
   const isApiSpecsActive = location.pathname.includes("/specificationGroups");
@@ -345,15 +400,62 @@ export const ServiceApiSpecsTab: React.FC = () => {
     void loadModels(systemId, groupId);
   }, [systemId, groupId]);
 
+  const baseOperations = useMemo<SystemOperation[]>(
+    () => (models ?? []).find((model) => model.id === specId)?.operations ?? [],
+    [specId, models],
+  );
+
+  const operationsSearchTerm = operationsSearch.trim();
+
   useEffect(() => {
-    if (!specId || !(models ?? []).length) {
+    if (!specId) {
       setOperations([]);
+      setOperationsLoading(false);
       return;
     }
-    const model = (models ?? []).find((m) => m.id === specId);
-    const ops = model?.operations;
-    setOperations(Array.isArray(ops) ? ops : ops ? [ops] : []);
-  }, [specId, models]);
+    if (!operationsSearchTerm) {
+      setOperations(baseOperations);
+      setOperationsLoading(false);
+      return;
+    }
+    if (isVsCode) {
+      setOperations(
+        baseOperations.filter((operation) =>
+          operationMatchesSearch(operation, operationsSearchTerm),
+        ),
+      );
+      setOperationsLoading(false);
+    }
+  }, [specId, operationsSearchTerm, baseOperations]);
+
+  useEffect(() => {
+    if (!specId || !operationsSearchTerm || isVsCode) return;
+
+    let cancelled = false;
+    setOperationsLoading(true);
+    api
+      .getOperations(specId, { count: 0, searchFilter: operationsSearchTerm })
+      .then((loaded) => {
+        if (!cancelled) {
+          setOperations(loaded);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setOperations([]);
+          notifyRef.current.requestFailed("Failed to load operations", error);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOperationsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [specId, operationsSearchTerm]);
 
   const serviceGroupsTable = useServicesTreeTable<ServiceEntity>({
     dataSource: (serviceSpecData ?? []).map((spec) => {
@@ -463,6 +565,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
     allColumns: operationColumnKeys,
     storageKey: STORAGE_KEY + "_operations",
     defaultVisibleKeys: operationVisibleKeys,
+    loading: operationsLoading,
     urlColumnTitle: endpointColumnTitleForProtocol(system?.protocol),
   });
 
@@ -664,6 +767,12 @@ export const ServiceApiSpecsTab: React.FC = () => {
             }
           >
             <Flex vertical={false} gap={4}>
+              <span data-testid="api-specs-operations-search">
+                <OperationsSearch
+                  key={specId ?? ""}
+                  onSearch={setOperationsSearch}
+                />
+              </span>
               {!isVsCode && (
                 <ProtectedButton
                   require={{ specification: ["export"] }}

@@ -1,0 +1,236 @@
+package org.qubership.integration.platform.ai.plan.mapping;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
+
+class MappingExecutionSiteValidatorTest {
+
+  @Test
+  void rejectsMissingDuplicateUnreachableAndUnconfiguredSites() {
+    RequirementBrief brief = approvedBrief();
+
+    List<ValidationIssue> missing =
+        MappingExecutionSiteValidator.validate(passThroughGraph(), brief.mappingIntents());
+    assertTrue(hasIssue(missing, "map-init", "cip-structure-generator"));
+
+    List<ValidationIssue> missingScript =
+        MappingExecutionSiteValidator.validate(passThroughGraph(), scriptBrief().mappingIntents());
+    assertTrue(hasIssue(missingScript, "map-init", "cip-structure-generator"));
+
+    List<ValidationIssue> duplicate =
+        MappingExecutionSiteValidator.validate(duplicateSitesGraph(), brief.mappingIntents());
+    assertTrue(hasIssue(duplicate, "map-init", "cip-structure-generator"));
+
+    List<ValidationIssue> unreachable =
+        MappingExecutionSiteValidator.validate(unreachableSiteGraph(), brief.mappingIntents());
+    assertTrue(hasIssue(unreachable, "transform-map-init", "cip-structure-generator"));
+
+    List<ValidationIssue> unconfigured =
+        MappingExecutionSiteValidator.validate(unconfiguredShellGraph(), brief.mappingIntents());
+    assertTrue(hasIssue(unconfigured, "transform-map-init", "cip-transformation-generator"));
+
+    List<ValidationIssue> unconfiguredScript =
+        MappingExecutionSiteValidator.validate(
+            unconfiguredScriptShellGraph(), scriptBrief().mappingIntents());
+    assertTrue(hasIssue(unconfiguredScript, "transform-map-init", "cip-script-generator"));
+  }
+
+  @Test
+  void rejectsMappingSiteThatMergesIncomingBranches() {
+    List<ValidationIssue> mergeSite =
+        MappingExecutionSiteValidator.validate(mergeSiteGraph(), approvedBrief().mappingIntents());
+    assertTrue(hasIssue(mergeSite, "transform-map-init", "cip-structure-generator"));
+  }
+
+  @Test
+  void emptyApprovedCollectionFlagsALeftoverTaggedSite() {
+    List<ValidationIssue> leftover =
+        MappingExecutionSiteValidator.validate(unconfiguredScriptShellGraph(), List.of());
+    assertTrue(hasIssue(leftover, "transform-map-init", "cip-structure-generator"));
+    assertTrue(
+        leftover.stream().anyMatch(issue -> issue.message().contains("not in the approved brief")));
+  }
+
+  private static boolean hasIssue(
+      List<ValidationIssue> issues, String needle, String ownerCapabilityId) {
+    return issues.stream()
+        .anyMatch(
+            issue ->
+                issue.severity() == ValidationSeverity.BLOCKER
+                    && issue.ownerCapabilityId().equals(ownerCapabilityId)
+                    && issue.message().contains(needle));
+  }
+
+  private static RequirementBrief approvedBrief() {
+    return new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map OM output to Salesforce request",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    "map-init",
+                    "trigger-1",
+                    MappingPort.OUTPUT,
+                    "call-1",
+                    MappingPort.REQUEST,
+                    List.of(
+                        new MappingIntentRule(
+                            "$.userId", "$.personId", null, MappingRuleStatus.USER_DEFINED)))));
+  }
+
+  private static ChainPlanGraph passThroughGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            new ChainPlanNode("call-1", "service-call", "Call", null, null, List.of())),
+        List.of(new ChainPlanEdge("e1", "trigger-1", "call-1", null)));
+  }
+
+  private static ChainPlanGraph duplicateSitesGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            mapper("transform-map-init", "map-init", true),
+            mapper("transform-map-init-dup", "map-init", true),
+            new ChainPlanNode("call-1", "service-call", "Call", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("e1", "trigger-1", "transform-map-init", null),
+            new ChainPlanEdge("e2", "transform-map-init", "call-1", null)));
+  }
+
+  private static ChainPlanGraph unreachableSiteGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            mapper("transform-map-init", "map-init", true),
+            new ChainPlanNode("call-1", "service-call", "Call", null, null, List.of())),
+        List.of(new ChainPlanEdge("e1", "trigger-1", "call-1", null)));
+  }
+
+  private static ChainPlanGraph unconfiguredShellGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            mapper("transform-map-init", "map-init", false),
+            new ChainPlanNode("call-1", "service-call", "Call", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("e1", "trigger-1", "transform-map-init", null),
+            new ChainPlanEdge("e2", "transform-map-init", "call-1", null)));
+  }
+
+  private static RequirementBrief scriptBrief() {
+    return new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map OM output to Salesforce request",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    "map-init",
+                    "trigger-1",
+                    MappingPort.OUTPUT,
+                    "call-1",
+                    MappingPort.REQUEST,
+                    List.of(
+                        new MappingIntentRule(
+                            "$.name",
+                            "$.fullName",
+                            "uppercase the name",
+                            MappingRuleStatus.USER_DEFINED)),
+                    "SCRIPT")));
+  }
+
+  private static ChainPlanGraph unconfiguredScriptShellGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            script("transform-map-init", "map-init", false),
+            new ChainPlanNode("call-1", "service-call", "Call", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("e1", "trigger-1", "transform-map-init", null),
+            new ChainPlanEdge("e2", "transform-map-init", "call-1", null)));
+  }
+
+  private static ChainPlanGraph mergeSiteGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            new ChainPlanNode("call-a", "service-call", "Call A", null, null, List.of()),
+            new ChainPlanNode("call-b", "service-call", "Call B", null, null, List.of()),
+            mapper("transform-map-init", "map-init", true),
+            new ChainPlanNode("next", "service-call", "Next", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("e1", "trigger-1", "call-a", null),
+            new ChainPlanEdge("e2", "trigger-1", "call-b", null),
+            new ChainPlanEdge("e3", "call-a", "transform-map-init", null),
+            new ChainPlanEdge("e4", "call-b", "transform-map-init", null),
+            new ChainPlanEdge("e5", "transform-map-init", "next", null)));
+  }
+
+  private static ChainPlanNode mapper(String nodeId, String mappingIntentId, boolean configured) {
+    List<PlanProperty> properties =
+        configured
+            ? List.of(
+                new PlanProperty(
+                    MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, mappingIntentId),
+                new PlanProperty(
+                    MappingExecutionSite.MAPPING_DESCRIPTION_PROPERTY,
+                    "[{\"sourcePath\":\"$.userId\",\"targetPath\":\"$.personId\"}]"))
+            : List.of(
+                new PlanProperty(
+                    MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, mappingIntentId));
+    return new ChainPlanNode(nodeId, "mapper-2", "Map", null, null, properties);
+  }
+
+  private static ChainPlanNode script(String nodeId, String mappingIntentId, boolean configured) {
+    List<PlanProperty> properties =
+        configured
+            ? List.of(
+                new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, mappingIntentId),
+                new PlanProperty(MappingExecutionSite.SCRIPT_PROPERTY, "target['fullName'] = source['name']"))
+            : List.of(
+                new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, mappingIntentId));
+    return new ChainPlanNode(nodeId, "script", "Script", null, null, properties);
+  }
+}

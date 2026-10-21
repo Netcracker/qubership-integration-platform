@@ -371,7 +371,9 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
  * `GET /v1/export/system` and `POST /v1/import/system` are covered by
  * `specs/api/concurrent-service-import.spec.ts` rather than by `specs/api/import-export.spec.ts`.
  * That case asserts the exact archive entries and round-trips the original bytes through a
- * delete, which is the contract. `POST /v1/import/systemPreview` is covered by
+ * delete, which is the contract. `specs/api/extension-output.spec.ts` calls both as well, for the
+ * three specification goldens the VS Code extension wrote, and `reconcile` says nothing about it
+ * because the two rows are already `covered`. `POST /v1/import/systemPreview` is covered by
  * `specs/api/services.spec.ts`, beside the context and MCP previews. `POST /v1/export/system` is
  * the one of that family nothing asserts yet, and it stays `not-reached`.
  *

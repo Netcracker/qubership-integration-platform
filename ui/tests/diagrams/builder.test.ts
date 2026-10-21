@@ -470,8 +470,14 @@ describe("buildSequenceDiagram", () => {
       const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
 
       const messages = collectMessages(diagram.actions);
-      expect(messages.some((m) => m.includes("chain trigger call"))).toBe(true);
+      expect(messages).toContain("CIP chain trigger call: chain trigger");
       expect(messages.some((m) => m === "Response")).toBe(true);
+      expect(diagram.participants.map((p) => p.name)).toEqual(
+        expect.arrayContaining([
+          "CIP chain: Test Chain",
+          "CIP chain: chain trigger",
+        ]),
+      );
     });
   });
 
@@ -1098,8 +1104,11 @@ describe("buildSequenceDiagram", () => {
       const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
 
       const messages = collectMessages(diagram.actions);
-      expect(messages.some((m) => m.includes("chain call"))).toBe(true);
+      expect(messages).toContain("CIP chain call");
       expect(messages.some((m) => m === "Response")).toBe(true);
+      expect(diagram.participants.map((p) => p.name)).toContain(
+        "Unknown CIP chain",
+      );
     });
   });
 

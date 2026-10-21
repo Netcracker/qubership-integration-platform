@@ -1,12 +1,15 @@
-import {
+import type {
+  ContextSystem,
   Environment,
   EnvironmentRequest,
+  EnvironmentSourceType,
   IntegrationSystem,
-  IntegrationSystemType,
+  MCPSystem,
   Specification,
   SpecificationGroup,
   SystemRequest,
-} from "../api-services/servicesTypes";
+} from "@netcracker/qip-ui";
+import { IntegrationSystemType } from "../api-services/servicesTypes";
 import * as yaml from "yaml";
 import {
   getContextService,
@@ -16,13 +19,12 @@ import {
 } from "./serviceApiRead";
 import vscode, { ExtensionContext, Uri } from "vscode";
 import { ContentParser } from "../api-services/parsers/ContentParser";
-import { getExtensionsForFile } from "./file/fileExtensions";
+import { FILE_EXTENSIONS } from "./file/fileExtensions";
 import { fileApi } from "./file/fileApiProvider";
-import { refreshQipExplorer } from "../extension";
+import { refreshCipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
-import { ProjectConfigService } from "../services/ProjectConfigService";
-import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
-import { QipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
+import { CIP_SCHEMA_URLS } from "../services/cipSchemas";
+import { CipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -111,10 +113,6 @@ export async function updateService(
   if (serviceRequest.labels !== undefined) {
     service.content.labels = LabelUtils.fromEntityLabels(serviceRequest.labels);
   }
-  if (serviceRequest.integrationSystemType !== undefined) {
-    service.content.integrationSystemType =
-      serviceRequest.integrationSystemType;
-  }
   if (serviceRequest.type !== undefined) {
     validateAllowedSystemProtocol(
       serviceRequest.type,
@@ -148,26 +146,24 @@ export async function createService(
 ): Promise<IntegrationSystem> {
   try {
     const serviceId = crypto.randomUUID();
-    const config = ProjectConfigService.getConfig();
 
     const service = {
-      $schema: config.schemaUrls.service,
+      $schema: CIP_SCHEMA_URLS.SERVICE,
       id: serviceId,
       name: serviceRequest.name,
       content: {
         description: serviceRequest.description || "",
         activeEnvironmentId: "",
         integrationSystemType: serviceRequest.type || "EXTERNAL",
-        protocol: serviceRequest.protocol?.toUpperCase() || undefined,
-        extendedProtocol: serviceRequest.extendedProtocol || "",
-        specification: serviceRequest.specification || "",
+        extendedProtocol: "",
+        specification: "",
         environments: [],
         labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
       },
     };
 
     const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
-    const ext = getExtensionsForFile();
+    const ext = FILE_EXTENSIONS;
     const serviceFileUri = vscode.Uri.joinPath(
       serviceFolderUri,
       `${serviceId}${ext.service}`,
@@ -179,12 +175,11 @@ export async function createService(
       name: service.name,
       description: service.content.description || "",
       activeEnvironmentId: service.content.activeEnvironmentId || "",
-      integrationSystemType:
-        service.content.integrationSystemType || "EXTERNAL",
-      protocol: service.content.protocol || "",
+      type: service.content.integrationSystemType,
+      internalServiceName: "",
+      protocol: "",
       extendedProtocol: service.content.extendedProtocol || "",
       specification: service.content.specification || "",
-      environments: service.content.environments || [],
       labels: LabelUtils.toEntityLabels(service.content.labels || []),
     };
   } catch (error) {
@@ -226,9 +221,6 @@ export async function updateEnvironment(
 
   if (environmentRequest.name !== undefined) {
     environment.name = environmentRequest.name;
-  }
-  if (environmentRequest.description !== undefined) {
-    environment.description = environmentRequest.description;
   }
   if (environmentRequest.address !== undefined) {
     environment.address = environmentRequest.address;
@@ -273,9 +265,10 @@ export async function createEnvironment(
   const environment = {
     id: environmentId,
     name: environmentRequest.name,
-    description: environmentRequest.description || "",
+    description: "",
     address: environmentRequest.address,
-    sourceType: environmentRequest.sourceType || "MANUAL",
+    sourceType:
+      environmentRequest.sourceType || ("MANUAL" as EnvironmentSourceType),
     properties: environmentRequest.properties || {},
     labels: LabelUtils.fromEntityLabels(environmentRequest.labels || []),
   };
@@ -285,6 +278,7 @@ export async function createEnvironment(
 
   return {
     ...environment,
+    systemId: serviceId,
     labels: LabelUtils.toEntityLabels(environment.labels),
   };
 }
@@ -341,9 +335,6 @@ export async function updateApiSpecificationGroup(
 
     if (groupRequest.name !== undefined) {
       groupInfo.name = groupRequest.name;
-    }
-    if (groupRequest.description !== undefined) {
-      groupInfo.description = groupRequest.description;
     }
     if ((groupRequest as any).labels !== undefined) {
       if (!groupInfo.content) {
@@ -405,18 +396,6 @@ export async function updateSpecificationModel(
         specificationInfo.content = {};
       }
       specificationInfo.content.version = modelRequest.version;
-    }
-    if (modelRequest.format !== undefined) {
-      if (!specificationInfo.content) {
-        specificationInfo.content = {};
-      }
-      specificationInfo.content.format = modelRequest.format;
-    }
-    if (modelRequest.content !== undefined) {
-      if (!specificationInfo.content) {
-        specificationInfo.content = {};
-      }
-      specificationInfo.content.content = modelRequest.content;
     }
     if (modelRequest.deprecated !== undefined) {
       if (!specificationInfo.content) {
@@ -671,9 +650,7 @@ export async function deleteSpecificationByUri(
 
     if (specificationInfo?.id) {
       try {
-        const siblingName =
-          specificationFileUri.path.split("/").pop() || "";
-        const extensions = getExtensionsForFile(siblingName);
+        const extensions = FILE_EXTENSIONS;
         const groupId = specificationInfo.content?.parentId;
 
         if (!groupId) {
@@ -806,9 +783,7 @@ export async function deleteSpecificationGroupByUri(
       );
     }
 
-    const siblingName =
-      specificationGroupFileUri.path.split("/").pop() || "";
-    const extensions = getExtensionsForFile(siblingName);
+    const extensions = FILE_EXTENSIONS;
     const serviceId = groupInfo?.content?.parentId;
 
     if (!serviceId) {
@@ -867,8 +842,8 @@ export async function deleteSpecificationModel(
 
 export async function deleteService(serviceFileUri: Uri): Promise<void> {
   try {
-    const fileType = await fileApi.getFileType(serviceFileUri).catch(() => QipFileType.UNKNOWN);
-    if ((fileType as unknown as QipFileType) === QipFileType.SERVICE) {
+    const fileType = await fileApi.getFileType(serviceFileUri).catch(() => CipFileType.UNKNOWN);
+    if ((fileType as unknown as CipFileType) === CipFileType.SERVICE) {
       const groupFiles = await fileApi.getSpecificationGroupFiles(serviceFileUri).catch(() => [] as string[]);
       for (const groupFile of groupFiles) {
         try {
@@ -962,8 +937,6 @@ export async function createEmptyService() {
       name: serviceName.trim(),
       description: serviceDescription?.trim() || "",
       type: serviceType.value,
-      protocol: "",
-      extendedProtocol: "",
       labels: [],
     };
 
@@ -973,7 +946,7 @@ export async function createEmptyService() {
       serviceRequest,
     );
 
-    refreshQipExplorer();
+    refreshCipExplorer();
 
     vscode.window.showInformationMessage(
       `Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${service.id}`,

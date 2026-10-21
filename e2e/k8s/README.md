@@ -1,7 +1,7 @@
 # The Kubernetes target
 
 `CIP_TARGET=k8s` runs the suite against a local cluster. The suite owns namespace `qip-e2e`: it
-builds the images from the checkout, installs `infrastructure/qip-dev` there with
+builds the images from the checkout, installs `infrastructure/helm/qip-dev` there with
 `e2e/k8s/values.e2e.yaml`, and waits until every service answers. You install the cluster and what
 runs cluster-wide, once, as this page describes. A run checks for each piece in the order below and
 fails on the first one missing, naming the section here that installs it.
@@ -148,7 +148,7 @@ The kubelets of Docker Desktop and kind serve self-signed certificates. Without
    Consul through M2M and expects a DBaaS agent.
 2. Loads the images into the node on kind and k3d.
 3. Creates the namespace and labels it for sidecar injection.
-4. Runs `helm upgrade --install qip infrastructure/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`
+4. Runs `helm upgrade --install qip infrastructure/helm/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`
    with the tags, the micro image, the host ports, and the cluster's values. Helm leaves a Deployment whose tag did
    not change alone. The catalog reads the micro image once, at startup, so its pod carries the
    micro tag as an annotation and restarts when that tag changes.

@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import * as monaco from "monaco-editor";
 import App from "./App";
 
 import "./styles/theme-variables.css";
@@ -9,6 +10,10 @@ import { isVsCode } from "./api/rest/vscodeExtensionApi.ts";
 import AppExtension from "./AppExtension.tsx";
 import { initializeConfig } from "./config/configLoader.ts";
 import { initializeConfiguration } from "./config/initConfig.ts";
+import { configureMonacoLoader } from "./monaco-loader-config";
+
+// Bind the npm monaco-editor so @monaco-editor/react does not load from jsDelivr.
+configureMonacoLoader({ monaco });
 
 async function init() {
   if (!isVsCode) {

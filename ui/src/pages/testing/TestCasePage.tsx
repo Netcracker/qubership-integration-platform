@@ -73,6 +73,7 @@ export const TestCasePage: React.FC = () => {
     activeTab,
     onTabChange,
     breadcrumbItems,
+    headerActions,
   } = useTestingEntityEditor({ ...EDITOR, chainId, entityId: testCaseId });
 
   const editorContext = useMemo<TestCaseEditorContext | null>(
@@ -89,6 +90,7 @@ export const TestCasePage: React.FC = () => {
 
   return (
     <Flex vertical gap={8} style={{ flex: 1, minWidth: 0 }}>
+      {headerActions}
       <Breadcrumb items={breadcrumbItems} />
       <Tabs activeKey={activeTab} items={TABS} onChange={onTabChange} />
       <Outlet context={editorContext} />

@@ -1,0 +1,250 @@
+package org.qubership.integration.platform.ai.compiler.capture.policy;
+
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+/**
+ * Canonical fingerprint for capture tool arguments (ADR 0005).
+ *
+ * <p>Identity: {@code tool + NUL + capabilityOrEmpty + NUL + sha256Hex(canonicalJson)}.
+ * Drops {@code rationale}/{@code explanation}/{@code comment}; sorts object keys; preserves
+ * array order; strips string values.
+ */
+public final class ToolCallFingerprints {
+
+  private static final Set<String> NOISE_KEYS = Set.of("rationale", "explanation", "comment");
+  private static final JsonFactory JSON_FACTORY = new JsonFactory();
+  private static final ObjectMapper FALLBACK_MAPPER = new ObjectMapper();
+
+  private static final Pattern QUOTED_VALUE = Pattern.compile("'[^']*'");
+  private static final Pattern BRACKETED_VALUE = Pattern.compile("\\[[^\\]]*\\]");
+  private static final Pattern UUID_VALUE =
+      Pattern.compile(
+          "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+          Pattern.CASE_INSENSITIVE);
+  private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+
+  private ToolCallFingerprints() {}
+
+  /**
+   * Identity of a rejection rather than of the payload that caused it: {@code tool + NUL +
+   * capabilityOrEmpty + NUL + sha256Hex(signature)}.
+   *
+   * <p>A generator answering a merge refusal re-emits the whole graph, so the payload differs by
+   * hundreds of characters between attempts that earn the identical complaint. Keying the soft
+   * budget on the payload therefore hands out a fresh credit for every attempt and never
+   * escalates. Keying it on the normalized complaint spends one credit per distinct defect, which
+   * is what the budget is for.
+   *
+   * <p>Quoted native node and field identities retain separate credit. Incidental whitespace,
+   * casing outside identities, and unquoted request UUIDs do not create a new occurrence.
+   */
+  public static String failureFingerprint(String tool, String capability, String message) {
+    if (tool == null || tool.isBlank()) {
+      throw new IllegalArgumentException("tool is required");
+    }
+    String capabilityOrEmpty = capability == null || capability.isBlank() ? "" : capability;
+    String hash = sha256Hex(failureOccurrenceSignature(message).getBytes(StandardCharsets.UTF_8));
+    return tool + '\u0000' + capabilityOrEmpty + '\u0000' + hash;
+  }
+
+  private static String failureOccurrenceSignature(String message) {
+    if (message == null || message.isBlank()) { return ""; }
+    message = message.strip();
+    String nativeMessage = message.toLowerCase(Locale.ROOT);
+    if (!nativeMessage.contains("node '") || !nativeMessage.contains(" property ")) {
+      return failureSignature(message);
+    }
+    String prefix = "";
+    String graphPrefix = "Patch produced invalid graph: ";
+    if (nativeMessage.startsWith(graphPrefix.toLowerCase(Locale.ROOT))) {
+      prefix = graphPrefix.toLowerCase(Locale.ROOT);
+      message = message.substring(graphPrefix.length());
+    }
+    var normalized = new StringBuilder();
+    var findings = new java.util.ArrayList<String>();
+    int start = 0;
+    // shortcut: Embedded apostrophes need structured native identities instead of quoted messages.
+    boolean identity = false;
+    while (start < message.length()) {
+      int end = message.indexOf('\'', start);
+      if (end < 0) { end = message.length(); }
+      String part = message.substring(start, end);
+      int separator;
+      while (!identity && (separator = part.indexOf("; ")) >= 0) {
+        normalized.append(normalizeUnquotedFailure(part.substring(0, separator)));
+        findings.add(normalized.toString().strip());
+        normalized.setLength(0);
+        part = part.substring(separator + 2);
+      }
+      normalized.append(identity ? part : normalizeUnquotedFailure(part));
+      if (end < message.length()) { normalized.append('\''); }
+      identity = !identity;
+      start = end + 1;
+    }
+    findings.add(normalized.toString().strip());
+    java.util.Collections.sort(findings);
+    return prefix + String.join("; ", findings);
+  }
+
+  private static String normalizeUnquotedFailure(String message) {
+    return WHITESPACE.matcher(UUID_VALUE.matcher(message.toLowerCase(Locale.ROOT)).replaceAll("<id>"))
+        .replaceAll(" ");
+  }
+
+  /** Normalizes rejection text to recognize the same failure across attempts. */
+  public static String failureSignature(String message) {
+    if (message == null || message.isBlank()) {
+      return "";
+    }
+    String normalized = message.strip().toLowerCase(Locale.ROOT);
+    normalized = UUID_VALUE.matcher(normalized).replaceAll("<id>");
+    normalized = QUOTED_VALUE.matcher(normalized).replaceAll("<id>");
+    normalized = BRACKETED_VALUE.matcher(normalized).replaceAll("<ids>");
+    return WHITESPACE.matcher(normalized).replaceAll(" ").strip();
+  }
+
+  public static String fingerprint(
+      ObjectMapper objectMapper, String tool, String capability, Object args) {
+    if (tool == null || tool.isBlank()) {
+      throw new IllegalArgumentException("tool is required");
+    }
+    String capabilityOrEmpty = capability == null || capability.isBlank() ? "" : capability;
+    ObjectMapper mapper = objectMapper == null ? FALLBACK_MAPPER : objectMapper;
+    JsonNode tree = args == null ? NullNode.getInstance() : mapper.valueToTree(args);
+    JsonNode normalized = normalize(tree, mapper);
+    byte[] canonical = toCanonicalJsonBytes(normalized);
+    String hash = sha256Hex(canonical);
+    return tool + '\u0000' + capabilityOrEmpty + '\u0000' + hash;
+  }
+
+  static JsonNode normalize(JsonNode node) {
+    return normalize(node, FALLBACK_MAPPER);
+  }
+
+  static JsonNode normalize(JsonNode node, ObjectMapper mapper) {
+    if (node == null || node.isNull()) {
+      return NullNode.getInstance();
+    }
+    if (node.isTextual()) {
+      return mapper.getNodeFactory().textNode(node.asText().strip());
+    }
+    if (node.isArray()) {
+      ArrayNode array = mapper.createArrayNode();
+      for (JsonNode element : node) {
+        array.add(normalize(element, mapper));
+      }
+      return array;
+    }
+    if (node.isObject()) {
+      ObjectNode object = mapper.createObjectNode();
+      List<String> names = new ArrayList<>();
+      Iterator<String> fields = node.fieldNames();
+      while (fields.hasNext()) {
+        String name = fields.next();
+        if (!NOISE_KEYS.contains(name)) {
+          names.add(name);
+        }
+      }
+      names.sort(String::compareTo);
+      for (String name : names) {
+        object.set(name, normalize(node.get(name), mapper));
+      }
+      return object;
+    }
+    return node;
+  }
+
+  static byte[] toCanonicalJsonBytes(JsonNode node) {
+    try {
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      try (JsonGenerator generator = JSON_FACTORY.createGenerator(out)) {
+        writeCanonical(node, generator);
+      }
+      return out.toByteArray();
+    } catch (IOException e) {
+      throw new IllegalStateException("Failed to canonicalize fingerprint args", e);
+    }
+  }
+
+  private static void writeCanonical(JsonNode node, JsonGenerator generator) throws IOException {
+    if (node == null || node.isNull()) {
+      generator.writeNull();
+      return;
+    }
+    if (node.isBoolean()) {
+      generator.writeBoolean(node.booleanValue());
+      return;
+    }
+    if (node.isNumber()) {
+      if (node.isIntegralNumber()) {
+        generator.writeNumber(node.bigIntegerValue());
+      } else {
+        generator.writeNumber(node.decimalValue());
+      }
+      return;
+    }
+    if (node.isTextual()) {
+      generator.writeString(node.asText());
+      return;
+    }
+    if (node.isArray()) {
+      generator.writeStartArray();
+      for (JsonNode element : node) {
+        writeCanonical(element, generator);
+      }
+      generator.writeEndArray();
+      return;
+    }
+    if (node.isObject()) {
+      generator.writeStartObject();
+      List<Map.Entry<String, JsonNode>> fields = new ArrayList<>();
+      node.fields().forEachRemaining(fields::add);
+      fields.sort(Map.Entry.comparingByKey());
+      for (Map.Entry<String, JsonNode> field : fields) {
+        generator.writeFieldName(field.getKey());
+        writeCanonical(field.getValue(), generator);
+      }
+      generator.writeEndObject();
+      return;
+    }
+    generator.writeString(node.toString());
+  }
+
+  static String sha256Hex(byte[] bytes) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(bytes);
+      StringBuilder hex = new StringBuilder(hash.length * 2);
+      for (byte value : hash) {
+        hex.append(Character.forDigit((value >> 4) & 0xF, 16));
+        hex.append(Character.forDigit(value & 0xF, 16));
+      }
+      return hex.toString();
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 not available", e);
+    }
+  }
+
+  /** UTF-8 preview of canonical JSON (tests / debugging only). */
+  static String canonicalJson(JsonNode node) {
+    return new String(toCanonicalJsonBytes(node), StandardCharsets.UTF_8);
+  }
+}

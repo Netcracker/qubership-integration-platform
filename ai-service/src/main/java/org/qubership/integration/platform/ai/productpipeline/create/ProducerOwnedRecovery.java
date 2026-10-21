@@ -1,0 +1,294 @@
+package org.qubership.integration.platform.ai.productpipeline.create;
+
+import java.util.List;
+import java.util.Optional;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet.FindingOwnerCategory;
+
+/**
+ * Deterministic recovery route for a create-chain stage failure. Selects the
+ * producer of the rejected artifact from provenance and a typed {@link RecoveryCause}.
+ * LLM owner diagnosis is a fallback when the cause does not already name a producer.
+ */
+public final class ProducerOwnedRecovery {
+
+  /** What the runtime should do with a rejected artifact. */
+  public enum Action {
+    /** Retry the observing producer with the rejection evidence. */
+    REPAIR_CURRENT,
+    /** Reopen an upstream producer and require a new approval. */
+    REOPEN_UPSTREAM,
+    /** Ask the author for one missing fact, then resume the producer. */
+    ASK_CLARIFICATION,
+    /** Show Retry/Revise after automatic repair is exhausted. */
+    PARK
+  }
+
+  /**
+   * Inputs the router needs to pick a producer-owned recovery action.
+   *
+   * @param failedStageId observing stage
+   * @param outcomeClass capability outcome
+   * @param cause typed halt cause from the producer
+   * @param candidates closed owner set
+   * @param catalogWritten true after the first catalog write
+   * @param semanticRepairsUsed repairs already spent on this rejection
+   * @param maxSemanticRepairs automatic repair budget
+   * @param diagnosedOwner advisory owner from the narrative turn
+   * @param consumedBriefProducerStageId producer from the compiled brief's provenance
+   */
+  public record Request(
+      String failedStageId,
+      StageOutcomeClass outcomeClass,
+      RecoveryCause cause,
+      List<OwnerCandidate> candidates,
+      boolean catalogWritten,
+      int semanticRepairsUsed,
+      int maxSemanticRepairs,
+      Optional<String> diagnosedOwner,
+      Optional<String> consumedBriefProducerStageId, boolean unresolvedAuthorChoice) {
+
+    public Request {
+      failedStageId = failedStageId == null ? "" : failedStageId;
+      cause = cause == null ? RecoveryCause.of(RecoveryCause.fromOutcomeClass(outcomeClass)) : cause;
+      candidates = candidates == null ? List.of() : List.copyOf(candidates);
+      diagnosedOwner = diagnosedOwner == null ? Optional.empty() : diagnosedOwner;
+      consumedBriefProducerStageId =
+          consumedBriefProducerStageId == null
+              ? Optional.empty()
+              : consumedBriefProducerStageId.filter(stageId -> !stageId.isBlank());
+    }
+
+    public Request(String failedStageId, StageOutcomeClass outcomeClass, RecoveryCause cause,
+        List<OwnerCandidate> candidates, boolean catalogWritten, int semanticRepairsUsed, int maxSemanticRepairs,
+        Optional<String> diagnosedOwner, Optional<String> consumedBriefProducerStageId) {
+      this(failedStageId, outcomeClass, cause, candidates, catalogWritten, semanticRepairsUsed,
+          maxSemanticRepairs, diagnosedOwner, consumedBriefProducerStageId, false);
+    }
+
+    public Request(
+        String failedStageId,
+        StageOutcomeClass outcomeClass,
+        RecoveryCause cause,
+        List<OwnerCandidate> candidates,
+        boolean catalogWritten,
+        int semanticRepairsUsed,
+        int maxSemanticRepairs,
+        Optional<String> diagnosedOwner) {
+      this(
+          failedStageId,
+          outcomeClass,
+          cause,
+          candidates,
+          catalogWritten,
+          semanticRepairsUsed,
+          maxSemanticRepairs,
+          diagnosedOwner,
+          Optional.empty());
+    }
+  }
+
+  /**
+   * Selected recovery action and the producer that owns it.
+   *
+   * @param action recovery action
+   * @param producerStageId stage that must repair or reopen
+   * @param requestedFact missing fact when asking the author
+   */
+  public record Route(Action action, String producerStageId, String requestedFact) {
+
+    public Route {
+      action = action == null ? Action.PARK : action;
+      producerStageId = producerStageId == null ? "" : producerStageId;
+      requestedFact = requestedFact == null ? "" : requestedFact;
+    }
+
+    public Route(final Action action, final String producerStageId) {
+      this(action, producerStageId, "");
+    }
+  }
+
+  private ProducerOwnedRecovery() { }
+
+  /** Missing diagnosis can retry a proved output invocation, never infer an upstream owner. */
+  public static boolean permitsCurrentOutputRepair(
+      StageOutcomeClass outcome, RecoveryCause cause, boolean invocationProved,
+      boolean pinnedInputsAvailable, boolean unresolvedAuthorChoice, boolean catalogWritten) {
+    if (!invocationProved || !pinnedInputsAvailable || unresolvedAuthorChoice || catalogWritten
+        || outcome != StageOutcomeClass.CONTRACT_FAILURE && outcome != StageOutcomeClass.VALIDATION_FAILURE) {
+      return false;
+    }
+    return cause != null && !cause.isKnownBriefDefect()
+        && cause.causeCode() != RecoveryCauseCode.MISSING_MANDATORY_INPUT
+        && cause.causeCode() != RecoveryCauseCode.CATALOG_RESOLUTION
+        && cause.causeCode() != RecoveryCauseCode.INTERNAL
+        && cause.causeCode() != RecoveryCauseCode.POLICY_FAILURE
+        && cause.causeCode() != RecoveryCauseCode.DOMAIN_FAILURE;
+  }
+
+  /** Picks the producer-owned recovery action for this rejection. */
+  public static Route route(final Request request) {
+    String failed = request.failedStageId();
+    RecoveryCause cause = request.cause();
+    if (request.outcomeClass() == StageOutcomeClass.INTERNAL_FAILURE
+        || cause.causeCode() == RecoveryCauseCode.INTERNAL) {
+      return new Route(Action.PARK, failed);
+    }
+    if (request.outcomeClass() == StageOutcomeClass.MISSING_MANDATORY_INPUT
+        && !request.catalogWritten()) {
+      String upstream =
+          OwnerCandidateSet.draftProducerStageId(request.candidates(), failed)
+              .or(() -> OwnerCandidateSet.briefProducerStageId(request.candidates(), failed))
+              .orElse("");
+      if (!upstream.isBlank() && !upstream.equals(failed)) {
+        return new Route(Action.REOPEN_UPSTREAM, upstream);
+      }
+    }
+    if (cause.causeCode() == RecoveryCauseCode.CATALOG_RESOLUTION) {
+      if (cause.isMissingCatalogBinding()) {
+        return OwnerCandidateSet.catalogBindingProducerStageId(request.candidates(), failed)
+            .filter("requirement-discovery"::equals)
+            .map(
+                producer ->
+                    new Route(Action.ASK_CLARIFICATION, producer, cause.requestedFact()))
+            .orElseGet(() -> new Route(Action.PARK, failed));
+      }
+      if (cause.isBindingIdentityMismatch()) {
+        return OwnerCandidateSet.semanticRevisionProducerStageId(request.candidates(), failed)
+            .map(
+                producer ->
+                    request.catalogWritten()
+                        ? new Route(Action.PARK, producer)
+                        : new Route(Action.REOPEN_UPSTREAM, producer))
+            .orElseGet(() -> new Route(Action.PARK, failed));
+      }
+      return new Route(Action.ASK_CLARIFICATION, failed, cause.requestedFact());
+    }
+    if (!request.catalogWritten()
+        && request.unresolvedAuthorChoice() && cause.causeCode() == RecoveryCauseCode.SECURITY_POLICY
+        && request.semanticRepairsUsed() < Math.max(request.maxSemanticRepairs(), 0)) {
+      return new Route(Action.ASK_CLARIFICATION, failed, missingValueFact(cause));
+    }
+    FindingOwnerCategory category = HaltProducerCauseTable.ownerCategory(cause.causeCode());
+    String diagnosed = request.diagnosedOwner().orElse("");
+    Optional<String> selectedProducer =
+        producerFor(
+            cause.causeCode(),
+            category,
+            request.candidates(),
+            failed,
+            diagnosed,
+            request.consumedBriefProducerStageId());
+    if (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT
+        && selectedProducer.isEmpty()) {
+      return new Route(Action.PARK, failed);
+    }
+    String producer = selectedProducer.orElse(failed);
+    if (request.catalogWritten() && !producer.equals(failed)) {
+      return new Route(Action.PARK, producer);
+    }
+    Action action = actionFor(failed, producer, category, diagnosed, request.outcomeClass());
+    if (action == Action.REPAIR_CURRENT
+        && request.semanticRepairsUsed()
+            >= Math.max(request.maxSemanticRepairs(), 0)) {
+      return new Route(Action.PARK, producer);
+    }
+    if (action == Action.REOPEN_UPSTREAM
+        && (producer.isBlank() || producer.equals(failed))) {
+      return new Route(Action.PARK, failed);
+    }
+    return new Route(action, producer.isBlank() ? failed : producer);
+  }
+
+  /** Consultation requires the exact unresolved company rule, interaction, and property. */
+  public static boolean requiresPolicyConsultation(
+      org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief brief, RecoveryCause cause) {
+    if (brief == null || cause == null || cause.causeCode() != RecoveryCauseCode.SECURITY_POLICY) { return false; }
+    return java.util.stream.Stream.concat(brief.facts().stream(), brief.requirements().stream()).anyMatch(fact -> {
+      var policy = fact.policyConflict();
+      return fact.polarity() == org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE
+          && policy != null && policy.decision() == null
+          && org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY
+              .equals(policy.policyId())
+          && "accessControlType".equals(policy.propertyKey()) && cause.findings().stream().anyMatch(finding ->
+              "security-policy-choice".equals(finding.code()) && fact.interactionIds().contains(finding.originRecordId())
+                  && "/properties/accessControlType".equals(finding.fieldPointer()));
+    });
+  }
+
+  private static String missingValueFact(final RecoveryCause cause) {
+    String findings = cause.formattedFindings();
+    return findings.isBlank() ? "missing required value" : findings;
+  }
+
+  private static Action actionFor(
+      final String failedStageId,
+      final String producer,
+      final FindingOwnerCategory category,
+      final String diagnosedOwner,
+      final StageOutcomeClass outcomeClass) {
+    if (category == FindingOwnerCategory.EXECUTION) {
+      return Action.REPAIR_CURRENT;
+    }
+    if (!producer.isBlank() && !producer.equals(failedStageId)) {
+      return Action.REOPEN_UPSTREAM;
+    }
+    if (producer.equals(failedStageId)
+        && (category != FindingOwnerCategory.UNSPECIFIED
+            || diagnosedOwner.equals(failedStageId)
+            || outcomeClass == StageOutcomeClass.CONTRACT_FAILURE)) {
+      return Action.REPAIR_CURRENT;
+    }
+    return Action.PARK;
+  }
+
+  private static Optional<String> producerFor(
+      final RecoveryCauseCode causeCode,
+      final FindingOwnerCategory category,
+      final List<OwnerCandidate> candidates,
+      final String failedStageId,
+      final String diagnosedOwner,
+      final Optional<String> consumedBriefProducerStageId) {
+    if (causeCode == RecoveryCauseCode.GRAPH_STRUCTURE) {
+      return OwnerCandidateSet.semanticRevisionProducerStageId(candidates, failedStageId);
+    }
+    if (causeCode == RecoveryCauseCode.CONTRACT_SHAPE
+        && "materialization".equals(failedStageId)
+        && OwnerCandidateSet.containsStage(candidates, "design-execution")) {
+      return Optional.of("design-execution");
+    }
+    if (causeCode == RecoveryCauseCode.MAPPING_CONTRACT) {
+      Optional<String> briefProducer =
+          OwnerCandidateSet.briefProducerStageId(candidates, failedStageId);
+      return consumedBriefProducerStageId
+          .filter(
+              stageId ->
+                  OwnerCandidateSet.isBriefProducerStageId(
+                      candidates, failedStageId, stageId))
+          .or(() -> briefProducer);
+    }
+    Optional<String> fromFinding =
+        switch (category) {
+          case EXECUTION -> Optional.of(failedStageId);
+          case POLICY_OR_BRIEF ->
+              OwnerCandidateSet.briefProducerStageId(candidates, failedStageId)
+                  .or(
+                      () ->
+                          OwnerCandidateSet.planProducerStageId(
+                              candidates, failedStageId));
+          case PLAN_FILL ->
+              OwnerCandidateSet.planProducerStageId(candidates, failedStageId);
+          case UNSPECIFIED -> Optional.empty();
+        };
+    if (fromFinding.isPresent()) {
+      return fromFinding;
+    }
+    if (!diagnosedOwner.isBlank()
+        && OwnerCandidateSet.containsStage(candidates, diagnosedOwner)) {
+      return Optional.of(diagnosedOwner);
+    }
+    return Optional.empty();
+  }
+}

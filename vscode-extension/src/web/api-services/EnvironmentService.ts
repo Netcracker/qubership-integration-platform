@@ -1,6 +1,7 @@
-import { Environment, EnvironmentRequest } from "./servicesTypes";
+import type { Environment } from "@netcracker/qip-ui";
+import { EnvironmentServiceRequest } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
+import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
 import { SystemService } from "./SystemService";
 import { LabelUtils } from "./LabelUtils";
 import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
@@ -35,7 +36,9 @@ export class EnvironmentService {
   /**
    * Create a new environment
    */
-  async createEnvironment(request: EnvironmentRequest): Promise<Environment> {
+  async createEnvironment(
+    request: EnvironmentServiceRequest,
+  ): Promise<Environment> {
     try {
       // Get system protocol for default properties
       const { systemId } = request;
@@ -99,7 +102,7 @@ export class EnvironmentService {
   async updateEnvironment(
     systemId: string,
     environmentId: string,
-    updates: Partial<EnvironmentRequest>,
+    updates: Partial<EnvironmentServiceRequest>,
   ): Promise<Environment | null> {
     try {
       const system = await this.systemService.getRawServiceById(systemId);
@@ -185,7 +188,7 @@ export class EnvironmentService {
    */
   private async saveSystem(system: any): Promise<void> {
     try {
-      const ext = getExtensionsForFile();
+      const ext = FILE_EXTENSIONS;
       const serviceFileUri = await fileApi.findFileById(system.id, ext.service);
       await fileApi.writeMainService(serviceFileUri, system);
     } catch (error) {

@@ -21,9 +21,9 @@
  * - **204 on empty, on both services.** `CollectionUtils.isEmpty(result)` answers
  *   `ResponseEntity.noContent()`, so a client parsing the body gets a parse error rather than `[]`.
  *   The transports unwrap it; one case asserts the raw status.
- * - **`limit` is `@Positive` and validated.** `?limit=0` answers **400** on the catalog and **500**
- *   on the engine — the catalog has a handler for `ConstraintViolationException` and the engine
- *   does not.
+ * - **`limit` is `@Positive` and validated.** `?limit=0` answers **400** on both services, because
+ *   each has a handler for `ConstraintViolationException`. The engine answered 500 with a stack trace
+ *   until #1138.
  * - **the filter key is `column`, not `feature`.** `FilterRequestDTO.feature` carries
  *   `@JsonProperty("column")`. A body spelling `feature` is accepted and silently ignored, because
  *   Jackson leaves the field null and `isApplicable` is then false for every filter, so the clause
@@ -331,15 +331,17 @@ test("a kill aimed at nothing is a 404 on both services, and leaves no audit row
   ).toEqual([]);
 });
 
-test("limit is validated, and the two services disagree about how", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, engine }) => {
-  // `@Positive` on both, and the same violation reaches the caller as two different statuses: the
-  // catalog maps `ConstraintViolationException` to 400, the engine has no handler and falls through
-  // to its generic 500. Pinning both is what would notice either one changing.
+test("limit is validated, and refused with 400 by the catalog and the engine", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, engine }) => {
+  // `@Positive` on both. The engine had no handler for `ConstraintViolationException` and answered
+  // 500 with the stack trace in the body until #1138.
   const fromCatalog = await catalog.liveExchangesResponse(0);
   expect(fromCatalog.status()).toBe(400);
   expect(await fromCatalog.text()).toContain("must be greater than 0");
 
   const fromEngine = await engine.raw("get", "/v1/engine/live-exchanges?limit=0");
-  expect(fromEngine.status()).toBe(500);
-  expect(await fromEngine.text()).toContain("must be greater than 0");
+  const fromEngineText = await fromEngine.text();
+  expect(fromEngine.status(), `the engine answered ${fromEngineText}`).toBe(400);
+  const body = JSON.parse(fromEngineText) as Record<string, unknown>;
+  expect(String(body.errorMessage)).toContain("must be greater than 0");
+  expect(body.stacktrace).toBe("No Stacktrace Available");
 });

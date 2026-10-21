@@ -1,7 +1,7 @@
 FROM ghcr.io/netcracker/qubership-java-base:21-alpine-2.3.7
 
 USER root
-RUN apk add --no-cache curl=8.21.0-r0
+RUN chmod -R 755 /opt/java/openjdk
 
 USER 10001
 VOLUME /tmp

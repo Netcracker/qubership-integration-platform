@@ -1,0 +1,38 @@
+id: 9f410000-0000-4000-8000-000000000000-orders-1.0.0
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
+name: 1.0.0
+content:
+  deprecated: false
+  version: 1.0.0
+  source: MANUAL
+  operations:
+    - id: 9f410000-0000-4000-8000-000000000000-orders-1.0.0-orders
+      name: orders
+      method: query
+      path: orders
+      specification:
+        operation: |-
+          "Reads the orders in any of the given states."
+          orders(statuses: [OrderStatus!], limit: Int = 20): [Order!]!
+    - id: 9f410000-0000-4000-8000-000000000000-orders-1.0.0-order
+      name: order
+      method: query
+      path: order
+      specification:
+        operation: "order(id: ID!): Order"
+    - id: 9f410000-0000-4000-8000-000000000000-orders-1.0.0-createOrder
+      name: createOrder
+      method: mutation
+      path: createOrder
+      specification:
+        operation: |-
+          "Places one order."
+          createOrder(input: CreateOrderInput!): Order!
+  specificationSources:
+    - id: 9f41a8b0-0000-4000-8000-000000000002
+      name: orders.graphql
+      sourceHash: 73965a90
+      fileName: source-9f410000-0000-4000-8000-000000000000-orders-1.0.0/orders.graphql
+      mainSource: true
+  parentId: 9f410000-0000-4000-8000-000000000000-orders
+  labels: []

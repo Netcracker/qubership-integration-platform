@@ -122,7 +122,7 @@ use its production import services and snapshot persistence. The bundle is writt
 containing both modules; no additional test artifact needs to be installed.
 
 Test configurations use the layout
-`testConfigurations/<folder>/<name>/<chainId>/<chainId>.chain.qip.yaml`.
+`testConfigurations/<folder>/<name>/<chainId>/<chainId>.chain.cip.yaml`.
 Use `folder` and `name` from the tested element's `description.yaml` or `description.yml`.
 For example, the `choice` chain belongs under `routing/condition/<chainId>/`.
 Keep each chain's `resources/` directory beside its YAML file. An element directory can
@@ -629,9 +629,9 @@ and restores the previous providers and context when the scenario ends.
 
 The functional chain has four independent trigger-to-sender routes: default settings,
 `propagateContext: false`, a context override, and a configured routing key.
-With `propagateContext: false`, the template skips `contextPropagationProcessor` but still
-runs `rabbitMqSenderProcessor`. The tests expect the request ID in the published message
-and no `Authorization` header, including when the request ID is generated.
+With `propagateContext: false`, the template skips both `contextPropagationProcessor` and
+`rabbitMqSenderProcessor` and removes the `Authorization` header. The tests expect neither the
+request ID nor `Authorization` in the published message, including when the request ID is generated.
 Invocations select the existing entrypoint for the sender they exercise.
 `publishes-messages-through-sender-variants` contains 18 Short invocations;
 `publishes-messages-with-routing-and-context-and-recovers` contains 47 Long invocations.

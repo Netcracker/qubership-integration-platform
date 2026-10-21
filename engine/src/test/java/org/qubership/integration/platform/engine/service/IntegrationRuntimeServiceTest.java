@@ -233,7 +233,7 @@ class IntegrationRuntimeServiceTest {
         // sets during Spring startup. No context boots in this test, so stub the prefix instead of
         // relying on another test class in the same JVM to have set it.
         try (MockedStatic<ErrorCodePrefix> errorCodePrefix = mockStatic(ErrorCodePrefix.class)) {
-            errorCodePrefix.when(ErrorCodePrefix::getCodePrefix).thenReturn("qip");
+            errorCodePrefix.when(ErrorCodePrefix::getCodePrefix).thenReturn("cip");
 
             assertDoesNotThrow(() -> service.stopSupersededContext(context, deploymentInfo));
         }

@@ -1,0 +1,131 @@
+caseId: cip-composition-generator-reuse-reference-applicable
+skillId: cip-composition-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Invoke a reusable property-setting block.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Invoke a reusable property-setting block.
+  approvedDraftReference: approved-draft-cip-composition-generator-reuse-reference
+  approvedDraftText: Invoke a reusable property-setting block.
+  facts:
+    - sourceFactId: composition-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: composition
+      text: Bind the reuse reference to the property-setting block.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Composition.Demo.Reuse
+    description: Invoke a reusable property-setting block.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: POST /reuse
+      parentNodeId: null
+      order: null
+      properties: []
+    - nodeId: reuse-reference-1
+      type: reuse-reference
+      label: Invoke property block
+      parentNodeId: null
+      order: null
+      properties: []
+    - nodeId: after-reuse
+      type: header-modification
+      label: Continue main flow
+      parentNodeId: null
+      order: null
+      properties: []
+    - nodeId: reuse-block-1
+      type: reuse
+      label: Property block
+      parentNodeId: null
+      order: null
+      properties: []
+    - nodeId: reuse-body-1
+      type: header-modification
+      label: Set property
+      parentNodeId: reuse-block-1
+      order: 0
+      properties: []
+  edges:
+    - edgeId: trigger-to-reference
+      fromNodeId: http-trigger-1
+      toNodeId: reuse-reference-1
+      scopeNodeId: null
+    - edgeId: reference-to-after
+      fromNodeId: reuse-reference-1
+      toNodeId: after-reuse
+      scopeNodeId: null
+capturedPatch:
+  patchId: reuse-reference-binding
+  ownerCapabilityId: cip-composition-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: reuse-reference-1
+      property:
+        key: reuseElementId
+        value: reuse-block-1
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Bind the reuse reference to an existing reusable block.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Composition.Demo.Reuse
+    description: Invoke a reusable property-setting block.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: POST /reuse
+      parentNodeId: null
+      order: null
+      properties: []
+    - nodeId: reuse-reference-1
+      type: reuse-reference
+      label: Invoke property block
+      parentNodeId: null
+      order: null
+      properties:
+        - key: reuseElementId
+          value: reuse-block-1
+    - nodeId: after-reuse
+      type: header-modification
+      label: Continue main flow
+      parentNodeId: null
+      order: null
+      properties: []
+    - nodeId: reuse-block-1
+      type: reuse
+      label: Property block
+      parentNodeId: null
+      order: null
+      properties: []
+    - nodeId: reuse-body-1
+      type: header-modification
+      label: Set property
+      parentNodeId: reuse-block-1
+      order: 0
+      properties: []
+  edges:
+    - edgeId: trigger-to-reference
+      fromNodeId: http-trigger-1
+      toNodeId: reuse-reference-1
+      scopeNodeId: null
+    - edgeId: reference-to-after
+      fromNodeId: reuse-reference-1
+      toNodeId: after-reuse
+      scopeNodeId: null

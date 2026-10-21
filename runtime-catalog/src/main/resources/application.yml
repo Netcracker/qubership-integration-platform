@@ -7,7 +7,7 @@ server:
 
 cloud:
   microservice:
-    name: ${MICROSERVICE_NAME:qip-runtime-catalog}
+    name: ${MICROSERVICE_NAME:cip-runtime-catalog}
     bg_version: ${DEPLOYMENT_VERSION:v1}
     namespace: ${NAMESPACE}
     origin_namespace: ${ORIGIN_NAMESPACE}
@@ -29,7 +29,7 @@ spring:
   profiles:
     active: default
   application:
-    name: ${MICROSERVICE_NAME:qip-runtime-catalog}
+    name: ${MICROSERVICE_NAME:cip-runtime-catalog}
     cloud_service_name: ${spring.application.name}-${spring.application.deployment_version}
     deployment_version: ${DEPLOYMENT_VERSION:v1}
   flyway:
@@ -111,7 +111,7 @@ consul:
   token: ${CONSUL_ADMIN_TOKEN:}
   keys:
     prefix: /config/${NAMESPACE}
-    engine-config-root: /qip-engine-configurations
+    engine-config-root: /cip-engine-configurations
     runtime-configurations: /runtime-configurations
     chains: /chains
     deployments-update: /deployments-update
@@ -162,8 +162,8 @@ kubernetes:
     token: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
     cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
   variables-secret:
-    name: ${app.prefix}-secured-variables-v2
-    label: ${app.prefix}-variable-type
+    name: cip-secured-variables-v2
+    label: cip-variable-type
 
 cip:
   standalone: true
@@ -177,10 +177,10 @@ cip:
       enabled: ${MICRO_DEPLOY_ENABLED:true}
   cr:
     labels:
-      domain: ${app.prefix}-domain
+      domain: cip-domain
       bg-version: bg-version
     naming:
-      prefix: ${app.prefix}-engine-
+      prefix: cip-engine-
       chains-configuration:
         suffix: -src-cfg
       service-monitor:
@@ -205,7 +205,7 @@ cip:
           memory: ${MICRO_DOMAIN_CONTAINER_REQUEST_MEMORY:}
         limit:
           cpu: ${MICRO_DOMAIN_CONTAINER_LIMIT_CPU:}
-          memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:}
+          memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:1280Mi} # micro-engine/Dockerfile sizes the heap at 50% of this
         runAsUser: ${MICRO_ENGINE_CONTAINER_RUN_AS_USER:0}
         runAsNonRoot: ${MICRO_ENGINE_CONTAINER_RUN_AS_NON_ROOT:true}
         seccompProfileType: ${MICRO_ENGINE_CONTAINER_SECCOMP_PROFILE_TYPE:RuntimeDefault}
@@ -269,7 +269,7 @@ cip:
       cron: ${ACTION_LOG_CLEANUP_CRON:0 0 0 ? * SAT} # Cleanup task schedule in cron expression format
   chains:
     external-routes:
-      base-path: /${app.prefix}-routes
+      base-path: /cip-routes
     triggers:
       check:
         enabled: true
@@ -280,7 +280,7 @@ cip:
   import:
     session-lifetime-minutes: ${IMPORT_LOG_LIFETIME_MINUTES:10080}
   internal-services:
-    engine: ${ENGINE_SERVICE_NAME:qip-engine}
+    engine: ${ENGINE_SERVICE_NAME:cip-engine}
   domain:
     default: default
   gateway:
@@ -295,7 +295,7 @@ cip:
     internal:
       name: internal-gateway-service
   engine:
-    app-check-custom-label: qip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
+    app-check-custom-label: cip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
   istio:
     enabled: ${CIP_ISTIO_ENABLED:true}
     host-resources:
@@ -307,7 +307,7 @@ cip:
       egress-gateway: ${CIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
     routes:
       public:
-        v1-prefix: /api/v1/${app.prefix}/engine
+        v1-prefix: /api/v1/cip/engine
   build:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
   json:
@@ -324,7 +324,7 @@ cip:
       filter-header-allowlist-name: ${camel.constants.request-filter-header.name}
   access-control:
     resource-type:
-      chain: 'QIP-CHAIN'
+      chain: 'CIP-CHAIN'
   logging:
     format: ${LOG_FORMAT:json}
 
@@ -337,9 +337,6 @@ camel:
   constants:
     request-filter-header:
       name: 'requestFilterHeaderAllowlist'
-
-app:
-  prefix: qip
 
 listeners: # settings for spring @EventListener's
   RestoreVariablesListener:

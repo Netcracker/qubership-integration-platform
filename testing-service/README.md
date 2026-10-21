@@ -16,7 +16,7 @@ stack, and as a library that a host application wires into its own server.
 ## Run it standalone
 
 The binary needs a reachable PostgreSQL: it creates its schema and applies its migrations before it starts listening,
-and exits with an error if it cannot connect. The local stack in `infrastructure/docker-compose.yml` starts one, along
+and exits with an error if it cannot connect. The local stack in `infrastructure/docker/docker-compose.yml` starts one, along
 with the service itself as `qip-testing-service` on host port 8095.
 
 To run it from the source tree, point the DSN at a database of your own:
@@ -103,8 +103,8 @@ here. A chain the catalog reports nowhere â€” and a catalog that cannot answer â
 answer as `false`. Read it back through `Config.ProductionMode()`, which resolves the nil.
 
 Migrating over an installation that already runs test cases needs a single writer: **stop the executor that ran them
-before you migrate**. Migration 101 re-queues every case left `running` and deletes that attempt's validation errors,
-and it cannot fence a writer that predates its lease column. A rolling upgrade runs an in-flight case a second time
+before you migrate**. The lease sweep of the new executor re-queues every case left `running` with no lease and
+deletes that attempt's validation errors, and it cannot fence a writer that predates the lease column. A rolling upgrade runs an in-flight case a second time
 against the live chain and loses what the first attempt recorded.
 
 `Mount` registers relative paths, so the prefix is the host's. The generated spec under `docs/` does not follow it:

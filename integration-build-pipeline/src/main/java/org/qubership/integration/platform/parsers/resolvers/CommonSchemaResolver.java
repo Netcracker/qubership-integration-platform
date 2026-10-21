@@ -34,10 +34,11 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     private static final String DEFINITIONS_PREFIX = "#/definitions/";
     protected static final String SCHEMAS_PREFIX = "#/components/schemas/";
     protected static final String MESSAGES_PREFIX = "#/components/messages/";
+    protected static final String COMPONENTS_REF_PREFIX = "#/components/";
     private static final String SCHEMA_ID_VALUE_DOMAIN = "http://system.catalog/schemas/";
     private static final String DEFAULT_SCHEMA_VALUE = "{\"$schema\": \"http://json-schema.org/draft-07/schema#\"}";
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    protected static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String REF_FIELD_NAME = "$ref";
     private static final String ITEMS_FIELD_NAME = "items";
     private static final String PAYLOAD_FIELD_NAME = "payload";
@@ -63,6 +64,10 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     protected String getResolvedSchema(String schemaRef, ObjectNode resolvedSchemaOriginal, Map<String, JsonNode> schemaRefs) {
         ObjectNode resolvedSchema = resolvedSchemaOriginal.deepCopy();
         ObjectNode definitions = OBJECT_MAPPER.createObjectNode();
+        // A schema's own definitions stay beside the components it references.
+        if (resolvedSchema.get(DEFINITIONS_NODE_NAME) instanceof ObjectNode ownDefinitions) {
+            definitions.setAll(ownDefinitions);
+        }
         schemaRefs.forEach(definitions::set);
         try {
             resolvedSchema.set(DEFINITIONS_NODE_NAME, OBJECT_MAPPER.readTree(OBJECT_MAPPER.writeValueAsString(definitions)));
@@ -107,6 +112,10 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         if (hasObjectShape) {
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(PROPERTIES_FIELD_NAME), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME), modelType, refList);
+            // Resolves a $ref that is the map's value schema itself.
+            if (schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME) instanceof ObjectNode additionalProperties) {
+                getSchemaNodeProperties(componentsNode, result, OBJECT_MAPPER.createArrayNode().add(additionalProperties), modelType, refList);
+            }
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ALL_OF), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ANY_OF), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ONE_OF), modelType, refList);
@@ -115,10 +124,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             // rewriting its $ref to #/definitions/... while the array node stays a plain array.
             getSchemaNodeProperties(componentsNode, result, schemaNode, modelType, refList);
         } else if (schemaNode.has(REF_FIELD_NAME)) {
-            String refKey = getNewRef(schemaNode.get(REF_FIELD_NAME).asText());
-            JsonNode newRefNode = new TextNode(refKey);
-            schemaNode.replace(REF_FIELD_NAME, newRefNode);
-            result.put(refKey.replace(DEFINITIONS_PREFIX, EMPTY_STRING_REPLACEMENT), schemaNode);
+            // Resolve the component the reference names, the same way a property's reference is resolved.
+            getSchemaNodeProperties(componentsNode, result, OBJECT_MAPPER.createArrayNode().add(schemaNode), modelType, refList);
         }
         return result;
     }
@@ -148,15 +155,19 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         // they carry no $ref, so treat non-object positions as having nothing to resolve.
         ObjectNode iterableProperties = property.has(ITEMS_FIELD_NAME) && property.get(ITEMS_FIELD_NAME).isObject()
                 ? (ObjectNode) property.get(ITEMS_FIELD_NAME) : property;
+        // A map's value schema can reference components too.
+        Map<String, ObjectNode> mapValueRefs = iterableProperties.get(ADDITIONAL_PROPERTIES_FIELD_NAME) instanceof ObjectNode mapValue
+                ? getRefs(mapValue, componentsNode, modelType) : Map.of();
         Map<String, ObjectNode> iterablePropertiesRefs = getIterablePropertyRefs(iterableProperties, componentsNode, modelType);
         if (iterablePropertiesRefs != null) {
+            iterablePropertiesRefs.putAll(mapValueRefs);
             return iterablePropertiesRefs;
         }
 
-        Map<String, ObjectNode> result = new TreeMap<>();
+        Map<String, ObjectNode> result = new TreeMap<>(mapValueRefs);
         String refKey = EMPTY_REF;
         String refKeyNew = EMPTY_REF;
-        if (property.has(REF_FIELD_NAME)) {
+        if (isComponentRef(property.get(REF_FIELD_NAME))) {
             refKey = property.get(REF_FIELD_NAME).asText();
             refKey = refKey.replace(COMPONENTS_PREFIX, EMPTY_STRING_REPLACEMENT);
             refKeyNew = getNewRef(property.get(REF_FIELD_NAME).asText());
@@ -165,7 +176,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         }
         if (property.has(ITEMS_FIELD_NAME) && property.get(ITEMS_FIELD_NAME).isObject()) {
             ObjectNode items = (ObjectNode) property.get(ITEMS_FIELD_NAME);
-            if (items.has(REF_FIELD_NAME)) {
+            if (isComponentRef(items.get(REF_FIELD_NAME))) {
                 refKey = items.get(REF_FIELD_NAME).asText();
                 refKey = refKey.replace(COMPONENTS_PREFIX, EMPTY_STRING_REPLACEMENT);
                 refKeyNew = getNewRef(items.get(REF_FIELD_NAME).asText());
@@ -217,6 +228,11 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             return result;
         }
         return null;
+    }
+
+    // A reference to an external document, a URL, or a local definition stays as written.
+    private static boolean isComponentRef(JsonNode ref) {
+        return ref != null && (ref.asText().startsWith(SCHEMAS_PREFIX) || ref.asText().startsWith(MESSAGES_PREFIX));
     }
 
     private String getNewRef(String currentRef) {

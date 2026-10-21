@@ -1,0 +1,75 @@
+caseId: cip-error-handling-generator-applicable
+skillId: cip-error-handling-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Catch exceptions with structured error handling.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Catch exceptions with structured error handling.
+  approvedDraftReference: approved-draft-cip-error-handling-generator-applicable
+  approvedDraftText: Catch exceptions with structured error handling.
+  facts:
+    - sourceFactId: error-handling-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: error-handling
+      text: Configure catch-2 exception and priority.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Errors.Demo.Catch
+    description: Catch exceptions in flow.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: catch-shell
+      type: catch-2
+      label: Catch exceptions
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: catch-2-mandatory-properties
+  ownerCapabilityId: cip-error-handling-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: catch-shell
+      property:
+        key: exception
+        value: "java.lang.Exception"
+    - operation: ADD
+      targetNodeId: catch-shell
+      property:
+        key: priority
+        value: "0"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: catch-2 from captureChainPlan has no properties yet. Add mandatory exception and priority before capture completes.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Errors.Demo.Catch
+    description: Catch exceptions in flow.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: catch-shell
+      type: catch-2
+      label: Catch exceptions
+      parentNodeId: null
+      order: null
+      properties:
+        - key: exception
+          value: "java.lang.Exception"
+        - key: priority
+          value: "0"
+  edges: []

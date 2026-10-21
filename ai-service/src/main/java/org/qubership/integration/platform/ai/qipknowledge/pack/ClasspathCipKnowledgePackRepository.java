@@ -1,0 +1,240 @@
+package org.qubership.integration.platform.ai.qipknowledge.pack;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
+import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicy;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
+import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntimePackageIndex;
+import org.qubership.integration.platform.ai.productpipeline.packageindex.ProductPipelinePackageIndex;
+import org.qubership.integration.platform.ai.qipknowledge.rag.CipKnowledgeRagIngestionManifest;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
+import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupportMatrix;
+
+/** Loads pre-built QIP knowledge indexes from classpath resources. No ingestion at runtime. */
+public class ClasspathCipKnowledgePackRepository implements CipKnowledgePackRepository {
+
+  private static final String CLASSPATH_ROOT = "qipknowledge/";
+
+  private final CipKnowledgePackVersion activeVersion;
+  private final ClassLoader classLoader;
+  private final ObjectMapper objectMapper;
+  private final ConcurrentHashMap<String, Object> jsonByFile = new ConcurrentHashMap<>();
+
+  public ClasspathCipKnowledgePackRepository(CipKnowledgePackVersion activeVersion) {
+    this(
+        activeVersion,
+        ClasspathCipKnowledgePackRepository.class.getClassLoader(),
+        new ObjectMapper());
+  }
+
+  ClasspathCipKnowledgePackRepository(
+      CipKnowledgePackVersion activeVersion, ClassLoader classLoader, ObjectMapper objectMapper) {
+    this.activeVersion = activeVersion;
+    this.classLoader = classLoader;
+    this.objectMapper = objectMapper.registerModule(new JavaTimeModule());
+  }
+
+  @Override
+  public CipKnowledgePackVersion activeVersion() {
+    return activeVersion;
+  }
+
+  @Override
+  public CipKnowledgePackManifest loadManifest() {
+    return readJson(CipKnowledgePackIndexLoader.MANIFEST_FILE, CipKnowledgePackManifest.class);
+  }
+
+  @Override
+  public CapabilityRegistry loadCapabilityRegistry() {
+    return readJson(
+        CipKnowledgePackIndexLoader.CAPABILITY_REGISTRY_FILE, CapabilityRegistry.class);
+  }
+
+  @Override
+  public CipKnowledgeRagIngestionManifest loadRagIngestionManifest() {
+    return readJson(
+        CipKnowledgePackIndexLoader.RAG_INGESTION_MANIFEST_FILE,
+        CipKnowledgeRagIngestionManifest.class);
+  }
+
+  @Override
+  public CompilerGeneratorPolicy loadCompilerGeneratorPolicy() {
+    return readJson(
+        CipKnowledgePackIndexLoader.COMPILER_GENERATOR_POLICY_FILE, CompilerGeneratorPolicy.class);
+  }
+
+  @Override
+  public CompilerSkillCatalog loadCompilerSkillCatalog() {
+    return readJson(
+        CipKnowledgePackIndexLoader.COMPILER_SKILL_CATALOG_FILE, CompilerSkillCatalog.class);
+  }
+
+  @Override
+  public CompilerGeneratorSpecIndex loadCompilerGeneratorSpecIndex() {
+    return readJson(
+        CipKnowledgePackIndexLoader.COMPILER_GENERATOR_SPEC_INDEX_FILE,
+        CompilerGeneratorSpecIndex.class);
+  }
+
+  @Override
+  public CompilerRuntimePackageIndex loadCompilerRuntimePackageIndex() {
+    return readJson(
+        CipKnowledgePackIndexLoader.COMPILER_RUNTIME_PACKAGE_INDEX_FILE,
+        CompilerRuntimePackageIndex.class);
+  }
+
+  @Override
+  public CompilerPipelineIndex loadCompilerPipelineIndex() {
+    return readJson(
+        CipKnowledgePackIndexLoader.COMPILER_PIPELINE_INDEX_FILE, CompilerPipelineIndex.class);
+  }
+
+  @Override
+  public ElementSupportMatrix loadElementSupportMatrix() {
+    return readJson(
+        CipKnowledgePackIndexLoader.ELEMENT_SUPPORT_MATRIX_FILE, ElementSupportMatrix.class);
+  }
+
+  @Override
+  public PipelineCompatibilityReport loadPipelineCompatibilityReport() {
+    return readJson(
+        CipKnowledgePackIndexLoader.PIPELINE_COMPATIBILITY_REPORT_FILE,
+        PipelineCompatibilityReport.class);
+  }
+
+  @Override
+  public List<UnsupportedCipKnowledgeItem> loadUnsupportedItems() {
+    return cachedJson(
+        CipKnowledgePackIndexLoader.UNSUPPORTED_ITEMS_FILE,
+        () -> {
+          try {
+            return objectMapper.readValue(
+                readResource(CipKnowledgePackIndexLoader.UNSUPPORTED_ITEMS_FILE),
+                new TypeReference<List<UnsupportedCipKnowledgeItem>>() {});
+          } catch (IOException e) {
+            throw new IllegalStateException(
+                "Failed to load unsupported QIP knowledge items for version "
+                    + activeVersion.normalized(),
+                e);
+          }
+        });
+  }
+
+  @Override
+  public List<String> loadRuntimePromotedSkillIds() {
+    return cachedJson(
+        CipKnowledgePackIndexLoader.RUNTIME_PROMOTED_SKILLS_FILE,
+        () -> {
+          try {
+            String resourcePath =
+                CLASSPATH_ROOT
+                    + activeVersion.normalized()
+                    + "/"
+                    + CipKnowledgePackIndexLoader.RUNTIME_PROMOTED_SKILLS_FILE;
+            try (InputStream stream =
+                CipKnowledgePackIndexLoader.openClasspathResource(classLoader, resourcePath)) {
+              return objectMapper.readValue(stream, new TypeReference<List<String>>() {});
+            }
+          } catch (IOException e) {
+            return List.of();
+          }
+        });
+  }
+
+  @Override
+  public ProductPipelinePackageIndex loadProductPipelinePackageIndex() {
+    return readJson(
+        CipKnowledgePackIndexLoader.PRODUCT_PIPELINE_PACKAGE_INDEX_FILE,
+        ProductPipelinePackageIndex.class);
+  }
+
+  /**
+   * Returns the compiler contract digest pinned in the knowledge index. Missing or mismatched pins
+   * fail closed.
+   */
+  public String requireCompilerContractDigest() {
+    CipKnowledgePackManifest manifest = loadManifest();
+    String pinned = manifest.compilerContractSha256();
+    if (pinned == null || pinned.isBlank()) {
+      throw new IllegalStateException(
+          "Compiler knowledge index is missing compilerContractSha256 for version "
+              + activeVersion.normalized());
+    }
+    CompilerContract contract =
+        new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+    if (!CompilerContract.V1.equals(manifest.compilerContractVersion())
+        || !pinned.equals(contract.sha256())) {
+      throw new IllegalStateException(
+          "Compiler knowledge index digest does not match compiler contract "
+              + CompilerContract.V1
+              + " for version "
+              + activeVersion.normalized());
+    }
+    return pinned;
+  }
+
+  /**
+   * Returns the compiler contract version pinned next to runtime descriptor constraints.
+   * Missing pins fail closed.
+   */
+  public String requireRuntimeDescriptorVersion() {
+    CipKnowledgePackManifest manifest = loadManifest();
+    String version = manifest.compilerContractVersion();
+    if (version == null || version.isBlank()) {
+      throw new IllegalStateException(
+          "Compiler knowledge index is missing compilerContractVersion for version "
+              + activeVersion.normalized());
+    }
+    return version;
+  }
+
+  /**
+   * Returns the digest of the compiler contract that carries runtime descriptor constraints.
+   * Missing or mismatched pins fail closed.
+   */
+  public String requireRuntimeDescriptorDigest() {
+    return requireCompilerContractDigest();
+  }
+
+  private <T> T readJson(String fileName, Class<T> type) {
+    return cachedJson(
+        fileName,
+        () -> {
+          try {
+            return objectMapper.readValue(readResource(fileName), type);
+          } catch (IOException e) {
+            throw new IllegalStateException(
+                "Failed to load QIP knowledge index "
+                    + fileName
+                    + " for version "
+                    + activeVersion.normalized(),
+                e);
+          }
+        });
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T> T cachedJson(String fileName, Supplier<T> loader) {
+    return (T) jsonByFile.computeIfAbsent(fileName, name -> loader.get());
+  }
+
+  private String readResource(String fileName) throws IOException {
+    String resourcePath = CLASSPATH_ROOT + activeVersion.normalized() + "/" + fileName;
+    try (InputStream stream =
+        CipKnowledgePackIndexLoader.openClasspathResource(classLoader, resourcePath)) {
+      return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+    }
+  }
+}

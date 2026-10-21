@@ -1,0 +1,66 @@
+package org.qubership.integration.platform.ai.integration.catalog.materialize;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
+
+/** Outcome of converging a current plan graph into a desired plan graph in the catalog. */
+public record CatalogGraphMaterializeResult(
+    MaterializationMap materializationMap,
+    List<String> changedNodeIds,
+    List<String> failedNodeIds,
+    String error,
+    List<String> removedElementIds,
+    List<String> createdNodeIds,
+    Map<String, Set<String>> changedKeysByNodeId,
+    List<ChainPlanEdge> createdEdges,
+    List<ChainPlanEdge> recreatableEdges,
+    List<CompletedTransfer> completedTransfers,
+    List<String> adoptedGeneratedCatalogIds,
+    boolean noOp,
+    @JsonIgnore RuntimeException failureCause) {
+
+  public CatalogGraphMaterializeResult(
+      MaterializationMap materializationMap,
+      List<String> changedNodeIds,
+      List<String> failedNodeIds,
+      String error,
+      List<String> removedElementIds,
+      List<String> createdNodeIds,
+      Map<String, Set<String>> changedKeysByNodeId,
+      List<ChainPlanEdge> createdEdges,
+      List<ChainPlanEdge> recreatableEdges,
+      List<CompletedTransfer> completedTransfers,
+      List<String> adoptedGeneratedCatalogIds,
+      boolean noOp) {
+    this(materializationMap, changedNodeIds, failedNodeIds, error, removedElementIds, createdNodeIds,
+        changedKeysByNodeId, createdEdges, recreatableEdges, completedTransfers, adoptedGeneratedCatalogIds,
+        noOp, null);
+  }
+
+  public CatalogGraphMaterializeResult {
+    changedNodeIds = changedNodeIds == null ? List.of() : List.copyOf(changedNodeIds);
+    failedNodeIds = failedNodeIds == null ? List.of() : List.copyOf(failedNodeIds);
+    removedElementIds = removedElementIds == null ? List.of() : List.copyOf(removedElementIds);
+    createdNodeIds = createdNodeIds == null ? List.of() : List.copyOf(createdNodeIds);
+    changedKeysByNodeId = changedKeysByNodeId == null ? Map.of() : Map.copyOf(changedKeysByNodeId);
+    createdEdges = createdEdges == null ? List.of() : List.copyOf(createdEdges);
+    recreatableEdges = recreatableEdges == null ? List.of() : List.copyOf(recreatableEdges);
+    completedTransfers =
+        completedTransfers == null ? List.of() : List.copyOf(completedTransfers);
+    adoptedGeneratedCatalogIds =
+        adoptedGeneratedCatalogIds == null ? List.of() : List.copyOf(adoptedGeneratedCatalogIds);
+  }
+
+  public boolean succeeded() {
+    return failedNodeIds.isEmpty() && error == null;
+  }
+
+  public static CatalogGraphMaterializeResult noOp(MaterializationMap map) {
+    return new CatalogGraphMaterializeResult(
+        map, List.of(), List.of(), null, List.of(), List.of(), Map.of(), List.of(), List.of(),
+        List.of(), List.of(), true);
+  }
+}

@@ -76,7 +76,8 @@ public class ElementLibraryController {
         List<ElementsFilterDTO> titles = elementService.findAllUsingTypes()
             .stream()
             .filter(type -> !CONTAINER.equals(type))
-            .map(type -> new ElementsFilterDTO(libraryElementsService.getElementDescriptor(type).getTitle(), type))
+            .map(type -> new ElementsFilterDTO(libraryElementsService.lookupElementDescriptor(type)
+                .map(ElementDescriptor::getTitle).orElse(type), type))
             .toList();
         return ResponseEntity.ok(titles);
     }

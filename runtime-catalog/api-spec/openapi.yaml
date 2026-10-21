@@ -5888,7 +5888,7 @@ paths:
       x-api-kind: bwc
   /v3/import/chains/diff:
     post:
-      description: Find differences between the chain stored in the QIP database and
+      description: Find differences between the chain stored in the CIP database and
         the imported one
       operationId: difference_1
       requestBody:

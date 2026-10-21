@@ -73,5 +73,6 @@ definitions:
       - INTERNAL
       - RESOURCE_EXHAUSTED
       - UNKNOWN
+      - UNAVAILABLE
 required:
   - type

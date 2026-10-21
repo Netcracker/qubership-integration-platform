@@ -5,7 +5,7 @@ Companion to `SKILL.md`, gate 2. What to start, what each symptom means, and wha
 ## Bring it up
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up -d
+docker compose -f infrastructure/docker/docker-compose.yml up -d
 docker ps --format '{{.Names}}\t{{.Status}}'
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8091/actuator/health   # 200
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/                  # 200
@@ -20,7 +20,7 @@ nohup npm -w @netcracker/qip-ui run dev > "$TMP/vite.log" 2>&1 &                
 | Need | How |
 |---|---|
 | SQL | `docker exec postgreSQL psql -U postgres -d postgres`; there is no `psql` on the host |
-| Consul KV | header `X-Consul-Token` with `CONSUL_ADMIN_TOKEN` from `infrastructure/qip-dev.env`; without it `?keys` returns `[]`, which looks like an empty store |
+| Consul KV | header `X-Consul-Token` with `CONSUL_ADMIN_TOKEN` from `infrastructure/docker/qip-dev.env`; without it `?keys` returns `[]`, which looks like an empty store |
 | A chain's HTTP trigger on the classic engine | `http://localhost:8092/routes/<contextPath>`; 8080 proxies it only while Vite runs |
 | A JVM service in a debugger | `jdb -attach 5006` for the catalog, `5007` for the engine |
 | The end-to-end suite against the running stack | `E2E_PROVISION=never`; by default the suite runs `mvn install` and rebuilds every service that is stale against its own checkout (`e2e/AGENTS.md`, Provisioning) |

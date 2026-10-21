@@ -1,0 +1,214 @@
+package org.qubership.integration.platform.ai.productpipeline.create.design.execution;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
+import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
+
+@ExtendWith(MockitoExtension.class)
+class CatalogBindingMatcherTest {
+
+  @Mock CatalogSystemReadTool catalogReadTool;
+  @InjectMocks CatalogBindingMatcher matcher;
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+      "getProbe (GET /probe),/probe,true",
+      "getProbe (GET /other),/probe,false",
+      "GET /probe),/probe,false",
+      "GET /probe(foo),/probe(foo),true",
+      "getProbe (GET /probe(foo)),/probe(foo),true"})
+  void distinguishesOperationAnnotationsFromLiteralPathCharacters(String query, String path, boolean matches) {
+    when(catalogReadTool.getCatalogSystem("sys")).thenReturn(Optional.of(
+        new CatalogRestClient.SystemDto("sys", "Probe API", "EXTERNAL", "http")));
+    when(catalogReadTool.listCatalogOperations("spec", "sys", null)).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("op", "getProbe", "GET", path, null)));
+    var result = matcher.matchImported("service-call", "sys", "group", "spec", query, null);
+    if (matches) {
+      assertEquals("op", assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result).match().integrationOperationId());
+    } else {
+      assertInstanceOf(CatalogBindingMatcher.MatchResult.None.class, result);
+    }
+  }
+
+  @Test
+  void matchesServiceNameDespiteDashPunctuationMismatch() {
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto(
+            "sys", "Stub OpenAPI Service", "EXTERNAL", "openapi");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec", "Stub OpenAPI Service v1", "group", "sys");
+    CatalogRestClient.OperationDto op =
+        new CatalogRestClient.OperationDto(
+            "op-1", "stubOperation", "POST", "/stub/path", null);
+
+    when(catalogReadTool.searchCatalogSystems("Stub OpenAPI Service"))
+        .thenReturn(List.of(system));
+    when(catalogReadTool.getApiSpecifications("sys")).thenReturn(List.of(spec));
+    when(catalogReadTool.listCatalogOperations("spec", "sys", null)).thenReturn(List.of(op));
+
+    CatalogBindingMatcher.MatchResult result =
+        matcher.match("service-call", "Stub OpenAPI Service", "stubOperation");
+
+    CatalogBindingMatcher.MatchResult.Exact exact =
+        assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result);
+    CatalogMatch match = exact.match();
+    assertEquals("op-1", match.integrationOperationId());
+  }
+
+  @Test
+  void matchesAsyncApiChannelOperation() {
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto("sys", "Stub AsyncAPI", "INTERNAL", "async-api");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec", "Stub AsyncAPI v1", "group", "sys");
+    CatalogRestClient.OperationDto op =
+        new CatalogRestClient.OperationDto(
+            "op-1", "stubAsyncOperation", "PUBLISH", "stub-channel", null);
+
+    when(catalogReadTool.searchCatalogSystems("Stub AsyncAPI")).thenReturn(List.of(system));
+    when(catalogReadTool.getApiSpecifications("sys")).thenReturn(List.of(spec));
+    when(catalogReadTool.listCatalogOperations("spec", "sys", null))
+        .thenReturn(List.of(op));
+
+    CatalogBindingMatcher.MatchResult result =
+        matcher.match("service-call", "Stub AsyncAPI", "PUBLISH stub-channel");
+
+    CatalogBindingMatcher.MatchResult.Exact exact =
+        assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result);
+    assertEquals("op-1", exact.match().integrationOperationId());
+  }
+
+  @Test
+  void matchesAsyncApiOperationWhenQueryContainsNameAndChannel() {
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto("sys", "Stub AsyncAPI Service", "EXTERNAL", "async-api");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec", "Stub AsyncAPI v1", "group", "sys");
+    CatalogRestClient.OperationDto op =
+        new CatalogRestClient.OperationDto(
+            "op-1", "stubAsyncOperation", "SUBSCRIBE", "stub-channel", null);
+
+    when(catalogReadTool.searchCatalogSystems("Stub AsyncAPI Service"))
+        .thenReturn(List.of(system));
+    when(catalogReadTool.getApiSpecifications("sys")).thenReturn(List.of(spec));
+    when(catalogReadTool.listCatalogOperations("spec", "sys", null)).thenReturn(List.of(op));
+
+    CatalogBindingMatcher.MatchResult result =
+        matcher.match(
+            "service-call", "Stub AsyncAPI Service", "stubAsyncOperation stub-channel");
+
+    CatalogBindingMatcher.MatchResult.Exact exact =
+        assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result);
+    assertEquals("op-1", exact.match().integrationOperationId());
+  }
+
+  @Test
+  void listsOperationsByConversationIdInsteadOfMdc() {
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto(
+            "sys", "om-order-lifecycle-manager-WFMS", "INTERNAL", "kafka");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec", "1.33", "group", "sys");
+    CatalogRestClient.OperationDto op =
+        new CatalogRestClient.OperationDto(
+            "op-start", "onTaskStart", "PUBLISH", "env05-bss.task.start", null);
+
+    when(catalogReadTool.searchCatalogSystems("om-order-lifecycle-manager-WFMS"))
+        .thenReturn(List.of(system));
+    when(catalogReadTool.getApiSpecifications("sys")).thenReturn(List.of(spec));
+    when(catalogReadTool.listCatalogOperations("conv-1", "spec", "sys", null))
+        .thenReturn(List.of(op));
+
+    CatalogBindingMatcher.MatchResult result =
+        matcher.match(
+            "service-call", "om-order-lifecycle-manager-WFMS", "onTaskStart", "conv-1");
+
+    CatalogBindingMatcher.MatchResult.Exact exact =
+        assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result);
+    assertEquals("op-start", exact.match().integrationOperationId());
+    verify(catalogReadTool).listCatalogOperations("conv-1", "spec", "sys", null);
+    verify(catalogReadTool, never()).listCatalogOperations("spec", "sys", null);
+  }
+
+  @Test
+  void matchesImportedSpecBySystemIdWithoutSearchingByName() {
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto(
+            "38845d96", "Salesforce WFM Auth Task API", "INTERNAL", "http");
+    CatalogRestClient.OperationDto op =
+        new CatalogRestClient.OperationDto(
+            "op-create-task", "createTask", "POST", "/sobjects/Task", null);
+
+    when(catalogReadTool.getCatalogSystem("38845d96")).thenReturn(Optional.of(system));
+    when(catalogReadTool.listCatalogOperations("conv-1", "spec-sf", "38845d96", null))
+        .thenReturn(List.of(op));
+
+    CatalogBindingMatcher.MatchResult result =
+        matcher.matchImported(
+            "service-call",
+            "38845d96",
+            "group-sf",
+            "spec-sf",
+            "createTask",
+            "conv-1");
+
+    CatalogBindingMatcher.MatchResult.Exact exact =
+        assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result);
+    CatalogMatch match = exact.match();
+    assertEquals("op-create-task", match.integrationOperationId());
+    assertEquals("38845d96", match.systemId());
+    assertEquals("group-sf", match.specificationGroupId());
+    assertEquals("spec-sf", match.specificationId());
+    verify(catalogReadTool, never()).searchCatalogSystems(any());
+    verify(catalogReadTool, never()).getApiSpecifications(any());
+  }
+
+  @Test
+  void severalMatchingOperationsStayAmbiguous() {
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto(
+            "sys-wfms", "WFMS Create Work Order", "EXTERNAL", "http");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec-wfms", "WFMS v1", "sg-wfms", "sys-wfms");
+    CatalogRestClient.OperationDto create =
+        new CatalogRestClient.OperationDto(
+            "op-create-wo", "WFMS Create Work Order", "POST", "/work-orders", "spec-wfms");
+    CatalogRestClient.OperationDto draft =
+        new CatalogRestClient.OperationDto(
+            "op-create-wo-draft",
+            "WFMS Create Work Order Draft",
+            "POST",
+            "/work-orders/draft",
+            "spec-wfms");
+
+    when(catalogReadTool.searchCatalogSystems("WFMS Create Work Order"))
+        .thenReturn(List.of(system));
+    when(catalogReadTool.getApiSpecifications("sys-wfms")).thenReturn(List.of(spec));
+    when(catalogReadTool.listCatalogOperations("spec-wfms", "sys-wfms", null))
+        .thenReturn(List.of(create, draft));
+
+    CatalogBindingMatcher.MatchResult result =
+        matcher.match("service-call", "WFMS Create Work Order", "WFMS Create Work Order");
+
+    CatalogBindingMatcher.MatchResult.Ambiguous ambiguous =
+        assertInstanceOf(CatalogBindingMatcher.MatchResult.Ambiguous.class, result);
+    assertEquals(2, ambiguous.matches().size());
+    assertTrue(ambiguous.candidateIds().contains("op-create-wo"));
+    assertTrue(ambiguous.candidateIds().contains("op-create-wo-draft"));
+  }
+}

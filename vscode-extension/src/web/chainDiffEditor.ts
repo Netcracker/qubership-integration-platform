@@ -78,7 +78,7 @@ export function registerChainDiffMessageHandlers(
           await updateNavigationStateValue(context, documentUri, path);
           await openEditor(documentUri);
         } catch (e) {
-          console.error("Failed to fetch data for QIP Extension API", e);
+          console.error("Failed to fetch data for CIP Extension API", e);
         }
       }
     },

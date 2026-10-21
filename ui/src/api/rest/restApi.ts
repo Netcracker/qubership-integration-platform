@@ -20,6 +20,7 @@ import {
   MaskedFields,
   SessionFilterAndSearchRequest,
   PaginationOptions,
+  OperationListOptions,
   SessionSearchResponse,
   Session,
   CheckpointSession,
@@ -115,7 +116,7 @@ import {
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
 import qs from "qs";
-import { getAppName, getConfig } from "../../appConfig.ts";
+import { getConfig } from "../../appConfig.ts";
 import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
 import { registerRestAxiosInstance } from "./requestHeadersInterceptor.ts";
 import type {
@@ -181,10 +182,10 @@ export class RestApi implements Api {
     );
   }
 
-  private readonly newV1 = (): string => `/api/${getAppName()}/v1`;
-  private readonly v1 = (): string => `/api/v1/${getAppName()}`;
-  private readonly v2 = (): string => `/api/${getAppName()}/v2`;
-  private readonly v3 = (): string => `/api/${getAppName()}/v3`;
+  private readonly newV1 = (): string => `/api/cip/v1`;
+  private readonly v1 = (): string => `/api/v1/cip`;
+  private readonly v2 = (): string => `/api/cip/v2`;
+  private readonly v3 = (): string => `/api/cip/v3`;
 
   private readonly toApiError = (
     serviceName: string,
@@ -1617,7 +1618,7 @@ export class RestApi implements Api {
     environmentId: string,
   ): Promise<Environment> => {
     const response = await this.instance.get<Environment>(
-      `/api/v1/${getAppName()}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
+      `${this.v1()}/systems-catalog/systems/${systemId}/environments/${environmentId}`,
     );
     return response.data;
   };
@@ -1725,15 +1726,18 @@ export class RestApi implements Api {
 
   getOperations = async (
     modelId: string,
-    paginationOptions: PaginationOptions = {},
+    options: OperationListOptions = {},
   ): Promise<SystemOperation[]> => {
     const params: Record<string, string> = { modelId };
 
-    if (paginationOptions.offset !== undefined) {
-      params["offset"] = paginationOptions.offset.toString(10);
+    if (options.offset !== undefined) {
+      params["offset"] = options.offset.toString(10);
     }
-    if (paginationOptions.count !== undefined) {
-      params["count"] = paginationOptions.count.toString(10);
+    if (options.count !== undefined) {
+      params["count"] = options.count.toString(10);
+    }
+    if (options.searchFilter !== undefined) {
+      params["searchFilter"] = options.searchFilter;
     }
 
     const response = await this.instance.get<SystemOperation[]>(

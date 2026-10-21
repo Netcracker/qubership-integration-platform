@@ -35,7 +35,7 @@ import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { DeleteDeploymentWarningModal } from "../components/modal/DeleteDeploymentWarningModal.tsx";
 
 function deploymentMatchesSearch(
@@ -288,15 +288,9 @@ export const Deployments: React.FC = () => {
     [searchTerm, columnSettingsButton, onCreateClick, refresh, isLoading],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    searchTerm,
-    onCreateClick,
-    refresh,
-    isLoading,
-  ]);
-
   return (
     <TablePageLayout>
+      <ChainHeaderActions>{chainTabToolbar}</ChainHeaderActions>
       <Table
         className="flex-table"
         size="small"

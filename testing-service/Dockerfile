@@ -17,8 +17,6 @@ RUN go test ./... \
 
 FROM alpine:3.21
 
-RUN apk add --no-cache curl=8.14.1-r2
-
 WORKDIR /app
 COPY --from=build --chown=10001:0 /out/testing-service ./testing-service
 COPY --chown=10001:0 application.yaml ./application.yaml

@@ -1,9 +1,9 @@
 import { Uri } from "vscode";
 import * as vscode from "vscode";
-import { IntegrationSystem } from "./servicesTypes";
+import type { IntegrationSystem } from "@netcracker/qip-ui";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
+import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
 import { LabelUtils } from "./LabelUtils";
 
 /**
@@ -26,8 +26,8 @@ export class SystemService {
           name: service.name,
           description: service.content?.description || "",
           activeEnvironmentId: service.content?.activeEnvironmentId || "",
-          integrationSystemType: service.content?.integrationSystemType || "",
           type: service.content?.integrationSystemType || "",
+          internalServiceName: "",
           protocol: service.content?.protocol || "",
           extendedProtocol: service.content?.extendedProtocol || "",
           specification: service.content?.specification || "",
@@ -75,14 +75,13 @@ export class SystemService {
         service.content = {};
       }
 
-      service.content.integrationSystemType =
-        system.integrationSystemType || system.type;
+      service.content.integrationSystemType = system.type;
       service.content.protocol = system.protocol
         ? system.protocol.toUpperCase()
         : undefined;
       service.content.extendedProtocol = system.extendedProtocol;
       service.content.specification = system.specification;
-      service.content.labels = LabelUtils.fromEntityLabels(system.labels);
+      service.content.labels = LabelUtils.fromEntityLabels(system.labels ?? []);
 
       await fileApi.writeMainService(serviceFileUri, service);
     } catch (error) {
@@ -95,7 +94,7 @@ export class SystemService {
   }
 
   private async findServiceFileUri(systemId: string): Promise<Uri> {
-    const ext = getExtensionsForFile();
+    const ext = FILE_EXTENSIONS;
     return await fileApi.findFileById(systemId, ext.service);
   }
 }

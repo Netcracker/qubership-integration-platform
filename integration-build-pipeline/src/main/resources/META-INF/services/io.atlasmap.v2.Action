@@ -1,5 +1,5 @@
-org.qubership.integration.platform.mapper.model.atlasmap.action.QIPCustomAction
-org.qubership.integration.platform.mapper.model.atlasmap.action.QIPDateTimeAction
-org.qubership.integration.platform.mapper.model.atlasmap.action.QIPDictionaryAction
-org.qubership.integration.platform.mapper.model.atlasmap.action.QIPDefaultValueAction
-org.qubership.integration.platform.mapper.model.atlasmap.action.QIPFormatDateTimeAction
+org.qubership.integration.platform.mapper.model.atlasmap.action.CIPCustomAction
+org.qubership.integration.platform.mapper.model.atlasmap.action.CIPDateTimeAction
+org.qubership.integration.platform.mapper.model.atlasmap.action.CIPDictionaryAction
+org.qubership.integration.platform.mapper.model.atlasmap.action.CIPDefaultValueAction
+org.qubership.integration.platform.mapper.model.atlasmap.action.CIPFormatDateTimeAction

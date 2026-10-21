@@ -2,7 +2,6 @@ import {
   createVscodeMock,
   stubFileApi,
   stubLabelUtils,
-  stubProjectConfigService,
   buildServiceRecord,
 } from "../helpers/mocks";
 
@@ -14,19 +13,8 @@ jest.mock("../../src/web/response/serviceApiRead", () => ({
   getService: jest.fn(),
   getContextService: jest.fn(),
 }));
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-  getExtensionsForUri: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-}));
-jest.mock("../../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
+jest.mock("../../src/web/extension", () => ({ refreshCipExplorer: jest.fn() }));
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
-jest.mock("../../src/web/services/ProjectConfigService", () =>
-  stubProjectConfigService(),
-);
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },
 }));
@@ -42,10 +30,8 @@ jest.mock("../../src/web/response/serviceApiUtils", () => {
   };
 });
 
-import {
-  IntegrationSystemType,
-  IntegrationSystem,
-} from "../../src/web/api-services/servicesTypes";
+import type { IntegrationSystem } from "@netcracker/qip-ui";
+import { IntegrationSystemType } from "../../src/web/api-services/servicesTypes";
 import { ApiSpecificationType } from "../../src/web/api-services/importApiTypes";
 import { updateService } from "../../src/web/response/serviceApiModify";
 import {

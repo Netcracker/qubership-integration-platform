@@ -74,11 +74,12 @@ jest.mock("../../../../src/permissions/ProtectedButton", () => ({
 
 const mockRequestFailed = jest.fn();
 const mockInfo = jest.fn();
+const mockNotificationService = {
+  requestFailed: mockRequestFailed,
+  info: mockInfo,
+};
 jest.mock("../../../../src/hooks/useNotificationService", () => ({
-  useNotificationService: () => ({
-    requestFailed: mockRequestFailed,
-    info: mockInfo,
-  }),
+  useNotificationService: () => mockNotificationService,
 }));
 
 globalThis.ResizeObserver = jest.fn().mockImplementation(() => ({
@@ -233,6 +234,7 @@ describe("LiveExchanges", () => {
     });
     expect(mockInfo).toHaveBeenCalledWith("Exchange already finished");
     expect(mockRequestFailed).not.toHaveBeenCalled();
+    expect(mockGetAndFilterExchanges).toHaveBeenCalledTimes(1);
   });
 
   it("terminate keeps the row and notifies when the request fails otherwise", async () => {

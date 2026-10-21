@@ -68,6 +68,8 @@ jest.mock("../../../../src/hooks/useElement", () => ({
   useElement: () => ({ updateElement: mockUpdateElement }),
 }));
 
+const mockGetElements = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+
 const mockGetOperationInfo =
   jest.fn<(...args: unknown[]) => Promise<unknown>>();
 mockGetOperationInfo.mockResolvedValue({
@@ -78,6 +80,7 @@ mockGetOperationInfo.mockResolvedValue({
 });
 jest.mock("../../../../src/api/api", () => ({
   api: {
+    getElements: (...args: unknown[]) => mockGetElements(...args),
     getOperationInfo: (id: string): Promise<unknown> =>
       mockGetOperationInfo(id),
   },
@@ -378,6 +381,58 @@ describe("ChainElementModification", () => {
       type: "script",
       properties: {},
     });
+  });
+
+  const notifyWrite = async () => {
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("qip-catalog-changed", {
+          detail: { chainIds: ["chain-1"], chainsListChanged: true },
+        }),
+      );
+    });
+  };
+
+  it("updates a pristine element after a confirmed catalog write", async () => {
+    mockGetElements.mockResolvedValue([
+      { id: "el-1", type: "script", name: "Updated script", properties: {} },
+    ]);
+    renderWithPermissions({ chain: ["update"] });
+    await screen.findByText("My Script");
+    await notifyWrite();
+    await screen.findByText("Updated script");
+    expect(mockUpdateElement).not.toHaveBeenCalled();
+  });
+
+  it("preserves an inline name draft when catalog data changes", async () => {
+    mockGetElements.mockResolvedValue([
+      { id: "el-1", type: "script", name: "Updated script", properties: {} },
+    ]);
+    renderWithPermissions({ chain: ["update"] });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit name" }));
+    fireEvent.change(screen.getByTestId("element-name-input"), {
+      target: { value: "My unsaved name" },
+    });
+    await notifyWrite();
+    await screen.findByText(
+      "This element changed in the catalog. Your draft is preserved.",
+    );
+    expect(screen.getByTestId("element-name-input")).toHaveValue(
+      "My unsaved name",
+    );
+    expect(mockUpdateElement).not.toHaveBeenCalled();
+  });
+
+  it("keeps the form and prevents saving after the element is deleted", async () => {
+    mockGetElements.mockResolvedValue([]);
+    renderWithPermissions({ chain: ["update"] });
+    await screen.findByText("My Script");
+    await notifyWrite();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled(),
+    );
+    expect(mockCloseContainingModal).not.toHaveBeenCalled();
+    expect(mockUpdateElement).not.toHaveBeenCalled();
   });
 
   it("renders modal with name and type in header", async () => {
@@ -720,7 +775,7 @@ describe("ChainElementModification", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("Save button calls errorWithDetails when updateElement rejects", async () => {
+  it("should preserve the open form and report the original save error", async () => {
     mockUpdateElement.mockRejectedValueOnce(new Error("API error"));
     renderWithPermissions({ chain: ["update"] });
 
@@ -738,7 +793,8 @@ describe("ChainElementModification", () => {
       );
     });
 
-    expect(mockCloseContainingModal).toHaveBeenCalled();
+    expect(mockCloseContainingModal).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("handleNameSave: inline name edit only updates local state, no API call until Save", async () => {

@@ -1,0 +1,312 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name}}-ui-nginx-conf
+data:
+  nginx.conf: |-
+    #worker_processes  1;
+    worker_processes auto;
+    pid /var/run/nginx.pid;
+
+    events {
+      worker_connections  1024;
+    }
+
+    http {
+
+      sendfile            on;
+      keepalive_timeout   65;
+      types_hash_max_size 2048;
+
+      client_max_body_size 850m;
+      client_body_timeout  120s;
+
+      proxy_connect_timeout 3s;
+      proxy_send_timeout    3s;
+      proxy_read_timeout    90s;
+      fastcgi_send_timeout  3s;
+      fastcgi_read_timeout  90s;
+
+      default_type  application/octet-stream;
+
+
+      ##
+      # Logging Settings
+      ##
+      log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+      '$status $body_bytes_sent "$http_referer" '
+      '"$http_user_agent" "$http_x_forwarded_for"';
+      access_log /var/log/nginx/access.log  main;
+      error_log  /var/log/nginx/error.log warn;
+
+
+      include /etc/nginx/routes.conf;
+    }
+
+  routes.conf: |-
+    server {
+      listen 8080;
+      # The Service publishes 8080 on another port, so a redirect nginx sends itself
+      # stays relative and keeps the port the browser used.
+      absolute_redirect off;
+
+      error_page 502 503 504 @error;
+
+      # Cluster DNS. Only the locations whose upstream is built from a variable use
+      # it - a literally named upstream is resolved once, when nginx reads this file.
+      resolver {{ .Values.global.qip.ui.resolver }} valid=5s;
+      resolver_timeout 5s;
+      {{- if .Values.global.qip.ui.e2eLocations }}
+
+      # Routes for the e2e suite. They come before every other regex location, so
+      # none of those, the image-extension one included, can claim these paths.
+      # The upstream is a variable, so a missing Service fails the request rather
+      # than nginx startup. The error_page here drops the inherited one, which
+      # answers 200 "", so a 502 or 504 from nginx reaches the caller as it is; a
+      # 5xx from the upstream itself is never intercepted.
+      location ~ "^/e2e/svc/(?<e2e_service>[a-z0-9-]+)(?<e2e_path>/.*)$" {
+        error_page 502 = @e2e_502;
+        error_page 504 = @e2e_504;
+        proxy_pass  http://$e2e_service.{{ .Release.Namespace }}.svc.cluster.local:8080$e2e_path$is_args$args;
+        proxy_http_version 1.1;
+        proxy_redirect     off;
+      }
+
+      location ~ "^/e2e/gateway(?<e2e_path>/.*)$" {
+        error_page 502 = @e2e_502;
+        error_page 504 = @e2e_504;
+        proxy_pass  http://public-gateway.{{ .Release.Namespace }}.svc.cluster.local:80$e2e_path$is_args$args;
+        proxy_http_version 1.1;
+        proxy_redirect     off;
+      }
+
+      location @e2e_502 {
+        return 502;
+      }
+
+      location @e2e_504 {
+        return 504;
+      }
+      {{- end }}
+
+      # Through a variable on purpose. nginx resolves a literally named upstream while
+      # reading the config and refuses to start when the name is missing, and this one
+      # is a developer's own machine: on kind and minikube host.docker.internal does
+      # not exist, and a dead proxy takes every API route down with it. Resolved per
+      # request, a missing name is a 502 here and nothing anywhere else.
+      location / {
+        set $qip_dev_server {{ .Values.global.qip.ui.devServer.host }};
+        proxy_pass  http://$qip_dev_server:{{ .Values.global.qip.ui.devServer.port }};
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      }
+
+      location /assets/route.js {
+        root /usr/share/nginx/html;
+        try_files $uri $uri$args $uri$args/ $uri/ /index.html;
+      }
+
+      location ~ "^/api/.*/v2/snapshots" {
+          rewrite "^/api/.*/v2/(.*)" /v2/catalog/$1 break;
+          proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+          proxy_redirect          off;
+          proxy_set_header        Host $host;
+          proxy_intercept_errors  on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/catalog/chains/(((?![/]).)*)/(deployments|snapshots) {
+        rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/catalog/chains/(deployments|roles) {
+        rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/catalog/(chains|detailed-design|design-generator|library|folders|cr) {
+        rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/catalog/ {
+        rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/.*/(v\d+)/maas-actions {
+        rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/.*/(v\d+)/import {
+        rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/systems-catalog/ {
+        rewrite ^/api/(v\d+)/.*/systems-catalog/(.*)$  /$1/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/sessions-management {
+        rewrite ^/api/(v\d+)/.*/sessions-management/(.*)$  /$1/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/variables-management {
+        rewrite ^/api/(v\d+)/.*/variables-management/(.*)$  /$1/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/.*/(v\d+)/(folders|snapshots|secured-variables|secret|common-variables/import) {
+        rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/engine/(?P<engine_domain>[^/]+)/(sessions|chains|live-exchanges) {
+        rewrite ^/api/(v\d+)/.*/engine/[^/]+/(.*)$  /$1/engine/$2 break;
+        proxy_pass  http://qip-engine-${engine_domain}-{{ .Values.global.blueGreenVersion }}.{{ .Release.Namespace }}.svc.cluster.local:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/engine {
+        rewrite ^/api/(v\d+)/.*/engine/(.*)$  /$1/engine/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      {{- if .Values.global.qip.testingService.enabled }}
+
+      # Endpoint mocks are called by the engine from inside the cluster only.
+      # The guard matches case-insensitively on purpose: the service itself routes
+      # case-sensitively, so this stays correct even if that ever changes.
+      location ~* "^/api/(v\d+)/.*/testing-service/endpoint-mocks/call(/|$)" {
+        return 404;
+      }
+
+      # The testing service serves /api/v1/, so unlike the rules above this one
+      # keeps the /api prefix instead of stripping it.
+      location ~ "^/api/(v\d+)/.*/testing-service" {
+        rewrite "^/api/(v\d+)/.*/testing-service/(.*)$"  /api/$1/$2  break;
+        proxy_pass  http://{{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+      {{- end }}
+
+      location ~ ^/api/[^/]+/(v\d+)/ {
+        rewrite ^/api/[^/]+/(v\d+)/(.*)$  /$1/$2  break;
+        proxy_pass              http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
+        proxy_redirect          off;
+        proxy_set_header        Host $host;
+        proxy_intercept_errors  on;
+      }
+
+      location = /q/health {
+        proxy_pass  http://{{ .Release.Name }}-ai-service:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ^~ /api/chat/ {
+        proxy_pass  http://{{ .Release.Name }}-ai-service:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_buffering off;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_intercept_errors on;
+      }
+
+      location = /api/v1/chat {
+        proxy_pass  http://{{ .Release.Name }}-ai-service:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_buffering off;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_intercept_errors on;
+      }
+
+      location ^~ /api/v1/chat/ {
+        proxy_pass  http://{{ .Release.Name }}-ai-service:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_buffering off;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_intercept_errors on;
+      }
+
+      location ^~ /api/v1/storage/ {
+        proxy_pass  http://{{ .Release.Name }}-ai-service:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      # Anything under /api/ that no rule above claims belongs to no service. Without
+      # this it falls through to the SPA below and answers 200 text/html, so a caller
+      # probing a path that does not exist reads the page as a successful response.
+      # A prefix location loses to every regex above and only wins when none matched.
+      location /api/ {
+        return 404;
+      }
+
+      # Documentation assets (images, etc.) must be proxied to Vite in dev,
+      # since they live in public/doc/ and are not in the nginx container.
+      location ^~ /doc/ {
+        set $qip_dev_server {{ .Values.global.qip.ui.devServer.host }};
+        proxy_pass  http://$qip_dev_server:{{ .Values.global.qip.ui.devServer.port }};
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+      }
+
+      location ~* \.(jpg|jpeg|gif|png|ico|bmp|swf|txt)$ {
+        root /usr/share/nginx/html;
+      }
+
+      location @error {
+        internal;
+        return 200 "";
+      }
+    }

@@ -35,8 +35,8 @@ Companion to `SKILL.md`, gates 2 and 4.
 
 ## ui
 
-A defect only a browser shows (layout, focus, a missing redraw, a screen that throws) gets its
-regression case in `e2e/specs/ui/`, following `browser.md` in the `e2e-spec-authoring` skill; the #679
+The `e2e-decision` instruction decides whether a defect gets an end-to-end case. A browser case
+goes in `e2e/specs/ui/`, following `browser.md` in the `e2e-spec-authoring` skill; the #679
 cases in `e2e/specs/ui/chain-tabs.spec.ts` are the shape. Run it with
 `cd e2e && E2E_PROVISION=never npm test -- --project=ui`, which builds and serves the bundle itself. A defect jsdom
 renders the same way gets a Jest case under `ui/tests/` instead.
@@ -105,8 +105,7 @@ generated mapper method.
 Run each scenario in the four directions the `runtime-catalog` instruction lists, and judge it
 by the body, the log, and the rows the call should have written, not by the status.
 
-A reproduced defect becomes a regression case in `e2e/specs/api/` when no unit test can reach
-it, such as a Hibernate cascade or a transaction boundary.
+When the `e2e-decision` instruction calls for an end-to-end case, it goes in `e2e/specs/api/`.
 
 ### See what an element compiles to
 
@@ -120,7 +119,7 @@ jq -r --arg c "$CHAIN_ID" '[.update[]|select(.deploymentInfo.chainId==$c)]|last|
 ```
 
 - A body is required; `[]` gives 400. An empty `excludeDeployments` is answered from a cache
-  that goes stale after the first call on this stack, so pass one bogus entry, as the
+  that a change made outside this catalog leaves stale, so pass one bogus entry, as the
   `runtime-catalog` instruction explains.
 - A chain with no trigger compiles to an empty `<routes/>`; add an `http-trigger` with
   `contextPath` and wire it with `POST /v1/chains/{id}/dependencies`.
@@ -139,7 +138,7 @@ Build with `-am`, for the reason `maven-verifier` gives.
 mvn -B -f "$WT/pom.xml" -pl runtime-catalog -am package -DskipTests -Dgpg.skip=true -Dmaven.javadoc.skip=true
 ls "$WT"/runtime-catalog/target/qip-runtime-catalog-*-exec.jar          # exactly one file, or the COPY glob fails
 docker tag infrastructure-qip-runtime-catalog infrastructure-qip-runtime-catalog:pre-<N>
-docker compose -f "$WT/infrastructure/docker-compose.yml" up -d --build --no-deps qip-runtime-catalog
+docker compose -f "$WT/infrastructure/docker/docker-compose.yml" up -d --build --no-deps qip-runtime-catalog
 ```
 
 `--no-deps` keeps compose from recreating `postgreSQL`, which has no named volume: a recreate
@@ -278,7 +277,7 @@ form.
 - **Helm.** Render before and after and diff the render:
 
   ```bash
-  helm template qip "$WT/infrastructure/qip-dev" > "$TMP/after.yaml"
+  helm template qip "$WT/infrastructure/helm/qip-dev" > "$TMP/after.yaml"
   diff "$TMP/before.yaml" "$TMP/after.yaml"
   ```
 

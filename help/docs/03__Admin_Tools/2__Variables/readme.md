@@ -77,6 +77,7 @@ After navigation to "Variables" tab, the table with common variables will be ini
 
 At the top of the table the following options are available:
   - **Search variables** - search box, provides ability to find respective data in the table.
+  - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter common variables by **Key** and **Value**.
   - ![delete](img/delete.svg) - deletes the variable(s), selected via checkbox.
   - ![cloud-download](img/cloud-download.svg) - exports variables, selected via checkbox. If no specific variables were selected before clicking, then system will export all of them at once.
   - ![cloud-upload](img/cloud-upload.svg) - opens pop-up, that allows to import variables.
@@ -90,6 +91,7 @@ Click "**Secured**" sub-tab in the menu on the right to open secured variables t
   - **Value** - editable variable's value, masked with dots.
 - **Control panel** - panel, placed on the right top of the table. Provides next capabilities:
   - **Search secrets** - search box, provides ability to find respective data in the table.
+  - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter secured variables by **Key**.
   - ![delete](img/delete.svg) - deletes the variable(s), selected via checkbox.
   - ![plus](img/plus.svg) - allows to create a new secret.
 
