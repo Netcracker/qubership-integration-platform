@@ -77,7 +77,16 @@ catalog resolution, and defaults.
   Catalog bindings supply operation IDs and topic/classifier identity. Do not invent consumerGroupId,
   reconnectDelayMs, or topicClassifier property keys. On invalid-property feedback, correct the
   key and encoding while retaining the author's value; do not clear the setting to make capture pass.
-  Keep exactValues as verbatim response bodies, error strings, and expression literals in this fact.
+  Use exactValues only for complete runtime keys or scalar values explicitly required verbatim in this fact,
+  such as a full response body, error code, JSON key, or marker. Script values are checked as complete executable
+  constants. Source occurrence alone does not make a description a runtime constant.
+  Preserve an explicitly required literal component or prefix byte-for-byte in exactValues even when the output
+  adds a dynamic suffix. Compose separators and runtime expressions outside that exact constant.
+  Preserve whole binding, computation, and composition descriptions in BEHAVIOR text, or use FIELD_MAPPING
+  for an actual direct business transition. Do not list whole assignment descriptions, computed expressions,
+  or descriptions of a composed output as required standalone constants.
+  Do not invent a business interaction for local script output.
+  A complete literal such as "a=b" remains valid, including its '=' or spaces, when that whole value is required.
   Each exactValues entry must be nonempty and present in this fact text and an author source.
   Correct rejected exactValues lists without rewriting protected text to insert literals.
   Keep explicitly empty configuration values in requestedProperties, not exactValues.

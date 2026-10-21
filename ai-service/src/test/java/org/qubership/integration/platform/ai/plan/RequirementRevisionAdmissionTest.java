@@ -187,6 +187,38 @@ class RequirementRevisionAdmissionTest {
   }
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void automaticScriptRepairCannotRemoveAnAcceptedExactLiteral(boolean reload) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Create tasks, then return exact plain text a=b from a Script. Proceed without IDS.");
+      var intent = new RequirementElementIntent("response-script", "script",
+          RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, "entry", null, List.of(), List.of("a=b"));
+      var original = new FactInput("response", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+          "Return exact plain text a=b from a Script.", null, null, intent);
+      var base = withNativeAnchors(httpDraft(List.of(original)));
+      assertTrue(h.capture(base).accepted());
+      var accepted = h.store.latestRevision(h.chat).orElseThrow().reference();
+      if (reload) h.restartStore();
+      h.store.beginTurn(h.chat, "Automatic correction.");
+      var cleared = new FactInput(original.sourceFactId(), original.interactionIds(), original.kind(),
+          original.polarity(), original.text(), null, null,
+          new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+              intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(),
+              intent.requestedName(), intent.requestedProperties(), List.of()));
+
+      var result = h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(cleared), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null));
+
+      assertFalse(result.accepted(), result.toString());
+      assertTrue(result.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+          && "/changes/facts/response".equals(issue.path()) && "response".equals(issue.entityId())), result.toString());
+      assertEquals(accepted, h.store.latestRevision(h.chat).orElseThrow().reference());
+      assertEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
+    }
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"/flow/interactions/0/operation", "/flow/interactions/missing/operation",
       "/flow/interactions/entry/interactionId", "/flow/settings/idsRequested"})
   void flowPathNormalizationDoesNotAuthorizeUnknownOrIdentityFields(String path) throws Exception {

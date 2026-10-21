@@ -24,6 +24,13 @@ class GatherRequirementsAgentTest {
       assertTrue(prompt.contains("targetReference"));
       assertTrue(prompt.contains("chain-trigger element ID only"));
       assertTrue(prompt.contains("remove its answered target question"));
+      assertTrue(prompt.contains("complete runtime keys or scalar values"), prompt);
+      assertTrue(prompt.contains("complete executable constants"), prompt);
+      assertTrue(prompt.contains("literal component or prefix byte-for-byte in exactValues"), prompt);
+      assertTrue(prompt.contains("Compose separators and runtime expressions outside"), prompt);
+      assertTrue(prompt.contains("whole binding, computation, and composition descriptions in BEHAVIOR text"), prompt);
+      assertTrue(prompt.contains("Do not list whole assignment descriptions"), prompt);
+      assertTrue(prompt.contains("A complete literal such as \"a=b\" remains valid"), prompt);
     }
   }
 

@@ -672,6 +672,13 @@ public class CompilerSkillContextBuilder {
       body.append("""
 
           Script runtime contract:
+          Implement each approved exactValues scalar in its owned script as an executable Groovy
+          constant with exactly that value, including whitespace and quotation marks in the value.
+          Use the constant in the required output or expression. Compose requested separators and
+          runtime expressions outside that constant; do not merge it into a longer GString segment.
+          Preserve the complete approved behavior and field mappings. Their prose is not a runtime
+          string to emit. Comments, unused constants, and values in unrelated scripts do not implement
+          a requirement. Do not remove or rewrite approved exactValues to bypass a rejected body.
           Incoming JSON bodies can be strings or maps. Parse a string before reading event fields.
           Groovy 4 has no groovy-dateutil module in this runtime. Use Java time APIs for dates.
           Today's ISO date is java.time.LocalDate.now().toString(); Date.format() and Date.parse()

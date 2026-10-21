@@ -79,6 +79,28 @@ class GatherRequirementsPromptBuilderTest {
 
   @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void mandatoryInputSeparatesCompleteConstantsFromTheFullBehavior(boolean documentUnavailable) {
+    if (documentUnavailable) {
+      when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
+          .thenThrow(new IllegalStateException("skill unavailable"));
+    }
+    String source = "Use the exact prefix a=b, then one separator and the original id. Retain the complete original record.";
+
+    String input = builder.wrap("literal-contract", source, "en");
+
+    assertTrue(input.contains(source), input);
+    assertTrue(input.contains("complete runtime keys or scalar values"), input);
+    assertTrue(input.contains("complete executable"), input);
+    assertTrue(input.contains("literal component or prefix byte-for-byte"), input);
+    assertTrue(input.contains("compose separators and runtime expressions outside"), input);
+    assertTrue(input.contains("whole binding, computation, and composition descriptions in BEHAVIOR text"), input);
+    assertTrue(input.contains("FIELD_MAPPING on a real business transition"), input);
+    assertTrue(input.contains("Source occurrence alone"), input);
+    assertTrue(input.contains("remove its behavior requirements"), input);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
   void nativeRepairScopeReachesTheMandatoryPrompt(boolean documentUnavailable) {
     if (documentUnavailable) {
       when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))

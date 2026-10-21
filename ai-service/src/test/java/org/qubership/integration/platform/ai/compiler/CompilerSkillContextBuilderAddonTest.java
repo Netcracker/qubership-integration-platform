@@ -488,6 +488,33 @@ class CompilerSkillContextBuilderAddonTest {
   }
 
   @Test
+  void scriptProductionAndRepairReceiveTheSameExecutableLiteralContract() {
+    CompilerSkillDocument document = documentService.loadByCapabilityId("cip-script-generator");
+    String behavior = "Copy the original identifier to the result and prepend the approved label.";
+    String brief = "{\"text\":\"" + behavior + "\",\"exactValues\":[\"Ready \",\"a=b\"]}";
+    CompilerSkillInputSnapshot snapshot = new CompilerSkillInputSnapshot(
+        behavior, brief, null, graphWithScriptNode("exchange.in.body = 'a=b'"), null);
+    var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook()).build();
+
+    for (String encoded : java.util.List.of(
+        contextBuilder.buildUserMessage(document, snapshot),
+        contextBuilder.buildScriptRepairMessage(
+            "conversation-1", document, snapshot, java.util.List.of("script-1")),
+        contextBuilder.buildScriptRepairMessage(
+            "conversation-1", document, snapshot, java.util.List.of("script-1"), true))) {
+      String message = renderer.parse(encoded).render();
+      assertTrue(message.contains(behavior), message);
+      assertTrue(message.contains(brief), message);
+      assertTrue(message.contains("including whitespace and quotation marks"), message);
+      assertTrue(message.contains("runtime expressions outside that constant"), message);
+      assertTrue(message.contains("unused constants"), message);
+      assertTrue(message.contains("Do not remove or rewrite approved exactValues"), message);
+    }
+  }
+
+  @Test
   void scriptEditPromptIncludesOnlySelectedOriginalBodiesAndEditContext() {
     String original = "def data = exchange.in.body\nreturn data";
     ChainPlanGraph fixture = graphWithScriptNode(original);
