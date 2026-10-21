@@ -220,7 +220,8 @@ class RecoveryDecisionValidatorTest {
       var result = RecoveryDecisionValidator.validate(decision, new RecoveryContext(evidence,
           context.approvedBrief().withFacts(List.of(endpoint)), null, "en", inputs));
       assertFalse(result.accepted());
-      assertTrue(result.findings().stream().anyMatch(finding -> finding.contains("every saved author input")));
+      assertTrue(result.findings().stream().anyMatch(finding -> finding.contains("reviewedInputIds")
+          && finding.contains("first") && finding.contains("second")));
     }
   }
 

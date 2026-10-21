@@ -511,7 +511,7 @@ public class RequirementDraftTool {
       RequirementFlow capturedFlow =
           capture.flow() == null ? RequirementFlow.EMPTY : capture.flow();
       if (!capturedFlow.interactions().isEmpty()) {
-        Optional<String> structureError = RequirementFlowValidator.validateStructure(capturedFlow);
+        Optional<String> structureError = RequirementFlowValidator.validateStructure(capturedFlow, facts);
         if (structureError.isPresent()) {
           LOG.warnf(
               "captureRequirementDraft: validation failed conversationId=%s reason=%s",

@@ -46,6 +46,7 @@ RECOVERY_TESTS+="CaptureAttemptFeedbackStoreTest,RecoveryDecisionValidatorTest,C
 RECOVERY_TESTS+="ProviderBoundaryEvidenceTest,HaltExitGuaranteeMatrixTest"
 RECOVERY_TESTS+=",RequirementSchemaToolWiringTest"
 RECOVERY_TESTS+=",MappingRepairCaptureValidatorTest,ProductRequirementBriefToolTest"
+RECOVERY_TESTS+=",RequirementCaptureProjectionTest,RequirementFlowValidatorTest,AuthorQuestionAdmissionTest"
 
 python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
 
