@@ -62,6 +62,8 @@ class AsyncapiSpecificationParserSchemaTest {
     private static final String ORDER_MESSAGE = "Order: {payload: " + ORDER_SCHEMA + "}";
     private static final String ALIAS_MESSAGE = "Alias: {$ref: '#/components/messages/Order'}";
     private static final String JSON_SCHEMA_FORMAT = "'application/schema+json;version=draft-07'";
+    private static final String AVRO_SCHEMA = "{schemaFormat: 'application/vnd.apache.avro;version=1.9.0', "
+            + "schema: {type: record, name: Order, fields: [{name: id, type: string}]}}";
 
     private final YAMLMapper yamlMapper = new YAMLMapper();
 
@@ -115,7 +117,8 @@ class AsyncapiSpecificationParserSchemaTest {
                 Arguments.of("v3 headers keep the payload",
                         v3("{order: {headers: " + CLOSED_OBJECT + ", payload: " + INTEGER_ENUM + "}}", "{}"),
                         "payload", INTEGER_ENUM),
-                // An AsyncAPI 3.0 multi-format payload in an AsyncAPI or JSON Schema format.
+                // An AsyncAPI 3.0 multi-format schema in an AsyncAPI or JSON Schema format is the schema it holds,
+                // and an empty schema in any other format.
                 Arguments.of("v3 multi-format AsyncAPI schema",
                         v3("{order: " + payload("{schemaFormat: 'application/vnd.aai.asyncapi+json;version=3.0.0', schema: "
                                 + CLOSED_OBJECT + "}") + "}", "{}"),
@@ -130,7 +133,22 @@ class AsyncapiSpecificationParserSchemaTest {
                         "payload_0", CLOSED_OBJECT),
                 Arguments.of("v3 multi-format boolean schema",
                         v3("{order: " + payload("{schemaFormat: " + JSON_SCHEMA_FORMAT + ", schema: true}") + "}", "{}"),
-                        "payload", "{schemaFormat: " + JSON_SCHEMA_FORMAT + ", schema: true}"),
+                        "payload", "{}"),
+                Arguments.of("v3 multi-format Avro payload",
+                        v3("{order: " + payload(AVRO_SCHEMA) + "}", "{}"),
+                        "payload", "{}"),
+                Arguments.of("v3 multi-format JSON Schema component",
+                        v3("{order: " + payload("{$ref: '#/components/schemas/Closed'}") + "}",
+                                "{schemas: {Closed: {schemaFormat: " + JSON_SCHEMA_FORMAT + ", schema: " + CLOSED_OBJECT + "}}}"),
+                        "payload", CLOSED_OBJECT),
+                Arguments.of("v3 schema with a schemaFormat keyword and no schema",
+                        v3("{order: " + payload("{$ref: '#/components/schemas/Noted'}") + "}",
+                                "{schemas: {Noted: {type: object, schemaFormat: note, properties: {id: {type: string}}}}}"),
+                        "payload", "{type: object, schemaFormat: note, properties: {id: {type: string}}}"),
+                Arguments.of("v3 multi-format Avro component",
+                        v3("{order: " + payload("{$ref: '#/components/schemas/Order'}") + "}",
+                                "{schemas: {Order: " + AVRO_SCHEMA + "}}"),
+                        "payload", "{}"),
                 // A component inlined into definitions without its $id, so its references stay relative to the root.
                 Arguments.of("v2 component with its own $id",
                         v2(payload("{type: object, properties: {order: {$ref: '#/components/schemas/Order'}}}"), """

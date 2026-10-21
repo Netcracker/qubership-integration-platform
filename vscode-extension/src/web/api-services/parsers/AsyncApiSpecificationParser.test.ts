@@ -191,6 +191,148 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
     );
   });
 
+  describe("AsyncAPI 3.0 multi-format schemas", () => {
+    // The backend's AsyncapiSpecificationParserSchemaTest reads the same documents.
+    const JSON_SCHEMA = "application/schema+json;version=draft-07";
+    const AVRO_SCHEMA = {
+      schemaFormat: "application/vnd.apache.avro;version=1.9.0",
+      schema: {
+        type: "record",
+        name: "Order",
+        fields: [{ name: "id", type: "string" }],
+      },
+    };
+    const CLOSED_OBJECT = {
+      type: "object",
+      additionalProperties: false,
+      properties: { id: { type: "string" } },
+    };
+    const INTEGER_ENUM = { type: "integer", enum: [1, 2, 3] };
+
+    function document(messages: unknown, components: unknown = {}): string {
+      return JSON.stringify({
+        asyncapi: "3.0.0",
+        info: { title: "Orders", version: "1.0.0" },
+        servers: { local: { host: "localhost:9092", protocol: "kafka" } },
+        channels: { orders: { address: "orders", messages } },
+        operations: {
+          receiveOrder: {
+            action: "receive",
+            channel: { $ref: "#/channels/orders" },
+          },
+        },
+        components,
+      });
+    }
+
+    async function storedSchemas(
+      content: string,
+    ): Promise<Record<string, unknown>> {
+      const data =
+        await AsyncApiSpecificationParser.parseAsyncApiContent(content);
+      const [operation] =
+        AsyncApiSpecificationParser.createOperationsFromAsyncApi(
+          data,
+          "spec-1",
+        );
+      return Object.fromEntries(
+        Object.entries(operation.responseSchemas).map(
+          ([key, schema]: [string, any]) => {
+            const { $id, $schema, ...rest } = schema;
+            return [key, rest];
+          },
+        ),
+      );
+    }
+
+    it.each([
+      [
+        "an AsyncAPI schema",
+        document({
+          order: {
+            payload: {
+              schemaFormat: "application/vnd.aai.asyncapi+json;version=3.0.0",
+              schema: CLOSED_OBJECT,
+            },
+          },
+        }),
+        { payload: { ...CLOSED_OBJECT, definitions: {} } },
+      ],
+      [
+        "a JSON Schema in a component message",
+        document(
+          { order: { $ref: "#/components/messages/Multi" } },
+          {
+            messages: {
+              Multi: {
+                payload: {
+                  schemaFormat: "application/schema+yaml;version=draft-07",
+                  schema: INTEGER_ENUM,
+                },
+              },
+            },
+          },
+        ),
+        { Multi: { ...INTEGER_ENUM, definitions: {} } },
+      ],
+      [
+        "a JSON Schema in a channel with two messages",
+        document({
+          order: {
+            payload: { schemaFormat: JSON_SCHEMA, schema: CLOSED_OBJECT },
+          },
+          other: { payload: INTEGER_ENUM },
+        }),
+        {
+          payload_0: { ...CLOSED_OBJECT, definitions: {} },
+          payload_1: { ...INTEGER_ENUM, definitions: {} },
+        },
+      ],
+      [
+        "a boolean schema",
+        document({
+          order: { payload: { schemaFormat: JSON_SCHEMA, schema: true } },
+        }),
+        { payload: { definitions: {} } },
+      ],
+      [
+        "an Avro payload",
+        document({ order: { payload: AVRO_SCHEMA } }),
+        { payload: { definitions: {} } },
+      ],
+      [
+        "a JSON Schema component",
+        document(
+          { order: { payload: { $ref: "#/components/schemas/Closed" } } },
+          {
+            schemas: {
+              Closed: { schemaFormat: JSON_SCHEMA, schema: CLOSED_OBJECT },
+            },
+          },
+        ),
+        { payload: { ...CLOSED_OBJECT, definitions: {} } },
+      ],
+      [
+        "a schema with a schemaFormat keyword and no schema",
+        document(
+          { order: { payload: { $ref: "#/components/schemas/Noted" } } },
+          { schemas: { Noted: { type: "object", schemaFormat: "note" } } },
+        ),
+        { payload: { type: "object", schemaFormat: "note", definitions: {} } },
+      ],
+      [
+        "an Avro component",
+        document(
+          { order: { payload: { $ref: "#/components/schemas/Order" } } },
+          { schemas: { Order: AVRO_SCHEMA } },
+        ),
+        { payload: { definitions: {} } },
+      ],
+    ])("stores %s as the backend does", async (_name, content, expected) => {
+      expect(await storedSchemas(content)).toEqual(expected);
+    });
+  });
+
   // These fixtures intentionally omit a protocol marker (servers/x-protocol);
   // they exercise normalizer-only behavior (message refs, missing channels).
   const PROTOCOL_LESS = new Set([

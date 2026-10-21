@@ -60,6 +60,9 @@ public class AsyncApiV3Normalizer {
         }
         if (v3.getComponents() != null) {
             unwrapMultiFormatPayloads(v3.getComponents().get("messages"));
+            if (v3.getComponents().get("schemas") instanceof Map<?, ?> schemas) {
+                asStringObjectMap(schemas).replaceAll((name, schema) -> fromMultiFormat(schema));
+            }
         }
 
         AsyncapiSpecification v2 = new AsyncapiSpecification();
@@ -116,20 +119,27 @@ public class AsyncApiV3Normalizer {
         return v2;
     }
 
-    // A multi-format payload in an AsyncAPI or JSON Schema format is replaced with the schema object it holds.
     private void unwrapMultiFormatPayloads(Object messages) {
         if (!(messages instanceof Map<?, ?> messageMap)) {
             return;
         }
         for (Object message : messageMap.values()) {
-            if (message instanceof Map<?, ?> msgMap
-                    && msgMap.get("payload") instanceof Map<?, ?> payload
-                    && payload.get("schemaFormat") instanceof String schemaFormat
-                    && SCHEMA_FORMAT_PREFIXES.stream().anyMatch(schemaFormat::startsWith)
-                    && payload.get("schema") instanceof Map<?, ?> schema) {
-                asStringObjectMap(msgMap).put("payload", schema);
+            if (message instanceof Map<?, ?> msgMap) {
+                asStringObjectMap(msgMap).computeIfPresent("payload", (key, payload) -> fromMultiFormat(payload));
             }
         }
+    }
+
+    // A multi-format schema in an AsyncAPI or JSON Schema format becomes the schema object it holds, and one in any
+    // other format, such as Avro, becomes an empty schema, because the catalog reads no other format.
+    private Object fromMultiFormat(Object schema) {
+        if (!(schema instanceof Map<?, ?> multiFormat)
+                || !(multiFormat.get("schemaFormat") instanceof String schemaFormat)
+                || !multiFormat.containsKey("schema")) {
+            return schema;
+        }
+        boolean known = SCHEMA_FORMAT_PREFIXES.stream().anyMatch(schemaFormat::startsWith);
+        return known && multiFormat.get("schema") instanceof Map<?, ?> inner ? inner : new LinkedHashMap<>();
     }
 
     private Info normalizeInfo(Info v3Info) {

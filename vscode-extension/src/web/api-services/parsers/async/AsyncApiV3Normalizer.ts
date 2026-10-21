@@ -15,6 +15,10 @@ const COMPONENTS_MESSAGES_PREFIX = "#/components/messages/";
 const MESSAGES_SEGMENT = "/messages/";
 const ACTION_SEND = "send";
 const ACTION_RECEIVE = "receive";
+const SCHEMA_FORMAT_PREFIXES = [
+  "application/vnd.aai.asyncapi",
+  "application/schema+",
+];
 
 type AnyRecord = Record<string, any>;
 
@@ -26,6 +30,17 @@ type AnyRecord = Record<string, any>;
  */
 export class AsyncApiV3Normalizer {
   static normalize(v3: AsyncApiV3Data): AsyncApiData {
+    for (const v3Channel of Object.values(v3.channels ?? {})) {
+      this.unwrapMultiFormatPayloads(v3Channel?.messages);
+    }
+    this.unwrapMultiFormatPayloads(v3.components?.messages);
+    const schemas = v3.components?.schemas;
+    if (isObject(schemas)) {
+      for (const [name, schema] of Object.entries(schemas)) {
+        schemas[name] = this.fromMultiFormat(schema);
+      }
+    }
+
     const channels: Record<string, AsyncApiChannel> = {};
     const v3Channels = v3.channels ?? {};
     const declaredOperations = new Set<AsyncApiOperationObject>();
@@ -83,6 +98,34 @@ export class AsyncApiV3Normalizer {
       servers: this.normalizeServers(v3.servers),
       channels,
     };
+  }
+
+  private static unwrapMultiFormatPayloads(messages: unknown): void {
+    if (!isObject(messages)) {
+      return;
+    }
+    for (const message of Object.values(messages)) {
+      if (isObject(message) && message.payload !== undefined) {
+        message.payload = this.fromMultiFormat(message.payload);
+      }
+    }
+  }
+
+  // A multi-format schema in an AsyncAPI or JSON Schema format becomes the
+  // schema object it holds, and one in any other format, such as Avro, becomes
+  // an empty schema, because the catalog reads no other format.
+  private static fromMultiFormat(schema: unknown): unknown {
+    if (
+      !isObject(schema) ||
+      typeof schema.schemaFormat !== "string" ||
+      !("schema" in schema)
+    ) {
+      return schema;
+    }
+    const known = SCHEMA_FORMAT_PREFIXES.some((prefix) =>
+      schema.schemaFormat.startsWith(prefix),
+    );
+    return known && isObject(schema.schema) ? schema.schema : {};
   }
 
   private static computeChannel(
