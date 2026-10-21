@@ -25,7 +25,16 @@ public record RequirementCaptureResult(
     DraftInput draft,
     List<ResolutionSummary> resolutions,
     List<RequirementCaptureProjection.AppliedDefault> defaults,
-    @JsonInclude(JsonInclude.Include.NON_NULL) RepairConstraints repairConstraints) {
+    @JsonInclude(JsonInclude.Include.NON_NULL) RepairConstraints repairConstraints,
+    @JsonInclude(JsonInclude.Include.NON_NULL) PendingProposal pendingProposal) {
+
+  public RequirementCaptureResult(boolean accepted, boolean changed, Reference revision, Readiness readiness,
+      NextAction nextAction, List<CaptureIssue> issues, List<RequirementCaptureProjection.PendingWork> pendingWork,
+      DraftInput draft, List<ResolutionSummary> resolutions, List<RequirementCaptureProjection.AppliedDefault> defaults,
+      RepairConstraints repairConstraints) {
+    this(accepted, changed, revision, readiness, nextAction, issues, pendingWork, draft, resolutions, defaults,
+        repairConstraints, null);
+  }
 
   public RequirementCaptureResult(boolean accepted, boolean changed, Reference revision, Readiness readiness,
       NextAction nextAction, List<CaptureIssue> issues, List<RequirementCaptureProjection.PendingWork> pendingWork,
@@ -40,12 +49,25 @@ public record RequirementCaptureResult(
     }
   }
 
+  /** A rejected candidate is a repair base, never an admitted draft or amendment authority. */
+  public record PendingProposal(Reference attempt, String sourceGeneration, String sourceTurnId, Reference base,
+      String toolName, DraftInput draft, List<CaptureIssue> issues) {
+    public PendingProposal {
+      issues = List.copyOf(issues);
+    }
+  }
+
+  public RequirementCaptureResult withPendingProposal(PendingProposal proposal) {
+    return new RequirementCaptureResult(accepted, changed, revision, readiness, nextAction, issues, pendingWork,
+        draft, resolutions, defaults, repairConstraints, proposal);
+  }
+
   public RequirementCaptureResult withRepairConstraints(RepairConstraints constraints) {
     if (constraints == null) return this;
     NextAction action = readiness == Readiness.EMPTY && nextAction == NextAction.DISCUSS
         ? NextAction.REPAIR_CAPTURE : nextAction;
     return new RequirementCaptureResult(accepted, changed, revision, readiness, action, issues, pendingWork,
-        draft, resolutions, defaults, constraints);
+        draft, resolutions, defaults, constraints, pendingProposal);
   }
 
   public enum Readiness {

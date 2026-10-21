@@ -1055,6 +1055,44 @@ public class RequirementDraftStore {
         }).reduce((first, last) -> last);
   }
 
+  Optional<RequirementCaptureResult.PendingProposal> pendingProposal(String conversationId) {
+    var session = sessions.current(conversationId);
+    if (session.isEmpty()) return Optional.empty();
+    String compilationId = session.orElseThrow().compilationId();
+    var history = artifacts.history(compilationId, Kind.REQUIREMENT_CAPTURE_ATTEMPT);
+    var authority = writeAuthority(conversationId);
+    var source = conversations == null ? factProtection(conversationId, List.of())
+        : new CaptureFactProtection(authority.sourceGeneration(), authority.sourceTurnId(), null, List.of());
+    Reference base = authority.base();
+    var mapper = new ObjectMapper();
+    for (int i = history.size() - 1; i >= 0; i--) {
+      var revision = history.get(i);
+      var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
+      if ("reset".equals(attempt.toolName())) return Optional.empty();
+      if (!List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())) continue;
+      if (attempt.accepted() || !Objects.equals(base, attempt.acceptedDraftReference())
+          || !new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of())
+              .sameSource(source)) return Optional.empty();
+      RequirementCaptureInput.DraftInput candidate;
+      try {
+        if ("captureRequirementDraft".equals(attempt.toolName())) {
+          candidate = mapper.convertValue(attempt.arguments(), RequirementCaptureInput.DraftInput.class);
+        } else {
+          var original = base == null ? null : artifacts.get(compilationId, base)
+              .map(value -> artifacts.payload(value, RequirementDraft.class).authoredDraft()).orElse(null);
+          candidate = RequirementCaptureEditor.apply(original,
+              mapper.convertValue(attempt.arguments(), RequirementCaptureInput.DraftUpdate.class)).candidate();
+        }
+      } catch (IllegalArgumentException malformedArguments) {
+        return Optional.empty();
+      }
+      return candidate == null ? Optional.empty() : Optional.of(new RequirementCaptureResult.PendingProposal(
+          revision.reference(), attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.acceptedDraftReference(),
+          attempt.toolName(), candidate, attempt.issues()));
+    }
+    return Optional.empty();
+  }
+
   private void saveCaptureAttempt(String conversationId, RequirementCaptureAttempt attempt) {
     String compilationId = sessions.active(conversationId);
     var previous = artifacts.latest(compilationId, Kind.REQUIREMENT_CAPTURE_ATTEMPT);

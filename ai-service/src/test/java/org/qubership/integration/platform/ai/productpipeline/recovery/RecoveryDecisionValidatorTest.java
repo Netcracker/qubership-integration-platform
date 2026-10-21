@@ -1,14 +1,17 @@
 package org.qubership.integration.platform.ai.productpipeline.recovery;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementPolicyConflict;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -69,6 +72,54 @@ class RecoveryDecisionValidatorTest {
     var unrelated = new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
         List.of("unrelated-failure"), RecoveryAction.PARK, List.of(), "", "Review the rejected proposal.");
     assertFalse(RecoveryDecisionValidator.validate(unrelated, input).accepted());
+  }
+
+  @Test
+  void invalidFaultTargetNamesTheExactFieldAndCompleteMembershipCandidates() {
+    var json = new ObjectMapper();
+    var producer = new Reference(Kind.REQUIREMENT_DRAFT, "current-producer", "producer-" + "x".repeat(2_300));
+    var nested = new Reference(Kind.REQUIREMENT_CAPTURE_ATTEMPT, "nested-attempt", "nested-hash");
+    var nativeEvidence = new RecoveryEvidence(1, "capture-failure", "CONTRACT_SHAPE", "requirement-discovery",
+        "requirement-discovery", briefRef, semanticRef, List.of(producer), List.of(), null, List.of(), List.of(),
+        List.of(), List.of(), false, new CaptureFailureEvidence(null, briefRef, nested, List.of()));
+    var input = new RecoveryContext(nativeEvidence, context.approvedBrief(), null, "en", List.of(), planRef, null);
+    var decision = new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, nested,
+        List.of(nativeEvidence.failureId()), RecoveryAction.REGENERATE_ARTIFACT, List.of(), "", "Repair the generated output.");
+    var result = RecoveryDecisionValidator.validate(decision, input);
+    assertFalse(result.accepted());
+    assertEquals(1, result.findings().size());
+    String finding = result.findings().getFirst();
+    assertTrue(finding.startsWith("faultArtifactRef is not present"), finding);
+    assertTrue(finding.contains("Rejected value: " + json.valueToTree(nested)), finding);
+    assertTrue(finding.contains("Current known references for faultArtifactRef membership:"), finding);
+    for (Reference known : List.of(producer, briefRef, semanticRef, planRef)) {
+      assertTrue(finding.contains(json.valueToTree(known).toString()), finding);
+    }
+    assertTrue(finding.contains("Action and strategy constraints still apply"), finding);
+    assertTrue(finding.contains("evidence.rejectedArtifactRefs"), finding);
+    assertTrue(finding.contains("diagnostic evidence, not fault targets unless also listed here"), finding);
+    var legal = new RecoveryDecision(decision.causeClass(), producer, decision.evidenceRefs(), decision.action(),
+        List.of(), "", decision.userSummary());
+    assertTrue(RecoveryDecisionValidator.validate(legal, input).accepted());
+    var protectedBrief = new RecoveryDecision(decision.causeClass(), briefRef, decision.evidenceRefs(), decision.action(),
+        List.of(), "", decision.userSummary());
+    assertTrue(RecoveryDecisionValidator.validate(protectedBrief, input).findings().stream()
+        .anyMatch(message -> message.equals("REGENERATE_ARTIFACT must not target the approved brief.")));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"missing", "foreign", "park-foreign"})
+  void faultReferenceDiagnosticsDoNotAuthorizeMissingOrForeignTargets(String mode) {
+    Reference fault = "missing".equals(mode) ? null : new Reference(Kind.REQUIREMENT_DRAFT, "foreign", "foreign-hash");
+    boolean park = "park-foreign".equals(mode);
+    var decision = new RecoveryDecision(park ? RecoveryCauseClass.UNCLASSIFIED : RecoveryCauseClass.DERIVATION_DEFECT,
+        fault, List.of(evidence.failureId()), park ? RecoveryAction.PARK : RecoveryAction.REGENERATE_ARTIFACT,
+        List.of(), "", "Inspect the generated output.");
+    var result = RecoveryDecisionValidator.validate(decision, context);
+    assertFalse(result.accepted());
+    assertEquals(1, result.findings().size());
+    assertTrue(result.findings().getFirst().startsWith("faultArtifactRef "));
+    assertTrue(result.findings().getFirst().contains("Rejected value: " + new ObjectMapper().valueToTree(fault)));
   }
 
   @Test

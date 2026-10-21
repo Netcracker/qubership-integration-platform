@@ -205,10 +205,18 @@ public class RequirementCaptureTools {
     return store.readSourceTurn(ToolSession.resolveConversationId(), source.turnId(), source.offset(), source.maxChars());
   }
 
-  @Tool("Read the complete accepted requirements, resolution state, defaults, and remaining work.")
+  @Tool("""
+      Read the complete accepted requirements, resolution state, defaults, and remaining work.
+      pendingProposal, when present, is the complete rejected candidate with its source/base/attempt and findings.
+      It is not accepted and grants no amendment authority. If no accepted draft exists, correct it using
+      captureRequirementDraft; otherwise use updateRequirementDraft against the accepted draft.
+      """)
   public String readRequirementDraft() {
-    return traced("readRequirementDraft", () ->
-        view(refreshCatalogBindings(ToolSession.resolveConversationId()), true, false, List.of()));
+    return traced("readRequirementDraft", () -> {
+      String conversationId = ToolSession.resolveConversationId();
+      return view(refreshCatalogBindings(conversationId), true, false, List.of())
+          .withPendingProposal(store.pendingProposal(conversationId).orElse(null));
+    });
   }
 
   private RequirementDraft refreshCatalogBindings(String conversationId) {

@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.recovery;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -14,6 +16,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Recovery
 
 /** Validates a structured recovery decision against the recovery context. */
 public final class RecoveryDecisionValidator {
+
+  private static final ObjectMapper REFERENCE_MAPPER = new ObjectMapper();
 
   private static final Set<String> GENERATED_CONTRACT_CAUSES = Set.of(
       RecoveryCauseCode.UNKNOWN_PROPERTY.name(),
@@ -169,17 +173,29 @@ public final class RecoveryDecisionValidator {
     Reference fault = decision.faultArtifactRef();
     if (decision.action() == RecoveryAction.PARK) {
       if (fault != null && !knownArtifactRefs(context).contains(fault)) {
-        findings.add("Fault artifact reference is not present in the recovery context.");
+        findings.add(faultArtifactRefFinding("is not present in the recovery context", fault, context));
       }
       return;
     }
     if (fault == null) {
-      findings.add("Fault artifact reference is required for action " + decision.action() + ".");
+      findings.add(faultArtifactRefFinding("is required for action " + decision.action(), fault, context));
       return;
     }
     if (!knownArtifactRefs(context).contains(fault)) {
-      findings.add("Fault artifact reference is not present in the recovery context.");
+      findings.add(faultArtifactRefFinding("is not present in the recovery context", fault, context));
     }
+  }
+
+  private static String faultArtifactRefFinding(String reason, Reference rejected, RecoveryContext context) {
+    List<Reference> known = knownArtifactRefs(context).stream()
+        .sorted(Comparator.comparing((Reference ref) -> ref.kind().name())
+            .thenComparing(Reference::artifactId).thenComparing(Reference::contentHash))
+        .toList();
+    return "faultArtifactRef " + reason + ". Rejected value: " + REFERENCE_MAPPER.valueToTree(rejected)
+        + ". Current known references for faultArtifactRef membership: " + REFERENCE_MAPPER.valueToTree(known)
+        + ". Action and strategy constraints still apply to these references. For a generated-output defect,"
+        + " use the current producer reference in evidence.rejectedArtifactRefs. Nested capture-attempt, feedback,"
+        + " and history references are diagnostic evidence, not fault targets unless also listed here.";
   }
 
   private static Set<Reference> knownArtifactRefs(RecoveryContext context) {
