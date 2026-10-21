@@ -63,6 +63,48 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextA
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void referencesToRejectedIdentitiesRemainRepairable(boolean predecessor) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(),
+        "Accept POST /tasks. Use a Script named Prepare stage and a Log Record named Audit stage with message audit-event.");
+    var base = readyHttpDraft();
+    RequirementCaptureResult rejected = null;
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      for (String target : List.of("invalid target", "prepare-step")) {
+        var prepare = new FactInput("prepare-behavior", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Prepare stage leaves the body unchanged.", null, null, new RequirementElementIntent(target, "script",
+                RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null, null, "Prepare stage", List.of(), List.of()));
+        var audit = new FactInput("audit-behavior", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Audit stage logs audit-event.", null, null, new RequirementElementIntent("audit-step", "log-record",
+                RequirementElementIntent.Placement.LOCAL_NODE, "entry", predecessor ? null : target,
+                predecessor ? target : null, null, "Audit stage",
+                List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", "audit-event")),
+                List.of("audit-event")));
+        var facts = new ArrayList<>(base.facts());
+        facts.addAll(List.of(prepare, audit));
+        var result = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(new DraftInput(
+            base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings()))), RequirementCaptureResult.class);
+        if (target.equals("invalid target")) {
+          assertFalse(result.accepted());
+          rejected = result;
+        } else {
+          assertTrue(result.accepted(), result.toString());
+          assertTrue(h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts().containsAll(facts));
+          assertTrue(h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+              RequirementCaptureResult.class).accepted());
+        }
+      }
+      assertNotNull(rejected);
+      String field = predecessor ? "predecessorElementRef" : "successorElementRef";
+      assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("UNKNOWN_ELEMENT_REFERENCE")
+          && issue.path().equals("/draft/facts/audit-behavior/elementIntent/" + field)), rejected.toString());
+    }
+  }
+
   @Test
   void rejectedPropertyCarriesItsRuntimeSchemaAndCorrectedJsonTextCanContinue() throws Exception {
     var h = harness();

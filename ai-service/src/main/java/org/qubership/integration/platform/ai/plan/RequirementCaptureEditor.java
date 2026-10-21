@@ -869,7 +869,8 @@ public final class RequirementCaptureEditor {
       var fields = new String[] {"successorElementRef", "predecessorElementRef", "parentElementRef"};
       for (int i = 0; i < refs.length; i++) {
         String ref = refs[i];
-        if (ref != null && (!intents.containsKey(ref) && !interactions.contains(ref)
+        if (ref != null && (!LOCAL_ID.matcher(ref).matches()
+            || !intents.containsKey(ref) && !interactions.contains(ref)
             || ref.equals(intent.elementRef()))) {
           add(issues, "UNKNOWN_ELEMENT_REFERENCE", "/draft/facts/" + fact.sourceFactId()
               + "/elementIntent/" + fields[i], fact.sourceFactId(),
