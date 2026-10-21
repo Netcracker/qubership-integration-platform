@@ -136,6 +136,35 @@ class RecoveryContractTest(unittest.TestCase):
         graph["nodes"][1]["properties"][0]["value"] = 'return "Wrong value"'
         self.assertIn("Required script value is absent from its owner", campaign.graph_errors(self.case, graph))
 
+    def test_catalog_outgoing_check_uses_the_declared_trigger_type(self):
+        for trigger_type, connected in [("http-trigger", True), ("async-api-trigger", True),
+                                        ("async-api-trigger", False)]:
+            with self.subTest(trigger=trigger_type, connected=connected), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                campaign.write_json(root / "chain.json", {"id": "chain"})
+                campaign.write_json(root / "elements.json", [
+                    {"id": "entry", "type": trigger_type, "properties": {}},
+                    {"id": "reply", "type": "script", "properties": {}}])
+                campaign.write_json(root / "dependencies.json", [{"from": "entry", "to": "reply"}] if connected else [])
+                skeleton = {"triggerMustHaveOutgoing": True, "reachableFromTrigger": ["script"]}
+                if trigger_type != "http-trigger":
+                    skeleton["triggerType"] = trigger_type
+                campaign.write_json(root / "scenario.json", {"fixture": {"catalog": {
+                    "requiredTypes": [trigger_type, "script"], "skeleton": skeleton}}})
+                (root / "curl").write_text(
+                    "#!/usr/bin/env python3\nimport os,sys\nfrom pathlib import Path\n"
+                    "suffix=sys.argv[-1].rstrip('/').split('/')[-1]\n"
+                    "name=suffix if suffix in ['elements','dependencies'] else 'chain'\n"
+                    "print((Path(os.environ['CATALOG_FIXTURE_DIR'])/(name+'.json')).read_text())\n")
+                (root / "curl").chmod(0o755)
+                checked = subprocess.run(["bash", str(campaign.HERE / "scripts/assert-catalog.sh"),
+                    str(root / "scenario.json"), "fixture", "http://fixture", "chain"],
+                    env={**os.environ, "PATH": str(root)+os.pathsep+os.environ["PATH"],
+                         "CATALOG_FIXTURE_DIR": str(root)}, capture_output=True, text=True)
+                self.assertEqual(connected, checked.returncode == 0, checked.stdout+checked.stderr)
+                if not connected:
+                    self.assertIn("trigger has no outgoing dependencies", checked.stderr)
+
     def test_tool_prohibition_allows_negative_text_and_tool_schemas(self):
         self.enhanced()
         self.case["checks"]["forbiddenTools"] = ["getApiHubDocument"]
