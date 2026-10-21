@@ -87,6 +87,7 @@ final class RequirementRevisionAdmission {
     issues.addAll(RequirementCaptureEditor.validateFactPreservation(amended(protection, candidate, allowed).facts(),
         candidate, false, mappingPaths));
     var retained = protectedValues == null || !protectedValues.isObject() ? MAPPER.createObjectNode() : protectedValues.deepCopy();
+    discardInvalidInteractionReferences((ObjectNode) retained);
     replacePaths((ObjectNode) retained, tree(candidate), allowed);
     preserveValues(retained.path("capabilities"), tree(candidate).get("capabilities"), "/capabilities", issues);
     preserveValues(retained.path("settings"), tree(candidate).get("settings"), "/settings", issues);
@@ -307,7 +308,30 @@ final class RequirementRevisionAdmission {
         if (values.at(pointer.head()) instanceof ObjectNode parent) parent.putNull(pointer.last().getMatchingProperty());
       }
     }
+    discardInvalidInteractionReferences(values);
     return values;
+  }
+
+  private static void discardInvalidInteractionReferences(ObjectNode values) {
+    var invalid = new java.util.HashSet<String>();
+    values.path("interactions").fields().forEachRemaining(field -> {
+      if (field.getValue().isNull()) invalid.add(field.getKey());
+    });
+    if (invalid.isEmpty()) return;
+    if (values.get("capabilities") instanceof ObjectNode capabilities) invalid.forEach(capabilities::remove);
+    if (values.get("transitions") instanceof ObjectNode outgoing) {
+      invalid.forEach(outgoing::remove);
+      var edges = outgoing.fields();
+      while (edges.hasNext()) {
+        var edge = edges.next();
+        var targets = MAPPER.createArrayNode();
+        edge.getValue().forEach(target -> {
+          if (!invalid.contains(target.asText())) targets.add(target);
+        });
+        if (targets.isEmpty()) edges.remove();
+        else outgoing.set(edge.getKey(), targets);
+      }
+    }
   }
 
   record RetainedAdditions(List<FactInput> facts, ObjectNode values) {}
