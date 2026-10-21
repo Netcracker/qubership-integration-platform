@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -41,7 +42,7 @@ class RequirementCaptureProviderTest {
       "updateRequirementDraft,changes,addFacts",
       "updateRequirementDraft,changes,updateFacts"
   })
-  void nameSchemaDistinguishesElementNamesFromInteractionParticipants(
+  void intentSchemaSeparatesNamesAndRuntimeValuesFromBusinessDescriptions(
       String tool, String parameter, String factsField) {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var provider = new RequirementCaptureToolProvider(new RequirementCaptureTools(new RequirementDraftStore(),
@@ -58,6 +59,48 @@ class RequirementCaptureProviderTest {
     org.junit.jupiter.api.Assertions.assertNotNull(name.description());
     assertTrue(name.description().contains("ANCHOR"), name.description());
     assertTrue(name.description().contains("participant"), name.description());
+    var literals = assertInstanceOf(JsonArraySchema.class, intent.properties().get("exactValues"));
+    String description = literals.description();
+    assertTrue(description.contains("Complete author-supplied runtime keys or scalar values"), description);
+    assertTrue(description.contains("complete executable"), description);
+    assertTrue(description.contains("literal component or prefix byte-for-byte"), description);
+    assertTrue(description.contains("compose separators and runtime expressions outside"), description);
+    assertTrue(description.contains("BEHAVIOR text"), description);
+    assertTrue(description.contains("FIELD_MAPPING on a real business transition"), description);
+    assertTrue(description.contains("Source occurrence alone"), description);
+    assertTrue(description.contains("'a=b'"), description);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"a=b", "key with spaces=value", "sourceTask=original taskId"})
+  void completeResponseLiteralsAndTheirFullBehaviorSurviveNativeProviderCapture(String literal) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var tools = new RequirementCaptureTools(store, new RequirementDraftTool(store), mapper);
+    tools.elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService.createForUnitTests(mapper);
+    var provider = new RequirementCaptureToolProvider(tools, mapper).provideTools(null);
+    String behavior = "The Script must return exactly \"" + literal + "\". Retain original record identifiers"
+        + " in exchange properties and set result.sourceId from the original id before replacing the body.";
+    String chat = "complete-literal-" + UUID.randomUUID();
+    store.beginTurn(chat, "Receive POST /work. " + behavior);
+    var intent = new RequirementElementIntent("reply", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, "entry", null, List.of(), List.of(literal));
+    var fact = new FactInput("reply", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        behavior, null, null, intent);
+    var input = withNativeAnchors(new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /work", null, null, null)), List.of()),
+        List.of(fact), List.of(new RequirementCaptureInput.CapabilityInput("entry", "http-trigger",
+            RequirementCaptureInput.HttpMode.CUSTOM, RequirementCaptureInput.HttpMethod.POST, "/work", null, null, null)),
+        List.of(), new DraftSettings(null, null)));
+
+    var result = mapper.readTree(provider.toolExecutorByName("captureRequirementDraft").execute(
+        ToolExecutionRequest.builder().id("complete-literal").name("captureRequirementDraft")
+            .arguments(mapper.writeValueAsString(Map.of("draft", input))).build(), chat));
+
+    assertTrue(result.path("accepted").asBoolean(), result.toString());
+    assertEquals(input, store.get(chat).orElseThrow().authoredDraft());
+    assertEquals(fact, store.get(chat).orElseThrow().authoredDraft().facts().stream()
+        .filter(value -> value.sourceFactId().equals("reply")).findFirst().orElseThrow());
   }
 
   @Test

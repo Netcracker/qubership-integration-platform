@@ -126,7 +126,7 @@ public class GatherRequirementsPromptBuilder {
           Preserve explicit elementIntent on facts: ANCHOR uses the interaction ID; LOCAL_NODE
           uses a separate stable elementRef; BEFORE_HOOK and AFTER_HOOK belong only to their
           Service Call. Chain names use CHAIN placement with elementType=chain. Copy requestedName
-          without prefixes or language labels, and keep literal bodies/strings in exactValues.
+          without prefixes or language labels.
           Use existing element schema keys for requestedProperties; omit guessed defaults.
           AsyncAPI Trigger topic and classifier come from the selected catalog operation. Keep
           their requested literals in fact text and exactValues, not standalone runtime properties.
@@ -210,7 +210,18 @@ public class GatherRequirementsPromptBuilder {
         .append("and calls with ANCHOR placement even when they have no requestedProperties. ")
         .append("The interaction participant identifies the other party; it does not name the trigger or call. ")
         .append("Before finishing, compare each explicit name in the saved author source to the accepted elementIntent fields. ")
-        .append("Add a missing naming fact on that elementRef before using CONTINUE.\n");
+        .append("Add a missing naming fact on that elementRef before using CONTINUE.\n")
+        .append("""
+            exactValues contains only complete runtime keys or scalar values explicitly required verbatim;
+            script values are checked as complete executable constants. Preserve an explicitly required
+            literal component or prefix byte-for-byte even when the output adds a dynamic suffix;
+            compose separators and runtime expressions outside that exact constant.
+            Keep whole binding, computation, and composition descriptions in BEHAVIOR text or
+            FIELD_MAPPING on a real business transition, not as required standalone constants.
+            Source occurrence alone does not establish a runtime constant. Preserve complete literals
+            containing '=' or spaces, such as a required response body "a=b". Do not invent a business
+            interaction for local script output or remove its behavior requirements.
+            """);
     boolean currentIncluded = false;
     if (conversationService != null) {
       var archive = conversationService.archive();

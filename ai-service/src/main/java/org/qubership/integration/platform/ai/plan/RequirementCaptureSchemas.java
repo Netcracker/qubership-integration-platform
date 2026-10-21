@@ -119,8 +119,16 @@ public final class RequirementCaptureSchemas {
         && parameterized.getRawType() == List.class) {
       return JsonArraySchema.builder()
           .description("exactValues".equals(name)
-              ? "Mandatory runtime literals bound to this owner's supported property, script, hook, or native capability."
-                  + " Names belong in requestedName; do not list type or language display names." : null)
+              ? "Complete author-supplied runtime keys or scalar values that this owner's artifact must contain exactly,"
+                  + " such as a complete response body, error code, JSON key, or marker. Preserve all characters, including"
+                  + " whitespace or '=' in a complete value such as 'a=b'. Script values are checked as complete executable"
+                  + " constants. Preserve an explicitly required literal component or prefix byte-for-byte even when"
+                  + " the output adds a dynamic suffix; compose separators and runtime expressions outside that constant."
+                  + " Keep whole binding, computation, and composition descriptions in BEHAVIOR text or a FIELD_MAPPING"
+                  + " on a real business transition, not as standalone constants. Source occurrence alone does not establish"
+                  + " a runtime constant. Names belong in requestedName;"
+                  + " do not list type or language display names."
+              : null)
           .items(schema(parameterized.getActualTypeArguments()[0], name + "[]"))
           .build();
     }
