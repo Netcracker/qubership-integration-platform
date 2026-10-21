@@ -30,7 +30,7 @@ corpus, residue, and frozen fixtures, and its `browser.md` holds the rules for `
 
 ```bash
 npm run check-types          # type-check
-npm test -- --project=schema # the specs that need no stack
+npm test -- --project=schema --project=harness  # the specs that need no stack
 npm test -- --project=<name> --no-deps -g "…"  # one case, against a corpus kept with E2E_KEEP=1
 npm test; npm run reconcile  # a full run, then the registries checked against it
 npx playwright test --list   # count the cases and the projects; starts nothing
@@ -53,8 +53,8 @@ bundle never loads. Regenerate a golden in the suite that writes it.
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
 manual dispatch. No pull request check runs it. `npm run check-types` and
-`npx playwright test --project=schema` need no stack, so run both before pushing a change to `e2e/`
-or to a tree the `schema` project reads:
+`npx playwright test --project=schema --project=harness` need no stack, so run both before pushing
+a change to `e2e/` or to a tree the two projects read:
 `schemas/src/main/resources/conf-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,
 and the import-file migration classes under `integration-build-pipeline/`. The rest of the suite
 provisions a Compose stack or a cluster namespace and expects to own it for the length of the run.
@@ -91,8 +91,8 @@ debugging on the same stack.
   and has no flag that skips it, so `globalSetup` returns before it mints a run token when every
   selected project declares `metadata: { stack: false }` in `playwright.config.ts`. The selection
   is read off `config.argv`, because `config.grep` serializes to `{}` and `config.projects` lists
-  every declared project. Without that return, `--project=schema` could not run on a machine with no
-  Docker.
+  every declared project. Without that return, `--project=schema --project=harness` could not run on
+  a machine with no Docker.
 
 On `k8s` the suite provisions the namespace, never the cluster; `e2e/k8s/bootstrap-cluster.sh`
 prepares the cluster. The cluster versions are pinned in the script and in `e2e/k8s/README.md`.
@@ -128,7 +128,8 @@ e2e/
   k8s/                   the chart values for qip-e2e, the cluster bootstrap script, and the page
                          that installs a cluster
   registry/              what the suite claims to cover, read off the tracked schemas
-  specs/schema/          no stack needed: registries, fixtures, checksums
+  specs/schema/          no stack needed: the product's routes, Compose files, migrations, schemas
+  specs/harness/         no stack needed: the suite's own code, registries, and lint rules
   specs/api/             parallel-safe
   specs/seed/            imports and deploys the shared corpus, and removes it again
   specs/tooling/         the testing service works as a tool, before runtime leans on it

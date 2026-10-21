@@ -32,24 +32,26 @@ function recordingCatalog(urls: string[]): Catalog {
   return new Catalog(api as unknown as APIRequestContext, BASE);
 }
 
-test("listOperations asks for the whole listing, not the default page", { tag: ["@infra", "@tier1"] }, async () => {
-  const urls: string[] = [];
-  await recordingCatalog(urls).listOperations("model-1");
+test.describe("catalog requests", { tag: ["@harness"] }, () => {
+  test("listOperations sends count=0 for the whole listing", async () => {
+    const urls: string[] = [];
+    await recordingCatalog(urls).listOperations("model-1");
 
-  expect(urls).toHaveLength(1);
-  const query = new URL(urls[0]).searchParams;
-  expect(query.get("modelId")).toBe("model-1");
-  // Not "a count is present": `OperationController` already defaults it to 20, and
-  // `OperationService.getOperations` answers an empty list to a negative one. Zero is the single
-  // value that reaches the unwindowed repository method.
-  expect(query.get("count")).toBe("0");
-});
+    expect(urls).toHaveLength(1);
+    const query = new URL(urls[0]).searchParams;
+    expect(query.get("modelId")).toBe("model-1");
+    // Not "a count is present": `OperationController` already defaults it to 20, and
+    // `OperationService.getOperations` answers an empty list to a negative one. Zero is the single
+    // value that reaches the unwindowed repository method.
+    expect(query.get("count")).toBe("0");
+  });
 
-test("the stub base records no operation coverage", { tag: ["@infra", "@tier1"] }, async () => {
-  const urls: string[] = [];
-  await recordingCatalog(urls).listOperations("model-1");
+  test("the stub base records no operation coverage", async () => {
+    const urls: string[] = [];
+    await recordingCatalog(urls).listOperations("model-1");
 
-  for (const url of urls) {
-    expect(matchOperationPath("catalog", "GET", new URL(url).pathname)).toBeUndefined();
-  }
+    for (const url of urls) {
+      expect(matchOperationPath("catalog", "GET", new URL(url).pathname)).toBeUndefined();
+    }
+  });
 });

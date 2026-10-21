@@ -16,7 +16,7 @@
  * that the platform still returns 200. `summarizeOperations` keeps them apart and every report
  * that quotes one has to quote the other.
  *
- * Two readings guard the registry, and neither trusts the other. `specs/schema/api-coverage.spec.ts`
+ * Two readings guard the registry, and neither trusts the other. `specs/harness/api-coverage.spec.ts`
  * diffs the registry against `operations.cache.json` without a stack; `specs/api/api-docs-live.spec.ts`
  * diffs that cache against what the services serve right now. Without the second, a controller added
  * to the catalog fails nothing: the guard would only prove the registry tracks a file the registry's

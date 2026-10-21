@@ -14,7 +14,7 @@ import { parseCases, titleProblems } from "../../support/title-rules.js";
 const SPECS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The spec directories whose files do not keep the rules yet. */
-const TITLE_RULES_PENDING = ["api", "brokers", "env", "global", "k8s", "runtime", "runtime-micro-redeploy", "schema", "tooling", "ui"];
+const TITLE_RULES_PENDING = ["api", "brokers", "env", "global", "k8s", "runtime", "runtime-micro-redeploy", "tooling", "ui"];
 
 /** Every spec file, relative to `specs/`. */
 const SPEC_FILES = fs
@@ -29,7 +29,7 @@ const problemsIn = (file: string) => titleProblems(fs.readFileSync(path.join(SPE
 const inDescribe = (body: string) => `test.describe("subject", { tag: ["@engine"] }, () => {\n${body}\n});\n`;
 const problemsOf = (source: string) => titleProblems(source, "a.spec.ts");
 
-test.describe("title rules", { tag: ["@infra", "@tier1"] }, () => {
+test.describe("title rules", { tag: ["@harness"] }, () => {
   test("every spec outside the pending directories keeps them", () => {
     const checked = SPEC_FILES.filter((file) => !TITLE_RULES_PENDING.includes(directoryOf(file)));
     expect(checked.flatMap(problemsIn)).toEqual([]);

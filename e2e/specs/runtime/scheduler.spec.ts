@@ -13,7 +13,7 @@
  * reading the database directly -- so whether a job's trigger was deleted after it fired has no
  * user-visible observable on this stack. `deleteJob` is also a plain boolean property with no `if`
  * branch in `quartz-scheduler.schema.yaml`, so `registry/discriminators.ts` extracts no axis for it
- * in the first place: a manually added row would fail `specs/schema/coverage.spec.ts`'s "no row
+ * in the first place: a manually added row would fail `specs/harness/coverage.spec.ts`'s "no row
  * names a value the schemas no longer declare" check. The gap is recorded here, in prose, rather
  * than invented as a registry entry that check would immediately reject.
  *

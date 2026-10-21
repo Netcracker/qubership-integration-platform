@@ -62,8 +62,8 @@ then test the dev server. A preview an interrupted run left on 4200 is stopped f
 `.e2e-ui-server.json` still records it; when the runner that started it is still alive, the setup
 fails naming its pid instead.
 
-`schema`, `api`, `tooling`, `runtime`, `runtime-micro`, `runtime-micro-redeploy`, `k8s`, `brokers`,
-and `brokers-micro` run with no browser installed. `env`, `global`, `global-micro`, `env-micro`, and
+`schema`, `harness`, `api`, `tooling`, `runtime`, `runtime-micro`, `runtime-micro-redeploy`, `k8s`,
+`brokers`, and `brokers-micro` run with no browser installed. `env`, `global`, `global-micro`, `env-micro`, and
 `brokers-restart` depend on `ui`, directly or through `global`, so `--project=env`,
 `--project=global`, and `--project=brokers-restart` build the bundle and launch Chromium too. Set
 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment downloads a browser you do not want.
@@ -110,7 +110,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 
 | Project | `compose` | `k8s` |
 | --- | --- | --- |
-| `schema`, `api`, `tooling`, `ui`, `env`, `global` | yes | yes |
+| `schema`, `harness`, `api`, `tooling`, `ui`, `env`, `global` | yes | yes |
 | `seed`, `seed-teardown` | the corpus, deployed to the classic engine | the same |
 | `ui-server`, `ui-server-teardown` | build and serve the UI bundle on 4200, then stop it | the same |
 | `runtime` | `specs/runtime/` against the classic engine | the same |
@@ -186,7 +186,8 @@ total and the projects it is spread over; give it the target, as in
 
 ```bash
 npm test                              # everything
-npm test -- --project=schema          # the registries and the fixtures, no stack needed
+npm test -- --project=schema          # the product's tracked files, no stack needed
+npm test -- --project=harness         # the suite's own code and registries, no stack needed
 npm test -- --project=api             # the specs that run in parallel
 npm test -- --project=tooling         # the testing service, before runtime leans on it
 npm test -- --project=runtime         # the seeded chains, called and asserted
@@ -251,8 +252,8 @@ of those pods' containers, istiod, and the camel-k operator. The dump runs after
 holds a micro domain's pod only because a failed micro case keeps the run's micro domains (see
 [Reading a failure](#reading-a-failure)).
 
-No pull request check runs the suite. `npm run check-types` and `--project=schema` need no stack;
-run them before pushing, as `AGENTS.md` describes.
+No pull request check runs the suite. `npm run check-types` and `--project=schema --project=harness`
+need no stack; run them before pushing, as `AGENTS.md` describes.
 
 **Selecting cases.** Every test carries a component tag (`@catalog`, `@engine`, `@sessions`,
 `@testing-service`, `@ui`, `@infra`) and a tier: `@tier1` is the release floor and `@tier2` the
@@ -498,8 +499,9 @@ E2E_PROVISION=never npm test   # check health only, and fail naming whatever is 
 ```
 
 Use it against a stack somebody else provisioned, or one you are debugging: nothing is built,
-started, or recreated. A run whose `--project` selection needs no stack, which today means `schema`
-alone, skips provisioning and prints `[provision] skipped: schema needs no stack`.
+started, or recreated. A run whose `--project` selection needs no stack, which today means `schema`,
+`harness`, or both, skips provisioning and prints
+`[provision] skipped: the selected projects need no stack (schema, harness)`.
 
 ## Broker overlays
 
@@ -623,7 +625,8 @@ registry/   what the suite claims to cover, and the checks that keep the claim h
 support/    the service clients, the corpus assembler, the chain builders, the report, the page
             guard every browser spec imports, the UI bundle server, and the release-check runner
 specs/
-  schema/       no stack: the registries against the tracked schemas
+  schema/       no stack: the product's routes, Compose files, migrations, and schemas
+  harness/      no stack: the suite's own code, the registries, and the lint rules over the specs
   api/          parallel-safe specs
   seed/         imports and deploys the shared corpus, and removes it again
   tooling/      the testing service works as a tool, before runtime leans on it
@@ -647,8 +650,10 @@ specs/
 pages/      page objects for the UI and the shared TableView; selectors by role, test id, then title
 ```
 
-The split into projects is about scheduling rather than subject. `schema` reads files off disk and
-finishes in seconds, so a broken registry costs nothing to discover. `env` restarts services, which
+The split into projects is about scheduling rather than subject. `schema` and `harness` read files
+off disk and finish in seconds, so a broken registry costs nothing to discover. `harness` is the one
+split by subject: its tests check the suite rather than the product, so the run summary and the
+email count them on a line of their own. `env` restarts services, which
 disturbs every spec in flight, so it runs after `api`, `runtime`, and `ui`. `global` runs one worker
 after `api`, `runtime`, `env`, and `ui`, because its reads cover every worker's data and four of its
 endpoints change state the others read. Both are `dependencies`, so a failed `ui` case skips `env`
@@ -695,7 +700,7 @@ is the only thing that writes it. Point it elsewhere with `CIP_CATALOG_URL`, `CI
 
 `fixtures/archives/frozen/` pins import compatibility, and nothing regenerates it. Run
 `npm run frozen-checksums` only after a deliberate change to an archive, never to turn
-`specs/schema/frozen-corpus.spec.ts` green.
+`specs/harness/frozen-corpus.spec.ts` green.
 
 ## The extension's integration tests
 

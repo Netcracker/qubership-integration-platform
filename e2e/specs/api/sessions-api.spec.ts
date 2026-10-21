@@ -159,7 +159,7 @@ function idsOf(page: SessionPage): string[] {
  * Puts one session into the index without a chain, a deploy, or an engine.
  *
  * The document is `fixtures/sessions/recorded-session.json` — the verbatim answer to one external-id
- * lookup, which `specs/schema/sessions-helper.spec.ts` already reads — re-identified so the import
+ * lookup, which `specs/harness/sessions-helper.spec.ts` already reads — re-identified so the import
  * is a create rather than the 409 `checkExisting` answers for a live id. Every id has to move: the
  * elements are written under their own ids, so reusing them would overwrite the fixture's original
  * documents if they were ever on the stack.

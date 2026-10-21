@@ -47,6 +47,40 @@ export function eachTest(report, visit) {
   for (const suite of report.suites) walk(suite, []);
 }
 
+/** The projects that test the harness rather than the product, counted apart from the run's own tests. */
+export const HARNESS_PROJECTS = ["harness"];
+
+/**
+ * @typedef {{ expected: number, unexpected: number, flaky: number, skipped: number }} OutcomeCounts
+ */
+
+/**
+ * The run's counts with the tests of `exclude` taken out, and the counts of those tests alone.
+ * `report.stats` tallies every project and cannot be filtered by one, so the excluded tests are
+ * counted off the report and subtracted.
+ *
+ * @param {Report} report
+ * @param {string[]} exclude project names
+ * @returns {{ counted: OutcomeCounts, excluded: OutcomeCounts }}
+ */
+export function countsByProject(report, exclude) {
+  /** @type {OutcomeCounts} */
+  const excluded = { expected: 0, unexpected: 0, flaky: 0, skipped: 0 };
+  eachTest(report, (_spec, test) => {
+    if (exclude.includes(test.projectName)) excluded[/** @type {keyof OutcomeCounts} */ (test.status)]++;
+  });
+  const { expected, unexpected, flaky, skipped } = report.stats;
+  return {
+    counted: {
+      expected: expected - excluded.expected,
+      unexpected: unexpected - excluded.unexpected,
+      flaky: flaky - excluded.flaky,
+      skipped: skipped - excluded.skipped,
+    },
+    excluded,
+  };
+}
+
 /**
  * Which tests pin a product defect that no longer reproduces. A `test.fail()` case that passed is
  * `unexpected`, with a passed result and the `fail` annotation. A project that needs no stack pins

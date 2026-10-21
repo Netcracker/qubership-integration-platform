@@ -172,7 +172,7 @@ const R_ASYNC_API_TRIGGER_SYSTEM_TYPE =
 //   carries the script inline. `specs/api/script-source.spec.ts` asserts that round trip and
 //   declares no `covers()`, because the `script` row is `@engine` and that spec deploys nothing.
 // - **No two scripts in one chain under `fixtures/script/` carry the same text**, and the comment
-//   line at the top of each keeps them apart; `specs/schema/fixtures.spec.ts` refuses a duplicate.
+//   line at the top of each keeps them apart; `specs/harness/fixtures.spec.ts` refuses a duplicate.
 //   Each chain's Camel context has its own compiled-script cache, keyed on the trimmed source, so
 //   two identical scripts in one chain share one compiled class, and an assertion about one of them
 //   can be satisfied by the compilation of the other. Do not deduplicate them.

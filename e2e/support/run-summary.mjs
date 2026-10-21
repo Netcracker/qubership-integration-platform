@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { eachTest, fixedPinIn, readIfPresent, shortDate, stripAnsi } from "./run-report.mjs";
+import { HARNESS_PROJECTS, countsByProject, eachTest, fixedPinIn, readIfPresent, shortDate, stripAnsi } from "./run-report.mjs";
 import { fixedSince, historyOf, readHistory, testKey, writeOutcomes } from "./run-history.mjs";
 
 export const SUMMARY_FILE = "summary.md";
@@ -158,18 +158,22 @@ function timing(report, stack) {
 }
 
 /**
+ * The product's counts, and the harness's on a line of their own. A failed harness test still
+ * fails the run and is listed with the other failures.
+ *
  * @param {Report} report
  * @param {number} pins the failed tests that are fixed pins
  */
 function countsTable(report, pins) {
-  const { expected, unexpected, skipped } = report.stats;
+  const { counted, excluded } = countsByProject(report, HARNESS_PROJECTS);
   const head = ["Passed", "Failed", "Skipped"];
-  const row = [expected, unexpected - pins, skipped];
+  const row = [counted.expected, counted.unexpected - pins, counted.skipped];
   if (pins > 0) {
     head.push("Pins to remove");
     row.push(pins);
   }
-  return table(head, [row.map(String)]);
+  const harness = excluded.expected + excluded.unexpected > 0 ? `\n\nHarness: ${excluded.expected} passed, ${excluded.unexpected} failed.` : "";
+  return table(head, [row.map(String)]) + harness;
 }
 
 /** @param {FixedPin[]} pins */

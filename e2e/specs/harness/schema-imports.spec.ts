@@ -1,8 +1,8 @@
 /**
- * What the `schema` project is allowed to import, read off the directory itself.
+ * What the `schema` and `harness` projects are allowed to import, read off their directories.
  *
- * The project's whole value is that it needs no stack: `--project=schema` runs on a machine with no
- * Docker. `support/fixtures.js` is what would take that
+ * Their whole value is that they need no stack: `--project=schema --project=harness` runs on a
+ * machine with no Docker. `support/fixtures.js` is what would take that
  * away, because its `test` installs `auto: true` fixtures — one creates a per-worker folder over
  * HTTP, another shells out to `docker logs` — so a single spec taking `test` or `expect` from
  * there turns the gate red on a machine that never had a stack to be wrong about.
@@ -16,9 +16,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
+const SPECS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The only module a `specs/schema/` spec may take `test` or `expect` from. */
+/** The spec directories of the projects that need no stack. */
+const STACKLESS_DIRS = ["schema", "harness"];
+
+/** The only module a stackless spec may take `test` or `expect` from. */
 const ALLOWED = "@playwright/test";
 
 /** Every static import in a source file, as the clause it binds and the module it names. */
@@ -50,7 +53,7 @@ interface Offense {
 }
 
 function offensesIn(spec: string): Offense[] {
-  const source = fs.readFileSync(path.join(HERE, spec), "utf-8");
+  const source = fs.readFileSync(path.join(SPECS, spec), "utf-8");
   const found: Offense[] = [];
   for (const [, , clause, from] of source.matchAll(IMPORT)) {
     if (from === ALLOWED) continue;
@@ -61,16 +64,21 @@ function offensesIn(spec: string): Offense[] {
   return found;
 }
 
-const specs = fs.readdirSync(HERE).filter((name) => name.endsWith(".spec.ts"));
+/** Every spec file of the stackless projects, relative to `specs/`. */
+const specs = STACKLESS_DIRS.flatMap((dir) =>
+  fs.readdirSync(path.join(SPECS, dir)).filter((name) => name.endsWith(".spec.ts")).map((name) => `${dir}/${name}`),
+);
 
-test("the schema project stays stack-free by taking test and expect from Playwright alone", { tag: ["@infra", "@tier1"] }, () => {
-  // A scan over an empty directory passes for the worst possible reason, and this file is in it.
-  expect(specs.length).toBeGreaterThan(1);
+test.describe("stackless imports", { tag: ["@harness"] }, () => {
+  test("stackless specs take test and expect from Playwright only", () => {
+    // A scan over an empty directory passes for the worst possible reason.
+    for (const dir of STACKLESS_DIRS) expect(specs.filter((spec) => spec.startsWith(`${dir}/`)).length, dir).toBeGreaterThan(0);
 
-  const offenses = specs.flatMap(offensesIn);
-  expect(
-    offenses.map((each) => `${each.spec} imports ${each.name} from ${each.from}`),
-    `a specs/schema/ spec may take test and expect from ${ALLOWED} only: any other module can ` +
-      `install fixtures, and support/fixtures.js installs ones that need a running stack`,
-  ).toEqual([]);
+    const offenses = specs.flatMap(offensesIn);
+    expect(
+      offenses.map((each) => `${each.spec} imports ${each.name} from ${each.from}`),
+      `a specs/schema/ or specs/harness/ spec may take test and expect from ${ALLOWED} only: ` +
+        `any other module can install fixtures, and support/fixtures.js installs ones that need a running stack`,
+    ).toEqual([]);
+  });
 });

@@ -15,7 +15,7 @@
  *
  * `idempotent`/`idempotentKey` are plain properties, not `if`-branched ones, so
  * `registry/discriminators.ts` extracts no axis for them and neither carries a registry row -- a
- * manually added one would fail `specs/schema/coverage.spec.ts`'s "no registry row names a value
+ * manually added one would fail `specs/harness/coverage.spec.ts`'s "no registry row names a value
  * the schemas no longer declare" check. They are still asserted here, behaviorally: pinning
  * `idempotentKey` to a literal (not file-derived) string on `sftp-trigger-idempotent` makes every
  * matched file resolve to the same key, so a second, distinct file dropped after the first is

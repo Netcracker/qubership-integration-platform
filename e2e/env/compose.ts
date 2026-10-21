@@ -103,7 +103,7 @@ const OVERLAYS: Record<Overlay, OverlayDefinition> = {
  * Thrown synchronously, before `ensureOverlay` runs a single Compose command, so a typo in an
  * overlay name fails the run immediately rather than through a deployment that sits at `PROCESSING`
  * and retries against a broker nothing ever started. No stack is needed to reach this function,
- * which is what `specs/schema/env-overlay.spec.ts` proves it.
+ * which is what `specs/harness/env-overlay.spec.ts` proves it.
  */
 export function overlayDefinition(name: string): OverlayDefinition {
   const definition = OVERLAYS[name as Overlay];

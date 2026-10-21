@@ -46,93 +46,89 @@ function servingLocation(apiPath: string): RegexLocation | undefined {
   );
 }
 
-test("the table is populated and the config still declares locations", { tag: ["@infra", "@tier1"] }, () => {
-  // Every case below is a loop over one of these two, and a loop over nothing passes.
-  expect(API_ROUTES.length).toBeGreaterThan(0);
-  expect(regexLocations.length).toBeGreaterThan(0);
-});
+test.describe("API prefixes against routes.conf", { tag: ["@schema"] }, () => {
+  test("the table and the config both list locations", () => {
+    // Every case below is a loop over one of these two, and a loop over nothing passes.
+    expect(API_ROUTES.length).toBeGreaterThan(0);
+    expect(regexLocations.length).toBeGreaterThan(0);
+  });
 
-test("every row cites the location that actually serves its path", { tag: ["@infra", "@tier1"] }, () => {
-  // Not "line N holds some location": every block in this file is nine lines long, so the cited
-  // lines are nine apart whatever the config says, and a reordered or replaced block leaves each
-  // row describing a different rule with the case still green. What is asserted instead is the
-  // rule nginx would pick — the first regex location matching the row's own path — which no edit
-  // to the config can satisfy by coincidence.
-  for (const route of API_ROUTES) {
-    const serving = servingLocation(route.api);
-    expect(
-      serving?.line,
-      `${route.api} is served by ${CONFIG}:${serving?.line ?? "no location"} ` +
-        `(${serving?.pattern ?? "-"}), and the row cites line ${route.line}`,
-    ).toBe(route.line);
-  }
-});
+  test("every row cites the location that serves its path", () => {
+    // Not "line N holds some location": every block in this file is nine lines long, so the cited
+    // lines are nine apart whatever the config says, and a reordered or replaced block leaves each
+    // row describing a different rule with the case still green. What is asserted instead is the
+    // rule nginx would pick — the first regex location matching the row's own path — which no edit
+    // to the config can satisfy by coincidence.
+    for (const route of API_ROUTES) {
+      const serving = servingLocation(route.api);
+      expect(
+        serving?.line,
+        `${route.api} is served by ${CONFIG}:${serving?.line ?? "no location"} ` +
+          `(${serving?.pattern ?? "-"}), and the row cites line ${route.line}`,
+      ).toBe(route.line);
+    }
+  });
 
-test("the table covers every /api/ rule the config declares", { tag: ["@infra", "@tier1"] }, () => {
-  // The other direction. Without it a `location` added to `routes.conf` is untested in silence:
-  // every other case here and in `specs/api/api-prefixes.spec.ts` is a loop over the table, so a
-  // rule nobody wrote a row for is a rule nobody checks.
-  const cited = new Set(API_ROUTES.map((route) => route.line));
-  const uncited = regexLocations
-    .filter((location) => location.pattern.startsWith("^/api/"))
-    .filter((location) => !cited.has(location.line))
-    .map((location) => `${CONFIG}:${location.line} ${location.pattern}`);
+  test("the table covers every /api/ rule the config declares", () => {
+    // The other direction. Without it a `location` added to `routes.conf` is untested in silence:
+    // every other case here and in `specs/api/api-prefixes.spec.ts` is a loop over the table, so a
+    // rule nobody wrote a row for is a rule nobody checks.
+    const cited = new Set(API_ROUTES.map((route) => route.line));
+    const uncited = regexLocations
+      .filter((location) => location.pattern.startsWith("^/api/"))
+      .filter((location) => !cited.has(location.line))
+      .map((location) => `${CONFIG}:${location.line} ${location.pattern}`);
 
-  expect(uncited, "/api/ locations with no row in API_ROUTES").toEqual([]);
-});
+    expect(uncited, "/api/ locations with no row in API_ROUTES").toEqual([]);
+  });
 
-test("the two irregular shapes are the ones the config still produces", { tag: ["@infra", "@tier1"] }, () => {
-  // The greedy match on the **last** `/catalog/`, which doubles the segment.
-  expect(lines[48]).toContain('location ~ "^/api/(v\\d+)/.*/catalog/"');
-  const doubled = API_ROUTES.find((route) => route.line === 49)!;
-  expect(doubled.api).toContain("/catalog/catalog/");
-  expect(doubled.service).toBe("/v1/catalog/runtime-deployments");
+  test("the config still produces the two irregular shapes", () => {
+    // The greedy match on the **last** `/catalog/`, which doubles the segment.
+    expect(lines[48]).toContain('location ~ "^/api/(v\\d+)/.*/catalog/"');
+    const doubled = API_ROUTES.find((route) => route.line === 49)!;
+    expect(doubled.api).toContain("/catalog/catalog/");
+    expect(doubled.service).toBe("/v1/catalog/runtime-deployments");
 
-  // `v2/snapshots` intercepted and rewritten to `/v2/catalog/snapshots`, which the catch-all is not.
-  expect(lines[66]).toContain('location ~ "^/api/.*/v2/snapshots"');
-  expect(lines[68]).toContain("/v2/catalog/$1");
-  const snapshots = API_ROUTES.find((route) => route.line === 67)!;
-  expect(snapshots.service).toContain("/v2/catalog/snapshots");
-});
+    // `v2/snapshots` intercepted and rewritten to `/v2/catalog/snapshots`, which the catch-all is not.
+    expect(lines[66]).toContain('location ~ "^/api/.*/v2/snapshots"');
+    expect(lines[68]).toContain("/v2/catalog/$1");
+    const snapshots = API_ROUTES.find((route) => route.line === 67)!;
+    expect(snapshots.service).toContain("/v2/catalog/snapshots");
+  });
 
-test("the catch-all is the general form and the UI's form is not", { tag: ["@infra", "@tier1"] }, () => {
-  // The catch-all strips one segment and proxies the rest to the catalog, which is why
-  // `/api/cip` + a service path reaches all of it.
-  expect(lines[147]).toContain("location ~ ^/api/[^/]+/(v\\d+)/");
-  expect(apiPath("runtime-catalog", "/v1/systems")).toBe("/api/cip/v1/systems");
-  expect(apiPath("runtime-catalog", "/v1/catalog/runtime-deployments")).toBe(
-    "/api/cip/v1/catalog/runtime-deployments",
-  );
+  test("the catch-all is the general form and the UI's form is not", () => {
+    // The catch-all strips one segment and proxies the rest to the catalog, which is why
+    // `/api/cip` + a service path reaches all of it.
+    expect(lines[147]).toContain("location ~ ^/api/[^/]+/(v\\d+)/");
+    expect(apiPath("runtime-catalog", "/v1/systems")).toBe("/api/cip/v1/systems");
+    expect(apiPath("runtime-catalog", "/v1/catalog/runtime-deployments")).toBe(
+      "/api/cip/v1/catalog/runtime-deployments",
+    );
 
-  // The form the UI builds lists six families and no more; `systems` is not among them.
-  expect(lines[39]).toContain("chains|detailed-design|design-generator|library|folders|cr");
-  expect(NOT_PROXIED.map((each) => each.api)).toContain("/api/v1/cip/catalog/systems");
-});
+    // The form the UI builds lists six families and no more; `systems` is not among them.
+    expect(lines[39]).toContain("chains|detailed-design|design-generator|library|folders|cr");
+    expect(NOT_PROXIED.map((each) => each.api)).toContain("/api/v1/cip/catalog/systems");
+  });
 
-test("each non-catalog service is addressed through its own segment", { tag: ["@infra", "@tier1"] }, () => {
-  expect(apiPath("sessions-management", "/v1/sessions")).toBe(
-    "/api/v1/cip/sessions-management/sessions",
-  );
-  expect(apiPath("engine", "/v1/engine/live-exchanges")).toBe("/api/v1/cip/engine/live-exchanges");
-  expect(apiPath("testing-service", "/api/v1/swagger/doc.json")).toBe(
-    "/api/v1/cip/testing-service/swagger/doc.json",
-  );
-  // The rewrites these rules perform are exactly what the table's shapes encode.
-  expect(lines[113]).toContain("/sessions-management/(.*)$");
-  expect(lines[122]).toContain("/$1/engine/$2");
-  expect(lines[140]).toContain("/api/$1/$2");
-});
+  test("a non-catalog service is reached through its own segment", () => {
+    expect(apiPath("sessions-management", "/v1/sessions")).toBe(
+      "/api/v1/cip/sessions-management/sessions",
+    );
+    expect(apiPath("engine", "/v1/engine/live-exchanges")).toBe("/api/v1/cip/engine/live-exchanges");
+    expect(apiPath("testing-service", "/api/v1/swagger/doc.json")).toBe(
+      "/api/v1/cip/testing-service/swagger/doc.json",
+    );
+    // The rewrites these rules perform are exactly what the table's shapes encode.
+    expect(lines[113]).toContain("/sessions-management/(.*)$");
+    expect(lines[122]).toContain("/$1/engine/$2");
+    expect(lines[140]).toContain("/api/$1/$2");
+  });
 
-test("a path shaped for the wrong service is refused rather than silently mis-addressed", { tag: ["@infra", "@tier1"] }, () => {
-  expect(() => apiPath("engine", "/v1/live-exchanges")).toThrow(/engine paths/);
-  expect(() => apiPath("testing-service", "/v1/swagger/doc.json")).toThrow(/testing-service paths/);
-  expect(() => apiPath("sessions-management", "/sessions")).toThrow(/version segment/);
-});
-
-test("the unclaimed /api/ path is claimed by a rule rather than by the SPA", { tag: ["@infra", "@tier1"] }, () => {
-  // A prefix location loses to every regex above it and wins only when none matched. Without it
-  // `/api/v1/nonsense` falls through and answers 200 text/html.
-  expect(lines[160]).toContain("location /api/");
-  expect(lines[161]).toContain("return 404");
-  expect(UNCLAIMED_API_PATH.startsWith("/api/")).toBe(true);
+  test("an unclaimed /api/ path answers 404 instead of the SPA", () => {
+    // A prefix location loses to every regex above it and wins only when none matched. Without it
+    // `/api/v1/nonsense` falls through and answers 200 text/html.
+    expect(lines[160]).toContain("location /api/");
+    expect(lines[161]).toContain("return 404");
+    expect(UNCLAIMED_API_PATH.startsWith("/api/")).toBe(true);
+  });
 });

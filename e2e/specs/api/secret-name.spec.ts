@@ -5,7 +5,7 @@
  * no delete: every secret this suite posts is permanent. So the round trip is covered by a single
  * committed name, posted once and reused — the leak is one object over the repository's lifetime
  * rather than one per run — and the alphabet itself is pinned offline in
- * `specs/schema/run-token.spec.ts`.
+ * `specs/harness/run-token.spec.ts`.
  *
  * A name the regex rejects creates nothing, so the failure path is exercised with a run-token name
  * deliberately spelled wrong.

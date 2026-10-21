@@ -19,7 +19,7 @@
  * walk and the container table be shared with the registry rather than copied here: a fourth copy
  * of a recursive walk is a fourth place it can stop one level early and report nothing.
  *
- * `COMPONENT_TAGS` stays a parameter rather than an import, so `specs/schema/report.spec.ts` can
+ * `COMPONENT_TAGS` stays a parameter rather than an import, so `specs/harness/report.spec.ts` can
  * render the catalog against a tag set it names.
  */
 import fs from "node:fs";

@@ -43,18 +43,28 @@ const workers = Number(process.env.E2E_WORKERS ?? 8);
 
 const suite: SuiteProject[] = [
   {
-    // Reads the tracked schemas and the registries off disk. No stack, no network, seconds to
-    // run — so it goes first and a broken registry costs nothing to discover.
+    // Reads the product's tracked files off disk: the schemas, routes.conf, the Compose files, the
+    // migrations. No stack, no network, seconds to run — so it goes first and a broken file costs
+    // nothing to discover.
     //
-    // `stack: false` is that fact in a form code can read. `env/provision.ts` returns early when
-    // every selected project declares it, which is what lets `--project=schema` run where there is
-    // no Docker at all: Playwright runs `globalSetup` once per run, before any project and whatever
-    // the selection, and offers no flag that skips it. Measured on 1.62.1: a config with three
-    // projects invokes it once, and selecting a single project invokes it once as well, which is
+    // `stack: false` is that fact in a form code can read. `env/provision.ts` returns early when every
+    // selected project declares it, which is what lets `--project=schema --project=harness` run where
+    // there is no Docker at all: Playwright runs `globalSetup` once per run, before any project and
+    // whatever the selection, and offers no flag that skips it. Measured on 1.62.1: a config with
+    // three projects invokes it once, and selecting a single project invokes it once as well, which is
     // the half that decides this. Only `--list` invokes it not at all. A project that says nothing
     // here is provisioned for.
     name: "schema",
     testDir: "./specs/schema",
+    fullyParallel: true,
+    metadata: { stack: false },
+  },
+  {
+    // The tests of the suite's own code: the report readers, the registries, the target adapters,
+    // and the lint cases over the spec sources. No stack, for the reason `schema` gives; a project
+    // of its own so that the run's counts leave these tests out.
+    name: "harness",
+    testDir: "./specs/harness",
     fullyParallel: true,
     metadata: { stack: false },
   },

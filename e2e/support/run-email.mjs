@@ -18,7 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { eachTest, fixedPinIn, readIfPresent, shortDate, stripAnsi, utcDate } from "./run-report.mjs";
+import { HARNESS_PROJECTS, countsByProject, eachTest, fixedPinIn, readIfPresent, shortDate, stripAnsi, utcDate } from "./run-report.mjs";
 import { fixedSince, historyOf, readHistory, testKey } from "./run-history.mjs";
 
 export const HTML_FILE = "email.html";
@@ -43,10 +43,11 @@ const WORKFLOW_FILE = ".github/workflows/e2e-k8s.yaml";
  * @typedef {{ name: string, skipped: number }} IdleProject
  * @typedef {{ cause: string[], projects: IdleProject[] }} NotRun
  * @typedef {{ passed: number, failed: number, pins: number, skipped: number, total: number }} Counts
+ * @typedef {{ passed: number, failed: number }} HarnessCounts
  * @typedef {"failed" | "warning" | "passed"} Tone
  * @typedef {{
  *   tone: Tone, title: string, verdict: string, trend?: string, repo?: string, branch?: string, commit?: Link, commitSubject?: string,
- *   trigger: string, started?: string, duration?: string, target: string, counts?: Counts,
+ *   trigger: string, started?: string, duration?: string, target: string, counts?: Counts, harness?: HarnessCounts,
  *   runUrl?: string, artifactsUrl?: string, clusterUrl?: string, readmeUrl?: string, failed: FailedCase[], pins: FixedPin[],
  *   failedProjects: string[], errors: Excerpt[], failedStep?: string, notRun: NotRun[],
  *   dependenciesKnown: boolean, absent: { name: string, reason: string }[]
@@ -204,14 +205,16 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
 
   const errors = (report?.errors ?? []).map((each) => excerpt(each.message, 12));
   const stats = report?.stats;
+  const split = report && countsByProject(report, HARNESS_PROJECTS);
   /** @type {Counts | undefined} */
-  const counts = stats && {
-    passed: stats.expected,
-    failed: stats.unexpected - pins.length,
+  const counts = split && {
+    passed: split.counted.expected,
+    failed: split.counted.unexpected - pins.length,
     pins: pins.length,
-    skipped: stats.skipped,
-    total: stats.expected + stats.unexpected + stats.skipped,
+    skipped: split.counted.skipped,
+    total: split.counted.expected + split.counted.unexpected + split.counted.skipped,
   };
+  const harness = split && split.excluded.expected + split.excluded.unexpected > 0 ? { passed: split.excluded.expected, failed: split.excluded.unexpected } : undefined;
   const failedStep = failed.length === 0 && pins.length === 0 && errors.length === 0 ? env.FAILED_STEP || undefined : undefined;
 
   /** @type {[Tone, string]} */
@@ -243,6 +246,7 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
     duration: stats?.duration === undefined ? undefined : duration(stats.duration),
     target,
     counts,
+    harness,
     runUrl,
     artifactsUrl: env.REPORT_URL || (runUrl && `${runUrl}#artifacts`),
     clusterUrl: env.CLUSTER_URL || undefined,
@@ -367,9 +371,9 @@ function historyParts(each) {
 
 /** @param {Email} email */
 function headline(email) {
-  const { counts } = email;
-  if (counts && counts.failed > 0) {
-    const tests = counts.failed === 1 ? "1 test" : `${counts.failed} tests`;
+  const failed = email.failed.length;
+  if (failed > 0) {
+    const tests = failed === 1 ? "1 test" : `${failed} tests`;
     return `${tests} in ${shortList(email.failedProjects)}`;
   }
   return email.errors[0]?.lines[0] ?? (email.failedStep && `${email.failedStep} failed`);
@@ -385,8 +389,8 @@ export function emailSubject(email) {
   const { counts } = email;
   let detail = "";
   const pins = counts && counts.pins > 0 ? plural(counts.pins, "pin") + " to remove" : "";
-  if (counts && counts.failed > 0) {
-    detail = `: ${headline(email)}${counts.skipped > 0 ? `, ${counts.skipped} skipped` : ""}${pins ? `, ${pins}` : ""}`;
+  if (email.failed.length > 0) {
+    detail = `: ${headline(email)}${counts && counts.skipped > 0 ? `, ${counts.skipped} skipped` : ""}${pins ? `, ${pins}` : ""}`;
   } else if (pins && email.errors.length === 0) {
     detail = `: ${pins}`;
   } else if (email.errors[0]) {
@@ -474,8 +478,11 @@ function sectionTitle(text) {
 const badge = (name) =>
   `<span style="display:inline-block;background-color:#eef4ff;color:#3538cd;border-radius:999px;padding:2px 10px;font-family:${SANS};font-size:12px;line-height:18px;font-weight:600;">${projectHtml(name)}</span>`;
 
-/** @param {Counts} counts */
-function tiles(counts) {
+/**
+ * @param {Counts} counts
+ * @param {HarnessCounts} [harness]
+ */
+function tiles(counts, harness) {
   /** @type {[string, number, string, string][]} */
   const shown = [
     ["Passed", counts.passed, "#ecfdf3", "#067647"],
@@ -498,6 +505,7 @@ function tiles(counts) {
     `<tr><td style="padding:20px 25px 0;">` +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>${tile.join("")}</tr></table>` +
     `<div style="padding-top:8px;text-align:center;font-family:${SANS};font-size:12px;line-height:16px;color:${MUTED};">${counts.total} tests</div>` +
+    (harness ? `<div style="font-family:${SANS};font-size:12px;line-height:16px;text-align:center;color:${MUTED};">Harness: ${harness.passed} passed, ${harness.failed} failed</div>` : "") +
     `</td></tr>`
   );
 }
@@ -740,7 +748,7 @@ export function emailHtml(email) {
     `<!--[if mso]><table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->`,
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width:640px;background-color:#ffffff;border:1px solid #e4e7ec;border-radius:8px;border-collapse:separate;">`,
     header(email),
-    email.counts ? tiles(email.counts) : "",
+    email.counts ? tiles(email.counts, email.harness) : "",
     actions(email),
     errorsSection(email),
     failedSection(email),
@@ -783,6 +791,7 @@ export function emailText(email) {
   if (email.counts) {
     const c = email.counts;
     out.push("", `${c.passed} passed, ${c.failed} failed, ${c.skipped} skipped${c.pins > 0 ? `, ${plural(c.pins, "pin")} to remove` : ""} (${c.total} tests)`);
+    if (email.harness) out.push(`Harness: ${email.harness.passed} passed, ${email.harness.failed} failed`);
   }
   if (email.runUrl) {
     out.push("", `Open the run: ${email.runUrl}`);

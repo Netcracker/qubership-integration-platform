@@ -326,7 +326,7 @@ export async function deleteSessionsOfChains(
 /**
  * The two services the catalog client cannot answer for, as the sweep addresses them.
  *
- * Injected rather than reached for, and **optional**, because `specs/schema/sweep.spec.ts` runs the
+ * Injected rather than reached for, and **optional**, because `specs/harness/sweep.spec.ts` runs the
  * sweep against a stub catalog in a project defined as needing no stack: a client built at the
  * point of use would put two HTTP calls into a run that has nothing to answer them. The two live
  * entry points — the start-of-run sweep and `globalTeardown` — pass `OUTSIDE_CATALOG`, and they are
@@ -829,9 +829,10 @@ export default async function globalTeardown(): Promise<void> {
   if (!run) return;
 
   // Before the sweep, because the sampler is a detached process and nothing else ends it — and
-  // only for this run's own sampler. `--project=schema` is a supported, stack-free selection and CI
-  // runs exactly that; stopping the sampler it finds would empty the peaks file of a full run going
-  // on beside it, whose `process-envelope` band check then fails on no reading at all.
+  // only for this run's own sampler. `--project=schema --project=harness` is a supported, stack-free
+  // selection and CI runs exactly that; stopping the sampler it finds would empty the peaks file of
+  // a full run going on beside it, whose `process-envelope` band check then fails on no reading at
+  // all.
   stopResourceSampler(RESOURCES_FILE, run);
 
   const api = await playwrightRequest.newContext();

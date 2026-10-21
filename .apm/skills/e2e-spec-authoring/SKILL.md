@@ -54,7 +54,7 @@ declares it:
 covers("http-trigger", "accessControlType", "RBAC");
 ```
 
-`specs/schema/coverage.spec.ts` reads the schemas: an element or an axis value with no row fails it,
+`specs/harness/coverage.spec.ts` reads the schemas: an element or an axis value with no row fails it,
 and so does a row naming a value the schemas no longer declare. `npm run reconcile` reads the run: a
 row marked `covered` with no passing `covers()` behind it fails, and so does a declaration naming a
 row that does not exist. A row only one target can prove carries `target: "compose"` or
@@ -62,7 +62,7 @@ row that does not exist. A row only one target can prove carries `target: "compo
 
 **The rows are read against the schema sources, not against a copy.** `registry/discriminators.ts`
 resolves `schemas/src/main/resources/conf-model/element/` (`schemas/assets/` is generated), so a new
-element family, or a new value on a discriminator axis, turns `specs/schema/coverage.spec.ts` red
+element family, or a new value on a discriminator axis, turns `specs/harness/coverage.spec.ts` red
 until a row exists for it. Point it at another tree with `E2E_ELEMENT_SCHEMA_DIR` to confirm the
 check still goes red.
 
@@ -126,7 +126,7 @@ addresses. A row cannot express a status per branch, so a branch a project canno
 `204` of `GET /v1/catalog/runtime-deployments`, is recorded in the spec's header and the row stays
 whole. `npm run refresh-operations` reads four documents: the testing service serves Swagger 2.0 at
 `/api/v1/swagger/doc.json`, where the three Java services serve OpenAPI at `/v3/api-docs`, and
-`specs/schema/api-coverage.spec.ts` demands a cache key per service, so a refresh against a stack
+`specs/harness/api-coverage.spec.ts` demands a cache key per service, so a refresh against a stack
 missing one fails instead of dropping its rows.
 
 `reached` is recorded by the run and never by the spec. `noteReached()` fires inside
@@ -139,7 +139,7 @@ failure body. Two kinds of call record nothing, and neither can carry a row's st
 through nginx, whose `/api/` path matches no row, and a call from `globalSetup` or `globalTeardown`,
 where `test.info()` throws.
 
-`specs/schema/api-coverage.spec.ts` diffs the registry against `registry/operations.cache.json` with
+`specs/harness/api-coverage.spec.ts` diffs the registry against `registry/operations.cache.json` with
 no stack, and `specs/api/api-docs-live.spec.ts` diffs that cache against what the services serve
 right now, so a controller added to a service fails a run.
 
@@ -177,7 +177,7 @@ right now, so a controller added to a service fails a run.
    `CIP_TARGET` names. A fact that differs between the targets is an `Env` member the spec reads,
    such as `domainFacts()` or `generatedRequestId`, never a branch on `target()`; the difference
    lives in `env/compose.ts` and `env/k8s.ts`. Without that seam the suite cannot run on a cluster,
-   and the micro engine exists only there. Two `specs/schema/` files construct an `Env` directly, and
+   and the micro engine exists only there. Two `specs/harness/` files construct an `Env` directly, and
    neither reaches a stack: `report.spec.ts` builds a `ComposeEnv` to read a URL off, and
    `k8s-adapter.spec.ts` builds `K8sEnv` instances to unit-test the adapter. `tokenedDomain` in
    `support/deployable.ts` builds the `K8sEnv` of a micro domain that a spec creates for itself
@@ -269,7 +269,7 @@ right now, so a controller added to a service fails a run.
       with a `ConditionalDefect` from `support/known-defect.ts`, which names the engine that meets
       the defect, or `engine: "any"` for a race or a catalog or sessions defect either engine meets:
       the case becomes an expected failure only when the step throws that defect on that engine,
-      and the defect's `matches` gets a case in `specs/schema/conditional-defects.spec.ts`. On the
+      and the defect's `matches` gets a case in `specs/harness/conditional-defects.spec.ts`. On the
       other engine the same message stays a real failure, because a regression of the same feature
       can produce it. A defect lives in `specs/<project>/<component>-defects.ts`, which Playwright
       does not collect. `matches` reads the message without color codes. It keys on an assertion
@@ -277,12 +277,15 @@ right now, so a controller added to a service fails a run.
       last, so the rest of the case still runs when the defect strikes. Reconcile reads the calls a
       struck case made, but not its `covers()`. A fixed defect leaves the case passing rather than
       red, so the pin is removed by hand.
-14. **A `specs/schema/` spec imports `test` and `expect` from `@playwright/test`, never from
-    `support/fixtures.js`.** That module installs `auto: true` fixtures which create a folder over
-    HTTP and shell out to `docker logs`, so one wrong import turns the `schema` project into one that
-    needs a stack, and CI has no Docker. `specs/schema/schema-imports.spec.ts` holds every sibling to
-    it. Importing a *helper* from `support/` is fine: it is `test` and `expect` that carry the
-    fixtures.
+14. **A `specs/schema/` or `specs/harness/` spec imports `test` and `expect` from
+    `@playwright/test`, never from `support/fixtures.js`.** That module installs `auto: true`
+    fixtures which create a folder over HTTP and shell out to `docker logs`, so one wrong import
+    turns a stack-free project into one that needs a stack, and CI has no Docker.
+    `specs/harness/schema-imports.spec.ts` holds every file in both directories to it. Importing a
+    *helper* from `support/` is fine: it is `test` and `expect` that carry the fixtures. A case about
+    a product file (`routes.conf`, a Compose file, a migration, a schema) goes in `specs/schema/`; a
+    case that tests the suite's own code goes in `specs/harness/`, whose counts the run summary
+    keeps apart from the product's.
 15. **Move the registry row in the same commit as the spec.** A covered element row needs a
     `covers(family, axis, value)` declaration in a passing test, or `npm run reconcile` fails naming
     the row; an operation row moves to `reached` or `covered` once a passing test calls or asserts
@@ -335,7 +338,7 @@ right now, so a controller added to a service fails a run.
     deploys its chains in `beforeAll` to a micro domain of its own through `tokenedDomain` and
     `deployToDomain` in `support/deployable.ts` (`dispatchToDomain` for a chain that is not meant
     to serve), deletes it in `afterAll`, and calls the chains through the `env` the helper returns.
-    `specs/schema/target-rules.spec.ts` checks this rule, that the tag and the annotation come
+    `specs/harness/target-rules.spec.ts` checks this rule, that the tag and the annotation come
     together, and the `support/kube.ts` half of rule 4.
 21. **Name a case by its subject and the outcome it observes, in at most 60 characters.** The
     describe path supplies the context, so under `testing-service` the title is
@@ -397,7 +400,7 @@ copy's IDs and trigger paths. A chain that calls back into the engine calls `ENG
 (`http://localhost:8080/routes/…`), in its own URI or as a service's address, and `microCopy`
 rewrites that call to the callee's micro copy. The micro engine resolves `#{…}` once, when the domain
 loads, so a corpus chain reads no common variable except the one both seeds write
-(`placeholderVariable`). `specs/schema/corpus-copies.spec.ts` checks the loopback rewrite and the
+(`placeholderVariable`). `specs/harness/corpus-copies.spec.ts` checks the loopback rewrite and the
 variables.
 
 Three steps happen in an order that is not negotiable:
@@ -426,7 +429,7 @@ both seeds import every one through `POST /v1/import/system` before their chains
 its micro copy. A context service or an MCP service a chain names sits there too, and goes
 through the import of its own kind (`SERVICE_IMPORTS` in `support/corpus.ts`). A chain names an
 operation by the fixed IDs the service fixture carries: `serviceCallTo` in
-`fixtures/axis-generator.ts` reads them for a generated chain, and `specs/schema/fixtures.spec.ts`
+`fixtures/axis-generator.ts` reads them for a generated chain, and `specs/harness/fixtures.spec.ts`
 checks the IDs a hand-written chain spells out.
 
 A runtime case deploys a chain of its own, in the worker folder, only when the corpus cannot hold
@@ -505,7 +508,7 @@ it.
   `DELETE /v1/sessions/chains?chainIds=…`. A mock is keyed on a chain id and an element id the
   fixture freezes, so one that outlives its case answers in place of the real endpoint on every later
   run. Name a mock with `tokenized(run, …)`, never with `callToken()`, whose value carries no run
-  token. The clients are a parameter because `specs/schema/sweep.spec.ts` runs `sweepRunToken`
+  token. The clients are a parameter because `specs/harness/sweep.spec.ts` runs `sweepRunToken`
   against a stub catalog with no stack.
 - **Test cases and test runs are deleted by the spec that creates them**, in the case's own
   `finally`, through `withTestCases` in `support/testing-service.ts` or by hand. The sweep does not
@@ -532,7 +535,7 @@ Compatibility is versioned by the migration list a document declares (`migration
 Each archive is a fixture directory holding one document, zipped into `chains/<id>/` or
 `services/<id>/` at import time, so what the checksum guards is reviewable text rather than a binary
 blob. `npm run frozen-checksums` rewrites `CHECKSUMS` after a deliberate change; running it to turn
-`specs/schema/frozen-corpus.spec.ts` green is the failure the guard exists to catch.
+`specs/harness/frozen-corpus.spec.ts` green is the failure the guard exists to catch.
 
 `fixtures/services/service-roundtrip.zip` is the one archive committed as bytes, and it sits
 outside the frozen set. `specs/api/service-roundtrip.spec.ts` imports the catalog's export
