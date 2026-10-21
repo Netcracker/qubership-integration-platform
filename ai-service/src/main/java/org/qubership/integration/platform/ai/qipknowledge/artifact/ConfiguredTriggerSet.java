@@ -10,7 +10,7 @@ public record ConfiguredTriggerSet(
     int schemaVersion,
     @JsonProperty(required = true) List<ConfiguredTrigger> triggers,
     List<String> sourceRequirementFactIds,
-    List<QipKnowledgeCitation> knowledgeCitations) {
+    List<CipKnowledgeCitation> knowledgeCitations) {
 
   public ConfiguredTriggerSet {
     triggers = triggers == null ? List.of() : List.copyOf(triggers);

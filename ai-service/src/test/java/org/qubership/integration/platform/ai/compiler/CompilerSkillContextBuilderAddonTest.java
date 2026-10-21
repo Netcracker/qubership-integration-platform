@@ -17,10 +17,10 @@ import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonBuildSupport;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -30,7 +30,7 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class CompilerSkillContextBuilderAddonTest {
 
@@ -41,8 +41,8 @@ class CompilerSkillContextBuilderAddonTest {
   @BeforeEach
   void setUp(@TempDir Path outputDir, @TempDir Path addonRoot) throws Exception {
     previousAddonPackRoot = System.getProperty("qip.ai.qipknowledge.addon-pack-root");
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
-    Path fixtureAddonRoot = QipKnowledgePackFixturePaths.addonRoot();
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
+    Path fixtureAddonRoot = CipKnowledgePackFixturePaths.addonRoot();
     Files.createDirectories(addonRoot.resolve("global"));
     Files.copy(
         fixtureAddonRoot.resolve("global/graph-patch-contract.md"),
@@ -59,13 +59,13 @@ class CompilerSkillContextBuilderAddonTest {
     }
 
     System.setProperty("qip.ai.qipknowledge.addon-pack-root", addonRoot.toString());
-    QipKnowledgePackBuildGenerator.generate(QipKnowledgePackFixturePaths.packRoot(), outputDir);
+    CipKnowledgePackBuildGenerator.generate(CipKnowledgePackFixturePaths.packRoot(), outputDir);
     CompilerSkillAddonBuildSupport.materialize(
-        addonRoot, outputDir.resolve(QipKnowledgePackFixturePaths.PACK_DIR));
+        addonRoot, outputDir.resolve(CipKnowledgePackFixturePaths.PACK_DIR));
 
-    QipKnowledgePackVersion version = QipKnowledgePackFixturePaths.packVersion();
-    FilesystemQipKnowledgePackRepository repository =
-        new FilesystemQipKnowledgePackRepository(outputDir, version);
+    CipKnowledgePackVersion version = CipKnowledgePackFixturePaths.packVersion();
+    FilesystemCipKnowledgePackRepository repository =
+        new FilesystemCipKnowledgePackRepository(outputDir, version);
     CompilerSkillAddonRepository addonRepository =
         CompilerSkillAddonRepository.forFilesystem(outputDir, version, getClass().getClassLoader());
     documentService = new CompilerSkillDocumentService(repository);
@@ -101,12 +101,12 @@ class CompilerSkillContextBuilderAddonTest {
   @Test
   void structureGeneratorAddonExposesCaptureChainStructure(@TempDir Path outputDir)
       throws Exception {
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
-    QipKnowledgePackBuildGenerator.generate(
-        QipKnowledgePackFixturePaths.packRoot(),
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackBuildGenerator.generate(
+        CipKnowledgePackFixturePaths.packRoot(),
         outputDir,
-        QipKnowledgePackFixturePaths.addonRoot());
-    QipKnowledgePackVersion version = QipKnowledgePackFixturePaths.packVersion();
+        CipKnowledgePackFixturePaths.addonRoot());
+    CipKnowledgePackVersion version = CipKnowledgePackFixturePaths.packVersion();
     CompilerSkillAddonRepository addonRepository =
         CompilerSkillAddonRepository.forFilesystem(outputDir, version, getClass().getClassLoader());
 

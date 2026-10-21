@@ -14,7 +14,7 @@ import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { useBlocker } from "react-router-dom";
 import { useModalsContext } from "../Modals.tsx";
 import { UnsavedChangesModal } from "../components/modal/UnsavedChangesModal.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ApplyFormButton } from "../components/ApplyFormButton.tsx";
 import {
   GROUP_SEGMENT_REGEX,
@@ -156,19 +156,17 @@ export const ChainProperties: React.FC = () => {
     }
   };
 
-  useRegisterChainHeaderActions(
-    <Require permissions={{ chain: ["update"] }}>
-      <ApplyFormButton
-        formId="chain-properties-form"
-        loading={isUpdating}
-        disabled={!hasChanges || chainContext?.deleted}
-      />
-    </Require>,
-    [isUpdating, hasChanges, chainContext?.deleted],
-  );
-
   return (
     <div className={styles.pageContainer}>
+      <ChainHeaderActions>
+        <Require permissions={{ chain: ["update"] }}>
+          <ApplyFormButton
+            formId="chain-properties-form"
+            loading={isUpdating}
+            disabled={!hasChanges || chainContext?.deleted}
+          />
+        </Require>
+      </ChainHeaderActions>
       <div className={styles.formContent}>
         {chainContext?.deleted && (
           <Alert
@@ -247,16 +245,16 @@ export const ChainProperties: React.FC = () => {
             />
           </Form.Item>
           <Form.Item label="Description" name="description">
-            <TextArea className="fixed-textarea" disabled={disabled} />
+            <TextArea className="fixed-textarea" />
           </Form.Item>
           <Form.Item label="Business Description" name="businessDescription">
-            <TextArea className="fixed-textarea" disabled={disabled} />
+            <TextArea className="fixed-textarea" />
           </Form.Item>
           <Form.Item label="Assumptions" name="assumptions">
-            <TextArea className="fixed-textarea" disabled={disabled} />
+            <TextArea className="fixed-textarea" />
           </Form.Item>
           <Form.Item label="Out of Scope" name="outOfScope">
-            <TextArea className="fixed-textarea" disabled={disabled} />
+            <TextArea className="fixed-textarea" />
           </Form.Item>
           <ChainExtensionProperties onChange={() => setHasChanges(true)} />
         </Form>

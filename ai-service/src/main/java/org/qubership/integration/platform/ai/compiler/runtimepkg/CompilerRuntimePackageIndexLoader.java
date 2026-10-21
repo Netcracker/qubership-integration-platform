@@ -9,9 +9,9 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackFileKind;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedQipKnowledgeFile;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackFileKind;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedCipKnowledgeFile;
 
 /** Builds a thin index over selected compiler-runtime-package YAML artifacts. */
 public class CompilerRuntimePackageIndexLoader {
@@ -29,10 +29,10 @@ public class CompilerRuntimePackageIndexLoader {
 
   private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
-  public CompilerRuntimePackageIndex load(QipKnowledgePackScanResult scanResult) {
+  public CompilerRuntimePackageIndex load(CipKnowledgePackScanResult scanResult) {
     List<CompilerRuntimePackageArtifact> artifacts = new ArrayList<>();
-    for (ScannedQipKnowledgeFile file : scanResult.files()) {
-      if (file.kind() != QipKnowledgePackFileKind.RUNTIME_PACKAGE_ARTIFACT) {
+    for (ScannedCipKnowledgeFile file : scanResult.files()) {
+      if (file.kind() != CipKnowledgePackFileKind.RUNTIME_PACKAGE_ARTIFACT) {
         continue;
       }
       String artifactType = REQUIRED_ARTIFACTS.get(file.relativePath());
@@ -47,7 +47,7 @@ public class CompilerRuntimePackageIndexLoader {
     return new CompilerRuntimePackageIndex(artifacts);
   }
 
-  private List<String> topLevelKeys(ScannedQipKnowledgeFile file) {
+  private List<String> topLevelKeys(ScannedCipKnowledgeFile file) {
     try {
       JsonNode root = yamlMapper.readTree(file.content());
       if (root == null || !root.isObject()) {

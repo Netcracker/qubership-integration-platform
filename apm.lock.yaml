@@ -238,7 +238,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:49c8e084d2c42e6e4b29d66701b1a60ff8ef434509d629e5c4575ee9eb534d05
+  content_hash: sha256:fdaa45fb096a07ac17658e3dea57c9287be22cf9a4d569081e18449c71d01118
 - kind: project-relative
   target: claude
   value: .claude/rules/english-developer-style.md
@@ -292,7 +292,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:b2d68a020122887ffde40d5edf580dec7e87ddccebcabf1aefb80abb746dce6e
+  content_hash: sha256:6e5fb1c98b17a24f9538bc3b09a8b63fbc998b3da7d458ed23fc06371a37bda4
 - kind: project-relative
   target: claude
   value: .claude/rules/schemas.md
@@ -580,7 +580,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:42e8bd21c1581081cce3ba441242f61d217de2b4002d1e7f32e9c2927d53cde7
+  content_hash: sha256:3427563a22f8a278f2160415664885b6e09de43f1467d4285ea56274fe60bb8b
 - kind: project-relative
   target: claude
   value: .claude/skills/release-process
@@ -1021,7 +1021,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:7f00df29855402bfb0fbfda1ec1df9e75a8d371eb0392eb89746ec2dbb9640a9
+  content_hash: sha256:89ef447fd718f75a009045349a424626c9e27502430952ac869a91666e0b440a
 - kind: project-relative
   target: cursor
   value: .cursor/rules/english-developer-style.mdc
@@ -1075,7 +1075,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:defe67ea9231a3d08379fdf8c6492ccf9332706190e4544d8bb0949f3875600d
+  content_hash: sha256:9be292740f204f6b38f432e6c48804e004513ef137e835bd4755f02a46adc624
 - kind: project-relative
   target: cursor
   value: .cursor/rules/schemas.mdc
@@ -1309,7 +1309,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:42e8bd21c1581081cce3ba441242f61d217de2b4002d1e7f32e9c2927d53cde7
+  content_hash: sha256:3427563a22f8a278f2160415664885b6e09de43f1467d4285ea56274fe60bb8b
 - kind: project-relative
   target: legacy
   value: .agents/skills/release-process
@@ -1680,7 +1680,7 @@ local_deployed_file_hashes:
   .agents/skills/fix-issue/k8s.md: sha256:95790e9e75eb50d089a4ac546a73b2d1641d511a713332f1fc1aad95021a52e4
   .agents/skills/fix-issue/scripts/wait-checks.sh: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
   .agents/skills/fix-issue/stack.md: sha256:0e08886df05a44cdf43a21835484046c52160b890bd40e0357a8ee2bfcc303fc
-  .agents/skills/fix-issue/verification.md: sha256:42e8bd21c1581081cce3ba441242f61d217de2b4002d1e7f32e9c2927d53cde7
+  .agents/skills/fix-issue/verification.md: sha256:3427563a22f8a278f2160415664885b6e09de43f1467d4285ea56274fe60bb8b
   .agents/skills/release-process/SKILL.md: sha256:b78de82b8ceca11db1c34903772687167ca4d39872ad77e40c3e33821e103de5
   .agents/skills/runtime-catalog-api-testing/SKILL.md: sha256:c189d6988f94ed57294e569266b5d3fd500c22e7dd4867268380f302c54d120a
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
@@ -1703,12 +1703,12 @@ local_deployed_file_hashes:
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
   .claude/rules/e2e-decision.md: sha256:73faeb1d26cc53f3836e920265487356b1cf2e419190355fa9d41aae50dc0516
   .claude/rules/e2e.md: sha256:c690ae04fb4154c29b783328aafac31b210d8413091aec5f6df6946c8653e9e6
-  .claude/rules/engine.md: sha256:49c8e084d2c42e6e4b29d66701b1a60ff8ef434509d629e5c4575ee9eb534d05
+  .claude/rules/engine.md: sha256:fdaa45fb096a07ac17658e3dea57c9287be22cf9a4d569081e18449c71d01118
   .claude/rules/infrastructure.md: sha256:efb728a4036c2fc362571fb9b3c2f13e5ef92a7c2d16c91b63be7f93b6c43950
   .claude/rules/micro-engine.md: sha256:42540838847273144feafdc635b66aca480158a618731a6db8717658cb89c35a
   .claude/rules/monorepo.md: sha256:9e393f942810b4fc4d0f623aca67a2d0f2183e0f58ee1cd038eb73d643eb481d
   .claude/rules/qip-working-agreements.md: sha256:72257161852f5f17451a59e3f6c816f49cdbdf8da37b39b3b82840e2fd30b799
-  .claude/rules/runtime-catalog.md: sha256:b2d68a020122887ffde40d5edf580dec7e87ddccebcabf1aefb80abb746dce6e
+  .claude/rules/runtime-catalog.md: sha256:6e5fb1c98b17a24f9538bc3b09a8b63fbc998b3da7d458ed23fc06371a37bda4
   .claude/rules/schemas.md: sha256:70fc96efc39c4a3deb2c018e8a57584f64071e18b3c53c150717b8fbaf4a20ec
   .claude/rules/sessions-management.md: sha256:ec7cdaeae2da98b2ad41410ebc959a781436c9bd87ac1f9cfc97e284fd784b04
   .claude/rules/sonar-triage.md: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
@@ -1729,7 +1729,7 @@ local_deployed_file_hashes:
   .claude/skills/fix-issue/k8s.md: sha256:95790e9e75eb50d089a4ac546a73b2d1641d511a713332f1fc1aad95021a52e4
   .claude/skills/fix-issue/scripts/wait-checks.sh: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
   .claude/skills/fix-issue/stack.md: sha256:0e08886df05a44cdf43a21835484046c52160b890bd40e0357a8ee2bfcc303fc
-  .claude/skills/fix-issue/verification.md: sha256:42e8bd21c1581081cce3ba441242f61d217de2b4002d1e7f32e9c2927d53cde7
+  .claude/skills/fix-issue/verification.md: sha256:3427563a22f8a278f2160415664885b6e09de43f1467d4285ea56274fe60bb8b
   .claude/skills/release-process/SKILL.md: sha256:b78de82b8ceca11db1c34903772687167ca4d39872ad77e40c3e33821e103de5
   .claude/skills/sonar-triage/SKILL.md: sha256:3c4c9ec3516aadfdc5f242e473fef6e7bb19a1422e3acbdba98e3029627b3ca2
   .claude/skills/testing-service-internals/SKILL.md: sha256:ed5ca154133055e606930910b3f67260edf3e6758279844fcd9483a224319270
@@ -1748,12 +1748,12 @@ local_deployed_file_hashes:
   .cursor/rules/docs-authoring.mdc: sha256:04274aa51cc097ea37ababc82b6fe050cbfb15dc4fff8bc37b81e50f2568f52c
   .cursor/rules/e2e-decision.mdc: sha256:655a11f802e2a32e344664bc610f752c738c758629518413b3e64a4e2f9ae0be
   .cursor/rules/e2e.mdc: sha256:0ead390cfda4328f10716842766d483d830cf1074c49a82efdc388f7ae3045bd
-  .cursor/rules/engine.mdc: sha256:7f00df29855402bfb0fbfda1ec1df9e75a8d371eb0392eb89746ec2dbb9640a9
+  .cursor/rules/engine.mdc: sha256:89ef447fd718f75a009045349a424626c9e27502430952ac869a91666e0b440a
   .cursor/rules/infrastructure.mdc: sha256:3ad74ec858c9e0c5c43b22eedcd6e7404e8acbf962090f19f787031770bfb08e
   .cursor/rules/micro-engine.mdc: sha256:bed58065a57ebec2e840a44bfe507d6c7cba432a402038f74475a1fcb66dcf76
   .cursor/rules/monorepo.mdc: sha256:b338024786a301a3788fec92cd5e247f9cd723b70d6beee34bbb22d11117b94e
   .cursor/rules/qip-working-agreements.mdc: sha256:f4f9c8835673f5ed8a17fc3c591dc8ae5aea3982220ff0e82262d9ac1aa41c11
-  .cursor/rules/runtime-catalog.mdc: sha256:defe67ea9231a3d08379fdf8c6492ccf9332706190e4544d8bb0949f3875600d
+  .cursor/rules/runtime-catalog.mdc: sha256:9be292740f204f6b38f432e6c48804e004513ef137e835bd4755f02a46adc624
   .cursor/rules/schemas.mdc: sha256:e0c80c275441415a4774f5ebbc9ede1e22a191776682097eb8a34f51a0a686aa
   .cursor/rules/sessions-management.mdc: sha256:3734ba316cc936d327aa1ff5ec4ccf38c1d075a9d3f23e2d55d1412325f1da2c
   .cursor/rules/sonar-triage.mdc: sha256:9418a601f82ff328ff99463908f96385acb0bc0ff47b6725309e77b61918034f

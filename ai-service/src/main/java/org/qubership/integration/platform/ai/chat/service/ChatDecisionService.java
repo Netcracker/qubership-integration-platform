@@ -27,7 +27,6 @@ import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
-import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
@@ -78,8 +77,6 @@ public class ChatDecisionService {
   @Inject ChainPatchStore patchStore;
 
   @Inject PendingRedeployStore pendingRedeployStore;
-
-  @Inject CreateRunSelectionService createRunSelectionService;
 
   @Inject
   @ForScenario(ScenarioType.MANAGE_CHAIN_LIST)
@@ -877,14 +874,6 @@ public class ChatDecisionService {
   }
 
   private String runIdFor(String conversationId) {
-    String profileVersion =
-        createRunSelectionService == null
-            ? CreateRunSelectionService.CREATE_PROFILE_VERSION
-            : createRunSelectionService.createProfileVersion();
-    return conversationId
-        + "-"
-        + CreateRunSelectionService.CREATE_PROFILE_ID
-        + "-"
-        + profileVersion;
+    return facade.importApprovalRunId(conversationId);
   }
 }

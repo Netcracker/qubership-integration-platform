@@ -30,8 +30,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
@@ -68,8 +68,8 @@ class SeededCompilerExecutionTest {
     workspaceStore = new InMemorySkillWorkspaceStore(new ChainPlanStore());
     skillRegistry = mock(SkillExecutorRegistry.class);
     javaAdapterRegistry = mock(CompilerNodeExecutionAdapterRegistry.class);
-    QipKnowledgePackRepository packRepository = mock(QipKnowledgePackRepository.class);
-    when(packRepository.activeVersion()).thenReturn(new QipKnowledgePackVersion("v1", "v1"));
+    CipKnowledgePackRepository packRepository = mock(CipKnowledgePackRepository.class);
+    when(packRepository.activeVersion()).thenReturn(new CipKnowledgePackVersion("v1", "v1"));
     CanonicalGraphDigest digest =
         new CanonicalGraphDigest(new com.fasterxml.jackson.databind.ObjectMapper());
     CompilerSecurityValidator securityValidator = mock(CompilerSecurityValidator.class);

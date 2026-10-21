@@ -31,7 +31,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --silent --fail localhost:8080/actuator/health || exit 1",
+          "wget -q -O /dev/null localhost:8080/actuator/health || exit 1",
         ]
       interval: 10s
       timeout: 15s
@@ -89,7 +89,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --silent --fail localhost:8080/actuator/health || exit 1",
+          "wget -q -O /dev/null localhost:8080/actuator/health || exit 1",
         ]
       interval: 10s
       timeout: 15s
@@ -138,7 +138,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl --silent --fail localhost:8080/actuator/health || exit 1",
+          "wget -q -O /dev/null localhost:8080/actuator/health || exit 1",
         ]
       interval: 10s
       timeout: 15s
@@ -220,6 +220,7 @@ services:
         required: false
     environment:
       QIP_AI_A2A_PUBLIC_BASE_URL: ${QIP_AI_A2A_PUBLIC_BASE_URL:-http://localhost:8094}
+      QIP_AI_HARNESS_ENABLED: ${QIP_AI_HARNESS_ENABLED:-false}
       QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX: ${QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX:-}
       QIP_E2E_RECOVERY_FAULT_PLAN: ${QIP_E2E_RECOVERY_FAULT_PLAN:-}
       QIP_KNOWLEDGE_SIDECAR_URL: http://knowledge-sidecar:8095
@@ -287,7 +288,7 @@ services:
       # which hides the Testing section in the UI, and a local stack is not one.
       PRODUCTION_MODE: "false"
     healthcheck:
-      test: ["CMD-SHELL", "curl --silent --fail localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null localhost:8080/health || exit 1"]
       interval: 10s
       timeout: 15s
       retries: 15

@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { ChainContext } from "../../src/pages/ChainPage";
 import { ChainProperties } from "../../src/pages/ChainProperties";
+import { ChainHeaderActionsTestSlot } from "../helpers/renderWithChainHeader";
 
 Object.defineProperty(globalThis, "matchMedia", {
   writable: true,
@@ -70,12 +71,12 @@ jest.mock("react-router-dom", () => ({
   useBlocker: () => mockUseBlocker(),
 }));
 
-jest.mock("../../src/pages/ChainHeaderActionsContext.tsx", () => ({
-  useRegisterChainHeaderActions: jest.fn(),
-}));
-
 jest.mock("../../src/components/ApplyFormButton.tsx", () => ({
-  ApplyFormButton: () => <button type="button">Apply</button>,
+  ApplyFormButton: ({ disabled }: { disabled?: boolean }) => (
+    <button type="button" disabled={disabled}>
+      Apply
+    </button>
+  ),
 }));
 
 jest.mock("../../src/permissions/usePermissions.tsx", () => ({
@@ -127,6 +128,32 @@ describe("ChainProperties", () => {
       proceed: mockProceed,
       reset: mockReset,
     });
+  });
+
+  it("should disable Apply when the edited chain is deleted", async () => {
+    const context = {
+      chain: { id: "chain-1", name: "Chain", navigationPath: [] },
+      update: mockChainUpdate,
+      refresh: jest.fn(),
+      deleted: false,
+    } as unknown as NonNullable<React.ContextType<typeof ChainContext>>;
+    const page = (deleted: boolean) => (
+      <ChainHeaderActionsTestSlot>
+        <ChainContext.Provider value={{ ...context, deleted }}>
+          <ChainProperties />
+        </ChainContext.Provider>
+      </ChainHeaderActionsTestSlot>
+    );
+    const view = render(page(false));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Name" }), {
+      target: { value: "My draft" },
+    });
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
+    view.rerender(page(true));
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
+      "My draft",
+    );
   });
 
   it("refreshes pristine properties but preserves a draft across later catalog changes", async () => {
@@ -252,6 +279,22 @@ describe("ChainProperties", () => {
       expect.not.objectContaining({ navigationPath: expect.anything() }),
     );
     expect(mockMoveChain).not.toHaveBeenCalled();
+  });
+
+  it("should disable every field while the chain saves", async () => {
+    mockChainUpdate.mockReturnValue(new Promise<void>(() => {}));
+    render(<ChainProperties />);
+
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
+    [
+      "Name",
+      "Description",
+      "Business Description",
+      "Assumptions",
+      "Out of Scope",
+    ].forEach((label) => expect(screen.getByLabelText(label)).toBeDisabled());
   });
 
   it("should label the group field Group when running in the extension", () => {

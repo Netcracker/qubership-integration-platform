@@ -8,10 +8,10 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
 
 class CompilerSkillDocumentServiceTest {
 
@@ -19,11 +19,11 @@ class CompilerSkillDocumentServiceTest {
 
   @BeforeEach
   void setUp(@TempDir Path outputDir) throws Exception {
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
-    QipKnowledgePackBuildGenerator.generate(QipKnowledgePackFixturePaths.packRoot(), outputDir);
-    FilesystemQipKnowledgePackRepository repository =
-        new FilesystemQipKnowledgePackRepository(
-            outputDir, QipKnowledgePackFixturePaths.packVersion());
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackBuildGenerator.generate(CipKnowledgePackFixturePaths.packRoot(), outputDir);
+    FilesystemCipKnowledgePackRepository repository =
+        new FilesystemCipKnowledgePackRepository(
+            outputDir, CipKnowledgePackFixturePaths.packVersion());
     service = new CompilerSkillDocumentService(repository);
   }
 

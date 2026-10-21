@@ -318,6 +318,16 @@ public class RequirementCaptureTools {
         input, previous, bindings,
         legacyBindingAdapter.sourceSkillVersion(conversationId),
         legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+    var repair = ProductCapabilityCaptureContext.binding(conversationId)
+        .filter(binding -> binding.mode() == ProductCapabilityCaptureContext.Mode.DISCOVERY
+            && binding.approvedDraft() != null && binding.requirementRepairPaths().isEmpty());
+    if (repair.isPresent()
+        && !org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
+            .preservesMappingRepair(repair.get().mappingRepairPaths(), repair.get().approvedDraft(), draft)) {
+      // Rejected content outside the repair scope must not become protected repair facts.
+      return reject(conversationId, null, previous, List.of(new Issue("REPAIR_FACT_LOSS", "/draft", null,
+          "Change only the rejected mapping field paths. Preserve the selected draft's facts, flow, and settings.")));
+    }
     var admissionIssues = store.admitCapture(conversationId, expectedBase, draft, changes,
         mappingRepairPaths(conversationId));
     if (!admissionIssues.isEmpty()) {

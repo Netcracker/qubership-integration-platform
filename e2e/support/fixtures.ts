@@ -260,7 +260,7 @@ const SESSION_PAGE = 1000;
  *
  * Read to the end of the listing rather than to the end of one page. The answer carries no total:
  * `SessionSearchResponse` holds the rows and an `offset` that comes back as `offset + rows`
- * (`SessionService.java:220`), a marker for the next request rather than an echo of this one, so a
+ * (`SessionService.java:225`), a marker for the next request rather than an echo of this one, so a
  * full page and a last one look alike and an empty page is the only ending on the wire. Advancing
  * by what the page held computes that same marker locally, which is what `mocksOfRun` in
  * `support/testing-service.ts` does against the analogous listing.

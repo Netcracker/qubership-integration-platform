@@ -26,8 +26,8 @@ import org.qubership.integration.platform.ai.compiler.policy.AddonReadinessParse
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorDescriptor;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicy;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorReadiness;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
@@ -74,12 +74,12 @@ public final class CompilerPipelineIndexBuilder {
   }
 
   public CompilerPipelineIndex build(
-      QipKnowledgePackScanResult scanResult, CompilerGeneratorPolicy policy) {
+      CipKnowledgePackScanResult scanResult, CompilerGeneratorPolicy policy) {
     return build(scanResult, policy, resolveAddonRoot());
   }
 
   public CompilerPipelineIndex build(
-      QipKnowledgePackScanResult scanResult, CompilerGeneratorPolicy policy, Path addonRoot) {
+      CipKnowledgePackScanResult scanResult, CompilerGeneratorPolicy policy, Path addonRoot) {
     if (!hasCanonicalSources(scanResult.packRoot())) {
       return buildPolicyCompatibilityIndex(scanResult.version(), policy);
     }
@@ -98,7 +98,7 @@ public final class CompilerPipelineIndexBuilder {
   }
 
   private CompilerPipelineIndex buildPolicyCompatibilityIndex(
-      QipKnowledgePackVersion packVersion, CompilerGeneratorPolicy policy) {
+      CipKnowledgePackVersion packVersion, CompilerGeneratorPolicy policy) {
     List<CompilerPipelineEntry> entries =
         policy == null
             ? List.of()
@@ -121,7 +121,7 @@ public final class CompilerPipelineIndexBuilder {
 
   CompilerPipelineIndex build(
       CompilerPipelineSourceLoader.SourceSet sources,
-      QipKnowledgePackVersion packVersion,
+      CipKnowledgePackVersion packVersion,
       CompilerGeneratorPolicy policy) {
     Objects.requireNonNull(sources, "sources");
     ParsedModel model = parseDependencyModel(sources.runtimeDependencyModelYaml());

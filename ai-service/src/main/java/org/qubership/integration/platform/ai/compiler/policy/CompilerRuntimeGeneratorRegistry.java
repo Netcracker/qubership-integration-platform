@@ -11,7 +11,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
 
 /** Reads skill bindings from the addon pack manifest. */
 public final class CompilerRuntimeGeneratorRegistry {
@@ -23,7 +23,7 @@ public final class CompilerRuntimeGeneratorRegistry {
 
   public record ManifestSkillBinding(String skillId, String generatorId, boolean wired) {}
 
-  public Map<String, String> skillToGeneratorId(QipKnowledgePackScanResult scanResult) {
+  public Map<String, String> skillToGeneratorId(CipKnowledgePackScanResult scanResult) {
     Map<String, String> mappings = new LinkedHashMap<>();
     for (ManifestSkillBinding binding : loadBindings(scanResult)) {
       if (binding.generatorId() != null) {
@@ -43,7 +43,7 @@ public final class CompilerRuntimeGeneratorRegistry {
     return Map.copyOf(mappings);
   }
 
-  public List<ManifestSkillBinding> loadBindings(QipKnowledgePackScanResult scanResult) {
+  public List<ManifestSkillBinding> loadBindings(CipKnowledgePackScanResult scanResult) {
     if (scanResult == null || scanResult.packRoot() == null) {
       return List.of();
     }

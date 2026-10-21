@@ -18,8 +18,8 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeQueryContext;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeResponseIdentity;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
 
 class KnowledgeCitationResolverTest {
 
@@ -56,11 +56,11 @@ class KnowledgeCitationResolverTest {
             new KnowledgeObjectResult(
                 new KnowledgeResponseIdentity(packageRef), knowledgeObject()));
 
-    QipKnowledgeCitation citation =
+    CipKnowledgeCitation citation =
         resolver.resolve(CONVERSATION_ID, List.of(REFERENCE_ID)).getFirst();
 
     assertEquals(REFERENCE_ID, citation.refId());
-    assertEquals(QipKnowledgeRefType.KNOWLEDGE_OBJECT, citation.refType());
+    assertEquals(CipKnowledgeRefType.KNOWLEDGE_OBJECT, citation.refType());
     assertEquals(
         "language/element-relationships.md#pattern-trigger-try-catch-finally-2",
         citation.sourcePath());

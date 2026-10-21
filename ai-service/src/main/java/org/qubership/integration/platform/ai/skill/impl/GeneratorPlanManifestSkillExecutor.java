@@ -9,7 +9,7 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillRuntimeEligibility;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexSupport;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifestBuilder;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutor;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutorKind;
@@ -26,13 +26,13 @@ public class GeneratorPlanManifestSkillExecutor implements SkillExecutor {
 
   private static final String SKILL_ID = "generator-plan-manifest";
 
-  private final QipKnowledgePackRepository packRepository;
+  private final CipKnowledgePackRepository packRepository;
   private final GeneratorPlanManifestBuilder manifestBuilder;
   private final CompilerSkillRuntimeEligibility runtimeEligibility;
 
   @Inject
   public GeneratorPlanManifestSkillExecutor(
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GeneratorPlanManifestBuilder manifestBuilder,
       CompilerSkillRuntimeEligibility runtimeEligibility) {
     this.packRepository = packRepository;

@@ -10,10 +10,10 @@ import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class CompilerGeneratorPolicyBuilderTest {
 
@@ -23,7 +23,7 @@ class CompilerGeneratorPolicyBuilderTest {
 
   @BeforeAll
   static void buildPolicy() throws Exception {
-    policy = QipKnowledgePackTestSupport.buildPolicyFromFixture();
+    policy = CipKnowledgePackTestSupport.buildPolicyFromFixture();
   }
 
   @Test
@@ -112,13 +112,13 @@ class CompilerGeneratorPolicyBuilderTest {
 
   @Test
   void writesPolicyDuringPackBuild() throws Exception {
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
     Path outputDir = Files.createTempDirectory("policy-build-test");
-    Path packRoot = QipKnowledgePackFixturePaths.packRoot();
-    QipKnowledgePackBuildGenerator.generate(packRoot, outputDir);
+    Path packRoot = CipKnowledgePackFixturePaths.packRoot();
+    CipKnowledgePackBuildGenerator.generate(packRoot, outputDir);
     Path policyFile =
         outputDir
-            .resolve(QipKnowledgePackVersion.fromPath(packRoot).normalized())
+            .resolve(CipKnowledgePackVersion.fromPath(packRoot).normalized())
             .resolve("compiler-generator-policy.json");
     assertTrue(Files.isRegularFile(policyFile));
     assertTrue(Files.readString(policyFile).contains("cip-security-generator"));

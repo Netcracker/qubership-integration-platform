@@ -20,13 +20,13 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowl
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineEntry;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexSupport;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackIngestionResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackIngestionService;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class CompilerSkillRuntimeCatalogExclusionTest {
 
@@ -35,11 +35,11 @@ class CompilerSkillRuntimeCatalogExclusionTest {
   private static final String SPEC_ONLY_SKILL = "excluded-spec-only-generator";
   private static final String ALLOWED_SKILL = "allowed-generator";
 
-  private final QipKnowledgePackIngestionService ingestionService = new QipKnowledgePackIngestionService();
+  private final CipKnowledgePackIngestionService ingestionService = new CipKnowledgePackIngestionService();
   private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
-  private QipKnowledgePackRepository repository;
-  private QipKnowledgePackVersion version;
+  private CipKnowledgePackRepository repository;
+  private CipKnowledgePackVersion version;
   private Path outputDir;
 
   @BeforeEach
@@ -51,12 +51,12 @@ class CompilerSkillRuntimeCatalogExclusionTest {
     writeSpecificationOnlySkill(packRoot);
     writeAllowedGenerator(packRoot);
 
-    QipKnowledgePackIngestionResult result = ingestionService.ingest(packRoot);
+    CipKnowledgePackIngestionResult result = ingestionService.ingest(packRoot);
     version = result.manifest().version();
     ingestionService.writeArtifacts(result, outputDir);
     injectStalePipelineEntries(outputDir, version);
 
-    repository = new FilesystemQipKnowledgePackRepository(outputDir, version);
+    repository = new FilesystemCipKnowledgePackRepository(outputDir, version);
   }
 
   @Test
@@ -127,7 +127,7 @@ class CompilerSkillRuntimeCatalogExclusionTest {
             skillId,
             "skills/" + skillId + ".md",
             skillId,
-            QipKnowledgeCapabilityPhase.GENERATOR,
+            CipKnowledgeCapabilityPhase.GENERATOR,
             false,
             version,
             "# " + skillId);
@@ -155,7 +155,7 @@ class CompilerSkillRuntimeCatalogExclusionTest {
     return FakeKnowledgeClient.defaultFixture();
   }
 
-  private void injectStalePipelineEntries(Path outputDir, QipKnowledgePackVersion packVersion)
+  private void injectStalePipelineEntries(Path outputDir, CipKnowledgePackVersion packVersion)
       throws Exception {
     Path versionDir = outputDir.resolve(packVersion.normalized());
     Path pipelineFile = versionDir.resolve("compiler-pipeline-index.json");
@@ -192,7 +192,7 @@ class CompilerSkillRuntimeCatalogExclusionTest {
 
   private static void writeKnowledgeFiles(Path root) throws Exception {
     Path knowledge = root.resolve("knowledge");
-    Path fixture = QipKnowledgePackFixturePaths.knowledgeRoot();
+    Path fixture = CipKnowledgePackFixturePaths.knowledgeRoot();
     copyTree(fixture, knowledge);
     Path knowledgeDir = knowledge.resolve("ai");
     Files.writeString(

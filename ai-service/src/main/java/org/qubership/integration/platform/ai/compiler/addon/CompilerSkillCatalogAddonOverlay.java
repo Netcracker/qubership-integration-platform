@@ -10,8 +10,8 @@ import java.util.Map;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDescriptor;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDisposition;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.UnsupportedQipKnowledgeItem;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackManifest;
+import org.qubership.integration.platform.ai.qipknowledge.pack.UnsupportedCipKnowledgeItem;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityDescriptor;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
 
@@ -23,8 +23,8 @@ public final class CompilerSkillCatalogAddonOverlay {
   public OverlayResult apply(
       CompilerSkillCatalog catalog,
       CapabilityRegistry registry,
-      QipKnowledgePackManifest manifest,
-      List<UnsupportedQipKnowledgeItem> unsupportedItems,
+      CipKnowledgePackManifest manifest,
+      List<UnsupportedCipKnowledgeItem> unsupportedItems,
       Path addonPackRoot) {
     Map<String, AddonRuntimeMetadata> promotions = loadPromotions(addonPackRoot);
     if (promotions.isEmpty()) {
@@ -60,8 +60,8 @@ public final class CompilerSkillCatalogAddonOverlay {
 
     List<String> supportedIds = new ArrayList<>(manifest.supportedCapabilityIds());
     List<String> unsupportedIds = new ArrayList<>(manifest.unsupportedCapabilityIds());
-    List<UnsupportedQipKnowledgeItem> remainingUnsupported = new ArrayList<>();
-    for (UnsupportedQipKnowledgeItem item : unsupportedItems) {
+    List<UnsupportedCipKnowledgeItem> remainingUnsupported = new ArrayList<>();
+    for (UnsupportedCipKnowledgeItem item : unsupportedItems) {
       if (promotions.containsKey(item.id())) {
         unsupportedIds.remove(item.id());
         if (!supportedIds.contains(item.id())) {
@@ -74,8 +74,8 @@ public final class CompilerSkillCatalogAddonOverlay {
     supportedIds.sort(String::compareTo);
     unsupportedIds.sort(String::compareTo);
 
-    QipKnowledgePackManifest promotedManifest =
-        new QipKnowledgePackManifest(
+    CipKnowledgePackManifest promotedManifest =
+        new CipKnowledgePackManifest(
             manifest.version(),
             manifest.sourcePath(),
             manifest.createdAt(),
@@ -142,7 +142,7 @@ public final class CompilerSkillCatalogAddonOverlay {
   public record OverlayResult(
       CompilerSkillCatalog catalog,
       CapabilityRegistry registry,
-      QipKnowledgePackManifest manifest,
-      List<UnsupportedQipKnowledgeItem> unsupportedItems,
+      CipKnowledgePackManifest manifest,
+      List<UnsupportedCipKnowledgeItem> unsupportedItems,
       List<String> runtimePromotedSkillIds) {}
 }

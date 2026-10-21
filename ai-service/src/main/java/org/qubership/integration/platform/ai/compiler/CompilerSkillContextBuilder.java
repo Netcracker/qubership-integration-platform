@@ -45,8 +45,8 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextRequest;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.CanonicalKnowledgeObject;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
@@ -56,7 +56,7 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
 public class CompilerSkillContextBuilder {
 
   private final ObjectMapper objectMapper;
-  private final QipKnowledgePackRepository repository;
+  private final CipKnowledgePackRepository repository;
   private final CompilerSkillAddonRepository addonRepository;
   private final CompilerSkillRuntimeEligibility runtimeEligibility;
   private final KnowledgeClient knowledgeClient;
@@ -66,7 +66,7 @@ public class CompilerSkillContextBuilder {
   @Inject
   public CompilerSkillContextBuilder(
       ObjectMapper objectMapper,
-      QipKnowledgePackRepository repository,
+      CipKnowledgePackRepository repository,
       CompilerSkillAddonRepository addonRepository,
       CompilerSkillRuntimeEligibility runtimeEligibility,
       KnowledgeClient knowledgeClient,
@@ -85,7 +85,7 @@ public class CompilerSkillContextBuilder {
   /** Test constructor with an explicit knowledge client and context provider. */
   public CompilerSkillContextBuilder(
       ObjectMapper objectMapper,
-      QipKnowledgePackRepository repository,
+      CipKnowledgePackRepository repository,
       CompilerSkillAddonRepository addonRepository,
       CompilerSkillRuntimeEligibility runtimeEligibility,
       KnowledgeClient knowledgeClient,
@@ -147,8 +147,8 @@ public class CompilerSkillContextBuilder {
         captureTool == CaptureTool.CAPTURE_CHAIN_STRUCTURE
             && snapshot.editContext() != null
             && !snapshot.editContext().isBlank();
-    if (document.phase() == QipKnowledgeCapabilityPhase.GENERATOR
-        || document.phase() == QipKnowledgeCapabilityPhase.VALIDATOR
+    if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
+        || document.phase() == CipKnowledgeCapabilityPhase.VALIDATOR
         || editStructureCapture) {
       body.append("Current ChainPlanGraph JSON:\n");
       body.append(
@@ -156,11 +156,11 @@ public class CompilerSkillContextBuilder {
                   withTruncatedScriptBodies(snapshot.chainPlanGraph(), document.capabilityId())))
           .append("\n\n");
 
-      if (document.phase() == QipKnowledgeCapabilityPhase.GENERATOR && activePlan != null) {
+      if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR && activePlan != null) {
         body.append("Active generator plan slice:\n");
         body.append(formatActivePlan(activePlan)).append("\n\n");
       }
-      if (document.phase() == QipKnowledgeCapabilityPhase.GENERATOR
+      if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
           && snapshot.editContext() != null
           && !snapshot.editContext().isBlank()) {
         body.append(snapshot.editContext()).append("\n\n");
@@ -170,7 +170,7 @@ public class CompilerSkillContextBuilder {
       }
     }
 
-    if (document.phase() == QipKnowledgeCapabilityPhase.VALIDATOR
+    if (document.phase() == CipKnowledgeCapabilityPhase.VALIDATOR
         && snapshot.generatorPlanManifestSummary() != null
         && !snapshot.generatorPlanManifestSummary().isBlank()) {
       body.append("Generator plan manifest:\n");
@@ -274,8 +274,14 @@ public class CompilerSkillContextBuilder {
     section.append("Frozen envelope (source and target only):\n");
     section.append(formatEnvelopeSourceTarget(envelope)).append("\n\n");
 
+    section.append("Original source JSON Schema:\n");
+    section.append(formatJson(sourceSide.schema())).append("\n\n");
+    section.append("Original target JSON Schema:\n");
+    section.append(formatJson(targetSide.schema())).append("\n\n");
+
     section.append(
         "Encode only the approved rules above. Extra correspondences fail parity validation. "
+            + "Preserve the original schema constraints, including string formats, in mapped values. "
             + "Copy source and target from the frozen envelope unchanged; they must be copied "
             + "unchanged in capture. Replace the complete script body and mappingCoverage; do not "
             + "patch fragments into a previous script. Successful Groovy compilation is not "
@@ -878,7 +884,7 @@ public class CompilerSkillContextBuilder {
     if (snapshot.editContext() == null || snapshot.editContext().isBlank()) {
       return;
     }
-    if (document.phase() != QipKnowledgeCapabilityPhase.GENERATOR
+    if (document.phase() != CipKnowledgeCapabilityPhase.GENERATOR
         && !"cip-structure-generator".equals(document.capabilityId())) {
       return;
     }
@@ -912,7 +918,7 @@ public class CompilerSkillContextBuilder {
 
     for (CompilerSkillAddonDocument example : addon.examples()) {
       String label =
-          document.phase() == QipKnowledgeCapabilityPhase.GENERATOR
+          document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
               ? "GraphPatch example"
               : "Example";
       body.append(label).append(" (").append(example.relativePath()).append("):\n");

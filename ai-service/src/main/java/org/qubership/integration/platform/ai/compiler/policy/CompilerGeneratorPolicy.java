@@ -1,11 +1,11 @@
 package org.qubership.integration.platform.ai.compiler.policy;
 
 import java.util.List;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 /** Compiled generator execution policy for ai-service orchestration. */
 public record CompilerGeneratorPolicy(
-    QipKnowledgePackVersion packVersion,
+    CipKnowledgePackVersion packVersion,
     CompilerGeneratorPolicySource sources,
     List<CompilerGeneratorDescriptor> generators) {
 

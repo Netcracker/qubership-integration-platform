@@ -14,7 +14,7 @@ import { ElementsLibrarySidebar } from "../components/elements_library/ElementsL
 import { DnDProvider } from "../components/DndContext.tsx";
 import { Button, Flex, Splitter } from "antd";
 import { useParams } from "react-router-dom";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import {
   ElementFocusContext,
   type FitViewToElementIdFn,
@@ -332,7 +332,6 @@ const ChainGraphInner: React.FC = () => {
     ),
     [openSequenceDiagram, openExportDialog, openSaveAndDeployDialog],
   );
-  useRegisterChainHeaderActions(headerActions, [chainId]);
 
   const toggleLeftPanelVisible = useCallback(() => {
     setLeftPanelVisible((prev) => !prev);
@@ -381,6 +380,7 @@ const ChainGraphInner: React.FC = () => {
 
   return (
     <ElementFocusContext.Provider value={fitViewToElementIdRef}>
+      <ChainHeaderActions>{headerActions}</ChainHeaderActions>
       <Splitter
         className={styles["graph-wrapper"]}
         // Sizes are controlled: antd's Splitter caches per-index pixel sizes on

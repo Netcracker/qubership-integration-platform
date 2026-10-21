@@ -15,18 +15,18 @@ public class SchemaResourceLoader {
   private final Map<String, String> yamlCache = new ConcurrentHashMap<>();
 
   public boolean existsElementSchema(String elementType) {
-    String path = QipConfModelUris.elementSchemaClasspath(elementType);
+    String path = CipConfModelUris.elementSchemaClasspath(elementType);
     return currentClassLoader().getResource(path) != null;
   }
 
   public String readElementSchemaYaml(String elementType) {
-    return readClasspathYaml(QipConfModelUris.elementSchemaClasspath(elementType));
+    return readClasspathYaml(CipConfModelUris.elementSchemaClasspath(elementType));
   }
 
   /** Reads YAML for a conf-model URI (fragment is ignored for classpath lookup). */
   public String readSchemaYamlByModelUri(String modelUri) {
-    String withoutFragment = QipConfModelUris.stripFragment(modelUri);
-    String classpath = QipConfModelUris.classpathResourceForModelUri(withoutFragment);
+    String withoutFragment = CipConfModelUris.stripFragment(modelUri);
+    String classpath = CipConfModelUris.classpathResourceForModelUri(withoutFragment);
     return readClasspathYaml(classpath);
   }
 

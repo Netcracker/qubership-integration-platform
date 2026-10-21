@@ -127,10 +127,16 @@ spec:
               value: http://127.0.0.1:8095
           livenessProbe:
             httpGet:
-              path: /q/health
+              path: /q/health/live
               port: 8080
             failureThreshold: 15
             initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: 8080
             periodSeconds: 10
             timeoutSeconds: 15
           resources: {}

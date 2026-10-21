@@ -45,6 +45,14 @@ new transition in `addIntents`. Put additional rules for an intent that already 
 renames the writer. Put rule removals in `deleteRules`. Put whole-intent removals in
 `deleteIntents` using that intent's `sourceRef` and `targetRef`.
 
+When the transition already has a mapping intent, leave `addIntents` empty. For example, adding
+a constant `sourceAppName` to existing intent `response-map` uses
+`addRules: [{"mappingIntentId":"response-map","sourcePath":"\"salesforce\"","targetPath":"sourceAppName"}]`.
+`addRules` and `updateRules` entries use `sourcePath`, `targetPath`, and `expression`, without `value` or `behavior`.
+Use literal field paths in `sourcePath`. Put retained context, source descriptions, and computed values in `expression`.
+When approved failure handling already delivers the requested result, capture failure fields too:
+put their failure condition and value in `expression`.
+
 Emit `addIntents` only for transitions whose mapping the current author message describes. Leave
 every unmentioned flow transition out of the result.
 
@@ -57,18 +65,29 @@ replace that rule. Replacement belongs in `updateRules`, not `addRules`. The run
 use last-write-wins. If more than one stored rule could match an update or delete, or none
 matches, use `CLARIFICATION` instead of guessing.
 
+The current intents include each stored rule's sources, constants, behavior, condition, and status.
+Omit rules the author restates without changing their meaning. Preserve saved context when the
+author asks to keep existing correlation rules; those values do not come from the current response.
+For example, if `processInstanceId` already exists and the author renames it to `processId`, emit
+an update with `targetPath: processInstanceId` and `newTargetPath: processId`. Leave its source and
+expression empty to retain the stored value. Add other missing targets through `addRules`.
+
 Deleting the last rule on an intent, or deleting the intent, is irreversible. Still emit the
 delete in `deleteRules` or `deleteIntents`. The runtime asks for typed pass-through confirmation;
 do not treat a natural-language yes as confirmation.
 
-If the author asks to add or remove a flow hop, return `CLARIFICATION` with `FLOW_CHANGE`. Do
-not emit mapping changes that would create or remove a transition.
+If the author asks to add or remove a flow hop or change an invocation's `failureMode`, return
+`CLARIFICATION` with `FLOW_CHANGE`. For example, returning failure fields through the same result
+delivery requires `INLINE_RESPONSE` when the saved mode is `PROPAGATE`. Keep all mapping change
+lists empty so requirement discovery captures the whole request first. Do not emit partial edits.
+When the saved failure mode already matches the request, capture field changes normally.
 
 Rule shapes:
 
 - Descriptive rule: structured source references, named JSON constants, and short behavior text.
-  Leave the typed `operation` empty. Do not wrap that prose in a custom value.
-- A rule is descriptive or typed, not both.
+  In `addIntents.rules`, leave `value` null and fill `fieldRefs`, `constants`, and `behavior`.
+  A typed rule instead sets `value` and leaves `fieldRefs`, `constants`, and `behavior` empty.
+  Combining these forms rejects the entire capture. Do not wrap prose in a custom value.
 - Field copy: `sourcePath` and `targetPath`, empty expression.
 - String template, conditional conversion, default or fallback, JSON construction: set `expression`.
 - Constant: quoted `sourcePath` or an expression such as `Set to Not Started.`
@@ -78,7 +97,9 @@ Rule shapes:
 - Values kept for a later response stay retained context. Do not copy those fields onto the service request.
 - A target name that differs from its source needs context evidence. Do not invent an alias.
 - A contract or operation name is not a JSON field prefix. Use the path from the selected schema.
-- A field path missing from that schema is a clarification. Do not invent the path.
+- Use selected schema paths when a schema is supplied. The stored rules are not a complete target
+  schema. An explicitly requested new target is an addition, not `ZERO_MATCH` merely because it has
+  no stored rule. Schema validation runs after the requested changes.
 
 Set `implementationPreference` to `SCRIPT` only when the author asked for a script. Leave it empty
 otherwise.

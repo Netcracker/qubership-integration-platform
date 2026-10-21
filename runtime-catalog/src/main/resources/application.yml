@@ -205,7 +205,7 @@ cip:
           memory: ${MICRO_DOMAIN_CONTAINER_REQUEST_MEMORY:}
         limit:
           cpu: ${MICRO_DOMAIN_CONTAINER_LIMIT_CPU:}
-          memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:}
+          memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:1280Mi} # micro-engine/Dockerfile sizes the heap at 50% of this
         runAsUser: ${MICRO_ENGINE_CONTAINER_RUN_AS_USER:0}
         runAsNonRoot: ${MICRO_ENGINE_CONTAINER_RUN_AS_NON_ROOT:true}
         seccompProfileType: ${MICRO_ENGINE_CONTAINER_SECCOMP_PROFILE_TYPE:RuntimeDefault}

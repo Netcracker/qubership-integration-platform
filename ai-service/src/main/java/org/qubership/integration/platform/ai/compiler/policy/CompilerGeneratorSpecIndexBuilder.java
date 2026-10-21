@@ -12,9 +12,9 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.compiler.CompilerMarkdownMetadata;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackFileKind;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedQipKnowledgeFile;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackFileKind;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedCipKnowledgeFile;
 
 /** Builds an index of generator specs from top-level specs and normalized skill catalog entries. */
 public class CompilerGeneratorSpecIndexBuilder {
@@ -26,16 +26,16 @@ public class CompilerGeneratorSpecIndexBuilder {
 
   private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
-  public CompilerGeneratorSpecIndex build(QipKnowledgePackScanResult scanResult) {
+  public CompilerGeneratorSpecIndex build(CipKnowledgePackScanResult scanResult) {
     Map<String, MutableSpec> specs = new LinkedHashMap<>();
     Map<String, String> runtimeGeneratorIds =
         new CompilerRuntimeGeneratorRegistry().skillToGeneratorId(scanResult);
-    for (ScannedQipKnowledgeFile file : scanResult.files()) {
-      if (file.kind() == QipKnowledgePackFileKind.SKILL_SOURCE_SPECIFICATION) {
+    for (ScannedCipKnowledgeFile file : scanResult.files()) {
+      if (file.kind() == CipKnowledgePackFileKind.SKILL_SOURCE_SPECIFICATION) {
         readTopLevelSpec(file, specs);
-      } else if (file.kind() == QipKnowledgePackFileKind.SKILL_CATALOG) {
+      } else if (file.kind() == CipKnowledgePackFileKind.SKILL_CATALOG) {
         readSkillCatalog(file, specs);
-      } else if (file.kind() == QipKnowledgePackFileKind.SKILL) {
+      } else if (file.kind() == CipKnowledgePackFileKind.SKILL) {
         readSkillSource(file, specs);
       }
     }
@@ -58,7 +58,7 @@ public class CompilerGeneratorSpecIndexBuilder {
     }
   }
 
-  private void readSkillSource(ScannedQipKnowledgeFile file, Map<String, MutableSpec> specs) {
+  private void readSkillSource(ScannedCipKnowledgeFile file, Map<String, MutableSpec> specs) {
     String skillName = deriveFolderSkillId(file.relativePath());
     MutableSpec spec = spec(specs, skillName);
     spec.skillName = skillName;
@@ -74,7 +74,7 @@ public class CompilerGeneratorSpecIndexBuilder {
   }
 
   private void readTopLevelSpec(
-      ScannedQipKnowledgeFile file, Map<String, MutableSpec> specs) {
+      ScannedCipKnowledgeFile file, Map<String, MutableSpec> specs) {
     String skillName = deriveTopLevelSpecSkillId(file.relativePath());
     MutableSpec spec = spec(specs, skillName);
     spec.skillName = skillName;
@@ -87,7 +87,7 @@ public class CompilerGeneratorSpecIndexBuilder {
   }
 
   private void readSkillCatalog(
-      ScannedQipKnowledgeFile file, Map<String, MutableSpec> specs) {
+      ScannedCipKnowledgeFile file, Map<String, MutableSpec> specs) {
     JsonNode root = readYaml(file);
     JsonNode skillNodes = root.path("normalized-skills");
     if (!skillNodes.isArray()) {
@@ -169,7 +169,7 @@ public class CompilerGeneratorSpecIndexBuilder {
     return fileName.endsWith(".md") ? fileName.substring(0, fileName.length() - 3) : fileName;
   }
 
-  private JsonNode readYaml(ScannedQipKnowledgeFile file) {
+  private JsonNode readYaml(ScannedCipKnowledgeFile file) {
     try {
       return yamlMapper.readTree(file.content());
     } catch (IOException e) {

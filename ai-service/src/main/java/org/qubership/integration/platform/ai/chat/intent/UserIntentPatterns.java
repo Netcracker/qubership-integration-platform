@@ -48,6 +48,9 @@ public final class UserIntentPatterns {
 
   private static final Pattern DEPLOY_INTENT = Pattern.compile("(?isU)\\bdeploy\\b");
 
+  private static final Pattern NEGATED_DEPLOY_INTENT =
+      Pattern.compile("(?isU)\\b(?:not|never|without|no|don['’]t)\\b[^.!?;\\n]*\\bdeploy\\b");
+
   private static final Pattern STATUS_INTENT =
       Pattern.compile(
           "(?isU)\\b("
@@ -152,7 +155,7 @@ public final class UserIntentPatterns {
       return false;
     }
     String intent = extractLeadingIntent(text);
-    return DEPLOY_INTENT.matcher(intent).find();
+    return !NEGATED_DEPLOY_INTENT.matcher(intent).find() && DEPLOY_INTENT.matcher(intent).find();
   }
 
   /** Compact status phrasing. Phase routing checks this before the ASK_CHAIN shortcut. */

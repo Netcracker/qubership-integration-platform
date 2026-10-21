@@ -14,12 +14,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillCapabilityGate;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillRuntime;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
-import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutor;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutorKind;
 import org.qubership.integration.platform.ai.skill.impl.CompilerSkillExecutor;
@@ -30,15 +30,15 @@ class SkillExecutorRegistryTest {
   private static final String GENERATOR_SKILL = "cip-security-generator";
   private static final String CHAIN_GENERATOR_SKILL = "cip-chain-generator";
 
-  private static QipKnowledgePackRepository packRepository;
+  private static CipKnowledgePackRepository packRepository;
 
   @BeforeAll
   static void setUpPack() throws Exception {
     Path outputDir = Files.createTempDirectory("qip-skill-executor-registry-test");
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
-    QipKnowledgePackBuildGenerator.generate(QipKnowledgePackFixturePaths.packRoot(), outputDir);
-    QipKnowledgePackVersion version = QipKnowledgePackVersion.fromPath(QipKnowledgePackFixturePaths.packRoot());
-    packRepository = new FilesystemQipKnowledgePackRepository(outputDir, version);
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackBuildGenerator.generate(CipKnowledgePackFixturePaths.packRoot(), outputDir);
+    CipKnowledgePackVersion version = CipKnowledgePackVersion.fromPath(CipKnowledgePackFixturePaths.packRoot());
+    packRepository = new FilesystemCipKnowledgePackRepository(outputDir, version);
   }
 
   @Test

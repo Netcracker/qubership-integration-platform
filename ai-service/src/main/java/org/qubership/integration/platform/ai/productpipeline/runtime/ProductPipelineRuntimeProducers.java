@@ -63,7 +63,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileValidator;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
@@ -118,7 +118,7 @@ public class ProductPipelineRuntimeProducers {
 
   @Produces
   @ApplicationScoped
-  ProductPipelineProfileCatalog profileCatalog(QipKnowledgePackRepository packRepository) {
+  ProductPipelineProfileCatalog profileCatalog(CipKnowledgePackRepository packRepository) {
     ArtifactSchemaRegistry schemas = loadArtifactSchemas(packRepository);
     Map<String, ProductPipelineProfile> merged = new LinkedHashMap<>();
     for (String fileName : List.of("create-chain-v1.yaml", "create-chain-v2.yaml")) {
@@ -155,7 +155,7 @@ public class ProductPipelineRuntimeProducers {
   @Produces
   @ApplicationScoped
   CompilerRunPinResolver compilerRunPinResolver(
-      QipKnowledgePackRepository packRepository, CompilerSkillDocumentService skillDocuments) {
+      CipKnowledgePackRepository packRepository, CompilerSkillDocumentService skillDocuments) {
     return new CompilerRunPinResolver(
         packRepository.loadCompilerPipelineIndex(),
         skillId -> {
@@ -176,7 +176,7 @@ public class ProductPipelineRuntimeProducers {
   }
 
   private static PipelineCompatibilityReport resolveCompatibilityReport(
-      QipKnowledgePackRepository packRepository) {
+      CipKnowledgePackRepository packRepository) {
     try {
       return packRepository.loadPipelineCompatibilityReport();
     } catch (RuntimeException missingReport) {
@@ -252,7 +252,7 @@ public class ProductPipelineRuntimeProducers {
   }
 
   private static ArtifactSchemaRegistry loadArtifactSchemas(
-      QipKnowledgePackRepository packRepository) {
+      CipKnowledgePackRepository packRepository) {
     try (InputStream packStream =
         packRepository.openProductPipelineResource("artifact-schemas.yaml")) {
       if (packStream != null) {
@@ -319,7 +319,7 @@ public class ProductPipelineRuntimeProducers {
   }
 
   private static ProductPipelineProfile loadPackProfile(
-      QipKnowledgePackRepository packRepository, String relativePath) {
+      CipKnowledgePackRepository packRepository, String relativePath) {
     try (InputStream in = packRepository.openProductPipelineResource(relativePath)) {
       if (in == null) {
         throw new IllegalStateException(

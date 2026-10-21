@@ -8,11 +8,11 @@ import java.util.List;
 import java.util.Map;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDescriptor;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedQipKnowledgeFile;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedCipKnowledgeFile;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityDescriptor;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 /** Builds {@link CompilerGeneratorPolicy} from ingested compiler pack docs and addons. */
 public final class CompilerGeneratorPolicyBuilder {
@@ -23,13 +23,13 @@ public final class CompilerGeneratorPolicyBuilder {
   private final AddonReadinessParser addonReadinessParser = new AddonReadinessParser();
 
   public CompilerGeneratorPolicyBuildResult build(
-      QipKnowledgePackScanResult scanResult,
+      CipKnowledgePackScanResult scanResult,
       CapabilityRegistry registry,
       CompilerSkillCatalog skillCatalog,
       CompilerGeneratorSpecIndex specIndex,
       Path addonPackRoot) {
-    ScannedQipKnowledgeFile contractsFile = requireFile(scanResult, GENERATOR_CONTRACTS_PATH);
-    ScannedQipKnowledgeFile ruleMappingFile = requireFile(scanResult, RULE_MAPPING_PATH);
+    ScannedCipKnowledgeFile contractsFile = requireFile(scanResult, GENERATOR_CONTRACTS_PATH);
+    ScannedCipKnowledgeFile ruleMappingFile = requireFile(scanResult, RULE_MAPPING_PATH);
 
     List<String> executionOrder =
         GeneratorContractsParser.parseExecutionOrder(contractsFile.content());
@@ -143,8 +143,8 @@ public final class CompilerGeneratorPolicyBuilder {
     return addonReadinessParser.parseAddonFile(addonFile);
   }
 
-  private static ScannedQipKnowledgeFile requireFile(
-      QipKnowledgePackScanResult scanResult, String relativePath) {
+  private static ScannedCipKnowledgeFile requireFile(
+      CipKnowledgePackScanResult scanResult, String relativePath) {
     return scanResult.files().stream()
         .filter(file -> relativePath.equals(file.relativePath()))
         .findFirst()
@@ -172,7 +172,7 @@ public final class CompilerGeneratorPolicyBuilder {
       }
       CapabilityDescriptor capability = findCapability(registry, candidate.skillName());
       if (capability == null
-          || capability.phase() != QipKnowledgeCapabilityPhase.GENERATOR
+          || capability.phase() != CipKnowledgeCapabilityPhase.GENERATOR
           || !capability.supported()) {
         continue;
       }

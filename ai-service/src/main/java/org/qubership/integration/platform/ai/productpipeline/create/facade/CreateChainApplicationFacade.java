@@ -763,6 +763,11 @@ public class CreateChainApplicationFacade {
     return runStore.loadByConversation(taskId).map(doc -> snapshotOf(taskId, doc));
   }
 
+  public String importApprovalRunId(String taskId) {
+    return runStore.loadByConversation(taskId).map(doc -> doc.run().runId())
+        .orElseGet(() -> selectionService.plannedRunId(taskId));
+  }
+
   /** Reads public state from committed evidence without dispatching a command or running a stage. */
   public Optional<PublicState> publicState(String taskId) {
     Objects.requireNonNull(taskId, "taskId");
@@ -1334,39 +1339,36 @@ public class CreateChainApplicationFacade {
             .map(doc -> PipelineGates.UPLOADED_SPECS_IMPORT)
             .orElse(""));
     String prompt = publicPrompt(waitPrompt);
-    if (!prompt.isBlank()) {
-      if (PipelineGates.isContextualRecoveryGate(gateId)) {
-        ProductPipelineRunDocument doc = runStore.loadByConversation(taskId).orElse(null);
-        return new CreateChainPendingAction.Clarify(
-            prompt,
-            List.of(),
-            gateId,
-            PipelineGates.recoveryTechnicalDetailsOf(waitPrompt).orElse(""),
-            PipelineGates.recoveryRetryDelayMsOf(waitPrompt).orElse(null),
-            doc == null ? "" : doc.run().runId(),
-            doc == null ? "" : doc.run().currentStageId());
+    List<String> missingEvidence = List.of();
+    if (prompt.isBlank()) {
+      Optional<RequirementDraft> draft =
+          draftStore == null || taskId == null || taskId.isBlank()
+              ? Optional.empty()
+              : draftStore.get(taskId);
+      if (draft.isPresent() && !draft.get().openQuestions().isEmpty()) {
+        missingEvidence = draft.get().openQuestions();
+        prompt = String.join("\n", missingEvidence);
+      } else {
+        prompt = DEFAULT_CLARIFY_REASON;
       }
-      if (PipelineGates.MAPPING_GAP.equals(gateId)) {
-        MappingGapWait.View view = MappingGapWait.parse(prompt);
-        return new CreateChainPendingAction.Clarify(
-            view.question(), view.missingEdges(), gateId);
-      }
-      if (PipelineGates.OWNER_CHOICE.equals(gateId)
-          || PipelineGates.STAGE_INTERNAL_FAILURE.equals(gateId)
-          || PipelineGates.STAGE_ESCALATED.equals(gateId)) {
-        return new CreateChainPendingAction.Clarify(prompt, List.of(), gateId);
-      }
-      return new CreateChainPendingAction.Clarify(prompt, List.of(), gateId);
     }
-    Optional<RequirementDraft> draft =
-        draftStore == null || taskId == null || taskId.isBlank()
-            ? Optional.empty()
-            : draftStore.get(taskId);
-    if (draft.isPresent() && !draft.get().openQuestions().isEmpty()) {
-      List<String> questions = draft.get().openQuestions();
-      return new CreateChainPendingAction.Clarify(String.join("\n", questions), questions);
+    if (PipelineGates.isContextualRecoveryGate(gateId)) {
+      ProductPipelineRunDocument doc = runStore.loadByConversation(taskId).orElse(null);
+      return new CreateChainPendingAction.Clarify(
+          prompt,
+          missingEvidence,
+          gateId,
+          PipelineGates.recoveryTechnicalDetailsOf(waitPrompt).orElse(""),
+          PipelineGates.recoveryRetryDelayMsOf(waitPrompt).orElse(null),
+          doc == null ? "" : doc.run().runId(),
+          doc == null ? "" : doc.run().currentStageId());
     }
-    return new CreateChainPendingAction.Clarify(DEFAULT_CLARIFY_REASON, List.of());
+    if (PipelineGates.MAPPING_GAP.equals(gateId)) {
+      MappingGapWait.View view = MappingGapWait.parse(prompt);
+      return new CreateChainPendingAction.Clarify(
+          view.question(), view.missingEdges(), gateId);
+    }
+    return new CreateChainPendingAction.Clarify(prompt, missingEvidence, gateId);
   }
 
   private static String latestWaitingForInputReason(ProductPipelineRunDocument doc) {

@@ -4,7 +4,7 @@ import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 
 /** Model-authored interpretation of a selected requirement draft. */
 public record RequirementAnalysisCapture(
@@ -12,7 +12,7 @@ public record RequirementAnalysisCapture(
     @Description("Input descriptions for the selected inbound interactions") List<String> inputs,
     @Description("Assumptions needed to interpret the selected requirements") List<String> assumptions,
     @Description("Readable summary for review") String summary,
-    @Description("Knowledge references used during analysis") List<QipKnowledgeCitation> citations,
+    @Description("Knowledge references used during analysis") List<CipKnowledgeCitation> citations,
     @Description("Field adaptations on selected flow transitions; omit for pass-through")
         List<Mapping> mappingIntents) {
 

@@ -12,7 +12,7 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
-import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.CipSchemaYamlParser;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
@@ -45,7 +45,7 @@ public final class CreateChainTestOrchestrator implements CreateChainOrchestrato
       Clock clock) {
     ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
     SchemaResourceLoader loader = new SchemaResourceLoader();
-    SchemaRefResolver resolver = new SchemaRefResolver(loader, new QipSchemaYamlParser());
+    SchemaRefResolver resolver = new SchemaRefResolver(loader, new CipSchemaYamlParser());
     return ProductPipelineRunSupport.builder(runs, artifacts, capabilities, clock)
         .recoveryValidation(mapper, loader, resolver,
             DeterministicElementSchemaService.createForUnitTests(mapper));

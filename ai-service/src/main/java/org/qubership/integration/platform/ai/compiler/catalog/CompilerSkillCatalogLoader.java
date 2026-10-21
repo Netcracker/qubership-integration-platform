@@ -14,9 +14,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.compiler.CompilerMarkdownMetadata;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerRuntimeGeneratorRegistry;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackFileKind;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedQipKnowledgeFile;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackFileKind;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ScannedCipKnowledgeFile;
 
 /** Loads the production compiler skill catalog from package indexes, specs, source metadata, and markers. */
 public class CompilerSkillCatalogLoader {
@@ -28,11 +28,11 @@ public class CompilerSkillCatalogLoader {
 
   private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
-  public CompilerSkillCatalog load(QipKnowledgePackScanResult scanResult) {
+  public CompilerSkillCatalog load(CipKnowledgePackScanResult scanResult) {
     Map<String, MutableSkill> skills = new LinkedHashMap<>();
     CompilerRuntimeGeneratorRegistry registry = new CompilerRuntimeGeneratorRegistry();
 
-    for (ScannedQipKnowledgeFile file : scanResult.files()) {
+    for (ScannedCipKnowledgeFile file : scanResult.files()) {
       switch (file.kind()) {
         case RUNTIME_SKILL_INDEX -> readRuntimeSkillIndex(file, skills);
         case SKILL_CATALOG -> readSkillCatalog(file, skills);
@@ -56,7 +56,7 @@ public class CompilerSkillCatalogLoader {
   }
 
   private void readRuntimeSkillIndex(
-      ScannedQipKnowledgeFile file, Map<String, MutableSkill> skills) {
+      ScannedCipKnowledgeFile file, Map<String, MutableSkill> skills) {
     JsonNode root = readYaml(file);
     JsonNode skillNodes = root.path("skills");
     if (!skillNodes.isArray()) {
@@ -82,7 +82,7 @@ public class CompilerSkillCatalogLoader {
   }
 
   private void readSkillCatalog(
-      ScannedQipKnowledgeFile file, Map<String, MutableSkill> skills) {
+      ScannedCipKnowledgeFile file, Map<String, MutableSkill> skills) {
     JsonNode root = readYaml(file);
     JsonNode skillNodes = root.path("normalized-skills");
     if (!skillNodes.isArray()) {
@@ -107,7 +107,7 @@ public class CompilerSkillCatalogLoader {
     }
   }
 
-  private void readSkillSource(ScannedQipKnowledgeFile file, Map<String, MutableSkill> skills) {
+  private void readSkillSource(ScannedCipKnowledgeFile file, Map<String, MutableSkill> skills) {
     String name = deriveFolderSkillId(file.relativePath());
     MutableSkill skill = skill(skills, name);
     skill.name = name;
@@ -131,7 +131,7 @@ public class CompilerSkillCatalogLoader {
     }
   }
 
-  private void readSourceSpec(ScannedQipKnowledgeFile file, Map<String, MutableSkill> skills) {
+  private void readSourceSpec(ScannedCipKnowledgeFile file, Map<String, MutableSkill> skills) {
     String name = deriveTopLevelSpecSkillId(file.relativePath());
     MutableSkill skill = skill(skills, name);
     skill.name = name;
@@ -145,7 +145,7 @@ public class CompilerSkillCatalogLoader {
   }
 
   private static void markPrivate(
-      ScannedQipKnowledgeFile file, Map<String, MutableSkill> skills) {
+      ScannedCipKnowledgeFile file, Map<String, MutableSkill> skills) {
     String name = deriveFolderSkillId(file.relativePath());
     MutableSkill skill = skill(skills, name);
     skill.name = name;
@@ -178,7 +178,7 @@ public class CompilerSkillCatalogLoader {
     }
   }
 
-  private JsonNode readYaml(ScannedQipKnowledgeFile file) {
+  private JsonNode readYaml(ScannedCipKnowledgeFile file) {
     try {
       return yamlMapper.readTree(file.content());
     } catch (IOException e) {

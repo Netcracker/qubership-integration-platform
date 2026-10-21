@@ -74,8 +74,9 @@ class ScenarioRouterTest {
     assertEquals(ScenarioType.GATHER_REQUIREMENTS, outcome.scenarioType());
   }
 
-  @Test
-  void standaloneImportUsesItsOwnHandlerInsteadOfStartingCreate() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void standaloneImportUsesItsOwnHandlerInsteadOfStartingCreate(boolean explicitHint) {
     var selection = mock(CreateRunSelectionService.class);
     var adapter = mock(ProductPipelineChatAdapter.class);
     var handler = mock(ScenarioHandler.class);
@@ -85,7 +86,9 @@ class ScenarioRouterTest {
     var productRouter = new ScenarioRouter(routerAgent, compilationRuntime.phaseResolver(),
         mock(ConversationService.class), chainContextExtractor, requirementDraftStore, handlers, selection, adapter);
     var request = new ChatRequest();
-    request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
+    request.setMessage("Import the attached OpenAPI specification as an external service. Do not create or deploy a chain."
+        + "\n---\n- `9fc94106-77db-4715-ad84-b48c43e15dd7.json` (inlined)\n{}");
+    if (explicitHint) request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
 
     productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
 

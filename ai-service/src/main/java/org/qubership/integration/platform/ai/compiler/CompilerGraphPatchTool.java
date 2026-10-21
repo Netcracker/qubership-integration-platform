@@ -43,7 +43,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ChainPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
@@ -85,7 +85,7 @@ public class CompilerGraphPatchTool {
   private final DeterministicElementSchemaService schemaService;
   private final ObjectMapper objectMapper;
   private final CaptureAttemptFeedbackStore feedbackStore;
-  private final QipKnowledgePackRepository packRepository;
+  private final CipKnowledgePackRepository packRepository;
   private final GeneratorReadinessEvaluator readinessEvaluator;
   private final GraphPatchApplier patchApplier;
   private final CaptureRepairMessageBuilder repairMessageBuilder;
@@ -104,7 +104,7 @@ public class CompilerGraphPatchTool {
       DeterministicElementSchemaService schemaService,
       ObjectMapper objectMapper,
       CaptureAttemptFeedbackStore feedbackStore,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GeneratorReadinessEvaluator readinessEvaluator,
       GraphPatchApplier patchApplier,
       CaptureRepairMessageBuilder repairMessageBuilder,

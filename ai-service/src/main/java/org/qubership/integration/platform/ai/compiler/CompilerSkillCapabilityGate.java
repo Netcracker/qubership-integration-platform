@@ -5,10 +5,10 @@ import jakarta.inject.Inject;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityDescriptor;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 /**
  * Decides whether a pack skill can run through the generic {@link
@@ -17,26 +17,26 @@ import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapa
 @ApplicationScoped
 public class CompilerSkillCapabilityGate {
 
-  private static final Set<QipKnowledgeCapabilityPhase> GENERIC_EXECUTOR_PHASES =
+  private static final Set<CipKnowledgeCapabilityPhase> GENERIC_EXECUTOR_PHASES =
       Set.of(
-          QipKnowledgeCapabilityPhase.DISCOVERY,
-          QipKnowledgeCapabilityPhase.GENERATOR,
-          QipKnowledgeCapabilityPhase.GRAPH_CONSTRUCTION,
-          QipKnowledgeCapabilityPhase.VALIDATOR);
+          CipKnowledgeCapabilityPhase.DISCOVERY,
+          CipKnowledgeCapabilityPhase.GENERATOR,
+          CipKnowledgeCapabilityPhase.GRAPH_CONSTRUCTION,
+          CipKnowledgeCapabilityPhase.VALIDATOR);
 
   private static final Set<String> RUNTIME_GRAPH_CONSTRUCTION_SKILLS =
       Set.of("cip-chain-generator");
 
-  private final QipKnowledgePackRepository repository;
+  private final CipKnowledgePackRepository repository;
   private final CompilerSkillRuntimeEligibility runtimeEligibility;
 
   @Inject
-  public CompilerSkillCapabilityGate(QipKnowledgePackRepository repository) {
+  public CompilerSkillCapabilityGate(CipKnowledgePackRepository repository) {
     this(repository, new CompilerSkillRuntimeEligibility(repository));
   }
 
   CompilerSkillCapabilityGate(
-      QipKnowledgePackRepository repository, CompilerSkillRuntimeEligibility runtimeEligibility) {
+      CipKnowledgePackRepository repository, CompilerSkillRuntimeEligibility runtimeEligibility) {
     this.repository = Objects.requireNonNull(repository, "repository");
     this.runtimeEligibility = Objects.requireNonNull(runtimeEligibility, "runtimeEligibility");
   }
@@ -45,7 +45,7 @@ public class CompilerSkillCapabilityGate {
     return phaseFor(skillId).isPresent();
   }
 
-  public Optional<QipKnowledgeCapabilityPhase> phaseFor(String skillId) {
+  public Optional<CipKnowledgeCapabilityPhase> phaseFor(String skillId) {
     if (!runtimeEligibility.allowsRuntimeAccess(skillId)) {
       return Optional.empty();
     }
@@ -88,18 +88,18 @@ public class CompilerSkillCapabilityGate {
     return "Compiler skill cannot use generic executor: " + key;
   }
 
-  private boolean allowsRuntimePhase(String skillId, QipKnowledgeCapabilityPhase phase) {
+  private boolean allowsRuntimePhase(String skillId, CipKnowledgeCapabilityPhase phase) {
     if (!GENERIC_EXECUTOR_PHASES.contains(phase)) {
       return false;
     }
-    if (phase == QipKnowledgeCapabilityPhase.GRAPH_CONSTRUCTION) {
+    if (phase == CipKnowledgeCapabilityPhase.GRAPH_CONSTRUCTION) {
       return RUNTIME_GRAPH_CONSTRUCTION_SKILLS.contains(skillId.trim())
           || repository.loadRuntimePromotedSkillIds().contains(skillId.trim());
     }
-    if (phase == QipKnowledgeCapabilityPhase.DISCOVERY) {
+    if (phase == CipKnowledgeCapabilityPhase.DISCOVERY) {
       return repository.loadRuntimePromotedSkillIds().contains(skillId.trim());
     }
-    if (phase == QipKnowledgeCapabilityPhase.VALIDATOR) {
+    if (phase == CipKnowledgeCapabilityPhase.VALIDATOR) {
       return repository.loadRuntimePromotedSkillIds().contains(skillId.trim());
     }
     return true;

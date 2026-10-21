@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class PlanningArtifactSerializationTest {
 
@@ -15,11 +15,11 @@ class PlanningArtifactSerializationTest {
 
   @Test
   void roundTripsRequirementBrief() throws Exception {
-    QipKnowledgePackVersion version = new QipKnowledgePackVersion("v1_0_1", "v1_0_1");
-    QipKnowledgeCitation citation =
-        new QipKnowledgeCitation(
+    CipKnowledgePackVersion version = new CipKnowledgePackVersion("v1_0_1", "v1_0_1");
+    CipKnowledgeCitation citation =
+        new CipKnowledgeCitation(
             "D-001",
-            QipKnowledgeRefType.DECISION_NODE,
+            CipKnowledgeRefType.DECISION_NODE,
             "knowledge/ai/CORPORATE_DECISION_TREE.yaml",
             version,
             "id: D-001");
@@ -63,15 +63,15 @@ class PlanningArtifactSerializationTest {
 
   @Test
   void roundTripsSelectedPattern() throws Exception {
-    QipKnowledgePackVersion version = new QipKnowledgePackVersion("v1_0_1", "v1_0_1");
+    CipKnowledgePackVersion version = new CipKnowledgePackVersion("v1_0_1", "v1_0_1");
     SelectedPattern original =
         new SelectedPattern(
             "GP-01",
             "Protected Request-Response",
             "Matches HTTP API with RBAC",
-            new QipKnowledgeCitation(
+            new CipKnowledgeCitation(
                 "GP-01",
-                QipKnowledgeRefType.GOLDEN_PATTERN,
+                CipKnowledgeRefType.GOLDEN_PATTERN,
                 "knowledge/ai/golden-reference-library.md",
                 version,
                 "GP-01"),

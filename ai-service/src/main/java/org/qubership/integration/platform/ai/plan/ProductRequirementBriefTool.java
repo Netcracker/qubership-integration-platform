@@ -321,14 +321,15 @@ public class ProductRequirementBriefTool {
       pinned.add(new MappingIntent("", mapping.sourceInteractionId(), null,
           mapping.targetInteractionId(), null,
           List.of(new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(),
-              mapping.expression())), null));
+              mapping.expression()).withRequirementIds(List.of(fact.sourceFactId()))), null));
     }
     for (MappingIntent proposal : capture.toIntents()) {
       for (MappingIntentRule rule : proposal.rules()) {
         boolean approvedRule = pinned.stream().anyMatch(intent ->
             intent.sourceRef().equals(proposal.sourceRef())
                 && intent.targetRef().equals(proposal.targetRef())
-                && intent.rules().contains(rule));
+                && intent.rules().stream().anyMatch(pinnedRule ->
+                    pinnedRule.withRequirementIds(List.of()).equals(rule)));
         if (!approvedRule) {
           throw new IllegalArgumentException(
               "Field mapping differs from the approved requirement: "

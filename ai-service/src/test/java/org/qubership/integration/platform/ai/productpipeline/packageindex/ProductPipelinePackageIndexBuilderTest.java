@@ -9,13 +9,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 
 class ProductPipelinePackageIndexBuilderTest {
 
   @Test
   void buildsIndexWithOnlySkillAddonAndRulePins() {
-    Path packRoot = QipKnowledgePackFixturePaths.packRoot();
+    Path packRoot = CipKnowledgePackFixturePaths.packRoot();
     Path repoRoot = packRoot.getParent();
 
     ProductPipelinePackageIndex index =
@@ -40,7 +40,7 @@ class ProductPipelinePackageIndexBuilderTest {
 
   @Test
   void shuffledPinsProduceStableClosureDigest() {
-    Path packRoot = QipKnowledgePackFixturePaths.packRoot();
+    Path packRoot = CipKnowledgePackFixturePaths.packRoot();
     Path repoRoot = packRoot.getParent();
     ProductPipelineDependencyResolver resolver = new ProductPipelineDependencyResolver();
     List<CapabilityManifest> capabilities =

@@ -240,49 +240,20 @@ public class DiagnosticService {
     // Only one scan task can be executed at a time
     public CompletableFuture<Void> runValidationsAsync(@Nullable Set<String> validationIds) throws DiagnosticValidationUnexpectedException {
         if (validationUpdateTryLock()) {
+            Map<String, ValidationStatus> filteredValidations;
+            try {
+                // Save IN_PROGRESS before returning, so a status read right after this call never sees the previous run.
+                filteredValidations = saveInProgressStatuses(validationIds);
+            } catch (RuntimeException e) {
+                log.error("Diagnostic validations task failed to start", e);
+                validationUpdateUnlock();
+                throw e;
+            }
+
             return CompletableFuture.runAsync(() -> {
                 try {
-                    Set<String> filteredIds = validationIds == null || validationIds.isEmpty()
-                            ? validations.keySet()
-                            : validations.keySet().stream()
-                                    .filter(validationIds::contains)
-                                    .collect(Collectors.toSet());
-
-                    Map<String, ValidationStatus> filteredValidations = new HashMap<>(filteredIds.size());
-                    transactionHandler.runInNewTransaction(() -> {
-                        for (String filteredId : filteredIds) {
-                            ValidationStatus savedStatus = validationStatusRepository.save(
-                                    ValidationStatus.builder()
-                                            .validationId(filteredId)
-                                            .startedWhen(Timestamp.valueOf(LocalDateTime.now()))
-                                            .state(ValidationState.IN_PROGRESS).build());
-                            filteredValidations.put(filteredId, savedStatus);
-                        }
-                    });
-
                     for (Map.Entry<String, ValidationStatus> entry : filteredValidations.entrySet()) {
-                        AbstractValidation validation = validations.get(entry.getKey());
-                        ValidationStatus state = entry.getValue();
-                        try {
-                            log.info("Diagnostic validation '{}' has started", validation.getTitle());
-
-                            transactionHandler.runInNewTransaction(() -> {
-                                // remove old alerts and save new
-                                switch (validation.getEntityType()) {
-                                    case CHAIN, CHAIN_ELEMENT -> {
-                                        chainAlertRepository.deleteAllByValidationId(validation.getId());
-                                        chainAlertRepository.saveAll((Collection<ValidationChainAlert>) validation.validate());
-                                    }
-                                }
-                            });
-
-                            state.setState(ValidationState.OK);
-                            log.info("Diagnostic validation '{}' completed", validation.getTitle());
-                        } catch (Exception e) {
-                            log.error("Validation '{}' failed with an unexpected error", validation.getTitle(), e);
-                            state.setState(ValidationState.FAILED, e.getMessage());
-                        }
-                        validationStatusRepository.save(state);
+                        runValidation(validations.get(entry.getKey()), entry.getValue());
                     }
                     log.info("Diagnostic validations task completed");
                 } catch (Exception e) {
@@ -294,6 +265,50 @@ public class DiagnosticService {
         } else {
             throw new ValidationAlreadyInProgressUnexpectedException("Validation(s) already in progress");
         }
+    }
+
+    private Map<String, ValidationStatus> saveInProgressStatuses(@Nullable Set<String> validationIds) {
+        Set<String> filteredIds = validationIds == null || validationIds.isEmpty()
+                ? validations.keySet()
+                : validations.keySet().stream()
+                        .filter(validationIds::contains)
+                        .collect(Collectors.toSet());
+
+        Map<String, ValidationStatus> filteredValidations = new HashMap<>(filteredIds.size());
+        transactionHandler.runInNewTransaction(() -> {
+            for (String filteredId : filteredIds) {
+                ValidationStatus savedStatus = validationStatusRepository.save(
+                        ValidationStatus.builder()
+                                .validationId(filteredId)
+                                .startedWhen(Timestamp.valueOf(LocalDateTime.now()))
+                                .state(ValidationState.IN_PROGRESS).build());
+                filteredValidations.put(filteredId, savedStatus);
+            }
+        });
+        return filteredValidations;
+    }
+
+    private void runValidation(AbstractValidation validation, ValidationStatus state) {
+        try {
+            log.info("Diagnostic validation '{}' has started", validation.getTitle());
+
+            transactionHandler.runInNewTransaction(() -> {
+                // remove old alerts and save new
+                switch (validation.getEntityType()) {
+                    case CHAIN, CHAIN_ELEMENT -> {
+                        chainAlertRepository.deleteAllByValidationId(validation.getId());
+                        chainAlertRepository.saveAll((Collection<ValidationChainAlert>) validation.validate());
+                    }
+                }
+            });
+
+            state.setState(ValidationState.OK);
+            log.info("Diagnostic validation '{}' completed", validation.getTitle());
+        } catch (Exception e) {
+            log.error("Validation '{}' failed with an unexpected error", validation.getTitle(), e);
+            state.setState(ValidationState.FAILED, e.getMessage());
+        }
+        validationStatusRepository.save(state);
     }
 
     public Map<String, ValidationStatus> getCurrentStatuses() {

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.ArrayList;
 import java.util.List;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 
 /** LLM-facing requirement brief input for {@link RequirementBriefTool#captureRequirementBrief}. */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -18,7 +18,7 @@ public record RequirementBriefCapture(
     String approvedDraftReference,
     String approvedDraftText,
     List<RequirementFact> facts,
-    List<QipKnowledgeCitation> citations,
+    List<CipKnowledgeCitation> citations,
     List<CapturedMappingIntent> mappingIntents) {
 
   public RequirementBriefCapture {
@@ -41,7 +41,7 @@ public record RequirementBriefCapture(
       String approvedDraftReference,
       String approvedDraftText,
       List<RequirementFact> facts,
-      List<QipKnowledgeCitation> citations) {
+      List<CipKnowledgeCitation> citations) {
     this(
         goal,
         inputs,

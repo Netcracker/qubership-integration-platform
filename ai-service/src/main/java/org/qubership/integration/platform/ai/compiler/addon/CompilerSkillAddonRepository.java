@@ -13,8 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 /** Loads compiler skill addon documents from pre-built classpath or filesystem indexes. */
 @ApplicationScoped
@@ -22,27 +22,27 @@ public class CompilerSkillAddonRepository {
 
   private static final String CLASSPATH_ROOT = "qipknowledge/";
 
-  private final QipKnowledgePackVersion activeVersion;
+  private final CipKnowledgePackVersion activeVersion;
   private final Path filesystemBaseDir;
   private final ClassLoader classLoader;
   private final ObjectMapper objectMapper;
   private volatile CompilerSkillAddonIndex cachedIndex;
 
   @Inject
-  public CompilerSkillAddonRepository(QipKnowledgePackRepository repository) {
+  public CompilerSkillAddonRepository(CipKnowledgePackRepository repository) {
     this(repository.activeVersion(), null, CompilerSkillAddonRepository.class.getClassLoader());
   }
 
   /** Test-only filesystem-backed repository over a generated qipknowledge output root. */
   public static CompilerSkillAddonRepository forFilesystem(
       Path filesystemBaseDir,
-      QipKnowledgePackVersion activeVersion,
+      CipKnowledgePackVersion activeVersion,
       ClassLoader classLoader) {
     return new CompilerSkillAddonRepository(activeVersion, filesystemBaseDir, classLoader);
   }
 
   CompilerSkillAddonRepository(
-      QipKnowledgePackVersion activeVersion, Path filesystemBaseDir, ClassLoader classLoader) {
+      CipKnowledgePackVersion activeVersion, Path filesystemBaseDir, ClassLoader classLoader) {
     this.activeVersion = Objects.requireNonNull(activeVersion, "activeVersion");
     this.filesystemBaseDir = filesystemBaseDir;
     this.classLoader = Objects.requireNonNull(classLoader, "classLoader");

@@ -52,7 +52,8 @@
     <plexus-utils.version>3.6.1</plexus-utils.version>
     <commons-beanutils.version>1.11.0</commons-beanutils.version>
     <jose4j.version>0.9.6</jose4j.version>
-    <grpc.version>1.54.2</grpc.version>
+    <!-- The engine and the micro-engine run the stubs this version generates; keep it no newer than the grpc they run. -->
+    <grpc.version>1.75.0</grpc.version>
     <protobuf-java.version>4.33.2</protobuf-java.version>
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>

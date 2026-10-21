@@ -32,6 +32,51 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class MappingTurnInterpreterTest {
 
   @Test
+  void failureMappingCaptureReceivesTheApprovedInvocationMode() {
+    var interpreter = interpreter((flow, intents, message) -> {
+      assertTrue(flow.contains("interactionId=create-task participant=Salesforce operation=createTask failureMode=PROPAGATE"), flow);
+      return new MappingTurnCapture(Kind.CLARIFICATION, List.of(), List.of(), "FLOW_CHANGE", List.of());
+    });
+
+    var result = interpreter.interpret(rockyBrief(), "On failure, return error details in onTaskResult.");
+
+    assertEquals("FLOW_CHANGE", assertInstanceOf(Clarification.class, result).reason());
+  }
+
+  @Test
+  void responseSupplementReceivesStoredValuesAndPreservesExistingWriters() {
+    var constant = new MappingIntentRule("", "commandType", "Constant value completeTask.");
+    var correlation = new MappingIntentRule("", "processInstanceId",
+        "Read processInstanceId saved from task-start before create-task.");
+    var brief = MappingTurnApplicator.apply(rockyBrief(), MappingTurnResult.changes(
+        new AddIntent("task-start", "create-task", List.of(new MappingIntentRule("name", "Subject", null))),
+        new AddIntent("create-task", "task-result", List.of(constant, correlation)))).brief();
+    var response = brief.mappingIntents().get(1);
+    var adapter = interpreter((flow, intents, message) -> {
+      assertTrue(intents.contains("Constant value completeTask."), intents);
+      assertTrue(intents.contains("Read processInstanceId saved from task-start before create-task."), intents);
+      assertTrue(intents.contains("targetPath=$.processInstanceId"), intents);
+      return new MappingTurnCapture(Kind.CHANGES, List.of(), List.of(
+          new RuleChange(response.mappingIntentId(), "\"salesforce\"", "sourceAppName", null),
+          new RuleChange(response.mappingIntentId(), "id", "parameters.salesforceTaskId", null)),
+          "", List.of(), null,
+          List.of(new RuleChange(response.mappingIntentId(), "", "processInstanceId", null,
+              "processId", null, null)), List.of(), List.of());
+    });
+
+    var applied = MappingTurnProcessor.process(brief,
+        "Keep commandType unchanged, rename processInstanceId to processId, and add the Salesforce result fields.", adapter);
+
+    assertTrue(applied.applied(), applied.toString());
+    assertEquals(brief.mappingIntents().getFirst(), applied.brief().mappingIntents().getFirst());
+    var rules = applied.brief().mappingIntents().get(1).rules();
+    assertTrue(rules.contains(response.rules().getFirst()));
+    assertEquals(List.of("$.commandType", "$.processId", "$.sourceAppName", "$.parameters.salesforceTaskId"),
+        rules.stream().map(MappingIntentRule::targetPath).toList());
+    assertEquals(correlation.expression(), rules.get(1).expression());
+  }
+
+  @Test
   void approvedLocalReminderIsDistinctFromNewStructure() throws Exception {
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var json = mapper.valueToTree(rockyBrief());

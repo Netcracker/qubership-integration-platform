@@ -78,7 +78,12 @@ public class ProvidedIdsFlowTasks {
     } catch (RuntimeException failure) {
       // A throwable reaching the workflow engine aborts the instance: no attempt, no status, and a
       // run that stays RUNNING with nothing for the author to click.
-      result = runSupport.stageExecutor().haltOnEscapedFailure(input.runId(), failure);
+      try {
+        result = runSupport.stageExecutor().haltOnEscapedFailure(input.runId(), failure);
+      } catch (RuntimeException persistenceFailure) {
+        failure.addSuppressed(persistenceFailure);
+        throw failure;
+      }
       lifecycle = List.of();
     }
     // Lifecycle already includes stage signals plus review text inserted in front of a wait.

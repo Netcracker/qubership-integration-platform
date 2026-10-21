@@ -2893,7 +2893,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     putLatestRequirementBrief(runId, attributes);
     attributesByRun.put(runId, attributes);
-    if (isActiveMappingRepair(attributes)) {
+    if (isActiveMappingRepair(attributes) && "true".equals(attributes.get("mappingRepairAutomatic"))) {
       mappingDraftRevision(runId, RecoveryCause.mappingContract(List.of())).ifPresent(revision -> {
         RequirementDraft draft = artifactStore.payload(revision, RequirementDraft.class);
         attributes.put("requirementCorrectionDraftReference", revision.reference());

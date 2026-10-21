@@ -121,8 +121,6 @@ spec:
                   name: {{ .Release.Name }}-env
             - name: ENGINE_SERVICE_NAME
               value: {{ .Release.Name }}-engine
-            - name: MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY
-              value: 1048Mi
             - name: DEPLOYMENT_VERSION
               valueFrom:
                 configMapKeyRef:

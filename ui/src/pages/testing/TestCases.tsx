@@ -40,6 +40,7 @@ import { TestingListActions } from "../../components/testing/TestingListActions.
 import { useTestingListToolbar } from "../../components/testing/useTestingListToolbar.tsx";
 import type { TestingPageVariant } from "./TestingLayout.tsx";
 import { RowLink } from "../../components/table/RowLink.tsx";
+import { ChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
 const COLUMN_WIDTHS = {
   name: 220,
@@ -91,8 +92,6 @@ export const TestCases: React.FC<TestCasesProps> = ({
     getChainName,
     getElementName,
     exportEntities,
-    sortBy,
-    sortOrder,
     tableSort,
     handleTableChange: handleServerTableChange,
     selectedRowKeys,
@@ -365,20 +364,6 @@ export const TestCases: React.FC<TestCasesProps> = ({
     filterButton,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: variant === "chain-tab",
-    registerDependencies: [
-      isLoading,
-      variant,
-      searchString,
-      sortBy,
-      sortOrder,
-      selectedRowKeys,
-      selectAllMatching,
-      allLoaded,
-      filters,
-      permissions,
-      isStarting,
-    ],
   });
 
   const table = (
@@ -425,7 +410,10 @@ export const TestCases: React.FC<TestCasesProps> = ({
           {table}
         </Flex>
       ) : (
-        table
+        <>
+          <ChainHeaderActions>{toolbar}</ChainHeaderActions>
+          {table}
+        </>
       )}
       <TestCaseDetailsDrawer
         testCase={detailsTestCase}

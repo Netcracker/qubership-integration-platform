@@ -64,8 +64,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
@@ -118,7 +118,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
-import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.CipSchemaYamlParser;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 
@@ -3626,7 +3626,7 @@ class ProductPipelineStageExecutorTest {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     ObjectMapper recoveryMapper = org.mockito.Mockito.spy(new ObjectMapper().registerModule(new JavaTimeModule()));
     SchemaResourceLoader loader = org.mockito.Mockito.spy(new SchemaResourceLoader());
-    SchemaRefResolver resolver = org.mockito.Mockito.spy(new SchemaRefResolver(loader, new QipSchemaYamlParser()));
+    SchemaRefResolver resolver = org.mockito.Mockito.spy(new SchemaRefResolver(loader, new CipSchemaYamlParser()));
     DeterministicElementSchemaService schemaService =
         org.mockito.Mockito.spy(DeterministicElementSchemaService.createForUnitTests(recoveryMapper));
     var observed = new AtomicReference<RecoveryContext>();
@@ -7998,8 +7998,8 @@ class ProductPipelineStageExecutorTest {
         revision.executionEdges(),
         revision.mappingIntents(),
         List.of(
-            new QipKnowledgeCitation(
-                "cite-1", QipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
+            new CipKnowledgeCitation(
+                "cite-1", CipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
   }
 
   private static ApprovalRecordV2 withSubjectSchemaVersion(
@@ -8056,7 +8056,7 @@ class ProductPipelineStageExecutorTest {
       List<SemanticEntryPoint> entryPoints,
       List<SemanticExecutionEdge> edges,
       List<MappingIntent> mappings,
-      List<QipKnowledgeCitation> citations) {
+      List<CipKnowledgeCitation> citations) {
     return new ChainSemanticRevision(
         base.schemaVersion(),
         base.revisionId(),

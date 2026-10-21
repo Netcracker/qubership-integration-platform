@@ -9,7 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 
 /** Derives {@code profileId@profileVersion} keys from pack product-pipeline profile YAML. */
 public final class ProductPipelineProfileKeys {
@@ -42,7 +42,7 @@ public final class ProductPipelineProfileKeys {
     return List.copyOf(keys);
   }
 
-  public static List<String> readFromPackRepository(QipKnowledgePackRepository packRepository) {
+  public static List<String> readFromPackRepository(CipKnowledgePackRepository packRepository) {
     Objects.requireNonNull(packRepository, "packRepository");
     List<String> keys = new ArrayList<>();
     for (String relativePath : packRepository.loadProductPipelineProfileResources()) {

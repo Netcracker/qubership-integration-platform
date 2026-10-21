@@ -33,7 +33,7 @@ import { ImportSessions } from "../components/modal/ImportSessions.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { toStringIds } from "../misc/selection-utils.ts";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import {
@@ -210,7 +210,8 @@ export const Sessions: React.FC<SessionsProps> = ({
           }
         }
 
-        const checkpointSessionsLists = await Promise.all(
+        // A failed domain, such as a deleted micro domain, leaves its sessions without checkpoints.
+        const checkpointSessionsLists = await Promise.allSettled(
           Array.from(groupBy(fetched, (s) => s.domain).entries()).map(
             ([domainName, sessions]) => {
               const domainType = sessions[0].domainType;
@@ -222,7 +223,9 @@ export const Sessions: React.FC<SessionsProps> = ({
           ),
         );
         const checkpointSessions: CheckpointSession[] =
-          checkpointSessionsLists.flat();
+          checkpointSessionsLists.flatMap((result) =>
+            result.status === "fulfilled" ? result.value : [],
+          );
         const checkpointsById = new Map<string, Checkpoint[]>();
         checkpointSessions.forEach((cs) =>
           checkpointsById.set(cs.id, cs.checkpoints),
@@ -605,18 +608,6 @@ export const Sessions: React.FC<SessionsProps> = ({
     ],
   );
 
-  useRegisterChainHeaderActions(
-    variant === "chain-tab" ? sessionsToolbar : undefined,
-    [
-      searchString,
-      chainId,
-      selectedRowKeys,
-      onRefreshSessions,
-      variant,
-      isLoading,
-    ],
-  );
-
   const sessionsTable = (
     <TablePageLayout>
       <div
@@ -660,7 +651,10 @@ export const Sessions: React.FC<SessionsProps> = ({
           {sessionsTable}
         </Flex>
       ) : (
-        sessionsTable
+        <>
+          <ChainHeaderActions>{sessionsToolbar}</ChainHeaderActions>
+          {sessionsTable}
+        </>
       )}
     </>
   );

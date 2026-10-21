@@ -18,6 +18,7 @@ import type {
   MaskedField,
   SessionFilterAndSearchRequest,
   PaginationOptions,
+  OperationListOptions,
   SessionSearchResponse,
   Session,
   CheckpointSession,
@@ -461,7 +462,7 @@ export interface Api {
 
   getOperations(
     modelId: string,
-    paginationOptions: PaginationOptions,
+    options: OperationListOptions,
   ): Promise<SystemOperation[]>;
 
   getOperationInfo(operationId: string): Promise<OperationInfo>;

@@ -15,8 +15,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
 
 class CanonicalPayloadHashTest {
 
@@ -170,8 +170,8 @@ class CanonicalPayloadHashTest {
         revision.executionEdges(),
         revision.mappingIntents(),
         List.of(
-            new QipKnowledgeCitation(
-                "cite-1", QipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
+            new CipKnowledgeCitation(
+                "cite-1", CipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
   }
 
   private static ChainSemanticRevision copy(
@@ -179,7 +179,7 @@ class CanonicalPayloadHashTest {
       List<SemanticEntryPoint> entryPoints,
       List<SemanticExecutionEdge> edges,
       List<MappingIntent> mappings,
-      List<QipKnowledgeCitation> citations) {
+      List<CipKnowledgeCitation> citations) {
     return new ChainSemanticRevision(
         base.schemaVersion(),
         base.revisionId(),

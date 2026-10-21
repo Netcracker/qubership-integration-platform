@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 
 @org.junit.jupiter.api.Tag("certified-pack")
 class ChainEditPlannerAddonContractTest {
@@ -14,15 +14,15 @@ class ChainEditPlannerAddonContractTest {
   void structureAndScriptAddonsMustFollowTheValidatedPlan() throws Exception {
     String structure =
         Files.readString(
-            QipKnowledgePackFixturePaths.addonRoot()
+            CipKnowledgePackFixturePaths.addonRoot()
                 .resolve("skills/cip-structure-generator.addon.md"));
     String script =
         Files.readString(
-            QipKnowledgePackFixturePaths.addonRoot()
+            CipKnowledgePackFixturePaths.addonRoot()
                 .resolve("skills/cip-script-generator.addon.md"));
     String planner =
         Files.readString(
-            QipKnowledgePackFixturePaths.addonRoot()
+            CipKnowledgePackFixturePaths.addonRoot()
                 .resolve("skills/cip-chain-edit-planner.addon.md"));
 
     assertTrue(planner.contains("CHAIN_EDIT_STRUCTURAL_PLAN"), planner);

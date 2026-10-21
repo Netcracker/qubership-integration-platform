@@ -39,7 +39,7 @@ public class DeterministicElementSchemaService {
   SchemaResourceLoader schemaResourceLoader;
 
   @Inject
-  QipSchemaYamlParser qipSchemaYamlParser;
+  CipSchemaYamlParser qipSchemaYamlParser;
 
   @Inject
   SchemaRefResolver schemaRefResolver;
@@ -53,7 +53,7 @@ public class DeterministicElementSchemaService {
   /** Wires dependencies for unit tests without CDI. */
   public static DeterministicElementSchemaService createForUnitTests(ObjectMapper objectMapper) {
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
-    QipSchemaYamlParser qipSchemaYamlParser = new QipSchemaYamlParser();
+    CipSchemaYamlParser qipSchemaYamlParser = new CipSchemaYamlParser();
     SchemaRefResolver schemaRefResolver =
         new SchemaRefResolver(schemaResourceLoader, qipSchemaYamlParser);
     DeterministicElementSchemaService service = new DeterministicElementSchemaService();

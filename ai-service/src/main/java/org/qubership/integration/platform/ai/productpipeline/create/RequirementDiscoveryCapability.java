@@ -273,8 +273,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
           Contract findings:
           %s
           %s
-          """.formatted(repair.findings(), repair.errorEvidence());
-      draftStore.restoreAccepted(conversationId, mappingRepairDraft);
+          """.formatted(repair.diagnosticText(), repair.errorEvidence());
     }
     var repair = StageRepairEvidence.from(context);
     if (repair != null && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
@@ -495,9 +494,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     RequirementDraft repairDraft = mappingRepairDraft(context);
     if (repairDraft != null && !preservesMappingRepair(context, repairDraft, draft)) {
-      draftStore.restoreAccepted(conversationId, repairDraft);
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "REPAIR_FACT_LOSS: Change only the rejected mapping field paths. The selected draft was retained.",
+          "REPAIR_FACT_LOSS: Change only the rejected mapping field paths.",
           RecoveryCause.mappingContract(List.of())));
     }
     if (draft == null) {
@@ -512,12 +510,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     var uploadedInteractions = uploadedSpecs == null ? java.util.Set.<String>of()
         : uploadedSpecs.pendingInteractionIds(conversationId, draft);
-    if (!draft.readyForPlan() && !draft.hasPendingImport() && uploadedInteractions.isEmpty()
+    var pending = draft.authoredDraft() == null ? List.<RequirementCaptureProjection.PendingWork>of()
+        : RequirementCaptureProjection.pending(
+            draft.authoredDraft(), draft.catalogBindings(),
+            RequirementCaptureProjection.resolvedTargets(draft), uploadedInteractions);
+    boolean onlyUploadedImports = draft.authoredDraft() == null
+        ? !uploadedInteractions.isEmpty() : RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending);
+    if (!draft.readyForPlan() && !draft.hasPendingImport() && !onlyUploadedImports
         && draft.openQuestions().isEmpty()) {
-      var pending = draft.authoredDraft() == null ? List.<RequirementCaptureProjection.PendingWork>of()
-          : RequirementCaptureProjection.pending(
-              draft.authoredDraft(), draft.catalogBindings(),
-              RequirementCaptureProjection.resolvedTargets(draft));
       var findings = pending.stream().map(work -> new PlanValidationFinding(work.code(), work.message(), true,
           MappingValidationDetails.empty(), work.interactionId() == null ? "requirement-draft" : work.interactionId(),
           work.interactionId() == null ? "/draft" : "/interactions/" + work.interactionId())).toList();
@@ -534,9 +534,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
                     PipelineGates.REQUIREMENT_DRAFT_READY,
                     "Requirements draft saved. Continue to planning when ready.")));
       }
+      String questions = String.join("\n", draft.openQuestions());
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-              PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, String.join("\n", draft.openQuestions()))));
+              questions.isBlank() ? "" : PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, questions)));
     }
     if (directive == RequirementDiscoveryDirective.NONE && !draftStore.wasCapturedThisTurn(conversationId)) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
@@ -546,13 +547,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     // specs hand off the same way so import can bind catalog-backed interactions that are
     // not in the runtime catalog yet.
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
-    boolean pendingUploadedSpecHandoff = !uploadedInteractions.isEmpty() && !draft.facts().isEmpty();
-    if (pendingUploadedSpecHandoff && draft.authoredDraft() != null) {
-      pendingUploadedSpecHandoff = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection
-          .onlyUploadedSpecImportsRemain(org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.pending(
-              draft.authoredDraft(), draft.catalogBindings(),
-              org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.resolvedTargets(draft), uploadedInteractions));
-    }
+    boolean pendingUploadedSpecHandoff = onlyUploadedImports && !draft.facts().isEmpty();
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
@@ -750,12 +745,16 @@ public class RequirementDiscoveryCapability implements StageCapability {
 
   static boolean preservesMappingRepair(
       StageExecutionContext context, RequirementDraft original, RequirementDraft candidate) {
+    return preservesMappingRepair(mappingRepairPaths(context), original, candidate);
+  }
+
+  public static boolean preservesMappingRepair(
+      Map<String, java.util.Set<String>> editable, RequirementDraft original, RequirementDraft candidate) {
     if (candidate == null || candidate.authoredDraft() == null) {
       return false;
     }
     var accepted = original.authoredDraft();
     var proposed = candidate.authoredDraft();
-    var editable = mappingRepairPaths(context);
     var retained = new java.util.ArrayList<RequirementCaptureInput.FactInput>();
     for (var fact : proposed.facts()) {
       String factId = fact.sourceFactId();

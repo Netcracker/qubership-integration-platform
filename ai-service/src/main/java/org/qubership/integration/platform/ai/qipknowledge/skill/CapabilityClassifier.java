@@ -1,48 +1,48 @@
 package org.qubership.integration.platform.ai.qipknowledge.skill;
 
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import java.util.List;
 import java.util.Locale;
 
 /** Deterministic classifier for QIP knowledge skill capabilities. */
 public class CapabilityClassifier {
 
-  public QipKnowledgeCapabilityPhase classifyPhase(String skillId) {
+  public CipKnowledgeCapabilityPhase classifyPhase(String skillId) {
     String id = skillId.toLowerCase(Locale.ROOT);
     if (id.equals("cip-requirement-analyzer") || id.equals("cip-design-parser")) {
-      return QipKnowledgeCapabilityPhase.DISCOVERY;
+      return CipKnowledgeCapabilityPhase.DISCOVERY;
     }
     if (id.equals("cip-chain-edit-planner") || id.equals("cip-design-planner")) {
-      return QipKnowledgeCapabilityPhase.DECISION;
+      return CipKnowledgeCapabilityPhase.DECISION;
     }
     if (id.equals("cip-pattern-selector")) {
-      return QipKnowledgeCapabilityPhase.DISCOVERY;
+      return CipKnowledgeCapabilityPhase.DISCOVERY;
     }
     if (id.equals("cip-structure-generator")
         || id.equals("cip-chain-generator")
         || id.equals("cip-implementation-designer")) {
-      return QipKnowledgeCapabilityPhase.GRAPH_CONSTRUCTION;
+      return CipKnowledgeCapabilityPhase.GRAPH_CONSTRUCTION;
     }
     if (id.equals("cip-chain-assembler")) {
-      return QipKnowledgeCapabilityPhase.MATERIALIZER;
+      return CipKnowledgeCapabilityPhase.MATERIALIZER;
     }
     if (id.equals("cip-chain-analyzer") || id.equals("cip-migration-planner")) {
-      return QipKnowledgeCapabilityPhase.REVERSE;
+      return CipKnowledgeCapabilityPhase.REVERSE;
     }
     if (id.equals("cip-folder-organizer") || id.equals("cip-deployment-packager")) {
-      return QipKnowledgeCapabilityPhase.PUBLISHING;
+      return CipKnowledgeCapabilityPhase.PUBLISHING;
     }
     if (id.endsWith("-validator") || id.equals("cip-validator")) {
-      return QipKnowledgeCapabilityPhase.VALIDATOR;
+      return CipKnowledgeCapabilityPhase.VALIDATOR;
     }
     if (id.endsWith("-generator")) {
-      return QipKnowledgeCapabilityPhase.GENERATOR;
+      return CipKnowledgeCapabilityPhase.GENERATOR;
     }
-  return QipKnowledgeCapabilityPhase.UNSUPPORTED;
+  return CipKnowledgeCapabilityPhase.UNSUPPORTED;
   }
 
   public CapabilityDescriptor toCapability(
-      SkillDescriptor skill, QipKnowledgePackVersion packVersion) {
+      SkillDescriptor skill, CipKnowledgePackVersion packVersion) {
     boolean supported = isSupported(skill.skillId(), skill.phase());
     String reason = supported ? null : unsupportedReason(skill.skillId(), skill.phase());
     return new CapabilityDescriptor(
@@ -56,19 +56,19 @@ public class CapabilityClassifier {
         List.of());
   }
 
-  public boolean isSupported(String skillId, QipKnowledgeCapabilityPhase phase) {
-    if (phase == QipKnowledgeCapabilityPhase.PUBLISHING
-        || phase == QipKnowledgeCapabilityPhase.REVERSE
-        || phase == QipKnowledgeCapabilityPhase.UNSUPPORTED) {
+  public boolean isSupported(String skillId, CipKnowledgeCapabilityPhase phase) {
+    if (phase == CipKnowledgeCapabilityPhase.PUBLISHING
+        || phase == CipKnowledgeCapabilityPhase.REVERSE
+        || phase == CipKnowledgeCapabilityPhase.UNSUPPORTED) {
       return false;
     }
-    if (phase == QipKnowledgeCapabilityPhase.MATERIALIZER) {
+    if (phase == CipKnowledgeCapabilityPhase.MATERIALIZER) {
       return false;
     }
     return true;
   }
 
-  private static String unsupportedReason(String skillId, QipKnowledgeCapabilityPhase phase) {
+  private static String unsupportedReason(String skillId, CipKnowledgeCapabilityPhase phase) {
     return switch (phase) {
       case PUBLISHING -> "File publishing workflow is not applicable to ai-service backend";
       case REVERSE -> "Reverse/migration workflow is out of scope for chain build integration";

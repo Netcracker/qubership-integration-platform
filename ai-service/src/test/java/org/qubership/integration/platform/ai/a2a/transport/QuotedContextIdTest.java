@@ -21,22 +21,22 @@ class QuotedContextIdTest {
   void recoversTheIdentifierFromThePhrasingObservedOnTheWire() {
     assertEquals(
         ID,
-        QipAssistA2aAgentExecutor.findQuotedContextId(
+        CipAssistA2aAgentExecutor.findQuotedContextId(
             "Continue task with contextId " + ID + " for creating chain: Trigger HTTP GET /hello"));
   }
 
   @Test
   void acceptsCommonLabelSpellingsAndPunctuation() {
-    assertEquals(ID, QipAssistA2aAgentExecutor.findQuotedContextId("contextId: " + ID));
-    assertEquals(ID, QipAssistA2aAgentExecutor.findQuotedContextId("context_id=" + ID));
-    assertEquals(ID, QipAssistA2aAgentExecutor.findQuotedContextId("Context ID \"" + ID + "\""));
-    assertEquals(ID, QipAssistA2aAgentExecutor.findQuotedContextId("context-id (" + ID + ")"));
+    assertEquals(ID, CipAssistA2aAgentExecutor.findQuotedContextId("contextId: " + ID));
+    assertEquals(ID, CipAssistA2aAgentExecutor.findQuotedContextId("context_id=" + ID));
+    assertEquals(ID, CipAssistA2aAgentExecutor.findQuotedContextId("Context ID \"" + ID + "\""));
+    assertEquals(ID, CipAssistA2aAgentExecutor.findQuotedContextId("context-id (" + ID + ")"));
   }
 
   @Test
   void ignoresABareUuidWithNoLabel() {
     assertNull(
-        QipAssistA2aAgentExecutor.findQuotedContextId(
+        CipAssistA2aAgentExecutor.findQuotedContextId(
             "Create a chain for correlation id " + ID + " received from the upstream system"));
   }
 
@@ -44,13 +44,13 @@ class QuotedContextIdTest {
   @Test
   void ignoresALabelDetachedFromTheValue() {
     assertNull(
-        QipAssistA2aAgentExecutor.findQuotedContextId(
+        CipAssistA2aAgentExecutor.findQuotedContextId(
             "The contextId should be preserved across turns. Some unrelated run used " + ID));
   }
 
   @Test
   void toleratesMissingOrEmptyText() {
-    assertNull(QipAssistA2aAgentExecutor.findQuotedContextId(null));
-    assertNull(QipAssistA2aAgentExecutor.findQuotedContextId("   "));
+    assertNull(CipAssistA2aAgentExecutor.findQuotedContextId(null));
+    assertNull(CipAssistA2aAgentExecutor.findQuotedContextId("   "));
   }
 }

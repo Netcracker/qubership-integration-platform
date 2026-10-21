@@ -8,12 +8,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanner;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanner;
 
 class CompilerGeneratorSpecIndexBuilderTest {
 
-  private final QipKnowledgePackScanner scanner = new QipKnowledgePackScanner();
+  private final CipKnowledgePackScanner scanner = new CipKnowledgePackScanner();
   private final CompilerGeneratorSpecIndexBuilder builder = new CompilerGeneratorSpecIndexBuilder();
 
   @Test
@@ -129,7 +129,7 @@ class CompilerGeneratorSpecIndexBuilderTest {
   }
 
   private CompilerGeneratorSpecIndex build(Path packRoot) {
-    QipKnowledgePackScanResult scanResult = scanner.scan(packRoot);
+    CipKnowledgePackScanResult scanResult = scanner.scan(packRoot);
     return builder.build(scanResult);
   }
 

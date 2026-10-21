@@ -20,6 +20,13 @@ class CreateChainServerRestartIT {
   @TempDir Path directory;
 
   @Test
+  void disposableDatabaseFixtureRemovesItsAnonymousVolume() throws Exception {
+    String container = "qip-recovery-cleanup-" + UUID.randomUUID();
+    docker("run", "-d", "--name", container, "--entrypoint", "/bin/sleep", "postgres:18", "120");
+    removeFixture(container);
+  }
+
+  @Test
   void serverRestartContinuesCommittedWorkWithoutAnotherAuthorCommand() throws Exception {
     restart(CreateChainServerRestartProbe.class.getName(), "flow");
   }
@@ -40,10 +47,18 @@ class CreateChainServerRestartIT {
 
   private void restart(String probeClass, String window) throws Exception {
     String container = "qip-recovery-" + UUID.randomUUID();
-    docker("run", "--rm", "-d", "--name", container, "-p", "127.0.0.1::5432",
+    docker("run", "-d", "--name", container, "-p", "127.0.0.1::5432",
         "-e", "POSTGRES_USER=recovery", "-e", "POSTGRES_PASSWORD=recovery",
-        "-e", "POSTGRES_DB=recovery", "postgres:18");
+        "-e", "POSTGRES_DB=recovery", "--health-cmd",
+        "pg_isready -h 127.0.0.1 -U recovery -d recovery", "--health-interval", "1s", "postgres:18");
     try {
+      long databaseDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+      String health;
+      do {
+        health = docker("inspect", "--format", "{{.State.Health.Status}}", container).trim();
+        if (!"healthy".equals(health)) { Thread.sleep(100); }
+      } while (!"healthy".equals(health) && System.nanoTime() < databaseDeadline);
+      assertEquals("healthy", health, "PostgreSQL fixture must be ready before the server starts");
       String port = docker("inspect", "--format",
           "{{(index (index .NetworkSettings.Ports \"5432/tcp\") 0).HostPort}}", container).trim();
       String jdbc = "jdbc:postgresql://127.0.0.1:" + port + "/recovery";
@@ -74,15 +89,24 @@ class CreateChainServerRestartIT {
       try {
         Path evidence = Path.of("target", "server-restart", container);
         Files.createDirectories(evidence);
+        Files.writeString(evidence.resolve("postgres.log"), docker("logs", container));
         try (var files = Files.list(directory)) {
           for (Path file : files.filter(Files::isRegularFile).toList()) {
             Files.copy(file, evidence.resolve(file.getFileName()));
           }
         }
       } finally {
-        docker("rm", "-f", container);
+        removeFixture(container);
       }
     }
+  }
+
+  private static void removeFixture(String container) throws Exception {
+    String volume = docker("inspect", "--format",
+        "{{range .Mounts}}{{if eq .Type \"volume\"}}{{.Name}}{{end}}{{end}}", container).trim();
+    docker("rm", "-f", "-v", container);
+    assertTrue(docker("volume", "ls", "--quiet", "--filter", "name=" + volume).isBlank(),
+        "PostgreSQL fixture must remove its anonymous volume: " + volume);
   }
 
   private Process child(String mode, String jdbc, Path log, String probeClass, String window) throws Exception {

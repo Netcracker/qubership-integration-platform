@@ -16,7 +16,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 
 /** Captures typed {@link NamingManifest} output for planning flow. */
 @ApplicationScoped
@@ -29,7 +29,7 @@ public class NamingManifestCaptureTool {
       @JsonProperty(required = true) String chainName,
       List<RoleLabel> labels,
       List<String> sourceRequirementFactIds,
-      List<QipKnowledgeCitation> knowledgeCitations) {}
+      List<CipKnowledgeCitation> knowledgeCitations) {}
 
   public static final String CAPTURE_REQUIRED_MESSAGE =
       "Naming generation did not capture a naming manifest. The agent must call"

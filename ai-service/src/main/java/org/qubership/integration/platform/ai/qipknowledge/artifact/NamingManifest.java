@@ -11,7 +11,7 @@ public record NamingManifest(
     String chainName,
     Map<String, String> labelsByRoleId,
     List<String> sourceRequirementFactIds,
-    List<QipKnowledgeCitation> knowledgeCitations) {
+    List<CipKnowledgeCitation> knowledgeCitations) {
 
   public NamingManifest {
     labelsByRoleId = labelsByRoleId == null ? Map.of() : Map.copyOf(labelsByRoleId);

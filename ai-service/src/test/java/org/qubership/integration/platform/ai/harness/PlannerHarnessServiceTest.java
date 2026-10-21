@@ -15,8 +15,8 @@ import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignProcessSkillRunner;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class PlannerHarnessServiceTest {
 
@@ -48,9 +48,9 @@ class PlannerHarnessServiceTest {
                 "cip-design-planner",
                 "skills/cip-design-planner/SKILL.md",
                 "planner",
-                QipKnowledgeCapabilityPhase.DECISION,
+                CipKnowledgeCapabilityPhase.DECISION,
                 true,
-                new QipKnowledgePackVersion("test", "test"),
+                new CipKnowledgePackVersion("test", "test"),
                 "Planner skill"));
   }
 

@@ -24,15 +24,15 @@ import org.qubership.integration.platform.ai.compiler.addon.MaterializationRequi
 import org.qubership.integration.platform.ai.qipknowledge.validation.MaterializationRequirementsValidator;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
-import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackBuildGenerator;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
@@ -43,14 +43,14 @@ class CompilerPlanValidatorTest {
 
   @BeforeEach
   void setUp(@TempDir Path outputDir) throws Exception {
-    QipKnowledgePackTestSupport.configureAddonPackRoot();
-    QipKnowledgePackBuildGenerator.generate(QipKnowledgePackFixturePaths.packRoot(), outputDir);
-    FilesystemQipKnowledgePackRepository repository =
-        new FilesystemQipKnowledgePackRepository(
-            outputDir, QipKnowledgePackFixturePaths.packVersion());
+    CipKnowledgePackTestSupport.configureAddonPackRoot();
+    CipKnowledgePackBuildGenerator.generate(CipKnowledgePackFixturePaths.packRoot(), outputDir);
+    FilesystemCipKnowledgePackRepository repository =
+        new FilesystemCipKnowledgePackRepository(
+            outputDir, CipKnowledgePackFixturePaths.packVersion());
     CompilerSkillAddonRepository addonRepository =
         CompilerSkillAddonRepository.forFilesystem(
-            outputDir, QipKnowledgePackFixturePaths.packVersion(), getClass().getClassLoader());
+            outputDir, CipKnowledgePackFixturePaths.packVersion(), getClass().getClassLoader());
     DeterministicElementSchemaService schemaService = mock(DeterministicElementSchemaService.class);
     when(schemaService.allowedPatchPropertyKeys(any())).thenReturn(Set.of());
     validator =

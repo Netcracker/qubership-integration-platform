@@ -14,7 +14,7 @@ public record MappingTurnCapture(
     @Description(
             "CHANGES when the author requests field adaptation. QUERY when they inspect stored "
                 + "mapping. NONE when they do not. CLARIFICATION when a transition cannot be "
-                + "resolved uniquely.")
+                + "resolved uniquely; use FLOW_CHANGE when the request changes approved failure delivery.")
         Kind outcome,
     @Description(
             "New mapping intents to add, one per approved flow transition. Empty for NONE and "
@@ -148,7 +148,10 @@ public record MappingTurnCapture(
       @Description("Existing mapping intent id from the current brief.") String mappingIntentId,
       @Description("Source field path or quoted constant. Empty when the rule is expression-only.")
           String sourcePath,
-      @Description("Target field path this rule writes.") String targetPath,
+      @Description(
+              "Target path to add, or the existing stored target path to select for an update or delete. "
+                  + "A rename puts the replacement path in newTargetPath.")
+          String targetPath,
       @Description("Template, conditional, default, JSON construction, or other expression.")
           String expression,
       @Description("Replacement target path when renaming the writer. Empty when the target stays.")

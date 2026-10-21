@@ -13,7 +13,7 @@ import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineI
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexSource;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineChangeClass;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class ProductPipelineCompatibilityVerifierTest {
 
@@ -58,7 +58,7 @@ class ProductPipelineCompatibilityVerifierTest {
   private static CompilerPipelineIndex activeIndex(String digest) {
     return new CompilerPipelineIndex(
         CompilerPipelineIndexBuilder.SCHEMA_VERSION,
-        new QipKnowledgePackVersion("test", "test"),
+        new CipKnowledgePackVersion("test", "test"),
         new CompilerPipelineIndexSource("catalog", "policy"),
         List.of(),
         new CompilerPackageIdentity("compiler-v2", "1.0.0", digest),

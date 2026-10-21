@@ -345,12 +345,20 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
           if (afterRecord.run().status() == waitingStatus && !alreadyApplied) {
             return tasks.drainSignals(runId);
           }
+          Optional<WorkflowInstance> instance = flow.definition().activeInstance(flowInstanceId);
           publishCorrelatedEvent(eventType, flowInstanceId, contextFrom(afterRecord));
           // Applied commands can already be at another wait whose listener ignores this event.
           if (!alreadyApplied || afterRecord.run().status() == RunStatus.RUNNING) {
+            WorkflowInstance resumed = instance.orElseThrow(() -> new IllegalStateException(
+                "Create-chain Flow instance " + flowInstanceId + " is not active."));
             waitUntil(
                 "create-chain Flow instance " + flowInstanceId + " must resume",
-                () -> tasks.settled(runId));
+                () -> {
+                  if (resumed.status() == WorkflowStatus.FAULTED) {
+                    resumed.output();
+                  }
+                  return tasks.settled(runId);
+                });
           }
           return tasks.drainSignals(runId);
         });

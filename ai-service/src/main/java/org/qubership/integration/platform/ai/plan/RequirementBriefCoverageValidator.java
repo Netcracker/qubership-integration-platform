@@ -11,7 +11,9 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignRequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -201,7 +203,10 @@ public final class RequirementBriefCoverageValidator {
           intent.sourceRef().equals(mapping.sourceInteractionId())
               && intent.targetRef().equals(mapping.targetInteractionId())
               && intent.rules().stream().anyMatch(rule ->
-                  Objects.equals(rule.targetPath(), mapping.targetPath())));
+                  MappingContract.canonicalPath(rule.targetPath()).equals(
+                      MappingContract.canonicalPath(mapping.targetPath()))
+                      || rule.status() == MappingRuleStatus.USER_DEFINED
+                          && rule.requirementIds().contains(fact.sourceFactId())));
       if (!realized) {
         return Optional.of("Requirement brief omitted the supplied mapping for sourceFactId="
             + fact.sourceFactId() + ", targetPath=" + mapping.targetPath());

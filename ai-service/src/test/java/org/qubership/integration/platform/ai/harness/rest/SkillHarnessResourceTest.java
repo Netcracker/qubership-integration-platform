@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.harness.rest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -52,7 +53,20 @@ class SkillHarnessResourceTest {
             harnessService,
             chainPatchHarnessService,
             plannerHarnessService,
-            executorHarnessService);
+            executorHarnessService,
+            true);
+  }
+
+  @Test
+  void disabledHarnessRejectsEveryRouteBeforeRunningServices() {
+    resource = new SkillHarnessResource(
+        harnessService, chainPatchHarnessService, plannerHarnessService, executorHarnessService, false);
+
+    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.run(null));
+    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runPlanner(null));
+    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runExecutor(null));
+    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runChainPatch(null));
+    verifyNoInteractions(harnessService, chainPatchHarnessService, plannerHarnessService, executorHarnessService);
   }
 
   @Test

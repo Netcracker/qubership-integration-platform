@@ -20,9 +20,20 @@ import java.time.Clock;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBinding;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.chain.deploy.MaasKafkaTopicsFollowUp;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditClarificationStore;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditEscalationStore;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.chain.folder.ChainListAction;
 import org.qubership.integration.platform.ai.chain.folder.ChainListCommand;
@@ -68,11 +79,17 @@ class ConversationTurnResetTest {
   private ChainListScenario chainListScenario;
   private ChainListIntentAgent chainListAgent;
   private CatalogRestClient catalog;
+  private InMemoryArtifactBlobStore blobs;
+  private ObjectMapper mapper;
+  private CreateRunBindingStore createBindings;
+  private ProductPipelineRunStore productRuns;
 
   @BeforeEach
   void setUp() {
-    InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
-    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    blobs = new InMemoryArtifactBlobStore();
+    mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    createBindings = new CreateRunBindingStore(blobs, mapper);
+    productRuns = new ProductPipelineRunStore(blobs, mapper, Clock.systemUTC());
     CompilationArtifacts artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
     CompilationSessions sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
     chainPlanStore = new ChainPlanStore(artifacts, sessions);
@@ -108,7 +125,43 @@ class ConversationTurnResetTest {
             new LastAssistantTurnStore(),
             apiHubCache,
             pendingRedeployStore,
-            chainListScenario);
+            chainListScenario,
+            createBindings,
+            productRuns,
+            new ChainPatchStore(),
+            new ChainEditClarificationStore(),
+            new ChainEditEscalationStore());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void resetFencesTheOldWorkflowAndCreatesANewRunAfterReload(boolean truncate) {
+    String oldRunId = CONVERSATION_ID + "-create-chain-2";
+    RunManifest manifest = new RunManifest(oldRunId, null, List.of(), "product", "create-chain", "2",
+        "digest", null, null, List.of(), null, null, "2026.1", List.of(), null);
+    CreateRunBinding original = createBindings.create(
+        new CreateRunBinding(CONVERSATION_ID, oldRunId, manifest, java.time.Instant.now()));
+    productRuns.create(new RunSnapshot(oldRunId, CONVERSATION_ID, 1L,
+        RunStatus.WAITING_FOR_APPROVAL, "design-planning", List.of(), null));
+
+    if (truncate) {
+      reset.truncateAndReset(CONVERSATION_ID, 0);
+    } else {
+      reset.fullReset(CONVERSATION_ID);
+    }
+
+    CreateRunBindingStore restoredBindings = new CreateRunBindingStore(blobs, mapper);
+    ProductPipelineRunStore restoredRuns = new ProductPipelineRunStore(blobs, mapper, Clock.systemUTC());
+    assertTrue(restoredBindings.load(CONVERSATION_ID).isEmpty());
+    assertTrue(restoredRuns.loadByConversation(CONVERSATION_ID).isEmpty());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, restoredRuns.load(oldRunId).orElseThrow().run().status());
+
+    CreateRunBinding next = restoredBindings.create(original);
+    org.junit.jupiter.api.Assertions.assertNotEquals(oldRunId, next.productRunId());
+    restoredRuns.create(new RunSnapshot(next.productRunId(), CONVERSATION_ID, 1L,
+        RunStatus.RUNNING, "requirement-discovery", List.of(), null));
+    assertEquals(next.productRunId(), restoredRuns.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId());
+    assertTrue(restoredRuns.load(oldRunId).isPresent());
   }
 
   @Test

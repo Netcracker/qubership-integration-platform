@@ -58,12 +58,12 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
@@ -98,7 +98,7 @@ class CompilerGraphPatchToolTest {
 
   @BeforeAll
   static void loadPolicy() throws Exception {
-    policy = QipKnowledgePackTestSupport.buildPolicyFromFixture();
+    policy = CipKnowledgePackTestSupport.buildPolicyFromFixture();
   }
 
   @BeforeEach
@@ -123,7 +123,7 @@ class CompilerGraphPatchToolTest {
         .thenAnswer(
             invocation ->
                 new CaptureRoute(invocation.getArgument(0), CaptureTool.CAPTURE_GRAPH_PATCH));
-    QipKnowledgePackRepository packRepository = mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository packRepository = mock(CipKnowledgePackRepository.class);
     when(packRepository.loadCompilerGeneratorPolicy()).thenReturn(policy);
     tool =
         new CompilerGraphPatchTool(
@@ -235,12 +235,12 @@ class CompilerGraphPatchToolTest {
 
   @Test
   void storesResolvedKnowledgeCitationFromReferenceId() {
-    QipKnowledgeCitation citation =
-        new QipKnowledgeCitation(
+    CipKnowledgeCitation citation =
+        new CipKnowledgeCitation(
             "CIP:LEL-000142",
-            QipKnowledgeRefType.KNOWLEDGE_OBJECT,
+            CipKnowledgeRefType.KNOWLEDGE_OBJECT,
             "language/element-relationships.md#pattern-trigger-try-catch-finally-2",
-            new QipKnowledgePackVersion("1.0.0", "1.0.0"),
+            new CipKnowledgePackVersion("1.0.0", "1.0.0"),
             "Pattern: Trigger to Try-Catch-Finally-2");
     when(citationResolver.resolve(CONVERSATION_ID, List.of("CIP:LEL-000142")))
         .thenReturn(List.of(citation));

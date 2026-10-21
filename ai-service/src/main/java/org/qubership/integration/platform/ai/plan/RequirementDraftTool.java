@@ -35,7 +35,7 @@ import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 
 /**
  * LangChain4j tool that persists the requirement draft for the active chat conversation.
@@ -147,7 +147,7 @@ public class RequirementDraftTool {
           + " assembledText must change.";
 
   private final RequirementDraftStore store;
-  private final QipKnowledgePackRepository repository;
+  private final CipKnowledgePackRepository repository;
   private final ConversationCatalogCache catalogCache;
   private final org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache
       apiHubCache;
@@ -160,7 +160,7 @@ public class RequirementDraftTool {
 
   RequirementDraftTool(
       RequirementDraftStore store,
-      QipKnowledgePackRepository repository,
+      CipKnowledgePackRepository repository,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
       ConversationApiResolutions resolutions,
@@ -181,7 +181,7 @@ public class RequirementDraftTool {
   @Inject
   RequirementDraftTool(
       RequirementDraftStore store,
-      QipKnowledgePackRepository repository,
+      CipKnowledgePackRepository repository,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
       ConversationApiResolutions resolutions,
@@ -204,13 +204,13 @@ public class RequirementDraftTool {
     this(store, null, null, null, null, null, null);
   }
 
-  RequirementDraftTool(RequirementDraftStore store, QipKnowledgePackRepository repository) {
+  RequirementDraftTool(RequirementDraftStore store, CipKnowledgePackRepository repository) {
     this(store, repository, null, null, null, null, null);
   }
 
   RequirementDraftTool(
       RequirementDraftStore store,
-      QipKnowledgePackRepository repository,
+      CipKnowledgePackRepository repository,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
       ConversationApiResolutions resolutions) {
@@ -1062,6 +1062,7 @@ public class RequirementDraftTool {
     boolean asksForId =
         lowered.contains("uuid")
             || lowered.contains("trigger id")
+            || lowered.contains("element id")
             || lowered.contains("catalog id")
             || lowered.contains("(id=");
     return mentionsChainCall && asksForId;
@@ -1864,6 +1865,12 @@ public class RequirementDraftTool {
    */
   private void resolveUnboundFromCatalog(
       RequirementFlow flow, List<RequirementFact> facts, String conversationId) {
+    resolveUnboundFromCatalog(flow, facts, conversationId, Set.of());
+  }
+
+  private void resolveUnboundFromCatalog(
+      RequirementFlow flow, List<RequirementFact> facts, String conversationId,
+      Set<String> catalogInteractions) {
     if (catalogOperationLookup == null
         || resolutions == null
         || conversationId == null
@@ -1888,7 +1895,8 @@ public class RequirementDraftTool {
           .isPresent()) {
         continue;
       }
-      if (!RequirementFlowValidator.requiresCatalogBinding(interaction, facts)) {
+      if (!RequirementFlowValidator.requiresCatalogBinding(interaction, facts)
+          && !catalogInteractions.contains(interaction.interactionId())) {
         continue;
       }
       String capability =
@@ -2077,7 +2085,11 @@ public class RequirementDraftTool {
     }
     RequirementFlow flow = RequirementCaptureProjection.flow(input);
     List<RequirementFact> facts = RequirementCaptureProjection.facts(input);
-    resolveUnboundFromCatalog(flow, facts, conversationId);
+    Set<String> catalogInteractions = RequirementCaptureProjection.pending(input, List.of()).stream()
+        .filter(work -> "OPERATION_LOOKUP_REQUIRED".equals(work.code()))
+        .map(RequirementCaptureProjection.PendingWork::interactionId)
+        .collect(Collectors.toSet());
+    resolveUnboundFromCatalog(flow, facts, conversationId, catalogInteractions);
     return reconcileCatalogBindings(flow, previous, conversationId).stream()
         .filter(hint -> {
           RequirementFlow.Interaction owner = flow.interaction(hint.interactionId()).orElse(null);

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -18,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.chat.request.json.JsonEnumSchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +37,13 @@ import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactB
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
+import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsLookupService;
+import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsReadCache;
+import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogSystemFinder;
+import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
@@ -51,6 +60,118 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextA
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"false,true", "true,true", "false,false", "true,false"})
+  void nativeChainCallClarificationUsesTheCatalogPickerWithoutChangingAuthorQuestions(
+      boolean selected, boolean otherQuestions)
+      throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var bindings = mock(RequirementDraftTool.class);
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    var first = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
+    first.id = "first-trigger";
+    first.chainName = "Chain trigger + Header modification";
+    var second = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
+    second.id = "second-trigger";
+    second.chainName = first.chainName;
+    when(chains.listChainTriggers()).thenReturn(List.of(first, second));
+    var feedback = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper));
+    var tools = new RequirementCaptureTools(store, bindings, mapper,
+        new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback), feedback,
+        new RequirementTargetResolver(chains,
+            mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
+    var methodQuestion = new RequirementCaptureInput.QuestionInput("method", List.of("entry"),
+        "Which HTTP method should the custom HTTP trigger accept?");
+    var targetQuestion = new RequirementCaptureInput.QuestionInput("target", List.of("call"),
+        "Please select the specific chain-trigger element ID for the Chain trigger + Header modification chain.");
+    var rolesQuestion = new RequirementCaptureInput.QuestionInput("roles", List.of("entry"),
+        "Which roles may access the HTTP trigger?");
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Client", "HTTP /call", null, null, null),
+        new InteractionInput("call", Direction.OUTBOUND, first.chainName, "Invoke", null, null, null)),
+        List.of(new TransitionInput("entry", "call"))),
+        List.of(new FactInput("goal", List.of("call"), FactKind.GOAL, Polarity.POSITIVE, "Call the header chain.")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM,
+                otherQuestions ? null : HttpMethod.GET, "/call", null, null, null),
+            new CapabilityInput("call", "chain-call-2", null, null, null, null, null,
+                selected ? second.id : null)),
+        otherQuestions ? List.of(methodQuestion, targetQuestion, rolesQuestion) : List.of(targetQuestion),
+        new DraftSettings(null, null));
+    String chat = "chain-picker-" + UUID.randomUUID();
+    store.beginTurn(chat, "Call the Chain trigger + Header modification chain through an HTTP GET trigger.");
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var saved = store.get(chat).orElseThrow();
+      var expectedQuestions = new ArrayList<String>();
+      if (otherQuestions) expectedQuestions.add(methodQuestion.text());
+      if (!selected) expectedQuestions.add(
+          "Chain-call call has no unique chain-trigger yet. Choose the catalog chain to call.");
+      if (otherQuestions) expectedQuestions.add(rolesQuestion.text());
+      assertEquals(expectedQuestions, saved.openQuestions());
+      assertEquals(selected ? Map.of("call", second.id) : Map.of(),
+          RequirementCaptureProjection.resolvedTargets(saved));
+      assertEquals(input, saved.authoredDraft());
+      var refreshed = mapper.readValue(tools.readRequirementDraft(), RequirementCaptureResult.class);
+      assertEquals(input, refreshed.draft());
+      assertEquals(saved.openQuestions(), store.get(chat).orElseThrow().openQuestions());
+      assertEquals(!selected, refreshed.pendingWork().stream()
+          .anyMatch(work -> work.code().equals("TARGET_LOOKUP_REQUIRED")));
+      assertEquals(selected && !otherQuestions, saved.readyForPlan());
+      if (selected && !otherQuestions) assertTrue(refreshed.pendingWork().isEmpty(), refreshed.toString());
+    }
+  }
+
+  @Test
+  void namedOutboundOperationBindsBeforeUploadedSpecificationImport() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var resolutions = new ConversationApiResolutions();
+    var catalog = mock(CatalogRestClient.class);
+    var om = new CatalogRestClient.SystemDto("om", "om-order-lifecycle-manager-WFMS", "INTERNAL", "kafka");
+    when(catalog.filterSystems(any())).thenAnswer(invocation -> {
+      List<org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemFilter> filters = invocation.getArgument(0);
+      return filters.stream().anyMatch(filter -> "lifecycle".equals(filter.value())) ? List.of(om) : List.of();
+    });
+    when(catalog.getApiSpecifications("om")).thenReturn(List.of(
+        new CatalogRestClient.SpecificationDto("om-spec", "1.33", "om-group", "om", "1.33")));
+    when(catalog.getOperations(eq("om-spec"), eq(0), anyInt(), isNull())).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("om-onTaskStart", "onTaskStart", "publish", "task.start", "om-spec"),
+        new CatalogRestClient.OperationDto("om-onTaskResult", "onTaskResult", "subscribe", "order.command", "om-spec")));
+    var cache = new ConversationCatalogCache(new CatalogOperationsReadCache(catalog));
+    var reads = new CatalogSystemReadTool(catalog, new CatalogOperationsLookupService(cache), null);
+    var lookup = new CatalogOperationLookup(new CatalogSystemFinder(catalog), reads);
+    var uploaded = mock(UploadedSpecOperations.class);
+    when(uploaded.pendingInteractionIds(anyString(), any())).thenReturn(java.util.Set.of("create-task"));
+    var fingerprints = new ToolCallFingerprintStore(mapper);
+    var feedback = new CaptureAttemptFeedbackStore(fingerprints);
+    var tools = new RequirementCaptureTools(store, RequirementDraftTool.withLookup(store, resolutions, lookup), mapper,
+        new CaptureToolOutcomeGateway(fingerprints, feedback), feedback, null, null, uploaded, null);
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("task-start", Direction.INBOUND, "om-order-lifecycle-manager-WFMS", "onTaskStart", null, null, null),
+        new InteractionInput("create-task", Direction.OUTBOUND, "Salesforce WFM", "createTask", null, null, null),
+        new InteractionInput("task-result", Direction.OUTBOUND, "om-order-lifecycle-manager-WFMS", "onTaskResult", null, null, null)),
+        List.of(new TransitionInput("task-start", "create-task"), new TransitionInput("create-task", "task-result"))),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Create a task and return its result.")),
+        List.of(new CapabilityInput("task-start", "async-api-trigger", null, null, null, null, null, null)),
+        List.of(), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open("om-upload")) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      assertEquals(List.of("UPLOADED_SPEC_IMPORT_REQUIRED"),
+          captured.pendingWork().stream().map(RequirementCaptureProjection.PendingWork::code).toList());
+      assertEquals("om-onTaskResult", store.get("om-upload").orElseThrow()
+          .catalogBinding("task-result").orElseThrow().integrationOperationId());
+      var continued = mapper.readValue(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      assertTrue(continued.accepted(), continued.toString());
+      assertEquals(NextAction.RUN_IMPORT, continued.nextAction());
+      assertEquals(input, continued.draft());
+    }
+  }
+
   @Test
   void asyncClassifierRepairPreservesFactsAndChangesOnlyTheInvalidProperty() throws Exception {
     var h = harness();

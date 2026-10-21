@@ -8,8 +8,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
 
 class ValidationResultMergerTest {
 
@@ -99,7 +99,7 @@ class ValidationResultMergerTest {
             "plan-validator",
             List.of("n1"),
             List.of(
-                QipKnowledgeCitation.declaredRule("VR-E-010", QipKnowledgeRefType.VALIDATION_RULE)),
+                CipKnowledgeCitation.declaredRule("VR-E-010", CipKnowledgeRefType.VALIDATION_RULE)),
             "Replace with v2 equivalent");
     ValidationResult captured =
         new ValidationResult(false, List.of(blocker), "Plan validation failed with 1 blocker(s)");

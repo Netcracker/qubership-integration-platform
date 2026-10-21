@@ -148,6 +148,15 @@ class CustomXmlRoutesBuilderLoaderTest {
     }
 
     @Test
+    void shouldDelegateResourceToWrappedRouteBuilder() throws Exception {
+        RouteBuilder wrappedRouteBuilder = wrapRouteBuilder(delegateRouteBuilder);
+
+        wrappedRouteBuilder.setResource(resource);
+
+        verify(delegateRouteBuilder).setResource(resource);
+    }
+
+    @Test
     void shouldAddRoutesToCamelContextAndNotifySourceLoaded() throws Exception {
         RouteBuilder wrappedRouteBuilder = wrapRouteBuilder(delegateRouteBuilder);
 

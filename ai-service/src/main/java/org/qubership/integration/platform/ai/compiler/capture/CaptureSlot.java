@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.compiler.capture;
 
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
+import org.qubership.integration.platform.ai.compiler.ScriptBodyRepairTool.ValidatedScriptBodies;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
@@ -24,6 +25,7 @@ public enum CaptureSlot {
   CHAIN_EDIT_STRUCTURE_BASE(ChainEditStructureBase.class, Scope.CONVERSATION),
   GRAPH_PATCH(GraphPatch.class, Scope.CAPABILITY),
   SCRIPT_BODY_REPAIR(GraphPatch.class, Scope.CAPABILITY),
+  SCRIPT_BODY_REPAIR_PROGRESS(ValidatedScriptBodies.class, Scope.CAPABILITY),
   VALIDATION_RESULT(ValidationResult.class, Scope.CONVERSATION);
 
   public enum Scope {

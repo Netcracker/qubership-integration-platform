@@ -29,7 +29,7 @@ class ElementSchemaParityTest {
       "http-trigger", Set.of("invalidURI"));
 
   private final SchemaResourceLoader loader = new SchemaResourceLoader();
-  private final QipSchemaYamlParser parser = new QipSchemaYamlParser();
+  private final CipSchemaYamlParser parser = new CipSchemaYamlParser();
   private final SchemaRefResolver resolver = new SchemaRefResolver(loader, parser);
   private final ObjectMapper mapper = new ObjectMapper();
 
@@ -43,7 +43,7 @@ class ElementSchemaParityTest {
           continue;
         }
         assertEquals(Files.readString(file), loader.readElementSchemaYaml(type), type + " packaged schema");
-        JsonNode root = resolver.loadDocumentRoot(QipConfModelUris.elementModelUri(type));
+        JsonNode root = resolver.loadDocumentRoot(CipConfModelUris.elementModelUri(type));
         Set<String> expected = new TreeSet<>();
         collectKeys(root.path("properties").path("properties"), expected, new HashSet<>());
         Set<String> actual = ElementPropertiesSchemaModelBuilder.build(type, resolver).propertyDefs().keySet();
@@ -148,7 +148,7 @@ class ElementSchemaParityTest {
   private void collectKeys(JsonNode schema, Set<String> keys, Set<String> visited) {
     if (schema.has("$ref")) {
       String ref = schema.get("$ref").asText();
-      assertTrue(ref.startsWith(QipConfModelUris.CONF_MODEL_PREFIX), ref);
+      assertTrue(ref.startsWith(CipConfModelUris.CONF_MODEL_PREFIX), ref);
       if (visited.add(ref)) {
         collectKeys(resolver.resolveRef(null, "", ref, new ArrayDeque<>()), keys, visited);
       }

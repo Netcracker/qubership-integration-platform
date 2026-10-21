@@ -27,6 +27,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactB
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.MappingQuerySelector;
 import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
+import org.qubership.integration.platform.ai.plan.MappingTurnCapture;
+import org.qubership.integration.platform.ai.plan.MappingTurnCapture.RuleChange;
+import org.qubership.integration.platform.ai.plan.MappingTurnInterpreter;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.Clarification;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.Query;
@@ -118,6 +121,14 @@ class MappingApprovalImpactTest {
 
   @Test
   void authorChangeToApprovedMappingReopensBriefAndSupersedesDownstreamArtifacts() {
+    mappingAdapter = new MappingTurnInterpreter((flow, intents, message) -> {
+      assertTrue(intents.contains("path=$.name"), intents);
+      return new MappingTurnCapture(
+          MappingTurnCapture.Kind.CHANGES,
+          List.of(), List.of(), "", List.of(), null,
+          List.of(new RuleChange(
+              "map-task-start-to-create-task", "title", "Subject", null)), List.of(), List.of());
+    });
     waitAtPlanningApproval();
     storeDownstreamArtifacts();
     String briefHash = committedHash(Kind.REQUIREMENT_BRIEF);
@@ -279,6 +290,36 @@ class MappingApprovalImpactTest {
         signals.stream().filter(PipelineSignal.Message.class::isInstance)
             .map(PipelineSignal.Message.class::cast).map(PipelineSignal.Message::text).toList());
     assertNoSupersession();
+  }
+
+  @Test
+  void malformedMappingEditReportsFailureAndKeepsApprovalUntilAValidRetry() {
+    waitAtPlanningApproval();
+    storeDownstreamArtifacts();
+    mappingAdapter = new MappingTurnInterpreter((flow, intents, message) -> {
+      throw new dev.langchain4j.service.output.OutputParsingException("Invalid mapping rule.", null);
+    });
+    long revisionBefore = run().run().runRevision();
+    ReferenceLike before = approvalBinding();
+    var attemptsBefore = remaining();
+
+    List<PipelineSignal> signals = type(CHANGE_MESSAGE);
+
+    assertStillAtPlanningApproval(revisionBefore, before);
+    assertTrue(signals.stream().filter(PipelineSignal.Message.class::isInstance)
+        .map(PipelineSignal.Message.class::cast)
+        .anyMatch(signal -> signal.text().contains("MALFORMED_CAPTURE")), signals.toString());
+    assertNoSupersession();
+    assertEquals(attemptsBefore, remaining());
+
+    mappingAdapter = changeAdapter();
+    type(CHANGE_MESSAGE);
+
+    assertEquals("requirement-analysis", run().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, run().run().status());
+    RequirementBrief updated = (RequirementBrief) support.runAttributes(RUN_ID).get("requirementBrief");
+    assertEquals("$.title", updated.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertEquals(attemptsBefore, remaining());
   }
 
   @Test

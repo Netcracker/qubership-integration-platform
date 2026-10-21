@@ -66,6 +66,12 @@ class ProvidedIdsFlowOrchestratorTest {
     tasks = mock(ProvidedIdsFlowTasks.class);
     application = mock(WorkflowApplication.class);
     when(application.eventPublishers()).thenReturn(List.of());
+    var definition = mock(io.serverlessworkflow.impl.WorkflowDefinition.class);
+    var instance = mock(WorkflowInstance.class);
+    when(flow.definition()).thenReturn(definition);
+    when(definition.activeInstance(org.mockito.ArgumentMatchers.anyString()))
+        .thenReturn(Optional.of(instance));
+    when(instance.status()).thenReturn(WorkflowStatus.WAITING);
     orchestrator = new ProvidedIdsFlowOrchestrator(runSupport, runStore, flow, tasks, application);
   }
 
@@ -135,6 +141,57 @@ class ProvidedIdsFlowOrchestratorTest {
     verify(publisher).publish(event.capture());
     assertEquals(ProvidedIdsFlow.INPUT_EVENT_TYPE, event.getValue().getType());
     assertEquals("flow-1", event.getValue().getExtension("flowinstanceid"));
+  }
+
+  @Test
+  void resumedFlowFailureReachesTheStreamWhenItsFailureJournalCannotBeSaved() {
+    var command = new AcceptInputCommand(RUN_ID, "no");
+    when(runStore.load(RUN_ID)).thenReturn(
+        Optional.of(document(RunStatus.WAITING_FOR_INPUT, "requirement-discovery", "flow-1")),
+        Optional.of(document(RunStatus.RUNNING, "requirement-discovery", "flow-1")));
+    when(runSupport.recordInput(command)).thenReturn(Multi.createFrom().empty());
+    var definition = mock(io.serverlessworkflow.impl.WorkflowDefinition.class);
+    var instance = mock(WorkflowInstance.class);
+    when(flow.definition()).thenReturn(definition);
+    when(definition.activeInstance("flow-1")).thenReturn(Optional.of(instance));
+    var failure = new io.smallrye.mutiny.CompositeException(
+        new IllegalStateException("artifact write failed: S3 507"),
+        new IllegalStateException("failure journal write failed: S3 507"));
+    var faulted = new java.util.concurrent.atomic.AtomicBoolean();
+    when(instance.status()).thenAnswer(ignored -> faulted.get()
+        ? WorkflowStatus.FAULTED : WorkflowStatus.WAITING);
+    when(instance.output()).thenThrow(new java.util.concurrent.CompletionException(failure));
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class))).thenAnswer(ignored -> {
+      faulted.set(true);
+      return CompletableFuture.completedFuture(null);
+    });
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+
+    RuntimeException thrown = assertThrows(RuntimeException.class, () -> orchestrator
+        .acceptInput(command).collect().asList().await().atMost(java.time.Duration.ofSeconds(2)));
+
+    assertTrue(thrown == failure || thrown.getCause() == failure, thrown.toString());
+    verify(publisher).publish(any(CloudEvent.class));
+  }
+
+  @Test
+  void aPreviouslyFaultedFlowDoesNotLeaveTheRetriedCommandWaiting() {
+    var command = new AcceptInputCommand(RUN_ID, "no");
+    when(runStore.load(RUN_ID)).thenReturn(
+        Optional.of(document(RunStatus.WAITING_FOR_INPUT, "requirement-discovery", "flow-1")),
+        Optional.of(document(RunStatus.RUNNING, "requirement-discovery", "flow-1")));
+    when(runSupport.recordInput(command)).thenReturn(Multi.createFrom().empty());
+    when(flow.definition().activeInstance("flow-1")).thenReturn(Optional.empty());
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class)))
+        .thenReturn(CompletableFuture.completedFuture(null));
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+
+    IllegalStateException failure = assertThrows(IllegalStateException.class, () -> orchestrator
+        .acceptInput(command).collect().asList().await().atMost(java.time.Duration.ofSeconds(2)));
+
+    assertTrue(failure.getMessage().contains("flow-1 is not active"), failure.getMessage());
   }
 
   @Test

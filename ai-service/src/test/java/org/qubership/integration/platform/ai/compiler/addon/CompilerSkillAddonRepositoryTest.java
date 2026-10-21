@@ -7,7 +7,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class CompilerSkillAddonRepositoryTest {
 
@@ -29,7 +29,7 @@ class CompilerSkillAddonRepositoryTest {
         };
     CompilerSkillAddonRepository repository =
         new CompilerSkillAddonRepository(
-            new QipKnowledgePackVersion("test_v1", "test_v1"), null, classLoader);
+            new CipKnowledgePackVersion("test_v1", "test_v1"), null, classLoader);
 
     repository.loadForSkill("missing-a");
     repository.loadForSkill("missing-b");

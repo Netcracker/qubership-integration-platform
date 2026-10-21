@@ -90,10 +90,21 @@ public class ConversationService {
 
   /** Keeps the inclusive prefix and fences callbacks from the prior reset generation. */
   public void truncateAfter(String conversationId, int afterMessageIndex) {
-    archive.update(conversationId, doc -> new Document(1, UUID.randomUUID().toString(),
-        doc.turns(), doc.activeTurnIds().subList(0,
-            Math.min(Math.max(0, afterMessageIndex + 1), doc.activeTurnIds().size())),
-        doc.allowedAttachmentKeys(), doc.materializedAttachmentKeys()));
+    archive.update(conversationId, doc -> {
+      List<String> active = doc.activeTurnIds().subList(0,
+          Math.min(Math.max(0, afterMessageIndex + 1), doc.activeTurnIds().size()));
+      List<String> keys = new ArrayList<>();
+      for (Turn turn : doc.turns()) {
+        if (!active.contains(turn.id()) || turn.metadata() == null) continue;
+        var submitted = turn.metadata().has("submitted") ? turn.metadata().get("submitted") : turn.metadata();
+        submitted.path("attachmentObjectKeys").forEach(key -> keys.add(key.asText()));
+        keys.add(submitted.path("attachment").asText(""));
+      }
+      List<String> allowed = AttachmentKeys.normalize(keys).stream()
+          .filter(doc.allowedAttachmentKeys()::contains).toList();
+      return new Document(1, UUID.randomUUID().toString(), doc.turns(), active, allowed,
+          doc.materializedAttachmentKeys().stream().filter(allowed::contains).toList());
+    });
     conversations.invalidate(conversationId);
   }
 

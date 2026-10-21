@@ -24,7 +24,7 @@ public record ChainStructure(
     @Description("The whole chain this run plans, for a new chain or an edit that rebuilds it")
         ChainPlanGraph graph,
     List<String> sourceRequirementFactIds,
-    List<QipKnowledgeCitation> knowledgeCitations,
+    List<CipKnowledgeCitation> knowledgeCitations,
     @Description("What a nesting edit adds; captured instead of graph, never beside it")
         ChainEditSubgraph subgraph) {
 
@@ -39,7 +39,7 @@ public record ChainStructure(
   public ChainStructure(
       ChainPlanGraph graph,
       List<String> sourceRequirementFactIds,
-      List<QipKnowledgeCitation> knowledgeCitations) {
+      List<CipKnowledgeCitation> knowledgeCitations) {
     this(graph, sourceRequirementFactIds, knowledgeCitations, null);
   }
 }

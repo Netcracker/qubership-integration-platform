@@ -14,7 +14,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.skill.registry.SkillExecutorRegistry;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspaceStore;
@@ -56,7 +56,7 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
       SkillExecutorRegistry skillRegistry,
       CompilerNodeExecutionAdapterRegistry javaAdapterRegistry,
       CreateRunBindingStore bindingStore,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GraphAssemblyService graphAssemblyService,
       CompilerValidationPipeline compilerValidationPipeline,
       ProductPipelineArtifactStore artifactStore) {
@@ -80,7 +80,7 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
       SkillExecutorRegistry skillRegistry,
       CompilerNodeExecutionAdapterRegistry javaAdapterRegistry,
       CreateRunBindingStore bindingStore,
-      QipKnowledgePackRepository packRepository,
+      CipKnowledgePackRepository packRepository,
       GraphAssemblyService graphAssemblyService,
       CompilerValidationPipeline compilerValidationPipeline) {
     this(

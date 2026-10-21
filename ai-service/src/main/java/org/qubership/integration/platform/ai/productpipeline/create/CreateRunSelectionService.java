@@ -18,7 +18,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 
 /**
  * Pins CREATE to product create-chain@2 once per conversation for new runs. Existing supported
- * bindings (create-chain@1 or @2) are immutable across restarts; unsupported historical bindings
+ * bindings (create-chain@1 or @2) remain pinned across restarts until a conversation reset; unsupported historical bindings
  * fail closed.
  */
 @ApplicationScoped
@@ -133,6 +133,11 @@ public class CreateRunSelectionService {
 
   public Optional<CreateRunSelection> existing(String conversationId) {
     return bindingStore.load(conversationId).map(this::toSelection);
+  }
+
+  public String plannedRunId(String conversationId) {
+    return bindingStore.plannedRunId(conversationId,
+        conversationId + "-" + CREATE_PROFILE_ID + "-" + createProfileVersion);
   }
 
   public CreateRunSelection selectOrCreate(String conversationId) {

@@ -49,6 +49,124 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 class ScriptBodyRepairToolTest {
 
   @Test
+  void mappingBatchRecoveryKeepsAValidatedResponseWhileRepairingTheRequest() {
+    ChainPlanGraph base = bindMappingBatch("attempt-1");
+    String failure = tool.repairScriptBodies(mappingBatch("bad-request", rejectedDateScript(), responseScript()));
+    assertTrue(failure.contains("Groovy mapping:"), failure);
+    assertTrue(captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).isEmpty());
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
+
+    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
+        mappingBatch("fixed-request", "exchange.in.body = [result: 'request']", successOnlyResponseScript())));
+    GraphPatch patch = captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
+    String response = patch.propertyPatches().stream()
+        .filter(item -> "response".equals(item.targetNodeId()) && "script".equals(item.property().key()))
+        .findFirst().orElseThrow().property().value();
+    assertEquals(responseScript().trim(), response);
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
+    for (var scenario : List.of(new Object[] {201, "{\"id\":\"task-1\",\"errors\":[]}", false},
+        new Object[] {400, "[{\"message\":\"Rejected\"}]", true},
+        new Object[] {503, "Unavailable", true},
+        new Object[] {200, "{\"success\":false,\"errors\":[{\"message\":\"Rejected\"}]}", true})) {
+      var exchange = new MappingExchange((Integer) scenario[0], scenario[1]);
+      var result = (java.util.Map<?, ?>) new groovy.lang.GroovyShell(
+          new groovy.lang.Binding(java.util.Map.of("exchange", exchange))).evaluate(response);
+      assertEquals("completeTask", result.get("commandType"));
+      assertEquals("exec-1", result.get("executionId"));
+      assertEquals(scenario[2], result.containsKey("error"), result.toString());
+      if ((Boolean) scenario[2]) {
+        assertEquals("SALESFORCE_TASK_CREATE_ERROR", ((java.util.Map<?, ?>) result.get("error")).get("code"));
+      }
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"attempt", "contract"})
+  void mappingBatchRecoveryDoesNotReuseValidatedBodiesAfterInputsChange(String change) {
+    bindMappingBatch("attempt-1");
+    assertTrue(tool.repairScriptBodies(mappingBatch("bad-request", rejectedDateScript(), responseScript()))
+        .contains("Groovy mapping:"));
+    bindMappingBatch("attempt".equals(change) ? "attempt-2" : "attempt-1");
+    if ("contract".equals(change)) {
+      executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID, executionContextStore
+          .get(CONVERSATION_ID, CAPABILITY_ID).orElseThrow().withMappingGenerationContext("Revised mapping contract"));
+    }
+    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
+        mappingBatch("new-attempt", "exchange.in.body = [result: 'request']", successOnlyResponseScript())));
+    GraphPatch patch = captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
+    assertTrue(patch.propertyPatches().stream().anyMatch(item -> "response".equals(item.targetNodeId())
+        && "script".equals(item.property().key()) && successOnlyResponseScript().equals(item.property().value())));
+  }
+
+  private ChainPlanGraph bindMappingBatch(String attemptId) {
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Tasks", "Tasks"),
+        List.of(new ChainPlanNode("request", "script", "Request", null, 1,
+                List.of(new PlanProperty("mappingIntentId", "request-map"))),
+            new ChainPlanNode("response", "script", "Response", null, 2,
+                List.of(new PlanProperty("mappingIntentId", "response-map")))),
+        List.of(new ChainPlanEdge("next", "request", "response", null)));
+    var request = new MappingIntent("request-map", "entry", MappingPort.OUTPUT, "call", MappingPort.REQUEST,
+        List.of(new MappingIntentRule(null, "$.result", "Build the request.", MappingRuleStatus.USER_DEFINED)), "SCRIPT");
+    var response = new MappingIntent("response-map", "call", MappingPort.OUTPUT, "delivery", MappingPort.REQUEST,
+        List.of(new MappingIntentRule(null, "$.commandType", "Use completeTask.", MappingRuleStatus.USER_DEFINED),
+            new MappingIntentRule(null, "$.executionId", "Retain the input ID.", MappingRuleStatus.USER_DEFINED),
+            new MappingIntentRule(null, "$.error", "Return the failure.", MappingRuleStatus.USER_DEFINED)), "SCRIPT");
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID, new GraphPatchExecutionContext("batch-run",
+        CAPABILITY_ID, null, null, null, null, identityMappingBrief().withMappingIntents(List.of(request, response)),
+        List.of(), graph, GraphPatchOwnershipPolicy.denyAll(), attemptId));
+    return graph;
+  }
+
+  private static ScriptBodyRepairCapture mappingBatch(String id, String request, String response) {
+    return new ScriptBodyRepairCapture(id, List.of(new ScriptBodyEntry("request", request, List.of("$.result")),
+        new ScriptBodyEntry("response", response, List.of("$.commandType", "$.executionId", "$.error"))),
+        "Fill the request and response mappings.");
+  }
+
+  private static String rejectedDateScript() {
+    return "exchange.in.body = [result: java.time.OffsetDateTime.parse('2026-10-19T00:30:00+03:00').toLocalDate()]";
+  }
+
+  private static String successOnlyResponseScript() {
+    return "exchange.in.body = [commandType: 'completeTask', executionId: 'exec-1']";
+  }
+
+  private static String responseScript() {
+    return """
+        def raw = exchange.in.body
+        def parsed = raw
+        if (raw instanceof String) {
+            try { parsed = new groovy.json.JsonSlurper().parseText(raw) }
+            catch (Exception ignored) { parsed = null }
+        }
+        def response = parsed instanceof Map ? parsed : [:]
+        def errors = parsed instanceof Collection ? parsed : response.errors
+        def status = exchange.in.getHeader('CamelHttpResponseCode', Integer)
+        def failed = (status != null && status >= 400) || response.success == false ||
+            (errors instanceof Collection && !errors.isEmpty())
+        def result = [commandType: 'completeTask', executionId: 'exec-1']
+        if (failed) result.error = [code: 'SALESFORCE_TASK_CREATE_ERROR', message: raw.toString()]
+        exchange.in.body = result
+        """;
+  }
+
+  public static class MappingMessage {
+    public Object body;
+    private final int status;
+    MappingMessage(int status, Object body) { this.status = status; this.body = body; }
+    public Object getHeader(String name, Class<?> type) { return status; }
+  }
+
+  public static class MappingExchange {
+    public final MappingMessage in;
+    MappingExchange(int status, Object body) { in = new MappingMessage(status, body); }
+  }
+
+  @Test
   void explicitEditUpdatesOnlyTheSelectedFilledScript() {
     ChainPlanGraph base = bindFilledScriptEdit();
     assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(

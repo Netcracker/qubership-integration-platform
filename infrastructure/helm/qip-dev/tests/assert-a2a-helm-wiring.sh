@@ -20,7 +20,10 @@ echo "OK: enable without public URL fails"
 
 # Enable path with a configured public URL must render the URL into the ConfigMap.
 ENABLE_RENDERED="$(mktemp)"
-trap 'rm -f "$RENDERED" "$ENABLE_RENDERED"' EXIT
+TAG_OUTPUT="$(mktemp)"
+trap 'rm -f "$RENDERED" "$ENABLE_RENDERED" "$TAG_OUTPUT"' EXIT
+REF_NAME=main GITHUB_OUTPUT="$TAG_OUTPUT" bash "$CHART/../../../scripts/compute-image-tags.sh" > /dev/null
+RELEASE_TAG="$(sed -n 's/^list=//p' "$TAG_OUTPUT")"
 helm template qip-dev "$CHART" \
     --set global.qip.ai.a2aEnabled=true \
     --set global.qip.ai.a2aPublicBaseUrl=https://ai.example.com \
@@ -79,6 +82,23 @@ assert_contains 'key: accessKey' 'MinIO access key Secret entry'
 assert_contains 'key: secretKey' 'MinIO secret key Secret entry'
 assert_contains 'name: qip-dev-postgres-auth' 'existing postgres Secret reference'
 assert_contains 'QIP_AI_A2A_ENABLED' 'A2A feature flag env'
+assert_contains "image: ghcr.io/netcracker/qubership-integration-ai-service:$RELEASE_TAG" 'published AI image tag'
+assert_contains "image: ghcr.io/netcracker/qubership-integration-knowledge-sidecar:$RELEASE_TAG" 'published sidecar image tag'
+python3 - "$RENDERED" << 'PY'
+import pathlib
+import re
+import sys
+
+documents = pathlib.Path(sys.argv[1]).read_text().split("\n---")
+deployment = next(document for document in documents
+                  if "kind: Deployment" in document
+                  and re.search(r"(?m)^  name: qip-dev-ai-service$", document))
+for probe, path in [("livenessProbe", "/q/health/live"), ("readinessProbe", "/q/health/ready")]:
+    pattern = rf"(?m)^( +){probe}:\n\1  httpGet:\n\1    path: {re.escape(path)}\n\1    port: 8080$"
+    if not re.search(pattern, deployment):
+        raise SystemExit(f"FAIL: AI service {probe} must use {path}")
+print("OK: AI service uses separate liveness and readiness endpoints")
+PY
 assert_contains 'location = /api/v1/chat {' 'chat endpoint without a trailing slash'
 assert_contains 'a2a-db-preflight' 'database-exists preflight initContainer'
 assert_contains 'SELECT 1 FROM pg_database WHERE datname = '\''ai_a2a'\''' 'preflight existence query'

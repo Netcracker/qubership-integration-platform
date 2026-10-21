@@ -16,7 +16,7 @@ public record ElementSkeleton(
     List<String> cardinalityObligations,
     List<String> requiredCapabilities,
     List<String> sourceRequirementFactIds,
-    List<QipKnowledgeCitation> knowledgeCitations) {
+    List<CipKnowledgeCitation> knowledgeCitations) {
 
   public ElementSkeleton {
     entryPointRoleIds = entryPointRoleIds == null ? List.of() : List.copyOf(entryPointRoleIds);

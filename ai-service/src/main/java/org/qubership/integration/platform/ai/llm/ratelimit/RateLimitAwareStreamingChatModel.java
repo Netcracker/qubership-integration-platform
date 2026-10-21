@@ -207,7 +207,10 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
         }
         if (deadline.get() != null) { deadline.get().cancel(false); }
         try {
-          if (runBudget != null) { runBudget.complete(ticket, completeResponse == null ? null : completeResponse.tokenUsage()); }
+          if (runBudget != null) {
+            String refusal = runBudget.complete(ticket, completeResponse == null ? null : completeResponse.tokenUsage());
+            if (refusal != null) { throw new LlmRunBudget.Exhausted(refusal); }
+          }
         } catch (RuntimeException failure) { forward(() -> handler.onError(failure)); return; }
         forward(() -> handler.onCompleteResponse(completeResponse));
       }

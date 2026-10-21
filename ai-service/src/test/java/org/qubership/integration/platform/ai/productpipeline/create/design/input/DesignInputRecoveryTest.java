@@ -62,9 +62,9 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResu
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackManifest;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class DesignInputRecoveryTest {
   private static final String RUN = "capture-recovery";
@@ -510,7 +510,7 @@ class DesignInputRecoveryTest {
   private static ChainSemanticCaptureTool captureTool() {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
-    QipKnowledgePackRepository pack = mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository pack = mock(CipKnowledgePackRepository.class);
     Map<String, String> addons = new LinkedHashMap<>();
     for (String addonId : CONTRACT.requiredAddons()) {
       addons.put(addonId, "sha-" + addonId);
@@ -521,8 +521,8 @@ class DesignInputRecoveryTest {
     files.put("knowledge/ai/generator-rule-mapping.md", "sha-generator-rule-mapping");
     when(pack.loadManifest())
         .thenReturn(
-            new QipKnowledgePackManifest(
-                new QipKnowledgePackVersion("v1", "v1"),
+            new CipKnowledgePackManifest(
+                new CipKnowledgePackVersion("v1", "v1"),
                 "test",
                 Instant.parse("2026-01-01T00:00:00Z"),
                 files,

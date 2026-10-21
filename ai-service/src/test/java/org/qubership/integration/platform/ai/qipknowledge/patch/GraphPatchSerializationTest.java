@@ -8,9 +8,9 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
-import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.CipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.CipKnowledgeRefType;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class GraphPatchSerializationTest {
 
@@ -65,11 +65,11 @@ class GraphPatchSerializationTest {
 
   @Test
   void roundTripsPropertyPatchWithScript() throws Exception {
-    QipKnowledgePackVersion version = new QipKnowledgePackVersion("v1_0_1", "v1_0_1");
-    QipKnowledgeCitation citation =
-        new QipKnowledgeCitation(
+    CipKnowledgePackVersion version = new CipKnowledgePackVersion("v1_0_1", "v1_0_1");
+    CipKnowledgeCitation citation =
+        new CipKnowledgeCitation(
             "GEN-04",
-            QipKnowledgeRefType.GENERATOR_CONTRACT,
+            CipKnowledgeRefType.GENERATOR_CONTRACT,
             "knowledge/ai/GENERATOR_CONTRACTS.md",
             version,
             "GEN-04");

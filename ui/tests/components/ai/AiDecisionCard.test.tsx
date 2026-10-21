@@ -4,16 +4,18 @@
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn<(query: string) => MediaQueryList>().mockImplementation((query) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn<MediaQueryList["dispatchEvent"]>(),
-  })),
+  value: jest
+    .fn<(query: string) => MediaQueryList>()
+    .mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn<MediaQueryList["dispatchEvent"]>(),
+    })),
 });
 
 import { describe, expect, it, jest } from "@jest/globals";
@@ -23,11 +25,13 @@ import type { ReactElement, ReactNode } from "react";
 import { AiDecisionCard } from "../../../src/components/ai/AiDecisionCard.tsx";
 import type { ChatDecision } from "../../../src/ai/modelProviders/types.ts";
 
-const mockGetElementsByType = jest.fn<(...args: unknown[]) => Promise<unknown[]>>();
+const mockGetElementsByType =
+  jest.fn<(...args: unknown[]) => Promise<unknown[]>>();
 jest.mock("../../../src/api/api", () => ({
   api: {
-    getElementsByType: (...args: Parameters<typeof mockGetElementsByType>): unknown =>
-      mockGetElementsByType(...args),
+    getElementsByType: (
+      ...args: Parameters<typeof mockGetElementsByType>
+    ): unknown => mockGetElementsByType(...args),
   },
 }));
 
@@ -1447,7 +1451,7 @@ describe("AiDecisionCard", () => {
     expect(onStartSameTask).toHaveBeenCalled();
   });
 
-  it("should submit the selected chain-trigger id from the picker", async () => {
+  it("should send the selected chain-trigger ID with its purpose", async () => {
     mockGetElementsByType.mockResolvedValue([
       {
         id: "trig-header",
@@ -1490,6 +1494,8 @@ describe("AiDecisionCard", () => {
     fireEvent.click(await screen.findByText("Header chain: Trigger"));
     expect(submitButton).not.toBeDisabled();
     fireEvent.click(submitButton);
-    expect(onSubmitClarification).toHaveBeenCalledWith("trig-header");
+    expect(onSubmitClarification).toHaveBeenCalledWith(
+      "Use the selected catalog chain-trigger element ID trig-header for this Chain Call.",
+    );
   });
 });

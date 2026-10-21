@@ -16,7 +16,7 @@ class UnconditionalElementDefaultsTest {
   void fillsServiceCallRetryDefaultsWithoutAskingTheAuthor() throws Exception {
     ObjectMapper mapper = new ObjectMapper();
     SchemaRefResolver resolver =
-        new SchemaRefResolver(new SchemaResourceLoader(), new QipSchemaYamlParser());
+        new SchemaRefResolver(new SchemaResourceLoader(), new CipSchemaYamlParser());
     ChainPlanNode node =
         new ChainPlanNode(
             "call-1",
@@ -46,7 +46,7 @@ class UnconditionalElementDefaultsTest {
   void keepsExplicitRetryCountAndFillsMissingRetryDelay() {
     ObjectMapper mapper = new ObjectMapper();
     SchemaRefResolver resolver =
-        new SchemaRefResolver(new SchemaResourceLoader(), new QipSchemaYamlParser());
+        new SchemaRefResolver(new SchemaResourceLoader(), new CipSchemaYamlParser());
     ChainPlanNode node =
         new ChainPlanNode(
             "call-1",

@@ -101,6 +101,83 @@ class DurableCreateChainFlowInstanceIT {
   }
 
   @Test
+  void resumedFlowReportsStorageFailureWhenItsFailureJournalAlsoRejectsWrites() throws Exception {
+    String runId = "storage-failure-" + UUID.randomUUID();
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = org.mockito.Mockito.spy(new InMemoryArtifactBlobStore());
+    var refuseWrites = new AtomicBoolean();
+    var artifactFailures = new AtomicInteger();
+    var journalFailures = new AtomicInteger();
+    org.mockito.Mockito.doAnswer(call -> {
+      if (refuseWrites.get()) {
+        artifactFailures.incrementAndGet();
+        throw software.amazon.awssdk.services.s3.model.S3Exception.builder()
+            .statusCode(507).message("Artifact write rejected: S3 507").build();
+      }
+      return call.callRealMethod();
+    }).when(blobs).put(org.mockito.ArgumentMatchers.anyString(), any(byte[].class));
+    org.mockito.Mockito.doAnswer(call -> {
+      if (refuseWrites.get()) {
+        journalFailures.incrementAndGet();
+        throw software.amazon.awssdk.services.s3.model.S3Exception.builder()
+            .statusCode(507).message("Failure journal write rejected: S3 507").build();
+      }
+      return call.callRealMethod();
+    }).when(blobs).putIfVersion(org.mockito.ArgumentMatchers.anyString(), any(byte[].class), any());
+    var store = new ProductPipelineRunStore(blobs, mapper, Clock.systemUTC());
+    var compilerArtifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var artifacts = new ProductPipelineArtifactStore(compilerArtifacts);
+    StageCapability discovery = new StageCapability() {
+      @Override public String capabilityId() { return "storage-fixture"; }
+      @Override public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        if (context.attributeAsString("userText") == null) {
+          return Multi.createFrom().item(new CapabilitySignal.Completed(
+              StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Provide the source requirements.")));
+        }
+        refuseWrites.set(true);
+        compilerArtifacts.append(new CompilationArtifacts.AppendCommand(runId,
+            CompilationArtifacts.Kind.USER_INPUT, "1", "source-fixture", "1",
+            Map.of("answer", context.attributeAsString("userText")), List.of(), null));
+        return Multi.createFrom().empty();
+      }
+    };
+    var input = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "storage-recovery", "1", List.of(input), List.of(
+        new ProfileStage("requirement-discovery", discovery.capabilityId(), List.of(input), List.of(),
+            null, null, new RetryPolicy(0, 1L))),
+        new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"), List.of(discovery.capabilityId()));
+    var support = CreateChainTestOrchestrator.supportBuilder(store, artifacts,
+        new StageCapabilityRegistry(List.of(discovery)), Clock.systemUTC()).build();
+    var manifest = new RunManifest(runId, null, List.of(), "product", profile.profileId(), profile.profileVersion(),
+        "profile", "baseline", "baseline", List.of(), "closure",
+        new KnowledgePackageRef("fixture", "1", "1", "checksum", "CERTIFIED", "certificate"),
+        "2026.1", List.of(input), null);
+    var actualTasks = new ProvidedIdsFlowTasks(support);
+    when(tasks.stillWaiting(any())).thenAnswer(call -> actualTasks.stillWaiting(call.getArgument(0)));
+    when(tasks.executeCurrentStage(any())).thenAnswer(call -> actualTasks.executeCurrentStage(call.getArgument(0)));
+    when(tasks.restoreAfterInput(any())).thenAnswer(call -> actualTasks.restoreAfterInput(call.getArgument(0)));
+    WorkflowInstance instance = flow.instance(new ProvidedIdsFlow.RunContext(
+        runId, profile.profileId(), profile.profileVersion(), manifest.profileDigest(), null));
+    support.bootstrap(new StartOrResumeCommand(runId, runId, profile, manifest), instance.id());
+    instance.start();
+    waitUntil("opening input wait must persist", () -> instance.status() == WorkflowStatus.WAITING);
+    waitQuietly(Duration.ofMillis(200));
+    var orchestrator = new ProvidedIdsFlowOrchestrator(support, store, flow, tasks, application);
+
+    RuntimeException failure = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+        () -> orchestrator.acceptInput(new AcceptInputCommand(runId, "Use these requirements"))
+            .collect().asList().await().atMost(Duration.ofSeconds(5)));
+
+    var diagnostic = new java.io.StringWriter();
+    failure.printStackTrace(new java.io.PrintWriter(diagnostic));
+    assertTrue(diagnostic.toString().contains("Artifact write rejected: S3 507"), diagnostic.toString());
+    assertTrue(diagnostic.toString().contains("Failure journal write rejected: S3 507"), diagnostic.toString());
+    assertTrue(artifactFailures.get() > 0 && journalFailures.get() > 0);
+    assertEquals(WorkflowStatus.FAULTED, instance.status());
+    assertEquals(RunStatus.RUNNING, store.load(runId).orElseThrow().run().status());
+  }
+
+  @Test
   void realDiscoveryTasksRecoverTemporaryFailuresInTheSamePersistedFlow() throws Exception {
     String runId = "discovery-technical-retry-" + UUID.randomUUID();
     String source = "Keep endpoint /orders and literal customerRef unchanged.";

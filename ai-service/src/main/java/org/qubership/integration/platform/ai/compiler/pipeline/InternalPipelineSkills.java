@@ -10,8 +10,8 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.CaptureRoute;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 /** ai-service pipeline skills that are not part of the CIP compiler APM skill pack. */
 public final class InternalPipelineSkills {
@@ -40,9 +40,9 @@ public final class InternalPipelineSkills {
             PLAN_VALIDATOR,
             PLAN_VALIDATOR_SKILL_RESOURCE,
             PLAN_VALIDATOR,
-            QipKnowledgeCapabilityPhase.VALIDATOR,
+            CipKnowledgeCapabilityPhase.VALIDATOR,
             true,
-            QipKnowledgePackVersion.fromPath(java.nio.file.Path.of("internal")),
+            CipKnowledgePackVersion.fromPath(java.nio.file.Path.of("internal")),
             loadResource(PLAN_VALIDATOR_SKILL_RESOURCE)));
   }
 

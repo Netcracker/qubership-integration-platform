@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.qubership.integration.platform.ai.qipknowledge.pack.ClasspathQipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ClasspathCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -51,12 +51,12 @@ public class RequirementTopologyGuard {
   /** Standalone use (unit tests) with the default classpath knowledge pack. */
   public RequirementTopologyGuard() {
     this(
-        new ClasspathQipKnowledgePackRepository(
-            new QipKnowledgePackVersion("integration-platform-skills", "integration-platform-skills")));
+        new ClasspathCipKnowledgePackRepository(
+            new CipKnowledgePackVersion("integration-platform-skills", "integration-platform-skills")));
   }
 
   @Inject
-  public RequirementTopologyGuard(QipKnowledgePackRepository packRepository) {
+  public RequirementTopologyGuard(CipKnowledgePackRepository packRepository) {
     this(loadDocument(packRepository), DEFAULT_CAPABILITY_TOPOLOGY);
   }
 
@@ -165,7 +165,7 @@ public class RequirementTopologyGuard {
     return keys;
   }
 
-  private static CreateExclusionsDocument loadDocument(QipKnowledgePackRepository packRepository) {
+  private static CreateExclusionsDocument loadDocument(CipKnowledgePackRepository packRepository) {
     ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
     try (InputStream in = packRepository.openProductPipelineResource(RULE_RESOURCE)) {
       if (in == null) {

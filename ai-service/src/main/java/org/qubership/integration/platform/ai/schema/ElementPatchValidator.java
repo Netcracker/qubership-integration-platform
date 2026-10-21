@@ -194,7 +194,7 @@ public final class ElementPatchValidator {
       }
       String groupUri =
           rootOneOf.has("$id") && rootOneOf.get("$id").isTextual()
-              ? QipConfModelUris.stripFragment(rootOneOf.get("$id").asText())
+              ? CipConfModelUris.stripFragment(rootOneOf.get("$id").asText())
               : model.elementDocumentUri();
       JsonNode groupRoot = resolver.loadDocumentRoot(groupUri);
       OneOfGroupEvaluation evaluation =

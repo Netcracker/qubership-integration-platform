@@ -202,7 +202,10 @@ public final class MappingTurnApplicator {
       }
     }
     List<MappingIntentRule> rules = new ArrayList<>(intent.rules());
-    if (current.descriptive()) {
+    if (update.sourcePath().isBlank() && update.expression() == null) {
+      rules.set(matches.getFirst(), current.withTargetPath(newTargetPath)
+          .withStatus(MappingRuleStatus.USER_DEFINED));
+    } else if (current.descriptive()) {
       rules.set(matches.getFirst(), updatedDescriptive(current, update, newTargetPath));
     } else {
       rules.set(
@@ -211,7 +214,7 @@ public final class MappingTurnApplicator {
               update.sourcePath(),
               newTargetPath,
               update.expression(),
-              MappingRuleStatus.USER_DEFINED));
+              MappingRuleStatus.USER_DEFINED).withRequirementIds(current.requirementIds()));
     }
     working.set(index, intent.withRules(rules));
   }
@@ -219,11 +222,9 @@ public final class MappingTurnApplicator {
   private static MappingIntentRule updatedDescriptive(
       MappingIntentRule current, UpdateRule update, String newTargetPath) {
     if (update.expression() == null) {
-      if (update.sourcePath().isBlank()) {
-        return current.withTargetPath(newTargetPath).withStatus(MappingRuleStatus.USER_DEFINED);
-      }
       return new MappingIntentRule(
-          update.sourcePath(), newTargetPath, null, MappingRuleStatus.USER_DEFINED);
+          update.sourcePath(), newTargetPath, null, MappingRuleStatus.USER_DEFINED)
+          .withRequirementIds(current.requirementIds());
     }
     if (update.sourcePath().isBlank()) {
       return current
@@ -232,7 +233,8 @@ public final class MappingTurnApplicator {
           .withStatus(MappingRuleStatus.USER_DEFINED);
     }
     return new MappingIntentRule(
-        update.sourcePath(), newTargetPath, update.expression(), MappingRuleStatus.USER_DEFINED);
+        update.sourcePath(), newTargetPath, update.expression(), MappingRuleStatus.USER_DEFINED)
+        .withRequirementIds(current.requirementIds());
   }
 
   private static void deleteRule(List<MappingIntent> working, DeleteRule delete) {

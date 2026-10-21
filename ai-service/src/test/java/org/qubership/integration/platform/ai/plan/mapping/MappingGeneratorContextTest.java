@@ -36,9 +36,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class MappingGeneratorContextTest {
 
@@ -51,7 +51,7 @@ class MappingGeneratorContextTest {
 
   @BeforeEach
   void setUp() throws Exception {
-    QipKnowledgePackRepository repository = Mockito.mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository repository = Mockito.mock(CipKnowledgePackRepository.class);
     CompilerSkillAddonRepository addonRepository = Mockito.mock(CompilerSkillAddonRepository.class);
     when(addonRepository.loadForSkill(Mockito.anyString()))
         .thenReturn(CompilerSkillAddonContext.empty());
@@ -106,6 +106,51 @@ class MappingGeneratorContextTest {
     assertTrue(message.contains("Approved hop-body mappingCoverage paths: [\"$.orderId\"]"));
     assertTrue(message.contains("assign it to exchange.in.body"));
     assertTrue(message.contains("must be copied unchanged"));
+  }
+
+  @Test
+  void catalogFormatsReachTheGeneratorDespiteTheMapperEnvelopeProjection() throws Exception {
+    var source =
+        side(
+            "trigger-http",
+            MappingPort.OUTPUT,
+            MAPPER.readTree(
+                """
+                {"type":"object","properties":{"parameters":{"type":"object","properties":{
+                  "orderCreationDate":{"type":"string","format":"date-time"}}}}}
+                """),
+            "sha-dated-source");
+    var target =
+        side(
+            "call-1",
+            MappingPort.REQUEST,
+            MAPPER.readTree(
+                """
+                {"type":"object","properties":{"ActivityDate":{"type":"string","format":"date"}}}
+                """),
+            "sha-dated-target");
+    var frozen = new JsonSchemaMessageSchemaFactory(MAPPER).fromSides(source, target);
+    var intent =
+        new MappingIntent(
+            "due-date",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.parameters.orderCreationDate",
+                    "$.ActivityDate",
+                    null,
+                    MappingRuleStatus.PROPOSED)));
+    var context = builder.renderMappingGenerationContext(intent, frozen, source, target);
+    var snapshot =
+        new CompilerSkillInputSnapshot("Map the due date", "", "", sampleGraph(), "", null, context);
+
+    String message = builder.buildUserMessage(transformationGeneratorDocument(), snapshot);
+
+    assertTrue(message.contains("\"format\":\"date-time\""), message);
+    assertTrue(message.contains("\"format\":\"date\""), message);
   }
 
   @Test
@@ -342,9 +387,9 @@ class MappingGeneratorContextTest {
         "cip-transformation-generator",
         "skills/cip-transformation-generator.md",
         "Transformation generator",
-        QipKnowledgeCapabilityPhase.GENERATOR,
+        CipKnowledgeCapabilityPhase.GENERATOR,
         true,
-        new QipKnowledgePackVersion("test", "test-pack"),
+        new CipKnowledgePackVersion("test", "test-pack"),
         "generator-id: GEN-TRANSFORM\n");
   }
 

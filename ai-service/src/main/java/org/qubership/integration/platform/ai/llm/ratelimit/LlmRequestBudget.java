@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import org.jboss.logging.Logger;
-import org.qubership.integration.platform.ai.chat.memory.QipJtokkitTokenCountEstimator;
+import org.qubership.integration.platform.ai.chat.memory.CipJtokkitTokenCountEstimator;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 
 /** Checks complete model requests before transport retries can send them. */
@@ -43,11 +43,11 @@ public final class LlmRequestBudget {
   }
 
   private final AppConfig.LlmConfig config;
-  private final QipJtokkitTokenCountEstimator estimator;
+  private final CipJtokkitTokenCountEstimator estimator;
 
   LlmRequestBudget(AppConfig config) {
     this.config = config.llm();
-    this.estimator = new QipJtokkitTokenCountEstimator(this.config.modelName());
+    this.estimator = new CipJtokkitTokenCountEstimator(this.config.modelName());
   }
 
   ChatRequest prepare(ChatRequest request) {

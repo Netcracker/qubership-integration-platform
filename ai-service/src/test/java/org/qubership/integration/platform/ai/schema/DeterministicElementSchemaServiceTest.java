@@ -24,7 +24,7 @@ class DeterministicElementSchemaServiceTest {
   @BeforeEach
   void setUp() {
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
-    QipSchemaYamlParser qipSchemaYamlParser = new QipSchemaYamlParser();
+    CipSchemaYamlParser qipSchemaYamlParser = new CipSchemaYamlParser();
     SchemaRefResolver schemaRefResolver =
         new SchemaRefResolver(schemaResourceLoader, qipSchemaYamlParser);
 
@@ -412,7 +412,7 @@ class DeterministicElementSchemaServiceTest {
 
   private SchemaRefResolver schemaRefResolverForTests() {
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
-    QipSchemaYamlParser qipSchemaYamlParser = new QipSchemaYamlParser();
+    CipSchemaYamlParser qipSchemaYamlParser = new CipSchemaYamlParser();
     return new SchemaRefResolver(schemaResourceLoader, qipSchemaYamlParser);
   }
 

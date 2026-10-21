@@ -145,6 +145,46 @@ describe("RestApi - filterServices and searchServices", () => {
   });
 });
 
+describe("RestApi - getOperations", () => {
+  let restApi: RestApi;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    restApi = new RestApi();
+  });
+
+  it("maps offset, count and searchFilter onto the query params and omits the absent options", async () => {
+    const operations = [{ id: "op-1", method: "GET" }];
+    mockGet.mockResolvedValue({ data: operations });
+    const url = expect.stringContaining("/systems-catalog/operations");
+
+    const result = await restApi.getOperations("model-1", {
+      offset: 10,
+      count: 0,
+      searchFilter: "get user",
+    });
+    expect(mockGet).toHaveBeenNthCalledWith(1, url, {
+      params: {
+        modelId: "model-1",
+        offset: "10",
+        count: "0",
+        searchFilter: "get user",
+      },
+    });
+    expect(result).toEqual(operations);
+
+    await restApi.getOperations("model-2", { searchFilter: "get" });
+    expect(mockGet).toHaveBeenNthCalledWith(2, url, {
+      params: { modelId: "model-2", searchFilter: "get" },
+    });
+
+    await restApi.getOperations("model-3");
+    expect(mockGet).toHaveBeenNthCalledWith(3, url, {
+      params: { modelId: "model-3" },
+    });
+  });
+});
+
 describe("RestApi - checkpoint sessions for micro-domain", () => {
   let restApi: RestApi;
 

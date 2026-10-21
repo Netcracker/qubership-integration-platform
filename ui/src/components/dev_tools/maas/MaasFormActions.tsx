@@ -10,7 +10,7 @@ export const MaasFormActions: React.FC<MaasFormActionsProps> = ({
   onReset,
 }) => {
   return (
-    <Flex justify="space-between" className={styles["actionsContainer"]}>
+    <Flex className={styles["actionsContainer"]}>
       <Button
         type="primary"
         loading={createInProgress}

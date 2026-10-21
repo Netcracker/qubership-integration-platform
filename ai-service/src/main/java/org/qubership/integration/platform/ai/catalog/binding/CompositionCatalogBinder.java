@@ -355,7 +355,7 @@ public class CompositionCatalogBinder {
         fact.policyConflict(), fact.elementIntent());
   }
 
-  private static String pickerQuestion(String interactionId) {
+  public static String pickerQuestion(String interactionId) {
     return "Chain-call "
         + interactionId
         + " has no unique chain-trigger yet. "

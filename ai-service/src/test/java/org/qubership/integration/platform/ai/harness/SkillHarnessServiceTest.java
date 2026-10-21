@@ -19,8 +19,8 @@ import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonCo
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.llm.agent.HarnessSkillAgent;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
-import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class SkillHarnessServiceTest {
 
@@ -52,9 +52,9 @@ class SkillHarnessServiceTest {
                 SKILL_ID,
                 "skills/cip-variable-generator/SKILL.md",
                 "variables",
-                QipKnowledgeCapabilityPhase.GENERATOR,
+                CipKnowledgeCapabilityPhase.GENERATOR,
                 true,
-                new QipKnowledgePackVersion("test", "test"),
+                new CipKnowledgePackVersion("test", "test"),
                 "Use #{VAR} placeholders."));
     when(addonRepository.loadForSkill(SKILL_ID))
         .thenReturn(
@@ -104,9 +104,9 @@ class SkillHarnessServiceTest {
                 SKILL_ID,
                 "skills/cip-variable-generator/SKILL.md",
                 "variables",
-                QipKnowledgeCapabilityPhase.GENERATOR,
+                CipKnowledgeCapabilityPhase.GENERATOR,
                 true,
-                new QipKnowledgePackVersion("test", "test"),
+                new CipKnowledgePackVersion("test", "test"),
                 "plain skill"));
     when(addonRepository.loadForSkill(SKILL_ID)).thenReturn(CompilerSkillAddonContext.empty());
 

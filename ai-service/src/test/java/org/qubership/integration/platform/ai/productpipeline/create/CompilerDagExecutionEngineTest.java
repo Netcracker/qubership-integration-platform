@@ -73,8 +73,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructur
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
@@ -155,7 +155,7 @@ class CompilerDagExecutionEngineTest {
   private InMemorySkillWorkspaceStore workspaceStore;
   private SkillExecutorRegistry skillRegistry;
   private CompilerNodeExecutionAdapterRegistry javaAdapterRegistry;
-  private QipKnowledgePackRepository packRepository;
+  private CipKnowledgePackRepository packRepository;
   private DefaultCompilerDagExecutionEngine engine;
 
   @BeforeEach
@@ -164,8 +164,8 @@ class CompilerDagExecutionEngineTest {
     workspaceStore = new InMemorySkillWorkspaceStore(new ChainPlanStore());
     skillRegistry = mock(SkillExecutorRegistry.class);
     javaAdapterRegistry = mock(CompilerNodeExecutionAdapterRegistry.class);
-    packRepository = mock(QipKnowledgePackRepository.class);
-    when(packRepository.activeVersion()).thenReturn(new QipKnowledgePackVersion("v1", "v1"));
+    packRepository = mock(CipKnowledgePackRepository.class);
+    when(packRepository.activeVersion()).thenReturn(new CipKnowledgePackVersion("v1", "v1"));
     CanonicalGraphDigest digest =
         new CanonicalGraphDigest(new com.fasterxml.jackson.databind.ObjectMapper());
     GraphAssemblyService graphAssemblyService = new GraphAssemblyService(digest);
@@ -1260,7 +1260,7 @@ class CompilerDagExecutionEngineTest {
   }
 
   private static CompilerSkillContextBuilder mappingContextBuilder(ObjectMapper mapper) {
-    QipKnowledgePackRepository repository = mock(QipKnowledgePackRepository.class);
+    CipKnowledgePackRepository repository = mock(CipKnowledgePackRepository.class);
     CompilerSkillAddonRepository addonRepository = mock(CompilerSkillAddonRepository.class);
     when(addonRepository.loadForSkill(org.mockito.ArgumentMatchers.anyString()))
         .thenReturn(CompilerSkillAddonContext.empty());

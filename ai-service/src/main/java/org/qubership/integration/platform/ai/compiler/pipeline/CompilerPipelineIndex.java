@@ -3,13 +3,13 @@ package org.qubership.integration.platform.ai.compiler.pipeline;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import java.util.Map;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 /** Compiled pipeline metadata for BUILD_CHAIN orchestration. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CompilerPipelineIndex(
     int schemaVersion,
-    QipKnowledgePackVersion packVersion,
+    CipKnowledgePackVersion packVersion,
     CompilerPipelineIndexSource sources,
     List<CompilerPipelineEntry> entries,
     CompilerPackageIdentity packageIdentity,
@@ -27,7 +27,7 @@ public record CompilerPipelineIndex(
   /** Schema-v1 compatibility constructor for historical pinned indexes. */
   public CompilerPipelineIndex(
       int schemaVersion,
-      QipKnowledgePackVersion packVersion,
+      CipKnowledgePackVersion packVersion,
       CompilerPipelineIndexSource sources,
       List<CompilerPipelineEntry> entries) {
     this(schemaVersion, packVersion, sources, entries, null, Map.of(), List.of(), List.of());

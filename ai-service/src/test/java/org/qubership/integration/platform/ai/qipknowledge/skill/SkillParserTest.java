@@ -5,19 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackFileKind;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanner;
-import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackFileKind;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanner;
+import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 
 class SkillParserTest {
 
-  private final QipKnowledgePackScanner scanner = new QipKnowledgePackScanner();
+  private final CipKnowledgePackScanner scanner = new CipKnowledgePackScanner();
   private final SkillParser parser = new SkillParser();
 
   @Test
   void parsesErrorHandlingGeneratorSkillId() {
     var file =
-        scanner.scan(QipKnowledgePackFixturePaths.packRoot()).files().stream()
+        scanner.scan(CipKnowledgePackFixturePaths.packRoot()).files().stream()
             .filter(
                 scanned ->
                     scanned
@@ -29,13 +29,13 @@ class SkillParserTest {
     SkillDescriptor skill = parser.parse(file);
 
     assertEquals("cip-error-handling-generator", skill.skillId());
-    assertEquals(QipKnowledgeCapabilityPhase.GENERATOR, skill.phase());
+    assertEquals(CipKnowledgeCapabilityPhase.GENERATOR, skill.phase());
   }
 
   @Test
   void doesNotPromoteMarkdownIdsIntoSkillIdentity() {
     var file =
-        scanner.scan(QipKnowledgePackFixturePaths.packRoot()).files().stream()
+        scanner.scan(CipKnowledgePackFixturePaths.packRoot()).files().stream()
             .filter(
                 scanned ->
                     scanned
@@ -55,10 +55,10 @@ class SkillParserTest {
   @Test
   void flagsFileTransportOnlySkills() {
     var file =
-        scanner.scan(QipKnowledgePackFixturePaths.packRoot()).files().stream()
+        scanner.scan(CipKnowledgePackFixturePaths.packRoot()).files().stream()
             .filter(
                 scanned ->
-                    scanned.kind() == QipKnowledgePackFileKind.SKILL
+                    scanned.kind() == CipKnowledgePackFileKind.SKILL
                         && scanned.relativePath().contains("cip-folder-organizer/"))
             .findFirst()
             .orElseThrow();
@@ -71,7 +71,7 @@ class SkillParserTest {
   @Test
   void generatorSkillIsNotFileTransportOnly() {
     var file =
-        scanner.scan(QipKnowledgePackFixturePaths.packRoot()).files().stream()
+        scanner.scan(CipKnowledgePackFixturePaths.packRoot()).files().stream()
             .filter(
                 scanned ->
                     scanned

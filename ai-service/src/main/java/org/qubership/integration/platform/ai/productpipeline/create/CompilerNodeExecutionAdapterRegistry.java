@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 
 /** Registry for JAVA_ADAPTER planning executors keyed by adapter ID. */
 @ApplicationScoped
@@ -20,7 +20,7 @@ public class CompilerNodeExecutionAdapterRegistry {
   @Inject
   public CompilerNodeExecutionAdapterRegistry(
       @Any Instance<CompilerNodeExecutionAdapter> adapters,
-      QipKnowledgePackRepository packRepository) {
+      CipKnowledgePackRepository packRepository) {
     this(index(adapters));
     validatePinnedAdapterCoverage(packRepository);
   }
@@ -61,7 +61,7 @@ public class CompilerNodeExecutionAdapterRegistry {
     return map;
   }
 
-  private void validatePinnedAdapterCoverage(QipKnowledgePackRepository packRepository) {
+  private void validatePinnedAdapterCoverage(CipKnowledgePackRepository packRepository) {
     if (packRepository == null) {
       return;
     }

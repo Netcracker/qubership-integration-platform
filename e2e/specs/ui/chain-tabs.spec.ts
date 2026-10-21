@@ -3,9 +3,10 @@
  *
  * What the API cannot see: the header's unsaved-changes tag clearing once a snapshot is built, an
  * inline rename closing its editor (issue #679), a label keeping its size when its cell opens for
- * editing (#679 again), a deployment's status badge updating from the event poll, and the element
- * trace a session opens to. The catalog, the engine and the session store answer the same way
- * whether or not any of these render.
+ * editing (#679 again), a deployment's status badge updating from the event poll, the element
+ * trace a session opens to, and the header search box keeping its caret and every typed key
+ * (#1119). The catalog, the engine and the session store answer the same way whether or not any of
+ * these render.
  */
 import type { Locator } from "@playwright/test";
 import { test, expect } from "../../support/page-guard.js";
@@ -121,7 +122,7 @@ test("a seed chain's session is found on its sessions tab and opens to its eleme
 
   await tabs.goto(chain.id, "sessions");
   // The token is in the call's headers, which the tab's full-text search covers.
-  await tabs.sessionSearch.fill(token);
+  await tabs.search("sessions").fill(token);
   // The id and the element names are anchors with no href, so they carry no link role.
   const listed = page.getByRole("row").getByText(session.id, { exact: true });
   await expect(listed).toBeVisible();
@@ -141,4 +142,27 @@ test("a seed chain's session is found on its sessions tab and opens to its eleme
   await details.getByRole("tab", { name: "Headers" }).click();
   // The header the fixture adds, valued with the token the corpus was rendered with.
   await expect(details.getByRole("row").filter({ hasText: "e2e-fixture" })).toContainText(corpus.run);
+});
+
+test("the search box in a chain tab's header keeps its caret and every key typed", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, folder, run }) => {
+  const chain = await catalog.createChain(tokenized(run, "ui-tabs-search"), folder.id);
+  const tabs = new ChainTabsPage(page);
+
+  for (const tab of ["sessions", "snapshots", "deployments"] as const) {
+    await tabs.goto(chain.id, tab);
+    const search = tabs.search(tab);
+
+    await search.pressSequentially("abc", { delay: 100 });
+    await search.press("Home");
+    await search.pressSequentially("xy", { delay: 100 });
+    // Issue #1119: the header wrote the previous value back after each key, which moved the caret
+    // to the end and gave "xabcy".
+    await expect(search).toHaveValue("xyabc");
+    await expect.poll(() => search.evaluate((input: HTMLInputElement) => input.selectionStart)).toBe(2);
+
+    await search.fill("");
+    // Keys with no delay between them landed on the stale value and left only the last one.
+    await search.pressSequentially("abc");
+    await expect(search).toHaveValue("abc");
+  }
 });

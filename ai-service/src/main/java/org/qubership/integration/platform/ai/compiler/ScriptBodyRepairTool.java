@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureProposal;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
@@ -69,6 +70,12 @@ public class ScriptBodyRepairTool {
   private final CompilationArtifacts compilationArtifacts;
   private final MappingCaptureValidator mappingCaptureValidator = new MappingCaptureValidator();
 
+  public record ValidatedScriptBodies(String inputDigest, Map<String, ScriptBodyEntry> scripts) {
+    public ValidatedScriptBodies {
+      scripts = Map.copyOf(scripts);
+    }
+  }
+
   @Inject
   ScriptBodyRepairTool(
       CaptureRouter captureRouter,
@@ -98,6 +105,7 @@ public class ScriptBodyRepairTool {
       if/else). Rationale-only or empty scripts payloads are rejected.
       Mapping turns also submit mappingCoverage (JSON array of implemented target paths).
       Non-mapping fills submit script only.
+      A compilation correction retains mapping scripts already validated for the same inputs.
       Do not submit graph nodes, edges, or chain fields.
       Escape every double quote inside script strings. Prefer JsonOutput.toJson([error: msg])
       instead of embedding JSON object literals with quotes inside Groovy.
@@ -172,8 +180,16 @@ public class ScriptBodyRepairTool {
     }
 
     stripHopBodyCoverage(conversationId, capabilityId, base, byNodeId);
-    String mappingError = validateMappingCaptures(conversationId, capabilityId, base, byNodeId);
+    CaptureKey progressKey = CaptureKey.capability(
+        CaptureSlot.SCRIPT_BODY_REPAIR_PROGRESS, conversationId, capabilityId);
+    String inputDigest = CaptureProposal.digest(java.util.Arrays.asList(base, context));
+    var validated = new LinkedHashMap<String, ScriptBodyEntry>();
+    captureSession.get(progressKey, ValidatedScriptBodies.class)
+        .filter(progress -> inputDigest.equals(progress.inputDigest()))
+        .ifPresent(progress -> byNodeId.putAll(progress.scripts()));
+    String mappingError = validateMappingCaptures(conversationId, capabilityId, base, byNodeId, validated);
     if (mappingError != null) {
+      captureSession.set(progressKey, new ValidatedScriptBodies(inputDigest, validated));
       return recordFailure(conversationId, capabilityId, mappingError);
     }
     List<PropertyPatch> propertyPatches = new ArrayList<>();
@@ -226,6 +242,7 @@ public class ScriptBodyRepairTool {
 
     String accepted =
         captureSession.accept(key, patch, CAPTURE_SUCCESS_MESSAGE, DUPLICATE_CAPTURE_MESSAGE);
+    captureSession.clear(progressKey);
     feedbackStore.clearPatch(conversationId, capabilityId);
     // Terminal signal: PreventsErrorHandlerExecution aborts the streaming tool loop so
     // CaptureRepairRunner can complete and harvest can run without waiting for an LLM end-turn.
@@ -342,12 +359,14 @@ public class ScriptBodyRepairTool {
       String conversationId,
       String capabilityId,
       ChainPlanGraph graph,
-      Map<String, ScriptBodyEntry> byNodeId) {
+      Map<String, ScriptBodyEntry> byNodeId,
+      Map<String, ScriptBodyEntry> validated) {
     GraphPatchExecutionContext context =
         executionContextStore
             .get(conversationId, capabilityId)
             .or(executionContextStore::current)
             .orElse(null);
+    String failure = null;
     for (ScriptBodyEntry entry : byNodeId.values()) {
       ChainPlanNode node = findNode(graph, entry.targetNodeId());
       String intentId = MappingExecutionSite.mappingIntentId(node);
@@ -361,11 +380,14 @@ public class ScriptBodyRepairTool {
             entry.script().trim(),
             entry.mappingCoverage(),
             findEnvelope(conversationId, context, intentId));
+        validated.put(entry.targetNodeId(), entry);
       } catch (IllegalArgumentException e) {
-        return e.getMessage();
+        if (failure == null) {
+          failure = "Script node '" + entry.targetNodeId() + "': " + e.getMessage();
+        }
       }
     }
-    return null;
+    return failure;
   }
 
   private void stripHopBodyCoverage(

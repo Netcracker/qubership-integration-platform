@@ -137,6 +137,19 @@ class DeployChainScenarioTest {
   }
 
   @Test
+  void uploadedFileUuidIsNotAChainSelector() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.empty());
+
+    ChatEvent.Token token = tokenFrom("deploy it\n---\n- `9fc94106-77db-4715-ad84-b48c43e15dd7.json` (inlined)\n{}");
+
+    verify(catalogRestClient, never()).getChain(any());
+    verify(catalogRestClient, never()).createSnapshot(any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    assertTrue(token.text().contains("No chain context found"), token.text());
+  }
+
+  @Test
   void takeASnapshotCreatesOnceAndReportsNameAndId() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));

@@ -5,9 +5,9 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.compiler.pipeline.InternalPipelineSkills;
-import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
-import org.qubership.integration.platform.ai.qipknowledge.rag.QipKnowledgeRagChunk;
-import org.qubership.integration.platform.ai.qipknowledge.rag.QipKnowledgeRagIngestionManifest;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.rag.CipKnowledgeRagChunk;
+import org.qubership.integration.platform.ai.qipknowledge.rag.CipKnowledgeRagIngestionManifest;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityDescriptor;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
 
@@ -15,10 +15,10 @@ import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegist
 @ApplicationScoped
 public class CompilerSkillDocumentService {
 
-  private final QipKnowledgePackRepository repository;
+  private final CipKnowledgePackRepository repository;
 
   @Inject
-  public CompilerSkillDocumentService(QipKnowledgePackRepository repository) {
+  public CompilerSkillDocumentService(CipKnowledgePackRepository repository) {
     this.repository = repository;
   }
 
@@ -36,7 +36,7 @@ public class CompilerSkillDocumentService {
   private CompilerSkillDocument loadPackDocument(String key) {
     CapabilityDescriptor capability = findCapability(repository.loadCapabilityRegistry(), key);
     String sourcePath = "skills/" + capability.sourceSkillId() + "/SKILL.md";
-    QipKnowledgeRagChunk chunk = findSkillChunk(repository.loadRagIngestionManifest(), sourcePath, key);
+    CipKnowledgeRagChunk chunk = findSkillChunk(repository.loadRagIngestionManifest(), sourcePath, key);
 
     return new CompilerSkillDocument(
         capability.id(),
@@ -59,8 +59,8 @@ public class CompilerSkillDocumentService {
         .orElseThrow(() -> new CompilerSkillNotFoundException(capabilityId));
   }
 
-  private static QipKnowledgeRagChunk findSkillChunk(
-      QipKnowledgeRagIngestionManifest manifest, String sourcePath, String capabilityId) {
+  private static CipKnowledgeRagChunk findSkillChunk(
+      CipKnowledgeRagIngestionManifest manifest, String sourcePath, String capabilityId) {
     return manifest.chunks().stream()
         .filter(chunk -> sourcePath.equals(chunk.sourcePath()))
         .filter(chunk -> chunk.capabilityIds().contains(capabilityId))
