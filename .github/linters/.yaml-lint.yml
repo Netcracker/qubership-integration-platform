@@ -63,4 +63,4 @@ rules:
 
 ignore: |
   **/qip-dev/charts/*/templates/*.yaml
-  dbaas/templates/*.yaml
+  **/dbaas/templates/*.yaml
