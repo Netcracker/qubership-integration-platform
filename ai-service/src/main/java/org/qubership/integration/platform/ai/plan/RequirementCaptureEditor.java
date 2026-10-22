@@ -77,7 +77,10 @@ public final class RequirementCaptureEditor {
   public static EditResult apply(DraftInput accepted, DraftUpdate update) {
     List<Issue> issues = new ArrayList<>();
     if (accepted == null) {
-      add(issues, "DRAFT_NOT_FOUND", "/changes", null, "Read or initialize the draft first.");
+      add(issues, "DRAFT_NOT_FOUND", "/changes", null,
+          "No accepted requirement draft exists. captureRequirementDraft initializes the draft;"
+              + " updateRequirementDraft requires an accepted base."
+              + " If initialization was rejected, correct the full candidate and call captureRequirementDraft again.");
       return new EditResult(null, List.copyOf(issues), false);
     }
     if (update == null) {
@@ -820,8 +823,13 @@ public final class RequirementCaptureEditor {
           && !Objects.equals(intent.elementRef(), intent.ownerInteractionId())
           || intent.placement() == RequirementElementIntent.Placement.LOCAL_NODE
               && interactions.contains(intent.elementRef())) {
-        add(issues, "INVALID_ELEMENT_REFERENCE", path, fact.sourceFactId(),
-            "An anchor uses its interaction ID; a local element uses a separate elementRef.");
+        add(issues, "INVALID_ELEMENT_REFERENCE", path + "/elementRef", fact.sourceFactId(),
+            "Rejected elementRef='" + intent.elementRef() + "' for placement=" + intent.placement()
+                + ", ownerInteractionId='" + intent.ownerInteractionId() + "', and business interaction IDs="
+                + interactions.stream().sorted().toList() + ". "
+                + (intent.placement() == RequirementElementIntent.Placement.ANCHOR
+                    ? "An ANCHOR elementRef must equal its ownerInteractionId."
+                    : "A LOCAL_NODE elementRef must differ from every business interaction ID."));
         continue;
       }
       if ((intent.placement() == RequirementElementIntent.Placement.BEFORE_HOOK

@@ -201,7 +201,7 @@ class MiniTopologyRepresentationRecoveryTest {
       var result = capture(initial);
       assertFalse(result.accepted());
       assertTrue(result.issues().stream().anyMatch(issue -> "INVALID_ELEMENT_REFERENCE".equals(issue.code())
-          && "/draft/facts/script-name/elementIntent".equals(issue.path())), result.toString());
+          && "/draft/facts/script-name/elementIntent/elementRef".equals(issue.path())), result.toString());
       assertTrue(store.get(chat).isEmpty());
       assertTrue(store.latestRevision(chat).isEmpty());
       assertSourceAndAttempt(initial, false);

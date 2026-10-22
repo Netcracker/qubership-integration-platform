@@ -99,8 +99,10 @@ public class RequirementCaptureTools {
 
   @Tool("""
       Save the initial requirements known so far. The server owns readiness and the readable review.
-      A partial draft is valid. Call once for initialization; later edits use updateRequirementDraft.
-      If initialization is rejected, correct only reported fields and preserve unaffected facts.
+      A partial draft is valid. Initialize with captureRequirementDraft until a draft is accepted.
+      After initialization is accepted, later edits use updateRequirementDraft.
+      If initialization is rejected, correct the full rejected candidate and call captureRequirementDraft again.
+      Change only reported fields and preserve unaffected facts.
       For a field adaptation across a direct transition, record one FIELD_MAPPING fact per target
       field. Include both endpoints in interactionIds and exact field paths in fieldMapping.
       Retain earlier event fields through BEHAVIOR naming their source and save-before-call timing.
