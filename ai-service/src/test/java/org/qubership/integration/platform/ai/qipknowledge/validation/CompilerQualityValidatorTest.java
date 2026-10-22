@@ -16,6 +16,18 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifes
 
 class CompilerQualityValidatorTest {
   @Test
+  void anElementNameDoesNotDischargeTheSameRequiredRuntimeLiteral() {
+    var brief = requiredScriptLiteral("settled", "settled");
+    var named = RequestedElementValues.apply(graph(), brief.facts());
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        named.withNodeProperty("script", "script", "exchange.in.body = 'settled'"), brief).isEmpty());
+    var findings = CompilerQualityValidator.validateApprovedValues(
+        named.withNodeProperty("script", "script", "exchange.in.body = 'other'"), brief);
+    assertTrue(findings.stream().anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())),
+        findings.toString());
+  }
+
+  @Test
   void anAssignmentShapedResponseRemainsAnExactExecutableLiteral() {
     var brief = requiredScriptLiteral("a=b");
     assertTrue(CompilerQualityValidator.validateApprovedValues(
@@ -52,9 +64,14 @@ class CompilerQualityValidatorTest {
 
   private static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief requiredScriptLiteral(
       String literal) {
+    return requiredScriptLiteral(literal, null);
+  }
+
+  private static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief requiredScriptLiteral(
+      String literal, String name) {
     var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script", "script",
         org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
-        "trigger", null, null, null, List.of(), List.of(literal));
+        "trigger", null, null, name, List.of(), List.of(literal));
     var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("response",
         org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
         org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Produce the requested value.",
