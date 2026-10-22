@@ -828,8 +828,16 @@ public class RequirementDiscoveryCapability implements StageCapability {
     if (candidate == null || candidate.authoredDraft() == null) {
       return false;
     }
-    var accepted = original.authoredDraft();
-    var proposed = candidate.authoredDraft();
+    return preservesMappingRepair(editable, missingTargets, original.authoredDraft(), candidate.authoredDraft());
+  }
+
+  public static boolean preservesMappingRepair(Map<String, java.util.Set<String>> editable,
+      List<MappingValidationDetails> missingTargets, RequirementCaptureInput.DraftInput accepted,
+      RequirementCaptureInput.DraftInput proposed) {
+    if (accepted == null || proposed == null || accepted.facts() == null || proposed.facts() == null
+        || accepted.facts().stream().anyMatch(Objects::isNull) || proposed.facts().stream().anyMatch(Objects::isNull)) {
+      return false;
+    }
     var retained = new java.util.ArrayList<RequirementCaptureInput.FactInput>();
     for (var fact : proposed.facts()) {
       String factId = fact.sourceFactId();
