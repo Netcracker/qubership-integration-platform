@@ -18,6 +18,7 @@ package org.qubership.integration.platform.parsers.resolvers.async;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.resolvers.CommonSchemaResolver;
 import org.qubership.integration.platform.parsers.resolvers.SchemaResolver;
@@ -25,7 +26,9 @@ import org.qubership.integration.platform.parsers.resolvers.SchemaResolver;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 public class AsyncApiSchemaResolver extends CommonSchemaResolver implements SchemaResolver {
@@ -40,6 +43,12 @@ public class AsyncApiSchemaResolver extends CommonSchemaResolver implements Sche
 
         ObjectNode schemaNode = getSchemaNode(schemaRef, currentComponentsNode);
 
+        // A message that aliases another message, directly or through other aliases, is replaced with the message
+        // it names before its payload is read. A reference already followed ends a cycle of aliases.
+        Set<String> followed = new HashSet<>();
+        while (schemaNode.get(REF_FIELD_NAME) instanceof TextNode ref && followed.add(ref.asText())) {
+            resolveInlineRef(schemaNode, currentComponentsNode);
+        }
         convertPayloadToSchemaNode(schemaNode);
 
         return resolveSchemaNode(schemaRef, schemaNode, currentComponentsNode);

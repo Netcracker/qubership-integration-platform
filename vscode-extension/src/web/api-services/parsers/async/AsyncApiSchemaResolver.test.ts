@@ -123,8 +123,7 @@ describe("AsyncApiSchemaResolver", () => {
     expect(schema.definitions.Shared.properties.fromSchema).toBeUndefined();
   });
 
-  // The backend fails the import on a message alias, so the shared fixture cannot carry this case.
-  it("resolves a message that is an alias of another message", () => {
+  it("resolves a message alias to what the message it names resolves to", () => {
     const aliasComponents = {
       messages: {
         Alias: { $ref: "#/components/messages/Real" },
@@ -132,14 +131,16 @@ describe("AsyncApiSchemaResolver", () => {
       },
       schemas: components.schemas,
     };
+    const withoutId = (ref: string) => {
+      const { $id, ...schema } = resolver.resolveRef(ref, aliasComponents)!
+        .schema as Record<string, unknown>;
+      return schema;
+    };
 
-    const { schema } = resolver.resolveRef(
-      "#/components/messages/Alias",
-      aliasComponents,
-    )!;
-    expect(schema.payload).toBeUndefined();
-    expect(schema.$ref).toBe("#/definitions/Item");
-    expect(schema.definitions.Item).toBeDefined();
+    expect(withoutId("#/components/messages/Alias")).toEqual(
+      withoutId("#/components/messages/Real"),
+    );
+    expect(withoutId("#/components/messages/Alias").payload).toBeUndefined();
   });
 
   // The backend's payload model has no `definitions`, so the shared fixture cannot carry this case.
