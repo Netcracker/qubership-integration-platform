@@ -97,6 +97,25 @@ class ProductRequirementBriefToolTest {
   }
 
   @Test
+  void sourceOmissionWithoutBoundAuthorEvidenceCannotCreateBriefOrRepairAuthority() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
+
+    var result = tool.capture(new RequirementAnalysisCapture("Greetings", List.of("GET /greetings"),
+        List.of(), "Return Hello world!", List.of(), List.of(), List.of(
+            new RequirementAnalysisCapture.SourceOmission("invented-source", "Invented requirement",
+                "An unsupported omission."))), CONVERSATION);
+
+    assertFalse(result.accepted());
+    assertEquals("SOURCE_REVIEW_NOT_BOUND", result.issues().getFirst().code());
+    assertEquals("REPAIR_CAPTURE", result.nextAction());
+    assertTrue(candidate.get() == null);
+    assertEquals(approved, ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow().approvedDraft());
+    assertTrue(session.get(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION),
+        RequirementBrief.class).isEmpty());
+  }
+
+  @Test
   void rejectsUnknownFieldBeforeBindingWithoutPublishingCandidate() {
     ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION,
         RequirementFactFixtures.greetingsApprovedDraft(), candidate::set);

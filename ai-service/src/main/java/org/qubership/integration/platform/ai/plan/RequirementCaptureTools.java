@@ -346,14 +346,11 @@ public class RequirementCaptureTools {
     var repair = ProductCapabilityCaptureContext.binding(conversationId)
         .filter(binding -> binding.mode() == ProductCapabilityCaptureContext.Mode.DISCOVERY
             && binding.approvedDraft() != null && binding.requirementRepairPaths().isEmpty());
-    boolean outsideRepairScope = repair.isPresent()
-        && !org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
-            .preservesMappingRepair(repair.get().mappingRepairPaths(), repair.get().missingMappingTargets(),
-                repair.get().approvedDraft().authoredDraft(), input);
-    if (outsideRepairScope) {
-      issues.add(new Issue("REPAIR_FACT_LOSS", "/draft", null,
-          "Change only the rejected mapping field paths. Preserve the selected draft's facts, flow, and settings."));
-    }
+    var scopeIssues = repair.map(binding -> org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
+        .mappingRepairIssues(binding.mappingRepairPaths(), binding.missingMappingTargets(),
+            binding.approvedDraft().authoredDraft(), input)).orElse(List.of());
+    boolean outsideRepairScope = !scopeIssues.isEmpty();
+    issues.addAll(scopeIssues);
     if (!issues.isEmpty()) {
       // Rejected content outside the repair scope must not become protected repair facts.
       return reject(conversationId, outsideRepairScope ? null : input, previous, issues.stream().distinct().toList());

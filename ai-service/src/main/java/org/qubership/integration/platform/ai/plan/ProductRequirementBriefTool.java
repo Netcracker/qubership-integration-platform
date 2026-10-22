@@ -63,7 +63,8 @@ public class ProductRequirementBriefTool {
     var original = method.toolSpecification();
     var root = original.parameters();
     var capture = (dev.langchain4j.model.chat.request.json.JsonObjectSchema) root.properties().get("capture");
-    var required = capture.toBuilder().required(List.of("goal", "summary", "inputs", "assumptions", "citations"))
+    var required = capture.toBuilder().required(
+        List.of("goal", "summary", "inputs", "assumptions", "citations", "sourceOmissions"))
         .build();
     return original.toBuilder().parameters(root.toBuilder().addProperty("capture", required)
         .required(List.of("capture")).build()).build();
@@ -73,6 +74,13 @@ public class ProductRequirementBriefTool {
 
   public record Result(
       boolean accepted, boolean changed, String nextAction, List<Issue> issues, String message) {}
+
+  /** A verified source quotation is evidence for diagnosis, never permission to amend requirements. */
+  public record SourceReview(String generation, List<RequirementAnalysisCapture.SourceOmission> omissions) {
+    public SourceReview {
+      omissions = List.copyOf(omissions);
+    }
+  }
 
   private final CaptureSession captureSession;
   private final CaptureAttemptFeedbackStore feedbackStore;
@@ -124,12 +132,17 @@ public class ProductRequirementBriefTool {
       mappingIntents; the server projects those approved rules. For catalog imports without
       authored mapping facts, use approved interaction ids as mapping endpoints. Omit rows for
       pass-through. The server assigns mapping ids and ports. After acceptance, finish this turn.
+      Review the saved author evidence against the selected draft. Supply sourceOmissions=[] only
+      when nothing was omitted. Otherwise report each omission with sourceTurnId, exact quote, and
+      explanation. Account for later amendments and choices. A report stops brief creation for
+      guarded source reconciliation and does not authorize changing the approved requirements.
       """)
   public String captureRequirementBrief(
       RequirementAnalysisCapture capture, @ToolMemoryId String conversationId,
       InvocationParameters parameters) {
     return withAuthority(conversationId, parameters, binding -> {
-          Result result = capture(capture, conversationId);
+          Result result = capture(capture, conversationId,
+              parameters == null ? null : parameters.get(AuthorSourceEvidence.PARAMETER_KEY));
           if (result.accepted()) {
             outcomeGateway.onTerminalAccept(result.message());
           }
@@ -171,7 +184,7 @@ public class ProductRequirementBriefTool {
       feedbackStore.recordPlanToolArgumentsFailure(conversationId, message);
       return encode(rejected("ANALYSIS_SESSION_NOT_FOUND", "/", message, true));
     }
-    if (binding.briefCandidate().get() != null) {
+    if (binding.briefCandidate().get() != null || Boolean.TRUE.equals(binding.captureTerminal().get())) {
       return encode(rejected("DUPLICATE_CAPTURE", "/",
           RequirementBriefTool.DUPLICATE_CAPTURE_MESSAGE, true));
     }
@@ -181,6 +194,11 @@ public class ProductRequirementBriefTool {
   }
 
   Result capture(RequirementAnalysisCapture capture, String conversationId) {
+    return capture(capture, conversationId, null);
+  }
+
+  private Result capture(RequirementAnalysisCapture capture, String conversationId,
+      AuthorSourceEvidence.Packet source) {
     Binding binding = ProductCapabilityCaptureContext.binding(conversationId)
         .filter(bound -> bound.mode() == Mode.ANALYSIS)
         .orElse(null);
@@ -194,7 +212,8 @@ public class ProductRequirementBriefTool {
       return rejected("SELECTED_DRAFT_REQUIRED", "/", "A selected draft is required.", true);
     }
     CaptureKey key = CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId);
-    if (captureSession.isPresent(key) || binding.briefCandidate().get() != null) {
+    if (captureSession.isPresent(key) || binding.briefCandidate().get() != null
+        || Boolean.TRUE.equals(binding.captureTerminal().get())) {
       return rejected("DUPLICATE_CAPTURE", "/", RequirementBriefTool.DUPLICATE_CAPTURE_MESSAGE,
           true);
     }
@@ -202,6 +221,9 @@ public class ProductRequirementBriefTool {
         "draft", approved, "sourceGeneration", binding.resetGeneration() == null ? "" : binding.resetGeneration(),
         "sourceTurn", binding.sourceTurnId() == null ? "" : binding.sourceTurnId()));
     feedbackStore.beginProposal(conversationId, "requirement-analysis", "captureRequirementBrief", capture);
+    if (capture != null && !capture.sourceOmissions().isEmpty()) {
+      return reviewSource(binding, capture, source);
+    }
     if (capture == null || blank(capture.goal()) && blank(capture.summary())) {
       return repair(binding, capture, "MISSING_SUMMARY", "/goal",
           "Provide a goal or a summary.");
@@ -271,6 +293,41 @@ public class ProductRequirementBriefTool {
     feedbackStore.clearPlan(conversationId);
     ProductCapabilityCaptureContext.offerBrief(binding, brief);
     return new Result(true, true, "HANDOFF", List.of(), message);
+  }
+
+  private Result reviewSource(Binding binding, RequirementAnalysisCapture capture,
+      AuthorSourceEvidence.Packet source) {
+    if (source == null || conversations == null
+        || !java.util.Objects.equals(binding.resetGeneration(), source.generation())
+        || !source.equals(AuthorSourceEvidence.packet(conversations.archive().read(binding.conversationId())))) {
+      return repair(binding, capture, "SOURCE_REVIEW_NOT_BOUND", "/sourceOmissions",
+          "Use the saved author evidence from this analysis invocation.");
+    }
+    for (int index = 0; index < capture.sourceOmissions().size(); index++) {
+      var omission = capture.sourceOmissions().get(index);
+      String path = "/sourceOmissions/" + index;
+      var input = source.inputs().stream()
+          .filter(candidate -> candidate.sourceTurnId().equals(omission.sourceTurnId())).findFirst();
+      if (input.isEmpty()) {
+        return repair(binding, capture, "SOURCE_TURN_NOT_FOUND", path + "/sourceTurnId",
+            "Reference an active author sourceTurnId from this analysis invocation.");
+      }
+      if (blank(omission.quote()) || !input.get().text().contains(omission.quote())) {
+        return repair(binding, capture, "SOURCE_QUOTE_MISMATCH", path + "/quote",
+            "Quote the exact source text without rewriting or shortening it.");
+      }
+      if (blank(omission.explanation())) {
+        return repair(binding, capture, "SOURCE_OMISSION_EXPLANATION_REQUIRED", path + "/explanation",
+            "Explain the omission after accounting for later amendments and confirmed choices.");
+      }
+    }
+    SourceReview review = new SourceReview(source.generation(), capture.sourceOmissions());
+    binding.captureTerminal().set(true);
+    if (binding.onCandidate() != null) {
+      binding.onCandidate().accept(review);
+    }
+    return new Result(false, false, "REPAIR_SOURCE", List.of(),
+        "Source omissions reported. Finish this turn; guarded reconciliation must preserve approved requirements.");
   }
 
   private static String targetFolderPath(RequirementDraft approved) {

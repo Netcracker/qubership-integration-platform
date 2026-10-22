@@ -3278,7 +3278,8 @@ class ProductPipelineStageExecutorTest {
 
     assertEquals(
         PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals("The approved requirements need correction.", PipelineGates.strip(wait.prompt()));
+    assertEquals("The requirements need reconciliation with the saved messages. Confirmed choices will be preserved.",
+        PipelineGates.strip(wait.prompt()));
     assertEquals(
         List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REVISE_BRIEF));
@@ -5403,6 +5404,79 @@ class ProductPipelineStageExecutorTest {
     applyLifecycle(runtime, repair);
     assertInstanceOf(StageDecision.Complete.class, execute(runtime, "design-execution").decision());
     assertEquals(2, calls.get());
+  }
+
+  @Test
+  void unsafeDiagnosisPresentationDoesNotSpendCorrectionCreditOrLoseAcceptedWork() throws Exception {
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    var rawReply = new AtomicReference<RecoveryDecision>();
+    var requestContext = new AtomicReference<RecoveryContext>();
+    var narrative = org.mockito.Mockito.spy(new FailureNarrative(agent));
+    org.mockito.Mockito.doAnswer(call -> {
+      requestContext.set(call.getArgument(1));
+      return call.callRealMethod();
+    }).when(narrative).diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class)))
+        .thenAnswer(call -> {
+          var projected = mapper.readTree((String) call.getArgument(1));
+          var ref = mapper.treeToValue(projected.path("evidence").path("rejectedArtifactRefs").get(0), Reference.class);
+          var reply = new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, ref,
+              List.of(projected.path("evidence").path("failureId").asText()), RecoveryAction.REGENERATE_ARTIFACT,
+              List.of(), "", "Repair design-execution using private-source-literal and internal-ref-123.");
+          rawReply.set(reply);
+          assertEquals(List.of("userSummary must not contain stage identifiers."),
+              org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionValidator
+                  .validate(reply, requestContext.get()).findings());
+          return reply;
+        });
+    var calls = new AtomicInteger();
+    var execution = capability("execution-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        calls.incrementAndGet() == 1
+            ? StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Generated output was rejected.",
+                RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY))
+            : StageOutcome.of(StageOutcomeClass.SUCCEEDED, "ready"))));
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(narrative, profile, analysisWithBrief(accessPolicyBrief(
+        org.qubership.integration.platform.ai.plan.RequirementPolicyConflict.Decision.USE_RECOMMENDED)),
+        planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    var priorPlan = snapshot(requireRun(), "design-planning");
+    var priorBrief = snapshot(requireRun(), "requirement-analysis");
+    var repair = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, repair.decision());
+    org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
+    var executor = (ProductPipelineStageExecutor) runtime.stageExecutor();
+    var accepted = executor.acceptedRecoveryDecision(RUN_ID, requestContext.get());
+    assertEquals(FailureNarrative.RecoveryStatus.READY, accepted.diagnosisStatus());
+    assertEquals(rawReply.get().faultArtifactRef(), accepted.decision().faultArtifactRef());
+    assertEquals(rawReply.get().evidenceRefs(), accepted.decision().evidenceRefs());
+    assertEquals(rawReply.get().action(), accepted.decision().action());
+    assertEquals("The generated result needs correction. Recovery will continue with the saved requirements.",
+        accepted.decision().userSummary());
+    assertTrue(org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionValidator
+        .validate(accepted.decision(), requestContext.get()).accepted());
+    var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(), RecoveryEvidence.class);
+    var audit = mapper.readTree(evidence.findings().stream()
+        .filter(finding -> "RECOVERY_PRESENTATION".equals(finding.code())).findFirst().orElseThrow().rawValidatorJson());
+    assertEquals("PRESENTATION_ONLY", audit.path("status").asText());
+    assertEquals(mapper.valueToTree(rawReply.get()), audit.path("rawDecision"));
+    assertEquals(mapper.valueToTree(accepted.decision()), audit.path("presentedDecision"));
+    var saved = requireRun();
+    var restored = newRuntime(narrative, profile, execution);
+    assertEquals(accepted, ((ProductPipelineStageExecutor) restored.stageExecutor())
+        .acceptedRecoveryDecision(RUN_ID, requestContext.get()));
+    assertEquals(saved, requireRun());
+    assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
+    assertEquals(priorBrief, snapshot(requireRun(), "requirement-analysis"));
+    applyLifecycle(runtime, repair);
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "design-execution").decision());
+    assertEquals(2, calls.get());
+    org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
   }
 
   @Test

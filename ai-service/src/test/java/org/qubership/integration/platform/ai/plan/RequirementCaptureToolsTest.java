@@ -1162,7 +1162,10 @@ class RequirementCaptureToolsTest {
         assertTrue(rejected.issues().stream().anyMatch(issue -> "CONFLICTING_EDIT".equals(issue.code())
             && "/changes/addTransitions/0".equals(issue.path())), rejected.toString());
         assertTrue(rejected.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
-            && "/draft".equals(issue.path())), rejected.toString());
+            && "/draft/facts/context-extra".equals(issue.path()) && "context-extra".equals(issue.entityId())
+            && issue.message().contains("Accepted value: <absent>")
+            && issue.message().contains(unrelated.text())
+            && issue.message().contains("/draft/facts/subject/fieldMapping/targetPath")), rejected.toString());
         var rejectedRef = h.store().rejectedCaptureRevision(chat).orElseThrow().reference();
         var pendingBefore = mapper.readValue(h.tools().readRequirementDraft(), RequirementCaptureResult.class)
             .pendingProposal();

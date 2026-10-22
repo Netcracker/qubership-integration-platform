@@ -58,7 +58,7 @@ public final class StructuredCaptureArguments {
       }
       if ("captureRequirementBrief".equals(method.methodName())
           && method.toolSpecification().parameters().properties().containsKey("capture")) {
-        for (String field : java.util.List.of("goal", "summary", "inputs", "assumptions", "citations")) {
+        for (String field : java.util.List.of("goal", "summary", "inputs", "assumptions", "citations", "sourceOmissions")) {
           if (!capture.hasNonNull(field)) {
             return invalid("MISSING_FIELD", "/capture/" + field, "Include this field.");
           }
