@@ -109,6 +109,14 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
  */
 public final class ProductPipelineStageExecutor implements StageExecutor {
   private org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+  private RequirementDraftStore requirementDrafts;
+  private org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore captureFeedback;
+
+  public void withNativeRequirementCapture(RequirementDraftStore drafts,
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
+    this.requirementDrafts = drafts;
+    this.captureFeedback = feedback;
+  }
 
   public void withConversations(
       org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
@@ -479,7 +487,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             attributes);
     if (recoveryControl != null) recoveryControl.stageStarted(context);
     putRunAttribute(runId, ProductPipelineRunSupport.RECOVERY_INVOCATION_ATTR,
-        recoveryJson(new ProducerInvocation(attemptId, stage.stageId(), inputs)));
+        recoveryJson(new ProducerInvocation(attemptId, stage.stageId(), inputs, nativeRequirementBaseline(doc, stage))));
     long requestsBefore = llmBudget == null ? -1L : llmBudget.state(runId).requests();
     return io.smallrye.mutiny.Multi.createFrom().deferred(() -> capability.execute(context))
         .onItem()
@@ -1043,7 +1051,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       putRunAttribute(
           doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
       return recoverValidationFailure(
-          doc, stage, refs, outcomeClass, cause, findings, evidence, emitted);
+          doc, stage, refs, outcomeClass, cause, findings, evidence, emitted, producerRepairAllowed);
     }
     ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
     List<OwnerCandidate> closed =
@@ -1171,14 +1179,14 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (recovery.action() == ProducerOwnedRecovery.Action.ASK_CLARIFICATION
         && cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
-      return recoverValidationFailure(doc, stage, refs, outcomeClass, cause, findings, evidence, emitted);
+      return recoverValidationFailure(doc, stage, refs, outcomeClass, cause, findings, evidence, emitted, producerRepairAllowed);
     }
     if (outcomeClass == StageOutcomeClass.VALIDATION_FAILURE
         && cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
       putRunAttribute(
           doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
       return recoverValidationFailure(
-          doc, stage, refs, outcomeClass, cause, findings, evidence, emitted);
+          doc, stage, refs, outcomeClass, cause, findings, evidence, emitted, producerRepairAllowed);
     }
     if (diagnoseOwner) {
       OwnerDiagnosis diagnosis =
@@ -1365,7 +1373,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       RecoveryCause cause,
       String findings,
       String evidenceText,
-      List<PipelineSignal> emitted) {
+      List<PipelineSignal> emitted,
+      boolean producerRepairAllowed) {
     String runId = doc.run().runId();
     if (catalogHasBeenWritten(runId)) {
       return waitGuardedRecovery(doc, stage, refs, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN,
@@ -1448,16 +1457,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             draftEvidence, approvedBrief, rejectedPayload, locale, authorInputs(doc),
             approvedPlanRevision == null ? null : approvedPlanRevision.reference(),
             approvedPlanRevision == null ? null : artifactStore.payload(approvedPlanRevision, Object.class), priorAttempts);
-    // Input contract checks identify brief defects before capture; rejected output stays with its producer.
-    AcceptedRecovery acceptedRecovery =
-        "design-input".equals(stage.stageId()) && cause.causeCode() != RecoveryCauseCode.MISSING_BRIEF_FACTS
-            && cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT
-            ? new AcceptedRecovery(
-                captureRegenerateDecision(draftEvidence, findings.isBlank() ? evidenceText : findings),
-                draftEvidence)
-            : acceptedRecoveryDecision(runId, context);
-    RecoveryEvidence recoveryEvidence = acceptedRecovery.evidence();
-    RecoveryDecision accepted = acceptedRecovery.decision();
     boolean invocationProved = invocation != null && stage.stageId().equals(invocation.stageId());
     boolean pinnedInputsAvailable = invocationProved && invocation.inputs().stream()
         .allMatch(ref -> artifactStore.get(runId, ref).isPresent());
@@ -1466,6 +1465,24 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     boolean currentRepairEligible = !rejectedInput && ProducerOwnedRecovery.permitsCurrentOutputRepair(outcomeClass, cause,
         invocationProved, pinnedInputsAvailable, unresolvedChoice, catalogHasBeenWritten(runId));
     String resourceRefusal = llmBudget == null ? null : llmBudget.refusalForNextRequest(runId);
+    if (resourceRefusal != null) {
+      return resourcePause(doc, stage, refs, resourceRefusal, emitted);
+    }
+    // A fresh native discovery refusal can spend its first existing correction before advisory diagnosis.
+    boolean nativeFirstCorrection = producerRepairAllowed && currentRepairEligible
+        && firstNativeDiscoveryCorrection(doc, stage, outcomeClass, cause, budgetCause, invocation, draftEvidence);
+    // Input contract checks identify brief defects before capture; rejected output stays with its producer.
+    AcceptedRecovery acceptedRecovery =
+        nativeFirstCorrection || "design-input".equals(stage.stageId())
+            && cause.causeCode() != RecoveryCauseCode.MISSING_BRIEF_FACTS
+            && cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT
+            ? new AcceptedRecovery(
+                captureRegenerateDecision(draftEvidence, findings.isBlank() ? evidenceText : findings),
+                draftEvidence)
+            : acceptedRecoveryDecision(runId, context);
+    RecoveryEvidence recoveryEvidence = acceptedRecovery.evidence();
+    RecoveryDecision accepted = acceptedRecovery.decision();
+    resourceRefusal = llmBudget == null ? null : llmBudget.refusalForNextRequest(runId);
     if (resourceRefusal != null) {
       return resourcePause(doc, stage, refs, resourceRefusal, emitted);
     }
@@ -1852,7 +1869,76 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
   }
 
-  private record ProducerInvocation(String attemptId, String stageId, List<Reference> inputs) {}
+  private record NativeRequirementBaseline(Reference rejectedCapture, Reference feedback) {}
+
+  private record ProducerInvocation(String attemptId, String stageId, List<Reference> inputs,
+      NativeRequirementBaseline requirementBaseline) {}
+
+  private NativeRequirementBaseline nativeRequirementBaseline(ProductPipelineRunDocument doc, ProfileStage stage) {
+    if (!"requirement-discovery".equals(stage.capabilityId()) || requirementDrafts == null || captureFeedback == null) {
+      return null;
+    }
+    String chat = doc.run().conversationId();
+    return new NativeRequirementBaseline(requirementDrafts.rejectedCaptureRevision(chat).map(Revision::reference).orElse(null),
+        captureFeedback.lastRequirementFeedbackReference(chat).orElse(null));
+  }
+
+  private boolean firstNativeDiscoveryCorrection(ProductPipelineRunDocument doc, ProfileStage stage,
+      StageOutcomeClass outcome, RecoveryCause cause, RecoveryCause budgetCause, ProducerInvocation invocation,
+      RecoveryEvidence evidence) {
+    if (!"requirement-discovery".equals(stage.capabilityId()) || outcome != StageOutcomeClass.CONTRACT_FAILURE
+        || cause.causeCode() != RecoveryCauseCode.CONTRACT_SHAPE || cause.noProgress()
+        || invocation == null || invocation.requirementBaseline() == null
+        || requirementDrafts == null || captureFeedback == null || conversations == null || cause.captureFailure() == null) {
+      return false;
+    }
+    if (!noDiagnosisDispatched(doc, evidence.failureId())) return false;
+    String inputIdentity = RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
+    var key = recoveryLedger.key(stage.stageId(), budgetCause, inputIdentity, doc.transitions());
+    if (!recoveryLedger.mayRepair(doc.transitions(), key, InputOrigin.TRUSTED)
+        || recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED) != 0
+        || recoveryLedger.cleanRebuildsUsed(doc.transitions(), key) != 0
+        || key.findingKeys().stream().anyMatch(member ->
+            recoveryLedger.repairsUsed(doc.transitions(), member, InputOrigin.TRUSTED) != 0
+                || recoveryLedger.cleanRebuildsUsed(doc.transitions(), member) != 0)) return false;
+    var profile = profilesByRun.get(doc.run().runId());
+    var route = ProducerOwnedRecovery.route(new ProducerOwnedRecovery.Request(stage.stageId(), outcome, cause,
+        mappingOwnerCandidates(cause, profile, stage.stageId(), ownerCandidates(profile, stage.stageId())),
+        catalogHasBeenWritten(doc.run().runId()), 0, recoveryLedger.limits().maxSemanticRepairs(), Optional.empty(),
+        compiledBriefProducerStageId(doc.run().runId(), cause), false));
+    if (route.action() != ProducerOwnedRecovery.Action.REPAIR_CURRENT || !stage.stageId().equals(route.producerStageId())) {
+      return false;
+    }
+    String chat = doc.run().conversationId();
+    var rejected = requirementDrafts.rejectedCaptureRevision(chat).orElse(null);
+    var rejection = captureFeedback.lastRequirementRejection(chat).orElse(null);
+    var failure = cause.captureFailure();
+    if (rejected == null || rejection == null || !rejected.reference().equals(failure.rejectedCandidate())
+        || rejected.reference().equals(invocation.requirementBaseline().rejectedCapture())
+        || !rejection.feedback().equals(failure.feedback())) return false;
+    var feedback = rejection.feedback();
+    if (feedback.failureClass() != org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE
+        || !feedback.outerAllowed() || feedback.noProgress() || feedback.evidenceReference() == null
+        || feedback.evidenceReference().equals(invocation.requirementBaseline().feedback())
+        || !captureFeedback.lastRequirementFeedbackReference(chat).filter(feedback.evidenceReference()::equals).isPresent()) return false;
+    var savedFeedback = artifactStore.get(rejected.compilationId(), feedback.evidenceReference()).orElse(null);
+    if (savedFeedback == null) return false;
+    var persisted = artifactStore.payload(savedFeedback,
+        org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore.RequirementFeedback.class).rejection();
+    if (persisted == null || !feedback.equals(persisted.feedback().withEvidenceReference(savedFeedback.reference()))
+        || !persisted.issues().equals(feedback.issues())) return false;
+    var attempt = artifactStore.payload(rejected, RequirementDraftStore.RequirementCaptureAttempt.class);
+    var authority = requirementDrafts.writeAuthority(chat);
+    return !attempt.accepted() && !attempt.issues().isEmpty()
+        && Objects.equals(attempt.sourceGeneration(), authority.sourceGeneration())
+        && attempt.sourceTurnId() != null
+        && attempt.sourceTurnId().equals(authority.sourceTurnId())
+        && Objects.equals(attempt.acceptedDraftReference(), authority.base())
+        && Objects.equals(attempt.acceptedDraftReference(), failure.acceptedBase())
+        && attempt.issues().stream().map(issue ->
+            new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue(
+                issue.code(), issue.path(), issue.message(), issue.entityId())).toList().equals(feedback.issues());
+  }
 
   private ProducerInvocation producerInvocation(String runId) {
     Object value = attributesByRun.getOrDefault(runId, Map.of())
@@ -1876,8 +1962,30 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private record DiagnosisRequest(String identity, int calls, AcceptedRecovery result) {}
 
-  AcceptedRecovery acceptedRecoveryDecision(String runId, RecoveryContext context) {
-    String identity = context.evidence().failureId();
+  private boolean noDiagnosisDispatched(ProductPipelineRunDocument doc, String identity) {
+    var states = new ArrayList<Object>();
+    states.add(attributesByRun.getOrDefault(doc.run().runId(), Map.of())
+        .get(ProductPipelineRunSupport.RECOVERY_DIAGNOSIS_ATTR));
+    doc.attempts().stream().map(StageAttempt::failureEvidence).map(ProductPipelineRunSupport::readHaltEvidence)
+        .map(evidence -> evidence.get(ProductPipelineRunSupport.RECOVERY_DIAGNOSIS_ATTR)).forEach(states::add);
+    for (Object state : states) {
+      if (state == null || state instanceof String text && text.isBlank()) continue;
+      if (!(state instanceof String json)) return false;
+      try {
+        var request = readRecoveryJson(json, DiagnosisRequest.class);
+        if (request == null || request.identity() == null || request.identity().isBlank() || request.calls() < 0
+            || request.calls() > 0 && (identity.equals(request.identity()) || request.result() == null
+                || request.result().diagnosisStatus() == null || !request.result().diagnosisStatus().permitsProducerFallback())) {
+          return false;
+        }
+      } catch (IllegalStateException invalidState) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private DiagnosisRequest diagnosisRequest(String runId, String identity) {
     Object saved = attributesByRun.getOrDefault(runId, Map.of())
         .get(ProductPipelineRunSupport.RECOVERY_DIAGNOSIS_ATTR);
     DiagnosisRequest request = saved instanceof String json && !json.isBlank()
@@ -1893,6 +2001,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         }
       }
     }
+    return request;
+  }
+
+  AcceptedRecovery acceptedRecoveryDecision(String runId, RecoveryContext context) {
+    String identity = context.evidence().failureId();
+    DiagnosisRequest request = diagnosisRequest(runId, identity);
     if (request == null) { request = new DiagnosisRequest(identity, 0, null); }
     AcceptedRecovery prior = request.result();
     if (prior != null && (prior.decision() != null || request.calls() >= 2

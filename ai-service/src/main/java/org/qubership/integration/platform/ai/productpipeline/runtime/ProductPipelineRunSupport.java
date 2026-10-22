@@ -251,6 +251,13 @@ public final class ProductPipelineRunSupport {
     return this;
   }
 
+  public ProductPipelineRunSupport withNativeRequirementCapture(
+      org.qubership.integration.platform.ai.plan.RequirementDraftStore drafts,
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
+    this.stageExecutor.withNativeRequirementCapture(drafts, feedback);
+    return this;
+  }
+
   private org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget llmBudget;
 
   public ProductPipelineRunSupport withLlmBudget(
@@ -4232,8 +4239,11 @@ public final class ProductPipelineRunSupport {
 
   public static String recoveryCauseJson(RecoveryCause cause) {
     try {
-      return HALT_EVIDENCE_JSON.writeValueAsString(Map.of(
-          "causeCode", cause.causeCode(), "findings", cause.findings(), "requestedFact", cause.requestedFact()));
+      var value = new LinkedHashMap<String, Object>(Map.of(
+          "causeCode", cause.causeCode(), "findings", cause.findings(), "requestedFact", cause.requestedFact(),
+          "noProgress", cause.noProgress()));
+      value.put("captureFailure", cause.captureFailure());
+      return HALT_EVIDENCE_JSON.writeValueAsString(value);
     } catch (Exception e) {
       throw new IllegalStateException("Cannot persist the recovery cause", e);
     }
