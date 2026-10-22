@@ -205,7 +205,7 @@ cip:
           memory: ${MICRO_DOMAIN_CONTAINER_REQUEST_MEMORY:}
         limit:
           cpu: ${MICRO_DOMAIN_CONTAINER_LIMIT_CPU:}
-          memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:}
+          memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:1280Mi} # micro-engine/Dockerfile sizes the heap at 50% of this
         runAsUser: ${MICRO_ENGINE_CONTAINER_RUN_AS_USER:0}
         runAsNonRoot: ${MICRO_ENGINE_CONTAINER_RUN_AS_NON_ROOT:true}
         seccompProfileType: ${MICRO_ENGINE_CONTAINER_SECCOMP_PROFILE_TYPE:RuntimeDefault}
@@ -219,6 +219,7 @@ cip:
       mount:
         emptyDirs: ${MICRO_DOMAIN_EMPTY_DIRS:}
         resources: ${MICRO_DOMAIN_RESOURCES:}
+        serviceAccountTokens: ${MICRO_DOMAIN_SERVICE_ACCOUNT_TOKENS:}
       health:
         liveness:
           enabled: ${MICRO_DOMAIN_HEALTH_LIVENESS_ENABLED:false}
@@ -231,14 +232,14 @@ cip:
           probe: ${MICRO_DOMAIN_HEALTH_LIVENESS_PROBE:}
           port: ${MICRO_DOMAIN_HEALTH_LIVENESS_PORT:8080}
         readiness:
-          enabled: ${MICRO_DOMAIN_HEALTH_READINESS_ENABLED:false}
+          enabled: ${MICRO_DOMAIN_HEALTH_READINESS_ENABLED:true}
           schema: ${MICRO_DOMAIN_HEALTH_READINESS_SCHEMA:}
           initialDelay: ${MICRO_DOMAIN_HEALTH_READINESS_INITIAL_DELAY:0}
           timeout: ${MICRO_DOMAIN_HEALTH_READINESS_TIMEOUT:0}
           period: ${MICRO_DOMAIN_HEALTH_READINESS_PERIOD:0}
           successThreshold: ${MICRO_DOMAIN_HEALTH_READINESS_SUCCESS_THRESHOLD:0}
           failureThreshold: ${MICRO_DOMAIN_HEALTH_READINESS_FAILURE_THRESHOLD:0}
-          probe: ${MICRO_DOMAIN_HEALTH_READINESS_PROBE:}
+          probe: ${MICRO_DOMAIN_HEALTH_READINESS_PROBE:/q/health/ready}
           port: ${MICRO_DOMAIN_HEALTH_READINESS_PORT:8080}
         startup:
           enabled: ${MICRO_DOMAIN_HEALTH_SETUP_ENABLED:false}

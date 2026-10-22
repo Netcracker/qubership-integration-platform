@@ -1,0 +1,19 @@
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  color: var(--vscode-input-placeholderForeground);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--transition-duration, 0.25s)
+    var(--transition-easing, ease);
+}
+
+.action:hover,
+.action:focus-visible {
+  color: var(--vscode-input-foreground);
+}

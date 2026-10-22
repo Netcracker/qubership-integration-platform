@@ -345,6 +345,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "catch", kind: "element", tier: 1, status: NOT_COVERED, reason: supersededReason("catch"), tags: ENGINE },
   { family: "catch-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "chain-call-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
+  { family: "chain-call-2", kind: "axis", axisPath: "block", value: true, tier: 2, status: NOT_COVERED, reason: "The schema fixes this option; no live test asserts it yet.", tags: ENGINE },
+  { family: "chain-call-2", kind: "axis", axisPath: "failIfNoConsumers", value: false, tier: 2, status: NOT_COVERED, reason: "The schema fixes this option; no live test asserts it yet.", tags: ENGINE },
   { family: "chain-trigger-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "checkpoint", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "checkpoint", kind: "axis", axisPath: "externalRoute", value: false, tier: 2, status: NOT_COVERED, reason: R_CHECKPOINT_EXTERNAL_ROUTE, tags: ENGINE },

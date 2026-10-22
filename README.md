@@ -15,6 +15,7 @@ This repository is a **monorepo** that consolidates the previously separate `qub
 | `micro-engine/`        | Execution engine (Quarkus variant) — faster startup, lower memory                             | Java 21, Quarkus 3.27, Apache Camel 4.14                                    |
 | `runtime-catalog/`     | Central catalog: chains, elements, deployments, snapshots, specifications, systems, variables | Java 21, Spring Boot 3.5, PostgreSQL, Consul, Flyway                        |
 | `sessions-management/` | Recorded sessions of integration flow executions                                              | Java 21, Spring Boot 3.5, OpenSearch, Consul                                |
+| `ai-service/`          | AI assistant for chain design, planning, and catalog implementation                           | Java 21, Quarkus 3.32, LangChain4j                                          |
 | `testing-service/`     | Test cases, endpoint mocks and test runs for chains — host port 8095 in the local stack        | Go 1.22, Fiber, bun ORM, PostgreSQL                                         |
 | `ui/`                  | Web UI — visual flow editor, chain/service management, session monitoring                     | React 18, TypeScript, Vite, Ant Design 5                                    |
 | `vscode-extension/`    | VS Code extension for offline chain/service editing                                           | TypeScript, VS Code Extension API                                           |
@@ -72,6 +73,14 @@ docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/doc
 ```
 
 Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `docker-compose.redis.yml`, `docker-compose.pubsub.yml`, `docker-compose.sftp.yml`.
+
+Optional AI service (requires LLM keys in `infrastructure/docker/ai-service-dev.env`):
+
+```bash
+docker compose -f infrastructure/docker/docker-compose.yml --profile ai up -d --build
+```
+
+AI Service (profile `ai`): `http://localhost:8094` (direct), health `GET /q/health`. Nginx proxy routes `/api/chat/`, `/api/v1/storage/`, and `/q/health` when profile `ai` is up.
 
 ### Step 5 — Start the UI dev server
 

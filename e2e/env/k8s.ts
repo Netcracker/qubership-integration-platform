@@ -50,9 +50,12 @@ export function containerOf(role: ServiceRole): string {
   return `${RELEASE}-${role}`;
 }
 
-/** The Service of a micro domain: `CloudServiceNamingStrategy` with an empty Service suffix. */
+/**
+ * The Service of a micro domain: `CloudServiceNamingStrategy` with the catalog's
+ * `cip.cr.naming.prefix` and an empty Service suffix.
+ */
 export function microServiceOf(domain: string): string {
-  return `${RELEASE}-engine-${domain}-${VERSION}`;
+  return `cip-engine-${domain}-${VERSION}`;
 }
 
 /** Port 8080 of Service `service`, through the proxy's `/e2e/svc/` location. */

@@ -1,0 +1,210 @@
+package org.qubership.integration.platform.ai.chat;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
+import org.qubership.integration.platform.ai.productpipeline.runtime.SemanticRecoveryState;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
+
+class ChatEventActionsCaptureTest {
+
+  @Test
+  void technicalPauseDoesNotClaimThatAnApprovedPlanExists() {
+    var pending = new CreateChainPendingAction.Clarify(
+        "Creation paused.", List.of(), PipelineGates.RECOVERY_RETRY_TECHNICAL);
+    var decision = (ChatEvent.Decision) ChatEvent.decision(pending, 1, pending.reason(), null);
+    assertEquals("Your requirements and saved progress remain available.", decision.recovery().preservedWork());
+    assertFalse(decision.recovery().preservedWork().contains("approved"));
+    assertFalse(decision.recovery().preservedWork().contains("plan"));
+  }
+
+  @Test
+  void actionsForClarifyFillsTheFacadeSeamOfSemanticRecoveryState() {
+    SemanticRecoveryState runtime =
+        SemanticRecoveryState.captureRuntime(
+            RunStatus.WAITING_FOR_INPUT,
+            "planning",
+            StageStatus.WAITING_FOR_INPUT,
+            PipelineGates.STAGE_RETRY,
+            "The plan failed validation.",
+            new SemanticRecoveryState.RemainingAttempts(1, 2));
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The plan failed validation.", List.of(), PipelineGates.STAGE_RETRY));
+    SemanticRecoveryState facade = runtime.withCardActions(actions);
+    assertEquals(List.of(PipelineGates.RETRY_ACTION), facade.cardActions());
+    assertEquals(
+        SemanticRecoveryState.Component.CARD_ACTIONS,
+        ((SemanticRecoveryState.CompareResult.Advanced) runtime.compareTo(facade)).component());
+  }
+
+  @Test
+  void contextualRetryOffersSemanticCreationActions() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The provider temporarily limited requests.",
+                List.of(),
+                PipelineGates.RECOVERY_RETRY_TECHNICAL));
+
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void contextualBriefDefectOffersEditRequirements() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The approved requirements need correction.",
+                List.of(),
+                PipelineGates.RECOVERY_REVISE_BRIEF));
+
+    assertEquals(
+        List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        actions);
+  }
+
+  @Test
+  void contextualPlanDefectOffersRebuildPlan() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The plan is missing information required to create the chain.",
+                List.of(),
+                PipelineGates.RECOVERY_REBUILD_PLAN));
+
+    assertEquals(
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void contextualDesignDefectOffersRebuildDesign() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The semantic design cannot be used.",
+                List.of(),
+                PipelineGates.RECOVERY_REBUILD_DESIGN));
+
+    assertEquals(
+        List.of(ChatEvent.REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void contextualEnvironmentFailureOffersOnlyEndRun() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "This region is not supported for chain creation.",
+                List.of(),
+                PipelineGates.RECOVERY_ENVIRONMENT));
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void contextualInternalFailureOffersOnlyEndRun() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "A step inside the service broke. Repeating the same request will not help.",
+                List.of(),
+                PipelineGates.RECOVERY_INTERNAL));
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void contextualRepeatedFailureOffersOnlyEndRun() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The same problem came back. Repeating the same request will not help.",
+                List.of(),
+                PipelineGates.RECOVERY_REPEATED));
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void contextualUnclassifiedFailureOffersOnlyEndRun() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "Creation stopped without a recoverable cause. Repeating the same request will not help.",
+                List.of(),
+                PipelineGates.RECOVERY_UNCLASSIFIED));
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void uploadedImportMarkersDoNotConfirmApiHubImport() {
+    assertFalse(ChatEvent.UPLOADED_IMPORT_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertFalse(ChatEvent.UPLOADED_IMPORT_EXTERNAL_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertTrue(ChatEvent.IMPORT_EXTERNAL_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertTrue(ChatEvent.isSyntheticDecisionTurn(ChatEvent.UPLOADED_IMPORT_EXTERNAL_MARKER));
+    assertTrue(ChatEvent.isSyntheticDecisionTurn(ChatEvent.IMPORT_MARKER));
+    assertFalse(ChatEvent.isSyntheticDecisionTurn("Create a CIP chain OM to Salesforce WFM ext01"));
+  }
+
+  @Test
+  void mappingGapWithoutASourceHidesPassThroughAndDescribeActions() {
+    assertEquals(
+        List.of(),
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "Some data mappings are still missing before design can continue.",
+                List.of("INITIALIZATION: trigger → first outbound call (no ENDPOINT fact)"),
+                PipelineGates.MAPPING_GAP)));
+  }
+
+  @Test
+  void mappingGapWithASourceStillOffersPassThroughAndDescribe() {
+    assertEquals(
+        ChatEvent.MAPPING_GAP_ACTIONS,
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "Some data mappings are still missing before design can continue.",
+                List.of("INITIALIZATION: ENDPOINT \"GET /orders\" → SERVICE_CALL \"Create order\""),
+                PipelineGates.MAPPING_GAP)));
+  }
+
+  @Test
+  void mappingGapDescribeHasNoEnumerableActions() {
+    assertNull(ChatEvent.actionsForGate(PipelineGates.MAPPING_GAP_DESCRIBE));
+  }
+
+  @Test
+  void importGateOffersInternalAndExternalActions() {
+    assertEquals(
+        List.of(ChatEvent.IMPORT_INTERNAL_ACTION, ChatEvent.IMPORT_EXTERNAL_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.IMPORT_SPECIFICATION));
+  }
+
+  @Test
+  void readyRequirementDraftOffersAnExplicitPlanningAction() {
+    assertEquals(
+        List.of(ChatEvent.CONTINUE_TO_PLANNING_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.REQUIREMENT_DRAFT_READY));
+  }
+
+  @Test
+  void systemTypeForImportActionMapsTypedButtons() {
+    assertEquals("EXTERNAL", ChatEvent.systemTypeForImportAction(ChatEvent.IMPORT_EXTERNAL_ACTION));
+    assertEquals("INTERNAL", ChatEvent.systemTypeForImportAction(ChatEvent.IMPORT_INTERNAL_ACTION));
+    assertEquals("INTERNAL", ChatEvent.systemTypeForImportAction(ChatEvent.IMPORT_ACTION));
+    assertTrue(ChatEvent.isImportAction(ChatEvent.IMPORT_EXTERNAL_ACTION));
+    assertFalse(ChatEvent.isImportAction(ChatEvent.APPROVE_ACTION));
+  }
+}

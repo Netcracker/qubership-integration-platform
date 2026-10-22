@@ -62,7 +62,7 @@ To create any service using VS Code Extension, follow the steps outlined below:
 3. Near the "Services" folder click on appearing button "CIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter the identifier, enter some description and click Enter. Next, it opens "Common Parameters" tab of the created service.
 
-### View Common Parameters
+### View Parameters
 Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.

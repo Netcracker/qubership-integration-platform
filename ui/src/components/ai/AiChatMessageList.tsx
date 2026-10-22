@@ -1,14 +1,13 @@
 import { Button, Tooltip, Typography } from "antd";
 import React from "react";
-import type { ChatMessage } from "../../ai/modelProviders/types.ts";
+import type {
+  CatalogSystemType,
+  ChatDecision,
+  ChatMessage,
+} from "../../ai/modelProviders/types.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { AiDecisionCard } from "./AiDecisionCard.tsx";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
-import {
-  collapseProgressLines,
-  parseProgressLines,
-  stripInlineProgressSummary,
-  stripProgressBlocks,
-} from "./aiProgressParsing.ts";
 import {
   lastUserMessageIsAgree,
   looksLikePlanResponse,
@@ -16,8 +15,6 @@ import {
   replaceChainModificationProposalForDisplay,
 } from "./chainModificationContent.ts";
 import { getRoleLabel } from "./chatMessageUtils.ts";
-import { ExecutionLog } from "./ExecutionLog.tsx";
-import { WORKING_DOTS } from "./aiAssistantConstants.ts";
 import type { ChainContext } from "./useChainContext.ts";
 
 export interface AiChatMessageListProps {
@@ -33,6 +30,12 @@ export interface AiChatMessageListProps {
   onExecutePlan: () => void;
   onPrepareRegenerate: (messageIndex: number) => void;
   onRegenerate: (messageIndex: number) => void;
+  onDecisionAnswer: (
+    decision: ChatDecision,
+    action: string,
+    comment: string,
+    specSystemTypes?: Record<string, CatalogSystemType>,
+  ) => void;
 }
 
 export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
@@ -40,7 +43,6 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
   isLoading,
   isStreaming,
   assistantName,
-  workingDots,
   chainContext,
   showLongRunningHint,
   scrollContainerRef,
@@ -48,6 +50,7 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
   onExecutePlan,
   onPrepareRegenerate,
   onRegenerate,
+  onDecisionAnswer,
 }) => (
   <div
     ref={scrollContainerRef as React.LegacyRef<HTMLDivElement>}
@@ -66,42 +69,16 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
           if (
             message.role === "assistant" &&
             !message.content.trim() &&
+            !message.decision &&
             (isLoading || isStreaming)
           ) {
             return null;
           }
 
           const isUser = message.role === "user";
-          const rawLines =
-            message.role === "assistant"
-              ? parseProgressLines(message.content)
-              : [];
-          let progressLines =
-            message.role === "assistant" ? collapseProgressLines(rawLines) : [];
-          const isLastAssistant =
-            index === visibleMessages.length - 1 &&
-            message.role === "assistant";
-          if (isLastAssistant && (isLoading || isStreaming)) {
-            const lastLine = progressLines[progressLines.length - 1];
-            if (lastLine?.status !== "pending") {
-              progressLines = [
-                ...progressLines,
-                {
-                  text: `Working${WORKING_DOTS[workingDots]}`,
-                  status: "pending",
-                },
-              ];
-            }
-          }
-
-          const hasProgressLog = progressLines.length > 0;
           const narrativeContent =
             message.role === "assistant"
-              ? stripInlineProgressSummary(
-                  replaceChainModificationProposalForDisplay(
-                    stripProgressBlocks(message.content),
-                  ),
-                )
+              ? replaceChainModificationProposalForDisplay(message.content)
               : message.content;
 
           return (
@@ -115,15 +92,23 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
                 </span>
               </div>
               <div className="ai-message__bubble">
-                {hasProgressLog && (
-                  <ExecutionLog
-                    lines={progressLines}
-                    title="Steps"
-                    defaultCollapsed={false}
-                  />
-                )}
                 {narrativeContent.trim() ? (
                   <MarkdownRenderer>{narrativeContent}</MarkdownRenderer>
+                ) : null}
+
+                {message.decision ? (
+                  <AiDecisionCard
+                    decision={message.decision}
+                    busy={isLoading || isStreaming}
+                    onAnswer={(action, comment, specSystemTypes) =>
+                      onDecisionAnswer(
+                        message.decision!,
+                        action,
+                        comment,
+                        specSystemTypes,
+                      )
+                    }
+                  />
                 ) : null}
 
                 {message.role === "assistant" &&
@@ -186,7 +171,7 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
                     </div>
                   )}
 
-                {isUser && (
+                {isUser && !isLoading && !isStreaming && (
                   <div className="ai-message__actions">
                     <Tooltip title="Edit message and send again">
                       <Button

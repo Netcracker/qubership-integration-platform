@@ -46,6 +46,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     private static final String EMPTY_STRING_REPLACEMENT = "";
     private static final String EMPTY_REF = "#/";
     private static final String ADDITIONAL_PROPERTIES_FIELD_NAME = "additionalProperties";
+    private static final String DEPENDENCIES_FIELD_NAME = "dependencies";
 
 
     @Override
@@ -90,8 +91,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
                 componentNode.set(payloadField.getKey(), payloadField.getValue());
             }
             componentNode.remove(PAYLOAD_FIELD_NAME);
-            componentNode.remove(HEADERS_FIELD_NAME);
         }
+        componentNode.remove(HEADERS_FIELD_NAME);
     }
 
     protected Map<String, JsonNode> getNestedRefs(ObjectNode schemaNode, JsonNode componentsNode, String modelType, List<String> refList) {
@@ -112,6 +113,10 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         if (hasObjectShape) {
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(PROPERTIES_FIELD_NAME), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME), modelType, refList);
+            // Resolves a $ref that is the map's value schema itself.
+            if (schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME) instanceof ObjectNode additionalProperties) {
+                getSchemaNodeProperties(componentsNode, result, OBJECT_MAPPER.createArrayNode().add(additionalProperties), modelType, refList);
+            }
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ALL_OF), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ANY_OF), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ONE_OF), modelType, refList);
@@ -123,6 +128,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             // Resolve the component the reference names, the same way a property's reference is resolved.
             getSchemaNodeProperties(componentsNode, result, OBJECT_MAPPER.createArrayNode().add(schemaNode), modelType, refList);
         }
+        // Property dependencies apply next to any shape above, so they are walked whichever branch ran.
+        getSchemaNodeProperties(componentsNode, result, schemaNode.get(DEPENDENCIES_FIELD_NAME), modelType, refList);
         return result;
     }
 
@@ -151,12 +158,16 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         // they carry no $ref, so treat non-object positions as having nothing to resolve.
         ObjectNode iterableProperties = property.has(ITEMS_FIELD_NAME) && property.get(ITEMS_FIELD_NAME).isObject()
                 ? (ObjectNode) property.get(ITEMS_FIELD_NAME) : property;
+        // A map's value schema can reference components too.
+        Map<String, ObjectNode> mapValueRefs = iterableProperties.get(ADDITIONAL_PROPERTIES_FIELD_NAME) instanceof ObjectNode mapValue
+                ? getRefs(mapValue, componentsNode, modelType) : Map.of();
         Map<String, ObjectNode> iterablePropertiesRefs = getIterablePropertyRefs(iterableProperties, componentsNode, modelType);
         if (iterablePropertiesRefs != null) {
+            iterablePropertiesRefs.putAll(mapValueRefs);
             return iterablePropertiesRefs;
         }
 
-        Map<String, ObjectNode> result = new TreeMap<>();
+        Map<String, ObjectNode> result = new TreeMap<>(mapValueRefs);
         String refKey = EMPTY_REF;
         String refKeyNew = EMPTY_REF;
         if (isComponentRef(property.get(REF_FIELD_NAME))) {
@@ -186,6 +197,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
 
             if ("asyncapi".equals(modelType)) {
                 convertPayloadToSchemaNode(componentNode);
+                // An $id would make the references inside the component resolve against it instead of the root.
+                componentNode.remove(SCHEMA_ID_NODE_NAME);
             }
 
             result.put(refKeyNew.replace(DEFINITIONS_PREFIX, EMPTY_STRING_REPLACEMENT), componentNode);

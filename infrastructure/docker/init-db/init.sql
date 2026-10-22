@@ -3,3 +3,6 @@ GRANT ALL PRIVILEGES ON DATABASE engine_qrtz_db TO postgres;
 
 CREATE DATABASE engine_checkpoints_db;
 GRANT ALL PRIVILEGES ON DATABASE engine_checkpoints_db TO postgres;
+
+CREATE DATABASE ai_a2a;
+GRANT ALL PRIVILEGES ON DATABASE ai_a2a TO postgres;

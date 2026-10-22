@@ -79,9 +79,9 @@ toolchain follows; do not pin the binaries anywhere else.
 One behavior of the local Docker stack looks like a defect in this service but is not:
 
 - `POST /v1/catalog/domains/{domain}/deployments/update` in full-request mode (`excludeDeployments: []`) is served
-  from a per-domain in-memory cache that only a Consul-watched key invalidates. This dev stack's Consul KV never
-  changes, so the cache goes stale after the first call. Pass a bogus `excludeDeployments` entry to force the
-  uncached delta path.
+  from a per-domain in-memory cache. A deployment change made through this catalog clears it. A change made by a
+  second catalog container clears it only through the Consul watcher, up to 2.5 s later, and a change made by SQL
+  never does. Pass a bogus `excludeDeployments` entry to force the uncached delta path.
 
 ### Platform Context
 
@@ -113,8 +113,9 @@ Chain definition (UI/import) → Runtime Catalog compiles → Camel XML (Handleb
 ### Verifying a change through the API
 
 The end-to-end suite covers the API against a running stack: its typed client
-`e2e/support/catalog.ts` holds the calls that work, and a behavior reproduced through the API
-gets its regression case in `e2e/specs/api/`. Load the `e2e-spec-authoring` skill before writing one.
+`e2e/support/catalog.ts` holds the calls that work. When the `e2e-decision` instruction calls for
+an end-to-end case, it goes in `e2e/specs/api/`. Load the `e2e-spec-authoring` skill before writing
+one.
 
 Exercise a change in four directions: once, twice (including into an entity that already
 exists), from several threads at once, and with edge inputs (blank, forbidden characters,

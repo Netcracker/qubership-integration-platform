@@ -1,0 +1,92 @@
+caseId: cip-composition-generator-applicable
+skillId: cip-composition-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Call a reusable notification chain.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Call a reusable notification chain.
+  approvedDraftReference: approved-draft-cip-composition-generator-applicable
+  approvedDraftText: Call a reusable notification chain.
+  facts:
+    - sourceFactId: composition-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: composition
+      text: Bind chain-call to shared notification chain.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Composition.Demo.Notify
+    description: Reuse notification sub-chain.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: POST /notify
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: chain-call-1
+      type: chain-call-2
+      label: Call notification chain
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: chain-call-1
+      scopeNodeId: null
+capturedPatch:
+  patchId: chain-call-binding
+  ownerCapabilityId: cip-composition-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: chain-call-1
+      property:
+        key: elementId
+        value: "shared-notification-chain-id"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Bind an existing chain-call-2 node to the reusable notification chain.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Composition.Demo.Notify
+    description: Reuse notification sub-chain.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: POST /notify
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: chain-call-1
+      type: chain-call-2
+      label: Call notification chain
+      parentNodeId: null
+      order: null
+      properties:
+        - key: elementId
+          value: "shared-notification-chain-id"
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: chain-call-1
+      scopeNodeId: null

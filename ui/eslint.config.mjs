@@ -62,13 +62,12 @@ export default [
     },
   },
   {
-    // Plain JS scripts and CommonJS mocks — disable type-checked rules
-    // (they require TS type info that's not available for non-TS files).
-    files: ["scripts/**/*.mjs", "tests/__mocks__/**/*.{js,cjs}"],
+    // Plain JS scripts and tests use syntax checks without TypeScript project data.
+    files: ["scripts/**/*.mjs", "tests/**/*.{js,cjs}"],
     ...tseslint.configs.disableTypeChecked,
   },
   {
-    files: ["scripts/**/*.mjs", "tests/__mocks__/**/*.{js,cjs}"],
+    files: ["scripts/**/*.mjs", "tests/**/*.{js,cjs}"],
     languageOptions: {
       globals: { ...globals.node },
       sourceType: "module",

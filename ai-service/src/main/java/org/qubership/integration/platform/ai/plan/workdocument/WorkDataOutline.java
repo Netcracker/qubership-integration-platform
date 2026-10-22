@@ -1,0 +1,931 @@
+package org.qubership.integration.platform.ai.plan.workdocument;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.service.output.OutputParsingException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import org.qubership.integration.platform.ai.plan.workdocument.binding.ContractMaterial;
+import org.qubership.integration.platform.ai.plan.workdocument.binding.PortSchemaMaterial;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskContext;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskRequest;
+
+/**
+ * DEFINE_TRANSFERS for one assigned target. {@link #define} takes a typed proposal and does not
+ * call a model. {@link #propose} asks for one outline, then calls {@link #define}. Neither invents
+ * transfers from operation names.
+ */
+public final class WorkDataOutline {
+
+  public static final String SKILL_ID = "define-transfers";
+
+  private final WorkDocumentService documents;
+  private final WorkTaskExecutor executor;
+
+  public WorkDataOutline(WorkDocumentService documents) {
+    this(documents, null);
+  }
+
+  public WorkDataOutline(WorkDocumentService documents, WorkTaskExecutor executor) {
+    this.documents = documents;
+    this.executor = executor;
+  }
+
+  public static String instructions() {
+    try (InputStream in = WorkDataOutline.class.getResourceAsStream("outline/define-transfers.md")) {
+      if (in == null) {
+        throw new IllegalStateException("define-transfers.md is missing from the classpath.");
+      }
+      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    } catch (RuntimeException failure) {
+      throw failure;
+    } catch (Exception failure) {
+      throw new IllegalStateException("define-transfers.md could not be read.", failure);
+    }
+  }
+
+  public WorkCommit define(
+      String runId,
+      String targetStepId,
+      OutlineProposal proposal,
+      List<ContractMaterial> contracts,
+      String commandId) {
+    WorkDocumentState state = documents.read(runId);
+    LogicalStep target = step(state, targetStepId);
+    List<ContractMaterial> loaded = contracts == null ? List.of() : contracts;
+    if (proposal == null || !targetStepId.equals(proposal.targetStepId())) {
+      String proposed = proposal == null ? "" : proposal.targetStepId();
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Outline target "
+              + proposed
+              + " is not the assigned step "
+              + targetStepId
+              + ". Submit the outline for the assigned step.");
+    }
+    Set<String> producers = producers(state, targetStepId);
+    checkContracts(state, proposal, loaded);
+    checkCoverage(state, target, proposal);
+    checkTransfers(state, targetStepId, producers, proposal);
+    checkRetained(state, producers, proposal);
+    WorkDocumentState stamped = withPortHashes(state, loaded);
+    return documents.applyOutline(
+        runId,
+        stamped,
+        scope(stamped, target, producers, proposal, loaded),
+        proposal,
+        commandId);
+  }
+
+  /**
+   * One outline call for an assigned target. Java injects the target step and then runs
+   * {@link #define}. A clarification does not publish transfers. Publication uses
+   * {@code taskId:revision}.
+   */
+  public WorkCommit propose(
+      String runId,
+      String targetStepId,
+      WorkTaskMaterials materials,
+      List<ContractMaterial> contracts,
+      WorkTaskModel model,
+      String commandId) {
+    WorkDocumentState state = documents.read(runId);
+    step(state, targetStepId);
+    String taskId = WorkTaskPlanner.taskId(WorkTaskKind.DEFINE_TRANSFERS, targetStepId);
+    String taskKey = WorkTaskPlanner.taskKey(WorkTaskKind.DEFINE_TRANSFERS, targetStepId);
+    Set<String> predecessors = producers(state, targetStepId);
+    List<String> owned = new ArrayList<>();
+    owned.add(targetStepId);
+    owned.addAll(predecessors);
+    LogicalStep target = step(state, targetStepId);
+    RepairAssignment repair = repairFor(state.document(), targetStepId);
+    List<String> transferIds = new ArrayList<>();
+    List<String> retainedIds = new ArrayList<>();
+    if (repair != null && !repair.updateIds().isEmpty()) {
+      for (String id : repair.updateIds()) {
+        if (transferOn(target, id)) {
+          transferIds.add(id);
+        }
+        if (retainedExists(state, id)) {
+          retainedIds.add(id);
+        }
+      }
+    } else {
+      for (DataTransfer transfer : target.data().transfers()) {
+        transferIds.add(transfer.id());
+      }
+      for (LogicalStep producer : state.document().flow().steps()) {
+        if (!predecessors.contains(producer.id())) {
+          continue;
+        }
+        for (RetainedValue value : producer.data().retainedValues()) {
+          retainedIds.add(value.id());
+        }
+      }
+    }
+    CaptureChoices choices =
+        new CaptureChoices(
+            List.of(),
+            List.of(),
+            List.of(),
+            retainedIds,
+            List.copyOf(predecessors),
+            exposedPorts(state, predecessors),
+            exposedPorts(state, Set.of(targetStepId)),
+            transferIds);
+    JsonObjectSchema schema =
+        WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.DEFINE_TRANSFERS, choices, repair != null);
+    List<CreationAllowance> promptAllowances = creationAllowances(repair, targetStepId, predecessors);
+    WorkTaskScope promptScope =
+        new WorkTaskScope(
+            taskId,
+            state.revision(),
+            WorkStage.DATA_BEHAVIOR,
+            SKILL_ID,
+            owned,
+            true,
+            true,
+            false,
+            List.of(),
+            List.of(),
+            promptAllowances,
+            transferIds,
+            taskKey,
+            WorkTaskKind.DEFINE_TRANSFERS,
+            "",
+            null);
+    List<String> constraints = new ArrayList<>();
+    constraints.add(instructions());
+    if (materials != null) {
+      constraints.addAll(materials.globalConstraints());
+    }
+    if (executor == null) {
+      throw new IllegalStateException(
+          "An outline model call requires a task executor. Construct WorkDataOutline with one.");
+    }
+    java.util.Optional<WorkCommit> prior = executor.publishedResult(runId, promptScope);
+    if (prior.isPresent()) {
+      return prior.get();
+    }
+    executor.reserve(runId, promptScope);
+    String invocation = taskId + ":" + state.revision();
+    WorkTaskMaterials instructed =
+        new WorkTaskMaterials(
+            materials == null ? List.of() : materials.schemas(),
+            constraints,
+            materials == null ? java.util.Map.of() : materials.sourceEvidence());
+    String output;
+    try {
+      output =
+          model.complete(
+              new WorkTaskRequest(
+                  taskId,
+                  taskKey,
+                  WorkTaskKind.DEFINE_TRANSFERS,
+                  WorkTaskContext.prompt(state, promptScope, instructed),
+                  schema));
+    } catch (OutputParsingException failure) {
+      throw reject(
+          "MALFORMED_CAPTURE", "Outline capture could not be parsed. The task was not completed.");
+    }
+    JsonNode tree = WorkDocumentCaptureSchema.readObject(output, schema);
+    String outcome = tree.path("outcome").asText();
+    if ("NEEDS_CLARIFICATION".equals(outcome)) {
+      if (occupied(tree.path("transfers"))
+          || occupied(tree.path("retainedPlaceholders"))
+          || occupied(tree.path("coverage"))
+          || !tree.path("defect").path("recordRef").asText().isBlank()) {
+        throw reject(
+            "CONTRADICTORY_OUTCOME",
+            "A clarification needs one question and no design records. Remove the other branches.");
+      }
+      JsonNode question = tree.path("question");
+      QuestionSubject subject = questionSubject(question);
+      requireOutlineRefs(state, targetStepId, predecessors, subject);
+      return documents.recordQuestion(
+          runId,
+          promptScope,
+          question.path("text").asText(),
+          subject,
+          List.of(),
+          texts(question.path("evidenceRefs")),
+          invocation);
+    }
+    if ("INPUT_DEFECT".equals(outcome)) {
+      if (occupied(tree.path("transfers"))
+          || occupied(tree.path("retainedPlaceholders"))
+          || occupied(tree.path("coverage"))
+          || !tree.path("question").path("text").asText().isBlank()) {
+        throw reject(
+            "CONTRADICTORY_OUTCOME",
+            "A defect capture cannot include transfers, coverage, or a question. Send the defect alone.");
+      }
+      return documents.apply(runId, promptScope, defectCapture(tree), invocation);
+    }
+    if (!"PREPARED".equals(outcome)) {
+      throw reject(
+          "MALFORMED_CAPTURE",
+          "Outcome " + outcome + " is unknown. Use PREPARED, NEEDS_CLARIFICATION, or INPUT_DEFECT.");
+    }
+    if (!tree.path("question").path("text").asText().isBlank()
+        || !tree.path("defect").path("recordRef").asText().isBlank()) {
+      throw reject(
+          "CONTRADICTORY_OUTCOME",
+          "A prepared outline cannot also ask a question or report a defect. Send one outcome.");
+    }
+    for (JsonNode entry : tree.path("coverage")) {
+      if ("QUESTION".equals(entry.path("disposition").asText())) {
+        throw reject(
+            "CONTRADICTORY_OUTCOME",
+            "A prepared outline cannot leave coverage as a question. Record the question or choose another disposition.");
+      }
+    }
+    return define(runId, targetStepId, proposal(targetStepId, tree), contracts, invocation);
+  }
+
+  private static boolean occupied(JsonNode node) {
+    return node != null && node.isArray() && !node.isEmpty();
+  }
+
+  private static List<String> exposedPorts(WorkDocumentState state, Set<String> stepIds) {
+    java.util.LinkedHashSet<String> ports = new java.util.LinkedHashSet<>();
+    for (LogicalStep step : state.document().flow().steps()) {
+      if (!stepIds.contains(step.id()) || step.binding() == null) {
+        continue;
+      }
+      for (String port : step.binding().exposedPorts()) {
+        if (port != null && !port.isBlank()) {
+          ports.add(schemaPort(port));
+        }
+      }
+    }
+    return List.copyOf(ports);
+  }
+
+  private static void requireOutlineRefs(
+      WorkDocumentState state, String targetStepId, Set<String> predecessors, QuestionSubject subject) {
+    Set<String> steps = new java.util.LinkedHashSet<>();
+    steps.add(targetStepId);
+    steps.addAll(predecessors);
+    Set<String> ports = new java.util.LinkedHashSet<>(exposedPorts(state, steps));
+    Set<String> retained = new java.util.LinkedHashSet<>();
+    for (LogicalStep step : state.document().flow().steps()) {
+      if (!steps.contains(step.id())) {
+        continue;
+      }
+      for (RetainedValue value : step.data().retainedValues()) {
+        retained.add(value.id());
+      }
+    }
+    try {
+      subject.source().requireKnown(steps, ports, retained);
+      subject.target().requireKnown(steps, ports, retained);
+    } catch (IllegalArgumentException failure) {
+      throw reject("MALFORMED_REFERENCE", failure.getMessage());
+    }
+  }
+
+  private static WorkDocumentState withPortHashes(WorkDocumentState state, List<ContractMaterial> contracts) {
+    List<LogicalStep> steps = new ArrayList<>();
+    for (LogicalStep step : state.document().flow().steps()) {
+      steps.add(stampHashes(step, contracts));
+    }
+    LogicalFlow flow = state.document().flow();
+    ChainWorkDocument document = state.document();
+    return WorkDocumentState.of(
+        new ChainWorkDocument(
+            document.schemaVersion(),
+            document.documentId(),
+            document.sources(),
+            document.requirements(),
+            new LogicalFlow(
+                steps,
+                flow.connections(),
+                flow.sequenceGroups(),
+                flow.conditionGroups(),
+                flow.splitGroups(),
+                flow.loopGroups(),
+                flow.retryGroups(),
+                flow.errorScopeGroups()),
+            document.progress()));
+  }
+
+  private static LogicalStep stampHashes(LogicalStep step, List<ContractMaterial> contracts) {
+    if (step.binding() == null) {
+      return step;
+    }
+    List<ResolvedWorkBinding.PortContentHash> hashes = new ArrayList<>();
+    for (ContractMaterial material : matches(step.binding(), contracts)) {
+      if (!(material instanceof ContractMaterial.Ready ready)) {
+        continue;
+      }
+      for (PortSchemaMaterial port : ready.ports()) {
+        if (port.contentHash() == null || port.contentHash().isBlank()) {
+          continue;
+        }
+        hashes.add(new ResolvedWorkBinding.PortContentHash(port.port(), port.contentHash()));
+      }
+    }
+    return new LogicalStep(
+        step.id(),
+        step.kind(),
+        step.label(),
+        step.intent(),
+        step.sourceIds(),
+        step.requirementIds(),
+        step.binding().withPortContentHashes(hashes),
+        step.data());
+  }
+
+  private void checkContracts(
+      WorkDocumentState state, OutlineProposal proposal, List<ContractMaterial> contracts) {
+    for (String stepId : referencedSteps(proposal)) {
+      LogicalStep step = step(state, stepId);
+      if (step.kind() == StepKind.LOCAL || step.binding() == null) {
+        if (step.binding() == null && step.kind() != StepKind.LOCAL) {
+          throw reject(
+              "UNAVAILABLE_CONTRACT",
+              "Step "
+                  + stepId
+                  + " has no pinned contract. Select an operation before defining transfers.");
+        }
+        continue;
+      }
+      List<ContractMaterial> matches = matches(step.binding(), contracts);
+      if (matches.isEmpty()) {
+        throw reject(
+            "UNAVAILABLE_CONTRACT",
+            "Step "
+                + stepId
+                + " has no schema load for operation "
+                + step.binding().operationId()
+                + " version "
+                + step.binding().version()
+                + ". Load that contract before defining transfers.");
+      }
+      for (ContractMaterial material : matches) {
+        rejectFailed(material);
+      }
+      ContractMaterial.Ready ready = (ContractMaterial.Ready) matches.get(0);
+      for (String port : usedPorts(proposal, stepId)) {
+        if (ready.ports().stream().noneMatch(item -> port.equals(item.port()) && usable(item.schema()))) {
+          throw reject(
+              "MISSING_SCHEMA",
+              "Operation "
+                  + step.binding().operationId()
+                  + " version "
+                  + step.binding().version()
+                  + " has no "
+                  + port
+                  + " schema. Load the pinned contract before using that port.");
+        }
+      }
+    }
+  }
+
+  private void checkCoverage(WorkDocumentState state, LogicalStep target, OutlineProposal proposal) {
+    List<WorkRequirement> relevant = relevant(state, target);
+    Set<String> seen = new LinkedHashSet<>();
+    for (OutlineCoverage entry : proposal.coverage()) {
+      if (!seen.add(entry.requirementId())) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Requirement " + entry.requirementId() + " is covered more than once. Keep one disposition.");
+      }
+      if (relevant.stream().noneMatch(requirement -> requirement.id().equals(entry.requirementId()))) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Requirement "
+                + entry.requirementId()
+                + " is not assigned to step "
+                + target.id()
+                + ". Cover only that step's requirements.");
+      }
+    }
+    for (WorkRequirement requirement : relevant) {
+      OutlineCoverage entry =
+          proposal.coverage().stream()
+              .filter(candidate -> requirement.id().equals(candidate.requirementId()))
+              .findFirst()
+              .orElse(null);
+      if (entry == null) {
+        throw reject(
+            "MISSING_COVERAGE",
+            "Requirement "
+                + requirement.id()
+                + " has no outline disposition. Assign it, record NO_MAPPING with a passage, or ask a question.");
+      }
+      if (entry.passageId().isBlank()) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Requirement "
+                + requirement.id()
+                + " needs a source passage. Cite the indexed passage, not a summary.");
+      }
+      WorkSource source = documents.passageSource(state, entry.passageId());
+      if (!requirement.sourceIds().contains(source.id())) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Passage "
+                + entry.passageId()
+                + " is not evidence for requirement "
+                + requirement.id()
+                + ". Cite a passage from that requirement's source.");
+      }
+      boolean onTransfer =
+          proposal.transfers().stream()
+              .anyMatch(transfer -> transfer.requirementIds().contains(requirement.id()));
+      if (entry.disposition() == CoverageDisposition.ASSIGNED && !onTransfer) {
+        throw reject(
+            "MISSING_COVERAGE",
+            "Requirement "
+                + requirement.id()
+                + " is assigned but no transfer lists it. Add the transfer or record NO_MAPPING.");
+      }
+      if (entry.disposition() != CoverageDisposition.ASSIGNED && onTransfer) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Requirement "
+                + requirement.id()
+                + " is "
+                + entry.disposition()
+                + " and is also listed on a transfer. Keep one disposition.");
+      }
+      if (entry.disposition() == CoverageDisposition.QUESTION) {
+        throw reject(
+            "OPEN_QUESTION",
+            "Requirement "
+                + requirement.id()
+                + " is still a question. Record that question before publishing the outline.");
+      }
+    }
+  }
+
+  private void checkTransfers(
+      WorkDocumentState state, String targetStepId, Set<String> producers, OutlineProposal proposal) {
+    for (OutlineTransfer transfer : proposal.transfers()) {
+      if (transfer.targetPort() == null || !targetStepId.equals(transfer.targetPort().stepId())) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "Transfer target is outside step " + targetStepId + ". Keep the assigned target.");
+      }
+      checkOutcome(transfer.targetPort().portName(), transfer.outcome());
+      if (!transfer.decision().isBlank() && !"NO_MAPPING".equals(transfer.decision())) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Outline decision "
+                + transfer.decision()
+                + " is a field rule. Leave field rules for mapping.");
+      }
+      for (PortRef source : transfer.sourcePorts()) {
+        step(state, source.stepId());
+        if (!producers.contains(source.stepId())) {
+          throw reject(
+              "OUTSIDE_SCOPE",
+              "Source step "
+                  + source.stepId()
+                  + " is not available to "
+                  + targetStepId
+                  + ". Choose a predecessor from the accepted flow.");
+        }
+        knownPort(source.portName());
+      }
+      knownPort(transfer.targetPort().portName());
+    }
+  }
+
+  private void checkRetained(WorkDocumentState state, Set<String> producers, OutlineProposal proposal) {
+    for (OutlineRetained retained : proposal.retainedPlaceholders()) {
+      if (!producers.contains(retained.producerStepId())) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "Producer "
+                + retained.producerStepId()
+                + " is not available to this target. Choose a predecessor from the accepted flow.");
+      }
+      for (String evidenceId : retained.evidenceIds()) {
+        documents.passageSource(state, evidenceId);
+      }
+    }
+  }
+
+  private static void checkOutcome(String port, TransferOutcome outcome) {
+    if ("success".equals(port) && outcome != TransferOutcome.SUCCESS) {
+      throw reject(
+          "OUTCOME_MISMATCH",
+          "Port success requires outcome SUCCESS. Set the outcome that applies to that port.");
+    }
+    if ("failure".equals(port) && outcome != TransferOutcome.FAILURE) {
+      throw reject(
+          "OUTCOME_MISMATCH",
+          "Port failure requires outcome FAILURE. Set the outcome that applies to that port.");
+    }
+    if (("request".equals(port) || "payload".equals(port)) && outcome != TransferOutcome.UNSPECIFIED) {
+      throw reject(
+          "OUTCOME_MISMATCH",
+          "Port "
+              + port
+              + " is not a success or failure outcome. Leave the outcome unspecified.");
+    }
+  }
+
+  private static void knownPort(String port) {
+    if (!"payload".equals(port) && !"request".equals(port) && !"success".equals(port) && !"failure".equals(port)) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Port " + port + " is unknown. Use payload, request, success, or failure.");
+    }
+  }
+
+  private static void rejectFailed(ContractMaterial material) {
+    switch (material) {
+      case ContractMaterial.MissingSchema missing -> throw reject("MISSING_SCHEMA", missing.reason());
+      case ContractMaterial.Unavailable unavailable ->
+          throw reject("UNAVAILABLE_CONTRACT", unavailable.reason());
+      case ContractMaterial.ReadFailed failed -> throw reject("SCHEMA_READ_FAILED", failed.reason());
+      case ContractMaterial.Incompatible incompatible ->
+          throw reject("INCOMPATIBLE_CONTRACT", incompatible.reason());
+      case ContractMaterial.Gap gap -> throw reject("SCHEMA_GAP", gap.reason());
+      case ContractMaterial.Ready ignored -> {
+        // A ready load is checked against the ports the proposal uses.
+      }
+    }
+  }
+
+  private static List<ContractMaterial> matches(
+      ResolvedWorkBinding binding, List<ContractMaterial> contracts) {
+    List<ContractMaterial> matches = new ArrayList<>();
+    for (ContractMaterial material : contracts) {
+      if (binding.operationId().equals(material.operationId())
+          && binding.version().equals(material.version())
+          && binding.contractReferences().contains(material.contractReference())) {
+        matches.add(material);
+      }
+    }
+    return matches;
+  }
+
+  private static Set<String> referencedSteps(OutlineProposal proposal) {
+    Set<String> steps = new LinkedHashSet<>();
+    steps.add(proposal.targetStepId());
+    for (OutlineTransfer transfer : proposal.transfers()) {
+      for (PortRef source : transfer.sourcePorts()) {
+        steps.add(source.stepId());
+      }
+    }
+    for (OutlineRetained retained : proposal.retainedPlaceholders()) {
+      steps.add(retained.producerStepId());
+    }
+    return steps;
+  }
+
+  private static Set<String> usedPorts(OutlineProposal proposal, String stepId) {
+    Set<String> ports = new LinkedHashSet<>();
+    for (OutlineTransfer transfer : proposal.transfers()) {
+      if (transfer.targetPort() != null && stepId.equals(transfer.targetPort().stepId())) {
+        ports.add(transfer.targetPort().portName());
+      }
+      for (PortRef source : transfer.sourcePorts()) {
+        if (stepId.equals(source.stepId())) {
+          ports.add(source.portName());
+        }
+      }
+    }
+    return ports;
+  }
+
+  private static List<WorkRequirement> relevant(WorkDocumentState state, LogicalStep target) {
+    List<WorkRequirement> requirements = state.document().requirements();
+    Set<String> replaced = new LinkedHashSet<>();
+    for (WorkRequirement requirement : requirements) {
+      if (!requirement.supersededRequirementId().isBlank()) {
+        replaced.add(requirement.supersededRequirementId());
+      }
+    }
+    List<WorkRequirement> relevant = new ArrayList<>();
+    for (WorkRequirement requirement : requirements) {
+      if (replaced.contains(requirement.id())) {
+        continue;
+      }
+      boolean listed = target.requirementIds().contains(requirement.id());
+      boolean replacesListed =
+          !requirement.supersededRequirementId().isBlank()
+              && target.requirementIds().contains(requirement.supersededRequirementId());
+      if (listed || replacesListed) {
+        relevant.add(requirement);
+      }
+    }
+    return relevant;
+  }
+
+  private static Set<String> producers(WorkDocumentState state, String targetStepId) {
+    Set<String> reached = new LinkedHashSet<>();
+    ArrayDeque<String> pending = new ArrayDeque<>();
+    pending.add(targetStepId);
+    while (!pending.isEmpty()) {
+      String current = pending.removeFirst();
+      for (LogicalConnection connection : state.document().flow().connections()) {
+        if (current.equals(connection.targetStepId()) && reached.add(connection.sourceStepId())) {
+          pending.add(connection.sourceStepId());
+        }
+      }
+    }
+    reached.remove(targetStepId);
+    return reached;
+  }
+
+  private static WorkTaskScope scope(
+      WorkDocumentState state,
+      LogicalStep target,
+      Set<String> producers,
+      OutlineProposal proposal,
+      List<ContractMaterial> contracts) {
+    RepairAssignment repair = repairFor(state.document(), target.id());
+    List<CreationAllowance> allowances = new ArrayList<>();
+    allowances.add(new CreationAllowance(WorkRecordKind.OUTLINE, target.id()));
+    allowances.addAll(creationAllowances(repair, target.id(), producers));
+    List<String> replacements = new ArrayList<>();
+    if (repair != null && !repair.updateIds().isEmpty()) {
+      replacements.addAll(repair.updateIds());
+    } else {
+      for (DataTransfer transfer : target.data().transfers()) {
+        replacements.add(transfer.id());
+      }
+      for (String producer : producers) {
+        LogicalStep owner = null;
+        for (LogicalStep candidate : state.document().flow().steps()) {
+          if (candidate.id().equals(producer)) {
+            owner = candidate;
+          }
+        }
+        if (owner == null) {
+          continue;
+        }
+        for (RetainedValue value : owner.data().retainedValues()) {
+          replacements.add(value.id());
+        }
+      }
+    }
+    return new WorkTaskScope(
+        "define-transfers-" + target.id(),
+        state.revision(),
+        WorkStage.DATA_BEHAVIOR,
+        SKILL_ID,
+        List.of(target.id()),
+        true,
+        true,
+        false,
+        List.of(),
+        List.of(),
+        allowances,
+        replacements,
+        "define-transfers:" + target.id(),
+        WorkTaskKind.DEFINE_TRANSFERS,
+        fingerprint(state, proposal, contracts),
+        null);
+  }
+
+  private static List<CreationAllowance> creationAllowances(
+      RepairAssignment repair, String targetStepId, Set<String> producers) {
+    List<CreationAllowance> allowances = new ArrayList<>();
+    if (repair == null) {
+      allowances.add(new CreationAllowance(WorkRecordKind.TRANSFER, targetStepId));
+      for (String producer : producers) {
+        allowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, producer));
+      }
+      return allowances;
+    }
+    if (repair.createParentIds().contains(targetStepId)) {
+      allowances.add(new CreationAllowance(WorkRecordKind.TRANSFER, targetStepId));
+    }
+    for (String parent : repair.createParentIds()) {
+      if (producers.contains(parent)) {
+        allowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, parent));
+      }
+    }
+    return allowances;
+  }
+
+  private static RepairAssignment repairFor(ChainWorkDocument document, String targetStepId) {
+    RepairAssignment found = null;
+    for (RepairAssignment repair : document.progress().repairs()) {
+      if (WorkTaskKind.DEFINE_TRANSFERS == repair.responsibleKind()
+          && targetStepId.equals(repair.responsibleRecordId())
+          && RepairAssignment.OWNER.equals(repair.phase())) {
+        found = repair;
+      }
+    }
+    return found;
+  }
+
+  private static boolean transferOn(LogicalStep step, String transferId) {
+    for (DataTransfer transfer : step.data().transfers()) {
+      if (transferId.equals(transfer.id())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean retainedExists(WorkDocumentState state, String retainedId) {
+    for (LogicalStep step : state.document().flow().steps()) {
+      for (RetainedValue value : step.data().retainedValues()) {
+        if (retainedId.equals(value.id())) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private static String fingerprint(
+      WorkDocumentState state, OutlineProposal proposal, List<ContractMaterial> contracts) {
+    StringBuilder payload = new StringBuilder();
+    payload.append(proposal.targetStepId());
+    for (String stepId : referencedSteps(proposal)) {
+      LogicalStep step = step(state, stepId);
+      payload.append('|').append(stepId);
+      if (step.binding() == null) {
+        continue;
+      }
+      payload.append('|').append(step.binding().operationId()).append('|').append(step.binding().version());
+      for (ContractMaterial material : matches(step.binding(), contracts)) {
+        if (!(material instanceof ContractMaterial.Ready ready)) {
+          continue;
+        }
+        List<String> ports = new ArrayList<>();
+        for (PortSchemaMaterial port : ready.ports()) {
+          ports.add(port.port() + "=" + port.contentHash());
+        }
+        ports.sort(String::compareTo);
+        for (String port : ports) {
+          payload.append('|').append(port);
+        }
+      }
+    }
+    for (OutlineCoverage entry : proposal.coverage()) {
+      payload.append('|').append(entry.requirementId()).append(':').append(entry.passageId());
+    }
+    return sha256(payload.toString());
+  }
+
+  private static LogicalStep step(WorkDocumentState state, String stepId) {
+    for (LogicalStep candidate : state.document().flow().steps()) {
+      if (candidate.id().equals(stepId)) {
+        return candidate;
+      }
+    }
+    throw reject(
+        "MALFORMED_REFERENCE",
+        "Step " + stepId + " does not exist. Outline an existing target step.");
+  }
+
+  private static boolean usable(JsonNode schema) {
+    return schema != null
+        && !schema.isNull()
+        && (schema.has("type")
+            || schema.has("$ref")
+            || schema.has("properties")
+            || schema.has("items")
+            || schema.has("allOf")
+            || schema.has("oneOf")
+            || schema.has("anyOf")
+            || schema.has("enum"));
+  }
+
+  private static String sha256(String content) {
+    try {
+      return HexFormat.of()
+          .formatHex(MessageDigest.getInstance("SHA-256").digest(content.getBytes(StandardCharsets.UTF_8)));
+    } catch (Exception failure) {
+      throw new IllegalStateException("SHA-256 is unavailable.", failure);
+    }
+  }
+
+  private static OutlineProposal proposal(String targetStepId, JsonNode tree) {
+    List<OutlineTransfer> transfers = new ArrayList<>();
+    for (JsonNode node : tree.path("transfers")) {
+      transfers.add(
+          new OutlineTransfer(
+              node.path("alias").asText(),
+              node.path("existingId").asText(),
+              List.of(
+                  new PortRef(
+                      node.path("sourceStepId").asText(), schemaPort(node.path("sourcePort").asText()))),
+              new PortRef(targetStepId, schemaPort(node.path("targetPort").asText())),
+              outcome(node.path("outcome").asText()),
+              texts(node.path("requirementIds")),
+              texts(node.path("requiredRetainedIds")),
+              node.path("decision").asText()));
+    }
+    List<OutlineRetained> retained = new ArrayList<>();
+    for (JsonNode node : tree.path("retainedPlaceholders")) {
+      retained.add(
+          new OutlineRetained(
+              node.path("alias").asText(),
+              node.path("existingId").asText(),
+              node.path("producerStepId").asText(),
+              node.path("intendedUse").asText(),
+              texts(node.path("evidenceRefs"))));
+    }
+    List<OutlineCoverage> coverage = new ArrayList<>();
+    for (JsonNode node : tree.path("coverage")) {
+      coverage.add(
+          new OutlineCoverage(
+              node.path("requirementId").asText(),
+              node.path("passageId").asText(),
+              disposition(node.path("disposition").asText())));
+    }
+    return new OutlineProposal(targetStepId, transfers, retained, coverage);
+  }
+
+  private static QuestionSubject questionSubject(JsonNode question) {
+    QuestionFieldRef source =
+        new QuestionFieldRef(
+            question.path("sourceStepId").asText(),
+            question.path("sourcePort").asText(),
+            question.path("sourceField").asText(),
+            question.path("sourceRetainedId").asText());
+    QuestionFieldRef target =
+        new QuestionFieldRef(
+            question.path("targetStepId").asText(),
+            question.path("targetPort").asText(),
+            question.path("targetField").asText(),
+            question.path("targetRetainedId").asText());
+    try {
+      if ("FIELD_RELATIONSHIP".equals(question.path("choiceKind").asText())) {
+        return QuestionSubject.fieldRelationship(source, target);
+      }
+      return new QuestionSubject(QuestionChoiceKind.UNSPECIFIED, source, target);
+    } catch (IllegalArgumentException failure) {
+      throw reject("MALFORMED_REFERENCE", failure.getMessage());
+    }
+  }
+
+  private static WorkTaskCapture defectCapture(JsonNode tree) {
+    JsonNode defect = tree.path("defect");
+    com.fasterxml.jackson.databind.node.ObjectNode body =
+        new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+    body.put("outcome", "INPUT_DEFECT");
+    body.put("defectRecordRef", defect.path("recordRef").asText());
+    body.put("contradiction", defect.path("contradiction").asText());
+    body.put("issueCategory", defect.path("category").asText());
+    com.fasterxml.jackson.databind.node.ArrayNode evidence = body.putArray("defectEvidenceIds");
+    for (String id : texts(defect.path("evidenceRefs"))) {
+      evidence.add(id);
+    }
+    return WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(body));
+  }
+
+  private static List<String> texts(JsonNode node) {
+    List<String> values = new ArrayList<>();
+    if (node != null && node.isArray()) {
+      for (JsonNode child : node) {
+        if (!child.asText().isBlank()) {
+          values.add(child.asText());
+        }
+      }
+    }
+    return values;
+  }
+
+  private static String schemaPort(String port) {
+    return switch (port) {
+      case "INBOUND_PAYLOAD" -> "payload";
+      case "OUTBOUND_REQUEST" -> "request";
+      case "SUCCESS_RESPONSE" -> "success";
+      case "FAILURE_OUTCOME" -> "failure";
+      case "RETAINED_CONTEXT" -> "context";
+      case null -> "";
+      default -> port;
+    };
+  }
+
+  private static TransferOutcome outcome(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return TransferOutcome.UNSPECIFIED;
+    }
+    return TransferOutcome.valueOf(raw);
+  }
+
+  private static CoverageDisposition disposition(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return CoverageDisposition.ASSIGNED;
+    }
+    return CoverageDisposition.valueOf(raw);
+  }
+
+  private static WorkDocumentRejectedException reject(String code, String message) {
+    return new WorkDocumentRejectedException(code, message);
+  }
+}

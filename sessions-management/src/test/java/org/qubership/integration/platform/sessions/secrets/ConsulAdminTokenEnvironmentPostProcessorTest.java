@@ -13,14 +13,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ConsulAdminTokenEnvironmentPostProcessorTest {
 
     private static final String CONSUL_TOKEN_PROPERTY = "consul.token";
-    private static final String CONSUL_ACL_TOKEN_PROPERTY = "spring.cloud.consul.config.acl-token";
 
     @TempDir
     Path mount;
@@ -98,7 +95,6 @@ class ConsulAdminTokenEnvironmentPostProcessorTest {
         postProcess(environment);
 
         assertEquals("from-the-mount", environment.getProperty(CONSUL_TOKEN_PROPERTY));
-        assertEquals("from-the-mount", environment.getProperty(CONSUL_ACL_TOKEN_PROPERTY));
     }
 
     @Test
@@ -108,7 +104,6 @@ class ConsulAdminTokenEnvironmentPostProcessorTest {
         postProcess(environment);
 
         assertNull(environment.getProperty(CONSUL_TOKEN_PROPERTY));
-        assertNull(environment.getProperty(CONSUL_ACL_TOKEN_PROPERTY));
     }
 
     @Test

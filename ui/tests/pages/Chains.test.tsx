@@ -3,9 +3,20 @@
  */
 
 import React from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
-import { CatalogItemType, FolderItem, ChainItem } from "../../src/api/apiTypes";
+import {
+  RestApiError,
+  CatalogItemType,
+  FolderItem,
+  ChainItem,
+} from "../../src/api/apiTypes";
 
 // --------------- Mock data ---------------
 
@@ -332,6 +343,57 @@ describe("Chains page", () => {
     mockApi.getPathToFolder.mockResolvedValue([]);
   });
 
+  it("refreshes after a catalog write while preserving the current folder", async () => {
+    mockSearchParams = new URLSearchParams("folder=folder-1");
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+    mockApi.listFolder.mockResolvedValue([
+      { ...mockChain, name: "Renamed by Rocky" },
+    ]);
+    await act(async () =>
+      window.dispatchEvent(
+        new CustomEvent("qip-catalog-changed", {
+          detail: { chainIds: [mockChain.id], chainsListChanged: true },
+        }),
+      ),
+    );
+    await screen.findByText("Renamed by Rocky");
+    expect(mockApi.listFolder).toHaveBeenLastCalledWith({
+      folderId: "folder-1",
+      filters: [],
+      searchString: "",
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the previous rows after a background catalog read fails", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+    mockApi.listFolder.mockRejectedValueOnce(new Error("offline"));
+    await act(async () =>
+      window.dispatchEvent(
+        new CustomEvent("qip-catalog-changed", {
+          detail: { chainIds: null, chainsListChanged: true },
+        }),
+      ),
+    );
+    await waitFor(() => expect(mockRequestFailed).toHaveBeenCalled());
+    expect(screen.getByText("Test Chain")).toBeInTheDocument();
+  });
+
+  it("leaves a deleted folder and preserves the other query parameters", async () => {
+    mockSearchParams = new URLSearchParams("folder=gone&view=compact");
+    mockApi.listFolder.mockRejectedValueOnce(
+      new RestApiError("missing folder", 404),
+    );
+    render(<Chains />);
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/chains?view=compact"),
+    );
+  });
+
   // --- Rendering & data loading ---
 
   it("renders without crashing", async () => {
@@ -396,7 +458,9 @@ describe("Chains page", () => {
   it("renders full text search in toolbar", async () => {
     render(<Chains />);
     await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
-    expect(screen.getByPlaceholderText("Full text search")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Search chains and folders..."),
+    ).toBeInTheDocument();
   });
 
   it("renders toolbar ProtectedButtons by tooltip title", async () => {
@@ -560,8 +624,9 @@ describe("Chains page", () => {
     render(<Chains />);
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalledWith(
-        "Failed to get folder content",
+        "Failed to refresh chains; the previous list is preserved",
         expect.any(Error),
+        expect.any(Function),
       );
     });
   });
@@ -572,8 +637,9 @@ describe("Chains page", () => {
     render(<Chains />);
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalledWith(
-        "Failed to get path to folder",
+        "Failed to refresh chains; the previous list is preserved",
         expect.any(Error),
+        expect.any(Function),
       );
     });
   });

@@ -9679,6 +9679,10 @@ components:
           items:
             type: string
           uniqueItems: true
+        serviceAccountTokens:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceAccountTokenOptions"
     MoveFolderRequest:
       type: object
       description: Move folder request object
@@ -10039,6 +10043,23 @@ components:
           additionalProperties:
             type: string
           description: "Set of secured variables <key, value>"
+    ServiceAccountTokenOptions:
+      type: object
+      properties:
+        audience:
+          type: string
+        defaultMode:
+          type: integer
+          format: int32
+        expirationSeconds:
+          type: integer
+          format: int64
+        mountPath:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
     ServiceEnvironment:
       type: object
       properties:

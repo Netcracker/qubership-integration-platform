@@ -1,0 +1,1007 @@
+package org.qubership.integration.platform.ai.integration.catalog.materialize;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.ws.rs.core.Response;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+
+@SuppressWarnings("java:S1192")
+@ExtendWith(MockitoExtension.class)
+class ChainPlanPropertiesMaterializerTest {
+
+  @Mock private CatalogRestClient catalogRestClient;
+  @Mock private DeterministicElementSchemaService schemaService;
+
+  private ChainPlanPropertiesMaterializer materializer;
+  private final ObjectMapper objectMapper = new ObjectMapper();
+
+  @BeforeEach
+  void setUp() {
+    materializer = new ChainPlanPropertiesMaterializer(catalogRestClient, schemaService, objectMapper);
+    // Matches the real method's own fallback: an untyped or unknown property keeps its raw string.
+    // lenient(): most cases here have no properties to coerce, so the stub goes unused there.
+    lenient()
+        .when(schemaService.coercePatchPropertyValue(anyString(), anyString(), anyString()))
+        .thenAnswer(invocation -> invocation.getArgument(2));
+    lenient()
+        .when(schemaService.missingBranchKeysMessage(anyString(), anyMap()))
+        .thenReturn("");
+  }
+
+  @Test
+  void bindsChainTriggerToItsMaterializedElementId() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("chain-trigger-2")).thenReturn(Set.of("elementId"));
+    when(schemaService.validateElementPatch(eq("chain-trigger-2"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    ChainPlanGraph graph = new ChainPlanGraph("1.0", new ChainSection("demo", null),
+        List.of(new ChainPlanNode("entry", "chain-trigger-2", "Trigger", null, null,
+            List.of(new PlanProperty("elementId", "Calling chain")))), List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("entry", "trigger-id"), Map.of(), Map.of());
+
+    assertEquals(1, materializer.apply(graph, map).patchedCount());
+    ArgumentCaptor<Map<String, Object>> patch = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("trigger-id"), patch.capture());
+    assertEquals("trigger-id", ((Map<?, ?>) patch.getValue().get("properties")).get("elementId"));
+  }
+
+  @Test
+  void patchesNameForPropertyLessShellNodes() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("condition")).thenReturn(Set.of());
+    when(schemaService.validateElementPatch(eq("condition"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(schemaService.allowedPatchPropertyKeys("else")).thenReturn(Set.of());
+    when(schemaService.validateElementPatch(eq("else"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode("router", "condition", "Minute parity", null, null, List.of()),
+                new ChainPlanNode(
+                    "else-shell", "else", "Odd minute", "router", null, List.of())),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("router", "el-cond", "else-shell", "el-else"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(2, result.patchedCount());
+    assertTrue(result.failedNodeIds().isEmpty());
+
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-cond"), patchCaptor.capture());
+    assertEquals("Minute parity", patchCaptor.getValue().get("name"));
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-else"), patchCaptor.capture());
+    assertEquals("Odd minute", patchCaptor.getValue().get("name"));
+  }
+
+  @Test
+  void patchesScriptPropertyForScriptNode() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "script",
+                    "Script",
+                    null,
+                    null,
+                    List.of(new PlanProperty("script", "exchange.setProperty('x', 1)")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    assertTrue(result.failedNodeIds().isEmpty());
+
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> sent = patchCaptor.getValue();
+    assertEquals("exchange.setProperty('x', 1)", ((Map<String, Object>) sent.get("properties")).get("script"));
+  }
+
+  @Test
+  void patchesWithSchemaDefaultsWhenValidationReturnsPatchWithDefaults() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("http-trigger"))
+        .thenReturn(Set.of("contextPath", "accessControlType"));
+    when(schemaService.validateElementPatch(eq("http-trigger"), anyString()))
+        .thenReturn(
+            """
+            {
+              "valid": true,
+              "defaultsApplied": ["accessControlType"],
+              "patchWithDefaults": {
+                "name": "HTTP Trigger",
+                "properties": {
+                  "contextPath": "/greetings",
+                  "accessControlType": "NONE"
+                }
+              }
+            }
+            """);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "http-trigger",
+                    "HTTP Trigger",
+                    null,
+                    null,
+                    List.of(new PlanProperty("contextPath", "/greetings")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("NONE", props.get("accessControlType"));
+    assertEquals("/greetings", props.get("contextPath"));
+  }
+
+  @Test
+  void preservesPlacementFieldsWhenPatchWithDefaultsReplacesBody() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn(
+            """
+            {
+              "valid": true,
+              "patchWithDefaults": {
+                "name": "Script",
+                "properties": {
+                  "script": "body"
+                }
+              }
+            }
+            """);
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.parentElementId = "try-1";
+    current.swimlaneId = "lane-1";
+    when(catalogRestClient.getElement("chain-1", "el-1")).thenReturn(current);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "script",
+                    "Script",
+                    "try-node",
+                    null,
+                    List.of(new PlanProperty("script", "body")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    assertEquals("try-1", patchCaptor.getValue().get("parentElementId"));
+    assertEquals("lane-1", patchCaptor.getValue().get("swimlaneId"));
+  }
+
+  @Test
+  void parsesBooleanPropertyBeforeValidationAndPatch() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("http-trigger"))
+        .thenReturn(Set.of("contextPath", "externalRoute", "accessControlType"));
+    when(schemaService.validateElementPatch(eq("http-trigger"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "http-trigger",
+                    "HTTP Trigger",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("contextPath", "/greetings"),
+                        new PlanProperty("externalRoute", "true"),
+                        new PlanProperty("accessControlType", "NONE")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<String> validationCaptor = ArgumentCaptor.forClass(String.class);
+    verify(schemaService).validateElementPatch(eq("http-trigger"), validationCaptor.capture());
+    assertTrue(validationCaptor.getValue().contains("\"externalRoute\":true"));
+
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(Boolean.TRUE, props.get("externalRoute"));
+  }
+
+  @Test
+  void keepsHttpMethodRestrictAsAMethodStringOnPatch() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("http-trigger"))
+        .thenReturn(Set.of("contextPath", "httpMethodRestrict"));
+    when(schemaService.validateElementPatch(eq("http-trigger"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "http-trigger",
+                    "HTTP Trigger",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("contextPath", "/api/v1/orders"),
+                        new PlanProperty("httpMethodRestrict", "GET")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("GET", props.get("httpMethodRestrict"));
+  }
+
+  @Test
+  void coercesANumericPropertyToItsSchemaTypeRatherThanAString() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("service-call")).thenReturn(Set.of("connectTimeout"));
+    when(schemaService.coercePatchPropertyValue("service-call", "connectTimeout", "30000"))
+        .thenReturn(30000L);
+    when(schemaService.validateElementPatch(eq("service-call"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "service-call",
+                    "Call",
+                    null,
+                    null,
+                    List.of(new PlanProperty("connectTimeout", "30000")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(30000L, props.get("connectTimeout"));
+  }
+
+  @Test
+  void sendsBranchPriorityAsAnIntegerBesideTheLiveParentElementId() throws Exception {
+    // Reordering a catch-2 branch is an ordinary priority property patch. Two things make the
+    // catalog renumber the sibling branches rather than silently leaving two branches on the same
+    // priority: the value must arrive as a number, and the body must carry the element's current
+    // parentElementId -- runtime-catalog only runs updateRelativeProperties when the body's parent
+    // matches the live one. Verified live: dropping parentElementId leaves both branches at the
+    // same priority.
+    when(schemaService.allowedPatchPropertyKeys("catch-2")).thenReturn(Set.of("exception", "priority"));
+    when(schemaService.coercePatchPropertyValue("catch-2", "priority", "0")).thenReturn(0L);
+    when(schemaService.validateElementPatch(eq("catch-2"), anyString())).thenReturn("{\"valid\":true}");
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.name = "Catch";
+    current.parentElementId = "el-try-catch";
+    current.properties = Map.of("exception", "java.lang.Exception", "priority", 1);
+    when(catalogRestClient.getElement("chain-1", "el-catch")).thenReturn(current);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "catch-node",
+                    "catch-2",
+                    null,
+                    "tcf-node",
+                    null,
+                    List.of(new PlanProperty("priority", "0")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("catch-node", "el-catch"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-catch"), patchCaptor.capture());
+    assertEquals("el-try-catch", patchCaptor.getValue().get("parentElementId"));
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(0L, props.get("priority"));
+  }
+
+  @Test
+  void recordsMissingBranchKeysForManualRabbitmqWithoutAddresses() throws Exception {
+    DeterministicElementSchemaService realSchema =
+        DeterministicElementSchemaService.createForUnitTests(objectMapper);
+    ChainPlanPropertiesMaterializer realMaterializer =
+        new ChainPlanPropertiesMaterializer(catalogRestClient, realSchema, objectMapper);
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "rabbit-send",
+                    "rabbitmq-sender-2",
+                    "Send",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "manual"),
+                        new PlanProperty("exchange", "ex")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("rabbit-send", "el-rabbit"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        realMaterializer.apply(graph, map);
+
+    assertEquals(0, result.patchedCount());
+    assertEquals(List.of("rabbit-send"), result.failedNodeIds());
+    assertNotNull(result.firstValidationError());
+    assertTrue(result.firstValidationError().contains("missing addresses"));
+    assertTrue(result.firstValidationError().contains("connectionSourceType=manual"));
+    verify(catalogRestClient, never()).updateElement(anyString(), anyString(), anyMap());
+  }
+
+  @Test
+  void doesNotPatchWhenValidationReturnsInvalid() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":false}");
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "script",
+                    "Script",
+                    null,
+                    null,
+                    List.of(new PlanProperty("script", "body")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(0, result.patchedCount());
+    assertEquals(List.of("n1"), result.failedNodeIds());
+    verify(catalogRestClient, never()).updateElement(anyString(), anyString(), anyMap());
+  }
+
+  @Test
+  void filtersUnknownPropertyKeys() {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "script",
+                    "Script",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("script", "ok"),
+                        new PlanProperty("unknownKey", "drop-me")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+  }
+
+  @Test
+  void recordsFailedNodeWhenCatalogPatchThrows() {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    doThrow(new RuntimeException("catalog down"))
+        .when(catalogRestClient)
+        .updateElement(anyString(), anyString(), anyMap());
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "script",
+                    "Script",
+                    null,
+                    null,
+                    List.of(new PlanProperty("script", "body")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(0, result.patchedCount());
+    assertEquals(List.of("n1"), result.failedNodeIds());
+  }
+
+  @Test
+  void patchesIntegrationOperationIdFromPlanProperties() {
+    String operationId = "4f2ee806-d504-446b-9d45-ef72320346da-swagger-1.0.7-getPetById";
+    when(schemaService.allowedPatchPropertyKeys("service-call"))
+        .thenReturn(Set.of("integrationOperationId"));
+    when(schemaService.validateElementPatch(eq("service-call"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("pet-lookup", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "service-call",
+                    "Get Pet",
+                    null,
+                    null,
+                    List.of(new PlanProperty("integrationOperationId", operationId)))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(operationId, props.get("integrationOperationId"));
+  }
+
+  @Test
+  void patchesServiceCallIdentityPropertiesOntoTheCatalogElement() {
+    when(schemaService.allowedPatchPropertyKeys("service-call"))
+        .thenReturn(
+            Set.of(
+                "integrationOperationId",
+                "serviceCallId",
+                "semanticRevisionId",
+                "semanticNodeId"));
+    when(schemaService.validateElementPatch(eq("service-call"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("pet-lookup", null),
+            List.of(
+                new ChainPlanNode(
+                    "node-a",
+                    "service-call",
+                    "Get Order",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("serviceCallId", "call-a"),
+                        new PlanProperty("semanticRevisionId", "rev-1"),
+                        new PlanProperty("semanticNodeId", "node-a"),
+                        new PlanProperty("integrationOperationId", "op-shared")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("node-a", "el-1"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> materializedProperties =
+        (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("call-a", materializedProperties.get("serviceCallId"));
+    assertEquals("node-a", materializedProperties.get("semanticNodeId"));
+    assertEquals("rev-1", materializedProperties.get("semanticRevisionId"));
+    assertEquals("op-shared", materializedProperties.get("integrationOperationId"));
+  }
+
+  @Test
+  void keepsLiveCatalogPropertiesThatThePlanSchemaDoesNotList() throws Exception {
+    DeterministicElementSchemaService realSchema =
+        DeterministicElementSchemaService.createForUnitTests(objectMapper);
+    ChainPlanPropertiesMaterializer realMaterializer =
+        new ChainPlanPropertiesMaterializer(catalogRestClient, realSchema, objectMapper);
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.name = "Chain Call";
+    current.properties =
+        Map.of(
+            "elementId", "b8256d62-5baa-44bf-9d58-7af0eb7d70b2",
+            "timeout", 30000,
+            "block", true,
+            "failIfNoConsumers", false);
+    when(catalogRestClient.getElement("chain-1", "el-call")).thenReturn(current);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "call",
+                    "chain-call-2",
+                    "Call header modification",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("elementId", "b8256d62-5baa-44bf-9d58-7af0eb7d70b2"),
+                        new PlanProperty("timeout", "30000")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("call", "el-call"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        realMaterializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount(), result.firstValidationError());
+    assertTrue(result.failedNodeIds().isEmpty());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-call"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("b8256d62-5baa-44bf-9d58-7af0eb7d70b2", props.get("elementId"));
+    assertEquals(Boolean.TRUE, props.get("block"));
+    assertEquals(Boolean.FALSE, props.get("failIfNoConsumers"));
+  }
+
+  @Test
+  void restoresLiveCatalogPropertiesAfterSchemaDefaultsReplaceThePatch() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("chain-call-2"))
+        .thenReturn(Set.of("elementId", "timeout"));
+    when(schemaService.validateElementPatch(eq("chain-call-2"), anyString()))
+        .thenReturn(
+            """
+            {
+              "valid": true,
+              "patchWithDefaults": {
+                "name": "Call",
+                "properties": {
+                  "elementId": "trigger-1",
+                  "timeout": 30000
+                }
+              }
+            }
+            """);
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.name = "Call";
+    current.properties =
+        Map.of(
+            "elementId", "trigger-1",
+            "timeout", 30000,
+            "block", true,
+            "failIfNoConsumers", false);
+    when(catalogRestClient.getElement("chain-1", "el-call")).thenReturn(current);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "call",
+                    "chain-call-2",
+                    "Call",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("elementId", "trigger-1"),
+                        new PlanProperty("timeout", "30000")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("call", "el-call"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-call"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("trigger-1", props.get("elementId"));
+    assertEquals(Boolean.TRUE, props.get("block"));
+    assertEquals(Boolean.FALSE, props.get("failIfNoConsumers"));
+  }
+
+  @Test
+  void mergesCurrentCatalogPropertiesSoNameOnlyPatchKeepsDefaults() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("catch-2")).thenReturn(Set.of("exception", "priority"));
+    when(schemaService.validateElementPatch(eq("catch-2"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.name = "Catch";
+    current.properties =
+        Map.of(
+            "exception", "java.lang.Exception",
+            "priority", 0);
+    when(catalogRestClient.getElement("chain-1", "el-catch")).thenReturn(current);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(new ChainPlanNode("catch-2", "catch-2", "Catch block", "tcf", null, List.of())),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("catch-2", "el-catch"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-catch"), patchCaptor.capture());
+    assertEquals("Catch block", patchCaptor.getValue().get("name"));
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("java.lang.Exception", props.get("exception"));
+    assertEquals(0, props.get("priority"));
+  }
+
+  @Test
+  void timeoutAfterWriteCountsAsSuccessWhenReadBackMatches() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    CatalogElementResponseDto before = element("Old", Map.of("script", "old"));
+    CatalogElementResponseDto after = element("Script", Map.of("script", "new"));
+    when(catalogRestClient.getElement("chain-1", "el-1")).thenReturn(before, after);
+    doThrow(new TimeoutException("PATCH timed out"))
+        .when(catalogRestClient)
+        .updateElement(eq("chain-1"), eq("el-1"), anyMap());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        materializer.apply(scriptGraph("new"), materializationMap());
+
+    assertEquals(1, result.patchedCount());
+    assertTrue(result.failedNodeIds().isEmpty());
+  }
+
+  @Test
+  void catalogRejectionUsesParsedErrorMessageWhenBranchMessageAbsent() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    doThrow(catalog400("{\"errorMessage\":\"exchange not found\"}"))
+        .when(catalogRestClient)
+        .updateElement(anyString(), anyString(), anyMap());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        materializer.apply(scriptGraph("body"), materializationMap());
+
+    assertEquals(List.of("n1"), result.failedNodeIds());
+    assertTrue(result.firstValidationError().contains("exchange not found"));
+    assertFalse(result.firstValidationError().contains("[catalog:"));
+  }
+
+  @Test
+  void catalogRejectionFallsBackToGenericMessageWhenBodyUnparseable() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    doThrow(catalog400("<html>internal</html>"))
+        .when(catalogRestClient)
+        .updateElement(anyString(), anyString(), anyMap());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        materializer.apply(scriptGraph("body"), materializationMap());
+
+    assertEquals(List.of("n1"), result.failedNodeIds());
+    assertTrue(
+        result.firstValidationError().contains("The catalog did not confirm the element update."));
+    assertFalse(result.firstValidationError().contains("<html>"));
+    assertFalse(result.firstValidationError().contains("internal"));
+  }
+
+  @Test
+  void catalogRejectionCombinesBranchMessageAndCatalogSnippetOnlyWhenBothPresent()
+      throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("rabbitmq-sender-2"))
+        .thenReturn(Set.of("connectionSourceType", "exchange", "addresses"));
+    when(schemaService.validateElementPatch(eq("rabbitmq-sender-2"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(schemaService.missingBranchKeysMessage(eq("rabbitmq-sender-2"), anyMap()))
+        .thenReturn("missing addresses (connectionSourceType=manual)");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    doThrow(catalog400("{\"errorMessage\":\"catalog rejected patch\"}"))
+        .when(catalogRestClient)
+        .updateElement(anyString(), anyString(), anyMap());
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "rabbit-send",
+                    "rabbitmq-sender-2",
+                    "Send",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "manual"),
+                        new PlanProperty("exchange", "ex")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("rabbit-send", "el-rabbit"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(List.of("rabbit-send"), result.failedNodeIds());
+    assertTrue(result.firstValidationError().contains("missing addresses"));
+    assertTrue(result.firstValidationError().contains("[catalog: catalog rejected patch]"));
+  }
+
+  @Test
+  void timeoutAfterWriteFailsSafelyWhenReadBackDoesNotMatch() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    CatalogElementResponseDto unchanged = element("Old", Map.of("script", "old"));
+    when(catalogRestClient.getElement("chain-1", "el-1"))
+        .thenReturn(unchanged, unchanged);
+    var timeout = new TimeoutException("PATCH timed out with internal host details");
+    doThrow(timeout)
+        .when(catalogRestClient)
+        .updateElement(eq("chain-1"), eq("el-1"), anyMap());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        materializer.apply(scriptGraph("new"), materializationMap());
+
+    assertEquals(List.of("n1"), result.failedNodeIds());
+    assertTrue(result.firstValidationError().contains("read-back did not confirm"));
+    assertTrue(!result.firstValidationError().contains("internal host details"));
+    assertEquals(timeout, result.failureCause());
+    assertFalse(objectMapper.valueToTree(result).has("failureCause"));
+    assertTrue(org.qubership.integration.platform.ai.compiler.capture.TransientFailures.isTransient(
+        new IllegalStateException(result.firstValidationError(), result.failureCause())));
+  }
+
+  @Test
+  void remapsReuseElementIdFromPlanNodeIdToCatalogElementId() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("reuse-reference"))
+        .thenReturn(Set.of("reuseElementId"));
+    when(schemaService.validateElementPatch(eq("reuse-reference"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "reuse-ref",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    null,
+                    List.of(new PlanProperty("reuseElementId", "reuse-container")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1",
+            Map.of("reuse-ref", "el-ref", "reuse-container", "el-reuse"),
+            Map.of(),
+            Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-ref"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> properties =
+        (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("el-reuse", properties.get("reuseElementId"));
+  }
+
+  @Test
+  void sendsMcpTriggerSchemaPropertiesAsJsonText() throws Exception {
+    DeterministicElementSchemaService realSchema =
+        DeterministicElementSchemaService.createForUnitTests(objectMapper);
+    ChainPlanPropertiesMaterializer realMaterializer =
+        new ChainPlanPropertiesMaterializer(catalogRestClient, realSchema, objectMapper);
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("mcp-abc", null),
+            List.of(
+                new ChainPlanNode(
+                    "mcp-trigger-abc",
+                    "mcp-trigger",
+                    "abc",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("mcpServiceIds", "[\"sys-1\"]"),
+                        new PlanProperty("name", "abc"),
+                        new PlanProperty("description", "test mcp"),
+                        new PlanProperty(
+                            "inputSchema",
+                            "{ \"type\": \"object\", \"additionalProperties\": false }"),
+                        new PlanProperty("outputSchema", "{\"a\":\"1\"}"),
+                        new PlanProperty("readOnly", "true")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1", Map.of("mcp-trigger-abc", "el-mcp"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        realMaterializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount(), result.firstValidationError());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-mcp"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(
+        "{ \"type\": \"object\", \"additionalProperties\": false }", props.get("inputSchema"));
+    assertEquals("{\"a\":\"1\"}", props.get("outputSchema"));
+    assertEquals(List.of("sys-1"), props.get("mcpServiceIds"));
+    assertEquals(Boolean.TRUE, props.get("readOnly"));
+  }
+
+  private static ChainPlanGraph scriptGraph(String script) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("demo-chain", null),
+        List.of(
+            new ChainPlanNode(
+                "n1",
+                "script",
+                "Script",
+                null,
+                null,
+                List.of(new PlanProperty("script", script)))),
+        List.of());
+  }
+
+  private static MaterializationMap materializationMap() {
+    return new MaterializationMap(
+        "chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+  }
+
+  private static CatalogElementResponseDto element(String name, Map<String, Object> properties) {
+    CatalogElementResponseDto element = new CatalogElementResponseDto();
+    element.name = name;
+    element.properties = properties;
+    return element;
+  }
+
+  private static CatalogNonRetryableResponseException catalog400(String body) {
+    Response response =
+        Response.status(400)
+            .type("application/json")
+            .entity(body.getBytes(StandardCharsets.UTF_8))
+            .build();
+    return new CatalogNonRetryableResponseException(response);
+  }
+}

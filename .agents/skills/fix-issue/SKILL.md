@@ -149,9 +149,8 @@ sibling service has it"), analogy ("postgres sets the same value"), and foresigh
 caller might need it") never justify a line, configuration and test helpers included.
 
 A defect pinned in the end-to-end suite is part of the fix. `grep -rn "#<N>\b" e2e/specs
-e2e/support` finds the pin: a `test.fail()` naming the issue, or an entry in
-`support/known-defect.ts` whose constant the specs pass to `test.fail()`. Remove the entry and
-every `test.fail()` that uses it; the case passing becomes your "after".
+e2e/support` finds the `test.fail()` case that pins it. Remove the annotation; the case passing
+becomes your "after".
 
 A generated file in the diff is a public contract change. `runtime-catalog/api-spec/openapi.yaml`
 is rewritten by `OpenApiSpecGeneratorTest` and checked in CI; name it first under **For the
@@ -210,7 +209,9 @@ the reporter's words, naming the screen or the endpoint. **Body** in four short 
 - **Why**: what a user sees and how they reach it, in plain words, then the before and after
   evidence.
 - **What**: a handful of one-line bullets, with the blast radius of any shared component.
-- **How to verify**: steps in the running application, then the commands.
+- **How to verify**: steps in the running application, then the commands, then the end-to-end
+  decision: the regression case, or the reason from the `e2e-decision` instruction that the fix
+  needs none.
 - **For the reviewer**: only what needs a decision. A generated file that changed, a test whose
   expectation moved, behavior reaching call sites outside the issue, the shape decision and the
   alternatives it beat.

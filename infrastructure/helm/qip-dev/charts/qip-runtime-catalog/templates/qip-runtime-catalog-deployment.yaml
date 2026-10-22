@@ -21,7 +21,7 @@ spec:
       serviceAccountName: {{ .Release.Name }}-service-account
       containers:
         - args:
-            - /opt/java/openjdk/bin/java
+            - /usr/lib/jvm/java-21-openjdk/bin/java
             - -Xmx{{ .Values.jvm.maxHeap }}
             - -XX:MetaspaceSize={{ .Values.jvm.metaspaceSize }}
             - -XX:MaxMetaspaceSize={{ .Values.jvm.maxMetaspaceSize }}
@@ -121,8 +121,6 @@ spec:
                   name: {{ .Release.Name }}-env
             - name: ENGINE_SERVICE_NAME
               value: {{ .Release.Name }}-engine
-            - name: MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY
-              value: 1048Mi
             - name: DEPLOYMENT_VERSION
               valueFrom:
                 configMapKeyRef:

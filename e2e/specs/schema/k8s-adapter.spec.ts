@@ -84,7 +84,7 @@ test("each role answers on its fixed host port, and a chain on the engine kind t
     // A micro domain has no host port; the proxy reaches its Service by the name the catalog gives it.
     const micro = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro" });
     expect(micro.chainUrl("micro/e2e/echo")).toBe(
-      "http://localhost:30080/e2e/svc/qip-engine-e2e-run1-micro-v1/routes/micro/e2e/echo",
+      "http://localhost:30080/e2e/svc/cip-engine-e2e-run1-micro-v1/routes/micro/e2e/echo",
     );
     expect(micro.url("engine")).toBe("http://localhost:30092");
     const unseeded = new K8sEnv({

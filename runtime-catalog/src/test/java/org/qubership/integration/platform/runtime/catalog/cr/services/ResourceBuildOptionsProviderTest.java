@@ -17,12 +17,16 @@
 package org.qubership.integration.platform.runtime.catalog.cr.services;
 
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.camelk.model.options.HealthOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildOptionsCustomizer;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -34,8 +38,9 @@ import static org.mockito.Mockito.verify;
 
 /**
  * Covers {@link ResourceBuildOptionsProvider#getOptions}: the configured scalar values reach the
- * built options, the environment map is merged with the monitoring and default-secret flags, and
- * every registered customizer runs against the request and the built options.
+ * built options, the environment map is merged with the monitoring and default-secret flags,
+ * every registered customizer runs against the request and the built options, and the probes in
+ * {@code application.yml} bind with only the readiness probe enabled.
  */
 class ResourceBuildOptionsProviderTest {
 
@@ -48,6 +53,14 @@ class ResourceBuildOptionsProviderTest {
         ReflectionTestUtils.setField(provider, "defaultSecretEnabled", true);
         ReflectionTestUtils.setField(provider, "environment", Map.of("LOG_LEVEL", "DEBUG"));
         return provider;
+    }
+
+    private HealthOptions healthFromApplicationYml(MockEnvironment environment) throws IOException {
+        new YamlPropertySourceLoader().load("application", new ClassPathResource("application.yml"))
+                .forEach(source -> environment.getPropertySources().addLast(source));
+        ResourceBuildOptionsProvider provider = new ResourceBuildOptionsProvider(environment, List.of());
+        ReflectionTestUtils.setField(provider, "environment", Map.of());
+        return provider.getOptions(ResourceDeployRequest.builder().name("orders-service").build()).getHealth();
     }
 
     @Test
@@ -79,5 +92,24 @@ class ResourceBuildOptionsProviderTest {
 
         verify(customizer).customize(eq(request), any(ResourceBuildOptions.class));
         assertThat(options).isNotNull();
+    }
+
+    @Test
+    void applicationYmlEnablesOnlyTheReadinessProbeByDefault() throws IOException {
+        HealthOptions health = healthFromApplicationYml(new MockEnvironment());
+
+        assertThat(health.getReadiness().isEnabled()).isTrue();
+        assertThat(health.getReadiness().getProbe()).isEqualTo("/q/health/ready");
+        assertThat(health.getReadiness().getPort()).isEqualTo(8080);
+        assertThat(health.getLiveness().isEnabled()).isFalse();
+        assertThat(health.getStartup().isEnabled()).isFalse();
+    }
+
+    @Test
+    void readinessProbeTurnsOffThroughItsVariable() throws IOException {
+        HealthOptions health = healthFromApplicationYml(
+                new MockEnvironment().withProperty("MICRO_DOMAIN_HEALTH_READINESS_ENABLED", "false"));
+
+        assertThat(health.getReadiness().isEnabled()).isFalse();
     }
 }

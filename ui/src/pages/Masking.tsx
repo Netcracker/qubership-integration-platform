@@ -27,7 +27,7 @@ import { useTableConfiguration } from "../components/table/useTableConfiguration
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 
 const MASKING_SELECTION_COLUMN_WIDTH = 48;
@@ -265,7 +265,6 @@ export const Masking: React.FC = () => {
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: "Search masked fields...",
-          allowClear: true,
           style: { minWidth: 160, maxWidth: 360, flex: "0 1 auto" },
         }}
         columnSettingsButton={columnSettingsButton}
@@ -296,14 +295,9 @@ export const Masking: React.FC = () => {
     [searchTerm, columnSettingsButton, selectedRowKeys],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    searchTerm,
-    selectedRowKeys,
-    // columnSettingsButton is new JSX every render — omit (see Deployments).
-  ]);
-
   return (
     <TablePageLayout>
+      <ChainHeaderActions>{chainTabToolbar}</ChainHeaderActions>
       <Table
         size="small"
         columns={columnsWithResize}
