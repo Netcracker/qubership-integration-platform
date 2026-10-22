@@ -198,8 +198,11 @@ public final class RecoveryDecisionValidator {
         + " and history references are diagnostic evidence, not fault targets unless also listed here.";
   }
 
-  private static Set<Reference> knownArtifactRefs(RecoveryContext context) {
+  static Set<Reference> knownArtifactRefs(RecoveryContext context) {
     RecoveryEvidence evidence = context.evidence();
+    if (evidence == null) {
+      return Set.of();
+    }
     Set<Reference> refs = new HashSet<>();
     if (evidence.approvedBriefRef() != null) {
       refs.add(evidence.approvedBriefRef());

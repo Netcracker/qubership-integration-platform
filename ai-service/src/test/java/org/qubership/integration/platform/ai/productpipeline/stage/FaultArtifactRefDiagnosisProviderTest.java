@@ -10,8 +10,11 @@ import static org.mockito.Mockito.doAnswer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.internal.JsonSchemaElementUtils;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.quarkus.test.InjectMock;
@@ -87,6 +90,12 @@ class FaultArtifactRefDiagnosisProviderTest {
     var requests = new ArrayList<JsonNode>();
     doAnswer(call -> {
       ChatRequest request = call.getArgument(0);
+      JsonNode schema = json.valueToTree(JsonSchemaElementUtils.toMap(
+          request.parameters().responseFormat().jsonSchema().rootElement()));
+      var fault = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7)
+          .getSchema(schema.path("properties").path("faultArtifactRef"));
+      assertTrue(fault.validate(json.valueToTree(producer)).isEmpty());
+      assertFalse(fault.validate(json.valueToTree(rejected)).isEmpty());
       String prompt = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
           .map(UserMessage::singleText).filter(text -> text.startsWith("You diagnose create-chain recovery")).findFirst().orElseThrow();
       int start = prompt.indexOf("\n\nContext: ") + "\n\nContext: ".length();

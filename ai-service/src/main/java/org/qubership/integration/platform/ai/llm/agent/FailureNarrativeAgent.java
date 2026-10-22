@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.llm.agent;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -250,5 +251,6 @@ evidence, return UNCLASSIFIED and PARK. A design-planning CONTRACT_FAILURE such 
 mappingIntentId token or missing trigger step is a DERIVATION_DEFECT of DESIGN_PLAN_REPORT: \
 REGENERATE_ARTIFACT. Do not REVISE_BRIEF for a planner report format or coverage error.
 """)
-  RecoveryDecision recover(String responseLocale, String recoveryContextJson);
+  RecoveryDecision recover(
+      String responseLocale, String recoveryContextJson, ChatRequestParameters requestParameters);
 }

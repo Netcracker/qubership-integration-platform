@@ -13,8 +13,11 @@ import static org.qubership.integration.platform.ai.productpipeline.create.Requi
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.internal.JsonSchemaElementUtils;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.DefaultChatRequestParameters;
@@ -23,7 +26,9 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,6 +48,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureTools;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAction;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
@@ -108,7 +114,8 @@ class RequirementNoProgressDiagnosisProviderTest {
     var evidence = new RecoveryEvidence(1, "native-refusal", cause.causeCode().name(), "requirement-discovery",
         "requirement-discovery", null, null, List.of(accepted.reference()), List.of(), null,
         List.of(), List.of(), List.of(), List.of(source.turnId()), false, cause.captureFailure());
-    var context = new RecoveryContext(evidence, null, attempt.arguments(), "en");
+    var context = new RecoveryContext(evidence, null, attempt.arguments(), "en",
+        List.of(new UserInput(source.turnId(), "requirement-discovery", sourceText, Instant.EPOCH)));
     var requestCount = new AtomicInteger();
     var firstContext = new AtomicReference<JsonNode>();
     var upstream = mock(ChatModel.class);
@@ -116,6 +123,14 @@ class RequirementNoProgressDiagnosisProviderTest {
     when(upstream.chat(any(ChatRequest.class))).thenAnswer(call -> {
       requestCount.incrementAndGet();
       ChatRequest request = call.getArgument(0);
+      JsonNode schema = json.valueToTree(JsonSchemaElementUtils.toMap(
+          request.parameters().responseFormat().jsonSchema().rootElement()));
+      var fault = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7)
+          .getSchema(schema.path("properties").path("faultArtifactRef"));
+      assertTrue(fault.validate(json.valueToTree(accepted.reference())).isEmpty());
+      assertFalse(fault.validate(json.valueToTree(rejected.reference())).isEmpty(),
+          "The nested native attempt is evidence, not the current pipeline fault target.");
+      assertFalse(fault.validate(json.valueToTree(stopped.evidence().feedback().evidenceReference())).isEmpty());
       String prompt = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
           .map(UserMessage::singleText).filter(text -> text.startsWith("You diagnose create-chain recovery"))
           .findFirst().orElseThrow();
@@ -148,6 +163,11 @@ class RequirementNoProgressDiagnosisProviderTest {
     assertEquals(json.valueToTree(accepted.reference()), delivered.path("acceptedBase"));
     assertEquals(json.valueToTree(stopped.evidence().feedback().evidenceReference()),
         delivered.path("feedback").path("evidenceReference"));
+    assertEquals(json.valueToTree(attempt.arguments()), firstContext.get().path("rejectedArtifact"));
+    assertEquals(json.valueToTree(evidence.rejectedArtifactRefs()),
+        firstContext.get().path("evidence").path("rejectedArtifactRefs"));
+    assertEquals(json.valueToTree(List.of(Map.of("inputId", source.turnId(), "text", sourceText))),
+        firstContext.get().path("authorInputs"));
     assertEquals(CaptureFailureClass.IDENTICAL_SPAM.name(), delivered.path("feedback").path("failureClass").asText());
     assertTrue(delivered.path("feedback").path("noProgress").asBoolean());
     assertFalse(delivered.path("feedback").path("outerAllowed").asBoolean());

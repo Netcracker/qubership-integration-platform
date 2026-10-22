@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -330,7 +331,8 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
   }
 
   @Override
-  public RecoveryDecision recover(String responseLocale, String recoveryContextJson) {
+  public RecoveryDecision recover(String responseLocale, String recoveryContextJson,
+      ChatRequestParameters requestParameters) {
     calls.incrementAndGet();
     if (boom != null) {
       throw boom;

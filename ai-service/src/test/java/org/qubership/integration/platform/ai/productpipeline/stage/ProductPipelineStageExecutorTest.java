@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.langchain4j.exception.ToolArgumentsException;
@@ -1608,7 +1609,8 @@ class ProductPipelineStageExecutorTest {
     var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
           budget.reserve(RUN_ID, 1, 1);
           budget.reserve(RUN_ID, 1, 1);
           return null;
@@ -1627,7 +1629,8 @@ class ProductPipelineStageExecutorTest {
     assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(wait.prompt().contains("additional model allowance"));
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.atLeastOnce()).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(1, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
     var halt = ProductPipelineRunSupport.readHaltEvidence(requireRun().attempts().getLast().failureEvidence());
     String currentReason = PipelineGates.recoveryTechnicalDetailsOf(wait.prompt()).orElseThrow();
@@ -2700,7 +2703,8 @@ class ProductPipelineStageExecutorTest {
     var repair = execute(runtime, "design-planning");
     assertInstanceOf(StageDecision.Retry.class, repair.decision());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.never()).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     applyLifecycle(runtime, repair);
     assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "design-planning").decision());
     assertEquals(approved, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
@@ -5117,7 +5121,8 @@ class ProductPipelineStageExecutorTest {
     var projected = new AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       var json = mapper.readTree((String) call.getArgument(1));
       projected.set(json);
       return new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
@@ -5159,7 +5164,8 @@ class ProductPipelineStageExecutorTest {
       default -> new IllegalStateException(new javax.net.ssl.SSLHandshakeException("Trust validation failed"));
     };
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(failure);
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(failure);
     var calls = new AtomicInteger();
     var runtime = executionRecoveryRuntime(new FailureNarrative(agent), calls,
         RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY));
@@ -5168,7 +5174,8 @@ class ProductPipelineStageExecutorTest {
     var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
     assertEquals(PipelineGates.RECOVERY_ENVIRONMENT, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     execute(runtime, "design-execution");
     assertEquals(1, calls.get());
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
@@ -5184,7 +5191,8 @@ class ProductPipelineStageExecutorTest {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     var diagnoses = new AtomicInteger();
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       if (diagnoses.incrementAndGet() == 1 || !recover) {
         throw new dev.langchain4j.exception.HttpException(503, "Provider unavailable");
       }
@@ -5214,7 +5222,8 @@ class ProductPipelineStageExecutorTest {
   void diagnosticParsingFailureGetsOneCorrectionThenSafeProducerFallback() {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(
             new dev.langchain4j.service.output.OutputParsingException("Invalid diagnostic JSON", null));
     var calls = new AtomicInteger();
     var runtime = executionRecoveryRuntime(new FailureNarrative(agent), calls,
@@ -5222,7 +5231,8 @@ class ProductPipelineStageExecutorTest {
     var priorPlan = snapshot(requireRun(), "design-planning");
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(2)).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(1, calls.get());
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
   }
@@ -5231,7 +5241,8 @@ class ProductPipelineStageExecutorTest {
   void localDiagnosisFailureKeepsTheCauseAndAllowsGuardedProducerRepair() {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(
             new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(
                 "Tool call belongs to an obsolete reset generation."));
     var calls = new AtomicInteger();
@@ -5251,7 +5262,8 @@ class ProductPipelineStageExecutorTest {
     var repair = execute(runtime, "design-execution");
     assertInstanceOf(StageDecision.Retry.class, repair.decision());
     org.mockito.Mockito.verify(agent).recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(1, calls.get());
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
     applyLifecycle(runtime, repair);
@@ -5265,7 +5277,8 @@ class ProductPipelineStageExecutorTest {
     var finished = new java.util.concurrent.CountDownLatch(1);
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       try {
         while (release.getCount() > 0) {
           try { release.await(); }
@@ -5294,7 +5307,8 @@ class ProductPipelineStageExecutorTest {
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
     assertEquals(1, calls.get());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
   }
 
   @ParameterizedTest
@@ -5302,7 +5316,8 @@ class ProductPipelineStageExecutorTest {
   void syntheticOutputMarkerCannotAuthorizeRepairOfAKnownNonOutputFailure(String causeName) {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       var json = mapper.readTree((String) call.getArgument(1));
       return new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
           List.of(json.path("evidence").path("failureId").asText()), RecoveryAction.PARK, List.of(), "", "No output defect is established.");
@@ -5323,7 +5338,8 @@ class ProductPipelineStageExecutorTest {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     var diagnoses = new AtomicInteger();
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       diagnoses.incrementAndGet();
       var json = mapper.readTree((String) call.getArgument(1));
       return new RecoveryDecision("PARK".equals(mode) ? RecoveryCauseClass.UNCLASSIFIED : RecoveryCauseClass.DERIVATION_DEFECT,
@@ -5365,7 +5381,8 @@ class ProductPipelineStageExecutorTest {
     var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       budget.reserve(RUN_ID, 1, 1);
       assertNull(budget.state(RUN_ID).refusal());
       if (transientFailure) { throw new dev.langchain4j.exception.HttpException(503, "Provider unavailable"); }
@@ -5379,7 +5396,8 @@ class ProductPipelineStageExecutorTest {
     var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
     assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(1, calls.get());
     assertEquals(1, budget.state(RUN_ID).requests());
     assertTrue(requireRun().transitions().stream().noneMatch(transition ->
@@ -5395,7 +5413,8 @@ class ProductPipelineStageExecutorTest {
         RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY));
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.never()).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
   }
 
   @ParameterizedTest

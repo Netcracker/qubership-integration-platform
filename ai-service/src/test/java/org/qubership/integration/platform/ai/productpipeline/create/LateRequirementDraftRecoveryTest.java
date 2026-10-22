@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -226,7 +227,8 @@ class LateRequirementDraftRecoveryTest {
           invalid((RequirementBrief) context.attributes().get("requirementBrief"))
               ? rejected(List.of()) : outcome(StageOutcomeClass.SUCCEEDED, List.of(), null));
       var agent = mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
-      when(agent.recover(anyString(), anyString())).thenAnswer(invocation -> {
+      when(agent.recover(anyString(), anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(invocation -> {
         diagnoses.incrementAndGet();
         var context = JSON.readTree((String) invocation.getArgument(1));
         rejectedSemanticRead = context.path("rejectedArtifact").has("nodes");

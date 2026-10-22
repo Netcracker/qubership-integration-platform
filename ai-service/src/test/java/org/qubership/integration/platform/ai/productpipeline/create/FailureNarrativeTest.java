@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -932,11 +933,13 @@ class FailureNarrativeTest {
     assertEquals(FailureNarrative.RecoveryStatus.INVALID_REPLY,
         narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(new dev.langchain4j.exception.AuthenticationException("Invalid credential"));
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(new dev.langchain4j.exception.AuthenticationException("Invalid credential"));
     assertEquals(FailureNarrative.RecoveryStatus.PERMANENT_PROVIDER_FAILURE,
         narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
     org.mockito.Mockito.doThrow(new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted("No request credit"))
-        .when(agent).recover(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        .when(agent).recover(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(FailureNarrative.RecoveryStatus.RESOURCE_REFUSAL,
         narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
   }
@@ -947,7 +950,8 @@ class FailureNarrativeTest {
     var handshake = new javax.net.ssl.SSLHandshakeException("Handshake interrupted");
     handshake.initCause(new java.net.SocketTimeoutException("Connection timed out"));
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(new IllegalStateException(handshake));
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(new IllegalStateException(handshake));
     assertEquals(FailureNarrative.RecoveryStatus.TRANSIENT_PROVIDER_FAILURE,
         new FailureNarrative(agent).diagnoseRecovery("run", sampleRecoveryContext()).status());
   }
@@ -957,7 +961,8 @@ class FailureNarrativeTest {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     String reason = "Tool call belongs to an obsolete reset generation.";
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(new IllegalStateException(
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(new IllegalStateException(
             new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(reason)));
     var result = new FailureNarrative(agent).diagnoseRecovery("run", sampleRecoveryContext());
     assertEquals("INTERNAL_FAILURE", result.status().name());
