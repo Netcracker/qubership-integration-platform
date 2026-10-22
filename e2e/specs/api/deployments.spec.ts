@@ -177,35 +177,44 @@ test.describe("deployments", { tag: ["@catalog"] }, () => {
       parentId: folder.id,
     });
 
-    const { snapshot, deployment } = await deployChain(catalog, chain);
-    expect(deployment.domain, "the deployment records the domain it was sent to").toBe(DEFAULT_DOMAIN);
-
-    const reported = await deploymentRowOf(catalog, chain);
-    expect(reported.deploymentInfo).toMatchObject({
-      deploymentId: deployment.id,
-      chainId: chain.id,
-      chainName: chain.name,
-      snapshotId: snapshot.id,
-      snapshotName: "V1",
+    const { snapshot, deployment } = await test.step("snapshot and deploy the chain", async () => {
+      const deployed = await deployChain(catalog, chain);
+      expect(deployed.deployment.domain, "the deployment records the domain it was sent to").toBe(DEFAULT_DOMAIN);
+      return deployed;
     });
-    expect(reported.host, "the engine reports which host serves the chain").toBeTruthy();
+
+    await test.step("the engine reports the deployment", async () => {
+      const reported = await deploymentRowOf(catalog, chain);
+      expect(reported.deploymentInfo).toMatchObject({
+        deploymentId: deployment.id,
+        chainId: chain.id,
+        chainName: chain.name,
+        snapshotId: snapshot.id,
+        snapshotName: "V1",
+      });
+      expect(reported.host, "the engine reports which host serves the chain").toBeTruthy();
+    });
 
     // The catalog's own row carries the same status, keyed by engine host rather than flat. The row
     // is named before it is indexed, so a chain the catalog no longer lists fails as a missing id.
-    const rows = await catalog.listDeployments(chain.id);
-    expect(rows.map((each) => each.id)).toEqual([deployment.id]);
-    expect(Object.values(rows[0].runtime?.states ?? {}).map((state) => state.status)).toEqual([
-      "DEPLOYED",
-    ]);
-    expect((await catalog.getDeployment(chain.id, deployment.id)).snapshotId).toBe(snapshot.id);
+    await test.step("the catalog row carries the same status", async () => {
+      const rows = await catalog.listDeployments(chain.id);
+      expect(rows.map((each) => each.id)).toEqual([deployment.id]);
+      expect(Object.values(rows[0].runtime?.states ?? {}).map((state) => state.status)).toEqual([
+        "DEPLOYED",
+      ]);
+      expect((await catalog.getDeployment(chain.id, deployment.id)).snapshotId).toBe(snapshot.id);
+    });
 
     // And the route itself, which is the only assertion here the catalog cannot fake. An HTTP
     // trigger with nothing behind it echoes the request, and the header modification is what marks
     // which version of the chain answered.
-    const answer = await callDeployedChain(request, env, chain, { ping: "live" });
-    expect(answer.status).toBe(200);
-    expect(answer.marker).toBe("live");
-    expect(JSON.parse(answer.body)).toEqual({ ping: "live" });
+    await test.step("the route answers with the live marker", async () => {
+      const answer = await callDeployedChain(request, env, chain, { ping: "live" });
+      expect(answer.status).toBe(200);
+      expect(answer.marker).toBe("live");
+      expect(JSON.parse(answer.body)).toEqual({ ping: "live" });
+    });
 
     await test.step("deployAll deploys the chain to a list of domains and tells the engine", async () => {
       await catalog.undeployAll(chain.id);

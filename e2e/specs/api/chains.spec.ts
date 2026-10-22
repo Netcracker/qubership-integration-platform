@@ -43,12 +43,14 @@ async function caseFolder(
 test.describe("chain lifecycle", { tag: ["@catalog"] }, () => {
   test("create, read, update, and delete round-trip a chain", async ({ catalog, folder, run }) => {
     const parent = await caseFolder(catalog, run, folder.id, "crud");
-    const created = await catalog.createChain(tokenized(run, "crud"), parent, "the original");
-
-    const read = await catalog.getChain(created.id);
-    expect(read.id).toBe(created.id);
-    expect(read.name).toBe(tokenized(run, "crud"));
-    expect(read).toMatchObject({ description: "the original", parentId: parent });
+    const created = await test.step("create and read the chain", async () => {
+      const created = await catalog.createChain(tokenized(run, "crud"), parent, "the original");
+      const read = await catalog.getChain(created.id);
+      expect(read.id).toBe(created.id);
+      expect(read.name).toBe(tokenized(run, "crud"));
+      expect(read).toMatchObject({ description: "the original", parentId: parent });
+      return created;
+    });
 
     // Only this case's own row is asserted: the global list belongs to the whole stack.
     await test.step("the global chain listing carries the chain", async () => {
@@ -58,25 +60,31 @@ test.describe("chain lifecycle", { tag: ["@catalog"] }, () => {
     });
 
     // HEAD is the cheap existence check the UI uses, and it answers before and after the delete.
-    expect((await catalog.raw("head", `/v1/chains/${created.id}`)).status()).toBe(200);
+    await test.step("HEAD finds the chain", async () => {
+      expect((await catalog.raw("head", `/v1/chains/${created.id}`)).status()).toBe(200);
+    });
 
     // parentId is part of the chain's own state here: omitting it on an update moves the chain to
     // the root, so a rename has to name the folder the chain is already in.
-    const updated = await catalog.updateChain(created.id, tokenized(run, "crud-renamed"), "rewritten", parent);
-    expect(updated.id).toBe(created.id);
-    const reread = await catalog.getChain(created.id);
-    expect(reread).toMatchObject({
-      name: tokenized(run, "crud-renamed"),
-      description: "rewritten",
-      parentId: parent,
+    await test.step("update renames the chain in its folder", async () => {
+      const updated = await catalog.updateChain(created.id, tokenized(run, "crud-renamed"), "rewritten", parent);
+      expect(updated.id).toBe(created.id);
+      const reread = await catalog.getChain(created.id);
+      expect(reread).toMatchObject({
+        name: tokenized(run, "crud-renamed"),
+        description: "rewritten",
+        parentId: parent,
+      });
     });
 
-    const deleted = await catalog.raw("delete", `/v1/chains/${created.id}`);
-    expect(deleted.status(), "the chain delete answers 200, not 204").toBe(200);
-    expect((await catalog.raw("get", `/v1/chains/${created.id}`)).status()).toBe(404);
-    expect((await catalog.raw("head", `/v1/chains/${created.id}`)).status()).toBe(404);
-    // Deleting a chain that is already gone is a 404 rather than an idempotent success.
-    expect((await catalog.raw("delete", `/v1/chains/${created.id}`)).status()).toBe(404);
+    await test.step("delete removes the chain, and a second delete is a 404", async () => {
+      const deleted = await catalog.raw("delete", `/v1/chains/${created.id}`);
+      expect(deleted.status(), "the chain delete answers 200, not 204").toBe(200);
+      expect((await catalog.raw("get", `/v1/chains/${created.id}`)).status()).toBe(404);
+      expect((await catalog.raw("head", `/v1/chains/${created.id}`)).status()).toBe(404);
+      // Deleting a chain that is already gone is a 404 rather than an idempotent success.
+      expect((await catalog.raw("delete", `/v1/chains/${created.id}`)).status()).toBe(404);
+    });
   });
 
   test("bulk-delete removes the named chains, skips an unknown id", async ({ catalog, folder, run }) => {

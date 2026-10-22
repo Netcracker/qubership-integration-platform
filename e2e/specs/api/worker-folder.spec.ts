@@ -30,15 +30,19 @@ test.describe("worker folder and sweep", { tag: ["@infra"] }, () => {
     // and is found by name, which is exactly what the sweep matches on.
     const service = await catalog.createSystem(tokenized(run, "swept"), "EXTERNAL");
     try {
-      expect((await catalog.listSystems()).some((each) => each.id === service.id)).toBe(true);
+      await test.step("the service is listed outside the folder", async () => {
+        expect((await catalog.listSystems()).some((each) => each.id === service.id)).toBe(true);
+      });
 
-      const residue = await findResidue(catalog, run);
-      expect(
-        residue.map((each) => `${each.kind}:${each.id}`),
-        "the sweep must see a service the folder cascade cannot reach",
-      ).toContain(`service:${service.id}`);
-      // And the per-worker folder is residue too until its own teardown removes it.
-      expect(residue.map((each) => each.id)).toContain(folder.id);
+      await test.step("the sweep finds the service and the folder", async () => {
+        const residue = await findResidue(catalog, run);
+        expect(
+          residue.map((each) => `${each.kind}:${each.id}`),
+          "the sweep must see a service the folder cascade cannot reach",
+        ).toContain(`service:${service.id}`);
+        // And the per-worker folder is residue too until its own teardown removes it.
+        expect(residue.map((each) => each.id)).toContain(folder.id);
+      });
     } finally {
       await catalog.deleteSystem(service.id).catch(() => {});
     }
