@@ -56,7 +56,7 @@ fs.writeFileSync(
   path.join(path.dirname(reportPath), COVERAGE_FILE),
   JSON.stringify({
     target,
-    elements: { covered, total: inScope, outOfScope, shared },
+    elements: { covered, inScope, outOfScope, shared },
     operations: summarizeOperations(operationRegistry.filter((entry) => runsOn(entry.target, target))),
     problems: problems.length,
   }, null, 2) + "\n",

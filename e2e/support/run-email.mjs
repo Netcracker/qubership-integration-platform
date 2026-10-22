@@ -30,6 +30,7 @@ const WORKFLOW_FILE = ".github/workflows/e2e-k8s.yaml";
 
 /**
  * @typedef {import("./run-report.mjs").Report} Report
+ * @typedef {import("./run-report.mjs").HarnessCounts} HarnessCounts
  * @typedef {import("./run-history.mjs").Outcomes} Outcomes
  * @typedef {import("./run-history.mjs").History} History
  * @typedef {{ status: string }} LastRun
@@ -43,7 +44,6 @@ const WORKFLOW_FILE = ".github/workflows/e2e-k8s.yaml";
  * @typedef {{ name: string, skipped: number }} IdleProject
  * @typedef {{ cause: string[], projects: IdleProject[] }} NotRun
  * @typedef {{ passed: number, failed: number, pins: number, skipped: number, total: number }} Counts
- * @typedef {{ passed: number, failed: number }} HarnessCounts
  * @typedef {"failed" | "warning" | "passed"} Tone
  * @typedef {{
  *   tone: Tone, title: string, verdict: string, trend?: string, repo?: string, branch?: string, commit?: Link, commitSubject?: string,

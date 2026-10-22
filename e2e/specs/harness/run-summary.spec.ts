@@ -93,7 +93,7 @@ test.describe("run summary", { tag: ["@harness"] }, () => {
     report.stats.unexpected += 1;
 
     const summary = summaryMarkdown({ report });
-    expect(summary).toContain("| 944 | 0 | 0 |\n\nHarness: 2 passed, 1 failed.");
+    expect(summary).toContain("| 944 | 0 | 0 |\n\nHarness: 2 passed, 1 failed");
     expect(failedTests(report).map((each) => `${each.project} ${each.title}`)).toEqual(["harness h3"]);
   });
 
@@ -216,7 +216,7 @@ test.describe("run summary", { tag: ["@harness"] }, () => {
   });
 
   test("shows the coverage reconcile wrote and its verdict", () => {
-    const coverage = { target: "k8s", elements: { covered: 204, total: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 0 };
+    const coverage = { target: "k8s", elements: { covered: 204, inScope: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 0 };
     expect(summaryMarkdown({ coverage })).toContain(
       "### Coverage\n\nElements: 204 of 300 registry rows in scope covered on k8s (136 out of scope, 3 shared). " +
         "API operations: 301 of 303 covered, 301 reached. Reconciliation passed.",

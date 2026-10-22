@@ -225,7 +225,7 @@ the run uses the nightly value. The dispatch input `email` makes a failed manual
 failure email as well. Start with the job's step summary, which `support/run-summary.mjs` writes. It
 shows the run status, how long the run and its provisioning took, and the test counts. The counts
 leave out the `harness` project, which gets a line of its own, such as
-`Harness: 472 passed, 0 failed.`; a failed `harness` case still fails the run and is listed with the
+`Harness: <n> passed, 0 failed`; a failed `harness` case still fails the run and is listed with the
 others. Then come up to 50 failed tests with their project, `file:line`, full name, how long each
 has been failing, and first error line, the pins to remove, the errors raised outside any test, and
 the coverage `npm run reconcile` recorded. A full name is the describe path and the case title
