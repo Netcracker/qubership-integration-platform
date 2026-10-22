@@ -14,7 +14,7 @@
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain, elementNames, failedElements } from "../../support/sessions.js";
-import { covers } from "../../registry/covers.js";
+import { covers, coversBehaviour } from "../../registry/covers.js";
 
 /** The header the branching fixtures read. `${header[e2e-branch]}` in the fixtures' predicates. */
 const BRANCH_HEADER = "e2e-branch";
@@ -62,6 +62,7 @@ test.describe("routing", { tag: ["@engine", "@sessions"] }, () => {
     covers("split-2");
     covers("main-split-element-2");
     covers("split-element-2");
+    coversBehaviour("split-2", "chains-aggregation-strategy");
 
     const chain = seedChain(readCorpusState(), "split");
 
@@ -93,6 +94,7 @@ test.describe("routing", { tag: ["@engine", "@sessions"] }, () => {
 
   test("loop runs its body as many times as its expression yields", async ({ request, env, sessions }) => {
     covers("loop-2");
+    coversBehaviour("loop-2", "count-expression");
 
     const chain = seedChain(readCorpusState(), "loop");
 

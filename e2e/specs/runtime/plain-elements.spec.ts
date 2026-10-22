@@ -15,7 +15,7 @@ import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
 import { readUntil } from "../../support/poll.js";
 import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, SESSION_TIMEOUT, trace, type RecordedSession, type Sessions, type TracedElement } from "../../support/sessions.js";
-import { covers } from "../../registry/covers.js";
+import { covers, coversBehaviour } from "../../registry/covers.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
 
@@ -69,6 +69,7 @@ test.describe("plain elements", { tag: ["@engine", "@sessions"] }, () => {
 
   test("xslt transforms the body with a stylesheet off the disk", async ({ request, env, sessions }) => {
     covers("xslt");
+    coversBehaviour("xslt", "transform");
 
     const session = await transform(request, env, sessions);
     // Read until the step arrives, so a step indexed after the others is not taken for a missing one.

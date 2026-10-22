@@ -14,6 +14,7 @@ import { createStepsChain } from "../../support/deployable.js";
 import { deployAndRecord, withBuilt } from "../../support/cleanup.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS } from "../../support/sessions.js";
 import { callToken } from "../../support/run.js";
+import { coversBehaviour } from "../../registry/covers.js";
 
 const SOURCE_HEADER = "e2e-ui-in";
 const TARGET_HEADER = "e2e-ui-out";
@@ -31,6 +32,7 @@ interface SavedMapping {
 
 test.describe("mapper form", { tag: ["@ui"] }, () => {
   test("a text-view header mapping is copied by the deployed chain", async ({ page, request, catalog, env, sessions, folder, run }) => {
+    coversBehaviour("mapper-2", "header-mapping");
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     await withBuilt(catalog, async (built) => {
       const chain = await createStepsChain(

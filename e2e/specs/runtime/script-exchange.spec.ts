@@ -16,7 +16,7 @@ import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
 import { callChain, element, elementNames, HTTP_TRIGGER_STEPS } from "../../support/sessions.js";
-import { covers } from "../../registry/covers.js";
+import { covers, coversBehaviour } from "../../registry/covers.js";
 
 /** The body chain's steps, in order, after the two the trigger records. */
 const LADDER = ["Return Only", "Read Inbound", "As Bytes", "As Stream", "As Map", "As List", "Report"];
@@ -24,6 +24,7 @@ const LADDER = ["Return Only", "Read Inbound", "As Bytes", "As Stream", "As Map"
 test.describe("script exchange access", { tag: ["@engine", "@sessions"] }, () => {
   test("a script reads and writes the body in five types", async ({ request, env, sessions }) => {
     covers("script");
+    coversBehaviour("script", "body");
 
     const chain = seedChain(readCorpusState(), "script-exchange-body.yaml");
     const text = callToken("payload");
@@ -91,6 +92,8 @@ test.describe("script exchange access", { tag: ["@engine", "@sessions"] }, () =>
   });
 
   test("a script's header changes reach the next step", async ({ request, env, sessions }) => {
+    coversBehaviour("script", "headers");
+
     const chain = seedChain(readCorpusState(), "script-exchange-headers.yaml");
     const sent = callToken("header");
 
@@ -126,6 +129,8 @@ test.describe("script exchange access", { tag: ["@engine", "@sessions"] }, () =>
   });
 
   test("a script's exchange property reaches a later element", async ({ request, env, sessions }) => {
+    coversBehaviour("script", "properties");
+
     const chain = seedChain(readCorpusState(), "script-exchange-properties.yaml");
     const sent = callToken("property");
 
