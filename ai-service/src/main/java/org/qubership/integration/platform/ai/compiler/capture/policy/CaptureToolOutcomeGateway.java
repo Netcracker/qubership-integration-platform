@@ -235,6 +235,12 @@ public class CaptureToolOutcomeGateway {
     if (decision.throwCve()) { throw new CaptureValidationException(cveMessage(decision)); }
   }
 
+  /** Retains the original rejected call in the same immutable native feedback journal. */
+  public void beginRejectedProposal(String conversationId, String capabilityId, String toolName,
+      String rawArguments, String toolCallId) {
+    feedbackStore.beginRejectedProposal(conversationId, capabilityId, toolName, rawArguments, toolCallId);
+  }
+
   public void beginProposal(String conversationId, String capabilityId, String toolName, Object arguments) {
     feedbackStore.beginProposal(conversationId, capabilityId, toolName, arguments);
   }

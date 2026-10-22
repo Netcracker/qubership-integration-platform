@@ -148,13 +148,26 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
         "repairScriptBodies")
         .contains(method.methodName())) {
       var inspected = StructuredCaptureArguments.inspect(request, method, objectMapper);
+      Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+      String conversationId = memoryId == null ? ToolSession.resolveConversationId()
+          : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
+      String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
+      if (inspected.issue() == null && recoveryControl != null && "captureGraphPatch".equals(method.methodName())) {
+        var controlled = recoveryControl.graphArguments(conversationId, capabilityId, request);
+        if (controlled != request) {
+          request = controlled;
+          inspected = StructuredCaptureArguments.inspect(controlled, method, objectMapper);
+        }
+      }
       if (inspected.issue() != null) {
-        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
-        String conversationId = memoryId == null ? ToolSession.resolveConversationId()
-            : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
-        String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
         var issue = inspected.issue();
-        String result = outcomeGateway.onFailure(
+        if (List.of("captureGraphPatch", "repairScriptBodies").contains(method.methodName())) {
+          outcomeGateway.beginRejectedProposal(conversationId, capabilityId, method.methodName(),
+              request.arguments(), request.id());
+        }
+        String result = null;
+        try {
+          result = outcomeGateway.onFailure(
             List.of("captureGraphPatch", "repairScriptBodies").contains(method.methodName())
                 ? CaptureFeedbackChannel.PATCH
                 : CaptureFeedbackChannel.PLAN,
@@ -164,7 +177,12 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
             method.methodName(), request.arguments(),
             issue.code() + " " + issue.path() + ": " + issue.message()
                 + " Resubmit the complete " + method.methodName() + " argument object.");
-        return ToolExecutionResult.builder().result(result).resultText(result).build();
+          return ToolExecutionResult.builder().result(result).resultText(result).build();
+        } finally {
+          if (recoveryControl != null && "captureGraphPatch".equals(method.methodName())) {
+            recoveryControl.rejectedGraphArguments(conversationId, capabilityId, request, result);
+          }
+        }
       }
       return next.apply(inspected.request(), invocationContext);
     }
