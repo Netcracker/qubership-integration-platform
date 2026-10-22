@@ -711,8 +711,7 @@ export const ImportInstructions: React.FC = () => {
       search={{
         value: searchTerm,
         onChange: setSearchTerm,
-        placeholder: "Search...",
-        allowClear: true,
+        placeholder: "Search import instructions...",
       }}
       filterButton={filterButton}
       columnSettingsButton={columnSettingsWithTestId(columnSettingsButton)}

@@ -1,7 +1,7 @@
 /**
  * Reads the resources the catalog and the engine write to namespace `qip-e2e`: camel-k
- * Integrations, ConfigMaps, HTTPRoutes, and Services, and builds the addresses that reach them
- * through the proxy's e2e locations.
+ * Integrations and their pods, ConfigMaps, HTTPRoutes, and Services, and builds the addresses that
+ * reach them through the proxy's e2e locations.
  *
  * Only `specs/k8s/` imports this module. A spec anywhere else runs on both targets and reaches the
  * platform through `Env`; a spec in `specs/k8s/` asserts the Kubernetes resources themselves, which
@@ -86,6 +86,11 @@ export function configMaps(selector: string): Promise<KubeObject[]> {
 export function k8sName(id: string): string {
   const kept = id.replace(/[^-a-z0-9]/g, "");
   return (/^[-0-9]/.test(kept) ? kept.slice(1) : kept).slice(0, 63);
+}
+
+/** The names of the pods that run Integration `name`, terminating ones included. */
+export async function integrationPods(name: string): Promise<string[]> {
+  return (await list<KubeObject>("pods", `camel.apache.org/integration=${name}`)).map((each) => each.metadata.name);
 }
 
 /** The names of every Service in the namespace. */

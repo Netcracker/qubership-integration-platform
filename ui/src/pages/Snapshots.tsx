@@ -420,7 +420,6 @@ export const Snapshots: React.FC = () => {
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: "Search snapshots...",
-          allowClear: true,
           style: { minWidth: 160, maxWidth: 360, flex: "0 1 auto" },
         }}
         columnSettingsButton={columnSettingsButton}

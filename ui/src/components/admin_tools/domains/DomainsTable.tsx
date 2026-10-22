@@ -200,7 +200,6 @@ const DomainsTable: React.FC<Props> = ({
               value: searchTerm,
               onChange: setSearchTerm,
               placeholder: "Search domains...",
-              allowClear: true,
             }}
             columnSettingsButton={columnSettingsButton}
           />

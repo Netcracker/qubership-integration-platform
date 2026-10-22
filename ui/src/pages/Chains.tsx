@@ -1339,8 +1339,7 @@ const Chains = () => {
               <CompactSearch
                 value={searchString}
                 onChange={setSearchString}
-                placeholder="Full text search"
-                allowClear
+                placeholder="Search chains and folders..."
                 className={commonStyles["searchField"]}
               />
             </Flex>
