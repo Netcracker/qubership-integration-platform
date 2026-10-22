@@ -1,6 +1,6 @@
 # Java unit test templates
 
-Use these files as style examples, not as copy-paste targets.
+Use these files as style examples, not as copypaste targets.
 
 ## Templates
 

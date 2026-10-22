@@ -1,14 +1,14 @@
 # Async and lifecycle testing
 
-Read this file when Java unit test work involves: 
-* asynchronous behavior 
-* background loops 
-* threads 
-* executors 
-* schedulers 
+Read this file when Java unit test work involves:
+* asynchronous behavior
+* background loops
+* threads
+* executors
+* schedulers
 * timers
-* reporters 
-* listeners 
+* reporters
+* listeners
 
 Use this reference for tests around:
 
@@ -58,7 +58,7 @@ Good test seams include:
 * callback/latch synchronization
 * package-visible test seam when appropriate
 
-For test-only tasks, do not add production seams unless the user explicitly asks for production changes. If the current design makes deterministic testing difficult, 
+For test-only tasks, do not add production seams unless the user explicitly asks for production changes. If the current design makes deterministic testing difficult,
 report the issue separately and suggest a small seam.
 
 ## Direct execution

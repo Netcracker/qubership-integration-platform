@@ -146,7 +146,7 @@ Use the actual helper class and method names from the current codebase.
 
 ## TypeConverter behavior
 
-When the production code depends on Camel `TypeConverter`, choose the simplest reliable setup. Use project helpers when available. 
+When the production code depends on Camel `TypeConverter`, choose the simplest reliable setup. Use project helpers when available.
 Use a real converter when normal conversion behavior matters.
 
 Mock `TypeConverter` when the test must force:
@@ -204,7 +204,7 @@ Prefer verifying:
 * exception handling behavior when route loading fails
 
 Avoid testing Camel internals that can change across Camel versions.
-When generated Camel classes or generated configurers are involved, avoid adding unit tests for generated code itself. 
+When generated Camel classes or generated configurers are involved, avoid adding unit tests for generated code itself.
 Test the project code that uses generated classes.
 
 ## Error handler and source loading tests

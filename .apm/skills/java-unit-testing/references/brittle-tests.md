@@ -206,7 +206,7 @@ Before adding deep mocks, check whether the test can use:
 * a public result assertion
 * a focused fake implementation
 
-Prefer one or two meaningful mocks over a full tree of mocks. If a mock graph becomes hard to understand, 
+Prefer one or two meaningful mocks over a full tree of mocks. If a mock graph becomes hard to understand,
 the test likely needs either a real object or a small production seam.
 
 ## Design seams

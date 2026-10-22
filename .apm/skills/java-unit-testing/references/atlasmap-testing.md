@@ -113,7 +113,7 @@ Field jsonField = MapperTestUtils.jsonField("/payload/name");
 Field complexField = MapperTestUtils.complexField("/customer");
 ```
 
-Use local model construction only when the test needs a very specific field shape that no shared helper supports. Keep field setup minimal. 
+Use local model construction only when the test needs a very specific field shape that no shared helper supports. Keep field setup minimal.
 Build only the fields required for the behavior under test.
 
 ## Expression-related tests
@@ -168,7 +168,7 @@ Assert the relevant field properties:
 * action list
 * null-action behavior
 
-* Use real ObjectMapper helpers for normal JSON behavior. 
+* Use real ObjectMapper helpers for normal JSON behavior.
 * Read `references/project-test-helpers.md` when ObjectMapper setup is needed.
 * Mock ObjectMapper only for targeted error or fallback branches.
 

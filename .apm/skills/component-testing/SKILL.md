@@ -46,6 +46,13 @@ multibyte coverage.
 Check decoded YAML strings as well as source text. Unicode escapes follow the
 same language rules.
 
+Keep Groovy fixture scripts within 120 characters per line; wrap long expressions.
+Use single quotes for strings without interpolation and omit semicolons at line
+ends. Use class literals such as `Boolean` and `String` without `.class`
+(`UnnecessaryDotClass`). Run `npm-groovy-lint` on changed scripts with
+`.github/linters/.groovylintrc.json` and treat warnings as failures. Fix findings
+without disabling rules or suppressing violations.
+
 ## Find an observable gap
 
 Read `micro-engine/TESTING.md` for the relevant execution and fixture behavior.

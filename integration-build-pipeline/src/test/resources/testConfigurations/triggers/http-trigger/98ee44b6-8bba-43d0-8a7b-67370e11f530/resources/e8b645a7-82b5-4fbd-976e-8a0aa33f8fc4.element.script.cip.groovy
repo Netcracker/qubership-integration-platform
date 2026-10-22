@@ -1,1 +1,1 @@
-exchange.getMessage().setBody("Http Trigger called succesfully");
+exchange.getMessage().setBody('Http Trigger called succesfully')

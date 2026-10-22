@@ -285,11 +285,11 @@ For application/engine info producers, verify:
 * cloud service name
 * namespace
 * deployment name fallback
-* host name resolution
-* fallback when host name lookup fails
+* hostname resolution
+* fallback when hostname lookup fails
 * produced engine info fields
 
-For host name failure branches, mock or wrap the hostname lookup only as narrowly as needed.
+For hostname failure branches, mock or wrap the hostname lookup only as narrowly as needed.
 
 Prefer testing the returned `EngineInfo` or configuration object instead of private fields.
 

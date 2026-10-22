@@ -1,6 +1,6 @@
 exchange.getMessage().setHeader('snapshotSubscriber', 'second')
-if (exchange.getMessage().getHeader('snapshotFailSubscriber', String.class) == 'second'
-        && exchange.getMessage().getHeader('JMSRedelivered', Boolean.class) != Boolean.TRUE) {
+if (exchange.getMessage().getHeader('snapshotFailSubscriber', String) == 'second'
+        && exchange.getMessage().getHeader('JMSRedelivered', Boolean) != Boolean.TRUE) {
     throw new IllegalStateException('JMS snapshot failure')
 }
 exchange.getMessage().setBody('Triggered')
