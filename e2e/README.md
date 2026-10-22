@@ -63,8 +63,8 @@ then test the dev server. A preview an interrupted run left on 4200 is stopped f
 fails naming its pid instead.
 
 `schema`, `harness`, `api`, `tooling`, `runtime`, `runtime-micro`, `runtime-micro-redeploy`, `k8s`,
-`brokers`, and `brokers-micro` run with no browser installed. `env`, `global`, `global-micro`, `env-micro`, and
-`brokers-restart` depend on `ui`, directly or through `global`, so `--project=env`,
+`brokers`, and `brokers-micro` run with no browser installed. `env`, `global`, `global-micro`,
+`env-micro`, and `brokers-restart` depend on `ui`, directly or through `global`, so `--project=env`,
 `--project=global`, and `--project=brokers-restart` build the bundle and launch Chromium too. Set
 `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment downloads a browser you do not want.
 
@@ -125,9 +125,9 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts` and the cases tagged `@classic-only` |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, the proxy's `/e2e/` locations, and a micro domain that a broken chain takes down |
 
-That is sixteen projects on Compose and twenty-four on Kubernetes, three fewer on Compose and five fewer on
-Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project the target
-leaves out, with the reason. It does not list the cases a micro project leaves out; see
+That is sixteen projects on Compose and twenty-four on Kubernetes, three fewer on Compose and five
+fewer on Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project
+the target leaves out, with the reason. It does not list the cases a micro project leaves out; see
 "The classic-only cases" below.
 
 **The Kubernetes target.** You install the cluster and what runs cluster-wide once, as
