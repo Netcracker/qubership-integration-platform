@@ -218,6 +218,7 @@ class RequirementAmendmentRuntimeTest {
       assertEquals(briefRef, artifacts.latest(runId, Kind.REQUIREMENT_BRIEF).orElseThrow().reference());
     }
     UserInput associated = artifacts.payload(artifacts.latest(runId, Kind.USER_INPUT).orElseThrow(), UserInput.class);
+    assertEquals(correction, associated.text());
     assertEquals("requirement-discovery", associated.targetStageId());
     assertEquals(draftRef, associated.draftReference());
     assertEquals(List.of(source.turnId()), associated.sourceTurnIds());
@@ -230,7 +231,11 @@ class RequirementAmendmentRuntimeTest {
     assertEquals(correction, resumed.get().attributeAsString("userText"));
     assertEquals(draftRef, resumed.get().attributes().get("requirementCorrectionDraftReference"));
     if (replacementReview) {
-      assertEquals(correction, producerInput.get());
+      var repair = StageRepairEvidence.from(resumed.get());
+      assertEquals("MAPPING_CONTRACT", repair.causeCode());
+      assertEquals(correction + "\n\n<current-native-repair-evidence>\n"
+          + "Current server validation for this repair turn; this is not an author message or amendment authority.\n"
+          + repair.diagnosticText() + "\n</current-native-repair-evidence>\n", producerInput.get());
     }
   }
 }
