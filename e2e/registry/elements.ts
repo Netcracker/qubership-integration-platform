@@ -436,6 +436,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "http-trigger", kind: "axis", axisPath: "systemType", value: "INTERNAL", status: NOT_COVERED, reason: R_SYSTEM_TYPE_ALIKE, tags: CATALOG },
   { family: "http-trigger", kind: "axis", axisPath: "systemType", value: "EXTERNAL", status: "covered", tags: CATALOG },
   { family: "http-trigger", kind: "axis", axisPath: "systemType", value: "IMPLEMENTED", status: NOT_COVERED, reason: R_SYSTEM_TYPE_ALIKE, tags: ENGINE },
+  { family: "http-trigger", kind: "behaviour", behaviour: "concurrent-calls", status: "covered", tags: ENGINE },
   { family: "if", kind: "element", status: "covered", tags: ENGINE },
   { family: "jms-sender", kind: "element", status: NOT_COVERED, reason: R_JMS, tags: ENGINE },
   { family: "jms-sender", kind: "axis", axisPath: "acknowledgmentMode", value: "AUTO_ACKNOWLEDGE", status: NOT_COVERED, reason: R_JMS, tags: ENGINE },
