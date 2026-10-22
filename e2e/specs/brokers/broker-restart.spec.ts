@@ -43,10 +43,8 @@ const RESTART_SESSION_TIMEOUT = 60_000;
 /** What this spec gets instead of the suite's 120 s default: the restart's own 180 s budget, plus the session wait. */
 const RESTART_CASE_TIMEOUT = 240_000;
 
-test(
-  "a kafka-trigger-2 chain keeps consuming once its broker container comes back from a restart",
-  { tag: ["@engine", "@sessions", "@infra", "@tier2"] },
-  async ({ env, sessions }) => {
+test.describe("broker restart", { tag: ["@engine", "@sessions", "@infra", "@slow"] }, () => {
+  test("kafka-trigger-2 consumes again after a broker restart", { tag: ["@kafka"] }, async ({ env, sessions }) => {
     test.setTimeout(RESTART_CASE_TIMEOUT);
 
     const corpus = readBrokersCorpusState();
@@ -61,13 +59,9 @@ test(
     const session = await sessions.byExternalId(token, { elements: 2, timeout: RESTART_SESSION_TIMEOUT });
     expect(session.chainId).toBe(chain.id);
     expect(failedElements(session)).toEqual([]);
-  },
-);
+  });
 
-test(
-  "a rabbitmq-trigger-2 chain keeps consuming once its broker container comes back from a restart",
-  { tag: ["@engine", "@sessions", "@infra", "@tier2"] },
-  async ({ env, sessions }) => {
+  test("rabbitmq-trigger-2 consumes again after a broker restart", { tag: ["@rabbitmq"] }, async ({ env, sessions }) => {
     test.setTimeout(RESTART_CASE_TIMEOUT);
 
     const corpus = readBrokersCorpusState();
@@ -83,5 +77,5 @@ test(
     const session = await sessions.byExternalId(token, { elements: 2, timeout: RESTART_SESSION_TIMEOUT });
     expect(session.chainId).toBe(chain.id);
     expect(failedElements(session)).toEqual([]);
-  },
-);
+  });
+});

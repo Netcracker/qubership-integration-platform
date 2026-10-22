@@ -42,148 +42,134 @@ import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
 
-// ---------------------------------------------------------------------------
-// rabbitmq-trigger-2
-// ---------------------------------------------------------------------------
+test.describe("rabbitmq", { tag: ["@engine", "@sessions", "@rabbitmq"] }, () => {
+  test.describe("rabbitmq-trigger-2", () => {
+    test("a message with the correlation header records a session", async ({ sessions }) => {
+      covers("rabbitmq-trigger-2");
+      covers("rabbitmq-trigger-2", "connectionSourceType", "manual");
+      covers("rabbitmq-trigger-2", "acknowledgeMode", "AUTO");
+      // No exchangeType covers() call: the brokers seed declares the exchange itself, so this case
+      // passes for any type. specs/api/rabbitmq-trigger-snapshot.spec.ts covers the axis on the compile.
 
-test(
-  "a RabbitMQ message carrying the correlation header finds the session the trigger recorded",
-  { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ sessions }) => {
-    covers("rabbitmq-trigger-2");
-    covers("rabbitmq-trigger-2", "connectionSourceType", "manual");
-    covers("rabbitmq-trigger-2", "acknowledgeMode", "AUTO");
-    // No exchangeType covers() call: the brokers seed declares the exchange itself, so this case
-    // passes for any type. specs/api/rabbitmq-trigger-snapshot.spec.ts covers the axis on the compile.
+      const corpus = readBrokersCorpusState();
+      const chain = brokerChain(corpus, "rabbitmq-trigger-basic");
+      const exchange = chain.broker.exchange as string;
+      const routingKey = chain.broker.routingKey as string;
+      const token = callToken("rabbitmq-consume");
 
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "rabbitmq-trigger-basic");
-    const exchange = chain.broker.exchange as string;
-    const routingKey = chain.broker.routingKey as string;
-    const token = callToken("rabbitmq-consume");
+      await publish(exchange, routingKey, token, { ping: "rabbitmq" });
 
-    await publish(exchange, routingKey, token, { ping: "rabbitmq" });
-
-    const session = await sessions.byExternalId(token, { elements: 2 });
-    expect(session.chainId).toBe(chain.id);
-    expect(session.externalSessionCipId).toBe(token);
-    expect(elementNames(session)).toEqual(["RabbitMQ Trigger", "Header Modification"]);
-    expect(failedElements(session)).toEqual([]);
-  },
-);
-
-const DEAD_LETTER_CASES = [
-  { mode: "AUTO", fixture: "rabbitmq-trigger-dlq-auto", deadLettered: true, tier: "@tier1" },
-  { mode: "MANUAL", fixture: "rabbitmq-trigger-dlq-manual", deadLettered: false, tier: "@tier2" },
-  { mode: "NONE", fixture: "rabbitmq-trigger-dlq-none", deadLettered: false, tier: "@tier2" },
-] as const;
-
-for (const { mode, fixture, deadLettered, tier } of DEAD_LETTER_CASES) {
-  test(
-    `a message the chain failed under acknowledgeMode ${mode} ${deadLettered ? "lands on the configured dead-letter queue" : "never reaches the dead-letter queue"}`,
-    { tag: ["@engine", "@sessions", tier] },
-    async ({ sessions }) => {
-      covers("rabbitmq-trigger-2", "acknowledgeMode", mode);
-      // No deadLetterExchangeType covers() call, for the reason the first case gives for exchangeType.
-
-      // The http-sender step fails on a host that can never resolve, in every mode.
-      const chain = brokerChain(readBrokersCorpusState(), fixture);
-      const target = {
-        exchange: chain.broker.exchange as string,
-        routingKey: chain.broker.routingKey as string,
-        queue: chain.broker.queues as string,
-        deadLetterExchange: chain.broker.deadLetterExchange as string,
-        deadLetterRoutingKey: chain.broker.deadLetterRoutingKey as string,
-      };
-      await expectAckOutcome(sessions, chain.id, target, callToken(fixture), { ping: fixture }, deadLettered);
-    },
-  );
-}
-
-// ---------------------------------------------------------------------------
-// rabbitmq-sender-2
-// ---------------------------------------------------------------------------
-
-test(
-  "an HTTP call drives rabbitmq-sender-2, and the payload lands on the exchange",
-  { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ request, env, sessions }) => {
-    covers("rabbitmq-sender-2");
-    covers("rabbitmq-sender-2", "connectionSourceType", "manual");
-
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "rabbitmq-sender-basic");
-    const exchange = chain.broker.exchange as string;
-    const routingKey = chain.broker.routingKey as string;
-    const body = { ping: "rabbitmq-send", nonce: callToken("nonce") };
-
-    // The binding has to exist before the call, the same reason a direct exchange with no bound
-    // queue reports `{"routed": false}` and discards the message: an exchange retains nothing, so
-    // a queue bound after the call would never see it.
-    const { connection, channel, queue } = await bindConsumerQueue(exchange, routingKey);
-    try {
-      const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
-      expect(response.status()).toBe(200);
-
-      const session = await sessions.byExternalId(token, { elements: 3 });
+      const session = await sessions.byExternalId(token, { elements: 2 });
       expect(session.chainId).toBe(chain.id);
-      expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "RabbitMQ Sender"]);
+      expect(session.externalSessionCipId).toBe(token);
+      expect(elementNames(session)).toEqual(["RabbitMQ Trigger", "Header Modification"]);
       expect(failedElements(session)).toEqual([]);
+    });
 
-      // Started only now, after the session lookup above already spent part of its own budget: the
-      // queue is already bound and retains what it holds, so the wait gets the full window instead
-      // of one `sessions.byExternalId` poll already ate into.
-      const message = await waitForMessage(channel, queue);
-      expect(
-        message,
-        `no message arrived on the queue bound to ${exchange}/${routingKey} within the wait`,
-      ).not.toBeNull();
-      expect(message!.body).toEqual(body);
-    } finally {
-      await channel.close();
-      await connection.close();
+    const DEAD_LETTER_CASES = [
+      { mode: "AUTO", fixture: "rabbitmq-trigger-dlq-auto", deadLettered: true },
+      { mode: "MANUAL", fixture: "rabbitmq-trigger-dlq-manual", deadLettered: false },
+      { mode: "NONE", fixture: "rabbitmq-trigger-dlq-none", deadLettered: false },
+    ] as const;
+
+    for (const { mode, fixture, deadLettered } of DEAD_LETTER_CASES) {
+      test(`acknowledgeMode ${mode} ${deadLettered ? "dead-letters" : "drops"} a failed message`, async ({ sessions }) => {
+        covers("rabbitmq-trigger-2", "acknowledgeMode", mode);
+        // No deadLetterExchangeType covers() call, for the reason the first case gives for exchangeType.
+
+        // The http-sender step fails on a host that can never resolve, in every mode.
+        const chain = brokerChain(readBrokersCorpusState(), fixture);
+        const target = {
+          exchange: chain.broker.exchange as string,
+          routingKey: chain.broker.routingKey as string,
+          queue: chain.broker.queues as string,
+          deadLetterExchange: chain.broker.deadLetterExchange as string,
+          deadLetterRoutingKey: chain.broker.deadLetterRoutingKey as string,
+        };
+        await expectAckOutcome(sessions, chain.id, target, callToken(fixture), { ping: fixture }, deadLettered);
+      });
     }
-  },
-);
+  });
 
-/** Drives the `propagateContext` chain of `value` with the caller's request id, and returns the headers of the message it sent. */
-async function sentHeaders(request: APIRequestContext, env: Env, sessions: Sessions, value: boolean): Promise<Record<string, unknown>> {
-  const chain = brokerChain(readBrokersCorpusState(), `rabbitmq-sender-propagate-context-${value}`);
-  const exchange = chain.broker.exchange as string;
-  const routingKey = chain.broker.routingKey as string;
-  const body = { ping: "rabbitmq-propagate-context", nonce: callToken("nonce") };
+  test.describe("rabbitmq-sender-2", () => {
+    test("an HTTP call puts the payload on the exchange", async ({ request, env, sessions }) => {
+      covers("rabbitmq-sender-2");
+      covers("rabbitmq-sender-2", "connectionSourceType", "manual");
 
-  const { connection, channel, queue } = await bindConsumerQueue(exchange, routingKey);
-  try {
-    const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
-    expect(response.status()).toBe(200);
-    const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
-    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, `propagateContext=${value}`]);
-    expect(failedElements(session)).toEqual([]);
+      const corpus = readBrokersCorpusState();
+      const chain = brokerChain(corpus, "rabbitmq-sender-basic");
+      const exchange = chain.broker.exchange as string;
+      const routingKey = chain.broker.routingKey as string;
+      const body = { ping: "rabbitmq-send", nonce: callToken("nonce") };
 
-    const message = await waitForMessage(channel, queue);
-    expect(message, `no message arrived on the queue bound to ${exchange}/${routingKey} within the wait`).not.toBeNull();
-    expect(message!.body).toEqual(body);
-    return message!.headers;
-  } finally {
-    await channel.close();
-    await connection.close();
-  }
-}
+      // The binding has to exist before the call, the same reason a direct exchange with no bound
+      // queue reports `{"routed": false}` and discards the message: an exchange retains nothing, so
+      // a queue bound after the call would never see it.
+      const { connection, channel, queue } = await bindConsumerQueue(exchange, routingKey);
+      try {
+        const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
+        expect(response.status()).toBe(200);
 
-test("propagateContext=true: rabbitmq-sender-2 sends the caller's request id", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-  covers("rabbitmq-sender-2", "propagateContext", true);
-  expect((await sentHeaders(request, env, sessions, true))[REQUEST_ID_HEADER]).toBe(CALLER_REQUEST_ID);
-});
+        const session = await sessions.byExternalId(token, { elements: 3 });
+        expect(session.chainId).toBe(chain.id);
+        expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "RabbitMQ Sender"]);
+        expect(failedElements(session)).toEqual([]);
 
-// `RabbitMqSenderProcessor` copies the request context into the message headers on every send, so the
-// caller's request id reaches the message with `propagateContext` false too, on both engines. No issue
-// is filed yet; the registry row stays not covered.
-test.fail("propagateContext=false: rabbitmq-sender-2 drops the caller's request id", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-  const headers = await outsideTheDefect("sending through the chain", () => sentHeaders(request, env, sessions, false));
-  const received = headers[REQUEST_ID_HEADER];
-  if (received !== undefined && received !== CALLER_REQUEST_ID) {
-    notTheKnownDefect(`the message carried ${REQUEST_ID_HEADER} ${String(received)}, which is neither the caller's id nor no id`);
-  }
-  expect(received, "the sender drops the request id: delete the test.fail() annotation and cover the row").toBeUndefined();
+        // Started only now, after the session lookup above already spent part of its own budget: the
+        // queue is already bound and retains what it holds, so the wait gets the full window instead
+        // of one `sessions.byExternalId` poll already ate into.
+        const message = await waitForMessage(channel, queue);
+        expect(
+          message,
+          `no message arrived on the queue bound to ${exchange}/${routingKey} within the wait`,
+        ).not.toBeNull();
+        expect(message!.body).toEqual(body);
+      } finally {
+        await channel.close();
+        await connection.close();
+      }
+    });
+
+    /** Drives the `propagateContext` chain of `value` with the caller's request id, and returns the headers of the message it sent. */
+    async function sentHeaders(request: APIRequestContext, env: Env, sessions: Sessions, value: boolean): Promise<Record<string, unknown>> {
+      const chain = brokerChain(readBrokersCorpusState(), `rabbitmq-sender-propagate-context-${value}`);
+      const exchange = chain.broker.exchange as string;
+      const routingKey = chain.broker.routingKey as string;
+      const body = { ping: "rabbitmq-propagate-context", nonce: callToken("nonce") };
+
+      const { connection, channel, queue } = await bindConsumerQueue(exchange, routingKey);
+      try {
+        const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
+        expect(response.status()).toBe(200);
+        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
+        expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, `propagateContext=${value}`]);
+        expect(failedElements(session)).toEqual([]);
+
+        const message = await waitForMessage(channel, queue);
+        expect(message, `no message arrived on the queue bound to ${exchange}/${routingKey} within the wait`).not.toBeNull();
+        expect(message!.body).toEqual(body);
+        return message!.headers;
+      } finally {
+        await channel.close();
+        await connection.close();
+      }
+    }
+
+    test("propagateContext=true sends the caller's request id", async ({ request, env, sessions }) => {
+      covers("rabbitmq-sender-2", "propagateContext", true);
+      expect((await sentHeaders(request, env, sessions, true))[REQUEST_ID_HEADER]).toBe(CALLER_REQUEST_ID);
+    });
+
+    // `RabbitMqSenderProcessor` copies the request context into the message headers on every send, so the
+    // caller's request id reaches the message with `propagateContext` false too, on both engines. No issue
+    // is filed yet; the registry row stays not covered.
+    test.fail("propagateContext=false drops the caller's request id", async ({ request, env, sessions }) => {
+      const headers = await outsideTheDefect("sending through the chain", () => sentHeaders(request, env, sessions, false));
+      const received = headers[REQUEST_ID_HEADER];
+      if (received !== undefined && received !== CALLER_REQUEST_ID) {
+        notTheKnownDefect(`the message carried ${REQUEST_ID_HEADER} ${String(received)}, which is neither the caller's id nor no id`);
+      }
+      expect(received, "the sender drops the request id: delete the test.fail() annotation and cover the row").toBeUndefined();
+    });
+  });
 });

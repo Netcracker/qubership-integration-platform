@@ -19,37 +19,10 @@ content:
         properties:
           ping:
             type: "string"
-  - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-idempotency-disabled"
-    name: "e2e-{{RUN}}-async-api-trigger-idempotency-disabled"
-    method: "publish"
-    path: "e2e-{{RUN}}-async-api-trigger-idempotency-disabled"
-    specification: {}
-    requestSchema: {}
-    responseSchemas:
-      payload:
-        type: "object"
-  - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-idempotency-ignore"
-    name: "e2e-{{RUN}}-async-api-trigger-idempotency-ignore"
-    method: "publish"
-    path: "e2e-{{RUN}}-async-api-trigger-idempotency-ignore"
-    specification: {}
-    requestSchema: {}
-    responseSchemas:
-      payload:
-        type: "object"
   - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-idempotency-throw-exception"
     name: "e2e-{{RUN}}-async-api-trigger-idempotency-throw-exception"
     method: "publish"
     path: "e2e-{{RUN}}-async-api-trigger-idempotency-throw-exception"
-    specification: {}
-    requestSchema: {}
-    responseSchemas:
-      payload:
-        type: "object"
-  - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-idempotency-execute-subchain"
-    name: "e2e-{{RUN}}-async-api-trigger-idempotency-execute-subchain"
-    method: "publish"
-    path: "e2e-{{RUN}}-async-api-trigger-idempotency-execute-subchain"
     specification: {}
     requestSchema: {}
     responseSchemas:

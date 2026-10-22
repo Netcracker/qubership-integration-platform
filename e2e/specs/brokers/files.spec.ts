@@ -66,119 +66,99 @@ async function readFile(remotePath: string): Promise<string> {
   });
 }
 
-// ---------------------------------------------------------------------------
-// sftp-trigger-2
-// ---------------------------------------------------------------------------
+test.describe("sftp", { tag: ["@engine", "@sessions", "@sftp"] }, () => {
+  test.describe("sftp-trigger-2", () => {
+    test("a dropped file records a session found by chain id", async ({ env, sessions }) => {
+      covers("sftp-trigger-2");
 
-test(
-  "a file dropped onto the polled directory fires sftp-trigger-2, found by chain id",
-  { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ env, sessions }) => {
-    covers("sftp-trigger-2");
+      const corpus = readBrokersCorpusState();
+      const chain = brokerChain(corpus, "sftp-trigger-basic");
+      const before = await sessions.idsOf(chain.id);
+      const since = logWindowStart();
 
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "sftp-trigger-basic");
-    const before = await sessions.idsOf(chain.id);
-    const since = logWindowStart();
+      await dropFile(`${sftpDir(chain)}/e2e-${corpus.run}-basic.txt`, "sftp trigger basic");
 
-    await dropFile(`${sftpDir(chain)}/e2e-${corpus.run}-basic.txt`, "sftp trigger basic");
+      const session = await pickedUp(env, since, chain, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
+      expect(elementNames(session)).toEqual(["SFTP Trigger", "Header Modification"]);
+      expect(failedElements(session)).toEqual([]);
+    });
 
-    const session = await pickedUp(env, since, chain, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
-    expect(elementNames(session)).toEqual(["SFTP Trigger", "Header Modification"]);
-    expect(failedElements(session)).toEqual([]);
-  },
-);
+    test("a literal idempotentKey rejects a second file", async ({ env, sessions }) => {
+      const corpus = readBrokersCorpusState();
+      const chain = brokerChain(corpus, "sftp-trigger-idempotent");
+      const dir = sftpDir(chain);
+      const before = await sessions.idsOf(chain.id);
+      const since = logWindowStart();
 
-test(
-  "idempotentKey pinned to one literal rejects a second file under the shared key",
-  { tag: ["@engine", "@sessions", "@tier2"] },
-  async ({ env, sessions }) => {
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "sftp-trigger-idempotent");
-    const dir = sftpDir(chain);
-    const before = await sessions.idsOf(chain.id);
-    const since = logWindowStart();
+      await dropFile(`${dir}/e2e-${corpus.run}-first.txt`, "first");
+      const first = await pickedUp(env, since, chain, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
+      expect(failedElements(first)).toEqual([]);
 
-    await dropFile(`${dir}/e2e-${corpus.run}-first.txt`, "first");
-    const first = await pickedUp(env, since, chain, () => sessions.onlyOf(chain.id, 2, (each) => !before.has(each.id)));
-    expect(failedElements(first)).toEqual([]);
+      // The contract this case pins: every file matched by antInclude resolves to the same
+      // idempotentKey, so a second, distinct file is rejected by the in-memory idempotent repository
+      // before the route ever runs -- no new session for this chain, ever. `readUntil` polls the full
+      // 12s budget (the poll cron is every 3s, so several cycles) and resolves with whatever the last
+      // reading was, so this is a real bounded wait for absence rather than `toPass`, which would pass
+      // on the first honest poll at t≈0, before the cron has scanned even once.
+      const afterFirst = await sessions.idsOf(chain.id);
+      await dropFile(`${dir}/e2e-${corpus.run}-second.txt`, "second");
+      const settled = await readUntil(
+        () => sessions.idsOf(chain.id),
+        (ids) => [...ids].some((id) => !afterFirst.has(id)),
+        IDEMPOTENT_SETTLE_TIMEOUT,
+        1_000,
+      );
+      expect([...settled].filter((id) => !afterFirst.has(id))).toEqual([]);
+    });
+  });
 
-    // The contract this case pins: every file matched by antInclude resolves to the same
-    // idempotentKey, so a second, distinct file is rejected by the in-memory idempotent repository
-    // before the route ever runs -- no new session for this chain, ever. `readUntil` polls the full
-    // 12s budget (the poll cron is every 3s, so several cycles) and resolves with whatever the last
-    // reading was, so this is a real bounded wait for absence rather than `toPass`, which would pass
-    // on the first honest poll at t≈0, before the cron has scanned even once.
-    const afterFirst = await sessions.idsOf(chain.id);
-    await dropFile(`${dir}/e2e-${corpus.run}-second.txt`, "second");
-    const settled = await readUntil(
-      () => sessions.idsOf(chain.id),
-      (ids) => [...ids].some((id) => !afterFirst.has(id)),
-      IDEMPOTENT_SETTLE_TIMEOUT,
-      1_000,
-    );
-    expect([...settled].filter((id) => !afterFirst.has(id))).toEqual([]);
-  },
-);
+  test.describe("sftp-download", () => {
+    test("an HTTP call reads a dropped file into the body", async ({ request, env, sessions }) => {
+      covers("sftp-download");
 
-// ---------------------------------------------------------------------------
-// sftp-download
-// ---------------------------------------------------------------------------
+      const corpus = readBrokersCorpusState();
+      const chain = brokerChain(corpus, "sftp-download-basic");
+      const content = `sftp-download-${callToken("payload")}`;
+      await dropFile(`${sftpDir(chain)}/e2e-${corpus.run}-download.txt`, content);
 
-test(
-  "an HTTP call drives sftp-download, after a spec drops the file it polls",
-  { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ request, env, sessions }) => {
-    covers("sftp-download");
+      const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+      expect(response.status()).toBe(200);
 
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "sftp-download-basic");
-    const content = `sftp-download-${callToken("payload")}`;
-    await dropFile(`${sftpDir(chain)}/e2e-${corpus.run}-download.txt`, content);
+      const session = await sessions.byExternalId(token, { elements: 4 });
+      expect(session.chainId).toBe(chain.id);
+      expect(elementNames(session)).toEqual([
+        "HTTP Trigger",
+        "Validate Request",
+        "SFTP Download",
+        "Header Modification",
+      ]);
+      expect(failedElements(session)).toEqual([]);
 
-    const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
-    expect(response.status()).toBe(200);
+      const downstream = element(session, "Header Modification");
+      expect(downstream?.bodyBefore, "the body the download step enriched the exchange with").toContain(content);
+    });
+  });
 
-    const session = await sessions.byExternalId(token, { elements: 4 });
-    expect(session.chainId).toBe(chain.id);
-    expect(elementNames(session)).toEqual([
-      "HTTP Trigger",
-      "Validate Request",
-      "SFTP Download",
-      "Header Modification",
-    ]);
-    expect(failedElements(session)).toEqual([]);
+  test.describe("sftp-upload", () => {
+    test("an HTTP call puts the payload on the server", async ({ request, env, sessions }) => {
+      covers("sftp-upload");
 
-    const downstream = element(session, "Header Modification");
-    expect(downstream?.bodyBefore, "the body the download step enriched the exchange with").toContain(content);
-  },
-);
+      const corpus = readBrokersCorpusState();
+      const chain = brokerChain(corpus, "sftp-upload-basic");
+      const body = { ping: "sftp-upload", nonce: callToken("nonce") };
 
-// ---------------------------------------------------------------------------
-// sftp-upload
-// ---------------------------------------------------------------------------
+      const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
+      expect(response.status()).toBe(200);
 
-test(
-  "an HTTP call drives sftp-upload, and the payload lands on the server",
-  { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ request, env, sessions }) => {
-    covers("sftp-upload");
+      const session = await sessions.byExternalId(token, { elements: 3 });
+      expect(session.chainId).toBe(chain.id);
+      expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "SFTP Upload"]);
+      expect(failedElements(session)).toEqual([]);
 
-    const corpus = readBrokersCorpusState();
-    const chain = brokerChain(corpus, "sftp-upload-basic");
-    const body = { ping: "sftp-upload", nonce: callToken("nonce") };
-
-    const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
-    expect(response.status()).toBe(200);
-
-    const session = await sessions.byExternalId(token, { elements: 3 });
-    expect(session.chainId).toBe(chain.id);
-    expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "SFTP Upload"]);
-    expect(failedElements(session)).toEqual([]);
-
-    await expect(async () => {
-      const uploaded = await readFile(`${sftpDir(chain)}/${chain.broker.fileName as string}`);
-      expect(JSON.parse(uploaded)).toEqual(body);
-    }).toPass({ timeout: 15_000 });
-  },
-);
+      await expect(async () => {
+        const uploaded = await readFile(`${sftpDir(chain)}/${chain.broker.fileName as string}`);
+        expect(JSON.parse(uploaded)).toEqual(body);
+      }).toPass({ timeout: 15_000 });
+    });
+  });
+});
