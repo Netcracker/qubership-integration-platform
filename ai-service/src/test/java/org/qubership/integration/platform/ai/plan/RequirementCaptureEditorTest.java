@@ -108,6 +108,82 @@ class RequirementCaptureEditorTest {
   }
 
   @Test
+  void rejectedInteractionAdditionsIdentifyExistingNullAndRepeatedIdsWithoutApplyingTheQuestionCorrection() {
+    var base = initial();
+    var question = new RequirementCaptureInput.QuestionInput("delivery-policy", List.of("start"), "Which access policy?");
+    var correctedQuestion = new RequirementCaptureInput.QuestionInput("delivery-policy", List.of("start"),
+        "Keep the requested policy or use the recommended policy?");
+    var saved = new DraftInput(base.flow(), base.facts(), base.capabilities(), List.of(question), base.settings());
+    for (int invalid = 0; invalid < 4; invalid++) {
+      var addition = new InteractionInput(invalid == 1 ? null : invalid == 2 ? "audit" : "start",
+          Direction.OUTBOUND, "Audit API", "record", null, null, null);
+      List<InteractionInput> additions = switch (invalid) {
+        case 2 -> List.of(addition, addition);
+        case 3 -> java.util.Collections.singletonList(null);
+        default -> List.of(addition);
+      };
+      var rejected = RequirementCaptureEditor.apply(saved, new DraftUpdate(additions, List.of(), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(correctedQuestion), List.of(), null));
+      assertFalse(rejected.accepted());
+      assertFalse(rejected.changed());
+      assertEquals(saved, rejected.draft(), "A rejected addition must not apply the unrelated question correction.");
+      assertEquals(List.of(correctedQuestion), rejected.candidate().openQuestions());
+      var issue = rejected.issues().stream().filter(value -> value.code().equals("DUPLICATE_ENTITY"))
+          .findFirst().orElseThrow();
+      assertEquals("/changes/addInteractions/" + (invalid == 2 ? 1 : 0), issue.path());
+      assertEquals(invalid == 0 ? "start" : invalid == 2 ? "audit" : null, issue.entityId());
+      assertTrue(issue.message().contains("Rejected addition identity=" + issue.entityId() + " for interactions:"), issue.message());
+      assertTrue(issue.message().contains("Current interactions identities at this edit step: "
+          + (invalid == 2 ? "[start, create-task, audit]" : "[start, create-task]")), issue.message());
+      assertTrue(issue.message().contains(invalid == 0 ? "this identity already exists in the current draft"
+          : invalid == 2 ? "this identity was already added, updated, or removed in this edit"
+          : "the identity is null"), issue.message());
+      assertTrue(issue.message().contains("Use updateInteractions to change an existing identity, or omit it when unchanged."),
+          issue.message());
+    }
+    var corrected = RequirementCaptureEditor.apply(saved, new DraftUpdate(List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(correctedQuestion), List.of(), null));
+    assertTrue(corrected.accepted(), corrected.issues().toString());
+    assertEquals(saved.flow(), corrected.draft().flow());
+    assertEquals(saved.facts(), corrected.draft().facts());
+    assertEquals(List.of(correctedQuestion), corrected.draft().openQuestions());
+  }
+
+  @Test
+  void rejectedFactAdditionsReportTheCurrentIdsAndTheExistingUpdateOperation() {
+    var saved = initial();
+    for (int invalid = 0; invalid < 4; invalid++) {
+      var addition = new FactInput(invalid == 1 ? null : invalid == 2 ? "audit-rule" : "goal",
+          List.of("start"), FactKind.CONSTRAINT, Polarity.POSITIVE, "Keep the original request body.");
+      List<FactInput> additions = switch (invalid) {
+        case 2 -> List.of(addition, addition);
+        case 3 -> java.util.Collections.singletonList(null);
+        default -> List.of(addition);
+      };
+      var rejected = RequirementCaptureEditor.apply(saved, new DraftUpdate(List.of(), List.of(), List.of(),
+          List.of(), List.of(), additions, List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(), null));
+      assertFalse(rejected.accepted());
+      assertFalse(rejected.changed());
+      assertEquals(saved, rejected.draft());
+      var issue = rejected.issues().stream().filter(value -> value.code().equals("DUPLICATE_ENTITY"))
+          .findFirst().orElseThrow();
+      assertEquals("/changes/addFacts/" + (invalid == 2 ? 1 : 0), issue.path());
+      assertEquals(invalid == 0 ? "goal" : invalid == 2 ? "audit-rule" : null, issue.entityId());
+      assertTrue(issue.message().contains("Rejected addition identity=" + issue.entityId() + " for facts:"), issue.message());
+      assertTrue(issue.message().contains("Current facts identities at this edit step: "
+          + (invalid == 2 ? "[goal, mapping, audit-rule]" : "[goal, mapping]")), issue.message());
+      assertTrue(issue.message().contains(invalid == 0 ? "this identity already exists in the current draft"
+          : invalid == 2 ? "this identity was already added, updated, or removed in this edit"
+          : "the identity is null"), issue.message());
+      assertTrue(issue.message().contains("Use updateFacts to change an existing identity, or omit it when unchanged."),
+          issue.message());
+    }
+  }
+
+  @Test
   void interactionOrderMustAgreeWithTheBusinessFlowAndRemainRepairable() {
     var base = initial();
     var interactions = new java.util.ArrayList<>(base.flow().interactions());
