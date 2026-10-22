@@ -22,37 +22,39 @@ import { callChain, elementNames, trace } from "../../support/sessions.js";
 /** A value no other fixture sends, so finding it anywhere is unambiguous. */
 const SECRET = "4111111111111111";
 
-test("a masked field is replaced by the marker everywhere in the trace", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
-  const chain = seedChain(readCorpusState(), MASKED_FIXTURE);
+test.describe("masking at runtime", { tag: ["@engine", "@sessions"] }, () => {
+  test("the trace carries the marker in place of a masked field", async ({ request, env, sessions }) => {
+    const chain = seedChain(readCorpusState(), MASKED_FIXTURE);
 
-  const call = await callChain(request, env.chainUrl(chain.contextPath), {
-    data: { [MASKED_FIELD]: SECRET, note: "visible" },
+    const call = await callChain(request, env.chainUrl(chain.contextPath), {
+      data: { [MASKED_FIELD]: SECRET, note: "visible" },
+    });
+    expect(call.response.status()).toBe(200);
+    // The response is not masked, and that is by design: masking is a logging concern. Asserting it
+    // here keeps the two apart, so a change that masked the response would not read as a pass.
+    expect(await call.response.text()).toContain(SECRET);
+
+    const session = await sessions.byExternalId(call.token, { elements: 3 });
+    const steps = trace(session);
+    // The lookup above already waited for three steps, so a count assertion here cannot fail. The
+    // names can: they say the trace belongs to this chain rather than to whatever the lookup found.
+    expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "Echo"]);
+
+    const recorded = steps.flatMap((step) => [
+      step.bodyBefore ?? "",
+      step.bodyAfter ?? "",
+      JSON.stringify(step.headersBefore ?? {}),
+      JSON.stringify(step.headersAfter ?? {}),
+    ]);
+
+    expect(
+      recorded.filter((payload) => payload.includes(SECRET)),
+      `the masked field "${MASKED_FIELD}" reached the session in the clear`,
+    ).toEqual([]);
+    // Half an assertion on its own: a trace with nothing in it would also carry no secret. The marker
+    // is what says the field was seen and replaced.
+    expect(recorded.some((payload) => payload.includes(MASKING_MARKER))).toBe(true);
+    // And the neighbor proves masking is field-scoped rather than a blanket redaction.
+    expect(recorded.some((payload) => payload.includes("visible"))).toBe(true);
   });
-  expect(call.response.status()).toBe(200);
-  // The response is not masked, and that is by design: masking is a logging concern. Asserting it
-  // here keeps the two apart, so a change that masked the response would not read as a pass.
-  expect(await call.response.text()).toContain(SECRET);
-
-  const session = await sessions.byExternalId(call.token, { elements: 3 });
-  const steps = trace(session);
-  // The lookup above already waited for three steps, so a count assertion here cannot fail. The
-  // names can: they say the trace belongs to this chain rather than to whatever the lookup found.
-  expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "Echo"]);
-
-  const recorded = steps.flatMap((step) => [
-    step.bodyBefore ?? "",
-    step.bodyAfter ?? "",
-    JSON.stringify(step.headersBefore ?? {}),
-    JSON.stringify(step.headersAfter ?? {}),
-  ]);
-
-  expect(
-    recorded.filter((payload) => payload.includes(SECRET)),
-    `the masked field "${MASKED_FIELD}" reached the session in the clear`,
-  ).toEqual([]);
-  // Half an assertion on its own: a trace with nothing in it would also carry no secret. The marker
-  // is what says the field was seen and replaced.
-  expect(recorded.some((payload) => payload.includes(MASKING_MARKER))).toBe(true);
-  // And the neighbor proves masking is field-scoped rather than a blanket redaction.
-  expect(recorded.some((payload) => payload.includes("visible"))).toBe(true);
 });

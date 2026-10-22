@@ -14,16 +14,18 @@ import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { MARKER_HEADER } from "../../support/deployable.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS } from "../../support/sessions.js";
 
-test("systemType IMPLEMENTED serves the operation's path", { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, catalog, sessions }) => {
-  const chain = seedChain(readCorpusState(), "http-trigger-system-type-implemented");
-  // The environment's `/` and the operation path, joined as they are.
-  const [deployment] = await catalog.listDeployments(chain.id);
-  const xml = (await catalog.getSnapshot(chain.id, deployment.snapshotId)).xmlDefinition ?? "";
-  expect(xml.match(/<from uri="(servlet-custom:[^"?]*)/)?.[1]).toBe(`servlet-custom:/${chain.contextPath}`);
+test.describe("http-trigger system type", { tag: ["@engine", "@catalog", "@sessions"] }, () => {
+  test("systemType IMPLEMENTED serves the operation's path", async ({ request, env, catalog, sessions }) => {
+    const chain = seedChain(readCorpusState(), "http-trigger-system-type-implemented");
+    // The environment's `/` and the operation path, joined as they are.
+    const [deployment] = await catalog.listDeployments(chain.id);
+    const xml = (await catalog.getSnapshot(chain.id, deployment.snapshotId)).xmlDefinition ?? "";
+    expect(xml.match(/<from uri="(servlet-custom:[^"?]*)/)?.[1]).toBe(`servlet-custom:/${chain.contextPath}`);
 
-  const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
-  expect(call.response.status()).toBe(200);
-  expect(call.response.headers()[MARKER_HEADER]).toBe("implemented");
-  const session = await sessions.byExternalId(call.token, { elements: 3 });
-  expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Header Modification"]);
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+    expect(call.response.status()).toBe(200);
+    expect(call.response.headers()[MARKER_HEADER]).toBe("implemented");
+    const session = await sessions.byExternalId(call.token, { elements: 3 });
+    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Header Modification"]);
+  });
 });

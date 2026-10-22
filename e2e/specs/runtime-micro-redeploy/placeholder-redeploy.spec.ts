@@ -43,62 +43,64 @@ async function answerOf(request: APIRequestContext, env: Env, chain: DeployableC
   return `${response.status()} ${response.headers()[MARKER_HEADER]}`;
 }
 
-test.beforeAll(async ({ catalog, folder, run, microDomainState }) => {
-  test.setTimeout(SETUP_TIMEOUT);
-  const variable = tokenized(run, "placeholder-redeploy");
-  await catalog.addCommonVariables({ [variable]: "before" });
-  built.services.push({ name: `the common variable ${variable}`, remove: () => catalog.deleteCommonVariables([variable]) });
-  live = await tokenizedChain(catalog, run, {
-    prefix: "placeholder-redeploy",
-    what: "live",
-    parentId: folder.id,
-    marker: `#{${variable}}`,
-  });
-  built.chains.push(live);
-  noteChain(live);
-  witness = await createScriptChain(
-    catalog,
-    run,
-    {
-      what: "placeholder-redeploy-witness",
+test.describe("placeholder redeploy on the micro engine", { tag: ["@engine", "@catalog", "@slow"] }, () => {
+  test.beforeAll(async ({ catalog, folder, run, microDomainState }) => {
+    test.setTimeout(SETUP_TIMEOUT);
+    const variable = tokenized(run, "placeholder-redeploy");
+    await catalog.addCommonVariables({ [variable]: "before" });
+    built.services.push({ name: `the common variable ${variable}`, remove: () => catalog.deleteCommonVariables([variable]) });
+    live = await tokenizedChain(catalog, run, {
+      prefix: "placeholder-redeploy",
+      what: "live",
       parentId: folder.id,
-      script: `exchange.getMessage().setBody(exchange.getProperty('variables').get('${variable}'))`,
-      scriptName: "Read Variable",
-      logging: SEED_LOGGING,
-    },
-    built.chains,
-  );
-  domain = tokenedDomain(run, "placeholder-redeploy", microDomainState);
-  await deployToDomain(catalog, domain, [live, witness]);
-});
+      marker: `#{${variable}}`,
+    });
+    built.chains.push(live);
+    noteChain(live);
+    witness = await createScriptChain(
+      catalog,
+      run,
+      {
+        what: "placeholder-redeploy-witness",
+        parentId: folder.id,
+        script: `exchange.getMessage().setBody(exchange.getProperty('variables').get('${variable}'))`,
+        scriptName: "Read Variable",
+        logging: SEED_LOGGING,
+      },
+      built.chains,
+    );
+    domain = tokenedDomain(run, "placeholder-redeploy", microDomainState);
+    await deployToDomain(catalog, domain, [live, witness]);
+  });
 
-test.afterAll(async ({ catalog }) => {
-  if (domain) await deleteDomain(catalog, domain);
-  await release(catalog, built, false);
-});
+  test.afterAll(async ({ catalog }) => {
+    if (domain) await deleteDomain(catalog, domain);
+    await release(catalog, built, false);
+  });
 
-test("a variable changed under a live micro chain is served only after a redeploy", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ request, catalog, run }) => {
-  test.setTimeout(CASE_TIMEOUT);
-  const target = domain as TokenedDomain;
-  expect(await answerOf(request, target.env, live)).toBe("200 before");
+  test("a changed variable is served only after a redeploy", async ({ request, catalog, run }) => {
+    test.setTimeout(CASE_TIMEOUT);
+    const target = domain as TokenedDomain;
+    expect(await answerOf(request, target.env, live)).toBe("200 before");
 
-  await catalog.updateCommonVariable(tokenized(run, "placeholder-redeploy"), "after");
-  await expect
-    .poll(async () => (await callChain(request, target.env.chainUrl(witness.contextPath), { data: {} })).response.text(), {
-      timeout: DEPLOY_TIMEOUT,
-      message: "the micro engine never received the updated variable",
-    })
-    .toBe("after");
-  // So the old answer here is the contract, not a slow watch.
-  expect(await answerOf(request, target.env, live), "the live chain picked up the variable without a redeploy").toBe("200 before");
+    await catalog.updateCommonVariable(tokenized(run, "placeholder-redeploy"), "after");
+    await expect
+      .poll(async () => (await callChain(request, target.env.chainUrl(witness.contextPath), { data: {} })).response.text(), {
+        timeout: DEPLOY_TIMEOUT,
+        message: "the micro engine never received the updated variable",
+      })
+      .toBe("after");
+    // So the old answer here is the contract, not a slow watch.
+    expect(await answerOf(request, target.env, live), "the live chain picked up the variable without a redeploy").toBe("200 before");
 
-  // The routes answer on the old pod at first, and the domain answers 503 while the pod rolls, so
-  // the poll reads the status beside the marker.
-  await deployToDomain(catalog, target, [live, witness]);
-  await expect
-    .poll(async () => await answerOf(request, target.env, live), {
-      timeout: MICRO_READY_TIMEOUT,
-      message: `the redeployed chain never served the updated variable on micro domain ${target.domain}`,
-    })
-    .toBe("200 after");
+    // The routes answer on the old pod at first, and the domain answers 503 while the pod rolls, so
+    // the poll reads the status beside the marker.
+    await deployToDomain(catalog, target, [live, witness]);
+    await expect
+      .poll(async () => await answerOf(request, target.env, live), {
+        timeout: MICRO_READY_TIMEOUT,
+        message: `the redeployed chain never served the updated variable on micro domain ${target.domain}`,
+      })
+      .toBe("200 after");
+  });
 });

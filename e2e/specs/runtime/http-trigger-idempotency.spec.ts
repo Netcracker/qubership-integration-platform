@@ -48,59 +48,65 @@ const HTTP_DUPLICATES: Record<string, HttpDuplicate> = {
   "execute-subchain": { outcome: "answers from the sub-chain", status: 200, reply: JSON.stringify({ called: "chain" }) },
 };
 
-for (const mode of idempotencyModes(PASSED_STEP.name)) {
-  const duplicate = HTTP_DUPLICATES[mode.fixture];
-  const branch = branchName(mode);
-  test(`${branch}: a repeated key ${duplicate.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-    coversIdempotency("http-trigger", mode);
-    const chain = seedChain(readCorpusState(), axisFixtureName({ family: "http-trigger", axisPath: mode.axisPath, value: mode.value }));
-    const url = env.chainUrl(chain.contextPath);
-    const key = callToken("idempotency");
-    const headers = { [IDEMPOTENCY_KEY_HEADER]: key };
-    // A body only this case sends, so an echoed request cannot pass for another answer.
-    const data = { key };
-    const enabled = mode.value !== false;
-    const before = ["Validate Request", ...(enabled ? [IDEMPOTENCY_STEP] : [])];
-
-    const first = await callChain(request, url, { data, headers });
-    expect(first.response.status()).toBe(200);
-    expect(await first.response.text()).toBe(PASSED);
-    const firstSession = await sessions.byExternalId(first.token, { elements: before.length + 2 });
-    expect(elementNames(firstSession)).toEqual([branch, ...before, PASSED_STEP.name]);
-
-    const second = await callChain(request, url, { data, headers });
-    expect(second.response.status()).toBe(duplicate.status);
-    const body = await second.response.text();
-    if (duplicate.code) expect(JSON.parse(body).code, body).toBe(duplicate.code);
-    else expect(body).toBe(duplicate.reply ?? JSON.stringify(data));
-
-    const secondSession = await sessions.byExternalId(second.token, { elements: mode.steps.length + 2 });
-    expect(secondSession.executionStatus).toBe(mode.executionStatus);
-    expect(elementNames(secondSession)).toEqual([branch, "Validate Request", ...mode.steps]);
-    if (mode.failure) expect(element(secondSession, IDEMPOTENCY_STEP)?.exceptionInfo?.message).toBe(mode.failure);
-  });
-}
-
 const POSITIONS = [
   { fixture: { family: "http-trigger", axisPath: "receiveCorrelationId", value: true }, position: "header" },
   { fixture: { family: "http-trigger", axisPath: "correlationIdPosition", value: "body" }, position: "body" },
 ] as const;
 
-for (const { fixture, position } of POSITIONS) {
-  const branch = branchName(fixture);
-  test(`correlationIdPosition ${position} receives the correlation id the call carries`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-    covers("http-trigger", "correlationIdPosition", position);
-    const chain = seedChain(readCorpusState(), axisFixtureName(fixture));
-    const sent = callToken("correlation");
-    const options = position === "header"
-      ? { data: {}, headers: { [CORRELATION_ID_HEADER]: sent } }
-      : { data: { [CORRELATION_ID_FIELD]: sent } };
-    const call = await callChain(request, env.chainUrl(chain.contextPath), options);
-    expect(call.response.status()).toBe(200);
-    const echoed = (JSON.parse(await call.response.text()) as { correlationId: unknown }).correlationId;
-    const session = await sessions.byExternalId(call.token, { elements: 3 });
-    expect(elementNames(session)).toEqual([branch, "Validate Request", CORRELATION_ECHO.name]);
-    expect(echoed).toBe(sent);
-    expect(session.correlationId).toBe(sent);
+test.describe("http-trigger idempotency and correlation id", { tag: ["@engine", "@sessions"] }, () => {
+  test.describe("idempotency", () => {
+    for (const mode of idempotencyModes(PASSED_STEP.name)) {
+      const duplicate = HTTP_DUPLICATES[mode.fixture];
+      const branch = branchName(mode);
+      test(`${branch}: a repeated key ${duplicate.outcome}`, async ({ request, env, sessions }) => {
+        coversIdempotency("http-trigger", mode);
+        const chain = seedChain(readCorpusState(), axisFixtureName({ family: "http-trigger", axisPath: mode.axisPath, value: mode.value }));
+        const url = env.chainUrl(chain.contextPath);
+        const key = callToken("idempotency");
+        const headers = { [IDEMPOTENCY_KEY_HEADER]: key };
+        // A body only this case sends, so an echoed request cannot pass for another answer.
+        const data = { key };
+        const enabled = mode.value !== false;
+        const before = ["Validate Request", ...(enabled ? [IDEMPOTENCY_STEP] : [])];
+
+        const first = await callChain(request, url, { data, headers });
+        expect(first.response.status()).toBe(200);
+        expect(await first.response.text()).toBe(PASSED);
+        const firstSession = await sessions.byExternalId(first.token, { elements: before.length + 2 });
+        expect(elementNames(firstSession)).toEqual([branch, ...before, PASSED_STEP.name]);
+
+        const second = await callChain(request, url, { data, headers });
+        expect(second.response.status()).toBe(duplicate.status);
+        const body = await second.response.text();
+        if (duplicate.code) expect(JSON.parse(body).code, body).toBe(duplicate.code);
+        else expect(body).toBe(duplicate.reply ?? JSON.stringify(data));
+
+        const secondSession = await sessions.byExternalId(second.token, { elements: mode.steps.length + 2 });
+        expect(secondSession.executionStatus).toBe(mode.executionStatus);
+        expect(elementNames(secondSession)).toEqual([branch, "Validate Request", ...mode.steps]);
+        if (mode.failure) expect(element(secondSession, IDEMPOTENCY_STEP)?.exceptionInfo?.message).toBe(mode.failure);
+      });
+    }
   });
-}
+
+  test.describe("correlation id", () => {
+    for (const { fixture, position } of POSITIONS) {
+      const branch = branchName(fixture);
+      test(`correlationIdPosition ${position} records the sent correlation id`, async ({ request, env, sessions }) => {
+        covers("http-trigger", "correlationIdPosition", position);
+        const chain = seedChain(readCorpusState(), axisFixtureName(fixture));
+        const sent = callToken("correlation");
+        const options = position === "header"
+          ? { data: {}, headers: { [CORRELATION_ID_HEADER]: sent } }
+          : { data: { [CORRELATION_ID_FIELD]: sent } };
+        const call = await callChain(request, env.chainUrl(chain.contextPath), options);
+        expect(call.response.status()).toBe(200);
+        const echoed = (JSON.parse(await call.response.text()) as { correlationId: unknown }).correlationId;
+        const session = await sessions.byExternalId(call.token, { elements: 3 });
+        expect(elementNames(session)).toEqual([branch, "Validate Request", CORRELATION_ECHO.name]);
+        expect(echoed).toBe(sent);
+        expect(session.correlationId).toBe(sent);
+      });
+    }
+  });
+});

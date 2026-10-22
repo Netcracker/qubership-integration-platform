@@ -82,79 +82,81 @@ async function servingV1(catalog: Catalog, request: APIRequestContext, url: stri
   return mcp;
 }
 
-test("mcp-trigger: a tool answers its chain from the moment tools/list offers it", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  await withBuilt(catalog, async (built) => {
-    const chain = await mcpChain(catalog, run, folder.id, built, "mcp-offered", answering("v1"));
-    const mcp = await openSession(request, `${env.url("engine")}/mcp`);
-    await deploySnapshot(catalog, chain.id);
-    // Short and constant intervals: the engine used to offer the tool up to 2.4 s before the chain ran.
-    await expect.poll(async () => (await mcp.tools()).some((each) => each.name === chain.name), {
-      timeout: DEPLOY_TIMEOUT,
-      intervals: [SAMPLE_PAUSE],
-      message: `tools/list never offered ${chain.name}`,
-    }).toBe(true);
-    expect(await call(mcp, chain.name)).toEqual(V1);
+test.describe("mcp tool lifecycle", { tag: ["@engine", "@catalog", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, () => {
+  test("a tool answers from the moment tools/list offers it", async ({ request, env, catalog, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    await withBuilt(catalog, async (built) => {
+      const chain = await mcpChain(catalog, run, folder.id, built, "mcp-offered", answering("v1"));
+      const mcp = await openSession(request, `${env.url("engine")}/mcp`);
+      await deploySnapshot(catalog, chain.id);
+      // Short and constant intervals: the engine used to offer the tool up to 2.4 s before the chain ran.
+      await expect.poll(async () => (await mcp.tools()).some((each) => each.name === chain.name), {
+        timeout: DEPLOY_TIMEOUT,
+        intervals: [SAMPLE_PAUSE],
+        message: `tools/list never offered ${chain.name}`,
+      }).toBe(true);
+      expect(await call(mcp, chain.name)).toEqual(V1);
+    });
   });
-});
 
-test("mcp-trigger: a redeploy switches the tool to the new version with no failed call", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  await withBuilt(catalog, async (built) => {
-    const chain = await mcpChain(catalog, run, folder.id, built, "mcp-redeploy", answering("v1"));
-    const mcp = await servingV1(catalog, request, `${env.url("engine")}/mcp`, chain);
+  test("a redeploy switches the tool to v2 with no failed call", async ({ request, env, catalog, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    await withBuilt(catalog, async (built) => {
+      const chain = await mcpChain(catalog, run, folder.id, built, "mcp-redeploy", answering("v1"));
+      const mcp = await servingV1(catalog, request, `${env.url("engine")}/mcp`, chain);
 
-    await catalog.patchElementProperties(chain.id, chain.elements[SCRIPT], { script: answering("v2") });
-    await deploySnapshot(catalog, chain.id);
-    // The engine replaces the tool once the new context runs and stops the old context after that, so every
-    // call meets a running context. Measured on three redeploys: 395 calls, each answered by the old or the new version.
-    const deadline = Date.now() + DEPLOY_TIMEOUT;
-    for (;;) {
-      const result = await call(mcp, chain.name);
-      expect([V1, V2], "a call during the redeploy").toContainEqual(result);
-      if (result.content[0].text === V2.content[0].text) break;
-      expect(Date.now(), "the tool never switched to v2").toBeLessThan(deadline);
-      await sleep(SAMPLE_PAUSE);
-    }
+      await catalog.patchElementProperties(chain.id, chain.elements[SCRIPT], { script: answering("v2") });
+      await deploySnapshot(catalog, chain.id);
+      // The engine replaces the tool once the new context runs and stops the old context after that, so every
+      // call meets a running context. Measured on three redeploys: 395 calls, each answered by the old or the new version.
+      const deadline = Date.now() + DEPLOY_TIMEOUT;
+      for (;;) {
+        const result = await call(mcp, chain.name);
+        expect([V1, V2], "a call during the redeploy").toContainEqual(result);
+        if (result.content[0].text === V2.content[0].text) break;
+        expect(Date.now(), "the tool never switched to v2").toBeLessThan(deadline);
+        await sleep(SAMPLE_PAUSE);
+      }
+    });
   });
-});
 
-test("mcp-trigger: a deployment whose script does not compile offers no tool", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  await withBuilt(catalog, async (built) => {
-    const chain = await mcpChain(catalog, run, folder.id, built, "mcp-broken", DOES_NOT_COMPILE);
-    await deploySnapshot(catalog, chain.id);
-    await waitForFailed(catalog, chain.id);
-    const mcp = await openSession(request, `${env.url("engine")}/mcp`);
-    expect((await mcp.tools()).map((each) => each.name)).not.toContain(chain.name);
+  test("a deployment that does not compile offers no tool", async ({ request, env, catalog, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    await withBuilt(catalog, async (built) => {
+      const chain = await mcpChain(catalog, run, folder.id, built, "mcp-broken", DOES_NOT_COMPILE);
+      await deploySnapshot(catalog, chain.id);
+      await waitForFailed(catalog, chain.id);
+      const mcp = await openSession(request, `${env.url("engine")}/mcp`);
+      expect((await mcp.tools()).map((each) => each.name)).not.toContain(chain.name);
+    });
   });
-});
 
-test("mcp-trigger: a redeploy whose script does not compile keeps the tool of the running deployment", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  await withBuilt(catalog, async (built) => {
-    const chain = await mcpChain(catalog, run, folder.id, built, "mcp-breaks", answering("v1"));
-    const mcp = await servingV1(catalog, request, `${env.url("engine")}/mcp`, chain);
+  test("a redeploy that does not compile keeps the running tool", async ({ request, env, catalog, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    await withBuilt(catalog, async (built) => {
+      const chain = await mcpChain(catalog, run, folder.id, built, "mcp-breaks", answering("v1"));
+      const mcp = await servingV1(catalog, request, `${env.url("engine")}/mcp`, chain);
 
-    await catalog.patchElementProperties(chain.id, chain.elements[SCRIPT], { script: DOES_NOT_COMPILE });
-    await deploySnapshot(catalog, chain.id);
-    await waitForFailed(catalog, chain.id);
-    expect(await call(mcp, chain.name)).toEqual(V1);
+      await catalog.patchElementProperties(chain.id, chain.elements[SCRIPT], { script: DOES_NOT_COMPILE });
+      await deploySnapshot(catalog, chain.id);
+      await waitForFailed(catalog, chain.id);
+      expect(await call(mcp, chain.name)).toEqual(V1);
+    });
   });
-});
 
-test("mcp-trigger: a redeploy whose context fails to start keeps the tool of the running deployment", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "it deploys chains of its own, and on a micro engine each deploy rolls the shared domain" } }, async ({ request, env, catalog, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  await withBuilt(catalog, async (built) => {
-    const chain = await mcpChain(catalog, run, folder.id, built, "mcp-no-start", answering("v1"));
-    const mcp = await servingV1(catalog, request, `${env.url("engine")}/mcp`, chain);
+  test("a redeploy that fails to start keeps the running tool", async ({ request, env, catalog, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    await withBuilt(catalog, async (built) => {
+      const chain = await mcpChain(catalog, run, folder.id, built, "mcp-no-start", answering("v1"));
+      const mcp = await servingV1(catalog, request, `${env.url("engine")}/mcp`, chain);
 
-    // A Spring scheduler parses its cron when the route starts, so the context fails to start.
-    const scheduler = await catalog.createElement(chain.id, "scheduler");
-    await catalog.patchElementProperties(chain.id, scheduler.id, { scheduler: "spring", "scheduler.cron": "not a cron" });
-    await deploySnapshot(catalog, chain.id);
-    await waitForFailed(catalog, chain.id);
-    expect((await mcp.tools()).map((each) => each.name)).toContain(chain.name);
-    expect(await call(mcp, chain.name)).toEqual(V1);
+      // A Spring scheduler parses its cron when the route starts, so the context fails to start.
+      const scheduler = await catalog.createElement(chain.id, "scheduler");
+      await catalog.patchElementProperties(chain.id, scheduler.id, { scheduler: "spring", "scheduler.cron": "not a cron" });
+      await deploySnapshot(catalog, chain.id);
+      await waitForFailed(catalog, chain.id);
+      expect((await mcp.tools()).map((each) => each.name)).toContain(chain.name);
+      expect(await call(mcp, chain.name)).toEqual(V1);
+    });
   });
 });

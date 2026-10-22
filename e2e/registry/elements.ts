@@ -249,8 +249,10 @@ const R_SERVICE_CALL_VALIDATION_TYPE =
 // breaker's one axis, `slidingWindowType`, is covered there too.
 
 // `specs/runtime/misc-elements.spec.ts` covers `http-sender`, `graphql-sender`, `log-record`,
-// `context-storage` and `mcp-trigger`; `specs/runtime/mcp-trigger-idempotency.spec.ts` covers the
-// idempotency axes of `mcp-trigger`. `swimlane` is covered on the catalog by `specs/api/elements.spec.ts`.
+// `context-storage` and `mcp-trigger`; `specs/runtime/mcp-trigger-idempotency.spec.ts` covers
+// `actionOnDuplicate=throw-exception` on `mcp-trigger`, and its other idempotency rows are shared.
+// `swimlane` is covered on the catalog by `specs/api/elements.spec.ts`.
+const R_IDEMPOTENCY_SHARED = "the shared idempotency.hbs partial is proven on http-trigger";
 const R_CHECKPOINT_EXTERNAL_ROUTE =
   "the one value the checkpoint schema allows, and it does not reach the compiled retry route, " +
   "so no case can tell it from another value";
@@ -642,11 +644,11 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "main-split-element-2", kind: "element", status: "covered", tags: ENGINE },
   { family: "mapper-2", kind: "element", status: "covered", tags: ENGINE },
   { family: "mcp-trigger", kind: "element", status: "covered", tags: ENGINE },
-  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", status: "covered", tags: ENGINE },
+  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", status: NOT_COVERED, scope: "shared", reason: R_IDEMPOTENCY_SHARED, tags: ENGINE },
   { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", status: "covered", tags: ENGINE },
-  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", status: "covered", tags: ENGINE },
+  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "execute-subchain", status: NOT_COVERED, scope: "shared", reason: R_IDEMPOTENCY_SHARED, tags: ENGINE },
   { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/enabled", value: true, status: "covered", tags: ENGINE },
-  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, status: "covered", tags: ENGINE },
+  { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/enabled", value: false, status: NOT_COVERED, scope: "shared", reason: R_IDEMPOTENCY_SHARED, tags: ENGINE },
   { family: "on-fallback", kind: "element", status: NOT_COVERED, reason: supersededReason("on-fallback"), tags: ENGINE },
   { family: "on-fallback-2", kind: "element", status: "covered", tags: ENGINE },
   { family: "otherwise", kind: "element", status: "covered", tags: ENGINE },

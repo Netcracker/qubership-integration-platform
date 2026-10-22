@@ -1,5 +1,5 @@
 /**
- * The control flow families past tier 1: which child of a condition or a try-catch-finally runs,
+ * The control flow families: which child of a condition or a try-catch-finally runs,
  * and when a circuit breaker stops calling its main branch.
  *
  * None of `condition`, `try-catch-finally-2` or `circuit-breaker-2` declares a discriminator; they
@@ -30,26 +30,6 @@ const CONDITIONS: ConditionCase[] = [
   { branch: "else", steps: ["Else", "Else Branch"] },
 ];
 
-for (const condition of CONDITIONS) {
-  test(`condition: e2e-branch ${condition.header ?? "absent"} runs the ${condition.branch} child`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-    covers("condition");
-    covers(condition.branch === "else" ? "else" : "if");
-
-    const chain = seedChain(readCorpusState(), "condition-branches");
-    const call = await callChain(request, env.chainUrl(chain.contextPath), {
-      headers: condition.header ? { "e2e-branch": condition.header } : {},
-      data: { ping: "condition" },
-    });
-    expect(call.response.status()).toBe(200);
-    expect(JSON.parse(await call.response.text())).toEqual({ branch: condition.branch });
-    expect(elementNames(await sessions.byExternalId(call.token, { elements: 5 }))).toEqual([
-      ...HTTP_TRIGGER_STEPS,
-      "Condition",
-      ...condition.steps,
-    ]);
-  });
-}
-
 interface TryCase {
   thrown: string;
   status: number;
@@ -66,43 +46,6 @@ const TRIES: TryCase[] = [
   { thrown: "state", status: 200, body: { caught: "runtime" }, executionStatus: "COMPLETED_WITH_WARNINGS", caught: ["Runtime Catch", "Runtime Catch Branch"] },
   { thrown: "checked", status: 500, executionStatus: "COMPLETED_WITH_ERRORS", caught: [] },
 ];
-
-for (const each of TRIES) {
-  test(`try-catch-finally: e2e-throw ${each.thrown} runs ${each.caught[0] ?? "no catch"} and the finally`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-    covers("try-catch-finally-2");
-    covers("try-2");
-    covers("finally-2");
-    if (each.caught.length > 0) covers("catch-2");
-
-    const chain = seedChain(readCorpusState(), "try-catch-finally-branches");
-    const call = await callChain(request, env.chainUrl(chain.contextPath), {
-      headers: { "e2e-throw": each.thrown },
-      data: { ping: "try" },
-    });
-    expect(call.response.status()).toBe(each.status);
-    if (each.body) {
-      expect(JSON.parse(await call.response.text())).toEqual(each.body);
-      expect(call.response.headers()["e2e-finally"]).toBe("ran");
-    } else {
-      // The default failure handler answers the error; only the trace shows the finally ran.
-      expect(JSON.parse(await call.response.text())).toMatchObject({ code: "CIP-0001" });
-    }
-
-    const session = await sessions.byExternalId(call.token, { elements: 7 + each.caught.length });
-    expect(session.executionStatus).toBe(each.executionStatus);
-    expect(elementNames(session)).toEqual([
-      ...HTTP_TRIGGER_STEPS,
-      "Try-Catch-Finally",
-      "Try",
-      "Try Script",
-      ...each.caught,
-      "Finally",
-      "Finally Branch",
-    ]);
-    expect(element(session, "Try Script")?.executionStatus).toBe(each.thrown === "none" ? "COMPLETED_NORMALLY" : "COMPLETED_WITH_ERRORS");
-    expect(element(session, "Finally Branch")?.executionStatus).toBe("COMPLETED_NORMALLY");
-  });
-}
 
 const BREAKER = ["Circuit Breaker"];
 /** `Main branch` and `On fallback` are the template's step ids, not the child elements' names. */
@@ -156,40 +99,105 @@ async function closeBreaker(request: APIRequestContext, env: Env, chain: SeedCha
     .toBe("main");
 }
 
-// The two fixtures differ in `slidingWindowType` alone: open at 60% over at least two calls, and
-// stay open for ten seconds. Each case closes its breaker first, so a rerun against a kept corpus
-// starts from the same state as a fresh seed.
-test("slidingWindowType=COUNT_BASED: failures far apart still open the breaker and short-circuit the next call", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-  covers("circuit-breaker-2");
-  covers("circuit-breaker-configuration-2");
-  covers("circuit-breaker-configuration-2", "slidingWindowType", "COUNT_BASED");
-  covers("on-fallback-2");
+test.describe("control flow", { tag: ["@engine", "@sessions"] }, () => {
+  test.describe("condition", () => {
+    for (const condition of CONDITIONS) {
+      test(`e2e-branch ${condition.header ?? "absent"} runs the ${condition.branch} child`, async ({ request, env, sessions }) => {
+        covers("condition");
+        covers(condition.branch === "else" ? "else" : "if");
 
-  const chain = seedChain(readCorpusState(), "circuit-breaker-count-based");
-  await closeBreaker(request, env, chain);
-  const first = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
-  await sleep((WINDOW_SECONDS + 2) * 1_000);
-  // The count window still holds the first failure: two of at most three calls failed.
-  const second = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
-  // The main branch is not called at all: its steps are missing, not failed.
-  const probe = await breakerCall(request, env, chain, false, "fallback", SHORT_CIRCUITED);
-  await assertTraces(sessions, [first, second, probe]);
-});
+        const chain = seedChain(readCorpusState(), "condition-branches");
+        const call = await callChain(request, env.chainUrl(chain.contextPath), {
+          headers: condition.header ? { "e2e-branch": condition.header } : {},
+          data: { ping: "condition" },
+        });
+        expect(call.response.status()).toBe(200);
+        expect(JSON.parse(await call.response.text())).toEqual({ branch: condition.branch });
+        expect(elementNames(await sessions.byExternalId(call.token, { elements: 5 }))).toEqual([
+          ...HTTP_TRIGGER_STEPS,
+          "Condition",
+          ...condition.steps,
+        ]);
+      });
+    }
+  });
 
-test("slidingWindowType=TIME_BASED: a failure that left the window does not count toward opening the breaker", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-  covers("circuit-breaker-configuration-2", "slidingWindowType", "TIME_BASED");
+  test.describe("try-catch-finally", () => {
+    for (const each of TRIES) {
+      test(`e2e-throw ${each.thrown} runs ${each.caught[0] ?? "no catch"} and the finally`, async ({ request, env, sessions }) => {
+        covers("try-catch-finally-2");
+        covers("try-2");
+        covers("finally-2");
+        if (each.caught.length > 0) covers("catch-2");
 
-  const chain = seedChain(readCorpusState(), "circuit-breaker-time-based");
-  await closeBreaker(request, env, chain);
-  await sleep((WINDOW_SECONDS + 2) * 1_000);
-  const first = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
-  await sleep((WINDOW_SECONDS + 2) * 1_000);
-  // From here on the calls go back to back, inside one window.
-  const second = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
-  // Where COUNT_BASED is already open: one call in the window is under the minimum of two.
-  const probe = await breakerCall(request, env, chain, false, "main", MAIN);
-  // Two failures of three in the window reach 60%.
-  const third = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
-  const shortCircuited = await breakerCall(request, env, chain, false, "fallback", SHORT_CIRCUITED);
-  await assertTraces(sessions, [first, second, probe, third, shortCircuited]);
+        const chain = seedChain(readCorpusState(), "try-catch-finally-branches");
+        const call = await callChain(request, env.chainUrl(chain.contextPath), {
+          headers: { "e2e-throw": each.thrown },
+          data: { ping: "try" },
+        });
+        expect(call.response.status()).toBe(each.status);
+        if (each.body) {
+          expect(JSON.parse(await call.response.text())).toEqual(each.body);
+          expect(call.response.headers()["e2e-finally"]).toBe("ran");
+        } else {
+          // The default failure handler answers the error; only the trace shows the finally ran.
+          expect(JSON.parse(await call.response.text())).toMatchObject({ code: "CIP-0001" });
+        }
+
+        const session = await sessions.byExternalId(call.token, { elements: 7 + each.caught.length });
+        expect(session.executionStatus).toBe(each.executionStatus);
+        expect(elementNames(session)).toEqual([
+          ...HTTP_TRIGGER_STEPS,
+          "Try-Catch-Finally",
+          "Try",
+          "Try Script",
+          ...each.caught,
+          "Finally",
+          "Finally Branch",
+        ]);
+        expect(element(session, "Try Script")?.executionStatus).toBe(each.thrown === "none" ? "COMPLETED_NORMALLY" : "COMPLETED_WITH_ERRORS");
+        expect(element(session, "Finally Branch")?.executionStatus).toBe("COMPLETED_NORMALLY");
+      });
+    }
+  });
+
+  test.describe("circuit breaker slidingWindowType", () => {
+    // The two fixtures differ in `slidingWindowType` alone: open at 60% over at least two calls, and
+    // stay open for ten seconds. Each case closes its breaker first, so a rerun against a kept corpus
+    // starts from the same state as a fresh seed.
+    test("COUNT_BASED: failures far apart still open the breaker", async ({ request, env, sessions }) => {
+      covers("circuit-breaker-2");
+      covers("circuit-breaker-configuration-2");
+      covers("circuit-breaker-configuration-2", "slidingWindowType", "COUNT_BASED");
+      covers("on-fallback-2");
+
+      const chain = seedChain(readCorpusState(), "circuit-breaker-count-based");
+      await closeBreaker(request, env, chain);
+      const first = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
+      await sleep((WINDOW_SECONDS + 2) * 1_000);
+      // The count window still holds the first failure: two of at most three calls failed.
+      const second = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
+      // The main branch is not called at all: its steps are missing, not failed.
+      const probe = await breakerCall(request, env, chain, false, "fallback", SHORT_CIRCUITED);
+      await assertTraces(sessions, [first, second, probe]);
+    });
+
+    test("TIME_BASED: a failure that left the window does not count", async ({ request, env, sessions }) => {
+      covers("circuit-breaker-configuration-2", "slidingWindowType", "TIME_BASED");
+
+      const chain = seedChain(readCorpusState(), "circuit-breaker-time-based");
+      await closeBreaker(request, env, chain);
+      await sleep((WINDOW_SECONDS + 2) * 1_000);
+      const first = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
+      await sleep((WINDOW_SECONDS + 2) * 1_000);
+      // From here on the calls go back to back, inside one window.
+      const second = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
+      // Where COUNT_BASED is already open: one call in the window is under the minimum of two.
+      const probe = await breakerCall(request, env, chain, false, "main", MAIN);
+      // Two failures of three in the window reach 60%.
+      const third = await breakerCall(request, env, chain, true, "fallback", FAILED_OVER);
+      const shortCircuited = await breakerCall(request, env, chain, false, "fallback", SHORT_CIRCUITED);
+      await assertTraces(sessions, [first, second, probe, third, shortCircuited]);
+    });
+  });
 });

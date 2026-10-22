@@ -31,9 +31,7 @@ import {
   HTTP_METHODS,
   handlerReply,
   ORDER_ID,
-  ORDERS_SERVICE,
 } from "../../fixtures/axis-generator.js";
-import { escapeRegExp, readServiceFixture } from "../../fixtures/templating.js";
 import { callToken, tokenized } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, element, elementNames, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER, type ExecutionStatus } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
@@ -68,6 +66,7 @@ interface MockedCase {
 }
 
 const PAYLOAD = callToken("payload");
+const POSITIONS = ["header", "body"] as const;
 
 const MOCKED_CASES: MockedCase[] = [
   { axisPath: "handleValidationAction", value: "default", outcome: "fails the chain on an invalid response", status: 500, code: "CIP-0112", executionStatus: "COMPLETED_WITH_ERRORS", steps: ["Request attempt", VALIDATED] },
@@ -94,83 +93,90 @@ const MOCKED_CASES: MockedCase[] = [
   { axisPath: "propagateContext", value: false, outcome: "sends no request id", headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID }, matchers: (env) => [noChainRequestId(env)], status: 201, reply: MOCKED_BODY, executionStatus: "COMPLETED_NORMALLY", steps: ["Request attempt"] },
 ];
 
-const MOCKED_TAGS = ["@engine", "@catalog", "@sessions", "@testing-service", "@tier2"];
+/** The mocked cases add the testing service to the describe's components. */
+const MOCKED_TAGS = ["@testing-service"];
 
-for (const each of MOCKED_CASES) {
-  test(`${each.axisPath}=${each.value}: a service call ${each.outcome}`, { tag: MOCKED_TAGS }, async ({ request, env, sessions, testingService, run }) => {
-    // The afterValidation case declares no row: the template never reads the entry's type.
-    if (each.declares !== false) covers("service-call", each.axisPath, each.value);
-    const { chain, branch, callerId } = axisChain(each.axisPath, each.value);
-    const response = { status: 201, body: MOCKED_BODY, headers: [{ name: "Content-Type", value: "application/json" }] };
-    await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response, matchers: each.matchers?.(env) }, async () => {
-      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { payload: PAYLOAD }, headers: each.headers });
-      const body = await call.response.text();
-      expect(call.response.status(), body).toBe(each.status);
-      if (each.code) expect(JSON.parse(body).code, body).toBe(each.code);
-      else expect(body).toBe(each.reply);
-      const steps = [branch, ...each.steps];
-      const session = await sessions.byExternalId(call.token, { elements: steps.length + 2 });
-      expect(session.executionStatus).toBe(each.executionStatus);
-      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, ...steps]);
+/** The mocked cases by axis, in the order the table lists them. */
+const MOCKED_AXES = [...new Set(MOCKED_CASES.map((each) => each.axisPath))];
+
+test.describe("service-call axes", { tag: ["@engine", "@catalog", "@sessions"] }, () => {
+  for (const axisPath of MOCKED_AXES) {
+    test.describe(axisPath, { tag: MOCKED_TAGS }, () => {
+      for (const each of MOCKED_CASES.filter((mocked) => mocked.axisPath === axisPath)) {
+        test(`${each.value}: ${each.outcome}`, async ({ request, env, sessions, testingService, run }) => {
+          // The afterValidation case declares no row: the template never reads the entry's type.
+          if (each.declares !== false) covers("service-call", each.axisPath, each.value);
+          const { chain, branch, callerId } = axisChain(each.axisPath, each.value);
+          const response = { status: 201, body: MOCKED_BODY, headers: [{ name: "Content-Type", value: "application/json" }] };
+          await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response, matchers: each.matchers?.(env) }, async () => {
+            const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { payload: PAYLOAD }, headers: each.headers });
+            const body = await call.response.text();
+            expect(call.response.status(), body).toBe(each.status);
+            if (each.code) expect(JSON.parse(body).code, body).toBe(each.code);
+            else expect(body).toBe(each.reply);
+            const steps = [branch, ...each.steps];
+            const session = await sessions.byExternalId(call.token, { elements: steps.length + 2 });
+            expect(session.executionStatus).toBe(each.executionStatus);
+            expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, ...steps]);
+          });
+        });
+      }
+    });
+  }
+
+  // The template tells EXTERNAL from the rest (`service-call/template.hbs:234-243`): EXTERNAL goes to
+  // the egress gateway's route for the element, anything else to the environment's address. The mock
+  // answers either, so the URI the producer was handed is read off the request step. INTERNAL has no
+  // case: it compiles the same address as IMPLEMENTED, so a case could not tell them apart.
+  test.describe("systemType", { tag: MOCKED_TAGS }, () => {
+    test("EXTERNAL addresses the egress gateway", async ({ request, env, sessions, testingService, run }) => {
+      covers("service-call", "systemType", "EXTERNAL");
+      const { chain, branch, callerId } = axisChain("systemType", "EXTERNAL");
+      await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response: { status: 201, body: MOCKED_BODY } }, async () => {
+        const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+        const body = await call.response.text();
+        expect(call.response.status(), body).toBe(201);
+        const session = await sessions.byExternalId(call.token, { elements: 4 });
+        expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt"]);
+        expect(element(session, "Request attempt")?.headersBefore?.CamelHttpUri).toMatch(new RegExp(`^http://[^/]+/system/${callerId}/[0-9a-f]{40}/orders/${ORDER_ID}$`));
+      });
     });
   });
-}
 
-// The template tells EXTERNAL from the rest (`service-call/template.hbs:234-243`): EXTERNAL goes to the
-// egress gateway's route for the element, anything else to the environment's address. The mock
-// answers either, so the URI the producer was handed is read off the request step.
-const SYSTEM_TYPES = [
-  // INTERNAL declares no row: IMPLEMENTED compiles the same address, so this case cannot tell them apart.
-  { value: "INTERNAL", declares: false, uri: () => new RegExp(`^${escapeRegExp(readServiceFixture(ORDERS_SERVICE).address)}/orders/${ORDER_ID}$`) },
-  { value: "EXTERNAL", declares: true, uri: (callerId: string) => new RegExp(`^http://[^/]+/system/${callerId}/[0-9a-f]{40}/orders/${ORDER_ID}$`) },
-] as const;
-
-for (const { value, declares, uri } of SYSTEM_TYPES) {
-  test(`systemType=${value}: a service call addresses ${value === "EXTERNAL" ? "the egress gateway" : "the environment"}`, { tag: MOCKED_TAGS }, async ({ request, env, sessions, testingService, run }) => {
-    if (declares) covers("service-call", "systemType", value);
-    const { chain, branch, callerId } = axisChain("systemType", value);
-    await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response: { status: 201, body: MOCKED_BODY } }, async () => {
-      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
-      const body = await call.response.text();
-      expect(call.response.status(), body).toBe(201);
-      const session = await sessions.byExternalId(call.token, { elements: 4 });
-      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt"]);
-      expect(element(session, "Request attempt")?.headersBefore?.CamelHttpUri).toMatch(uri(callerId));
-    });
+  test.describe("correlationIdPosition", { tag: MOCKED_TAGS }, () => {
+    for (const position of POSITIONS) {
+      test(`${position}: receives the correlation id the response carries`, async ({ request, env, sessions, testingService, run }) => {
+        covers("service-call", "correlationIdPosition", position);
+        const sent = callToken("correlation");
+        const { chain, branch, callerId } = axisChain("correlationIdPosition", position);
+        const response = position === "header"
+          ? { status: 201, body: MOCKED_BODY, headers: [{ name: CORRELATION_ID_HEADER, value: sent }] }
+          : { status: 201, body: JSON.stringify({ [CORRELATION_ID_FIELD]: sent }), headers: [{ name: "Content-Type", value: "application/json" }] };
+        await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response }, async () => {
+          const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+          const body = await call.response.text();
+          expect(call.response.status(), body).toBe(201);
+          const session = await sessions.byExternalId(call.token, { elements: 5 });
+          expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt", CORRELATION_ECHO.name]);
+          expect((JSON.parse(body) as { correlationId: unknown }).correlationId).toBe(sent);
+        });
+      });
+    }
   });
-}
 
-const POSITIONS = ["header", "body"] as const;
-
-for (const position of POSITIONS) {
-  test(`correlationIdPosition ${position}: a service call receives the correlation id the response carries`, { tag: MOCKED_TAGS }, async ({ request, env, sessions, testingService, run }) => {
-    covers("service-call", "correlationIdPosition", position);
-    const sent = callToken("correlation");
-    const { chain, branch, callerId } = axisChain("correlationIdPosition", position);
-    const response = position === "header"
-      ? { status: 201, body: MOCKED_BODY, headers: [{ name: CORRELATION_ID_HEADER, value: sent }] }
-      : { status: 201, body: JSON.stringify({ [CORRELATION_ID_FIELD]: sent }), headers: [{ name: "Content-Type", value: "application/json" }] };
-    await testingService.withMock({ name: tokenized(run, `service-call-${branch}`), reference: { chainId: chain.id, elementId: callerId }, response }, async () => {
-      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
-      const body = await call.response.text();
-      expect(call.response.status(), body).toBe(201);
-      const session = await sessions.byExternalId(call.token, { elements: 5 });
-      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt", CORRELATION_ECHO.name]);
-      expect((JSON.parse(body) as { correlationId: unknown }).correlationId).toBe(sent);
-    });
+  // The method service's address is the engine's chain routes, and each operation's path is the echo's
+  // own route.
+  test.describe("integrationOperationMethod", () => {
+    for (const method of HTTP_METHODS) {
+      test(`${method}: sends ${method}`, async ({ request, env, sessions }) => {
+        covers("service-call", "integrationOperationMethod", method);
+        const { chain, branch } = axisChain("integrationOperationMethod", method);
+        const before = await sessions.idsOf(chain.id);
+        await expectEchoedMethod(request, env.chainUrl(chain.contextPath), method);
+        const session = await sessions.onlyOf(chain.id, 4, (each) => !before.has(each.id));
+        expect(session.executionStatus).toBe("COMPLETED_NORMALLY");
+        expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt"]);
+      });
+    }
   });
-}
-
-// The method service's address is the engine's chain routes, and each operation's path is the echo's
-// own route.
-for (const method of HTTP_METHODS) {
-  test(`integrationOperationMethod=${method}: a service call sends ${method}`, { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-    covers("service-call", "integrationOperationMethod", method);
-    const { chain, branch } = axisChain("integrationOperationMethod", method);
-    const before = await sessions.idsOf(chain.id);
-    await expectEchoedMethod(request, env.chainUrl(chain.contextPath), method);
-    const session = await sessions.onlyOf(chain.id, 4, (each) => !before.has(each.id));
-    expect(session.executionStatus).toBe("COMPLETED_NORMALLY");
-    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt"]);
-  });
-}
+});

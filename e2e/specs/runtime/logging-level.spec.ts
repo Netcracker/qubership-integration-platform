@@ -63,82 +63,84 @@ async function expectNoSession(sessions: Sessions, token: string, what: string):
   expect((await sessions.attemptByExternalId(token)).status, what).toBe(404);
 }
 
-test("the session logging level decides whether a call leaves a trace", { tag: ["@engine", "@sessions", "@catalog", "@tier1"] }, async ({ request, env, sessions, catalog }) => {
-  const corpus = readCorpusState();
-  const off = seedChain(corpus, "logging-level-off");
-  const error = seedChain(corpus, "logging-level-error");
-  const debug = seedChain(corpus, "logging-level-debug");
+test.describe("session logging level", { tag: ["@engine", "@sessions", "@catalog"] }, () => {
+  test("the logging level sets which calls leave a trace", async ({ request, env, sessions, catalog }) => {
+    const corpus = readCorpusState();
+    const off = seedChain(corpus, "logging-level-off");
+    const error = seedChain(corpus, "logging-level-error");
+    const debug = seedChain(corpus, "logging-level-debug");
 
-  // ERROR last, as the header explains.
-  await catalog.saveLoggingProperties(debug.id, logging("DEBUG"));
-  await catalog.saveLoggingProperties(off.id, logging("OFF"));
-  await catalog.saveLoggingProperties(error.id, logging("ERROR"));
+    // ERROR last, as the header explains.
+    await catalog.saveLoggingProperties(debug.id, logging("DEBUG"));
+    await catalog.saveLoggingProperties(off.id, logging("OFF"));
+    await catalog.saveLoggingProperties(error.id, logging("ERROR"));
 
-  // The ERROR chain at ERROR, proven before anything is read off the three chains, by the level the
-  // session records. Its element list cannot gate: a DEBUG session can be read while only its
-  // failed step is indexed (CI run 38677650288). Each call carries its own token, so a call the
-  // change did not reach yet only costs an interval.
-  await expect
-    .poll(
-      async () => {
-        const failed = await callChain(request, env.chainUrl(error.contextPath), { headers: { [FAIL_HEADER]: "yes" }, data: {} });
-        return (await sessions.byExternalId(failed.token, { elements: 1 })).loggingLevel;
-      },
-      { timeout: DEPLOY_TIMEOUT, message: "the ERROR chain still records a failed call at another level" },
-    )
-    .toBe("ERROR");
+    // The ERROR chain at ERROR, proven before anything is read off the three chains, by the level the
+    // session records. Its element list cannot gate: a DEBUG session can be read while only its
+    // failed step is indexed (CI run 38677650288). Each call carries its own token, so a call the
+    // change did not reach yet only costs an interval.
+    await expect
+      .poll(
+        async () => {
+          const failed = await callChain(request, env.chainUrl(error.contextPath), { headers: { [FAIL_HEADER]: "yes" }, data: {} });
+          return (await sessions.byExternalId(failed.token, { elements: 1 })).loggingLevel;
+        },
+        { timeout: DEPLOY_TIMEOUT, message: "the ERROR chain still records a failed call at another level" },
+      )
+      .toBe("ERROR");
 
-  // OFF: nothing is queryable, and that holds for a call that failed as much as for one that did
-  // not. The failing half is what separates OFF from ERROR, which are otherwise indistinguishable.
-  const silent = await callChain(request, env.chainUrl(off.contextPath), { data: { m: MARKER } });
-  expect(silent.response.status()).toBe(200);
+    // OFF: nothing is queryable, and that holds for a call that failed as much as for one that did
+    // not. The failing half is what separates OFF from ERROR, which are otherwise indistinguishable.
+    const silent = await callChain(request, env.chainUrl(off.contextPath), { data: { m: MARKER } });
+    expect(silent.response.status()).toBe(200);
 
-  const silentFailure = await callChain(request, env.chainUrl(off.contextPath), {
-    headers: { [FAIL_HEADER]: "yes" },
-    data: { m: MARKER },
+    const silentFailure = await callChain(request, env.chainUrl(off.contextPath), {
+      headers: { [FAIL_HEADER]: "yes" },
+      data: { m: MARKER },
+    });
+    expect(silentFailure.response.status()).toBe(500);
+
+    // ERROR: a call that did not fail leaves nothing queryable either. Measured, and worth stating
+    // precisely, because the code reads the other way at first glance: `SessionsService` does put the
+    // session in its cache at any level above OFF, but a session reaches OpenSearch only through its
+    // **elements**, and at ERROR the only element kept is a failed one. No failed step, no session.
+    const clean = await callChain(request, env.chainUrl(error.contextPath), { data: { m: MARKER } });
+    expect(clean.response.status()).toBe(200);
+
+    const silentTokens: Array<[string, string]> = [
+      [silent.token, "OFF recorded a session, so the level is not being honored"],
+      [silentFailure.token, "OFF recorded a failed call, which is what ERROR is for"],
+      [clean.token, "ERROR recorded a call that did not fail"],
+    ];
+
+    const failed = await callChain(request, env.chainUrl(error.contextPath), {
+      headers: { [FAIL_HEADER]: "yes" },
+      data: { m: MARKER },
+    });
+    expect(failed.response.status()).toBe(500);
+    const failedSession = await sessions.byExternalId(failed.token, { elements: 1 });
+    expect(failedSession.executionStatus).toBe("COMPLETED_WITH_ERRORS");
+    expect(failedSession.loggingLevel).toBe("ERROR");
+    expect(elementNames(failedSession)).toEqual([PROBE_ELEMENT]);
+
+    // DEBUG with BODY in logPayload: every step, and the body with it.
+    const verbose = await callChain(request, env.chainUrl(debug.contextPath), { data: { m: MARKER } });
+    expect(verbose.response.status()).toBe(200);
+    const verboseSession = await sessions.byExternalId(verbose.token, { elements: 3 });
+    expect(elementNames(verboseSession)).toContain(PROBE_ELEMENT);
+    expect(
+      trace(verboseSession).some((step) => (step.bodyBefore ?? "").includes(MARKER)),
+      "DEBUG with BODY in logPayload recorded no body",
+    ).toBe(true);
+
+    // Only now are the three silent tokens read, and the ordering is the point.
+    //
+    // On their own the OFF and ERROR conclusions rest on an 8 s wait, and 8 s is a budget rather
+    // than a proof: under eight workers an engine that had stopped honoring the levels altogether
+    // would read the same as one honoring them. The DEBUG session arrived from a later call, so
+    // indexing was live over this window, and a token still absent behind it is absent because
+    // nothing was written for it. The gate above is the other half: the ERROR chain had already
+    // recorded a session of its own before `clean` was sent.
+    for (const [token, what] of silentTokens) await expectNoSession(sessions, token, what);
   });
-  expect(silentFailure.response.status()).toBe(500);
-
-  // ERROR: a call that did not fail leaves nothing queryable either. Measured, and worth stating
-  // precisely, because the code reads the other way at first glance: `SessionsService` does put the
-  // session in its cache at any level above OFF, but a session reaches OpenSearch only through its
-  // **elements**, and at ERROR the only element kept is a failed one. No failed step, no session.
-  const clean = await callChain(request, env.chainUrl(error.contextPath), { data: { m: MARKER } });
-  expect(clean.response.status()).toBe(200);
-
-  const silentTokens: Array<[string, string]> = [
-    [silent.token, "OFF recorded a session, so the level is not being honored"],
-    [silentFailure.token, "OFF recorded a failed call, which is what ERROR is for"],
-    [clean.token, "ERROR recorded a call that did not fail"],
-  ];
-
-  const failed = await callChain(request, env.chainUrl(error.contextPath), {
-    headers: { [FAIL_HEADER]: "yes" },
-    data: { m: MARKER },
-  });
-  expect(failed.response.status()).toBe(500);
-  const failedSession = await sessions.byExternalId(failed.token, { elements: 1 });
-  expect(failedSession.executionStatus).toBe("COMPLETED_WITH_ERRORS");
-  expect(failedSession.loggingLevel).toBe("ERROR");
-  expect(elementNames(failedSession)).toEqual([PROBE_ELEMENT]);
-
-  // DEBUG with BODY in logPayload: every step, and the body with it.
-  const verbose = await callChain(request, env.chainUrl(debug.contextPath), { data: { m: MARKER } });
-  expect(verbose.response.status()).toBe(200);
-  const verboseSession = await sessions.byExternalId(verbose.token, { elements: 3 });
-  expect(elementNames(verboseSession)).toContain(PROBE_ELEMENT);
-  expect(
-    trace(verboseSession).some((step) => (step.bodyBefore ?? "").includes(MARKER)),
-    "DEBUG with BODY in logPayload recorded no body",
-  ).toBe(true);
-
-  // Only now are the three silent tokens read, and the ordering is the point.
-  //
-  // On their own the OFF and ERROR conclusions rest on an 8 s wait, and 8 s is a budget rather
-  // than a proof: under eight workers an engine that had stopped honoring the levels altogether
-  // would read the same as one honoring them. The DEBUG session arrived from a later call, so
-  // indexing was live over this window, and a token still absent behind it is absent because
-  // nothing was written for it. The gate above is the other half: the ERROR chain had already
-  // recorded a session of its own before `clean` was sent.
-  for (const [token, what] of silentTokens) await expectNoSession(sessions, token, what);
 });

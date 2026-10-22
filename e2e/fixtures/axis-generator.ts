@@ -290,14 +290,9 @@ export const axisFixtures: readonly AxisFixture[] = [
     downstream: PASSED_STEP,
   },
 
-  // The mcp-trigger idempotency axes: the trigger under test is not an HTTP trigger, so the chains are hand-written.
-  { family: "mcp-trigger", axisPath: "idempotency/enabled", value: false, handWritten: "mcp-trigger-idempotency-disabled" },
-  ...(["ignore", "throw-exception", "execute-subchain"] as const).map((value): AxisFixture => ({
-    family: "mcp-trigger",
-    axisPath: "idempotency/actionOnDuplicate",
-    value,
-    handWritten: `mcp-trigger-idempotency-${value}`,
-  })),
+  // The trigger under test is not an HTTP trigger, so the chain is hand-written. The other modes
+  // run the same shared partial, which http-trigger proves.
+  { family: "mcp-trigger", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", handWritten: "mcp-trigger-idempotency-throw-exception" },
 
   // The breaker's window type: the configuration is a child of `circuit-breaker-2`, so both chains
   // are hand-written.
@@ -337,7 +332,6 @@ export const axisFixtures: readonly AxisFixture[] = [
   { family: "service-call", axisPath: "authorizationConfiguration/type", value: "basic", properties: { ...ORDERS_CALL, authorizationConfiguration: { data: { username: "e2e-user", password: "e2e-password" } } } },
   { family: "service-call", axisPath: "authorizationConfiguration/type", value: "bearer", properties: { ...ORDERS_CALL, authorizationConfiguration: { data: { token: "e2e-token" } } } },
   ...[true, false].map((value): AxisFixture => ({ family: "service-call", axisPath: "propagateContext", value, properties: ORDERS_CALL })),
-  { family: "service-call", axisPath: "systemType", value: "INTERNAL", properties: ORDERS_CALL },
   // The value is the type of the service the element calls, so EXTERNAL calls a service of its own.
   {
     family: "service-call",

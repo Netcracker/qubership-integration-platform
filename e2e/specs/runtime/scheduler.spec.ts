@@ -89,10 +89,8 @@ async function withFiringHistory<T>(catalog: Catalog, chainName: string, domain:
   }
 }
 
-test(
-  "a cron tick fires quartz-scheduler, found by chain id",
-  { tag: ["@engine", "@sessions", "@tier1"] },
-  async ({ env, catalog, sessions }) => {
+test.describe("quartz scheduler", { tag: ["@engine", "@sessions"] }, () => {
+  test("a cron tick fires quartz-scheduler, found by chain id", async ({ env, catalog, sessions }) => {
     covers("quartz-scheduler");
 
     const chain = seedChain(readCorpusState(), "scheduler-basic");
@@ -108,5 +106,5 @@ test(
     expect(session.chainId).toBe(chain.id);
     expect(elementNames(session)).toEqual(["Scheduler", "Header Modification"]);
     expect(failedElements(session)).toEqual([]);
-  },
-);
+  });
+});

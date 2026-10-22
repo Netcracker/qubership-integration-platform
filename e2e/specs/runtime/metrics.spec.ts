@@ -17,9 +17,9 @@
  *   chain between two readings. The session counter is therefore asserted to have *grown by at least*
  *   the calls this spec made: a meter that is broken reads zero forever, and a meter that works
  *   cannot go backwards.
- * - **The failure counter needs a chain no other spec calls.** `error-handling.spec.ts` calls the
- *   shared `try-catch-finally` chain in the same parallel project and produces exactly one counted
- *   failure, so a `+1` over that chain can come entirely from the neighbor. The seeded
+ * - **The failure counter needs a chain no other spec calls.** `control-flow.spec.ts` calls the
+ *   shared `try-catch-finally-branches` chain in the same parallel project, and its failing calls
+ *   are counted too, so a `+1` over that chain can come entirely from the neighbor. The seeded
  *   `metrics-failure` chain is called by this file alone, so its counter grows by exactly the calls
  *   made here, also against a kept corpus.
  */
@@ -68,90 +68,92 @@ async function meters(request: APIRequestContext, url: string): Promise<string> 
   return await response.text();
 }
 
-test("a chain's session counter grows with the calls it serves", { tag: ["@engine", "@infra", "@tier1"] }, async ({ request, env }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  const chain = seedChain(readCorpusState(), "script");
-  const url = env.engineMetricsUrl();
+test.describe("chain metrics", { tag: ["@engine", "@infra"] }, () => {
+  test("a chain's session counter grows with the calls it serves", async ({ request, env }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    const chain = seedChain(readCorpusState(), "script");
+    const url = env.engineMetricsUrl();
 
-  const exposition = await meters(request, url);
-  expect(
-    exposition,
-    `the engine publishes no chain meters, or ${url} did not answer: ` +
-      "cip.metrics.enabled reads MONITORING_ENABLED, and infrastructure/docker/engine-dev.env is where " +
-      "Compose sets it; a micro domain gets it from the chart value qip-runtime-catalog.microDomainMetrics",
-  ).toContain("cip_engine_sessions_counter_total");
+    const exposition = await meters(request, url);
+    expect(
+      exposition,
+      `the engine publishes no chain meters, or ${url} did not answer: ` +
+        "cip.metrics.enabled reads MONITORING_ENABLED, and infrastructure/docker/engine-dev.env is where " +
+        "Compose sets it; a micro domain gets it from the chart value qip-runtime-catalog.microDomainMetrics",
+    ).toContain("cip_engine_sessions_counter_total");
 
-  const before = sumForChain(exposition, "cip_engine_sessions_counter_total", chain.id);
-  for (let call = 0; call < CALLS; call++) {
-    const answered = await callChain(request, env.chainUrl(chain.contextPath), { data: { call } });
-    expect(answered.response.status()).toBe(200);
-  }
+    const before = sumForChain(exposition, "cip_engine_sessions_counter_total", chain.id);
+    for (let call = 0; call < CALLS; call++) {
+      const answered = await callChain(request, env.chainUrl(chain.contextPath), { data: { call } });
+      expect(answered.response.status()).toBe(200);
+    }
 
-  await expect
-    .poll(
-      async () =>
-        sumForChain(await meters(request, url), "cip_engine_sessions_counter_total", chain.id),
-      {
-        timeout: METER_TIMEOUT,
-        message:
-          `sessions.counter for chain ${chain.id} did not grow by ${CALLS}. A counter is locked ` +
-          `for its first 30 s and reads 0 until it commits, so a value that never moves past the ` +
-          `baseline is the meter, not the lock`,
-      },
-    )
-    .toBeGreaterThanOrEqual(before + CALLS);
+    await expect
+      .poll(
+        async () =>
+          sumForChain(await meters(request, url), "cip_engine_sessions_counter_total", chain.id),
+        {
+          timeout: METER_TIMEOUT,
+          message:
+            `sessions.counter for chain ${chain.id} did not grow by ${CALLS}. A counter is locked ` +
+            `for its first 30 s and reads 0 until it commits, so a value that never moves past the ` +
+            `baseline is the meter, not the lock`,
+        },
+      )
+      .toBeGreaterThanOrEqual(before + CALLS);
 
-  // The timer is registered from the same call path, so its absence separates "no meters at all"
-  // from "the counter alone is broken". Summed through the same helper, because matching the
-  // literal `..._count{chain_id="…"` would pin Micrometer's label order along with it.
-  //
-  // Polled like every other reading here, and for the reason the `meters` docstring gives: it
-  // answers `""` on a transport failure, which sums to zero on every meter. A single read would
-  // report one refused connection as a timer that carries no sample.
-  await expect
-    .poll(
-      async () =>
-        sumForChain(
-          await meters(request, url),
-          "cip_engine_sessions_duration_timer_seconds_count",
-          chain.id,
-        ),
-      {
-        timeout: METER_TIMEOUT,
-        message: `sessions.duration.timer carries no sample for chain ${chain.id}`,
-      },
-    )
-    .toBeGreaterThan(0);
-});
+    // The timer is registered from the same call path, so its absence separates "no meters at all"
+    // from "the counter alone is broken". Summed through the same helper, because matching the
+    // literal `..._count{chain_id="…"` would pin Micrometer's label order along with it.
+    //
+    // Polled like every other reading here, and for the reason the `meters` docstring gives: it
+    // answers `""` on a transport failure, which sums to zero on every meter. A single read would
+    // report one refused connection as a timer that carries no sample.
+    await expect
+      .poll(
+        async () =>
+          sumForChain(
+            await meters(request, url),
+            "cip_engine_sessions_duration_timer_seconds_count",
+            chain.id,
+          ),
+        {
+          timeout: METER_TIMEOUT,
+          message: `sessions.duration.timer carries no sample for chain ${chain.id}`,
+        },
+      )
+      .toBeGreaterThan(0);
+  });
 
-test("a chain that ends in a failure increments the failure counter", { tag: ["@engine", "@infra", "@tier1"] }, async ({ request, env }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  const url = env.engineMetricsUrl();
-  // `ChainFinishProcessor.handleMetrics` counts COMPLETED_WITH_WARNINGS and COMPLETED_WITH_ERRORS
-  // alike, and the script of this chain always throws.
-  const chain = seedChain(readCorpusState(), "metrics-failure");
+  test("a failing chain increments the failure counter", async ({ request, env }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    const url = env.engineMetricsUrl();
+    // `ChainFinishProcessor.handleMetrics` counts COMPLETED_WITH_WARNINGS and COMPLETED_WITH_ERRORS
+    // alike, and the script of this chain always throws.
+    const chain = seedChain(readCorpusState(), "metrics-failure");
 
-  // Zero on a fresh corpus, where the counter does not exist yet; what earlier runs counted on a kept
-  // one. Read off an exposition that answered, since `meters` turns a failed read into zero.
-  let exposition = "";
-  await expect
-    .poll(async () => (exposition = await meters(request, url)) !== "", { timeout: METER_TIMEOUT, message: `${url} never answered` })
-    .toBe(true);
-  const before = sumForChain(exposition, "cip_engine_chains_failures_total", chain.id);
-  const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "fail" } });
-  expect(call.response.status()).toBe(500);
+    // Zero on a fresh corpus, where the counter does not exist yet; what earlier runs counted on a kept
+    // one. Read off an exposition that answered, since `meters` turns a failed read into zero.
+    let exposition = "";
+    await expect
+      .poll(async () => (exposition = await meters(request, url)) !== "", { timeout: METER_TIMEOUT, message: `${url} never answered` })
+      .toBe(true);
+    const before = sumForChain(exposition, "cip_engine_chains_failures_total", chain.id);
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "fail" } });
+    expect(call.response.status()).toBe(500);
 
-  await expect
-    .poll(
-      async () =>
-        sumForChain(await meters(request, url), "cip_engine_chains_failures_total", chain.id),
-      {
-        timeout: METER_TIMEOUT,
-        message:
-          `chains.failures for chain ${chain.id} never reached exactly ${before + 1}. A new counter is ` +
-          `locked for its first 30 s and reads 0 until it commits, so a value stuck at ${before} is ` +
-          `the meter rather than the lock`,
-      },
-    )
-    .toBe(before + 1);
+    await expect
+      .poll(
+        async () =>
+          sumForChain(await meters(request, url), "cip_engine_chains_failures_total", chain.id),
+        {
+          timeout: METER_TIMEOUT,
+          message:
+            `chains.failures for chain ${chain.id} never reached exactly ${before + 1}. A new counter is ` +
+            `locked for its first 30 s and reads 0 until it commits, so a value stuck at ${before} is ` +
+            `the meter rather than the lock`,
+        },
+      )
+      .toBe(before + 1);
+  });
 });

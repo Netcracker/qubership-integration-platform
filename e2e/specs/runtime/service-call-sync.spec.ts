@@ -39,44 +39,46 @@ function stepsOf(session: RecordedSession, own: boolean): string[] {
 
 const PROTOCOL = "integrationOperationProtocolType";
 
-test("integrationOperationProtocolType http sends the path, query and body the element declares", { tag: ["@engine", "@catalog", "@sessions", "@testing-service", "@tier2"] }, async ({ request, env, sessions, testingService, run }) => {
-  covers("service-call");
-  covers("service-call", "integrationOperationProtocolType", "http");
-  const { chain, branch, callerId } = axisChain(PROTOCOL, "http");
+test.describe("service-call sync protocols", { tag: ["@engine", "@catalog", "@sessions"] }, () => {
+  test("http sends the declared path, query and body", { tag: ["@testing-service"] }, async ({ request, env, sessions, testingService, run }) => {
+    covers("service-call");
+    covers("service-call", "integrationOperationProtocolType", "http");
+    const { chain, branch, callerId } = axisChain(PROTOCOL, "http");
 
-  const payload = callToken("payload");
-  const matchers = [
-    { type: "equal", entityType: "path_parameter", entityName: "orderId", value: ORDER_ID },
-    { type: "equal", entityType: "query_parameter", entityName: "channel", value: ORDER_CHANNEL },
-    { type: "contain", entityType: "body", value: payload },
-  ] as const;
-  await testingService.withMock({ name: tokenized(run, "service-call-http"), reference: { chainId: chain.id, elementId: callerId }, response: { status: 201, body: MOCKED_BODY }, matchers: [...matchers] }, async () => {
-    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { payload } });
-    const body = await call.response.text();
-    expect(call.response.status(), `no mock matched: the element sent another path, query or body. ${body}`).toBe(201);
-    expect(body).toBe(MOCKED_BODY);
-    const session = await sessions.byExternalId(call.token, { elements: 4 });
-    expect(session.executionStatus).toBe("COMPLETED_NORMALLY");
-    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt"]);
+    const payload = callToken("payload");
+    const matchers = [
+      { type: "equal", entityType: "path_parameter", entityName: "orderId", value: ORDER_ID },
+      { type: "equal", entityType: "query_parameter", entityName: "channel", value: ORDER_CHANNEL },
+      { type: "contain", entityType: "body", value: payload },
+    ] as const;
+    await testingService.withMock({ name: tokenized(run, "service-call-http"), reference: { chainId: chain.id, elementId: callerId }, response: { status: 201, body: MOCKED_BODY }, matchers: [...matchers] }, async () => {
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { payload } });
+      const body = await call.response.text();
+      expect(call.response.status(), `no mock matched: the element sent another path, query or body. ${body}`).toBe(201);
+      expect(body).toBe(MOCKED_BODY);
+      const session = await sessions.byExternalId(call.token, { elements: 4 });
+      expect(session.executionStatus).toBe("COMPLETED_NORMALLY");
+      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Request attempt"]);
+    });
   });
-});
 
-test("integrationOperationProtocolType graphql posts the query and its variables to the service", { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-  covers("service-call", "integrationOperationProtocolType", "graphql");
-  const { chain, branch } = axisChain(PROTOCOL, "graphql");
+  test("graphql posts the query and its variables", async ({ request, env, sessions }) => {
+    covers("service-call", "integrationOperationProtocolType", "graphql");
+    const { chain, branch } = axisChain(PROTOCOL, "graphql");
 
-  const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
-  expect(call.response.status()).toBe(200);
-  expect(JSON.parse(await call.response.text())).toEqual({ query: GRAPHQL_QUERY, operationName: null, variables: GRAPHQL_VARIABLES });
-  const session = await sessions.byExternalId(call.token, { elements: 8 });
-  expect(session.executionStatus).toBe("COMPLETED_NORMALLY");
-  expect(stepsOf(session, true)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Prepare request", "Request attempt"]);
-  expect(stepsOf(session, false), "the echo did not run: something else answered the call").toEqual([...HTTP_TRIGGER_STEPS, "Header Modification"]);
-});
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+    expect(call.response.status()).toBe(200);
+    expect(JSON.parse(await call.response.text())).toEqual({ query: GRAPHQL_QUERY, operationName: null, variables: GRAPHQL_VARIABLES });
+    const session = await sessions.byExternalId(call.token, { elements: 8 });
+    expect(session.executionStatus).toBe("COMPLETED_NORMALLY");
+    expect(stepsOf(session, true)).toEqual([...HTTP_TRIGGER_STEPS, branch, "Prepare request", "Request attempt"]);
+    expect(stepsOf(session, false), "the echo did not run: something else answered the call").toEqual([...HTTP_TRIGGER_STEPS, "Header Modification"]);
+  });
 
-test("a graphql service call with no before sends the query it declares", { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env }) => {
-  const chain = seedChain(readCorpusState(), "service-call-graphql-no-before");
-  const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
-  expect(call.response.status()).toBe(200);
-  expect(JSON.parse(await call.response.text())).toEqual({ query: GRAPHQL_QUERY, operationName: null, variables: GRAPHQL_VARIABLES });
+  test("graphql with no before sends the declared query", async ({ request, env }) => {
+    const chain = seedChain(readCorpusState(), "service-call-graphql-no-before");
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+    expect(call.response.status()).toBe(200);
+    expect(JSON.parse(await call.response.text())).toEqual({ query: GRAPHQL_QUERY, operationName: null, variables: GRAPHQL_VARIABLES });
+  });
 });

@@ -21,40 +21,42 @@ const built: Built = { chains: [], services: [] };
 let domain: TokenedDomain | undefined;
 let chain: SeedChain;
 
-test.beforeAll(async ({ catalog, folder, run, microDomainState }) => {
-  chain = await createScriptChain(
-    catalog,
-    run,
-    { what: "script-failures-syntax", parentId: folder.id, script: "def broken = (", scriptName: "Unbalanced Script", logging: SEED_LOGGING },
-    built.chains,
-  );
-  domain = tokenedDomain(run, "script-failures", microDomainState);
-  // No route wait: a chain that fails its deployment never serves.
-  await dispatchToDomain(catalog, domain, [chain]);
-});
+test.describe("script failures on the micro engine", { tag: ["@engine", "@catalog", "@slow"] }, () => {
+  test.beforeAll(async ({ catalog, folder, run, microDomainState }) => {
+    chain = await createScriptChain(
+      catalog,
+      run,
+      { what: "script-failures-syntax", parentId: folder.id, script: "def broken = (", scriptName: "Unbalanced Script", logging: SEED_LOGGING },
+      built.chains,
+    );
+    domain = tokenedDomain(run, "script-failures", microDomainState);
+    // No route wait: a chain that fails its deployment never serves.
+    await dispatchToDomain(catalog, domain, [chain]);
+  });
 
-test.afterAll(async ({ catalog }) => {
-  if (domain) await deleteDomain(catalog, domain);
-  await release(catalog, built, false);
-});
+  test.afterAll(async ({ catalog }) => {
+    if (domain) await deleteDomain(catalog, domain);
+    await release(catalog, built, false);
+  });
 
-test("a script that does not compile fails the deployment on a micro domain", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ catalog }) => {
-  test.setTimeout(CASE_TIMEOUT);
-  const target = domain as TokenedDomain;
-  // Empty until the domain's pod reports, and PROCESSING while a classic engine retries.
-  let rows: string[] = [];
-  await expect
-    .poll(async () => (rows = await deploymentRows(catalog, chain.id)).length > 0 && !rows.some((row) => row.startsWith("PROCESSING")), {
-      timeout: MICRO_READY_TIMEOUT,
-      message: `micro domain ${target.domain} never reported the deployment of ${chain.name}`,
-    })
-    .toBe(true);
+  test("a script that does not compile fails the deployment", async ({ catalog }) => {
+    test.setTimeout(CASE_TIMEOUT);
+    const target = domain as TokenedDomain;
+    // Empty until the domain's pod reports, and PROCESSING while a classic engine retries.
+    let rows: string[] = [];
+    await expect
+      .poll(async () => (rows = await deploymentRows(catalog, chain.id)).length > 0 && !rows.some((row) => row.startsWith("PROCESSING")), {
+        timeout: MICRO_READY_TIMEOUT,
+        message: `micro domain ${target.domain} never reported the deployment of ${chain.name}`,
+      })
+      .toBe(true);
 
-  // The micro engine compiled the scripts in a Camel event notifier, which ignored the failure, and
-  // reported DEPLOYED until #1134.
-  expect(rows, `the deployment of ${chain.name} settled at ${rows.join("; ")}`).toEqual([`FAILED: ${COMPILE_FAILURE}`]);
-  // The domain reports the failure while its pod starts, and the proxy answers 503 until the pod is ready.
-  await expect
-    .poll(() => routeStatus(target.env, chain), { timeout: MICRO_READY_TIMEOUT, message: "a chain that failed to compile is serving" })
-    .toBe(404);
+    // The micro engine compiled the scripts in a Camel event notifier, which ignored the failure, and
+    // reported DEPLOYED until #1134.
+    expect(rows, `the deployment of ${chain.name} settled at ${rows.join("; ")}`).toEqual([`FAILED: ${COMPILE_FAILURE}`]);
+    // The domain reports the failure while its pod starts, and the proxy answers 503 until the pod is ready.
+    await expect
+      .poll(() => routeStatus(target.env, chain), { timeout: MICRO_READY_TIMEOUT, message: "a chain that failed to compile is serving" })
+      .toBe(404);
+  });
 });

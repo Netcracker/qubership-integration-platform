@@ -281,7 +281,7 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   masking: { labels: ["Echo"] },
   // `mcp-trigger` has no converter, so the chain draws its trigger group alone.
   "mcp-trigger": { trigger: "MCP Trigger" },
-  // The idempotency chains name their trigger after the branch.
+  // The idempotency chain names its trigger after the branch.
   ...Object.fromEntries(
     axisFixtures
       .filter((fixture) => fixture.family === "mcp-trigger")

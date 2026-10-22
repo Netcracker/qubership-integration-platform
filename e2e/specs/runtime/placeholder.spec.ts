@@ -80,103 +80,105 @@ async function markerOf(request: APIRequestContext, env: Env, chain: DeployableC
   return response.headers()[MARKER_HEADER];
 }
 
-test("a placeholder in an element property resolves to the variable's value at deploy", { tag: ["@engine", "@catalog", "@tier1"] }, async ({ request, env, sessions }) => {
-  const corpus = readCorpusState();
-  const chain = seedChain(corpus, PLACEHOLDER_FIXTURE);
-  const value = placeholderValue(corpus.run);
+test.describe("variable placeholders", { tag: ["@engine", "@catalog"] }, () => {
+  test("a property placeholder resolves to the variable at deploy", async ({ request, env, sessions }) => {
+    const corpus = readCorpusState();
+    const chain = seedChain(corpus, PLACEHOLDER_FIXTURE);
+    const value = placeholderValue(corpus.run);
 
-  const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "placeholder" } });
-  expect(call.response.status()).toBe(200);
-  expect(call.response.headers()["e2e-placeholder"], `#{${placeholderVariable(corpus.run)}} did not resolve`).toBe(value);
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "placeholder" } });
+    expect(call.response.status()).toBe(200);
+    expect(call.response.headers()["e2e-placeholder"], `#{${placeholderVariable(corpus.run)}} did not resolve`).toBe(value);
 
-  // The trace is the element's own record of the header it set, so the value reached the element
-  // rather than being added somewhere on the way out.
-  const session = await sessions.byExternalId(call.token, { elements: 3 });
-  expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Resolve Placeholder"]);
-  expect(element(session, "Resolve Placeholder")?.headersAfter?.["e2e-placeholder"]).toBe(value);
-});
-
-test("a variable changed under a live chain is served only after a redeploy", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "a deploy into the shared micro domain rolls its pod under every runtime-micro case; the micro redeploy runs in a domain of its own, in the runtime-micro-redeploy project" } }, async ({ request, env, catalog, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-
-  const variable = tokenized(run, "placeholder-live");
-  await withBuilt(catalog, async (built) => {
-    await catalog.addCommonVariables({ [variable]: "before" });
-    built.services.push(commonVariable(catalog, variable));
-    const live = await placeholderChain(catalog, run, folder.id, "live", variable, built);
-    // The witness reads the variable per exchange, out of the `variables` property the engine
-    // fills on every exchange, so it sees an update as soon as the engine's Consul watch has.
-    const witness = await createScriptChain(
-      catalog,
-      run,
-      {
-        what: "placeholder-witness",
-        parentId: folder.id,
-        script: `exchange.getMessage().setBody(exchange.getProperty('variables').get('${variable}'))`,
-        scriptName: "Read Variable",
-        logging: SEED_LOGGING,
-      },
-      built.chains,
-    );
-    for (const chain of [live, witness]) await deploy(catalog, chain);
-    await waitForDeployed(catalog, [live, witness]);
-    await waitForRoutes(env, [live, witness]);
-    expect(await markerOf(request, env, live)).toBe("before");
-
-    await catalog.updateCommonVariable(variable, "after");
-
-    // Polled, not read once: the engine's variable watch and its deployment watch are separate
-    // blocking queries, and a first attempt that deployed a second placeholder chain right after
-    // the update resolved it to the old value.
-    await expect
-      .poll(async () => (await callChain(request, env.chainUrl(witness.contextPath), { data: {} })).response.text(), {
-        timeout: DEPLOY_TIMEOUT,
-        message: "the engine never received the updated variable",
-      })
-      .toBe("after");
-    // So the old answer here is the contract, not a slow watch.
-    expect(await markerOf(request, env, live), "the live chain picked up the variable without a redeploy").toBe("before");
-
-    await deploy(catalog, live);
-    await expect
-      .poll(async () => await markerOf(request, env, live), {
-        timeout: DEPLOY_TIMEOUT,
-        message: "the redeployed chain never served the updated variable",
-      })
-      .toBe("after");
+    // The trace is the element's own record of the header it set, so the value reached the element
+    // rather than being added somewhere on the way out.
+    const session = await sessions.byExternalId(call.token, { elements: 3 });
+    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Resolve Placeholder"]);
+    expect(element(session, "Resolve Placeholder")?.headersAfter?.["e2e-placeholder"]).toBe(value);
   });
-});
 
-test("a variable missing at deploy parks the chain until the variable exists", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine does not retry a parked deployment, and a chain that fails to load takes its domain down" } }, async ({ env, catalog, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
+  test("a changed variable is served only after a redeploy", { tag: ["@classic-only"], annotation: { type: "classic-only", description: "a deploy into the shared micro domain rolls its pod under every runtime-micro case; the micro redeploy runs in a domain of its own, in the runtime-micro-redeploy project" } }, async ({ request, env, catalog, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-  const variable = tokenized(run, "placeholder-missing");
-  await withBuilt(catalog, async (built) => {
-    const parked = await placeholderChain(catalog, run, folder.id, "missing", variable, built);
-    await deploy(catalog, parked);
+    const variable = tokenized(run, "placeholder-live");
+    await withBuilt(catalog, async (built) => {
+      await catalog.addCommonVariables({ [variable]: "before" });
+      built.services.push(commonVariable(catalog, variable));
+      const live = await placeholderChain(catalog, run, folder.id, "live", variable, built);
+      // The witness reads the variable per exchange, out of the `variables` property the engine
+      // fills on every exchange, so it sees an update as soon as the engine's Consul watch has.
+      const witness = await createScriptChain(
+        catalog,
+        run,
+        {
+          what: "placeholder-witness",
+          parentId: folder.id,
+          script: `exchange.getMessage().setBody(exchange.getProperty('variables').get('${variable}'))`,
+          scriptName: "Read Variable",
+          logging: SEED_LOGGING,
+        },
+        built.chains,
+      );
+      for (const chain of [live, witness]) await deploy(catalog, chain);
+      await waitForDeployed(catalog, [live, witness]);
+      await waitForRoutes(env, [live, witness]);
+      expect(await markerOf(request, env, live)).toBe("before");
 
-    await expect
-      .poll(
-        async () =>
-          (await catalog.runtimeDeploymentsOf(parked.id)).map((row) => `${row.status}: ${row.errorMessage ?? ""}`),
-        { timeout: DEPLOY_TIMEOUT, message: "the engine never reported the unresolved variable" },
-      )
-      .toEqual([`PROCESSING: Couldn't resolve variables. #{${variable}} variable doesn't exist`]);
-    // No route: 405 would mean the chain went live with the literal placeholder in it.
-    const status = await fetch(env.chainUrl(parked.contextPath)).then((response) => response.status);
-    expect(status, "a chain with an unresolved variable is serving").toBe(404);
+      await catalog.updateCommonVariable(variable, "after");
 
-    await catalog.addCommonVariables({ [variable]: "late" });
-    built.services.push(commonVariable(catalog, variable));
-    // The parked deployment is retried on the engine's own schedule rather than on the variable
-    // update, so the wait is one retry period on top of a deploy.
-    const budget = RETRY_DELAY + DEPLOY_TIMEOUT;
-    await expect
-      .poll(async () => (await catalog.runtimeDeploymentsOf(parked.id)).map((row) => row.status), {
-        timeout: budget,
-        message: "the parked deployment was not retried once its variable existed",
-      })
-      .toEqual(["DEPLOYED"]);
-    await waitForRoutes(env, [parked]);
+      // Polled, not read once: the engine's variable watch and its deployment watch are separate
+      // blocking queries, and a first attempt that deployed a second placeholder chain right after
+      // the update resolved it to the old value.
+      await expect
+        .poll(async () => (await callChain(request, env.chainUrl(witness.contextPath), { data: {} })).response.text(), {
+          timeout: DEPLOY_TIMEOUT,
+          message: "the engine never received the updated variable",
+        })
+        .toBe("after");
+      // So the old answer here is the contract, not a slow watch.
+      expect(await markerOf(request, env, live), "the live chain picked up the variable without a redeploy").toBe("before");
+
+      await deploy(catalog, live);
+      await expect
+        .poll(async () => await markerOf(request, env, live), {
+          timeout: DEPLOY_TIMEOUT,
+          message: "the redeployed chain never served the updated variable",
+        })
+        .toBe("after");
+    });
+  });
+
+  test("a variable missing at deploy parks the chain until added", { tag: ["@classic-only"], annotation: { type: "classic-only", description: "the micro engine does not retry a parked deployment, and a chain that fails to load takes its domain down" } }, async ({ env, catalog, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+
+    const variable = tokenized(run, "placeholder-missing");
+    await withBuilt(catalog, async (built) => {
+      const parked = await placeholderChain(catalog, run, folder.id, "missing", variable, built);
+      await deploy(catalog, parked);
+
+      await expect
+        .poll(
+          async () =>
+            (await catalog.runtimeDeploymentsOf(parked.id)).map((row) => `${row.status}: ${row.errorMessage ?? ""}`),
+          { timeout: DEPLOY_TIMEOUT, message: "the engine never reported the unresolved variable" },
+        )
+        .toEqual([`PROCESSING: Couldn't resolve variables. #{${variable}} variable doesn't exist`]);
+      // No route: 405 would mean the chain went live with the literal placeholder in it.
+      const status = await fetch(env.chainUrl(parked.contextPath)).then((response) => response.status);
+      expect(status, "a chain with an unresolved variable is serving").toBe(404);
+
+      await catalog.addCommonVariables({ [variable]: "late" });
+      built.services.push(commonVariable(catalog, variable));
+      // The parked deployment is retried on the engine's own schedule rather than on the variable
+      // update, so the wait is one retry period on top of a deploy.
+      const budget = RETRY_DELAY + DEPLOY_TIMEOUT;
+      await expect
+        .poll(async () => (await catalog.runtimeDeploymentsOf(parked.id)).map((row) => row.status), {
+          timeout: budget,
+          message: "the parked deployment was not retried once its variable existed",
+        })
+        .toEqual(["DEPLOYED"]);
+      await waitForRoutes(env, [parked]);
+    });
   });
 });

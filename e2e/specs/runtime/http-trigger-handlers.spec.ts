@@ -41,27 +41,29 @@ const CASES: HandlerCase[] = [
   { axisPath: "handleChainFailureAction", value: "chain-call", status: 500, reply: JSON.stringify({ called: "chain" }), steps: ["Validate Request", THROWING_STEP.name, FAILURE_STEP, "Callee Reply"] },
 ];
 
-for (const handler of CASES) {
-  const branch = `${handler.axisPath}=${handler.value}`;
-  test(`${branch} answers ${handler.status} through its own handler`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
-    covers("http-trigger", handler.axisPath, handler.value);
-    const chain = seedChain(readCorpusState(), axisFixtureName({ family: "http-trigger", ...handler }));
+test.describe("http-trigger handlers", { tag: ["@engine", "@sessions"] }, () => {
+  for (const handler of CASES) {
+    const branch = `${handler.axisPath}=${handler.value}`;
+    test(`${branch} answers ${handler.status} through its own handler`, async ({ request, env, sessions }) => {
+      covers("http-trigger", handler.axisPath, handler.value);
+      const chain = seedChain(readCorpusState(), axisFixtureName({ family: "http-trigger", ...handler }));
 
-    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: branch } });
-    expect(call.response.status()).toBe(handler.status);
-    const body = await call.response.text();
-    if (handler.code) expect(JSON.parse(body).code, body).toBe(handler.code);
-    else expect(body).toBe(handler.reply);
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: branch } });
+      expect(call.response.status()).toBe(handler.status);
+      const body = await call.response.text();
+      if (handler.code) expect(JSON.parse(body).code, body).toBe(handler.code);
+      else expect(body).toBe(handler.reply);
 
-    const session = await sessions.byExternalId(call.token, { elements: handler.steps.length + 1 });
-    expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
-    // A default handler is the absence of a handler step, which the whole list pins.
-    expect(elementNames(session)).toEqual([branch, ...handler.steps]);
-    const failed = handler.axisPath === "handleValidationAction" ? "Validate Request" : THROWING_STEP.name;
-    expect(element(session, failed)?.executionStatus).toBe("COMPLETED_WITH_ERRORS");
-    if (handler.reply) {
-      const step = handler.axisPath === "handleValidationAction" ? VALIDATION_STEP : FAILURE_STEP;
-      expect(element(session, step)?.bodyAfter, `${step} did not write the reply`).toBe(handler.reply);
-    }
-  });
-}
+      const session = await sessions.byExternalId(call.token, { elements: handler.steps.length + 1 });
+      expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
+      // A default handler is the absence of a handler step, which the whole list pins.
+      expect(elementNames(session)).toEqual([branch, ...handler.steps]);
+      const failed = handler.axisPath === "handleValidationAction" ? "Validate Request" : THROWING_STEP.name;
+      expect(element(session, failed)?.executionStatus).toBe("COMPLETED_WITH_ERRORS");
+      if (handler.reply) {
+        const step = handler.axisPath === "handleValidationAction" ? VALIDATION_STEP : FAILURE_STEP;
+        expect(element(session, step)?.bodyAfter, `${step} did not write the reply`).toBe(handler.reply);
+      }
+    });
+  }
+});

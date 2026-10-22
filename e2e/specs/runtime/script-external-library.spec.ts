@@ -165,98 +165,100 @@ async function widgetFields(
   };
 }
 
-test("a DTO library replaced under a deployed script is seen without a redeploy", { tag: ["@engine", "@catalog", "@sessions", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine loads its libraries once, when the Integration starts" } }, async ({ request, env, catalog, sessions, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  covers("script");
+test.describe("script external library", { tag: ["@engine", "@catalog", "@sessions"] }, () => {
+  test("a deployed script picks up a replaced DTO library", { tag: ["@classic-only"], annotation: { type: "classic-only", description: "the micro engine loads its libraries once, when the Integration starts" } }, async ({ request, env, catalog, sessions, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    covers("script");
 
-  await withBuilt(catalog, async (built) => {
-    const serviceName = tokenized(run, "extlib");
-    const groupName = tokenized(run, "extlibgrp");
-    const fqcn = widgetClass(serviceName, groupName);
+    await withBuilt(catalog, async (built) => {
+      const serviceName = tokenized(run, "extlib");
+      const groupName = tokenized(run, "extlibgrp");
+      const fqcn = widgetClass(serviceName, groupName);
 
-    const system = await catalog.createSystem(serviceName, "EXTERNAL");
-    built.services.push({
-      name: `the service ${system.name} (${system.id})`,
-      remove: () => catalog.deleteSystem(system.id),
+      const system = await catalog.createSystem(serviceName, "EXTERNAL");
+      built.services.push({
+        name: `the service ${system.name} (${system.id})`,
+        remove: () => catalog.deleteSystem(system.id),
+      });
+      const groupId = `${system.id}-${groupName}`;
+      const modelId = `${groupId}-${MODEL_VERSION}`;
+
+      const firstImport = logWindowStart();
+      await catalog.awaitSpecificationImport(
+        await catalog.importSpecificationGroup(
+          system.id,
+          groupName,
+          readSpecificationFixture("widgets-color.graphql"),
+          "graphql",
+        ),
+      );
+      await waitForLibrary(env, firstImport, modelId);
+
+      const chain = await createScriptChain(
+        catalog,
+        run,
+        {
+          what: "extlib",
+          parentId: folder.id,
+          script: readWidgetScript(fqcn),
+          scriptName: READ_WIDGET,
+          logging: SEED_LOGGING,
+        },
+        built.chains,
+      );
+      await deployAndRecord(catalog, env, sessions, chain);
+
+      const before = await widgetFields(request, env.chainUrl(chain.contextPath));
+      expect(before.status).toBe(200);
+      expect(before.className, "the script resolved the generated DTO").toBe(fqcn);
+      expect(before.fields, "the first state declares color").toEqual(["color", "id", "name"]);
+
+      // Opened here, so `Resetting groovy script cache` below is this case's reset and not one an
+      // earlier import left in the log.
+      const since = logWindowStart();
+
+      // The lever. Two steps, because `SystemModelService.deleteSystemModel` refuses a specification
+      // that is not deprecated, and the re-import goes into the group the first one created — which
+      // is what reproduces the model id, and with it the package.
+      await catalog.deprecateModel(modelId);
+      const deleted = await catalog.raw("delete", `/v1/models/${modelId}`);
+      expect(deleted.status(), await deleted.text()).toBe(204);
+      await catalog.awaitSpecificationImport(
+        await catalog.importSpecification(groupId, readSpecificationFixture("widgets-shade.graphql")),
+      );
+
+      // No redeploy, no undeploy, no snapshot: the chain the engine is serving is the one it was
+      // serving above, and the only thing that changed is the jar under it. Polled rather than called
+      // once, because the engine picks the change up on a 2.5 s loop and does it in two updates.
+      await expect
+        .poll(async () => (await widgetFields(request, env.chainUrl(chain.contextPath))).fields, {
+          timeout: LIBRARY_TIMEOUT,
+          intervals: [1_000],
+          message: "the deployed script kept answering the library it was compiled against",
+        })
+        .toEqual(["id", "name", "shade"]);
+
+      const after = await widgetFields(request, env.chainUrl(chain.contextPath));
+      expect(after.className, "the lever changed the library, not the class name").toBe(fqcn);
+
+      const log = await env.engineLogs(since);
+      // The positive half, tied to this case's own library rather than to the window alone. The reset
+      // line names nothing, so a concurrent GraphQL import elsewhere would satisfy a bare `toContain`
+      // — the model id is what makes the line this case's, and the reset has to come after it.
+      const savedAgain = log.lastIndexOf(`Saved library: /tmp/cip-engine-libraries/${modelId}.jar`);
+      expect(savedAgain, `the engine never reloaded the library for ${modelId}`).toBeGreaterThan(-1);
+      expect(
+        log.indexOf("Resetting groovy script cache", savedAgain),
+        "the library changed and no reset was invoked for it",
+      ).toBeGreaterThan(-1);
+      expect(log, "the reflection failed and the engine swallowed it into log.error").not.toContain(
+        "Failed to reset groovy script cache",
+      );
+
+      // The trace, so a green case also says the call went through the element it claims to.
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
+      const session = await sessions.byExternalId(call.token, { elements: SCRIPT_CHAIN_STEPS });
+      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, READ_WIDGET]);
     });
-    const groupId = `${system.id}-${groupName}`;
-    const modelId = `${groupId}-${MODEL_VERSION}`;
-
-    const firstImport = logWindowStart();
-    await catalog.awaitSpecificationImport(
-      await catalog.importSpecificationGroup(
-        system.id,
-        groupName,
-        readSpecificationFixture("widgets-color.graphql"),
-        "graphql",
-      ),
-    );
-    await waitForLibrary(env, firstImport, modelId);
-
-    const chain = await createScriptChain(
-      catalog,
-      run,
-      {
-        what: "extlib",
-        parentId: folder.id,
-        script: readWidgetScript(fqcn),
-        scriptName: READ_WIDGET,
-        logging: SEED_LOGGING,
-      },
-      built.chains,
-    );
-    await deployAndRecord(catalog, env, sessions, chain);
-
-    const before = await widgetFields(request, env.chainUrl(chain.contextPath));
-    expect(before.status).toBe(200);
-    expect(before.className, "the script resolved the generated DTO").toBe(fqcn);
-    expect(before.fields, "the first state declares color").toEqual(["color", "id", "name"]);
-
-    // Opened here, so `Resetting groovy script cache` below is this case's reset and not one an
-    // earlier import left in the log.
-    const since = logWindowStart();
-
-    // The lever. Two steps, because `SystemModelService.deleteSystemModel` refuses a specification
-    // that is not deprecated, and the re-import goes into the group the first one created — which
-    // is what reproduces the model id, and with it the package.
-    await catalog.deprecateModel(modelId);
-    const deleted = await catalog.raw("delete", `/v1/models/${modelId}`);
-    expect(deleted.status(), await deleted.text()).toBe(204);
-    await catalog.awaitSpecificationImport(
-      await catalog.importSpecification(groupId, readSpecificationFixture("widgets-shade.graphql")),
-    );
-
-    // No redeploy, no undeploy, no snapshot: the chain the engine is serving is the one it was
-    // serving above, and the only thing that changed is the jar under it. Polled rather than called
-    // once, because the engine picks the change up on a 2.5 s loop and does it in two updates.
-    await expect
-      .poll(async () => (await widgetFields(request, env.chainUrl(chain.contextPath))).fields, {
-        timeout: LIBRARY_TIMEOUT,
-        intervals: [1_000],
-        message: "the deployed script kept answering the library it was compiled against",
-      })
-      .toEqual(["id", "name", "shade"]);
-
-    const after = await widgetFields(request, env.chainUrl(chain.contextPath));
-    expect(after.className, "the lever changed the library, not the class name").toBe(fqcn);
-
-    const log = await env.engineLogs(since);
-    // The positive half, tied to this case's own library rather than to the window alone. The reset
-    // line names nothing, so a concurrent GraphQL import elsewhere would satisfy a bare `toContain`
-    // — the model id is what makes the line this case's, and the reset has to come after it.
-    const savedAgain = log.lastIndexOf(`Saved library: /tmp/cip-engine-libraries/${modelId}.jar`);
-    expect(savedAgain, `the engine never reloaded the library for ${modelId}`).toBeGreaterThan(-1);
-    expect(
-      log.indexOf("Resetting groovy script cache", savedAgain),
-      "the library changed and no reset was invoked for it",
-    ).toBeGreaterThan(-1);
-    expect(log, "the reflection failed and the engine swallowed it into log.error").not.toContain(
-      "Failed to reset groovy script cache",
-    );
-
-    // The trace, so a green case also says the call went through the element it claims to.
-    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
-    const session = await sessions.byExternalId(call.token, { elements: SCRIPT_CHAIN_STEPS });
-    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, READ_WIDGET]);
   });
 });
