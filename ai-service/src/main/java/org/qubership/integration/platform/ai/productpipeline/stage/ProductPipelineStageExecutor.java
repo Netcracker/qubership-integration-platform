@@ -1064,6 +1064,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return recoverValidationFailure(
           doc, stage, refs, outcomeClass, cause, findings, evidence, emitted, producerRepairAllowed);
     }
+    if (!nativeCaptureRepairAllowed(doc, stage, budgetCause)) {
+      return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPEATED,
+          "The capture validator has not permitted another correction. Progress is saved.", evidence, null, emitted);
+    }
     ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
     List<OwnerCandidate> closed =
         mappingOwnerCandidates(
@@ -1586,6 +1590,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
         storedEvidence.contentHash());
 
+    if (!nativeCaptureRepairAllowed(doc, stage, budgetCause)) {
+      return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPEATED,
+          "The capture validator has not permitted another correction. Progress is saved.", evidenceText, null, emitted);
+    }
+
     Reference selectedFault = accepted.faultArtifactRef();
     boolean currentRepairTarget = currentRepairEligible && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
         && (currentProducerFallback || selectedFault != null && artifactStore.get(runId, selectedFault)
@@ -1841,6 +1850,17 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       details.append(" progress=").append(progress);
     }
     return details.toString();
+  }
+
+  private boolean nativeCaptureRepairAllowed(
+      ProductPipelineRunDocument doc, ProfileStage stage, RecoveryCause cause) {
+    if (cause.captureFailure() == null) return true;
+    if (!ProducerOwnedRecovery.permitsNativeCaptureRepair(cause)) return false;
+    var key = recoveryLedger.key(stage.stageId(), cause,
+        RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()), doc.transitions());
+    // Native capture permits at most one outer correction, even when the stage has other credits.
+    return recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED)
+        + recoveryLedger.cleanRebuildsUsed(doc.transitions(), key) < 1;
   }
 
   private StageExecutionResult waitContextualRecovery(

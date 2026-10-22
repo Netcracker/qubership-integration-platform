@@ -224,7 +224,7 @@ class ProductPipelineStageExecutorTest {
 
   @ParameterizedTest
   @ValueSource(ints = {0, 1, 2})
-  void typedCaptureNoProgressUsesRemainingConfiguredStrategiesWithoutNewCredit(int cleanLimit) {
+  void nativeCaptureDenialParksWithoutSpendingAnyRemainingStrategy(int cleanLimit) {
     var clean = new ArrayList<Boolean>();
     var pinnedInputs = new AtomicReference<List<Reference>>();
     var execution = capability("execution-cap", context -> {
@@ -257,16 +257,9 @@ class ProductPipelineStageExecutorTest {
     var acceptedBrief = snapshot(requireRun(), "requirement-analysis");
     var acceptedPlan = snapshot(requireRun(), "design-planning");
     var authorInputs = artifactStore.history(RUN_ID, Kind.USER_INPUT).stream().map(Revision::reference).toList();
-    for (int i = 0; i < 2 + cleanLimit; i++) {
-      var result = execute(runtime, "design-execution");
-      assertInstanceOf(StageDecision.Retry.class, result.decision());
-      applyLifecycle(runtime, result);
-    }
     var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-    assertEquals(PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals(3 + cleanLimit, clean.size());
-    assertEquals(cleanLimit, clean.stream().filter(Boolean::booleanValue).count());
-    assertFalse(clean.getLast());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(List.of(false), clean);
     assertEquals(RUN_ID, requireRun().run().runId());
     assertEquals(acceptedBrief, snapshot(requireRun(), "requirement-analysis"));
     assertEquals(acceptedPlan, snapshot(requireRun(), "design-planning"));
@@ -276,12 +269,60 @@ class ProductPipelineStageExecutorTest {
     assertTrue(evidence.captureFailure().feedback().noProgress());
     assertFalse(evidence.captureFailure().feedback().outerAllowed());
     assertEquals("call-1", evidence.findings().getFirst().nodeId());
-    assertEquals(2, requireRun().transitions().stream().filter(t -> t.reason() != null
+    assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
-    assertEquals(cleanLimit, requireRun().transitions().stream().filter(t -> t.reason() != null
+    assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)).count());
     assertTrue(requireRun().transitions().stream().noneMatch(t -> t.reason() != null
         && t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 2})
+  void permittedNativeCaptureSpendsOneOuterCorrectionWithoutUsingExtraStageCredits(int cleanLimit) {
+    var original = analysisThenPlanningThenExecutionProfile();
+    var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
+        ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
+            List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, stage.retry()) : stage).toList();
+    var profile = new ProductPipelineProfile(1, original.profileId(), "1", original.runInputs(), stages,
+        original.terminal(), original.dependencyRoots());
+    var clean = new ArrayList<Boolean>();
+    var graph = new ChainPlanGraph("1.0", new ChainSection("c1", "Rejected graph"),
+        List.of(failingServiceCallNode()), List.of());
+    var execution = capability("execution-cap", context -> {
+      clean.add(StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context)));
+      var nativeFeedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback(
+          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION, "Invalid property.",
+          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
+          true, List.of(), "", false);
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())), "Invalid property.", null,
+          RecoveryCause.captureFailure(nativeFeedback,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Invalid property.", true,
+                  MappingValidationDetails.empty(), "call-1", "/properties")), null))));
+    });
+    var runtime = newRuntime(2,
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(2, 2, 12, cleanLimit)), profile,
+        analysisCandidate(), planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    var first = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(runtime, first);
+    var second = execute(runtime, "design-execution");
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, second.decision());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(List.of(false, false), clean);
+    var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(),
+        RecoveryEvidence.class);
+    assertTrue(evidence.captureFailure().feedback().outerAllowed());
+    assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
+    assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && (t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)
+            || t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX))).count());
   }
 
   @Test

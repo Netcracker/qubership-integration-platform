@@ -348,6 +348,22 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             executed.add(node.skillId());
             skillProgress.accept(node.skillId(), "completed");
           } catch (RuntimeException ex) {
+            if (node.mandatory() && isGraphPatchCapture(node)
+                && (ex instanceof CompilerDagExecutionFailure
+                    || ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException)) {
+              skillProgress.accept(node.skillId(), "error");
+              var nativeFailure = ex instanceof CompilerDagExecutionFailure failed ? failed.nativeFailure()
+                  : ((org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException) ex).evidence();
+              var graph = workspace.get(SkillArtifactType.CHAIN_PLAN_GRAPH)
+                  .map(artifact -> ((SkillArtifactPayload.ChainPlanGraphPayload) artifact.payload()).graph()).orElse(null);
+              var findings = new ArrayList<>(degradations);
+              findings.add(new PlanValidationFinding("COMPILER_SKILL_FAILED", ex.getMessage(), true, null,
+                  node.skillId(), ""));
+              var rejected = new CompilerDagExecutionResult(StageOutcomeClass.CONTRACT_FAILURE, ex.getMessage(),
+                  List.copyOf(executed), patchLedger.build(), graph, null, null, findings,
+                  graph == null ? Set.of() : Set.of(SkillArtifactType.CHAIN_PLAN_GRAPH.name()));
+              throw new CompilerDagExecutionFailure(ex.getMessage(), rejected, nativeFailure, ex);
+            }
             if (!isSkippablePlanningSkillFailure(node, ex)) {
               skillProgress.accept(node.skillId(), "error");
               throw ex;
@@ -641,12 +657,12 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       if (result.status() != SkillRunStatus.COMPLETED && result.status() != SkillRunStatus.SKIPPED) {
         String detail =
             result.message() == null || result.message().isBlank() ? "" : ": " + result.message();
-        throw new IllegalStateException(
+        throw new CompilerDagExecutionFailure(
             "contract failure: skill did not complete "
                 + node.skillId()
                 + " status="
                 + result.status()
-                + detail);
+                + detail, null, result.nativeFailure());
       }
       return result.outputs() == null ? List.of() : List.copyOf(result.outputs());
     }

@@ -31,6 +31,7 @@ public class E2eRecoveryTestControl {
   private boolean injected;
   private int argumentFaults;
   private String injectedArguments;
+  private int graphArgumentFaults;
   @Inject CaptureAttemptFeedbackStore feedbackStore;
 
   @Inject
@@ -48,6 +49,21 @@ public class E2eRecoveryTestControl {
           || !List.of("checkpoint", "completion").contains(plan.path("boundary").asText()))) {
         throw new IllegalArgumentException("Invalid recovery test control plan");
       }
+      if ("mandatory-graph-json-exhaustion".equals(plan.path("mutation").asText())) {
+        var fault = plan.path("graphCaptureFault");
+        if (!"captureGraphPatch".equals(fault.path("toolName").asText())
+            || fault.path("capabilityId").asText().isBlank()
+            || !fault.path("applications").isIntegralNumber() || fault.path("applications").asInt() != 2
+            || !fault.path("injectedArguments").isTextual() || fault.path("injectedArguments").asText().isBlank()) {
+          throw new IllegalArgumentException("A graph exhaustion fault requires one selected owner, captureGraphPatch, and two applications");
+        }
+        try {
+          mapper.readTree(fault.path("injectedArguments").asText());
+          throw new IllegalArgumentException("Graph exhaustion arguments must be malformed JSON");
+        } catch (com.fasterxml.jackson.core.JsonProcessingException expected) {
+          // The ordinary native parser, rather than the controller, reports this error during a call.
+        }
+      }
     } catch (IOException failure) {
       throw new IllegalStateException("Cannot read recovery test control plan", failure);
     }
@@ -64,6 +80,62 @@ public class E2eRecoveryTestControl {
 
   private boolean owns(String conversationId) {
     return directory != null && plan.path("conversationId").asText().equals(conversationId);
+  }
+
+  /** Mutates two already inspected calls; all later calls reach native handling unchanged. */
+  public synchronized ToolExecutionRequest graphArguments(
+      String conversationId, String capabilityId, ToolExecutionRequest request) {
+    var fault = plan.path("graphCaptureFault");
+    if (!owns(conversationId) || graphArgumentFaults >= 2 || request == null
+        || !"mandatory-graph-json-exhaustion".equals(plan.path("mutation").asText())
+        || !fault.path("capabilityId").asText().equals(capabilityId)
+        || !fault.path("toolName").asText().equals(request.name())) {
+      return request;
+    }
+    try {
+      var original = mapper.readTree(request.arguments());
+      if (original == null || !original.isObject() || !original.path("patch").isObject()
+          || !capabilityId.equals(original.path("patch").path("ownerCapabilityId").asText())) {
+        return request;
+      }
+      String wire = fault.path("injectedArguments").asText();
+      var event = event("FAULT_APPLIED", conversationId);
+      event.put("faultKind", "mandatory-graph-json-exhaustion");
+      event.put("capabilityId", capabilityId).put("tool", request.name()).put("parameter", "patch");
+      event.put("toolCallId", request.id()).put("applicationIndex", graphArgumentFaults + 1).put("applications", 2);
+      event.put("originalWireArguments", request.arguments()).put("injectedWireArguments", wire);
+      event.set("original", original);
+      event.put("mutated", wire);
+      event.put("transportMutationIsModelCorrection", false);
+      event.put("rawSdkArgumentsChanged", false);
+      saveEvent(event);
+      graphArgumentFaults++;
+      return request.toBuilder().arguments(wire).build();
+    } catch (com.fasterxml.jackson.core.JsonProcessingException invalidOriginal) {
+      return request;
+    }
+  }
+
+  /** Records the native refusal after the gateway has saved the effective malformed proposal. */
+  public synchronized void rejectedGraphArguments(
+      String conversationId, String capabilityId, ToolExecutionRequest request, String nativeResult) {
+    var fault = plan.path("graphCaptureFault");
+    if (!owns(conversationId) || graphArgumentFaults == 0 || request == null
+        || !"mandatory-graph-json-exhaustion".equals(plan.path("mutation").asText())
+        || !fault.path("capabilityId").asText().equals(capabilityId)
+        || !fault.path("toolName").asText().equals(request.name())
+        || !fault.path("injectedArguments").asText().equals(request.arguments())) {
+      return;
+    }
+    var feedback = feedbackStore.lastPatchFailure(conversationId, capabilityId).orElseThrow();
+    var event = event("CAPTURE_REJECTED", conversationId);
+    event.put("capabilityId", capabilityId).put("tool", request.name()).put("toolCallId", request.id());
+    event.put("proposal", request.arguments()).put("actualWireArguments", request.arguments());
+    event.put("nativeResultText", nativeResult);
+    event.set("nativeFeedback", mapper.valueToTree(feedback));
+    event.set("rejectionRef", mapper.valueToTree(feedback.evidenceReference()));
+    event.put("source", "native-tool-gateway");
+    saveEvent(event);
   }
 
   /** Receives arguments only after ordinary normalization and schema validation have succeeded. */

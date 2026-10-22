@@ -581,6 +581,34 @@ public class CaptureAttemptFeedbackStore {
     return Optional.ofNullable(byCapability.get(capabilityId)).or(() -> restored(conversationId, "VALIDATION", capabilityId));
   }
 
+  /** Reads the exact scoped native observation; a reference or scope mismatch supplies no proposal. */
+  public CaptureFailureEvidence failureEvidence(
+      String conversationId, String capabilityId, CaptureAttemptFeedback feedback) {
+    Observation observation = null;
+    Reference reference = feedback.evidenceReference();
+    String scope = inputScope(conversationId, capabilityId);
+    if (artifacts != null && sessions != null && reference != null
+        && reference.kind() == Kind.CAPTURE_ATTEMPT_FEEDBACK && !scope.isBlank()) {
+      var session = sessions.current(historyOwner(conversationId));
+      var stored = session.flatMap(link -> artifacts.get(link.compilationId(), reference));
+      if (stored.isPresent()) {
+        var nativeValue = artifacts.payload(stored.orElseThrow(), Observation.class);
+        var proposal = nativeValue.proposal();
+        var saved = nativeValue.feedback();
+        // History is a derived display projection. Every native feedback field must still match.
+        if (saved != null && proposal != null && Objects.equals(capabilityId, nativeValue.capabilityId())
+            && Objects.equals(capabilityId, proposal.capabilityId()) && scope.equals(proposal.inputScope())
+            && new CaptureAttemptFeedback(saved.kind(), saved.summary(), saved.failureClass(), saved.outerAllowed(),
+                saved.fieldHints(), "", saved.noProgress(), reference, saved.issues())
+                .equals(new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
+                    feedback.outerAllowed(), feedback.fieldHints(), "", feedback.noProgress(), reference, feedback.issues()))) {
+          observation = nativeValue;
+        }
+      }
+    }
+    return new CaptureFailureEvidence(feedback, null, reference, List.of(), observation);
+  }
+
   public void clearPlan(String conversationId) {
     clearSaved(conversationId, "PLAN", "");
     if (conversationId != null) {

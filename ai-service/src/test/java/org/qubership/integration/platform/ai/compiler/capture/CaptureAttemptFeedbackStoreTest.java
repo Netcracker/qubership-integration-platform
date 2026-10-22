@@ -31,6 +31,54 @@ class CaptureAttemptFeedbackStoreTest {
   }
 
   @Test
+  void optionalFailureCarriersPreserveLegacyNullSerializationAndRoundTripExactNativeData() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var old = new org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence(
+        new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "Rejected"), null, null, List.of());
+    assertFalse(mapper.valueToTree(old).has("nativeObservation"));
+    assertEquals(old, mapper.readValue(mapper.writeValueAsBytes(old),
+        org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence.class));
+    var result = org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult.completed(List.of(), "done");
+    assertFalse(mapper.valueToTree(result).has("nativeFailure"));
+    assertEquals(result, mapper.readValue(mapper.writeValueAsBytes(result),
+        org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult.class));
+  }
+
+  @Test
+  void exactNativeFailureObservationRequiresItsSessionCapabilityScopeAndReference() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var durable = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    durable.beginScope("chat", "owner", Map.of("runId", "run", "inputHash", "input-1"));
+    String raw = "{\"patch\": { broken ";
+    durable.beginRejectedProposal("chat", "owner", "captureGraphPatch", raw, "native-call");
+    durable.recordClassifiedPatchFailure("chat", "owner", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.IDENTICAL_SPAM, false, "INVALID_JSON /: Send one valid JSON argument object.");
+    var failure = durable.lastPatchFailure("chat", "owner").orElseThrow();
+    var before = artifacts.history(sessions.active("chat"), CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK);
+    var packet = durable.failureEvidence("chat", "owner", failure);
+    org.junit.jupiter.api.Assertions.assertNotNull(packet.nativeObservation());
+    assertEquals(raw, packet.nativeObservation().proposal().arguments().asText());
+    assertEquals("native-call", packet.nativeObservation().proposal().toolCallId());
+    assertEquals(failure, packet.feedback());
+    assertEquals(failure.evidenceReference(), packet.rejectedCandidate());
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("other-chat", "owner", failure).nativeObservation());
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("chat", "foreign-owner", failure).nativeObservation());
+    var foreignReference = new CompilationArtifacts.Reference(failure.evidenceReference().kind(),
+        failure.evidenceReference().artifactId(), "foreign-hash");
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("chat", "owner",
+        failure.withEvidenceReference(foreignReference)).nativeObservation());
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("chat", "owner",
+        new CaptureAttemptFeedback(failure.kind(), "Changed summary", failure.failureClass(), false, List.of(),
+            "", false, failure.evidenceReference())).nativeObservation());
+    durable.beginScope("chat", "owner", Map.of("runId", "run", "inputHash", "input-2"));
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("chat", "owner", failure).nativeObservation());
+    assertEquals(before, artifacts.history(sessions.active("chat"), CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK));
+  }
+
+  @Test
   void unmappedTypedFailureAndItsCreditSurviveRestart() {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();

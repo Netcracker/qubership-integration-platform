@@ -379,11 +379,11 @@ public class CompilerSkillRuntime {
     if (failure.isPresent() && failure.get().noProgress()) {
       throw new org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException(
           "contract failure: skill did not complete " + context.skillId() + " status=FAILED: " + result.message(),
-          new org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence(
-              failure.get(), null, failure.get().evidenceReference(), List.of()));
+          feedbackStore.failureEvidence(context.conversationId(), capabilityId, failure.get()));
     }
     return new SkillExecutionResult(result.status(), result.outputs(), result.message(),
-        failure.map(CaptureAttemptFeedback::outerAllowed).orElse(true));
+        failure.map(CaptureAttemptFeedback::outerAllowed).orElse(true),
+        failure.map(value -> feedbackStore.failureEvidence(context.conversationId(), capabilityId, value)).orElse(null));
   }
 
   private SkillExecutionResult finishExistingRoute(

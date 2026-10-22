@@ -386,6 +386,30 @@ public class CipDesignExecutorJavaAdapter {
                       inputs.runManifest(),
                       attemptId,
                       progress);
+    } catch (org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionFailure failed) {
+      if (failed.rejectedProgress() == null) throw failed;
+      var rejected = failed.rejectedProgress();
+      String outsideClosure = rejectOutsideClosure(inputs.approvedPlan(),
+          inputs.runManifest().compilerRunPin().resolvedDag(), rejected);
+      if (outsideClosure != null) return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, outsideClosure);
+      var evidenceInputs = new ArrayList<>(List.of(inputs.approvalRef(), inputs.reportRef(), inputs.planRef(),
+          inputs.revisionRef(), inputs.idsRef(), inputs.implementationPlanRef(), inputs.runManifestRef()));
+      evidenceInputs.addAll(rejected.patchLedger().orderedReferences());
+      var candidates = new ArrayList<ArtifactCandidate>();
+      if (rejected.graph() != null) candidates.add(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH,
+          rejected.graph(), evidenceInputs));
+      candidates.add(new ArtifactCandidate(Kind.ORDERED_GRAPH_PATCHES,
+          new OrderedGraphPatches(SCHEMA_VERSION, rejected.patchLedger().orderedReferences()), evidenceInputs));
+      var findings = new ArrayList<>(rejected.degradationFindings());
+      RecoveryCause cause = RecoveryCause.fromFindings(findings, StageOutcomeClass.CONTRACT_FAILURE);
+      if (failed.nativeFailure() != null) {
+        var nativeCause = RecoveryCause.captureFailure(failed.nativeFailure().feedback(), List.of(), failed.nativeFailure());
+        findings.addAll(nativeCause.findings());
+        cause = new RecoveryCause(nativeCause.causeCode(), findings, nativeCause.requestedFact(),
+            nativeCause.noProgress(), nativeCause.captureFailure());
+      }
+      candidates.add(new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, new PlanValidationResult(findings), evidenceInputs));
+      return new ExecutionResult(StageOutcomeClass.CONTRACT_FAILURE, failed.getMessage(), null, candidates, cause);
     } catch (RequestedElementValues.ResolvedTargetConflict conflict) {
       return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, conflict.getMessage(),
           new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT, List.of(conflict.finding()), ""));
