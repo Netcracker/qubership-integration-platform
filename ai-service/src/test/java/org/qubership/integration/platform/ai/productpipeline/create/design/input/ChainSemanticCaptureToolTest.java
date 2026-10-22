@@ -103,6 +103,26 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
+  void captureAcceptsCompactRuntimeMetadata() throws Exception {
+    var files = Map.of("runtime/generator-contracts.json", "contracts",
+        "runtime/validation-rules.yaml", "validation");
+    var tool = tool(pack(completeAddons(), files));
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+    var outcome = MAPPER.readTree(tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    assertTrue(outcome.path("accepted").asBoolean(), outcome.toString());
+    assertEquals("HANDOFF", outcome.path("nextAction").asText());
+  }
+
+  @Test
+  void captureRejectsMissingCompactValidationRules() {
+    var tool = tool(pack(completeAddons(), Map.of("runtime/generator-contracts.json", "contracts")));
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+    String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    assertTrue(result.contains("Required knowledge fragment is missing: validation-rules"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
   void captureFillsCatalogValuesTheModelNeverSends() {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());

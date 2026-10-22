@@ -162,6 +162,14 @@ public class ProductPipelineRuntimeProducers {
     return new CompilerRunPinResolver(
         packRepository.loadCompilerPipelineIndex(),
         skillId -> {
+          // These stages run in Java; pin their machine definitions rather than placeholder prompts.
+          if (Set.of("cip-design-planner", "cip-design-executor").contains(skillId)) {
+            String hash = packRepository.loadManifest().addonSha256().get(skillId);
+            if (hash == null || hash.isBlank()) {
+              throw new IllegalStateException("Missing Java stage definition: " + skillId);
+            }
+            return hash;
+          }
           CompilerSkillDocument document = skillDocuments.loadByCapabilityId(skillId);
           return sha256Hex(document.markdown());
         });

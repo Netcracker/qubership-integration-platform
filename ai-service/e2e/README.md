@@ -20,13 +20,16 @@ network access, or a private knowledge package.
 
 ## Live
 
+Build ai-service with `-Pwith-rocky-skills` before running CREATE/EDIT acceptance tests.
+The private source package is supplied out of band; it is excluded from public builds.
+
 ```bash
 ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --runs 1 \
-  --knowledge-package integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export \
+  --knowledge-package .private/rocky-knowledge \
   --report-dir /tmp/ai-service-create-gate \
   --base-url http://localhost:8094
 ```
 
-The live gate requires the private `integration-platform-skills` directory and local LLM
+The live gate uses the privately supplied `.private/rocky-knowledge` package and requires local LLM
 credentials. See `product-pipeline/README.md` for the evidence and catalog-retention contracts.

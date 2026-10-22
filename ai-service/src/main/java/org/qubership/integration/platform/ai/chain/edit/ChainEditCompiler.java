@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.catalog.binding.ServiceCallCatalogIdentity;
 import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditPlannerRequest;
@@ -71,6 +72,9 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
  */
 @ApplicationScoped
 public class ChainEditCompiler {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private static final Logger LOG = Logger.getLogger(ChainEditCompiler.class);
   private static final String STRUCTURE_GENERATOR = "cip-structure-generator";
@@ -164,6 +168,7 @@ public class ChainEditCompiler {
    */
   public ChainEditOutcome resumeAfterImport(
       ChainEditRequest request, ChainEditIntent intent, ApiHubRequirementRefs refs) {
+    rockySkills.requireAvailable();
     return resumeAfterImport(request, intent, refs, null, null);
   }
 
@@ -172,6 +177,7 @@ public class ChainEditCompiler {
       ChainEditIntent intent,
       ApiHubRequirementRefs refs,
       BiConsumer<String, String> skillProgress) {
+    rockySkills.requireAvailable();
     return resumeAfterImport(request, intent, refs, null, skillProgress);
   }
 
@@ -181,6 +187,7 @@ public class ChainEditCompiler {
       ApiHubRequirementRefs refs,
       StructuralBindingContinuation continuation,
       BiConsumer<String, String> skillProgress) {
+    rockySkills.requireAvailable();
     BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
     if (intent.requiresStructureStage() && continuation == null) {
       return missingStructuralContinuation();
@@ -233,11 +240,13 @@ public class ChainEditCompiler {
   }
 
   public ChainEditOutcome compile(ChainEditRequest request) {
+    rockySkills.requireAvailable();
     return compile(request, null);
   }
 
   public ChainEditOutcome compile(
       ChainEditRequest request, BiConsumer<String, String> skillProgress) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(request, "request");
     BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
     ChainEditIntent intent =
@@ -264,6 +273,7 @@ public class ChainEditCompiler {
    */
   public ChainEditOutcome resumeAfterClarification(
       ChainEditRequest request, ChainEditIntent heldIntent, String question) {
+    rockySkills.requireAvailable();
     return resumeAfterClarification(request, heldIntent, question, null, null);
   }
 
@@ -272,6 +282,7 @@ public class ChainEditCompiler {
       ChainEditIntent heldIntent,
       String question,
       BiConsumer<String, String> skillProgress) {
+    rockySkills.requireAvailable();
     return resumeAfterClarification(request, heldIntent, question, null, skillProgress);
   }
 
@@ -281,6 +292,7 @@ public class ChainEditCompiler {
       String question,
       StructuralBindingContinuation continuation,
       BiConsumer<String, String> skillProgress) {
+    rockySkills.requireAvailable();
     BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
     if (continuation != null) {
       StructuralBindingContinuation resumed =
@@ -339,6 +351,7 @@ public class ChainEditCompiler {
    */
   public ChainEditOutcome compile(
       ChainEditRequest request, ChainEditIntent intent, ResolvedServiceCallBinding importedBinding) {
+    rockySkills.requireAvailable();
     return compile(request, intent, importedBinding, null);
   }
 
@@ -347,6 +360,7 @@ public class ChainEditCompiler {
       ChainEditIntent intent,
       ResolvedServiceCallBinding importedBinding,
       BiConsumer<String, String> skillProgress) {
+    rockySkills.requireAvailable();
     BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
     ImportedChainPlan imported = request.imported();
     if (deterministic(intent.action())) {

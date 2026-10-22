@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
@@ -288,7 +289,9 @@ public class DesignInputCapability implements StageCapability {
       stream = designRunner.apply(conversationId, safePrompt);
     } else if (designAgent != null) {
       // Capture returns directly so only the stage ledger can authorize another model attempt.
-      return designAgent.chat(conversationId, safePrompt);
+      return designAgent.chat(conversationId, QuteUserMessageEscaping.escapeForAiServiceUserMessage(
+          new RockySkills()
+              .instructions("cip-conf-semantic-design") + "\n\n" + prompt));
     } else {
       stream = Multi.createFrom().empty();
     }

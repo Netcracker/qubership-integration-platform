@@ -107,7 +107,7 @@ public class CompilerSkillContextBuilder {
         readSelectedPatternText(workspace),
         readGraph(workspace),
         readGeneratorPlanManifestSummary(workspace),
-        ChainEditSkillContext.render(workspace));
+        ChainEditSkillContext.render(workspace, addonRepository.hasStandaloneSkills()));
   }
 
   public String buildUserMessage(CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
@@ -132,7 +132,9 @@ public class CompilerSkillContextBuilder {
 
     StringBuilder body = new StringBuilder();
     appendPipelineContract(body, document, captureTool);
-    appendCatalogContext(body, document);
+    if (!addonRepository.hasStandaloneSkills()) {
+      appendCatalogContext(body, document);
+    }
 
     body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
     body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
@@ -179,11 +181,17 @@ public class CompilerSkillContextBuilder {
 
     appendAddonSections(body, document);
 
-    body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
+    if (addonRepository.hasStandaloneSkills()) {
+      body.append("Skill instructions:\n");
+    } else {
+      body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
+    }
     body.append(document.markdown());
     appendRuntimeContextPackage(body, conversationId, document, snapshot);
     appendGeneratorConstraints(body, document, snapshot);
-    appendFinalEditConstraint(body, document, snapshot);
+    if (!addonRepository.hasStandaloneSkills()) {
+      appendFinalEditConstraint(body, document, snapshot);
+    }
 
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
   }
@@ -575,8 +583,28 @@ public class CompilerSkillContextBuilder {
       boolean editsExistingBodies) {
     runtimeEligibility.requirePromptContext(document.capabilityId());
 
+    if (addonRepository.hasStandaloneSkills()) {
+      StringBuilder prompt = new StringBuilder("User request:\n")
+          .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\nRequirement brief:\n")
+          .append(nullToEmpty(snapshot.requirementBrief())).append("\n\n")
+          .append(nullToEmpty(snapshot.mappingGenerationContext())).append("\n\n")
+          .append(nullToEmpty(snapshot.editContext())).append("\n\n")
+          .append(editsExistingBodies ? "Update existing bodies.\n" : "Fill missing bodies.\n")
+          .append("Required script node IDs:\n").append(formatJson(requiredNodeIds)).append("\n\n");
+      appendScriptNodeSlice(prompt, snapshot.chainPlanGraph(), requiredNodeIds);
+      if (editsExistingBodies && snapshot.chainPlanGraph() != null) {
+        prompt.append("\nOriginal script nodes:\n").append(formatJson(
+            snapshot.chainPlanGraph().nodes().stream()
+                .filter(node -> requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type()))
+                .toList()));
+      }
+      prompt.append("\n\nSkill instructions:\n").append(document.markdown());
+      appendRuntimeContextPackage(prompt, conversationId, document, snapshot);
+      appendGeneratorConstraints(prompt, document, snapshot);
+      return QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt.toString());
+    }
     StringBuilder body = new StringBuilder();
-    body.append("Pipeline instruction:\n");
+    body.append("Script repair task:\n");
     body.append(
         "You are executing compiler skill '"
             + document.capabilityId()
@@ -765,6 +793,10 @@ public class CompilerSkillContextBuilder {
 
   private void appendPipelineContract(
       StringBuilder body, CompilerSkillDocument document, CaptureTool captureTool) {
+    if (addonRepository.hasStandaloneSkills()) {
+      body.append("Execute the skill instructions below for this turn.\n\n");
+      return;
+    }
     body.append("Pipeline instruction:\n");
     body.append(
         "You are executing compiler skill '"
@@ -967,6 +999,10 @@ public class CompilerSkillContextBuilder {
   }
 
   private String formatActivePlan(GeneratorPlan activePlan) {
+    if (addonRepository.hasStandaloneSkills()) {
+      return formatJson(Map.of("targetNodeIds",
+          activePlan.targetNodeIds() == null ? List.of() : activePlan.targetNodeIds()));
+    }
     try {
       return objectMapper.writeValueAsString(activePlan);
     } catch (JsonProcessingException e) {

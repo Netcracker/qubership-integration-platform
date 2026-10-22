@@ -47,7 +47,8 @@ public final class CompilerRuntimeGeneratorRegistry {
     if (scanResult == null || scanResult.packRoot() == null) {
       return List.of();
     }
-    return loadBindings(scanResult.packRoot().resolve("addons"));
+    Path runtime = scanResult.packRoot().resolve("runtime");
+    return loadBindings(Files.isDirectory(runtime) ? runtime : scanResult.packRoot().resolve("addons"));
   }
 
   public List<ManifestSkillBinding> loadBindings(Path addonPackRoot) {
@@ -66,6 +67,10 @@ public final class CompilerRuntimeGeneratorRegistry {
   private Path resolveManifest(Path addonPackRoot) {
     if (addonPackRoot == null) {
       return null;
+    }
+    Path data = addonPackRoot.resolve("registry.json");
+    if (Files.isRegularFile(data)) {
+      return data;
     }
     Path direct = addonPackRoot.resolve(MANIFEST_FILE);
     if (Files.isRegularFile(direct)) {

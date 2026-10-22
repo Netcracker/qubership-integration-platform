@@ -67,14 +67,18 @@ public class SkillHarnessService {
     message.append("## Skill harness run\n\n");
     message.append("chainId=").append(request.chainId().trim()).append('\n');
     message.append("skillId=").append(request.skillId().trim()).append('\n');
-    message.append("sourcePath=").append(document.sourcePath()).append("\n\n");
+    if (!addonRepository.hasStandaloneSkills()) {
+      message.append("sourcePath=").append(document.sourcePath()).append("\n\n");
+    }
     message.append("## Harness prompt\n\n");
     message.append(request.prompt().trim()).append("\n\n");
     message.append("## Skill instructions\n\n");
     message.append(skillBody(document.markdown()));
     appendSkillAddon(message, document);
-    message.append("\n\nConfigure the chain using catalog tools only. ");
-    message.append("Do not create or modify a ChainPlanGraph.");
+    if (!addonRepository.hasStandaloneSkills()) {
+      message.append("\n\nConfigure the chain using catalog tools only. ");
+      message.append("Do not create or modify a ChainPlanGraph.");
+    }
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(message.toString());
   }
 

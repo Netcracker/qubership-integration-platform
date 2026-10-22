@@ -39,6 +39,11 @@ class ChainEditSkillContextTest {
                     List.of(),
                     ChainEditDisposition.NEST))));
 
+    String data = ChainEditSkillContext.render(workspace, true);
+    assertTrue(data.contains("- action:"));
+    assertTrue(data.contains("- disposition:"));
+    assertFalse(data.contains("Example --"));
+    assertFalse(data.contains("Capture subgraph, not graph"));
     String rendered = ChainEditSkillContext.render(workspace);
 
     assertTrue(rendered.contains("b978e8ff-c89e-462b-b512-25d46dae09e5"), rendered);

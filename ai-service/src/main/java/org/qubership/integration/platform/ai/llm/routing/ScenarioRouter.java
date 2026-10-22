@@ -7,6 +7,7 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.UnsatisfiedResolutionException;
 import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.TranscriptWindow;
@@ -36,6 +37,9 @@ import java.util.Optional;
  */
 @ApplicationScoped
 public class ScenarioRouter {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private static final Logger LOG = Logger.getLogger(ScenarioRouter.class);
 
@@ -113,6 +117,7 @@ public class ScenarioRouter {
   }
 
   public Multi<ChatEvent> route(ChatRequest request, String conversationId) {
+    if (!rockySkills.available()) return routePublic(request, conversationId);
     boolean atRecoverableHalt = false;
     if (createRunSelectionService != null && productPipelineChatAdapter != null) {
       try {
@@ -247,6 +252,32 @@ public class ScenarioRouter {
               MDC.remove(ChatMdc.CONVERSATION_ID);
               MDC.remove(ChatMdc.SCENARIO_TYPE);
             });
+  }
+
+  private Multi<ChatEvent> routePublic(ChatRequest request, String conversationId) {
+    boolean hasChain = hasOpenChain(request, conversationId);
+    ScenarioType type = request.getScenarioHint();
+    if (type == null) {
+      try {
+        type = routerAgent.classify(buildRouterTranscript(conversationId), "COLD", request.getEffectiveUserText());
+      } catch (RuntimeException e) {
+        type = ScenarioType.CONSULTATION;
+      }
+    }
+    if (type == ScenarioType.COMPARE_AND_PATCH || type == ScenarioType.CREATE_CHAIN_PLAN
+        || type == ScenarioType.IMPLEMENT_CHAIN || (hasChain && type == ScenarioType.GATHER_REQUIREMENTS)) {
+      return Multi.createFrom().item(ChatEvent.token(
+          RockySkills.UNAVAILABLE));
+    }
+    if (type == null || type == ScenarioType.UNKNOWN || type == ScenarioType.GATHER_REQUIREMENTS) {
+      type = ScenarioType.CONSULTATION;
+    }
+    Instance<ScenarioHandler> selected = handlers.select(new ForScenarioLiteral(resolveHandlerType(type)));
+    if (!selected.isResolvable()) {
+      type = ScenarioType.CONSULTATION;
+      selected = handlers.select(new ForScenarioLiteral(type));
+    }
+    return selected.get().handle(request, conversationId, type);
   }
 
   /**

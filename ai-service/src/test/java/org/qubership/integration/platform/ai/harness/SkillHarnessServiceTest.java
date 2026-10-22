@@ -113,11 +113,15 @@ class SkillHarnessServiceTest {
                 "plain skill"));
     when(addonRepository.loadForSkill(SKILL_ID)).thenReturn(CompilerSkillAddonContext.empty());
 
+    when(addonRepository.hasStandaloneSkills()).thenReturn(true);
     service.run(
         new SkillHarnessRequest(CONVERSATION_ID, CHAIN_ID, SKILL_ID, "Configure it."));
 
     ArgumentCaptor<String> userMessage = ArgumentCaptor.forClass(String.class);
     verify(harnessSkillAgent).chat(anyString(), userMessage.capture());
     assertFalse(userMessage.getValue().contains("## Skill addon"));
+    assertFalse(userMessage.getValue().contains("sourcePath="));
+    assertFalse(userMessage.getValue().contains("Configure the chain using catalog tools only"));
+    assertTrue(userMessage.getValue().contains("plain skill"));
   }
 }

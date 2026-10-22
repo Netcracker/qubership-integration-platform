@@ -34,6 +34,7 @@ apm_modules/
 
 # Private skills, addons, and certified knowledge package supplied out of band
 integration-platform-skills/
+/.private/
 
 # Local design notes, plans, and specs
 docs/

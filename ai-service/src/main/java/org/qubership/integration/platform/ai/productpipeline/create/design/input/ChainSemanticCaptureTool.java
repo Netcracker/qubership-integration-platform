@@ -297,6 +297,14 @@ public class ChainSemanticCaptureTool {
   }
 
   private static boolean fragmentPresent(CipKnowledgePackManifest manifest, String fragment) {
+    if (manifest.fileChecksums().containsKey("runtime/generator-contracts.json")) {
+      String path = switch (fragment) {
+        case "validation-rules" -> "runtime/validation-rules.yaml";
+        case "generator-contracts", "generator-rule-mapping" -> "runtime/generator-contracts.json";
+        default -> fragment;
+      };
+      return manifest.fileChecksums().containsKey(path);
+    }
     String fileName = knowledgeFileName(fragment);
     for (String path : manifest.fileChecksums().keySet()) {
       if (fileName.equals(path) || fileName.equals(lastSegment(path))) {

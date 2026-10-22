@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.chat.service;
 
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.llm.scenario.ImportSpecificationScenario;
 import org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline;
 import io.smallrye.mutiny.Multi;
@@ -52,6 +53,9 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.RestartChec
  */
 @ApplicationScoped
 public class ChatDecisionService {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private static final Logger LOG = Logger.getLogger(ChatDecisionService.class);
 
@@ -115,6 +119,10 @@ public class ChatDecisionService {
         return chainList;
       }
     }
+    if (!rockySkills.available()) {
+      return specificationImports != null && specificationImports.standaloneRequest(conversationId).isPresent()
+          ? importScenario.openDecision(conversationId) : Optional.empty();
+    }
     var snapshot = facade.snapshot(conversationId);
     if (specificationImports != null && (snapshot.isEmpty() || snapshot.get().finished())
         && specificationImports.standaloneRequest(conversationId).isPresent()) {
@@ -177,7 +185,7 @@ public class ChatDecisionService {
   /** Converts an unambiguous typed restart request into the same command used by the UI menu. */
   public Optional<ChatDecisionCommand> restartCommandForMessage(
       String conversationId, String message) {
-    if (message == null || message.isBlank()) {
+    if (!rockySkills.available() || message == null || message.isBlank()) {
       return Optional.empty();
     }
     String normalized =
@@ -471,6 +479,10 @@ public class ChatDecisionService {
     if (UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType())
         && standaloneImportPending(conversationId)) {
       return importScenario.approve(conversationId, command);
+    }
+    if (!rockySkills.available()) {
+      return Multi.createFrom().item(ChatEvent.token(
+          RockySkills.UNAVAILABLE));
     }
     if (PolicyChoiceSelection.ARTIFACT_TYPE.equals(command.getArtifactType())
         || ChatEvent.KEEP_REQUESTED_ACTION.equals(action) || ChatEvent.USE_RECOMMENDED_ACTION.equals(action)) {
@@ -900,7 +912,7 @@ public class ChatDecisionService {
 
   private boolean standaloneImportPending(String conversationId) {
     return specificationImports != null
-        && facade.snapshot(conversationId).map(ExecutionSnapshot::finished).orElse(true)
+        && (!rockySkills.available() || facade.snapshot(conversationId).map(ExecutionSnapshot::finished).orElse(true))
         && specificationImports.standaloneRequest(conversationId).filter(request -> !request.completed()).isPresent();
   }
 

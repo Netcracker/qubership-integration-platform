@@ -25,6 +25,7 @@ public class CipKnowledgePackScanner {
           "compiler-runtime-package",
           "generated",
           "product-pipelines",
+          "runtime",
           "knowledge");
   private static final String APM_SKILLS_ROOT = "apm/package/.apm/skills";
   private static final String PACK_APM_SKILLS_ROOT = ".apm/skills";
@@ -57,6 +58,19 @@ public class CipKnowledgePackScanner {
     scanMissingApmSkills(normalizedRoot, APM_SKILLS_ROOT, files);
     scanMissingApmSkills(normalizedRoot, PACK_APM_SKILLS_ROOT, files);
 
+    Path manifestPath = normalizedRoot.resolve("manifest.json");
+    if (Files.isRegularFile(manifestPath)) {
+      try {
+        var manifest = new com.fasterxml.jackson.databind.ObjectMapper().readTree(manifestPath.toFile());
+        Set<String> maintenancePaths = new HashSet<>();
+        for (var id : manifest.path("maintenanceSkillIds")) {
+          maintenancePaths.add("skills/" + id.asText() + "/SKILL.md");
+        }
+        files.removeIf(file -> maintenancePaths.contains(file.relativePath()));
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to read skill package manifest", e);
+      }
+    }
     files.sort(Comparator.comparing(ScannedCipKnowledgeFile::relativePath));
     return new CipKnowledgePackScanResult(normalizedRoot, version, List.copyOf(files));
   }
@@ -161,7 +175,7 @@ public class CipKnowledgePackScanner {
     if (normalized.equals("skills/runtime_skill_index.yaml")) {
       return CipKnowledgePackFileKind.RUNTIME_SKILL_INDEX;
     }
-    if (normalized.equals("skills/skill-catalog.yaml")) {
+    if (normalized.equals("skills/skill-catalog.yaml") || normalized.equals("runtime/skill-catalog.yaml")) {
       return CipKnowledgePackFileKind.SKILL_CATALOG;
     }
     if (normalized.startsWith("skills/") && normalized.endsWith("/apm_private")) {

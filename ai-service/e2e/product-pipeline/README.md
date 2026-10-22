@@ -231,7 +231,7 @@ python3 ai-service/e2e/product-pipeline/recovery_campaign.py run --cases ai-serv
 ```bash
 ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --runs 1 \
-  --knowledge-package integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export \
+  --knowledge-package .private/rocky-knowledge \
   --report-dir /tmp/ai-service-create-gate \
   --base-url http://localhost:8094
 ```
@@ -257,7 +257,7 @@ Run only that recovery scenario:
 ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --scenario product-create-chain-recovery-revise-plan \
   --runs 1 \
-  --knowledge-package integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export \
+  --knowledge-package .private/rocky-knowledge \
   --report-dir /tmp/ai-service-recovery-gate \
   --base-url http://localhost:8094
 ```
@@ -272,7 +272,7 @@ so the live run keeps one recovery-fault prefix. Drive it in isolation:
 ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --scenario product-create-chain-recovery-exhausted-halt \
   --runs 1 \
-  --knowledge-package integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export \
+  --knowledge-package .private/rocky-knowledge \
   --report-dir /tmp/ai-service-exhaust-gate \
   --base-url http://localhost:8094
 ```

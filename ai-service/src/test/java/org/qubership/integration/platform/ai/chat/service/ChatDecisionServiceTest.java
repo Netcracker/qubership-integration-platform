@@ -86,6 +86,45 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.RestartChec
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
+
+  @Test
+  void standaloneImportApprovalRemainsAvailableWithoutPrivateSkillsOrCreateState() {
+    var facade = mock(CreateChainApplicationFacade.class);
+    var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.rockySkills = mock(org.qubership.integration.platform.ai.skills.RockySkills.class);
+    service.specificationImports = mock(
+        org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline.class);
+    service.importScenario = mock(org.qubership.integration.platform.ai.llm.scenario.ImportSpecificationScenario.class);
+    when(service.specificationImports.standaloneRequest("chat")).thenReturn(Optional.of(
+        new org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline.StandaloneRequest(
+            "attachment", "Import", false)));
+    var command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.APPROVE_ACTION);
+    command.setArtifactType(UploadedSpecsApprovalHandler.ARTIFACT_TYPE);
+    when(service.importScenario.approve("chat", command)).thenReturn(Multi.createFrom().item(ChatEvent.token("Imported")));
+
+    assertEquals(List.of(ChatEvent.token("Imported")),
+        service.apply("chat", command).collect().asList().await().indefinitely());
+    verify(service.importScenario).approve("chat", command);
+    org.mockito.Mockito.verifyNoInteractions(facade);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"approve", "approve-and-create", "create-chain", "request-changes", "restart-from-beginning"})
+  void savedPrivateCommandsAreRefusedBeforeReadingCreateState(String action) {
+    var facade = mock(CreateChainApplicationFacade.class);
+    var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.rockySkills = mock(org.qubership.integration.platform.ai.skills.RockySkills.class);
+    var command = new ChatDecisionCommand();
+    command.setAction(action);
+    command.setArtifactType("old-private-artifact");
+
+    assertEquals(List.of(ChatEvent.token(org.qubership.integration.platform.ai.skills.RockySkills.UNAVAILABLE)),
+        service.apply("chat", command).collect().asList().await().indefinitely());
+    assertTrue(service.openDecision("chat").isEmpty());
+    org.mockito.Mockito.verifyNoInteractions(facade);
+  }
+
   @ParameterizedTest
   @CsvSource({"stage-clarification,false", "stage-clarification,true",
       "recovery-retry-technical,false", "recovery-retry-technical,true"})

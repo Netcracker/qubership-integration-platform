@@ -68,6 +68,7 @@ public class GatherRequirementsPromptBuilder {
         draftStore != null ? draftStore.get(conversationId) : Optional.empty();
     Set<String> uploadedInteractions = uploadedSpecs == null ? Set.of()
         : uploadedSpecs.pendingInteractionIds(conversationId, draft.orElse(null));
+    boolean standalone = addonRepository != null && addonRepository.hasStandaloneSkills();
     String mandatory = currentDraftBlock(draft) + repairConstraintsBlock(conversationId)
         + nativeRepairScopeBlock(conversationId)
         + incompleteDraftBlock(draft, uploadedInteractions)
@@ -80,6 +81,12 @@ public class GatherRequirementsPromptBuilder {
     try {
       CompilerSkillDocument document =
           skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID);
+      if (standalone) {
+        return QuteUserMessageEscaping.escapeForAiServiceUserMessage(
+            "Skill instructions:\n" + document.markdown()
+                + "\nUploaded specifications approved for import: " + hasUploadedSpecifications(conversationId)
+                + "\n" + mandatory);
+      }
       String body =
           """
           <compiler-process-skill id="%s" version="%s" source="%s">

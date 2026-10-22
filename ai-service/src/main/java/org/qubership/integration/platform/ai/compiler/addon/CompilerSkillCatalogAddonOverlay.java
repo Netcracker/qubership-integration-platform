@@ -107,10 +107,10 @@ public final class CompilerSkillCatalogAddonOverlay {
     try (var stream = Files.list(skillsDir)) {
       for (Path file : stream.filter(Files::isRegularFile).toList()) {
         String fileName = file.getFileName().toString();
-        if (!fileName.endsWith(".addon.md")) {
+        if (!fileName.endsWith(".addon.md") && !fileName.endsWith(".json")) {
           continue;
         }
-        String skillId = fileName.substring(0, fileName.length() - ".addon.md".length());
+        String skillId = fileName.substring(0, fileName.length() - (fileName.endsWith(".json") ? 5 : 9));
         AddonRuntimeMetadata metadata = metadataParser.parseAddonFile(file);
         if (metadata != null) {
           promotions.put(skillId, metadata);
