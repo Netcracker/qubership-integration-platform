@@ -94,7 +94,9 @@ jq -e --arg s "${SCENARIO_ID}" '.[$s]' "${SCENARIOS_FILE}" > /dev/null ||
         exit 1
     }
 
-prompt="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].prompt // empty' "${SCENARIOS_FILE}")"
+# A sentinel keeps command substitution from removing the prompt's final newlines.
+prompt="$(jq -j --arg s "${SCENARIO_ID}" '.[$s].prompt // empty' "${SCENARIOS_FILE}" && printf '.')"
+prompt="${prompt%.}"
 expected_state="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].terminalState // empty' "${SCENARIOS_FILE}")"
 expects_approval="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].expectsApproval // true' "${SCENARIOS_FILE}")"
 expects_implement="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].expectsImplement // false' "${SCENARIOS_FILE}")"

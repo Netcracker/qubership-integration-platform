@@ -15,6 +15,7 @@ pass() {
 
 SCENARIO_SH="${DIR}/run-product-scenario.sh"
 python3 "${DIR}/test-runner-decisions.py"
+python3 "${DIR}/test-runner-prompt-transport.py"
 GATE_SH="${DIR}/run-quality-gate.sh"
 EVAL_PY="${DIR}/evaluate-plan.py"
 BUILD_PY="${DIR}/build-report-from-evidence.py"
