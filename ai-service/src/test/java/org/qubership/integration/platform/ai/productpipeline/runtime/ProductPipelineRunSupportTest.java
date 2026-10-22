@@ -24,6 +24,9 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
@@ -31,6 +34,9 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
@@ -48,6 +54,22 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 class ProductPipelineRunSupportTest {
+
+  @Test
+  void completeRecoveryCauseSurvivesTheStrictPersistedReaderWithOrWithoutCaptureEvidence() throws Exception {
+    var json = new ObjectMapper();
+    var feedback = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "Repeated invalid field",
+        CaptureFailureClass.IDENTICAL_SPAM, false, List.of(), "", true);
+    var capture = new CaptureFailureEvidence(feedback, null,
+        new CompilationArtifacts.Reference(CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT,
+            "native-attempt", "native-hash"), List.of());
+    for (boolean captured : List.of(false, true)) {
+      var cause = new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(), "", true, captured ? capture : null);
+      String saved = ProductPipelineRunSupport.recoveryCauseJson(cause);
+      assertEquals(cause, json.readValue(saved, RecoveryCause.class));
+      assertTrue(json.readTree(saved).path("noProgress").asBoolean());
+    }
+  }
 
   @Test
   void upstreamSuccessKeepsTheObserverErrorUntilTheObserverSucceeds() {
