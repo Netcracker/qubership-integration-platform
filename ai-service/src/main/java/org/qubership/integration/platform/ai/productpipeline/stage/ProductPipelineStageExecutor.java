@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.HashMap;
@@ -151,6 +152,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private final SchemaResourceLoader schemaResourceLoader;
   private final SchemaRefResolver schemaRefResolver;
   private final DeterministicElementSchemaService schemaService;
+  private ProviderRetrySleeper providerRetrySleeper = Thread::sleep;
+
+  @FunctionalInterface
+  interface ProviderRetrySleeper {
+    void sleep(Duration duration) throws InterruptedException;
+  }
+
+  void withProviderRetrySleeper(ProviderRetrySleeper sleeper) {
+    this.providerRetrySleeper = Objects.requireNonNull(sleeper, "sleeper");
+  }
 
   public static final int MAX_SEMANTIC_REPAIRS = 2;
   public static final String PRODUCER_REPAIR_REASON_PREFIX = "producer-repair:";
@@ -1953,7 +1964,14 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   record AcceptedRecovery(
       RecoveryDecision decision, RecoveryEvidence evidence, boolean rejectedAuthorQuestion,
       RecoveryStatus diagnosisStatus,
-      org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence sourceQuestion) {
+      org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence sourceQuestion,
+      Instant retryAt) {
+    AcceptedRecovery(RecoveryDecision decision, RecoveryEvidence evidence, boolean rejectedAuthorQuestion,
+        RecoveryStatus diagnosisStatus,
+        org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence sourceQuestion) {
+      this(decision, evidence, rejectedAuthorQuestion, diagnosisStatus, sourceQuestion, null);
+    }
+
     private AcceptedRecovery(RecoveryDecision decision, RecoveryEvidence evidence, boolean rejectedAuthorQuestion,
         RecoveryStatus diagnosisStatus) {
       this(decision, evidence, rejectedAuthorQuestion, diagnosisStatus, null);
@@ -2021,7 +2039,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     RecoveryEvidence evidence = prior == null ? context.evidence() : prior.evidence();
     boolean rejectedQuestion = prior != null && prior.rejectedAuthorQuestion();
     int calls = request.calls();
+    AcceptedRecovery pendingRetry = prior;
     while (calls < 2) {
+      if (pendingRetry != null && pendingRetry.diagnosisStatus() == RecoveryStatus.TRANSIENT_PROVIDER_FAILURE
+          && pendingRetry.retryAt() != null && !awaitProviderRetry(pendingRetry.retryAt())) {
+        return pendingRetry;
+      }
+      pendingRetry = null;
       String refusal = llmBudget == null ? null : llmBudget.refusalForNextRequest(runId);
       if (refusal != null) {
         return saveDiagnosis(runId, identity, calls, new AcceptedRecovery(null,
@@ -2034,11 +2058,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           new AcceptedRecovery(null, evidence, rejectedQuestion, RecoveryStatus.INVALID_REPLY));
       RecoveryResult reply = failureNarrative.diagnoseRecovery(runId, nextContext);
       if (reply.status() != RecoveryStatus.READY) {
-        evidence = evidenceWithDecisionFindings(evidence, List.of(reply.detail() == null ? reply.status().name() : reply.detail()));
-        AcceptedRecovery failed = new AcceptedRecovery(null, evidence, rejectedQuestion, reply.status());
+        if (reply.retryAt() == null) {
+          evidence = evidenceWithDecisionFindings(evidence, List.of(reply.detail() == null ? reply.status().name() : reply.detail()));
+        }
+        AcceptedRecovery failed = new AcceptedRecovery(null, evidence, rejectedQuestion, reply.status(), null,
+            reply.retryAt());
         saveDiagnosis(runId, identity, calls, failed);
         if (calls >= 2 || reply.status() != RecoveryStatus.INVALID_REPLY
             && reply.status() != RecoveryStatus.TRANSIENT_PROVIDER_FAILURE) { return failed; }
+        pendingRetry = failed;
         continue;
       }
       RecoveryDecision decision = reply.decision();
@@ -2065,6 +2093,19 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           new AcceptedRecovery(null, evidence, rejectedQuestion, RecoveryStatus.INVALID_REPLY));
     }
     return new AcceptedRecovery(null, evidence, rejectedQuestion, RecoveryStatus.INVALID_REPLY);
+  }
+
+  private boolean awaitProviderRetry(Instant retryAt) {
+    try {
+      while (!Thread.currentThread().isInterrupted()) {
+        Instant now = clock.instant();
+        if (!now.isBefore(retryAt)) return true;
+        providerRetrySleeper.sleep(Duration.between(now, retryAt));
+      }
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+    }
+    return false;
   }
 
   private AcceptedRecovery saveDiagnosis(String runId, String identity, int calls, AcceptedRecovery result) {

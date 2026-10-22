@@ -111,7 +111,7 @@ public final class RateLimitAwareChatModel implements ChatModel {
         return response;
       } catch (RuntimeException error) {
         if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "error",
-            java.util.Map.of("type", error.getClass().getName(), "message", String.valueOf(error.getMessage())));
+            rateLimitClassifier.errorEvidence(error));
         if (!contextRebuilt && requestBudget != null && LlmRequestBudget.isOverflow(error)) {
           ChatRequest rebuilt = requestBudget.rebuild(chatRequest);
           if (!rebuilt.messages().equals(chatRequest.messages())) {
@@ -126,6 +126,7 @@ public final class RateLimitAwareChatModel implements ChatModel {
           int waitSeconds =
               rateLimitPolicy.resolveWaitSeconds(
                   rateLimitClassifier.extractWait(error), rateLimitAttempt);
+          RateLimitRetryDeadline.deferIfOutsideDeadline(RateLimitRetryDeadline.current(), waitSeconds, error);
           onBackoff.accept(new BackoffEvent(rateLimitAttempt + 1, waitSeconds));
           sleeper.sleepSeconds(waitSeconds);
           rateLimitAttempt++;

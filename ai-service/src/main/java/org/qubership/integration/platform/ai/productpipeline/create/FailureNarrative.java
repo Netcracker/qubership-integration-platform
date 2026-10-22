@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,8 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFin
 import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
 import org.qubership.integration.platform.ai.llm.agent.HaltQuestionDraft;
 import org.qubership.integration.platform.ai.llm.agent.OwnerDiagnosisDraft;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitRetryDeadline;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitRetryDeferredException;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -258,7 +261,11 @@ public final class FailureNarrative {
     }
   }
 
-  public record RecoveryResult(RecoveryStatus status, RecoveryDecision decision, String detail) {
+  public record RecoveryResult(RecoveryStatus status, RecoveryDecision decision, String detail, Instant retryAt) {
+    public RecoveryResult(RecoveryStatus status, RecoveryDecision decision, String detail) {
+      this(status, decision, detail, null);
+    }
+
     public static RecoveryResult reply(RecoveryDecision decision) {
       return new RecoveryResult(decision == null ? RecoveryStatus.INVALID_REPLY : RecoveryStatus.READY,
           decision, decision == null ? "Missing recovery decision." : "");
@@ -291,7 +298,7 @@ public final class FailureNarrative {
         () -> org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.withRun(runId,
             () -> agent.recover(locale, recoveryContextJson, requestParameters)));
     if (turn.status() != RecoveryStatus.READY) {
-      return new RecoveryResult(turn.status(), null, turn.detail());
+      return new RecoveryResult(turn.status(), null, turn.detail(), turn.retryAt());
     }
     RecoveryDecision decision = turn.value();
     if (decision == null || decision.causeClass() == null || decision.action() == null) {
@@ -492,7 +499,11 @@ public final class FailureNarrative {
     return awaitTurnResult(turnName, turn).value();
   }
 
-  private record TurnResult<T>(T value, RecoveryStatus status, String detail) {}
+  private record TurnResult<T>(T value, RecoveryStatus status, String detail, Instant retryAt) {
+    private TurnResult(T value, RecoveryStatus status, String detail) {
+      this(value, status, detail, null);
+    }
+  }
 
   private <T> TurnResult<T> awaitTurnResult(String turnName, Supplier<T> turn) {
     if (timeout == null) {
@@ -503,7 +514,7 @@ public final class FailureNarrative {
         return failedTurn(ex);
       }
     }
-    Future<T> pending = workers().submit(turn::get);
+    Future<T> pending = workers().submit(() -> RateLimitRetryDeadline.withDeadline(timeout, turn));
     try {
       return new TurnResult<>(pending.get(timeout.toMillis(), TimeUnit.MILLISECONDS), RecoveryStatus.READY, "");
     } catch (TimeoutException ex) {
@@ -526,6 +537,10 @@ public final class FailureNarrative {
       return new TurnResult<>(null, RecoveryStatus.PROJECTION_FAILURE, failure.getMessage());
     }
     for (Throwable current = failure; current != null; current = current.getCause()) {
+      if (current instanceof RateLimitRetryDeferredException deferred) {
+        return new TurnResult<>(null, RecoveryStatus.TRANSIENT_PROVIDER_FAILURE,
+            deferred.getMessage(), deferred.retryAt());
+      }
       if (current instanceof org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted) {
         return new TurnResult<>(null, RecoveryStatus.RESOURCE_REFUSAL, current.getMessage());
       }

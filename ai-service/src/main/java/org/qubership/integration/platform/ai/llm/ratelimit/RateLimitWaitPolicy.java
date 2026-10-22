@@ -9,8 +9,9 @@ public final class RateLimitWaitPolicy {
     if (raw.isZero() || raw.isNegative()) {
       return 0;
     }
-    int seconds = (int) Math.ceil(raw.toMillis() / 1000.0);
-    return Math.max(1, seconds);
+    long seconds = raw.getSeconds();
+    if (seconds >= Integer.MAX_VALUE) return Integer.MAX_VALUE;
+    return (int) seconds + (raw.getNano() == 0 ? 0 : 1);
   }
 
   public int fallbackWaitSeconds(int retryIndex) {

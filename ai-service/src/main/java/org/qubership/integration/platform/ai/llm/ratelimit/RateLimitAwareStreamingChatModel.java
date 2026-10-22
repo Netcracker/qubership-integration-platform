@@ -104,14 +104,14 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
 
   @Override
   public void chat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
-    chatWithRetry(chatRequest, handler, 0, 0, false);
+    chatWithRetry(chatRequest, handler, 0, 0, false, RateLimitRetryDeadline.current());
   }
 
   private void chatWithRetry(
       ChatRequest chatRequest,
       StreamingChatResponseHandler handler,
       int rateLimitAttempt,
-      int transientAttempt, boolean contextRebuilt) {
+      int transientAttempt, boolean contextRebuilt, java.time.Instant retryDeadline) {
     AtomicBoolean tokensStarted = new AtomicBoolean(false);
     var ticket = runBudget == null ? null : runBudget.reserve(runId,
         requestBudget.estimateInputTokens(chatRequest),
@@ -119,7 +119,7 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
     var deadline = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>>();
     String evidenceId = requestBudget == null ? null : requestBudget.recordProviderRequest(chatRequest, runId);
     var observer = observingHandler(handler, chatRequest, rateLimitAttempt, transientAttempt,
-        tokensStarted, contextRebuilt, ticket, deadline, evidenceId);
+        tokensStarted, contextRebuilt, ticket, deadline, evidenceId, retryDeadline);
     if (ticket != null) { scheduleDeadline(ticket, observer, deadline); }
     try { delegate.chat(chatRequest, observer); }
     catch (RuntimeException failure) { observer.onError(failure); }
@@ -143,7 +143,7 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
       int rateLimitAttempt,
       int transientAttempt,
       AtomicBoolean tokensStarted, boolean contextRebuilt, LlmRunBudget.Ticket ticket,
-      java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>> deadline, String evidenceId) {
+      java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>> deadline, String evidenceId, java.time.Instant retryDeadline) {
     AtomicBoolean completed = new AtomicBoolean();
     var handle = new java.util.concurrent.atomic.AtomicReference<dev.langchain4j.model.chat.response.StreamingHandle>();
     return new StreamingChatResponseHandler() {
@@ -224,9 +224,11 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
           if (runBudget != null && !(error instanceof LlmRunBudget.Exhausted)) { runBudget.complete(ticket, null); }
           return;
         }
-        if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "error",
-            java.util.Map.of("type", error.getClass().getName(), "message", String.valueOf(error.getMessage()),
-                "partialOutput", tokensStarted.get()));
+        if (requestBudget != null) {
+          var evidence = rateLimitClassifier.errorEvidence(error);
+          evidence.put("partialOutput", tokensStarted.get());
+          requestBudget.recordProviderOutcome(evidenceId, "error", evidence);
+        }
         if (deadline.get() != null) { deadline.get().cancel(false); }
         if (error instanceof LlmRunBudget.Exhausted && handle.get() != null) { cancel(handle.get()); }
         try {
@@ -239,7 +241,7 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
         if (!contextRebuilt && requestBudget != null && LlmRequestBudget.isOverflow(error)) {
           ChatRequest rebuilt = requestBudget.rebuild(chatRequest);
           if (!rebuilt.messages().equals(chatRequest.messages())) {
-            retry(requestBudget.prepare(rebuilt), handler, rateLimitAttempt, transientAttempt, true);
+            retry(requestBudget.prepare(rebuilt), handler, rateLimitAttempt, transientAttempt, true, retryDeadline);
             return;
           }
         }
@@ -249,9 +251,15 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
           int waitSeconds =
               rateLimitPolicy.resolveWaitSeconds(
                   rateLimitClassifier.extractWait(error), rateLimitAttempt);
+          try {
+            RateLimitRetryDeadline.deferIfOutsideDeadline(retryDeadline, waitSeconds, error);
+          } catch (RateLimitRetryDeferredException deferred) {
+            forward(() -> handler.onError(deferred));
+            return;
+          }
           onBackoff.accept(new RateLimitAwareChatModel.BackoffEvent(rateLimitAttempt + 1, waitSeconds));
           sleeper.sleepSeconds(waitSeconds);
-          retry(chatRequest, handler, rateLimitAttempt + 1, transientAttempt, contextRebuilt);
+          retry(chatRequest, handler, rateLimitAttempt + 1, transientAttempt, contextRebuilt, retryDeadline);
           return;
         }
         if (transientEnabled
@@ -265,7 +273,7 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
               waitSeconds,
               rootMessage(error));
           sleeper.sleepSeconds(waitSeconds);
-          retry(chatRequest, handler, rateLimitAttempt, transientAttempt + 1, contextRebuilt);
+          retry(chatRequest, handler, rateLimitAttempt, transientAttempt + 1, contextRebuilt, retryDeadline);
           return;
         }
         forward(() -> handler.onError(error));
@@ -274,8 +282,8 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
   }
 
   private void retry(ChatRequest request, StreamingChatResponseHandler handler,
-      int rateLimitAttempt, int transientAttempt, boolean contextRebuilt) {
-    try { chatWithRetry(request, handler, rateLimitAttempt, transientAttempt, contextRebuilt); }
+      int rateLimitAttempt, int transientAttempt, boolean contextRebuilt, java.time.Instant retryDeadline) {
+    try { chatWithRetry(request, handler, rateLimitAttempt, transientAttempt, contextRebuilt, retryDeadline); }
     catch (RuntimeException failure) { forward(() -> handler.onError(failure)); }
   }
 
