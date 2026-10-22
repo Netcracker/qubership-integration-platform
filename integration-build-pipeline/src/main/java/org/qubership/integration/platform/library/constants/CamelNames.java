@@ -128,6 +128,7 @@ public final class CamelNames {
     public static final String GQL_OPERATION_NAME_PROP = "integrationGqlOperationName";
     public static final String CHAIN_CALL_ELEMENT_ID = "elementId";
     public static final String REUSE_ESTABLISHED_CONN = "reuseEstablishedConnection";
+    public static final String M2M_PROP = "m2m";
 
     public static final String MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME = "maas.classifier.tenantEnabled";
     public static final String MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME = "maas.classifier.tenantId";
