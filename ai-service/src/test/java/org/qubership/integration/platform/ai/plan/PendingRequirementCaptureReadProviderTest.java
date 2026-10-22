@@ -89,7 +89,7 @@ class PendingRequirementCaptureReadProviderTest {
             org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY,
             "accessControlType", "NONE", "RBAC", "access-choice", null));
     var scriptFact = new FactInput("local-script", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
-        "After entry, run this exact script:\n" + SCRIPT, null, null,
+        "After entry, run this exact script:\n```groovy\n" + SCRIPT + "```\n", null, null,
         new RequirementElementIntent("local-script", "script", RequirementElementIntent.Placement.LOCAL_NODE,
             "missing-owner", null, "entry", null, List.of(new PlanProperty("script", SCRIPT)), List.of(LITERAL)));
     var proposed = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
@@ -98,20 +98,25 @@ class PendingRequirementCaptureReadProviderTest {
             "/policy-applicability", null, null, null)), List.of(new RequirementCaptureInput.QuestionInput(
                 "access-choice", List.of("entry"), "Retain the requested access control or use the corporate recommendation?")),
         new DraftSettings(false, null));
-    var oldIntent = scriptFact.elementIntent();
-    var correctedScript = new FactInput(scriptFact.sourceFactId(), scriptFact.interactionIds(), scriptFact.kind(),
-        scriptFact.polarity(), scriptFact.text(), null, null,
-        new RequirementElementIntent(oldIntent.elementRef(), oldIntent.elementType(), oldIntent.placement(), "entry",
-            oldIntent.successorElementRef(), oldIntent.predecessorElementRef(), oldIntent.parentElementRef(),
-            oldIntent.requestedName(), oldIntent.requestedProperties(), oldIntent.exactValues()));
-    var correctedPolicy = new FactInput(policy.sourceFactId(), policy.interactionIds(), policy.kind(), policy.polarity(),
-        policy.text(), policy.fieldMapping(), null, policy.elementIntent());
-    var corrected = new DraftInput(proposed.flow(), List.of(endpoint, correctedPolicy, correctedScript),
-        proposed.capabilities(), List.of(), proposed.settings());
     String source = endpoint.text() + "\n" + policy.text() + "\n" + scriptFact.text() + "\nProceed without IDS.";
     var input = conversations.archive().beginInput(chat, source, null);
     conversations.archive().resolveInput(chat, input, source);
     drafts.beginTurn(chat, source);
+    var oldIntent = scriptFact.elementIntent();
+    int scriptOffset = source.indexOf(SCRIPT);
+    assertTrue(scriptOffset >= 0);
+    var body = new RequirementBodyBinding(RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
+        oldIntent.elementRef(), "script", RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+        input.generation(), input.turnId(), scriptOffset, scriptOffset + SCRIPT.length(), RequirementBodyBinding.Encoding.RAW);
+    var correctedScript = new FactInput(scriptFact.sourceFactId(), scriptFact.interactionIds(), scriptFact.kind(),
+        scriptFact.polarity(), scriptFact.text(), null, null,
+        new RequirementElementIntent(oldIntent.elementRef(), oldIntent.elementType(), oldIntent.placement(), "entry",
+            oldIntent.successorElementRef(), oldIntent.predecessorElementRef(), oldIntent.parentElementRef(),
+            oldIntent.requestedName(), oldIntent.requestedProperties(), oldIntent.exactValues(), body));
+    var correctedPolicy = new FactInput(policy.sourceFactId(), policy.interactionIds(), policy.kind(), policy.polarity(),
+        policy.text(), policy.fieldMapping(), null, policy.elementIntent());
+    var corrected = new DraftInput(proposed.flow(), List.of(endpoint, correctedPolicy, correctedScript),
+        proposed.capabilities(), List.of(), proposed.settings());
     var sourceBefore = json.valueToTree(conversations.archive().read(chat));
     var limitsBefore = limits();
     var rejected = new AtomicReference<JsonNode>();

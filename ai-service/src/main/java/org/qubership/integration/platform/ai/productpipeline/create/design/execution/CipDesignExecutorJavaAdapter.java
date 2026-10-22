@@ -389,6 +389,9 @@ public class CipDesignExecutorJavaAdapter {
     } catch (RequestedElementValues.ResolvedTargetConflict conflict) {
       return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, conflict.getMessage(),
           new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT, List.of(conflict.finding()), ""));
+    } catch (RequestedElementValues.UnprovenBodyBinding unproven) {
+      return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, unproven.getMessage(),
+          new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT, List.of(unproven.finding()), ""));
     } catch (SemanticRevisionValidationException rejected) {
       return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, rejected.getMessage(),
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,

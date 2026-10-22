@@ -357,7 +357,8 @@ public final class RequirementCaptureEditor {
         intent.ownerInteractionId(), paths.contains("/successorElementRef") ? null : intent.successorElementRef(),
         paths.contains("/predecessorElementRef") ? null : intent.predecessorElementRef(),
         paths.contains("/parentElementRef") ? null : intent.parentElementRef(),
-        paths.contains("/requestedName") ? null : intent.requestedName(), properties, values);
+        paths.contains("/requestedName") ? null : intent.requestedName(), properties, values,
+        paths.contains("/bodyBinding") ? null : intent.bodyBinding());
   }
 
   static List<Issue> validateFactPreservation(

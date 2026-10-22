@@ -152,6 +152,45 @@ class CompilerDagExecutionEngineTest {
   }
 
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void assemblySeedsExactSourceBodiesAndPreservesCompilerBodiesOverImplementationHints(boolean literal) {
+    String conversation = "body-authority-assembly-" + literal;
+    String body = "  exchange.in.body = 'author result'  \n\n";
+    var dag = dagWithMandatoryValidation();
+    stubAssemblyAndValidator(dag);
+    var binding = new org.qubership.integration.platform.ai.plan.RequirementBodyBinding(
+        literal ? org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY
+            : org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.GENERATED_CANDIDATE,
+        "script-1", "script", org.qubership.integration.platform.ai.plan.RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+        "source-generation", "source-turn", literal ? 0 : null, literal ? body.length() : null,
+        literal ? org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Encoding.RAW : null);
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script-1", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger", null, "trigger", null, null,
+        List.of(new PlanProperty("script", literal ? body : "generated implementation hint")),
+        List.of("author result"), binding);
+    var brief = brief().withFacts(List.of(new RequirementFact("prepare-body", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Return author result.", "", "", "", "", "", "",
+        List.of("trigger"), null, intent)));
+    var graph = new ChainPlanGraph("1.0", graphForAssembly().chain(), List.of(graphForAssembly().nodes().getFirst(),
+        new ChainPlanNode("script-1", "script", "Prepare", null, null,
+            literal ? List.of() : List.of(new PlanProperty("script", body)))),
+        List.of(new ChainPlanEdge("e1", "trigger", "script-1", null)));
+    var revision = simpleRevision();
+    var seed = CompilerExecutionSeed.forCreate(conversation, brief, revision, graph, List.of());
+    var request = new CompilerDagExecutionRequest("body-run", conversation, manifestFor(dag), brief,
+        revision, dag, List.of(), List.of(), seed, null);
+
+    var result = engine.execute(request, (id, status) -> {}).await().indefinitely();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    var assembled = result.graph().nodes().stream().filter(node -> "script-1".equals(node.nodeId())).findFirst().orElseThrow();
+    assertEquals(body, assembled.properties().stream().filter(property -> "script".equals(property.key()))
+        .findFirst().orElseThrow().value());
+    assertTrue(CompilerQualityValidator.validateApprovedValues(result.graph(), brief).isEmpty());
+  }
+
   private InMemorySkillWorkspaceStore workspaceStore;
   private SkillExecutorRegistry skillRegistry;
   private CompilerNodeExecutionAdapterRegistry javaAdapterRegistry;

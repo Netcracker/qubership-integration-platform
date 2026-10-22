@@ -22,7 +22,20 @@ public record RequirementElementIntent(
         + " with ANCHOR placement. The interaction participant names the other party, not this element."
         + " Keep the name here even when no properties are requested. Null when the author supplied no element name.") String requestedName,
     List<PlanProperty> requestedProperties,
-    List<String> exactValues) {
+    List<String> exactValues,
+    @NullableCaptureValue(description = "Authority for a requested native script body. Generated code and language hints are"
+        + " implementation candidates, not exact author code. Copy native source classification feedback when a body binding"
+        + " is required. VERBATIM_SOURCE_BODY binds the complete original code value, its owner, native key, generation,"
+        + " turn, UTF-16 offsets, and encoding; preserve every body character. Never downgrade an author body to generated.")
+    RequirementBodyBinding bodyBinding) {
+
+  public RequirementElementIntent(
+      String elementRef, String elementType, Placement placement, String ownerInteractionId,
+      String successorElementRef, String predecessorElementRef, String parentElementRef, String requestedName,
+      List<PlanProperty> requestedProperties, List<String> exactValues) {
+    this(elementRef, elementType, placement, ownerInteractionId, successorElementRef, predecessorElementRef,
+        parentElementRef, requestedName, requestedProperties, exactValues, null);
+  }
 
   public RequirementElementIntent(
       String elementRef,

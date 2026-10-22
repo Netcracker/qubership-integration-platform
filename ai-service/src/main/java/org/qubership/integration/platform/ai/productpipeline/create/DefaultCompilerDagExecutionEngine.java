@@ -1300,6 +1300,18 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     for (SkillArtifact artifact : seed.artifacts()) {
       workspaceStore.putArtifact(seed.workspaceId(), artifact);
     }
+    var workspace = workspaceStore.getOrCreate(seed.workspaceId());
+    var facts = workspace.get(SkillArtifactType.REQUIREMENT_BRIEF)
+        .map(artifact -> ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload()).brief().facts())
+        .orElse(List.of());
+    workspace.get(SkillArtifactType.CHAIN_PLAN_GRAPH).ifPresent(artifact -> {
+      var original = ((SkillArtifactPayload.ChainPlanGraphPayload) artifact.payload()).graph();
+      var seeded = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues
+          .seedBodies(original, facts);
+      if (!original.equals(seeded)) workspaceStore.putArtifact(seed.workspaceId(), SkillArtifact.of(
+          SkillArtifactType.CHAIN_PLAN_GRAPH, artifact.producerSkillId(),
+          new SkillArtifactPayload.ChainPlanGraphPayload(seeded)));
+    });
   }
 
   private CompilerDagExecutionResult toResult(
