@@ -148,6 +148,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
     mockUseNotificationService.mockReturnValue({
       info: jest.fn(),
       requestFailed: jest.fn(),
+      error: jest.fn(),
       errorWithDetails: jest.fn(),
       warning: jest.fn(),
     });

@@ -1,5 +1,6 @@
 import React from "react";
-import { Tag, theme } from "antd";
+import { Tag, theme, Tooltip } from "antd";
+import type { TooltipProps } from "antd";
 import type { PresetStatusColor } from "../../types/antd.ts";
 
 /**
@@ -16,11 +17,13 @@ export type StatusTone = PresetStatusColor | "neutral";
 export const StatusToneTag: React.FC<{
   tone: StatusTone;
   children: React.ReactNode;
-}> = ({ tone, children }) => {
+  message?: string;
+  placement?: TooltipProps["placement"];
+}> = ({ tone, children, message, placement }) => {
   const { token } = theme.useToken();
   const neutral = tone === "neutral";
 
-  return (
+  const tag = (
     <Tag
       variant="solid"
       color={neutral ? undefined : tone}
@@ -36,5 +39,13 @@ export const StatusToneTag: React.FC<{
     >
       {children}
     </Tag>
+  );
+
+  return message ? (
+    <Tooltip title={message} placement={placement}>
+      {tag}
+    </Tooltip>
+  ) : (
+    tag
   );
 };
