@@ -131,250 +131,252 @@ async function presentableTypesInUse(catalog: Catalog): Promise<ElementTypeInUse
   return (await response.json()) as ElementTypeInUse[];
 }
 
-test("the palette partitions on `parentRestriction`, and nothing is served twice", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
-  const library = await catalog.library();
+test.describe("element library palette", { tag: ["@catalog"] }, () => {
+  test("partitions on parentRestriction and serves nothing twice", async ({ catalog }) => {
+    const library = await catalog.library();
 
-  expect(Object.keys(library).sort()).toEqual(["childElements", "elements", "groups"]);
+    expect(Object.keys(library).sort()).toEqual(["childElements", "elements", "groups"]);
 
-  const grouped = groupedElements(library);
-  const children = Object.entries(library.childElements);
+    const grouped = groupedElements(library);
+    const children = Object.entries(library.childElements);
 
-  // Both floors first: `[].filter()` is `[]`, so either partition coming back empty would satisfy
-  // every assertion below while proving nothing about the rule.
-  expect(grouped.length, "the palette's groups carry no elements at all").toBeGreaterThan(
-    GROUPED_ELEMENT_FLOOR,
-  );
-  expect(children.length, "the palette offers no child elements at all").toBeGreaterThan(
-    CHILD_ELEMENT_FLOOR,
-  );
+    // Both floors first: `[].filter()` is `[]`, so either partition coming back empty would satisfy
+    // every assertion below while proving nothing about the rule.
+    expect(grouped.length, "the palette's groups carry no elements at all").toBeGreaterThan(
+      GROUPED_ELEMENT_FLOOR,
+    );
+    expect(children.length, "the palette offers no child elements at all").toBeGreaterThan(
+      CHILD_ELEMENT_FLOOR,
+    );
 
-  // The rule, both ways round. `getElementsHierarchy` sends an element to its folder's group when
-  // the restriction is empty and to the root's `childElements` map when it is not, so either
-  // direction failing means an element is placed where no reader expects to find it.
-  expect(
-    grouped.filter((element) => element.parentRestriction.length > 0).map((element) => element.name),
-    "grouped elements that restrict their parent, which belong under `childElements`",
-  ).toEqual([]);
-  expect(
-    children.filter(([, element]) => element.parentRestriction.length === 0).map(([name]) => name),
-    "child elements with no parent restriction, which belong in a group",
-  ).toEqual([]);
-
-  // One element, one home. A name in both partitions would make every by-name reader ambiguous and
-  // would double-count the palette.
-  const names = [...grouped.map((element) => element.name), ...children.map(([name]) => name)];
-  expect(new Set(names).size, "an element is served in two places at once").toBe(names.length);
-
-  // And the key of the map is the element's name rather than its `type` — `catch-2` is served with
-  // `type: "module"`, so a reader keying on the type would collapse most of the map into one entry.
-  for (const [key, element] of children) expect(element.name, `childElements key ${key}`).toBe(key);
-});
-
-test("every entry carries the same descriptor shape, whichever section serves it", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
-  const palette = paletteElements(await catalog.library());
-  expect(palette.size, "the palette offered nothing to describe").toBeGreaterThan(PALETTE_FLOOR);
-
-  for (const [name, element] of palette) {
-    const keys = Object.keys(element);
+    // The rule, both ways round. `getElementsHierarchy` sends an element to its folder's group when
+    // the restriction is empty and to the root's `childElements` map when it is not, so either
+    // direction failing means an element is placed where no reader expects to find it.
     expect(
-      REQUIRED_KEYS.filter((key) => !keys.includes(key)),
-      `${name} is missing keys every element is supposed to carry`,
+      grouped.filter((element) => element.parentRestriction.length > 0).map((element) => element.name),
+      "grouped elements that restrict their parent, which belong under `childElements`",
     ).toEqual([]);
     expect(
-      keys.filter((key) => !REQUIRED_KEYS.includes(key) && !OPTIONAL_KEYS.includes(key)),
-      `${name} carries a key this spec has never seen`,
+      children.filter(([, element]) => element.parentRestriction.length === 0).map(([name]) => name),
+      "child elements with no parent restriction, which belong in a group",
     ).toEqual([]);
 
-    const entry = element as unknown as Record<string, unknown>;
-    for (const key of BOOLEAN_KEYS) expect(typeof entry[key], `${name}.${key}`).toBe("boolean");
-    for (const key of ARRAY_KEYS) expect(Array.isArray(entry[key]), `${name}.${key} is not an array`).toBe(true);
-    for (const key of ["name", "title", "folder", "priorityProperty", "reuseReferenceProperty"]) {
-      expect(typeof entry[key], `${name}.${key}`).toBe("string");
-    }
+    // One element, one home. A name in both partitions would make every by-name reader ambiguous and
+    // would double-count the palette.
+    const names = [...grouped.map((element) => element.name), ...children.map(([name]) => name)];
+    expect(new Set(names).size, "an element is served in two places at once").toBe(names.length);
 
-    // `folder` is on every element, including the ones served under `childElements` rather than in
-    // a group. Placement is decided by `parentRestriction` alone, so a child element declares a
-    // folder it is never drawn in.
-    expect(element.folder, `${name} declares no folder`).toBeTruthy();
+    // And the key of the map is the element's name rather than its `type` — `catch-2` is served with
+    // `type: "module"`, so a reader keying on the type would collapse most of the map into one entry.
+    for (const [key, element] of children) expect(element.name, `childElements key ${key}`).toBe(key);
+  });
 
-    // Both enums, by the names Jackson writes rather than by the Java constants.
-    expect(ELEMENT_TYPES, `${name}.type`).toContain(element.type);
-    expect(QUANTITIES, `${name}.inputQuantity`).toContain(entry["inputQuantity"]);
+  test("every section serves the same descriptor shape", async ({ catalog }) => {
+    const palette = paletteElements(await catalog.library());
+    expect(palette.size, "the palette offered nothing to describe").toBeGreaterThan(PALETTE_FLOOR);
 
-    // The four property buckets are always all four, empty ones included, so the editor draws the
-    // same tabs for every element and a reader indexes them without a guard.
-    expect(Object.keys(element.properties).sort(), `${name}.properties`).toEqual(PROPERTY_BUCKETS);
-    for (const bucket of PROPERTY_BUCKETS) {
-      for (const property of element.properties[bucket]) {
-        expect(typeof property.name, `${name}.properties.${bucket}[].name`).toBe("string");
+    for (const [name, element] of palette) {
+      const keys = Object.keys(element);
+      expect(
+        REQUIRED_KEYS.filter((key) => !keys.includes(key)),
+        `${name} is missing keys every element is supposed to carry`,
+      ).toEqual([]);
+      expect(
+        keys.filter((key) => !REQUIRED_KEYS.includes(key) && !OPTIONAL_KEYS.includes(key)),
+        `${name} carries a key this spec has never seen`,
+      ).toEqual([]);
+
+      const entry = element as unknown as Record<string, unknown>;
+      for (const key of BOOLEAN_KEYS) expect(typeof entry[key], `${name}.${key}`).toBe("boolean");
+      for (const key of ARRAY_KEYS) expect(Array.isArray(entry[key]), `${name}.${key} is not an array`).toBe(true);
+      for (const key of ["name", "title", "folder", "priorityProperty", "reuseReferenceProperty"]) {
+        expect(typeof entry[key], `${name}.${key}`).toBe("string");
+      }
+
+      // `folder` is on every element, including the ones served under `childElements` rather than in
+      // a group. Placement is decided by `parentRestriction` alone, so a child element declares a
+      // folder it is never drawn in.
+      expect(element.folder, `${name} declares no folder`).toBeTruthy();
+
+      // Both enums, by the names Jackson writes rather than by the Java constants.
+      expect(ELEMENT_TYPES, `${name}.type`).toContain(element.type);
+      expect(QUANTITIES, `${name}.inputQuantity`).toContain(entry["inputQuantity"]);
+
+      // The four property buckets are always all four, empty ones included, so the editor draws the
+      // same tabs for every element and a reader indexes them without a guard.
+      expect(Object.keys(element.properties).sort(), `${name}.properties`).toEqual(PROPERTY_BUCKETS);
+      for (const bucket of PROPERTY_BUCKETS) {
+        for (const property of element.properties[bucket]) {
+          expect(typeof property.name, `${name}.properties.${bucket}[].name`).toBe("string");
+        }
+      }
+
+      // `allowedChildren` is a map of child name to `Quantity`, and it is the container's half of the
+      // rule `parentRestriction` states from the child's side.
+      for (const [child, quantity] of Object.entries(element.allowedChildren)) {
+        expect(QUANTITIES, `${name}.allowedChildren.${child}`).toContain(quantity);
       }
     }
 
-    // `allowedChildren` is a map of child name to `Quantity`, and it is the container's half of the
-    // rule `parentRestriction` states from the child's side.
-    for (const [child, quantity] of Object.entries(element.allowedChildren)) {
-      expect(QUANTITIES, `${name}.allowedChildren.${child}`).toContain(quantity);
-    }
-  }
-
-  // Both lists have to stay meaningful. A key called optional that no element carries is a dead
-  // entry, and one that every element carries belongs in `REQUIRED_KEYS` — left here it lets the
-  // unexpected-key filter above wave through a field that has quietly become mandatory.
-  const optionalSeen = OPTIONAL_KEYS.filter((key) =>
-    [...palette.values()].some((element) => key in element),
-  );
-  expect(optionalSeen, "keys this spec calls optional that no element carries").toEqual(OPTIONAL_KEYS);
-  const alwaysPresent = OPTIONAL_KEYS.filter((key) =>
-    [...palette.values()].every((element) => key in element),
-  );
-  expect(alwaysPresent, "keys this spec calls optional that every element carries").toEqual([]);
-});
-
-test("a group carries its folder's identity, its own elements, and never a child element", { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-  const library = await catalog.library();
-  const groups = allGroups(library);
-
-  expect(groups.length, "the palette has no groups").toBeGreaterThan(5);
-
-  for (const group of groups) {
-    // `LibraryElementGroup` unwraps the folder onto the group, so these are the folder's fields
-    // rather than a nested object a reader has to descend into.
-    expect(group.name, `a group with no name: ${JSON.stringify(Object.keys(group))}`).toBeTruthy();
-    expect(group.title, `group ${group.name} has no title`).toBeTruthy();
-    // A group nobody can put anything in is a group the editor draws empty.
-    expect(group.elements.length, `group ${group.name} is empty`).toBeGreaterThan(0);
-    // `addChild(name, element)` is reached on the root and nowhere else, so this map is the root's
-    // alone. A reader walking groups for child elements finds none, and has to look at the root.
-    expect(Object.keys(group.childElements), `group ${group.name} carries child elements`).toEqual([]);
-  }
-
-  expect(new Set(groups.map((group) => group.name)).size, "two groups share a name").toBe(groups.length);
-
-  // The nesting rule, asserted in the direction this build exercises: a group appears at the root
-  // exactly when it names no parent. The other direction — a nested group whose `parent` names the
-  // group it sits under — has nothing to assert over, because `folders.yaml` declares no `parent`
-  // on this build and every group is at the top level. Asserting it anyway would pass vacuously.
-  for (const group of library.groups) {
-    expect(group.parent, `root group ${group.name} names a parent it is not nested under`).toBeUndefined();
-  }
-  expect(allGroups(library).length, "a group nested under another one appeared").toBe(library.groups.length);
-});
-
-test("every element the palette offers is addressable by name and answers the same object", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
-  const library = await catalog.library();
-  const palette = paletteElements(library);
-  expect(palette.size, "the palette offered nothing to address").toBeGreaterThan(PALETTE_FLOOR);
-
-  // Both endpoints read `LibraryElementsService.elements`, so this is deep equality and not a
-  // field-by-field comparison: a key the tree carries and the by-name read drops would be a reader
-  // of one endpoint seeing an element the other does not describe.
-  const answers = await Promise.all(
-    [...palette.keys()].map(async (name) => {
-      const response = await catalog.libraryElement(name);
-      return { name, status: response.status(), body: response.ok() ? await response.json() : null };
-    }),
-  );
-
-  expect(answers.filter((answer) => answer.status !== 200).map((answer) => answer.name)).toEqual([]);
-  const differing = answers
-    .filter((answer) => JSON.stringify(answer.body) !== JSON.stringify(palette.get(answer.name)))
-    .map((answer) => answer.name);
-  expect(differing, "elements the by-name read describes differently from the palette").toEqual([]);
-});
-
-test("the by-name read looks up a name, and misses with an empty 404", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
-  const library = await catalog.library();
-  const palette = paletteElements(library);
-
-  // `catch-2` is what makes the point: it is served, and it is served with `type: "module"`. So
-  // `module` looks like an address and is not one.
-  expect(palette.get("catch-2")?.type, "catch-2 no longer carries a type distinct from its name").toBe("module");
-
-  const misses = [
-    // A `type`, which several elements carry and no element is named.
-    "module",
-    // A group name. Folders and elements share one path segment and only elements answer.
-    "routing",
-    // A name nothing has ever carried.
-    "no-such-library-element",
-  ];
-  expect(misses.filter((name) => palette.has(name)), "a miss candidate is a real element").toEqual([]);
-
-  for (const name of misses) {
-    const response = await catalog.libraryElement(name);
-    expect(response.status(), `GET /v1/library/${name}`).toBe(404);
-    // `ResponseEntity.notFound().build()` bypasses the exception handler, so there is no
-    // `{serviceName, errorMessage, errorDate}` envelope here — unlike, say,
-    // `GET /v1/catalog/diagnostic/validations/{id}`, whose 404 quotes the id it could not find.
-    expect(await response.text(), `GET /v1/library/${name} answered a body`).toBe("");
-  }
-
-  // And the element the misses are contrasted against does answer, so the 404s above are the
-  // lookup failing rather than the endpoint being gone.
-  expect((await catalog.libraryElement("catch-2")).status()).toBe(200);
-});
-
-test("the types listing maps known titles and preserves removed types", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
-  const inUse = await presentableTypesInUse(catalog);
-  const palette = paletteElements(await catalog.library());
-
-  expect(inUse.length, "no element type is in use anywhere in the catalog").toBeGreaterThan(0);
-
-  for (const row of inUse) {
-    expect(Object.keys(row).sort(), `row ${JSON.stringify(row)}`).toEqual(["elementTitle", "elementType"]);
-    const descriptor = palette.get(row.elementType);
-    expect(row.elementTitle, `title of ${row.elementType}`).toBe(descriptor?.title ?? row.elementType);
-  }
-
-  // `GROUP BY e.type` cannot repeat a type, and a duplicate would double every entry in the UI's
-  // element filter.
-  const types = inUse.map((row) => row.elementType);
-  expect(new Set(types).size, "the listing repeats a type").toBe(types.length);
-
-  // Unused palette types stay absent; removed types may still appear from old chains or snapshots.
-  const unused = [...palette.keys()].filter((name) => !types.includes(name));
-  expect(
-    unused.length,
-    "every element the palette offers is in use somewhere, so the listing is not a subset",
-  ).toBeGreaterThan(0);
-  expect(types.filter((type) => palette.has(type)).length).toBeLessThan(palette.size);
-});
-
-test("a type enters the listing when an element of it exists and leaves when it is deleted", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
-  const before = await presentableTypesInUse(catalog);
-  const used = new Set(before.map((row) => row.elementType));
-  const spare = SPARE_TYPES.find((type) => !used.has(type));
-  expect(
-    spare,
-    `every spare type is already in use (${SPARE_TYPES.join(", ")}), so this case cannot observe a ` +
-      "type entering the listing. Pick another element the corpus does not place.",
-  ).toBeDefined();
-  if (spare === undefined) return;
-
-  const title = paletteElements(await catalog.library()).get(spare)?.title;
-  expect(title, `the palette no longer offers ${spare}`).toBeTruthy();
-
-  const chain = await catalog.createChain(tokenized(run, "lib-types"), folder.id);
-  const element = await catalog.createElement(chain.id, spare);
-
-  // The transition itself, which is where the endpoint's contract lives. Nothing about this chain
-  // is deployed, snapshotted or connected, so the only change is that one row of `catalog.elements`
-  // now carries the type.
-  const during = await presentableTypesInUse(catalog);
-  expect(during, `${spare} did not enter the listing when an element of it was created`).toContainEqual({
-    elementType: spare,
-    elementTitle: title,
+    // Both lists have to stay meaningful. A key called optional that no element carries is a dead
+    // entry, and one that every element carries belongs in `REQUIRED_KEYS` — left here it lets the
+    // unexpected-key filter above wave through a field that has quietly become mandatory.
+    const optionalSeen = OPTIONAL_KEYS.filter((key) =>
+      [...palette.values()].some((element) => key in element),
+    );
+    expect(optionalSeen, "keys this spec calls optional that no element carries").toEqual(OPTIONAL_KEYS);
+    const alwaysPresent = OPTIONAL_KEYS.filter((key) =>
+      [...palette.values()].every((element) => key in element),
+    );
+    expect(alwaysPresent, "keys this spec calls optional that every element carries").toEqual([]);
   });
 
-  // Everything that was in use still is: the listing is derived per request, not accumulated.
-  expect(during.map((row) => row.elementType)).toEqual(expect.arrayContaining([...used]));
+  test("a group holds its folder's elements and no child element", async ({ catalog }) => {
+    const library = await catalog.library();
+    const groups = allGroups(library);
 
-  await catalog.deleteElement(chain.id, element.id);
+    expect(groups.length, "the palette has no groups").toBeGreaterThan(5);
 
-  const after = await presentableTypesInUse(catalog);
-  expect(
-    after.map((row) => row.elementType),
-    `${spare} stayed in the listing after its only element was deleted`,
-  ).not.toContain(spare);
-  expect(after.map((row) => row.elementType)).toEqual(expect.arrayContaining([...used]));
+    for (const group of groups) {
+      // `LibraryElementGroup` unwraps the folder onto the group, so these are the folder's fields
+      // rather than a nested object a reader has to descend into.
+      expect(group.name, `a group with no name: ${JSON.stringify(Object.keys(group))}`).toBeTruthy();
+      expect(group.title, `group ${group.name} has no title`).toBeTruthy();
+      // A group nobody can put anything in is a group the editor draws empty.
+      expect(group.elements.length, `group ${group.name} is empty`).toBeGreaterThan(0);
+      // `addChild(name, element)` is reached on the root and nowhere else, so this map is the root's
+      // alone. A reader walking groups for child elements finds none, and has to look at the root.
+      expect(Object.keys(group.childElements), `group ${group.name} carries child elements`).toEqual([]);
+    }
+
+    expect(new Set(groups.map((group) => group.name)).size, "two groups share a name").toBe(groups.length);
+
+    // The nesting rule, asserted in the direction this build exercises: a group appears at the root
+    // exactly when it names no parent. The other direction — a nested group whose `parent` names the
+    // group it sits under — has nothing to assert over, because `folders.yaml` declares no `parent`
+    // on this build and every group is at the top level. Asserting it anyway would pass vacuously.
+    for (const group of library.groups) {
+      expect(group.parent, `root group ${group.name} names a parent it is not nested under`).toBeUndefined();
+    }
+    expect(allGroups(library).length, "a group nested under another one appeared").toBe(library.groups.length);
+  });
+
+  test("each offered element reads back the same by name", async ({ catalog }) => {
+    const library = await catalog.library();
+    const palette = paletteElements(library);
+    expect(palette.size, "the palette offered nothing to address").toBeGreaterThan(PALETTE_FLOOR);
+
+    // Both endpoints read `LibraryElementsService.elements`, so this is deep equality and not a
+    // field-by-field comparison: a key the tree carries and the by-name read drops would be a reader
+    // of one endpoint seeing an element the other does not describe.
+    const answers = await Promise.all(
+      [...palette.keys()].map(async (name) => {
+        const response = await catalog.libraryElement(name);
+        return { name, status: response.status(), body: response.ok() ? await response.json() : null };
+      }),
+    );
+
+    expect(answers.filter((answer) => answer.status !== 200).map((answer) => answer.name)).toEqual([]);
+    const differing = answers
+      .filter((answer) => JSON.stringify(answer.body) !== JSON.stringify(palette.get(answer.name)))
+      .map((answer) => answer.name);
+    expect(differing, "elements the by-name read describes differently from the palette").toEqual([]);
+  });
+
+  test("the by-name read finds a name and misses with an empty 404", async ({ catalog }) => {
+    const library = await catalog.library();
+    const palette = paletteElements(library);
+
+    // `catch-2` is what makes the point: it is served, and it is served with `type: "module"`. So
+    // `module` looks like an address and is not one.
+    expect(palette.get("catch-2")?.type, "catch-2 no longer carries a type distinct from its name").toBe("module");
+
+    const misses = [
+      // A `type`, which several elements carry and no element is named.
+      "module",
+      // A group name. Folders and elements share one path segment and only elements answer.
+      "routing",
+      // A name nothing has ever carried.
+      "no-such-library-element",
+    ];
+    expect(misses.filter((name) => palette.has(name)), "a miss candidate is a real element").toEqual([]);
+
+    for (const name of misses) {
+      const response = await catalog.libraryElement(name);
+      expect(response.status(), `GET /v1/library/${name}`).toBe(404);
+      // `ResponseEntity.notFound().build()` bypasses the exception handler, so there is no
+      // `{serviceName, errorMessage, errorDate}` envelope here — unlike, say,
+      // `GET /v1/catalog/diagnostic/validations/{id}`, whose 404 quotes the id it could not find.
+      expect(await response.text(), `GET /v1/library/${name} answered a body`).toBe("");
+    }
+
+    // And the element the misses are contrasted against does answer, so the 404s above are the
+    // lookup failing rather than the endpoint being gone.
+    expect((await catalog.libraryElement("catch-2")).status()).toBe(200);
+  });
+
+  test("the types listing maps titles and keeps removed types", async ({ catalog }) => {
+    const inUse = await presentableTypesInUse(catalog);
+    const palette = paletteElements(await catalog.library());
+
+    expect(inUse.length, "no element type is in use anywhere in the catalog").toBeGreaterThan(0);
+
+    for (const row of inUse) {
+      expect(Object.keys(row).sort(), `row ${JSON.stringify(row)}`).toEqual(["elementTitle", "elementType"]);
+      const descriptor = palette.get(row.elementType);
+      expect(row.elementTitle, `title of ${row.elementType}`).toBe(descriptor?.title ?? row.elementType);
+    }
+
+    // `GROUP BY e.type` cannot repeat a type, and a duplicate would double every entry in the UI's
+    // element filter.
+    const types = inUse.map((row) => row.elementType);
+    expect(new Set(types).size, "the listing repeats a type").toBe(types.length);
+
+    // Unused palette types stay absent; removed types may still appear from old chains or snapshots.
+    const unused = [...palette.keys()].filter((name) => !types.includes(name));
+    expect(
+      unused.length,
+      "every element the palette offers is in use somewhere, so the listing is not a subset",
+    ).toBeGreaterThan(0);
+    expect(types.filter((type) => palette.has(type)).length).toBeLessThan(palette.size);
+  });
+
+  test("a type is listed while an element of it exists", async ({ catalog, folder, run }) => {
+    const before = await presentableTypesInUse(catalog);
+    const used = new Set(before.map((row) => row.elementType));
+    const spare = SPARE_TYPES.find((type) => !used.has(type));
+    expect(
+      spare,
+      `every spare type is already in use (${SPARE_TYPES.join(", ")}), so this case cannot observe a ` +
+        "type entering the listing. Pick another element the corpus does not place.",
+    ).toBeDefined();
+    if (spare === undefined) return;
+
+    const title = paletteElements(await catalog.library()).get(spare)?.title;
+    expect(title, `the palette no longer offers ${spare}`).toBeTruthy();
+
+    const chain = await catalog.createChain(tokenized(run, "lib-types"), folder.id);
+    const element = await catalog.createElement(chain.id, spare);
+
+    // The transition itself, which is where the endpoint's contract lives. Nothing about this chain
+    // is deployed, snapshotted or connected, so the only change is that one row of `catalog.elements`
+    // now carries the type.
+    const during = await presentableTypesInUse(catalog);
+    expect(during, `${spare} did not enter the listing when an element of it was created`).toContainEqual({
+      elementType: spare,
+      elementTitle: title,
+    });
+
+    // Everything that was in use still is: the listing is derived per request, not accumulated.
+    expect(during.map((row) => row.elementType)).toEqual(expect.arrayContaining([...used]));
+
+    await catalog.deleteElement(chain.id, element.id);
+
+    const after = await presentableTypesInUse(catalog);
+    expect(
+      after.map((row) => row.elementType),
+      `${spare} stayed in the listing after its only element was deleted`,
+    ).not.toContain(spare);
+    expect(after.map((row) => row.elementType)).toEqual(expect.arrayContaining([...used]));
+  });
 });

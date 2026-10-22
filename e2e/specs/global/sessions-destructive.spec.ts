@@ -79,7 +79,8 @@ async function drive(
   return await sessions.byExternalId(call.token, { elements: SCRIPT_CHAIN_STEPS });
 }
 
-test("the bare delete removes every session on the platform, and the index goes on recording", { tag: ["@sessions", "@engine", "@tier1"] }, async ({ catalog, env, request, sessions, folder, run }) => {
+test.describe("bare session delete", { tag: ["@sessions", "@engine"] }, () => {
+  test("removes every session, and recording carries on", async ({ catalog, env, request, sessions, folder, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
     const built: SeedChain[] = [];
     let bodyFailed = true;
@@ -158,5 +159,5 @@ test("the bare delete removes every session on the platform, and the index goes 
     } finally {
       await releaseChains(catalog, built, bodyFailed);
     }
-  },
-);
+  });
+});
