@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContext;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContextProjector;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionSchemas;
 
 /**
  * Model-authored halt-card body from structured evidence. Empty when the turn fails; callers keep
@@ -273,8 +275,11 @@ public final class FailureNarrative {
     }
     String locale = normalizedLocale(context.responseLocale());
     String recoveryContextJson;
+    ChatRequestParameters requestParameters;
     try {
       recoveryContextJson = RecoveryContextProjector.project(context, new ObjectMapper().findAndRegisterModules());
+      requestParameters = ChatRequestParameters.builder()
+          .responseFormat(RecoveryDecisionSchemas.responseFormat(context)).build();
     } catch (RuntimeException ex) {
       LOG.warnf(ex, "Recovery context projection failed; keeping raw evidence");
       return new RecoveryResult(RecoveryStatus.PROJECTION_FAILURE, null, ex.getMessage());
@@ -284,7 +289,7 @@ public final class FailureNarrative {
     }
     TurnResult<RecoveryDecision> turn = awaitTurnResult("Recovery decision",
         () -> org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.withRun(runId,
-            () -> agent.recover(locale, recoveryContextJson)));
+            () -> agent.recover(locale, recoveryContextJson, requestParameters)));
     if (turn.status() != RecoveryStatus.READY) {
       return new RecoveryResult(turn.status(), null, turn.detail());
     }
