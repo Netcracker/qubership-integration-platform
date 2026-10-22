@@ -438,6 +438,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "http-trigger", kind: "axis", axisPath: "systemType", value: "EXTERNAL", status: "covered", tags: CATALOG },
   { family: "http-trigger", kind: "axis", axisPath: "systemType", value: "IMPLEMENTED", status: NOT_COVERED, reason: R_SYSTEM_TYPE_ALIKE, tags: ENGINE },
   { family: "http-trigger", kind: "behaviour", behaviour: "concurrent-calls", status: "covered", tags: ENGINE },
+  { family: "http-trigger", kind: "behaviour", behaviour: "redeploy-under-traffic", status: "covered", tags: ENGINE },
+  { family: "http-trigger", kind: "behaviour", behaviour: "redeploy-under-traffic-micro", status: "covered", tags: ENGINE, target: "k8s" },
   { family: "if", kind: "element", status: "covered", tags: ENGINE },
   { family: "jms-sender", kind: "element", status: NOT_COVERED, reason: R_JMS, tags: ENGINE },
   { family: "jms-sender", kind: "axis", axisPath: "acknowledgmentMode", value: "AUTO_ACKNOWLEDGE", status: NOT_COVERED, reason: R_JMS, tags: ENGINE },
