@@ -3729,7 +3729,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void invalidRecoveryDecisionGetsOneCorrectionThenRepairsItsProducer() {
+  void invalidRecoveryDecisionGetsOneCorrectionThenRepairsItsProducer() throws Exception {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
     ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
@@ -3768,6 +3768,22 @@ class ProductPipelineStageExecutorTest {
             .filter(finding -> "INVALID_RECOVERY_DECISION".equals(finding.code()))
             .count();
     assertEquals(2, invalidDecisionFindings);
+    for (SemanticFinding finding : parkedEvidence.findings()) {
+      if (!"INVALID_RECOVERY_DECISION".equals(finding.code())) continue;
+      var rejectedReply = mapper.readTree(finding.rawValidatorJson());
+      assertEquals("REJECTED", rejectedReply.path("status").asText());
+      assertEquals(mapper.valueToTree(invalid), rejectedReply.path("rejectedDecision"));
+      assertFalse(rejectedReply.path("validationFindings").isEmpty());
+    }
+    var saved = requireRun();
+    var restarted = newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), planningValidationFailure());
+    var executor = (ProductPipelineStageExecutor) restarted.stageExecutor();
+    var retained = executor.acceptedRecoveryDecision(RUN_ID, new RecoveryContext(parkedEvidence, null, null, "en"));
+    assertNull(retained.decision(), "A rejected decision remains evidence after restart, never an executable action.");
+    assertEquals(FailureNarrative.RecoveryStatus.INVALID_REPLY, retained.diagnosisStatus());
+    assertEquals(parkedEvidence, retained.evidence());
+    assertEquals(saved, requireRun(), "Reentry must preserve accepted work, source inputs, and failure progress.");
+    assertEquals(2, agent.calls.get(), "Restart must not grant another diagnosis call for the same failure.");
   }
 
   @Test

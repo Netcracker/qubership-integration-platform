@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.ai.llm.ratelimit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -13,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
+import com.sun.net.httpserver.HttpServer;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.internal.JsonSchemaElementUtils;
 import dev.langchain4j.model.chat.ChatModel;
@@ -21,14 +24,18 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.DefaultChatRequestParameters;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.model.openai.OpenAiResponsesChatModel;
+import dev.langchain4j.model.openai.OpenAiResponsesChatRequestParameters;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -50,10 +57,11 @@ class RecoveryDecisionSchemaProviderTest {
   @Inject ObjectMapper json;
   @Inject FailureNarrativeAgent agent;
   @Inject AppConfig config;
+  @Inject ResponsesDeadlineCustomizer transportCustomizer;
   @InjectMock RateLimitChatModel provider;
 
   @Test
-  void actualRegisteredDefaultAndTwoNormalInvocationsDifferOnlyInTheirCurrentReferenceDomains() throws Exception {
+  void registeredInvocationsApplyStrictDiagnosisSchemaWithoutChangingOtherRequestSettings() throws Exception {
     var firstRef = new Reference(Kind.REQUIREMENT_DRAFT, "first-producer", "first-hash");
     var secondRef = new Reference(Kind.REQUIREMENT_DRAFT, "second-producer", "second-hash");
     var first = context("first-failure", firstRef);
@@ -79,13 +87,21 @@ class RecoveryDecisionSchemaProviderTest {
     assertTrue(RecoveryDecisionValidator.validate(secondResult.decision(), second).accepted());
     var original = captured.getFirst().parameters().responseFormat();
     assertNotNull(original, "The actual registered service must supply its generated default schema.");
+    assertNull(assertInstanceOf(OpenAiResponsesChatRequestParameters.class,
+        captured.getFirst().parameters()).strictJsonSchema(), "Strictness belongs to the diagnosis request only.");
     for (int i = 1; i < captured.size(); i++) {
       var actual = captured.get(i).parameters().responseFormat();
       assertNotNull(actual);
       assertEquals(original.type(), actual.type());
       assertEquals(original.jsonSchema().name(), actual.jsonSchema().name());
-      assertEquals(withoutReferences(captured.getFirst()), withoutReferences(captured.get(i)),
-          "Names, required fields, nullability, definitions, actions, and every other field must stay unchanged.");
+      var actualParameters = assertInstanceOf(OpenAiResponsesChatRequestParameters.class,
+          captured.get(i).parameters());
+      assertTrue(actualParameters.strictJsonSchema());
+      assertEquals("none", actualParameters.reasoningEffort());
+      assertEquals(0.2, actualParameters.temperature());
+      assertEquals(24_000, actualParameters.maxOutputTokens());
+      assertEquals(withoutReferences(captured.get(1)), withoutReferences(captured.get(i)),
+          "Only the current reference domains may differ between normal diagnosis invocations.");
       assertEquals(captured.getFirst().parameters().toolChoice(), captured.get(i).parameters().toolChoice());
       assertEquals(captured.getFirst().parameters().maxOutputTokens(), captured.get(i).parameters().maxOutputTokens());
     }
@@ -97,11 +113,61 @@ class RecoveryDecisionSchemaProviderTest {
     assertMembership(secondFields.path("faultArtifactRef"), json.valueToTree(firstRef), false);
     assertMembership(secondFields.path("evidenceRefs"), json.valueToTree(List.of("second-failure")), true);
     assertMembership(secondFields.path("evidenceRefs"), json.valueToTree(List.of("first-failure")), false);
+    assertMembership(secondFields.path("evidenceRefs"), json.valueToTree(List.of()), false);
+    assertEquals(json.valueToTree(List.of(RecoveryDecision.class.getRecordComponents()).stream()
+        .map(java.lang.reflect.RecordComponent::getName).toList()), schema(captured.get(1)).path("required"));
     for (String run : List.of(baselineRun, firstRun, secondRun)) {
       assertEquals(1, budget.state(run).requests());
       assertEquals(21, budget.state(run).tokens());
       assertEquals(0, budget.state(run).grants());
       assertTrue(budget.state(run).active().isEmpty());
+    }
+  }
+
+  @Test
+  void realResponsesSerializationRequiresTheFieldsOmittedByTheSavedDiagnosisReplies() throws Exception {
+    var ref = new Reference(Kind.REQUIREMENT_DRAFT, "current-output", "current-hash");
+    var context = context("current-failure", ref);
+    var reply = new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, ref, List.of("current-failure"),
+        RecoveryAction.REGENERATE_ARTIFACT, List.of(), null, "Repair the generated output.");
+    var captured = new ArrayList<ChatRequest>();
+    install(captured, List.of(reply));
+    assertEquals(reply, new FailureNarrative(agent).diagnoseRecovery("wire-schema-" + UUID.randomUUID(), context).decision());
+    var wire = new AtomicReference<JsonNode>();
+    var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext("/v1/responses", exchange -> {
+      wire.set(json.readTree(exchange.getRequestBody()));
+      var completion = json.createObjectNode().put("id", "local-response").put("object", "response")
+          .put("model", "schema-fixture").put("status", "completed");
+      var message = completion.putArray("output").addObject().put("type", "message").put("role", "assistant");
+      message.putArray("content").addObject().put("type", "output_text").put("text", json.writeValueAsString(reply));
+      completion.putObject("usage").put("input_tokens", 17).put("output_tokens", 4).put("total_tokens", 21);
+      byte[] body = json.writeValueAsBytes(completion);
+      exchange.getResponseHeaders().set("Content-Type", "application/json");
+      exchange.sendResponseHeaders(200, body.length);
+      try (var output = exchange.getResponseBody()) {
+        output.write(body);
+      }
+      exchange.close();
+    });
+    server.start();
+    try {
+      var transport = OpenAiResponsesChatModel.builder()
+          .baseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/v1")
+          .apiKey("local-fixture-key").modelName("schema-fixture");
+      transportCustomizer.chatCustomizer().customize(transport);
+      transport.build().chat(captured.getFirst());
+      var format = wire.get().path("text").path("format");
+      assertTrue(format.path("strict").asBoolean());
+      assertEquals("json_schema", format.path("type").asText());
+      assertMembership(format.path("schema"), json.valueToTree(reply), true);
+      var omitted = json.createObjectNode().put("causeClass", "DERIVATION_DEFECT")
+          .put("action", "REGENERATE_ARTIFACT").put("userSummary", "Repair the generated output.");
+      omitted.putObject("authorQuestionEvidence");
+      assertMembership(format.path("schema"), omitted, false);
+      assertEquals(schema(captured.getFirst()), format.path("schema"));
+    } finally {
+      server.stop(0);
     }
   }
 
@@ -132,7 +198,8 @@ class RecoveryDecisionSchemaProviderTest {
 
   private LlmRunBudget install(List<ChatRequest> captured, List<RecoveryDecision> replies) {
     var upstream = mock(ChatModel.class);
-    when(upstream.defaultRequestParameters()).thenReturn(DefaultChatRequestParameters.builder().build());
+    when(upstream.defaultRequestParameters()).thenReturn(OpenAiResponsesChatRequestParameters.builder()
+        .temperature(0.2).maxOutputTokens(24_000).reasoningEffort("none").build());
     when(upstream.supportedCapabilities()).thenReturn(Set.of(Capability.RESPONSE_FORMAT_JSON_SCHEMA));
     when(provider.supportedCapabilities()).thenReturn(Set.of(Capability.RESPONSE_FORMAT_JSON_SCHEMA));
     when(upstream.chat(any(ChatRequest.class))).thenAnswer(call -> {
@@ -156,7 +223,10 @@ class RecoveryDecisionSchemaProviderTest {
   }
 
   private ObjectNode schema(ChatRequest request) {
-    return json.valueToTree(JsonSchemaElementUtils.toMap(request.parameters().responseFormat().jsonSchema().rootElement()));
+    boolean strict = request.parameters() instanceof OpenAiResponsesChatRequestParameters parameters
+        && Boolean.TRUE.equals(parameters.strictJsonSchema());
+    return json.valueToTree(JsonSchemaElementUtils.toMap(
+        request.parameters().responseFormat().jsonSchema().rootElement(), strict));
   }
 
   private void assertMembership(JsonNode schema, JsonNode value, boolean expected) {

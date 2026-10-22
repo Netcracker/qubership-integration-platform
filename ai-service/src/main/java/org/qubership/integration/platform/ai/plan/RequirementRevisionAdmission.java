@@ -163,8 +163,7 @@ final class RequirementRevisionAdmission {
         findings.add(finding("/protection", List.of(), "rejected-capture-protection", protectionRefs, "protection-identity",
             PreservationOutcome.UNPROVEN, "Protected rejected content belongs to a different accepted base."));
       } else {
-        var protectedTree = protection.values() != null && protection.values().isObject()
-            ? (ObjectNode) protection.values().deepCopy() : MAPPER.createObjectNode();
+        var protectedTree = pendingValues(protection.values());
         var protectedFacts = protectedTree.putObject("facts");
         protection.facts().forEach(fact -> protectedFacts.set(fact.sourceFactId(), MAPPER.valueToTree(fact)));
         var losses = new ArrayList<String>();
@@ -845,14 +844,52 @@ final class RequirementRevisionAdmission {
         if (values.at(pointer.head()) instanceof ObjectNode parent) parent.putNull(pointer.last().getMatchingProperty());
       }
     }
+    return pendingValues(values);
+  }
+
+  static ObjectNode pendingValues(JsonNode original) {
+    var values = original instanceof ObjectNode object ? object.deepCopy() : MAPPER.createObjectNode();
+    projectRecords(values.path("interactions"), InteractionInput.class);
+    projectRecords(values.path("capabilities"), CapabilityInput.class);
     discardInvalidInteractionReferences(values);
+    discardEmptyValues(values);
     return values;
+  }
+
+  private static void projectRecords(JsonNode family, Class<?> record) {
+    family.fields().forEachRemaining(entry -> {
+      if (!(entry.getValue() instanceof ObjectNode value)) return;
+      // A rejected required discriminator cannot validate the fields that depend on it.
+      for (var field : record.getRecordComponents()) {
+        if (!field.isAnnotationPresent(NullableCaptureValue.class)
+            && value.has(field.getName()) && value.get(field.getName()).isNull()) {
+          value.removeAll();
+          return;
+        }
+      }
+      // The enclosing map already addresses the record; its identity is not an independent obligation.
+      value.remove("interactionId");
+    });
+  }
+
+  private static void discardEmptyValues(ObjectNode values) {
+    var fields = values.fields();
+    while (fields.hasNext()) {
+      var value = fields.next().getValue();
+      if (value instanceof ObjectNode object) discardEmptyValues(object);
+      if (value.isObject() && value.isEmpty()) fields.remove();
+    }
+    if (java.util.stream.StreamSupport.stream(values.spliterator(), false).allMatch(JsonNode::isNull)) {
+      values.removeAll();
+    }
   }
 
   private static void discardInvalidInteractionReferences(ObjectNode values) {
     var invalid = new java.util.HashSet<String>();
     values.path("interactions").fields().forEachRemaining(field -> {
-      if (field.getValue().isNull()) invalid.add(field.getKey());
+      if (field.getValue().isNull() || field.getValue().isObject() && field.getValue().isEmpty()) {
+        invalid.add(field.getKey());
+      }
     });
     if (invalid.isEmpty()) return;
     if (values.get("capabilities") instanceof ObjectNode capabilities) invalid.forEach(capabilities::remove);
@@ -882,7 +919,7 @@ final class RequirementRevisionAdmission {
     if (base == null) return new RetainedAdditions(facts, values);
     var merged = accumulate(base.facts(), facts);
     var additions = merged.stream().filter(fact -> !base.facts().contains(fact)).toList();
-    return new RetainedAdditions(additions, addedValues(tree(base), values));
+    return new RetainedAdditions(additions, pendingValues(addedValues(tree(base), values)));
   }
 
   private static ObjectNode addedValues(JsonNode base, ObjectNode candidate) {
@@ -902,8 +939,8 @@ final class RequirementRevisionAdmission {
   }
 
   static ObjectNode accumulateValues(JsonNode original, ObjectNode candidate) {
-    var accumulated = original == null || !original.isObject() ? MAPPER.createObjectNode() : (ObjectNode) original.deepCopy();
-    candidate.fields().forEachRemaining(field -> {
+    var accumulated = pendingValues(original);
+    pendingValues(candidate).fields().forEachRemaining(field -> {
       var old = accumulated.path(field.getKey());
       var value = field.getValue();
       if (old.isNull() || old.isMissingNode()) accumulated.set(field.getKey(), value);
@@ -914,7 +951,7 @@ final class RequirementRevisionAdmission {
         accumulated.set(field.getKey(), joined);
       }
     });
-    return accumulated;
+    return pendingValues(accumulated);
   }
 
   private static boolean contains(JsonNode array, JsonNode value) {

@@ -67,7 +67,7 @@ class FaultArtifactRefDiagnosisProviderTest {
   @InjectMock RateLimitChatModel provider;
 
   @ParameterizedTest
-  @ValueSource(strings = {"nested-attempt", "foreign", "exhausted"})
+  @ValueSource(strings = {"nested-attempt", "foreign", "missing-fields", "exhausted"})
   void invalidFaultReferenceReachesTheNextProviderRequestWithoutChangingAuthorityOrRetryCredit(String mode) throws Exception {
     String runId = "fault-reference-" + UUID.randomUUID();
     var producer = new Reference(Kind.REQUIREMENT_DRAFT, "current-producer", "producer-" + "x".repeat(2_300));
@@ -84,7 +84,10 @@ class FaultArtifactRefDiagnosisProviderTest {
         "requirement-discovery", null, null, List.of(producer), List.of(finding), null, List.of(), List.of(),
         List.of(), List.of(), false, new CaptureFailureEvidence(feedback, null, attempt, List.of()));
     var context = new RecoveryContext(evidence, null, Map.of("producerStageId", "requirement-discovery"), "en");
-    var invalid = decision(rejected, evidence);
+    var invalid = "missing-fields".equals(mode)
+        ? new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, null, List.of(),
+            RecoveryAction.REGENERATE_ARTIFACT, List.of(), "", "Repair the generated output. " + "details ".repeat(400))
+        : decision(rejected, evidence);
     String nativeDiagnostic = RecoveryDecisionValidator.validate(invalid, context).findings().getFirst();
     assertFalse(RecoveryDecisionValidator.validate(invalid, context).accepted());
     var requests = new ArrayList<JsonNode>();
@@ -131,13 +134,27 @@ class FaultArtifactRefDiagnosisProviderTest {
     assertEquals(firstEvidence.path("rejectedArtifactRefs"), nextEvidence.path("rejectedArtifactRefs"));
     assertEquals(json.valueToTree(finding), nextEvidence.path("findings").get(0));
     assertEquals("INVALID_RECOVERY_DECISION", nextEvidence.path("findings").get(1).path("code").asText());
-    assertEquals(nativeDiagnostic, nextEvidence.path("findings").get(1).path("rawValidatorJson").asText());
-    assertTrue(nativeDiagnostic.contains("Rejected value: " + json.valueToTree(rejected)));
-    assertTrue(nativeDiagnostic.contains(json.valueToTree(producer).toString()), "The complete current reference must reach the provider.");
-    assertTrue(nativeDiagnostic.contains("Action and strategy constraints still apply"));
+    JsonNode rejectedReply = json.readTree(nextEvidence.path("findings").get(1).path("rawValidatorJson").asText());
+    assertEquals("REJECTED", rejectedReply.path("status").asText());
+    assertEquals(json.valueToTree(invalid), rejectedReply.path("rejectedDecision"));
+    assertEquals(json.valueToTree(RecoveryDecisionValidator.validate(invalid, context).findings()),
+        rejectedReply.path("validationFindings"));
+    assertEquals(firstEvidence.path("failureId"), nextEvidence.path("failureId"));
+    assertTrue(requests.get(1).path("evidenceRefIds").toString().contains(producer.contentHash()));
+    assertFalse(requests.get(1).path("evidenceRefIds").toString().contains(foreign.artifactId()));
+    if (!"missing-fields".equals(mode)) {
+      assertTrue(nativeDiagnostic.contains("Rejected value: " + json.valueToTree(rejected)));
+      assertTrue(nativeDiagnostic.contains(json.valueToTree(producer).toString()),
+          "The complete current reference must reach the provider.");
+      assertTrue(nativeDiagnostic.contains("Action and strategy constraints still apply"));
+    }
     if ("exhausted".equals(mode)) {
       assertNull(accepted.decision());
       assertEquals(RecoveryStatus.INVALID_REPLY, accepted.diagnosisStatus());
+      assertEquals(2, accepted.evidence().findings().stream()
+          .filter(item -> "INVALID_RECOVERY_DECISION".equals(item.code())).count());
+      JsonNode retainedReply = json.readTree(accepted.evidence().findings().getLast().rawValidatorJson());
+      assertEquals(json.valueToTree(invalid), retainedReply.path("rejectedDecision"));
     } else {
       assertEquals(decision(producer, evidence), accepted.decision());
       assertEquals(RecoveryStatus.READY, accepted.diagnosisStatus());

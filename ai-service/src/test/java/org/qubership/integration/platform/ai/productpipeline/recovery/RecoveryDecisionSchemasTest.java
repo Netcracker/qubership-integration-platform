@@ -22,6 +22,10 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 @QuarkusTest
 @TestProfile(TestArtifactBlobStoreProducer.Profile.class)
@@ -63,7 +67,7 @@ class RecoveryDecisionSchemasTest {
   }
 
   @Test
-  void nonStrictSerializationDoesNotPromiseRejectionOfUnknownObjectKeys() {
+  void strictSerializationRejectsUnknownReferenceKeys() {
     var producer = new Reference(Kind.REQUIREMENT_DRAFT, "producer", "producer-hash");
     var context = context("current-failure", producer);
     var root = (JsonObjectSchema) RecoveryDecisionSchemas.responseFormat(context).jsonSchema().rootElement();
@@ -71,12 +75,74 @@ class RecoveryDecisionSchemasTest {
     alternatives.anyOf().stream().filter(JsonObjectSchema.class::isInstance).map(JsonObjectSchema.class::cast)
         .forEach(reference -> assertEquals(Boolean.FALSE, reference.additionalProperties()));
     JsonNode serialized = fields(context).path("faultArtifactRef");
-    serialized.path("anyOf").forEach(alternative -> assertFalse(alternative.has("additionalProperties")));
+    serialized.path("anyOf").forEach(alternative -> {
+      if (alternative.path("type").asText().equals("object")) {
+        assertFalse(alternative.path("additionalProperties").asBoolean(true));
+      }
+    });
     var extra = JSON.valueToTree(producer).deepCopy();
     ((com.fasterxml.jackson.databind.node.ObjectNode) extra).put("extraAuthority", true);
-    assertAccepts(serialized, extra);
+    assertRejects(serialized, extra);
     assertRejects(serialized, JSON.valueToTree(
         new Reference(producer.kind(), producer.artifactId(), "foreign-hash")));
+  }
+
+  @Test
+  void everyResponseFieldIsRequiredWhileInactiveQuestionEvidenceIsExplicitlyNull() {
+    var producer = new Reference(Kind.REQUIREMENT_DRAFT, "producer", "producer-hash");
+    var context = context("current-failure", producer);
+    var schema = schema(context);
+    var valid = JSON.valueToTree(new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, producer,
+        List.of("current-failure"), RecoveryAction.REGENERATE_ARTIFACT, List.of(), null, "Repair the generated output."));
+    assertAccepts(schema, valid);
+    assertTrue(RecoveryDecisionValidator.validate(JSON.convertValue(valid, RecoveryDecision.class), context).accepted());
+    for (var field : RecoveryDecision.class.getRecordComponents()) {
+      var incomplete = ((com.fasterxml.jackson.databind.node.ObjectNode) valid).deepCopy();
+      incomplete.remove(field.getName());
+      assertRejects(schema, incomplete);
+    }
+    var emptyEvidence = ((com.fasterxml.jackson.databind.node.ObjectNode) valid).deepCopy();
+    emptyEvidence.putArray("evidenceRefs");
+    assertRejects(schema, emptyEvidence);
+    var emptyQuestionEvidence = ((com.fasterxml.jackson.databind.node.ObjectNode) valid).deepCopy();
+    emptyQuestionEvidence.putObject("authorQuestionEvidence");
+    assertRejects(schema, emptyQuestionEvidence);
+    var parked = new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null, List.of("current-failure"),
+        RecoveryAction.PARK, List.of(), null, "The original refusal remains available.");
+    assertAccepts(schema, JSON.valueToTree(parked));
+    assertTrue(RecoveryDecisionValidator.validate(parked, context).accepted());
+    var missingFault = new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, null,
+        List.of("current-failure"), RecoveryAction.REGENERATE_ARTIFACT, List.of(), null, "Repair the generated output.");
+    assertAccepts(schema, JSON.valueToTree(missingFault));
+    assertFalse(RecoveryDecisionValidator.validate(missingFault, context).accepted(),
+        "A required nullable field does not bypass action-specific fault authority.");
+  }
+
+  @Test
+  void aQuestionAboutConflictingAuthorValuesRemainsRepresentableAndNativeValidated() {
+    var ref = new Reference(Kind.REQUIREMENT_BRIEF, "brief", "brief-hash");
+    var evidence = new RecoveryEvidence(1, "method-conflict", "VALIDATION_BLOCKER", "design-execution",
+        ref, null, List.of(), List.of(), null, List.of());
+    var post = new RequirementFact("post", RequirementFactPolarity.POSITIVE, RequirementFactKind.ENDPOINT,
+        "http-trigger", "Use POST", "", "", "", "POST", "", "", List.of("entry"));
+    var get = new RequirementFact("get", RequirementFactPolarity.POSITIVE, RequirementFactKind.ENDPOINT,
+        "http-trigger", "Use GET", "", "", "", "GET", "", "", List.of("entry"));
+    var brief = new RequirementBrief("Choose the request method", List.of(), List.of(), List.of(), List.of(), "")
+        .withFacts(List.of(post, get));
+    var context = new RecoveryContext(evidence, brief, null, "en",
+        List.of(new UserInput("author-input", "requirement-discovery", "Use POST and GET for the same entry.", Instant.EPOCH)));
+    var decision = new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT, ref, List.of("method-conflict"),
+        RecoveryAction.ASK_USER, List.of(), "Which request method should be used?", "Two saved methods conflict.",
+        new AuthorQuestionEvidence("entry", "httpMethod", AuthorQuestionEvidence.Kind.CONFLICTING_VALUES,
+            List.of("author-input")));
+
+    assertAccepts(schema(context), JSON.valueToTree(decision));
+    assertTrue(RecoveryDecisionValidator.validate(decision, context).accepted());
+    var noQuestionEvidence = new RecoveryDecision(decision.causeClass(), decision.faultArtifactRef(),
+        decision.evidenceRefs(), decision.action(), List.of(), decision.question(), decision.userSummary());
+    assertAccepts(schema(context), JSON.valueToTree(noQuestionEvidence));
+    assertFalse(RecoveryDecisionValidator.validate(noQuestionEvidence, context).accepted(),
+        "Action-specific authority still belongs to native validation.");
   }
 
   @Test
@@ -163,8 +229,12 @@ class RecoveryDecisionSchemasTest {
   }
 
   private static JsonNode fields(RecoveryContext context) {
+    return schema(context).path("properties");
+  }
+
+  private static JsonNode schema(RecoveryContext context) {
     var root = RecoveryDecisionSchemas.responseFormat(context).jsonSchema().rootElement();
-    return JSON.valueToTree(JsonSchemaElementUtils.toMap(root)).path("properties");
+    return JSON.valueToTree(JsonSchemaElementUtils.toMap(root, true));
   }
 
   private static void assertAccepts(JsonNode schema, JsonNode value) {

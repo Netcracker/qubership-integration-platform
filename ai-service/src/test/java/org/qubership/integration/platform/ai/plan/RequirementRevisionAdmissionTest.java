@@ -30,6 +30,237 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementRevisionAdmissionTest {
 
   @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"async-api-trigger, false", "async-api-trigger, true",
+      "unsupported-native, false", "unsupported-native, true"})
+  void rejectedTypeDoesNotMakeItsUncheckedValuesImmutable(String invalidType, boolean reload) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Receive POST /tasks and call Delivery API. Proceed without IDS.");
+      var initial = catalogDraft(invalidType);
+      assertFalse(h.capture(initial).accepted());
+      if (reload) {
+        h.restartStore();
+        h.store.beginTurn(h.chat, "Automatic correction.");
+      }
+      var retained = h.store.repairConstraints(h.chat).values();
+      assertFalse(retained.path("capabilities").has("delivery"), retained.toString());
+      var corrected = h.capture(catalogDraft(null));
+      assertTrue(corrected.accepted(), corrected.toString());
+      assertEquals(initial.flow(), h.store.get(h.chat).orElseThrow().authoredDraft().flow());
+      assertTrue(h.store.validateCurrent(h.chat).isEmpty());
+      h.resolveDelivery();
+      var continued = h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE));
+      assertTrue(continued.accepted(), continued.toString());
+      assertEquals(RequirementDiscoveryDirective.CONTINUE, h.store.turnDirective(h.chat));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void oldPendingConstraintsAreProjectedBeforeFeedbackAndAdmission(boolean acceptedBase) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Receive POST /tasks and call Delivery API. Proceed without IDS.");
+      if (acceptedBase) {
+        assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
+        h.begin("Also call Delivery API after receiving a task.");
+      }
+      var invalid = catalogDraft("unsupported-native");
+      var attempt = acceptedBase ? h.update(addDelivery(invalid.capabilities().getLast())) : h.capture(invalid);
+      assertFalse(attempt.accepted());
+      var previous = h.artifacts.latest(h.store.activeCompilationId(h.chat),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).orElseThrow();
+      var protection = h.artifacts.payload(previous, RequirementDraftStore.CaptureFactProtection.class);
+      var legacyValues = (com.fasterxml.jackson.databind.node.ObjectNode) protection.values().deepCopy();
+      var legacy = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(invalid.capabilities().getLast());
+      legacy.putNull("capabilityKey");
+      legacyValues.withObject("/capabilities").set("delivery", legacy);
+      legacyValues.withObject("/interactions").withObject("/delivery").put("interactionId", "delivery");
+      legacyValues.withObject("/interactions").withObject("/delivery").putObject("retryPolicy")
+          .putNull("retryCount").putNull("retryDelayMs");
+      h.artifacts.append(new CompilationArtifacts.AppendCommand(previous.compilationId(),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
+          new RequirementDraftStore.CaptureFactProtection(protection.sourceGeneration(), protection.sourceTurnId(),
+              protection.authorText(), protection.facts(), legacyValues, protection.baseIdentity()), List.of(), previous.artifactId()));
+      h.restartStore();
+      h.store.beginTurn(h.chat, "Automatic correction.");
+      assertFalse(h.store.repairConstraints(h.chat).values().path("capabilities").has("delivery"));
+      assertFalse(h.store.repairConstraints(h.chat).values().path("interactions").path("delivery").has("retryPolicy"));
+      var corrected = acceptedBase ? h.update(addDelivery(null)) : h.capture(catalogDraft(null));
+      assertTrue(corrected.accepted(), corrected.toString());
+      assertTrue(h.store.validateCurrent(h.chat).isEmpty());
+      assertEquals(2, h.store.get(h.chat).orElseThrow().authoredDraft().flow().interactions().size());
+      if (acceptedBase) {
+        assertTrue(h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact(
+                "entry", "http-trigger")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null)).accepted());
+      }
+      h.resolveDelivery();
+      var continued = h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE));
+      assertTrue(continued.accepted(), continued.toString());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"method", "participant", "transition", "fact", "native"})
+  void releasingRejectedTypeRetainsIndependentRequirements(String changed) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Receive POST /tasks and call Delivery API. Proceed without IDS.");
+      assertFalse(h.capture(catalogDraft("unsupported-native")).accepted());
+      var json = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(catalogDraft(null));
+      switch (changed) {
+        case "method" -> ((com.fasterxml.jackson.databind.node.ObjectNode) json.at("/capabilities/0")).put("httpMethod", "GET");
+        case "participant" -> ((com.fasterxml.jackson.databind.node.ObjectNode) json.at("/flow/interactions/1")).put("participant", "Other API");
+        case "transition" -> ((com.fasterxml.jackson.databind.node.ArrayNode) json.at("/flow/transitions")).removeAll();
+        case "fact" -> ((com.fasterxml.jackson.databind.node.ArrayNode) json.path("facts")).remove(0);
+        case "native" -> ((com.fasterxml.jackson.databind.node.ArrayNode) json.path("capabilities")).removeAll();
+        default -> throw new AssertionError(changed);
+      }
+      var rejected = h.capture(h.mapper.treeToValue(json, DraftInput.class));
+      assertFalse(rejected.accepted(), changed + ": " + rejected);
+      assertTrue(h.store.get(h.chat).isEmpty());
+      assertTrue(h.capture(catalogDraft(null)).accepted());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rejectedNestedRecordProtectsOnlyItsValidatedSibling(boolean validDelay) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Receive POST /tasks and call Delivery API. Proceed without IDS.");
+      var base = catalogDraft(null);
+      var invalid = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(base);
+      ((com.fasterxml.jackson.databind.node.ObjectNode) invalid.at("/flow/interactions/1"))
+          .putObject("retryPolicy").put("retryCount", 9).put("retryDelayMs", validDelay ? 5000 : 1);
+      assertFalse(h.capture(h.mapper.treeToValue(invalid, DraftInput.class)).accepted());
+      h.restartStore();
+      h.store.beginTurn(h.chat, "Automatic correction.");
+      if (validDelay) {
+        var changed = invalid.deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.at("/flow/interactions/1/retryPolicy"))
+            .put("retryCount", 2).put("retryDelayMs", 6000);
+        assertFalse(h.capture(h.mapper.treeToValue(changed, DraftInput.class)).accepted());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) invalid.at("/flow/interactions/1/retryPolicy"))
+            .put("retryCount", 2);
+        base = h.mapper.treeToValue(invalid, DraftInput.class);
+      }
+      var corrected = h.capture(base);
+      assertTrue(corrected.accepted(), corrected.toString());
+      assertTrue(h.store.validateCurrent(h.chat).isEmpty());
+    }
+  }
+
+  @Test
+  void pendingProjectionKeepsExplicitEmptyCollectionsAndDropsInvalidRecordDependencies() {
+    var mapper = new ObjectMapper();
+    var values = mapper.createObjectNode();
+    values.putObject("settings").putArray("selectedValues");
+    var interactions = values.putObject("interactions");
+    interactions.putObject("invalid").putNull("interactionId").put("operation", "Unchecked operation");
+    interactions.putObject("entry").put("interactionId", "entry").put("direction", "INBOUND");
+    values.putObject("capabilities").putObject("invalid").put("interactionId", "invalid")
+        .put("capabilityKey", "http-sender").put("httpMethod", "POST");
+    values.putObject("transitions").putArray("entry").add("invalid").add("delivery");
+    var projected = RequirementRevisionAdmission.pendingValues(values);
+    assertTrue(projected.at("/settings/selectedValues").isArray());
+    assertTrue(projected.at("/settings/selectedValues").isEmpty());
+    assertFalse(projected.path("interactions").has("invalid"));
+    assertFalse(projected.path("capabilities").has("invalid"));
+    assertEquals(List.of("delivery"), mapper.convertValue(projected.at("/transitions/entry"), List.class));
+    assertEquals("Unchecked operation", values.at("/interactions/invalid/operation").asText(), "Projection is read-only");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void persistedProposalCacheTracksTheEffectivePendingContract(boolean projectionChanged) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Receive POST /tasks and call Delivery API. Proceed without IDS.");
+      var invalid = catalogDraft("unsupported-native");
+      assertFalse(h.capture(invalid).accepted());
+      var protectionRevision = h.artifacts.latest(h.store.activeCompilationId(h.chat),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).orElseThrow();
+      var protection = h.artifacts.payload(protectionRevision, RequirementDraftStore.CaptureFactProtection.class);
+      var legacy = (com.fasterxml.jackson.databind.node.ObjectNode) protection.values().deepCopy();
+      legacy.withObject("/capabilities").withObject("/entry").put("interactionId", "entry");
+      legacy.withObject("/interactions").withObject("/entry").put("interactionId", "entry");
+      if (projectionChanged) legacy.withObject("/capabilities").set("delivery", h.mapper.valueToTree(new CapabilityInput(
+          "delivery", null, null, HttpMethod.POST, "/unchecked-target", null, null, null)));
+      h.artifacts.append(new CompilationArtifacts.AppendCommand(protectionRevision.compilationId(),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
+          new RequirementDraftStore.CaptureFactProtection(protection.sourceGeneration(), protection.sourceTurnId(),
+              protection.authorText(), protection.facts(), legacy, protection.baseIdentity()),
+          List.of(), protectionRevision.artifactId()));
+      var proposed = projectionChanged ? catalogDraft(null) : invalid;
+      var previousAttempt = h.artifacts.latest(h.store.activeCompilationId(h.chat),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+      var issue = new RequirementCaptureResult.CaptureIssue(projectionChanged
+          ? "AUTHOR_AMENDMENT_REQUIRED" : "UNSUPPORTED_CAPABILITY", "/capabilities/delivery", "delivery", null,
+          "Previously rejected under the saved preservation contract.");
+      h.artifacts.append(new CompilationArtifacts.AppendCommand(previousAttempt.compilationId(),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT, "1", "requirement-capture-tools", "1",
+          new RequirementDraftStore.RequirementCaptureAttempt(protection.sourceGeneration(), protection.sourceTurnId(),
+              protection.authorText(), h.store.captureMutationScope(h.chat), "captureRequirementDraft", proposed, false,
+              List.of(issue), null, org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(java.util.Map.of())),
+          List.of(), previousAttempt.artifactId()));
+      var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(
+          h.mapper, h.artifacts, h.sessions);
+      var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+          fingerprints, h.artifacts, h.sessions);
+      new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback)
+          .repeatedRequirementIssue(h.chat, h.store.captureMutationScope(h.chat), List.of(
+              new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue(
+                  issue.code(), issue.path(), issue.message(), issue.entityId())));
+      int spent = fingerprints.softCreditsUsed(h.chat);
+      h.restartStore();
+      h.store.beginTurn(h.chat, "Automatic correction.");
+      var restoredFeedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+          fingerprints, h.artifacts, h.sessions);
+      h.tools = new RequirementCaptureTools(h.store, h.bindings, h.mapper,
+          new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, restoredFeedback),
+          restoredFeedback, null);
+      if (projectionChanged) {
+        var changed = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(proposed);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.at("/capabilities/0")).put("httpMethod", "GET");
+        var stillInvalid = h.mapper.treeToValue(changed, DraftInput.class);
+        assertFalse(h.capture(stillInvalid).accepted());
+        spent = fingerprints.softCreditsUsed(h.chat);
+        assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+            () -> h.capture(stillInvalid), "A new rejection must bind its effective normalized contract");
+        assertEquals(spent, fingerprints.softCreditsUsed(h.chat));
+        var result = h.capture(proposed);
+        assertTrue(result.accepted(), result.toString());
+        h.resolveDelivery();
+        var continued = h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE));
+        assertTrue(continued.accepted(), continued.toString());
+      } else {
+        assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+            () -> h.capture(proposed));
+      }
+      assertEquals(spent, fingerprints.softCreditsUsed(h.chat), "Reload and revalidation grant no new repair credits");
+    }
+  }
+
+  private static DraftInput catalogDraft(String invalidType) {
+    var base = withNativeAnchors(httpDraft(List.of(fact("goal", "Create tasks."))));
+    var capabilities = new java.util.ArrayList<>(base.capabilities());
+    if (invalidType != null) capabilities.add(new CapabilityInput("delivery", invalidType, null,
+        HttpMethod.POST, "/unchecked-target", null, null, null));
+    return new DraftInput(new FlowInput(List.of(base.flow().interactions().getFirst(),
+        new InteractionInput("delivery", Direction.OUTBOUND, "Delivery API", "Deliver task", null, null, null)),
+        List.of(new TransitionInput("entry", "delivery"))), base.facts(), capabilities, List.of(), base.settings());
+  }
+
+  private static DraftUpdate addDelivery(CapabilityInput invalidCapability) {
+    return new DraftUpdate(List.of(new InteractionInput("delivery", Direction.OUTBOUND,
+        "Delivery API", "Deliver task", null, null, null)), List.of(), List.of(),
+        List.of(new TransitionInput("entry", "delivery")), List.of(), List.of(), List.of(), List.of(),
+        invalidCapability == null ? List.of() : List.of(invalidCapability), List.of(), List.of(), List.of(), List.of(), null);
+  }
+
+  @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"false, invalid recipient", "true, invalid recipient",
       "false, invalid/recipient", "true, invalid/recipient", "false, invalid~1recipient", "true, invalid~1recipient"})
   void rejectedInteractionIdentityDoesNotProtectItsTransitions(boolean recreateStore, String rejectedId) throws Exception {
@@ -943,6 +1174,7 @@ class RequirementRevisionAdmissionTest {
     final String chat = UUID.randomUUID().toString();
     RequirementDraftStore store;
     RequirementCaptureTools tools;
+    RequirementDraftTool bindings;
 
     Harness() {
       when(conversations.archive()).thenReturn(archive);
@@ -951,9 +1183,17 @@ class RequirementRevisionAdmissionTest {
 
     void restartStore() {
       store = new RequirementDraftStore(artifacts, sessions, conversations);
-      var bindings = mock(RequirementDraftTool.class);
+      bindings = mock(RequirementDraftTool.class);
       when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
       tools = new RequirementCaptureTools(store, bindings, mapper);
+    }
+
+    void resolveDelivery() throws Exception {
+      var binding = new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
+          "3", "delivery", "delivery", "Deliver task", "delivery-api", "delivery-group", "delivery-spec",
+          "delivery-operation", "http", "POST", "/deliveries", "2024.4", java.time.Instant.EPOCH, "catalog-evidence");
+      when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of(binding));
+      assertTrue(result(tools.readRequirementDraft()).accepted());
     }
 
     ConversationArchive.Input begin(String text) {

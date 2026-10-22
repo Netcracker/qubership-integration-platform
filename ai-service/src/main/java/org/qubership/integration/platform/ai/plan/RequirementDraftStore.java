@@ -667,7 +667,8 @@ public class RequirementDraftStore {
           .filter(previous -> previous.sameSource(scope) && Objects.equals(previous.baseIdentity(), scope.baseIdentity()))
           .ifPresent(previous -> {
             rejectedCaptureFacts.put(conversationId, previous.facts());
-            if (previous.values() != null) rejectedCaptureValues.put(conversationId, previous.values());
+            if (previous.values() != null) rejectedCaptureValues.put(conversationId,
+                RequirementRevisionAdmission.pendingValues(previous.values()));
           });
     }
     turnDirectives.remove(conversationId);
@@ -747,9 +748,8 @@ public class RequirementDraftStore {
 
   public RequirementCaptureResult.RepairConstraints repairConstraints(String conversationId) {
     var facts = rejectedCaptureFacts(conversationId);
-    var values = rejectedCaptureValues.get(conversationId);
-    return facts.isEmpty() && (values == null || values.isEmpty()) ? null
-        : new RequirementCaptureResult.RepairConstraints(facts, values);
+    var values = RequirementRevisionAdmission.pendingValues(rejectedCaptureValues.get(conversationId));
+    return facts.isEmpty() && values.isEmpty() ? null : new RequirementCaptureResult.RepairConstraints(facts, values);
   }
 
   void clearRejectedCaptureFacts(String conversationId) {
@@ -982,7 +982,14 @@ public class RequirementDraftStore {
     if (result.accepted() && !List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
       return;
     }
-    CaptureFactProtection source = factProtection(conversationId, List.of());
+    CaptureFactProtection source = factProtection(conversationId, rejectedCaptureFacts(conversationId));
+    if (!result.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
+      var values = RequirementRevisionAdmission.pendingValues(source.values());
+      latestFactProtection(conversationId)
+          .filter(previous -> previous.sameSource(source) && Objects.equals(previous.baseIdentity(), source.baseIdentity()))
+          .filter(previous -> !previous.facts().equals(source.facts()) || !Objects.equals(previous.values(), values))
+          .ifPresent(previous -> saveFactProtection(conversationId, source.facts(), values));
+    }
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
         arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId)));
@@ -1005,14 +1012,46 @@ public class RequirementDraftStore {
     String digest = org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(arguments);
     return sessions.current(conversationId).stream()
         .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
+        .filter(revision -> {
+          var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
+          return !attempt.accepted() && toolName.equals(attempt.toolName())
+              && new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of()).sameSource(source)
+              && sameAcceptedBase(conversationId, attempt.acceptedDraftReference())
+              && Objects.equals(attempt.repairAuthority(), repairAuthority(conversationId))
+              && digest.equals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(attempt.arguments()))
+              && samePendingProtection(conversationId, revision);
+        })
         .map(revision -> artifacts.payload(revision, RequirementCaptureAttempt.class))
-        .filter(attempt -> !attempt.accepted() && toolName.equals(attempt.toolName()))
-        .filter(attempt -> new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
-            attempt.authorText(), List.of()).sameSource(source))
-        .filter(attempt -> sameAcceptedBase(conversationId, attempt.acceptedDraftReference()))
-        .filter(attempt -> Objects.equals(attempt.repairAuthority(), repairAuthority(conversationId)))
-        .filter(attempt -> digest.equals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(attempt.arguments())))
         .findFirst();
+  }
+
+  private boolean samePendingProtection(String conversationId, Revision attempt) {
+    var current = factProtection(conversationId, rejectedCaptureFacts(conversationId));
+    var previous = artifacts.history(attempt.compilationId(), Kind.REQUIREMENT_CAPTURE_PROTECTION).stream()
+        .filter(revision -> revision.sequence() < attempt.sequence())
+        .map(revision -> artifacts.payload(revision, CaptureFactProtection.class))
+        .filter(protection -> protection.sameSource(current) && Objects.equals(protection.baseIdentity(), current.baseIdentity()))
+        .reduce((first, last) -> last);
+    var values = RequirementRevisionAdmission.pendingValues(current.values());
+    if (previous.isEmpty()) return current.facts().isEmpty() && values.isEmpty();
+    var original = previous.orElseThrow();
+    var projected = RequirementRevisionAdmission.pendingValues(original.values());
+    return original.facts().equals(current.facts()) && projected.equals(values)
+        && !removedPendingConstraint(original.values(), projected);
+  }
+
+  private static boolean removedPendingConstraint(com.fasterxml.jackson.databind.JsonNode original,
+      com.fasterxml.jackson.databind.JsonNode projected) {
+    if (original == null || original.isNull()) return false;
+    if (!original.isObject()) return !original.equals(projected);
+    if (!projected.isObject()) return true;
+    var fields = original.fields();
+    while (fields.hasNext()) {
+      var field = fields.next();
+      if (!field.getKey().equals("interactionId")
+          && removedPendingConstraint(field.getValue(), projected.path(field.getKey()))) return true;
+    }
+    return false;
   }
 
   public String rejectedProposalHistory(String conversationId) {
