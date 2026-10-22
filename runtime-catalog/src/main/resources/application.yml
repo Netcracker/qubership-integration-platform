@@ -219,6 +219,7 @@ cip:
       mount:
         emptyDirs: ${MICRO_DOMAIN_EMPTY_DIRS:}
         resources: ${MICRO_DOMAIN_RESOURCES:}
+        serviceAccountTokens: ${MICRO_DOMAIN_SERVICE_ACCOUNT_TOKENS:}
       health:
         liveness:
           enabled: ${MICRO_DOMAIN_HEALTH_LIVENESS_ENABLED:false}
