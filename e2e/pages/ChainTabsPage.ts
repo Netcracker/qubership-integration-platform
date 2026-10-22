@@ -8,6 +8,8 @@ export class ChainTabsPage {
   /** The header's tag for the catalog's `unsavedChanges` flag. */
   readonly unsavedChanges: Locator;
   readonly createSnapshot: Locator;
+  /** The Snapshots toolbar's Compare, enabled while exactly two rows are selected. */
+  readonly compareSnapshots: Locator;
   readonly createDeployment: Locator;
   /** The deployment dialog the Deployments toolbar opens. */
   readonly deploymentDialog: Locator;
@@ -21,6 +23,7 @@ export class ChainTabsPage {
     this.page = page;
     this.unsavedChanges = page.getByTestId("chain-unsaved-changes");
     this.createSnapshot = page.getByTestId("snapshots-create");
+    this.compareSnapshots = page.getByTestId("snapshots-compare");
     this.createDeployment = page.getByTestId("deployments-create");
     this.deploymentDialog = page.getByRole("dialog", { name: "Deployment" });
     this.apply = page.getByRole("button", { name: /Apply$/ });
@@ -48,6 +51,23 @@ export class ChainTabsPage {
   /** A tab of the chain page by its label, such as `Graph` or `Properties`. */
   tab(label: string): Locator {
     return this.page.getByRole("tab", { name: label, exact: true });
+  }
+
+  /** The row of a snapshot, by the button its name renders as. */
+  snapshotRow(name: string): Locator {
+    return this.page.getByRole("row").filter({ has: this.page.getByRole("button", { name, exact: true }) });
+  }
+
+  /**
+   * Reverts the chain to a snapshot through `Revert to` in the row's actions menu, whose button shows
+   * only while the row is hovered, and the confirmation.
+   */
+  async revertTo(snapshotName: string): Promise<void> {
+    const row = this.snapshotRow(snapshotName);
+    await row.hover();
+    await row.getByTestId("snapshots-row-actions").click();
+    await this.page.getByRole("menuitem", { name: "Revert to", exact: true }).click();
+    await this.page.getByRole("dialog", { name: "Revert to Snapshot" }).getByRole("button", { name: "OK" }).click();
   }
 
   /**
