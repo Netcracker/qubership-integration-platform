@@ -37,6 +37,7 @@ public class GatherRequirementsPromptBuilder {
   private final RequirementDraftStore draftStore;
   private final ConversationService conversationService;
   @Inject org.qubership.integration.platform.ai.plan.UploadedSpecOperations uploadedSpecs;
+  @Inject org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection policyChoices;
 
   @Inject
   public GatherRequirementsPromptBuilder(
@@ -206,6 +207,13 @@ public class GatherRequirementsPromptBuilder {
         .append("Use the same source quote with a separate exact path for each changed field; retain all other content. ")
         .append("An unrelated new message grants no permission to change earlier requirements. ")
         .append("Automatic correction uses amendments: [] and retains confirmed answers.\n")
+        .append("A validated policy-card selection authorizes only its policyConflict.decision and the selected value ")
+        .append("of an existing owned requestedProperties entry. Preserve the policy fact's original text as historical ")
+        .append("source context; the typed decision records the current choice. Do not rewrite that text or treat its ")
+        .append("historical unchosen wording as a new unanswered question. Use the exact indexed /value amendment path, ")
+        .append("not its parent fact, elementIntent, or requestedProperties list. After native admission accepts the ")
+        .append("selection, its source amendments are consumed: do not repeat them with later addFacts. Additional ")
+        .append("source-backed facts use amendments: [].\n")
         .append("Capture each explicit name in requestedName on its owning elementIntent, including entry triggers ")
         .append("and calls with ANCHOR placement even when they have no requestedProperties. ")
         .append("The interaction participant identifies the other party; it does not name the trigger or call. ")
@@ -225,6 +233,13 @@ public class GatherRequirementsPromptBuilder {
             containing '=' or spaces, such as a required response body "a=b". Do not invent a business
             interaction for local script output or remove its behavior requirements.
             """);
+    if (policyChoices != null) {
+      var paths = policyChoices.pendingAmendmentPaths(conversationId);
+      if (!paths.isEmpty()) {
+        body.append("Current typed-policy amendment paths (exact source and accepted base; native admission still validates): ")
+            .append(paths).append('\n');
+      }
+    }
     boolean currentIncluded = false;
     if (conversationService != null) {
       var archive = conversationService.archive();

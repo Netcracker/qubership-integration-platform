@@ -212,13 +212,42 @@ public class PolicyChoiceSelection {
         for (int index = 0; index < intent.requestedProperties().size(); index++) {
           var property = intent.requestedProperties().get(index);
           if (property.key().equals(selection.offered().fact().policyConflict().propertyKey())
-              && ("/facts/" + original.sourceFactId() + "/elementIntent/requestedProperties/" + index + "/value").equals(path)
+              && propertyAmendmentPath(original, index).equals(path)
               && replacement.elementIntent() != null
               && selection.selectedValue().equals(replacement.elementIntent().requestedProperties().get(index).value())) return true;
         }
       }
     }
     return false;
+  }
+
+  /** Presents current choice fields; native admission still validates the complete candidate. */
+  public List<String> pendingAmendmentPaths(String conversationId) {
+    var context = context(conversationId).orElse(null);
+    if (context == null) return List.of();
+    String turnId = ConversationArchive.latestInputId(context.source());
+    if (context.source().activeTurns().stream().noneMatch(turn -> turn.id().equals(turnId)
+        && userReady(turn) && turn.consumedDraftReference() == null)) return List.of();
+    var paths = new java.util.LinkedHashSet<String>();
+    for (var trusted : trusted(conversationId)) {
+      var selection = trusted.selection();
+      if (!matchesSource(selection, context.revision().reference(), context.source().generation(), turnId)) continue;
+      paths.add("/facts/" + selection.offered().fact().sourceFactId() + "/policyConflict/decision");
+      for (var fact : context.draft().authoredDraft().facts()) {
+        var intent = fact.elementIntent();
+        if (!ownsSelectedProperty(selection, intent)) continue;
+        for (int index = 0; index < intent.requestedProperties().size(); index++) {
+          if (intent.requestedProperties().get(index).key().equals(selection.offered().fact().policyConflict().propertyKey())) {
+            paths.add(propertyAmendmentPath(fact, index));
+          }
+        }
+      }
+    }
+    return List.copyOf(paths);
+  }
+
+  private static String propertyAmendmentPath(FactInput fact, int index) {
+    return "/facts/" + fact.sourceFactId() + "/elementIntent/requestedProperties/" + index + "/value";
   }
 
   public static boolean isPolicyDecisionSource(ConversationArchive.Turn turn) {
