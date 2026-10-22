@@ -781,7 +781,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
             ? promptBuilder.wrap(conversationId, userMessage, responseLocale)
             : (userMessage == null ? "" : userMessage);
     return GatherRequirementsAgentCall.run(gatherRequirementsAgent, conversationId, agentInput,
-        ProductCapabilityCaptureContext.invocationParameters(binding));
+        ProductCapabilityCaptureContext.invocationParameters(binding), repair != null);
   }
 
   private static RequirementDraft mappingRepairDraft(StageExecutionContext context) {
