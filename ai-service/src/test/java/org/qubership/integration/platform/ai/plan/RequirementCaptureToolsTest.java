@@ -4,6 +4,7 @@ import static org.qubership.integration.platform.ai.productpipeline.create.Requi
 import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -782,10 +783,27 @@ class RequirementCaptureToolsTest {
       var rejected = assertThrows(CaptureNoProgressException.class, () -> h.tools().captureRequirementDraft(invalid));
       String original = rejected.evidence().feedback().issues().stream()
           .findFirst().orElseThrow().code();
-      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
-          RequirementCaptureResult.class);
-      assertTrue(finished.issues().stream().anyMatch(issue -> original.equals(issue.code())), finished.toString());
-      assertTrue(finished.issues().stream().anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code())));
+      var rejectedReference = h.store().rejectedCaptureRevision(h.conversationId()).orElseThrow().reference();
+      var authorText = h.store().currentAuthorText(h.conversationId());
+      var acceptedBefore = h.store().latestRevision(h.conversationId());
+      for (var directive : List.of(RequirementDiscoveryDirective.CONTINUE, RequirementDiscoveryDirective.STAY)) {
+        var encoded = assertDoesNotThrow(() -> h.tools().finishRequirementDiscoveryTurn(directive));
+        var finished = h.mapper().readValue(encoded, RequirementCaptureResult.class);
+        assertFalse(finished.accepted(), finished.toString());
+        assertFalse(finished.changed());
+        assertEquals(NextAction.STOP, finished.nextAction());
+        assertEquals(RequirementDiscoveryDirective.STAY, h.store().turnDirective(h.conversationId()));
+        assertTrue(finished.issues().stream().anyMatch(issue -> original.equals(issue.code())), finished.toString());
+        assertTrue(finished.issues().stream().anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code())));
+        assertEquals(rejected.evidence().feedback().issues(), finished.issues().stream()
+            .filter(issue -> !"REPEATED_REJECTION".equals(issue.code()))
+            .map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+                issue.code(), issue.path(), issue.message(), issue.entityId())).toList());
+        assertEquals(acceptedBefore, h.store().latestRevision(h.conversationId()));
+        assertEquals(rejectedReference,
+            h.store().rejectedCaptureRevision(h.conversationId()).orElseThrow().reference());
+        assertEquals(authorText, h.store().currentAuthorText(h.conversationId()));
+      }
     }
   }
 
@@ -1006,6 +1024,19 @@ class RequirementCaptureToolsTest {
       assertFalse(evidence.feedback().outerAllowed());
       assertTrue(evidence.feedback().issues().stream().anyMatch(issue -> "UNKNOWN_INTERACTION_REFERENCE".equals(issue.code())
           && "context".equals(issue.entityId())));
+      var repeated = artifacts.payload(
+          artifacts.get(h.store().activeCompilationId(chat), evidence.rejectedCandidate()).orElseThrow(),
+          RequirementDraftStore.RequirementCaptureAttempt.class);
+      repeated.issues().forEach(issue -> assertEquals(
+          new RequirementCaptureResult.IssueDetails(null, List.of(), List.of()), issue.details()));
+      var expectedIssues = repeated.issues().stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+          issue.code(), issue.path(), issue.message(), issue.entityId())).toList();
+      assertTrue(expectedIssues.stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code())
+          && issue.message().endsWith("Submit a different correction.")));
+      assertEquals(expectedIssues, evidence.feedback().issues());
+      var restoredFeedback = new CaptureAttemptFeedbackStore(credits, artifacts,
+          new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+      assertEquals(evidence.feedback(), restoredFeedback.lastRequirementRejection(chat).orElseThrow().feedback());
       assertEquals(ready, h.store().get(chat).orElseThrow().authoredDraft());
       assertEquals(accepted, h.store().latestRevision(chat).orElseThrow().reference());
       assertEquals(beforeSource, archive.read(chat));
@@ -1014,6 +1045,12 @@ class RequirementCaptureToolsTest {
       assertEquals(org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.CONTRACT_FAILURE,
           outcome.outcomeClass());
       assertEquals(evidence, outcome.recoveryCause().captureFailure());
+      var strictCause = new ObjectMapper().readValue(
+          org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+              .recoveryCauseJson(outcome.recoveryCause()),
+          org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause.class);
+      assertEquals(outcome.recoveryCause(), strictCause);
+      assertEquals(expectedIssues, strictCause.captureFailure().feedback().issues());
       assertTrue(outcome.recoveryCause().findings().stream().anyMatch(issue ->
           "UNKNOWN_INTERACTION_REFERENCE".equals(issue.code()) && "context".equals(issue.originRecordId())
               && issue.fieldPointer().equals(CaptureToolOutcomeGateway.logicalRequirementPath(

@@ -614,7 +614,7 @@ public class RequirementCaptureTools {
           feedbackStore.recordClassifiedRequirementFailure(conversationId,
               org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
               CaptureFailureClass.IDENTICAL_SPAM, false, "REPAIR_NO_PROGRESS",
-              repeated.orElseThrow().issues().stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+              issues.stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
                   issue.code(), issue.path(), issue.message(), issue.entityId())).toList(), true);
           var stopped = new RequirementCaptureResult(false, false, rejected.revision(), rejected.readiness(),
               RequirementCaptureResult.NextAction.STOP, rejected.issues(), rejected.pendingWork(), rejected.draft(),
@@ -635,7 +635,8 @@ public class RequirementCaptureTools {
       ToolTraceLog.logToolComplete(
           LOG, toolName, conversationId, System.currentTimeMillis() - started, summary);
       // shortcut: only identical persisted proposals terminate; changed candidates need a semantic progress proof.
-      if (result.issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code()))) {
+      if (List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)
+          && result.issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code()))) {
         var rejection = feedbackStore.lastRequirementRejection(conversationId).orElseThrow();
         var feedback = rejection.feedback();
         var rejected = store.rejectedCaptureRevision(conversationId).orElseThrow();

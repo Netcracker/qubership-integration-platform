@@ -41,6 +41,9 @@ public record RecoveryCause(
         issue.code(), issue.path() + ": " + issue.message(), true, null,
         requirementCapture && (issue.entityId() == null || issue.entityId().isBlank()) ? "requirement-draft" : issue.entityId(),
         requirementCapture ? CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()) : issue.path())).toList() : nativeFindings;
+    if (feedback.noProgress()) {
+      findings = findings.stream().filter(finding -> !"REPAIR_NO_PROGRESS".equals(finding.code())).toList();
+    }
     if (findings.isEmpty()) findings = List.of(new PlanValidationFinding("CAPTURE_" + feedback.kind(), feedback.summary(), true));
     return new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "", feedback.noProgress(),
         evidence == null ? new CaptureFailureEvidence(feedback, null, feedback.evidenceReference(), List.of()) : evidence);
