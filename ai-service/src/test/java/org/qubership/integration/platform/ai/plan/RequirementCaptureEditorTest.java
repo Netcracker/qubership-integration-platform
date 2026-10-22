@@ -68,6 +68,46 @@ class RequirementCaptureEditorTest {
   }
 
   @Test
+  void rejectedQuestionUpdatesIdentifyNullRepeatedAndAbsentIdsWithoutPartialWrites() {
+    var base = initial();
+    var question = new RequirementCaptureInput.QuestionInput("roles", List.of("start"), "Which roles?");
+    var saved = new DraftInput(base.flow(), base.facts(), base.capabilities(), List.of(question), base.settings());
+    var revisedFact = new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Changed in this rejected edit.");
+    for (int invalid = 0; invalid < 4; invalid++) {
+      var replacement = new RequirementCaptureInput.QuestionInput(invalid == 0 ? null : "missing",
+          List.of("start"), "Which roles?");
+      List<RequirementCaptureInput.QuestionInput> replacements = switch (invalid) {
+        case 1 -> java.util.Collections.singletonList(null);
+        case 2 -> List.of(question, question);
+        default -> List.of(replacement);
+      };
+      var rejected = RequirementCaptureEditor.apply(saved, new DraftUpdate(List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(), List.of(revisedFact), List.of(), List.of(), List.of(),
+          List.of(), replacements, List.of(), null));
+      assertFalse(rejected.accepted());
+      assertFalse(rejected.changed());
+      assertEquals(saved, rejected.draft(), "The entire edit must remain atomic.");
+      var issue = rejected.issues().stream().filter(value -> value.code().equals("CONFLICTING_EDIT"))
+          .findFirst().orElseThrow();
+      assertEquals("/changes/updateQuestions/" + (invalid == 2 ? 1 : 0), issue.path());
+      assertEquals(invalid < 2 ? null : invalid == 2 ? "roles" : "missing", issue.entityId());
+      assertTrue(issue.message().contains("Current questions identities at this edit step: [roles]"), issue.message());
+      if (invalid < 2) {
+        assertTrue(issue.message().contains("identity=null"), issue.message());
+        assertTrue(issue.message().contains("the identity is null"), issue.message());
+      } else if (invalid == 2) {
+        assertTrue(issue.message().contains("identity=roles"), issue.message());
+        assertTrue(issue.message().contains("already added, updated, or removed in this edit"), issue.message());
+      } else {
+        assertTrue(issue.message().contains("identity=missing"), issue.message());
+        assertTrue(issue.message().contains("absent from the current draft"), issue.message());
+        assertTrue(issue.message().contains("Use addQuestions only if this question is still required."), issue.message());
+        assertTrue(issue.message().contains("Keep unresolved choices open"), issue.message());
+      }
+    }
+  }
+
+  @Test
   void interactionOrderMustAgreeWithTheBusinessFlowAndRemainRepairable() {
     var base = initial();
     var interactions = new java.util.ArrayList<>(base.flow().interactions());
