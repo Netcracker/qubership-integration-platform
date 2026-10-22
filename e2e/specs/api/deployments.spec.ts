@@ -55,7 +55,7 @@ import { DEPLOY_TIMEOUT } from "../../support/corpus.js";
 import { sleep } from "../../support/poll.js";
 import type { Env } from "../../env/index.js";
 import type { APIRequestContext } from "@playwright/test";
-import { coversBehaviour } from "../../registry/covers.js";
+import { coversBehavior } from "../../registry/covers.js";
 
 /**
  * How long the route may take to change hands while the redeploy case samples it.
@@ -299,7 +299,7 @@ test.describe("deployments", { tag: ["@catalog"] }, () => {
   });
 
   test("a redeploy swaps the response and never loses the route", { tag: ["@engine"] }, async ({ catalog, env, folder, run, request }) => {
-    coversBehaviour("http-trigger", "redeploy-under-traffic");
+    coversBehavior("http-trigger", "redeploy-under-traffic");
     const chain = await tokenizedChain(catalog, run, {
       prefix: "deploy",
       what: "redeploy",

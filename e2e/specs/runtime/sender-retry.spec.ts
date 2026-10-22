@@ -20,7 +20,7 @@ import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
 import { elementNames, HTTP_TRIGGER_STEPS, trace } from "../../support/sessions.js";
-import { coversBehaviour } from "../../registry/covers.js";
+import { coversBehavior } from "../../registry/covers.js";
 
 const CONTEXT_ID_HEADER = "e2e-context-id";
 const HOLD_HEADER = "e2e-hold-ms";
@@ -29,7 +29,7 @@ const ATTEMPT = "Request attempt";
 
 test.describe("sender retry and timeout", { tag: ["@engine", "@sessions"] }, () => {
   test("service-call retries a 500 until the third attempt", async ({ request, env, sessions }) => {
-    coversBehaviour("service-call", "retry");
+    coversBehavior("service-call", "retry");
     const chain = seedChain(readCorpusState(), "service-call-retry");
     // A fresh context id per call: the count it keys lives for the SET's ttl.
     const contextId = callToken("retry");
@@ -53,7 +53,7 @@ test.describe("sender retry and timeout", { tag: ["@engine", "@sessions"] }, () 
   });
 
   test("http-sender times out on a response held past it", async ({ request, env, sessions }) => {
-    coversBehaviour("http-sender", "response-timeout");
+    coversBehavior("http-sender", "response-timeout");
     const chain = seedChain(readCorpusState(), "sender-response-timeout");
     const before = await sessions.idsOf(chain.id);
 

@@ -44,10 +44,10 @@ export type {
 export type Status = "covered" | "not-covered";
 
 /**
- * An `element` row has no `axisPath`; an `axis` row names one value of one property. A `behaviour`
- * row names one behaviour of an element family that no axis value selects, such as a retry.
+ * An `element` row has no `axisPath`; an `axis` row names one value of one property. A `behavior`
+ * row names one behavior of an element family that no axis value selects, such as a retry.
  */
-export type Kind = "axis" | "element" | "behaviour";
+export type Kind = "axis" | "element" | "behavior";
 
 /**
  * Why a `not-covered` row stays out of the coverage denominator. `out-of-scope` holds four groups:
@@ -67,8 +67,8 @@ export interface RegistryEntry {
   /** The bare property name. Derived from `axisPath` when a row omits it — readability only. */
   axis?: string;
   value?: SchemaValue;
-  /** The behaviour label, e.g. `retry`. Behaviour rows only. */
-  behaviour?: string;
+  /** The behavior label, e.g. `retry`. Behavior rows only. */
+  behavior?: string;
   status: Status;
   /** Not-covered axis and element rows only, and the reason says why. */
   scope?: Scope;
@@ -260,7 +260,7 @@ const R_SERVICE_CALL_VALIDATION_TYPE =
 // `swimlane` is covered on the catalog by `specs/api/elements.spec.ts`.
 const R_IDEMPOTENCY_SHARED = "the shared idempotency.hbs partial is proven on http-trigger";
 
-// Behaviour rows for elements whose element row alone says little. `script`'s body, headers and
+// Behavior rows for elements whose element row alone says little. `script`'s body, headers and
 // properties rows belong to `specs/runtime/script-exchange.spec.ts`; `mapper-2`'s header mapping is
 // written in the form and run by `specs/ui/mapper.spec.ts`, so that row is tagged `@ui`. Both engines
 // register one aggregation strategy, `chainsAggregationStrategy`.
@@ -424,7 +424,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "http-sender", kind: "axis", axisPath: "propagateContext", value: false, status: "covered", tags: ENGINE },
   { family: "http-sender", kind: "axis", axisPath: "receiveCorrelationId", value: true, status: NOT_COVERED, reason: R_RECEIVE_CORRELATION_ID, tags: ENGINE },
   { family: "http-sender", kind: "axis", axisPath: "receiveCorrelationId", value: false, status: NOT_COVERED, reason: R_RECEIVE_CORRELATION_ID, tags: ENGINE },
-  { family: "http-sender", kind: "behaviour", behaviour: "response-timeout", status: "covered", tags: ENGINE },
+  { family: "http-sender", kind: "behavior", behavior: "response-timeout", status: "covered", tags: ENGINE },
   { family: "http-trigger", kind: "element", status: "covered", tags: ENGINE },
   { family: "http-trigger", kind: "axis", axisPath: "abacParameters/resourceDataType", value: "String", status: "covered", tags: CATALOG },
   { family: "http-trigger", kind: "axis", axisPath: "abacParameters/resourceDataType", value: "Map", status: "covered", tags: CATALOG },
@@ -450,10 +450,10 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "http-trigger", kind: "axis", axisPath: "systemType", value: "INTERNAL", status: NOT_COVERED, reason: R_SYSTEM_TYPE_ALIKE, tags: CATALOG },
   { family: "http-trigger", kind: "axis", axisPath: "systemType", value: "EXTERNAL", status: "covered", tags: CATALOG },
   { family: "http-trigger", kind: "axis", axisPath: "systemType", value: "IMPLEMENTED", status: NOT_COVERED, reason: R_SYSTEM_TYPE_ALIKE, tags: ENGINE },
-  { family: "http-trigger", kind: "behaviour", behaviour: "concurrent-calls", status: "covered", tags: ENGINE },
-  { family: "http-trigger", kind: "behaviour", behaviour: "redeploy-under-traffic", status: "covered", tags: ENGINE },
-  { family: "http-trigger", kind: "behaviour", behaviour: "large-body", status: "covered", tags: ENGINE },
-  { family: "http-trigger", kind: "behaviour", behaviour: "redeploy-under-traffic-micro", status: "covered", tags: ENGINE, target: "k8s" },
+  { family: "http-trigger", kind: "behavior", behavior: "concurrent-calls", status: "covered", tags: ENGINE },
+  { family: "http-trigger", kind: "behavior", behavior: "redeploy-under-traffic", status: "covered", tags: ENGINE },
+  { family: "http-trigger", kind: "behavior", behavior: "large-body", status: "covered", tags: ENGINE },
+  { family: "http-trigger", kind: "behavior", behavior: "redeploy-under-traffic-micro", status: "covered", tags: ENGINE, target: "k8s" },
   { family: "if", kind: "element", status: "covered", tags: ENGINE },
   { family: "jms-sender", kind: "element", status: NOT_COVERED, scope: "out-of-scope", reason: R_JMS, tags: ENGINE },
   { family: "jms-sender", kind: "axis", axisPath: "acknowledgmentMode", value: "AUTO_ACKNOWLEDGE", status: NOT_COVERED, scope: "out-of-scope", reason: R_JMS, tags: ENGINE },
@@ -653,8 +653,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "log-record", kind: "axis", axisPath: "logLevel", value: "Info", status: "covered", tags: ENGINE },
   { family: "loop", kind: "element", status: NOT_COVERED, reason: supersededReason("loop"), tags: ENGINE },
   { family: "loop-2", kind: "element", status: "covered", tags: ENGINE },
-  { family: "loop-2", kind: "behaviour", behaviour: "count-expression", status: "covered", tags: ENGINE },
-  { family: "loop-2", kind: "behaviour", behaviour: "do-while", status: NOT_COVERED, reason: R_LOOP_DO_WHILE, tags: ENGINE },
+  { family: "loop-2", kind: "behavior", behavior: "count-expression", status: "covered", tags: ENGINE },
+  { family: "loop-2", kind: "behavior", behavior: "do-while", status: NOT_COVERED, reason: R_LOOP_DO_WHILE, tags: ENGINE },
   { family: "loop-expression", kind: "element", status: NOT_COVERED, reason: supersededReason("loop-expression"), tags: ENGINE },
   { family: "mail-sender", kind: "element", status: NOT_COVERED, reason: R_MAIL, tags: ENGINE },
   { family: "mail-sender", kind: "axis", axisPath: "contentType", value: "text/plain", status: NOT_COVERED, reason: R_MAIL, tags: ENGINE },
@@ -664,9 +664,9 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "main-split-element", kind: "element", status: NOT_COVERED, reason: supersededReason("main-split-element"), tags: ENGINE },
   { family: "main-split-element-2", kind: "element", status: "covered", tags: ENGINE },
   { family: "mapper-2", kind: "element", status: "covered", tags: ENGINE },
-  { family: "mapper-2", kind: "behaviour", behaviour: "constant", status: "covered", tags: ENGINE },
-  { family: "mapper-2", kind: "behaviour", behaviour: "header-mapping", status: "covered", tags: UI },
-  { family: "mapper-2", kind: "behaviour", behaviour: "array-transformation", status: NOT_COVERED, reason: R_MAPPER_ARRAY, tags: ENGINE },
+  { family: "mapper-2", kind: "behavior", behavior: "constant", status: "covered", tags: ENGINE },
+  { family: "mapper-2", kind: "behavior", behavior: "header-mapping", status: "covered", tags: UI },
+  { family: "mapper-2", kind: "behavior", behavior: "array-transformation", status: NOT_COVERED, reason: R_MAPPER_ARRAY, tags: ENGINE },
   { family: "mcp-trigger", kind: "element", status: "covered", tags: ENGINE },
   { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "ignore", status: NOT_COVERED, scope: "shared", reason: R_IDEMPOTENCY_SHARED, tags: ENGINE },
   { family: "mcp-trigger", kind: "axis", axisPath: "idempotency/actionOnDuplicate", value: "throw-exception", status: "covered", tags: ENGINE },
@@ -720,10 +720,10 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "reuse", kind: "element", status: "covered", tags: ENGINE },
   { family: "reuse-reference", kind: "element", status: "covered", tags: ENGINE },
   { family: "script", kind: "element", status: "covered", tags: ENGINE },
-  { family: "script", kind: "behaviour", behaviour: "large-body", status: "covered", tags: ENGINE },
-  { family: "script", kind: "behaviour", behaviour: "body", status: "covered", tags: ENGINE },
-  { family: "script", kind: "behaviour", behaviour: "headers", status: "covered", tags: ENGINE },
-  { family: "script", kind: "behaviour", behaviour: "properties", status: "covered", tags: ENGINE },
+  { family: "script", kind: "behavior", behavior: "large-body", status: "covered", tags: ENGINE },
+  { family: "script", kind: "behavior", behavior: "body", status: "covered", tags: ENGINE },
+  { family: "script", kind: "behavior", behavior: "headers", status: "covered", tags: ENGINE },
+  { family: "script", kind: "behavior", behavior: "properties", status: "covered", tags: ENGINE },
   { family: "scs-sender", kind: "element", status: NOT_COVERED, scope: "out-of-scope", reason: R_NOT_OFFERED, tags: ENGINE },
   { family: "scs-sender", kind: "axis", axisPath: "operation", value: "SET", status: NOT_COVERED, scope: "out-of-scope", reason: R_NOT_OFFERED, tags: ENGINE },
   { family: "scs-sender", kind: "axis", axisPath: "operation", value: "GET", status: NOT_COVERED, scope: "out-of-scope", reason: R_NOT_OFFERED, tags: ENGINE },
@@ -780,13 +780,13 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "service-call", kind: "axis", axisPath: "systemType", value: "INTERNAL", status: NOT_COVERED, reason: R_SYSTEM_TYPE_ALIKE, tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "systemType", value: "EXTERNAL", status: "covered", tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "systemType", value: "IMPLEMENTED", status: NOT_COVERED, reason: R_SERVICE_CALL_IMPLEMENTED, tags: ENGINE },
-  { family: "service-call", kind: "behaviour", behaviour: "retry", status: "covered", tags: ENGINE },
+  { family: "service-call", kind: "behavior", behavior: "retry", status: "covered", tags: ENGINE },
   { family: "sftp-download", kind: "element", status: "covered", tags: ENGINE },
   { family: "sftp-trigger-2", kind: "element", status: "covered", tags: ENGINE },
   { family: "sftp-upload", kind: "element", status: "covered", tags: ENGINE },
   { family: "split", kind: "element", status: NOT_COVERED, reason: supersededReason("split"), tags: ENGINE },
   { family: "split-2", kind: "element", status: "covered", tags: ENGINE },
-  { family: "split-2", kind: "behaviour", behaviour: "chains-aggregation-strategy", status: "covered", tags: ENGINE },
+  { family: "split-2", kind: "behavior", behavior: "chains-aggregation-strategy", status: "covered", tags: ENGINE },
   { family: "split-async", kind: "element", status: NOT_COVERED, reason: supersededReason("split-async"), tags: ENGINE },
   { family: "split-async-2", kind: "element", status: "covered", tags: ENGINE },
   { family: "split-element", kind: "element", status: NOT_COVERED, reason: supersededReason("split-element"), tags: ENGINE },
@@ -806,7 +806,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "try-catch-finally-2", kind: "element", status: "covered", tags: ENGINE },
   { family: "when", kind: "element", status: "covered", tags: ENGINE },
   { family: "xslt", kind: "element", status: "covered", tags: ENGINE },
-  { family: "xslt", kind: "behaviour", behaviour: "transform", status: "covered", tags: ENGINE },
+  { family: "xslt", kind: "behavior", behavior: "transform", status: "covered", tags: ENGINE },
 ];
 
 // ---------------------------------------------------------------------------
@@ -828,23 +828,23 @@ export function coverageKey(
   return `${family}::${axisPath}=${JSON.stringify(value)}`;
 }
 
-/** The key `coversBehaviour()` declares for a behaviour row. */
-export function behaviourKey(family: string, label: string): string {
-  return coverageKey(family, "behaviour", label);
+/** The key `coversBehavior()` declares for a behavior row. */
+export function behaviorKey(family: string, label: string): string {
+  return coverageKey(family, "behavior", label);
 }
 
 export function entryKey(entry: RegistryEntry): string {
-  if (entry.kind === "behaviour") return behaviourKey(entry.family, entry.behaviour ?? "");
+  if (entry.kind === "behavior") return behaviorKey(entry.family, entry.behavior ?? "");
   return coverageKey(entry.family, entry.axisPath, entry.value);
 }
 
 /**
  * The keys of the rows whose element or axis value is missing from `declared`, the keys the
- * schemas declare. The schemas hold no key for a behaviour row, so it is stale only when its family is.
+ * schemas declare. The schemas hold no key for a behavior row, so it is stale only when its family is.
  */
 export function staleRows(entries: readonly RegistryEntry[], declared: ReadonlySet<string>): string[] {
   return entries
-    .filter((entry) => !declared.has(entry.kind === "behaviour" ? coverageKey(entry.family) : entryKey(entry)))
+    .filter((entry) => !declared.has(entry.kind === "behavior" ? coverageKey(entry.family) : entryKey(entry)))
     .map(entryKey);
 }
 
@@ -895,13 +895,13 @@ export function validateRegistry(entries: readonly RegistryEntry[]): string[] {
       problems.push(`${key}: an axis row needs both an axisPath and a value`);
     }
     if (entry.kind !== "axis" && (entry.axisPath !== undefined || entry.value !== undefined)) {
-      problems.push(`${key}: ${entry.kind === "element" ? "an element" : "a behaviour"} row carries an axisPath or a value`);
+      problems.push(`${key}: ${entry.kind === "element" ? "an element" : "a behavior"} row carries an axisPath or a value`);
     }
-    if (entry.kind === "behaviour" && !entry.behaviour?.trim()) {
-      problems.push(`${key}: a behaviour row needs a behaviour label`);
+    if (entry.kind === "behavior" && !entry.behavior?.trim()) {
+      problems.push(`${key}: a behavior row needs a behavior label`);
     }
-    if (entry.scope !== undefined && entry.kind === "behaviour") {
-      problems.push(`${key}: a behaviour row carries a scope`);
+    if (entry.scope !== undefined && entry.kind === "behavior") {
+      problems.push(`${key}: a behavior row carries a scope`);
     }
     if (entry.scope !== undefined && entry.status === "covered") {
       problems.push(`${key}: a covered row carries a scope`);

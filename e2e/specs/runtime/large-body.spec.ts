@@ -23,14 +23,14 @@ import { createHash, randomBytes } from "node:crypto";
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain } from "../../support/sessions.js";
-import { coversBehaviour } from "../../registry/covers.js";
+import { coversBehavior } from "../../registry/covers.js";
 
 const SIZE = 8 * 1024 * 1024;
 const OCTETS = { "Content-Type": "application/octet-stream" };
 
 test.describe("large request bodies", { tag: ["@engine"] }, () => {
   test("the echo returns an 8 MiB body byte for byte", async ({ request, env }) => {
-    coversBehaviour("http-trigger", "large-body");
+    coversBehavior("http-trigger", "large-body");
     const chain = seedChain(readCorpusState(), "large-body-echo");
     const body = randomBytes(SIZE);
 
@@ -44,7 +44,7 @@ test.describe("large request bodies", { tag: ["@engine"] }, () => {
   });
 
   test("a script reads every byte of an 8 MiB body", async ({ request, env }) => {
-    coversBehaviour("script", "large-body");
+    coversBehavior("script", "large-body");
     const chain = seedChain(readCorpusState(), "script-large-body.yaml");
     const body = randomBytes(SIZE);
 

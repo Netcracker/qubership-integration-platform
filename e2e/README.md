@@ -725,9 +725,9 @@ Two registries under `registry/` hold what the suite claims to cover, and `npm r
 them against the run rather than believing them:
 
 - `registry/elements.ts` has one row per element family and per axis value the schemas declare,
-  and a `behaviour` row for what an element does that no axis value selects, such as the retry of
+  and a `behavior` row for what an element does that no axis value selects, such as the retry of
   `service-call`. A row is `covered` only while a passing test declares it with `covers(...)` or
-  `coversBehaviour(...)`, and `not-covered` otherwise, with a reason. A `not-covered` row in one of
+  `coversBehavior(...)`, and `not-covered` otherwise, with a reason. A `not-covered` row in one of
   a few named groups carries a scope and leaves the denominator: `out-of-scope`, as for JMS, which
   has no broker in `infrastructure/`, or `shared`, as for an idempotency mode of a
   broker trigger, whose shared template the `http-trigger` case proves. Reconcile and the run

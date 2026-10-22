@@ -35,7 +35,7 @@ import {
 import { noteChain } from "../../support/diagnostics.js";
 import { samplesUntil } from "../../support/poll.js";
 import { callChain } from "../../support/sessions.js";
-import { coversBehaviour } from "../../registry/covers.js";
+import { coversBehavior } from "../../registry/covers.js";
 import type { Env } from "../../env/index.js";
 
 /** The domain create and the route poll, plus building the chain. */
@@ -83,7 +83,7 @@ test.describe("redeploy under traffic on the micro engine", { tag: ["@engine", "
 
   test("a redeploy answers non-2xx for a bounded window", async ({ request, catalog }) => {
     test.setTimeout(CASE_TIMEOUT);
-    coversBehaviour("http-trigger", "redeploy-under-traffic-micro");
+    coversBehavior("http-trigger", "redeploy-under-traffic-micro");
     const target = domain as TokenedDomain;
     expect(await answerOf(request, target.env, live)).toMatchObject({ status: 200, marker: "v1" });
 

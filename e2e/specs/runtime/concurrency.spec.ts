@@ -21,14 +21,14 @@ import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
 import { callChain, elementNames, failedElements } from "../../support/sessions.js";
-import { coversBehaviour } from "../../registry/covers.js";
+import { coversBehavior } from "../../registry/covers.js";
 
 const CALLS = 20;
 const STEPS = ["HTTP Trigger", "Validate Request", "Header Modification"];
 
 test.describe("concurrent calls", { tag: ["@engine", "@sessions"] }, () => {
   test("20 parallel calls get their own body and session each", async ({ request, env, sessions }) => {
-    coversBehaviour("http-trigger", "concurrent-calls");
+    coversBehavior("http-trigger", "concurrent-calls");
     const chain = seedChain(readCorpusState(), "http-echo");
 
     // All twenty requests are in flight together, each with its own token in the correlation header

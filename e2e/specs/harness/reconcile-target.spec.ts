@@ -115,9 +115,9 @@ test.describe("reconcile per target", { tag: ["@harness"] }, () => {
     ]);
   });
 
-  test("behaviour and scoped rows are counted per target", () => {
-    const behaviourRow: RegistryEntry = { family: "condition", kind: "behaviour", behaviour: "nested", status: "covered", tags: ["@engine"] };
-    const k8sBehaviour: RegistryEntry = { ...behaviourRow, behaviour: "nested-micro", target: "k8s" };
+  test("behavior and scoped rows are counted per target", () => {
+    const behaviorRow: RegistryEntry = { family: "condition", kind: "behavior", behavior: "nested", status: "covered", tags: ["@engine"] };
+    const k8sBehavior: RegistryEntry = { ...behaviorRow, behavior: "nested-micro", target: "k8s" };
     const outOfScope: RegistryEntry = {
       family: "condition",
       kind: "axis",
@@ -129,15 +129,15 @@ test.describe("reconcile per target", { tag: ["@harness"] }, () => {
       tags: ["@engine"],
     };
     const shared: RegistryEntry = { ...outOfScope, value: "b", scope: "shared", reason: "proven on another family", target: "k8s" };
-    const rows = [bothRow, behaviourRow, k8sBehaviour, outOfScope, shared];
+    const rows = [bothRow, behaviorRow, k8sBehavior, outOfScope, shared];
     const k8sRun = (...labels: string[]) =>
-      runOn("k8s", ["condition", ...labels.map((label) => `condition::behaviour="${label}"`)], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+      runOn("k8s", ["condition", ...labels.map((label) => `condition::behavior="${label}"`)], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
 
     expect(reconcile(k8sRun("nested", "nested-micro"), rows, operations)).toEqual([]);
     expect(reconcile(k8sRun("nested"), rows, operations)).toEqual([
-      'condition::behaviour="nested-micro": marked covered, but no passing test declares it',
+      'condition::behavior="nested-micro": marked covered, but no passing test declares it',
     ]);
-    expect(reconcile(runOn("compose", ["condition", 'condition::behaviour="nested"'], ["catalog GET /v1/chains"]), rows, operations)).toEqual([]);
+    expect(reconcile(runOn("compose", ["condition", 'condition::behavior="nested"'], ["catalog GET /v1/chains"]), rows, operations)).toEqual([]);
 
     const counted = (target: "compose" | "k8s") => summarizeElements(rows.filter((entry) => runsOn(entry.target, target)));
     expect(counted("k8s")).toEqual({ covered: 3, inScope: 3, outOfScope: 1, shared: 1 });

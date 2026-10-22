@@ -69,16 +69,16 @@ row marked `covered` with no passing `covers()` behind it fails, and so does a d
 row that does not exist. A row only one target can prove carries `target: "compose"` or
 `target: "k8s"`.
 
-**A behaviour row covers what no axis value selects.** A retry, a response timeout, or a call
-under concurrent load has no discriminator to vary, so its row carries `kind: "behaviour"` and a
-`behaviour` label in place of an `axisPath` and a value, and the case declares it with
-`coversBehaviour` from `registry/covers.ts`:
+**A behavior row covers what no axis value selects.** A retry, a response timeout, or a call
+under concurrent load has no discriminator to vary, so its row carries `kind: "behavior"` and a
+`behavior` label in place of an `axisPath` and a value, and the case declares it with
+`coversBehavior` from `registry/covers.ts`:
 
 ```ts
-coversBehaviour("service-call", "retry");
+coversBehavior("service-call", "retry");
 ```
 
-The schemas declare no behaviour label, so `specs/harness/coverage.spec.ts` checks a behaviour row
+The schemas declare no behavior label, so `specs/harness/coverage.spec.ts` checks a behavior row
 against its family alone: the row goes stale when its family leaves the schemas.
 
 **A row in one of a few named groups carries a `scope`, and leaves the denominator.**
@@ -86,13 +86,13 @@ against its family alone: the row goes stale when its family leaves the schemas.
 mechanisms no Kafka broker implements, the elements and values the catalog does not offer, and the
 Kafka (de)serializer classes, whose cases would prove nothing about the platform. Any other row no
 case proves, such as a mail element with no mail sink or a value a case cannot tell from its
-default, stays in scope with its reason. `scope: "shared"` marks a value whose code
-another family's case proves, such as an idempotency mode of `kafka-trigger-2`: the shared
-`idempotency.hbs` partial runs it for every trigger, and the `http-trigger` case proves it. Only a `not-covered` axis or element row
-carries a scope, and it keeps its reason; `validateRegistry` refuses a scope on a covered row or on
-a behaviour row. The row stays in the registry, because `coverage.spec.ts` wants a row for every
-value the schemas declare. Reconcile and the run summary divide the covered rows by the rows in
-scope and count the other two kinds beside them, so the summary reads
+default, stays in scope with its reason. `scope: "shared"` marks a value whose code another family's
+case proves, such as an idempotency mode of `kafka-trigger-2`: the shared `idempotency.hbs` partial
+runs it for every trigger, and the `http-trigger` case proves it. Only a `not-covered` axis or
+element row carries a scope, and it keeps its reason; `validateRegistry` refuses a scope on a
+covered row or on a behavior row. The row stays in the registry, because `coverage.spec.ts` wants a
+row for every value the schemas declare. Reconcile and the run summary divide the covered rows by
+the rows in scope and count the other two kinds beside them, so the summary reads
 `Elements: 204 of 290 registry rows in scope covered on k8s (151 out of scope, 15 shared).`
 
 **The rows are read against the schema sources, not against a copy.** `registry/discriminators.ts`
@@ -325,7 +325,7 @@ right now, so a controller added to a service fails a run.
     case that tests the suite's own code goes in `specs/harness/`, whose counts the run summary
     keeps apart from the product's.
 15. **Move the registry row in the same commit as the spec.** A covered element row needs a
-    `covers(family, axis, value)` declaration, or `coversBehaviour(family, label)` for a behaviour
+    `covers(family, axis, value)` declaration, or `coversBehavior(family, label)` for a behavior
     row, in a passing test, or `npm run reconcile` fails naming the row; an operation row moves to
     `reached` or `covered` once a passing test calls or asserts it. A tag makes a spec visible; a
     registry row is what makes it count.

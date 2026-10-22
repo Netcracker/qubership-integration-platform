@@ -10,7 +10,7 @@
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain, element, elementNames } from "../../support/sessions.js";
-import { covers, coversBehaviour } from "../../registry/covers.js";
+import { covers, coversBehavior } from "../../registry/covers.js";
 
 test.describe("message transformation", { tag: ["@engine", "@sessions"] }, () => {
   test("script replaces the body, and the trace names its step", async ({ request, env, sessions }) => {
@@ -33,7 +33,7 @@ test.describe("message transformation", { tag: ["@engine", "@sessions"] }, () =>
 
   test("mapper writes its constant into the target header and body", async ({ request, env, sessions }) => {
     covers("mapper-2");
-    coversBehaviour("mapper-2", "constant");
+    coversBehavior("mapper-2", "constant");
 
     const chain = seedChain(readCorpusState(), "mapper");
 

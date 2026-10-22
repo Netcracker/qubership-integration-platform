@@ -25,7 +25,7 @@
  *   method rather than none.
  * - **An unknown method is accepted and answers `false`.** Spring 6's `HttpMethod` is a class and
  *   not an enum, so `HttpMethod.valueOf("NOTAMETHOD")` mints one instead of failing conversion.
- *   Recorded below as measured behaviour and deliberately not filed: the endpoint has no way to
+ *   Recorded below as measured behavior and deliberately not filed: the endpoint has no way to
  *   reject the token without an allowlist that would date with the Spring version, so there is no
  *   answer this spec could assert instead.
  * - **The path is compared segment by segment, with placeholder names erased.** `PathParser`

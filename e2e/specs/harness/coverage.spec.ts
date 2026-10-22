@@ -31,7 +31,7 @@ import {
   type OperationClaim,
   type RegistryEntry,
 } from "../../registry/elements.js";
-import { coversBehaviour } from "../../registry/covers.js";
+import { coversBehavior } from "../../registry/covers.js";
 
 /**
  * The mutation seam: run the whole gap detector against a directory holding one element the
@@ -122,16 +122,16 @@ test.describe("coverage registry", { tag: ["@harness"] }, () => {
     tags: ["@engine"],
   };
 
-  const behaviourRow: RegistryEntry = {
+  const behaviorRow: RegistryEntry = {
     family: "service-call",
-    kind: "behaviour",
-    behaviour: "retry",
+    kind: "behavior",
+    behavior: "retry",
     status: "not-covered",
     reason: "no case yet",
     tags: ["@engine"],
   };
 
-  const elementOf = (entry: RegistryEntry): RegistryEntry => ({ ...entry, kind: "element", behaviour: undefined });
+  const elementOf = (entry: RegistryEntry): RegistryEntry => ({ ...entry, kind: "element", behavior: undefined });
 
   test.describe("against the schemas", () => {
     test("every element the schemas declare has a row", () => {
@@ -250,43 +250,43 @@ test.describe("coverage registry", { tag: ["@harness"] }, () => {
     });
   });
 
-  test.describe("behaviour and scope rows", () => {
-    test("a behaviour row is stale only when its family is", () => {
+  test.describe("behavior and scope rows", () => {
+    test("a behavior row is stale only when its family is", () => {
       const declared = new Set([coverageKey("service-call"), coverageKey("service-call", "retryCount", 2)]);
-      expect(staleRows([behaviourRow], declared)).toEqual([]);
-      expect(staleRows([{ ...behaviourRow, family: "gone-element" }], declared)).toEqual([
-        'gone-element::behaviour="retry"',
+      expect(staleRows([behaviorRow], declared)).toEqual([]);
+      expect(staleRows([{ ...behaviorRow, family: "gone-element" }], declared)).toEqual([
+        'gone-element::behavior="retry"',
       ]);
       // Axis and element rows stay keyed on what the schemas declare.
-      expect(staleRows([elementOf(behaviourRow)], declared)).toEqual([]);
-      expect(staleRows([{ ...elementOf(behaviourRow), kind: "axis", axisPath: "retryCount", value: 3 }], declared)).toEqual([
+      expect(staleRows([elementOf(behaviorRow)], declared)).toEqual([]);
+      expect(staleRows([{ ...elementOf(behaviorRow), kind: "axis", axisPath: "retryCount", value: 3 }], declared)).toEqual([
         "service-call::retryCount=3",
       ]);
     });
 
-    test("coversBehaviour declares the key of its row", () => {
+    test("coversBehavior declares the key of its row", () => {
       const annotations = test.info().annotations;
-      coversBehaviour("service-call", "retry");
+      coversBehavior("service-call", "retry");
       // Taken off again, so this case declares no row in a reconciled run.
-      expect(annotations.pop()).toEqual({ type: "covers", description: entryKey(behaviourRow) });
-      expect(entryKey(behaviourRow)).not.toBe(entryKey(elementOf(behaviourRow)));
+      expect(annotations.pop()).toEqual({ type: "covers", description: entryKey(behaviorRow) });
+      expect(entryKey(behaviorRow)).not.toBe(entryKey(elementOf(behaviorRow)));
     });
 
-    test("a behaviour row with an axis or no label is rejected", () => {
-      expect(validateRegistry([behaviourRow])).toEqual([]);
-      expect(validateRegistry([{ ...behaviourRow, axisPath: "retryCount" }])).toEqual([
-        'service-call::behaviour="retry": a behaviour row carries an axisPath or a value',
+    test("a behavior row with an axis or no label is rejected", () => {
+      expect(validateRegistry([behaviorRow])).toEqual([]);
+      expect(validateRegistry([{ ...behaviorRow, axisPath: "retryCount" }])).toEqual([
+        'service-call::behavior="retry": a behavior row carries an axisPath or a value',
       ]);
-      expect(validateRegistry([{ ...behaviourRow, value: 2 }])).toEqual([
-        'service-call::behaviour="retry": a behaviour row carries an axisPath or a value',
+      expect(validateRegistry([{ ...behaviorRow, value: 2 }])).toEqual([
+        'service-call::behavior="retry": a behavior row carries an axisPath or a value',
       ]);
-      expect(validateRegistry([{ ...behaviourRow, behaviour: " " }])).toEqual([
-        'service-call::behaviour=" ": a behaviour row needs a behaviour label',
+      expect(validateRegistry([{ ...behaviorRow, behavior: " " }])).toEqual([
+        'service-call::behavior=" ": a behavior row needs a behavior label',
       ]);
     });
 
     test("a scope needs a not-covered axis or element row", () => {
-      const scoped: RegistryEntry = { ...elementOf(behaviourRow), scope: "out-of-scope" };
+      const scoped: RegistryEntry = { ...elementOf(behaviorRow), scope: "out-of-scope" };
       expect(validateRegistry([scoped])).toEqual([]);
       expect(validateRegistry([{ ...scoped, reason: undefined }])).toEqual([
         "service-call: status is not-covered and no reason is given",
@@ -294,8 +294,8 @@ test.describe("coverage registry", { tag: ["@harness"] }, () => {
       expect(validateRegistry([{ ...scoped, status: "covered", reason: undefined }])).toEqual([
         "service-call: a covered row carries a scope",
       ]);
-      expect(validateRegistry([{ ...behaviourRow, scope: "shared" }])).toEqual([
-        'service-call::behaviour="retry": a behaviour row carries a scope',
+      expect(validateRegistry([{ ...behaviorRow, scope: "shared" }])).toEqual([
+        'service-call::behavior="retry": a behavior row carries a scope',
       ]);
     });
 
@@ -314,7 +314,7 @@ test.describe("coverage registry", { tag: ["@harness"] }, () => {
         row("c", { scope: "out-of-scope" }),
         row("d", { scope: "out-of-scope" }),
         row("e", { scope: "shared" }),
-        { ...behaviourRow, status: "covered" as const, reason: undefined },
+        { ...behaviorRow, status: "covered" as const, reason: undefined },
       ];
       expect(summarizeElements(rows)).toEqual({ covered: 2, inScope: 3, outOfScope: 2, shared: 1 });
     });

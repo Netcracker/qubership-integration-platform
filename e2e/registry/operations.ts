@@ -354,7 +354,7 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
  * write. Every one of them answers **410 `Default secret functionality is disabled`** on this stack,
  * because they address the default secret and `cip.variables.default-secret.enabled` is false, so
  * the 410 is the operation's contract as configured and pinning it is the only honest reading. The
- * behaviour those endpoints used to carry is exercised through `/v2/secured-variables`, and those
+ * behavior those endpoints used to carry is exercised through `/v2/secured-variables`, and those
  * six rows are `covered`: `specs/api/variables.spec.ts` creates, reads, updates and deletes a
  * variable in a named secret and asserts that the value never comes back on either read path, which
  * is the contract of every one of them.
