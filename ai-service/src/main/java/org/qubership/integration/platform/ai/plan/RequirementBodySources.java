@@ -24,6 +24,13 @@ public final class RequirementBodySources {
   private static final Pattern UNSUPPORTED = Pattern.compile(
       "(?im)^.*(?:\\b(?:exact(?:ly)?|verbatim)\\s+(?:(?:this|the|following)\\s+)*(?:script|code)\\b|\\b(?:script|code)\\s+body\\s*[:=]|^\\s*(?:[\\w-]+\\.)?script\\s*[:=]).*$");
 
+  private static final Pattern QUALIFIED_SOURCE = Pattern.compile(
+      "(?i)\\b(exact(?:ly)?|verbatim)\\s+((?:(?:this|the|following)\\s+)*)(script|code)\\b");
+  private static final Pattern EXPLICIT_BODY = Pattern.compile(
+      "(?im)\\b(?:script|code)\\s+body\\s*[:=]|^\\s*(?:[\\w-]+\\.)?script\\s*[:=]");
+  private static final Pattern FIELD_ASSIGNMENT = Pattern.compile(
+      "\\b([A-Za-z_][\\w-]*)\\s*=\\s*(\\\"(?:\\\\.|[^\\\"\\\\\\r\\n])*\\\"|'(?:\\\\.|[^'\\\\\\r\\n])*')(?=\\s*(?:[,.;]|$))");
+
   private RequirementBodySources() {}
 
   public record Resolution(RequirementBodyBinding binding, String body, String error) {}
@@ -193,7 +200,8 @@ public final class RequirementBodySources {
       var declaration = UNSUPPORTED.matcher(text);
       while (declaration.find()) {
         if (covered.stream().noneMatch(span -> span[0] < declaration.end() && span[1] > declaration.start()
-            || span[0] >= declaration.end() && text.substring(declaration.end(), span[0]).isBlank())) {
+            || span[0] >= declaration.end() && text.substring(declaration.end(), span[0]).isBlank())
+            && unsupportedDeclaration(text, declaration.start(), declaration.end())) {
           unproven = true;
         }
       }
@@ -217,6 +225,29 @@ public final class RequirementBodySources {
     String turn = source.inputs().getFirst().sourceTurnId();
     return new Resolution(new RequirementBodyBinding(Authority.GENERATED_CANDIDATE, intent.elementRef(), "script",
         NativeBodyKind.GROOVY_SCRIPT, source.generation(), turn, null, null, null), null, null);
+  }
+
+  private static boolean unsupportedDeclaration(String text, int start, int end) {
+    if (EXPLICIT_BODY.matcher(text).region(start, end).find()) return true;
+    var qualified = QUALIFIED_SOURCE.matcher(text).region(start, end);
+    while (qualified.find()) {
+      // A bare adverb can qualify a field list; source selectors and whole-body declarations win.
+      if (!"exactly".equalsIgnoreCase(qualified.group(1)) || !qualified.group(2).isEmpty()
+          || !"code".equalsIgnoreCase(qualified.group(3))
+          || Pattern.compile("(?i)\\b(?:this|the|following)\\s*$")
+              .matcher(text.substring(start, qualified.start())).find()
+          || !fieldAssignmentList(text, qualified.start(3))) return true;
+    }
+    return false;
+  }
+
+  private static boolean fieldAssignmentList(String text, int offset) {
+    var assignments = FIELD_ASSIGNMENT.matcher(text).results().toList();
+    var field = assignments.stream().filter(match -> match.start(1) == offset).findFirst().orElse(null);
+    if (field == null) return false;
+    return assignments.stream().anyMatch(other -> other != field
+        && text.substring(Math.min(field.end(), other.end()), Math.max(field.start(), other.start()))
+            .matches("\\s*,[^.;:=]*"));
   }
 
   private static boolean inside(List<int[]> spans, int offset) {
