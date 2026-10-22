@@ -99,13 +99,14 @@ test.describe("redeploy under traffic on the micro engine", { tag: ["@engine", "
 
     const switched = answers.findIndex((each) => each.marker === "v2");
     const failed = answers.filter((each) => !ok(each));
-    const window = failed.length === 0 ? 0 : failed[failed.length - 1].at - failed[0].at;
-    test.info().annotations.push({ type: "redeploy", description: `${answers.length} calls, the first v2 answer at call ${switched + 1}, ${failed.length} non-2xx over ${window} ms` });
+    const lastFailure = failed.at(-1);
+    const unavailableMs = lastFailure ? lastFailure.at - failed[0].at : 0;
+    test.info().annotations.push({ type: "redeploy", description: `${answers.length} calls, the first v2 answer at call ${switched + 1}, ${failed.length} non-2xx over ${unavailableMs} ms` });
     expect(switched, `the redeployed chain never answered v2 on micro domain ${target.domain}`).toBeGreaterThan(0);
-    expect(window, "the non-2xx window of the redeploy").toBeLessThanOrEqual(UNAVAILABLE_LIMIT);
+    expect(unavailableMs, "the non-2xx window of the redeploy").toBeLessThanOrEqual(UNAVAILABLE_LIMIT);
     expect(answers.slice(0, switched).filter((each) => ok(each) && each.marker !== "v1"), "a 2xx before the switch carried no v1 marker").toEqual([]);
     // With no non-2xx answer at all, every answer before v2 is the old deployment's.
-    const lastFailed = failed.length === 0 ? switched : answers.indexOf(failed[failed.length - 1]);
+    const lastFailed = lastFailure ? answers.indexOf(lastFailure) : switched;
     expect(answers.slice(lastFailed + 1, switched).filter((each) => each.marker === "v1"), "v1 answers after the unavailable window").toEqual([]);
   });
 });

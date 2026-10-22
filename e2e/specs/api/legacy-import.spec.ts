@@ -39,7 +39,7 @@ import {
 import { assembleFixture, readFixtureDocument, renderFixtureTree } from "../../fixtures/templating.js";
 import path from "node:path";
 import { tokenized } from "../../support/run.js";
-import { expectImportedServices } from "../../support/chain-import.js";
+import { expectImportedServices } from "../../support/service-import.js";
 
 function archive(name: string): FrozenArchive {
   const found = FROZEN_ARCHIVES.find((each) => each.name === name);

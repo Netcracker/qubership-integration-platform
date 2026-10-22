@@ -39,6 +39,7 @@ import { readSpecificationFixture } from "../../fixtures/templating.js";
 import { archiveOf, entryNames } from "../../support/zip.js";
 import { tokenized } from "../../support/run.js";
 import { ABSENT_UUID } from "../../support/absent.js";
+import { expectImportedServices } from "../../support/service-import.js";
 
 /** The version the GraphQL parser's model is given: it declares none, so the catalog counts. */
 const VERSION = "1.0.0";
@@ -223,10 +224,7 @@ test.describe("compiled libraries", { tag: ["@catalog"] }, () => {
       ).toBe(404);
 
       const response = await catalog.importArchive("/v1/import/system", archive, "services.zip");
-      expect(response.status()).toBe(200);
-      expect(await response.json()).toEqual([
-        { id: fixture.systemId, name: fixture.serviceName, status: "CREATED" },
-      ]);
+      await expectImportedServices(response, [{ id: fixture.systemId, name: fixture.serviceName }]);
 
       // Synchronous, unlike the rename: `SystemExportImportService.compileSystemModelLibraries` runs
       // inside the import, so the jar is there by the time the import has answered.

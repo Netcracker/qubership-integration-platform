@@ -32,7 +32,7 @@ let built: DeployableChain | undefined;
 /** The domain that runs the chain right now, which `afterAll` deletes. */
 let live: TokenedDomain | undefined;
 
-test.describe("creation path equivalence on the micro engine", { tag: ["@catalog", "@engine", "@sessions", "@slow"] }, () => {
+test.describe("creation-path equivalence on the micro engine", { tag: ["@catalog", "@engine", "@sessions", "@slow"] }, () => {
   test.beforeAll(async ({ catalog, folder, run, microDomainState }) => {
     test.setTimeout(SETUP_TIMEOUT);
     const name = tokenized(run, "equivalence");

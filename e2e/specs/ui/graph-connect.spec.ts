@@ -28,6 +28,6 @@ test.describe("canvas connections", { tag: ["@ui"] }, () => {
     await graph.connect(from.id, to.id);
 
     await expect(graph.edge(from.id, to.id)).toBeAttached();
-    await expect.poll(async () => (await catalog.listDependencies(chain.id)).map(({ from, to }) => ({ from, to }))).toEqual([{ from: from.id, to: to.id }]);
+    await expect.poll(async () => (await catalog.listDependencies(chain.id)).map((each) => ({ from: each.from, to: each.to }))).toEqual([{ from: from.id, to: to.id }]);
   });
 });

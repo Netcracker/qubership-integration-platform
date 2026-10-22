@@ -45,7 +45,7 @@ import type { APIResponse } from "@playwright/test";
 import type { Catalog } from "../../support/catalog.js";
 import { test, expect } from "../../support/fixtures.js";
 import { leftBehind } from "../../support/teardown.js";
-import { expectImportedServices } from "../../support/chain-import.js";
+import { expectImportedServices } from "../../support/service-import.js";
 import { archiveOf, entryNames, entryText, zipOf } from "../../support/zip.js";
 
 const EXTENSION = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../vscode-extension/src/web/test");

@@ -30,7 +30,7 @@ export async function samplesUntil<T>(
 ): Promise<T[]> {
   const deadline = Date.now() + timeout;
   const samples = [await read()];
-  while (!done(samples[samples.length - 1]) && Date.now() < deadline) {
+  while (!done(samples.at(-1) as T) && Date.now() < deadline) {
     await sleep(interval);
     samples.push(await read());
   }

@@ -44,7 +44,7 @@ import { fileURLToPath } from "node:url";
 import { SCHEMA_BASE_URL } from "../../registry/discriminators.js";
 import { test, expect } from "../../support/fixtures.js";
 import { leftBehind } from "../../support/teardown.js";
-import { expectImportedServices } from "../../support/chain-import.js";
+import { expectImportedServices } from "../../support/service-import.js";
 import { entryNames, entryText } from "../../support/zip.js";
 
 const ARCHIVE = path.resolve(
