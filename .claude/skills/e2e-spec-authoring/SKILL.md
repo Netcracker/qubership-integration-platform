@@ -39,6 +39,15 @@ running before the corpus had been used once. `testMatch` is not optional on eit
 default does not collect `seed.setup.ts`, and a setup project that runs zero tests reports success
 and satisfies its dependents.
 
+**`schema` and `harness` need no stack.** Both declare `metadata: { stack: false }` and no
+`dependencies`, and `globalSetup` skips provisioning when every selected project declares it.
+`schema` reads the product's tracked files: the schemas, `routes.conf`, the Compose files, and the
+migrations. `harness` tests the suite's own code: the report readers, the registries, the target
+adapters, and the lint cases over the spec sources. The run summary and the failure email count
+`harness` on a line of their own, outside the run's counts, and a failed `harness` case still fails
+the run. A change to `support/`, `registry/`, or `env/` changes its `harness` cases in the same
+commit.
+
 ## Coverage registries
 
 Two registries under `registry/` hold what the suite claims to cover, and both are checked against
@@ -59,6 +68,30 @@ and so does a row naming a value the schemas no longer declare. `npm run reconci
 row marked `covered` with no passing `covers()` behind it fails, and so does a declaration naming a
 row that does not exist. A row only one target can prove carries `target: "compose"` or
 `target: "k8s"`.
+
+**A behaviour row covers what no axis value selects.** A retry, a response timeout, or a call
+under concurrent load has no discriminator to vary, so its row carries `kind: "behaviour"` and a
+`behaviour` label in place of an `axisPath` and a value, and the case declares it with
+`coversBehaviour` from `registry/covers.ts`:
+
+```ts
+coversBehaviour("service-call", "retry");
+```
+
+The schemas declare no behaviour label, so `specs/harness/coverage.spec.ts` checks a behaviour row
+against its family alone: the row goes stale when its family leaves the schemas.
+
+**A row that no case on this stack can prove carries a `scope`, and leaves the denominator.**
+`scope: "out-of-scope"` marks a value no case here can prove, or one whose case would prove nothing
+about the platform: JMS, which has no broker in `infrastructure/`, the SASL mechanisms no Kafka
+broker implements, and the Kafka (de)serializer classes. `scope: "shared"` marks a value whose code
+another family's case proves, such as an idempotency mode of `kafka-trigger-2`: the shared
+`idempotency.hbs` partial runs it for every trigger, and the `http-trigger` case proves it. Only a `not-covered` axis or element row
+carries a scope, and it keeps its reason; `validateRegistry` refuses a scope on a covered row or on
+a behaviour row. The row stays in the registry, because `coverage.spec.ts` wants a row for every
+value the schemas declare. Reconcile and the run summary divide the covered rows by the rows in
+scope and count the other two kinds beside them, so the summary reads
+`Elements: 204 of 290 registry rows in scope covered on k8s (151 out of scope, 15 shared).`
 
 **The rows are read against the schema sources, not against a copy.** `registry/discriminators.ts`
 resolves `schemas/src/main/resources/conf-model/element/` (`schemas/assets/` is generated), so a new
@@ -347,7 +380,11 @@ right now, so a controller added to a service fails a run.
     a comment above it. A title is a string literal, or a template string in a loop over
     identifiers, an imported list, or a call such as `idempotencyModes(...)`; only the literal part
     of a template counts toward the 60. A title taken whole from a variable, such as
-    `test(each.title, …)`, has no length limit.
+    `test(each.title, …)`, has no length limit. `specs/harness/title-rules.spec.ts` reads every
+    spec with the TypeScript parser and fails, naming `file:line`, on a case outside a describe, a
+    second top-level describe, a literal tag outside the closed list of rule 10, a title that breaks
+    this rule, and a `test.fail()` with no arguments outside a case body, which marks every case in
+    its scope.
 22. **Merge cases only along a shared path, and make each stage a `test.step`.** Create, export,
     delete, and import of one archive are one path, so they are one case with a named step per
     stage: the report shows which stage failed, and the case pays for its setup once. Cases that

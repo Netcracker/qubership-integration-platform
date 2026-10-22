@@ -223,10 +223,16 @@ the console output only, and the command does not run `npm run reconcile`.
 manual dispatch from the Actions tab. The dispatch input `workers` sets `E2E_WORKERS`; left empty,
 the run uses the nightly value. The dispatch input `email` makes a failed manual run send the
 failure email as well. Start with the job's step summary, which `support/run-summary.mjs` writes. It
-shows the run status, how long the run and its provisioning took, and the test counts. Then come up
-to 50 failed tests with their project, `file:line`, title, how long each has been failing, and first
-error line, the pins to remove, the errors raised outside any test, and the coverage
-`npm run reconcile` recorded. A pin to remove is a `test.fail()` case that passed: the defect it pins
+shows the run status, how long the run and its provisioning took, and the test counts. The counts
+leave out the `harness` project, which gets a line of its own, such as
+`Harness: 472 passed, 0 failed.`; a failed `harness` case still fails the run and is listed with the
+others. Then come up to 50 failed tests with their project, `file:line`, full name, how long each
+has been failing, and first error line, the pins to remove, the errors raised outside any test, and
+the coverage `npm run reconcile` recorded. A full name is the describe path and the case title
+joined with ` › `, such as `actuator health › engine › names no component as down`. The coverage
+line divides the covered element rows by the rows in scope and counts the out-of-scope and shared
+rows beside them (see [Coverage registries](#coverage-registries)), then gives the API operations
+covered and reached. A pin to remove is a `test.fail()` case that passed: the defect it pins
 no longer reproduces, so remove the annotation and close the defect's issue. Collapsed tables hold
 the peak memory, CPU, and Metaspace of each service against its band, the time each project took,
 and the slowest tests. The projects left out on this target come last.
@@ -239,9 +245,20 @@ also counts the tests the previous run failed that pass now.
 
 A failed nightly run mails a report to the addresses in the repository variable `EMAIL_TO`, which
 the email step needs. `support/run-email.mjs` writes it: a one-sentence verdict, followed by how the
-failures compare with the previous run, the test counts, and links to the run, the report artifact,
-the cluster dump, and the commit. Up to 20 failed tests follow, each with how long it has been
-failing, the first lines of its error, and the command that reruns it, and then the pins to remove.
+failures compare with the previous run, the test counts with the `harness` line under them, and
+links to the run, the report artifact, the cluster dump, and the commit. Up to 20 failed tests
+follow, each with its full name, how long it has been failing, the first lines of its error, and the
+command that reruns it, and then the pins to remove. The command names the project, the
+`file:line`, and a `-g` pattern built from the full name:
+
+```bash
+npm run test:k8s -- --project=runtime --no-deps specs/runtime/http-echo.spec.ts:16 -g "seeded http-echo chain.*outlives the seed project and answers on its route"
+```
+
+The `file:line` alone is not enough, because the cases a loop or a function declares share one
+line, and the title alone can repeat under another describe. Run the command against a kept corpus,
+as [Reproducing one case](#reproducing-one-case) describes.
+
 A run whose only failures are pins to remove is titled "found fixed defects". The email also lists
 the projects a failed project kept from running and the errors raised outside any test. When every
 failed test also failed the previous run, the subject reads "still failing" instead of "failed".
@@ -255,14 +272,28 @@ holds a micro domain's pod only because a failed micro case keeps the run's micr
 No pull request check runs the suite. `npm run check-types` and `--project=schema --project=harness`
 need no stack; run them before pushing, as `AGENTS.md` describes.
 
-**Selecting cases.** Every test carries a component tag (`@catalog`, `@engine`, `@sessions`,
-`@testing-service`, `@ui`, `@infra`) and a tier: `@tier1` is the release floor and `@tier2` the
-rest. `--grep` takes either, and a file path or a `file:line` selects one file or one case:
+**Selecting cases.** Each spec file holds one top-level `test.describe` named after its subject, and
+every tag comes from a closed list:
+
+- a component: `@catalog`, `@engine`, `@sessions`, `@testing-service`, `@ui`, `@infra`, `@schema`,
+  or `@harness`;
+- `@slow`, for a case that needs more than 60 s;
+- `@classic-only`, for a case the micro projects leave out;
+- a broker: `@kafka`, `@rabbitmq`, `@pubsub`, or `@sftp`;
+- an API version: `@v1`, `@v2`, or `@v3`.
+
+A case inherits the tags of every describe above it, so `--grep @engine` selects one component's
+cases. A file path or a `file:line` selects one file or one case:
 
 ```bash
 npm test -- specs/api/health.spec.ts --no-deps
 npm test -- --project=api -g "part of the title" --no-deps
 ```
+
+Playwright matches `-g` against the describe titles and the case title, with each describe's tags
+written after its title. A pattern that spans a describe and its case therefore joins the two with
+`.*`: `-g "runtime-catalog.*reports UP"` selects a case of `specs/api/health.spec.ts`, and
+`-g "runtime-catalog reports UP"` or `-g "runtime-catalog › reports UP"` selects nothing.
 
 Put `--no-deps` on every `--grep` and every file path. A filter selects tests, never dependency
 projects, so without the flag one matching `env` case drags `api`, `runtime`, `seed`,
@@ -352,8 +383,8 @@ Six more exist for the suite's own tests rather than for a person: `E2E_RUN_MANI
 
 `test-results/cases.md`, written by `npm run reconcile`, opens with the run header: what the run
 tested, what it left out, and how it ended. Then comes one table per component tag, with a row per
-test, what it declared it covers, and the trace of anything that failed. An illustrative header of a
-Kubernetes run:
+test under its full name, what it declared it covers, and the trace of anything that failed. An
+illustrative header of a Kubernetes run:
 
 ```text
 - Target: k8s
@@ -412,6 +443,17 @@ fails, `e2e/.e2e-ui-server.log` holds the whole `vite preview` log.
 A known divergence is pinned with `test.fail()` and a comment naming the defect, so the run stays
 green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
 turns red the day its defect is fixed, and that is the signal to remove the annotation.
+
+A full Kubernetes run reports five expected failures from four pinned cases:
+
+| Case | Projects | Defect |
+| --- | --- | --- |
+| `specs/brokers/rabbitmq.spec.ts`: `rabbitmq › rabbitmq-sender-2 › propagateContext=false drops the caller's request id` | `brokers`, `brokers-micro` | `RabbitMqSenderProcessor` copies the request context into the message headers on every send, so the caller's request id reaches the message with `propagateContext` false. No issue is filed. |
+| `specs/api/error-contract.spec.ts`: `error contract › sessions-management negotiates an Accept it cannot write` | `api` | With `Accept: application/xml`, the 404 handler of sessions-management throws `HttpMediaTypeNotAcceptableException` and the service answers 500 with an empty body, where the catalog and the engine answer 406. |
+| `specs/api/sessions-api.spec.ts`: `sessions-management API › a filter clause that names no column is refused` | `api` | A filter clause that omits `feature` or `condition` answers 500 where it should answer 400. |
+| `specs/global/export-all.spec.ts`: `whole-catalog export › the export answers over the whole catalog with no ids named` | `global` | `GET /v1/catalog/export/api-spec` with no chain, snapshot, or deployment named answers 500 on an NPE once a deployed HTTP trigger has an external route, a defect decided as won't fix. |
+
+A Compose run has no `brokers-micro` project, so it reports four.
 
 A defect only one engine meets, or a race, is pinned with `strikesAsKnown` and a `ConditionalDefect`
 instead, defined in `specs/<project>/<component>-defects.ts`; `grep -rn strikesAsKnown specs/` lists
@@ -675,9 +717,15 @@ deploys them in one batch, and waits until the routes answer. What it deployed l
 Two registries under `registry/` hold what the suite claims to cover, and `npm run reconcile` checks
 them against the run rather than believing them:
 
-- `registry/elements.ts` has one row per element family and per axis value the schemas declare. A
-  row is `covered` only while a passing test declares it with `covers(...)`, and `not-covered`
-  otherwise, with a reason.
+- `registry/elements.ts` has one row per element family and per axis value the schemas declare,
+  and a `behaviour` row for what an element does that no axis value selects, such as the retry of
+  `service-call`. A row is `covered` only while a passing test declares it with `covers(...)` or
+  `coversBehaviour(...)`, and `not-covered` otherwise, with a reason. A `not-covered` row that no
+  case on this stack can prove carries a scope and leaves the denominator: `out-of-scope`, as for
+  JMS, which has no broker in `infrastructure/`, or `shared`, as for an idempotency mode of a
+  broker trigger, whose shared template the `http-trigger` case proves. Reconcile and the run
+  summary report the covered rows out of the rows in scope, with the other two counted beside them:
+  `Elements: 204 of 290 registry rows in scope covered on k8s (151 out of scope, 15 shared).`
 - `registry/operations.ts` has one row per API operation of the four services. A row is `reached`
   when a call to it was recorded, `covered` when a named assertion about it passed, and
   `not-reached` otherwise, with a reason. The two numbers are reported side by side and never
