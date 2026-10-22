@@ -451,6 +451,38 @@ class RequirementCaptureEditorTest {
   }
 
   @Test
+  void factIdsKeepTheirNativeBoundaryInCapturesAndFocusedAdditions() {
+    var base = initial();
+    var valid = List.of("fact_9-name", "a".repeat(64));
+    var ids = new java.util.ArrayList<>(valid);
+    ids.addAll(List.of("facts/value", "7fact", "two words", "fact.value", "_fact", "éFact", "a".repeat(65)));
+    for (String id : ids) {
+      var fact = new FactInput(id, List.of(), FactKind.GOAL, Polarity.POSITIVE, "Retain the original fields.");
+      var capture = new DraftInput(base.flow(), List.of(fact), base.capabilities(), base.openQuestions(), base.settings());
+      var initialized = RequirementCaptureEditor.initialize(capture);
+      var addition = RequirementCaptureEditor.apply(base,
+          new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(fact), List.of(),
+              List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null));
+      boolean expected = valid.contains(id);
+      assertEquals(expected, initialized.accepted(), id + ": " + initialized.issues());
+      assertEquals(expected, addition.accepted(), id + ": " + addition.issues());
+      if (expected) {
+        assertEquals(id, initialized.draft().facts().getFirst().sourceFactId());
+        assertEquals(id, addition.draft().facts().getLast().sourceFactId());
+        assertTrue(addition.draft().facts().containsAll(base.facts()));
+      } else {
+        assertTrue(initialized.issues().stream().anyMatch(issue -> "INVALID_VALUE".equals(issue.code())
+            && "/draft/facts/0/sourceFactId".equals(issue.path())
+            && issue.message().contains(RequirementCaptureEditor.localIdPattern())), initialized.issues().toString());
+        assertTrue(addition.issues().stream().anyMatch(issue -> "INVALID_VALUE".equals(issue.code())
+            && ("/draft/facts/" + base.facts().size() + "/sourceFactId").equals(issue.path())
+            && issue.message().contains(RequirementCaptureEditor.localIdPattern())), addition.issues().toString());
+        assertEquals(base, addition.draft());
+      }
+    }
+  }
+
+  @Test
   void missingInteractionIdentityReturnsIssue() {
     DraftInput invalid = new DraftInput(
         new FlowInput(List.of(new InteractionInput(null, Direction.INBOUND,

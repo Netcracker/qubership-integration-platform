@@ -48,6 +48,10 @@ public final class RequirementCaptureEditor {
 
   private RequirementCaptureEditor() {}
 
+  static String localIdPattern() {
+    return LOCAL_ID.pattern();
+  }
+
   static boolean validFactId(String id) {
     return id != null && LOCAL_ID.matcher(id).matches();
   }
