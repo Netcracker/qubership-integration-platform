@@ -39,6 +39,17 @@ class GatherRequirementsAgentTest {
   }
 
   @Test
+  void nativeRepairOverloadUsesTheSamePromptAndExplicitRequestParameters() throws Exception {
+    var ordinary = GatherRequirementsAgent.class.getMethod("chat", String.class, String.class,
+        dev.langchain4j.invocation.InvocationParameters.class);
+    var repair = GatherRequirementsAgent.class.getMethod("chat", String.class, String.class,
+        dev.langchain4j.invocation.InvocationParameters.class,
+        dev.langchain4j.model.chat.request.ChatRequestParameters.class);
+    assertEquals(ordinary.getAnnotation(dev.langchain4j.service.SystemMessage.class),
+        repair.getAnnotation(dev.langchain4j.service.SystemMessage.class));
+  }
+
+  @Test
   void gatherProviderIsNotAvailableToUnrelatedAgentsThroughDefaultCdiLookup() {
     org.junit.jupiter.api.Assertions.assertFalse(dev.langchain4j.service.tool.ToolProvider.class
         .isAssignableFrom(RequirementCaptureToolProvider.class));
