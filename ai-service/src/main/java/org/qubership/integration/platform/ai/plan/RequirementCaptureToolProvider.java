@@ -38,6 +38,15 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftU
 @ApplicationScoped
 public class RequirementCaptureToolProvider {
 
+  public record ArgumentBinding(String toolCallId, String rawArguments, JsonNode effectiveArguments,
+      Map<String, String> relocations) {}
+
+  private static final ThreadLocal<ArgumentBinding> ARGUMENT_BINDING = new ThreadLocal<>();
+
+  static ArgumentBinding argumentBinding() {
+    return ARGUMENT_BINDING.get();
+  }
+
   private final RequirementCaptureTools tools;
   private final ObjectMapper mapper;
   private final org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
@@ -69,22 +78,22 @@ public class RequirementCaptureToolProvider {
     var result = ToolProviderResult.builder()
         .add(spec("captureRequirementDraft", DraftInput.class, capture),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
-                call.arguments(), "captureRequirementDraft", capture,
+                call, "captureRequirementDraft", capture,
                 "draft", DraftInput.class, tools::captureRequirementDraft)))
         .add(spec("updateRequirementDraft", DraftUpdate.class, update),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
-                call.arguments(), "updateRequirementDraft", update,
+                call, "updateRequirementDraft", update,
                 "changes", DraftUpdate.class, tools::updateRequirementDraft)))
         .add(spec("readRequirementDraft", null, read),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> executeRead(call.arguments(), read)))
         .add(spec("finishRequirementDiscoveryTurn", RequirementDiscoveryDirective.class, finish),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
-                call.arguments(), "finishRequirementDiscoveryTurn", finish,
+                call, "finishRequirementDiscoveryTurn", finish,
                 "directive", RequirementDiscoveryDirective.class,
                 tools::finishRequirementDiscoveryTurn)))
         .add(spec("readRequirementSource", RequirementCaptureTools.SourceRead.class,
                 RequirementCaptureSchemas.parameters("source", RequirementCaptureTools.SourceRead.class)),
-            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(call.arguments(),
+            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(call,
                 "readRequirementSource", RequirementCaptureSchemas.parameters("source", RequirementCaptureTools.SourceRead.class),
                 "source", RequirementCaptureTools.SourceRead.class, tools::readRequirementSource)));
     if (request != null) {
@@ -124,10 +133,18 @@ public class RequirementCaptureToolProvider {
   }
 
   private <T> String execute(
-      String arguments, String toolName, JsonObjectSchema parameters,
+      dev.langchain4j.agent.tool.ToolExecutionRequest call, String toolName, JsonObjectSchema parameters,
       String field, Class<T> type, Function<T, String> action) {
+    String arguments = call.arguments();
+    ArgumentBinding previous = ARGUMENT_BINDING.get();
+    ARGUMENT_BINDING.remove();
     try {
-      JsonNode input = parse(arguments);
+      var nesting = org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments
+          .restoreNesting(parse(arguments), parameters);
+      JsonNode input = nesting.arguments();
+      if (!nesting.relocations().isEmpty()) {
+        ARGUMENT_BINDING.set(new ArgumentBinding(call.id(), arguments, input.deepCopy(), nesting.relocations()));
+      }
       Issue issue = check(input, parameters, "");
       if (issue != null) {
         return tools.rejectArguments(toolName, arguments, issue);
@@ -139,6 +156,9 @@ public class RequirementCaptureToolProvider {
     } catch (IOException error) {
       return tools.rejectArguments(toolName, arguments, new Issue(
           "INVALID_JSON", "/", null, "Send one valid JSON argument object."));
+    } finally {
+      if (previous == null) ARGUMENT_BINDING.remove();
+      else ARGUMENT_BINDING.set(previous);
     }
   }
 

@@ -19,6 +19,39 @@ class StructuredCaptureArgumentsTest {
   private final ObjectMapper mapper = new ObjectMapper();
 
   @Test
+  void restoresOnlyTheSchemaDeclaredEnvelopeWithoutChangingValues() throws Exception {
+    var body = JsonObjectSchema.builder().addProperty("items",
+        JsonArraySchema.builder().items(new JsonStringSchema()).build()).build();
+    var schema = JsonObjectSchema.builder().addProperty("payload", body).additionalProperties(false).build();
+    var original = mapper.readTree("{\"payload\":{},\"items\":[\"a=b\",\" value \"]}");
+    var restored = StructuredCaptureArguments.restoreNesting(original, schema);
+    assertEquals(mapper.readTree("{\"payload\":{\"items\":[\"a=b\",\" value \"]}}"), restored.arguments());
+    assertEquals(java.util.Map.of("/items", "/payload/items"), restored.relocations());
+    assertEquals(mapper.readTree("{\"payload\":{},\"items\":[\"a=b\",\" value \"]}"), original);
+  }
+
+  @Test
+  void leavesAmbiguousConflictingAbsentUnknownAndAllowedRootFieldsUntouched() throws Exception {
+    var body = JsonObjectSchema.builder().addStringProperty("value").build();
+    var closed = JsonObjectSchema.builder().addProperty("payload", body).additionalProperties(false).build();
+    var ambiguous = closed.toBuilder().addProperty("other", body).build();
+    var allowed = closed.toBuilder().addStringProperty("value").build();
+    for (var example : java.util.List.of(
+        java.util.Map.entry(closed, "{\"payload\":{\"value\":\"old\"},\"value\":\"new\"}"),
+        java.util.Map.entry(closed, "{\"payload\":null,\"value\":\"new\"}"),
+        java.util.Map.entry(closed, "{\"value\":\"new\"}"),
+        java.util.Map.entry(closed, "{\"payload\":{},\"grant\":true}"),
+        java.util.Map.entry(ambiguous, "{\"payload\":{},\"other\":{},\"value\":\"new\"}"),
+        java.util.Map.entry(allowed, "{\"payload\":{},\"value\":\"new\"}"),
+        java.util.Map.entry(closed.toBuilder().additionalProperties(true).build(), "{\"payload\":{},\"value\":\"new\"}"))) {
+      var input = mapper.readTree(example.getValue());
+      var restored = StructuredCaptureArguments.restoreNesting(input, example.getKey());
+      assertEquals(input, restored.arguments());
+      assertEquals(java.util.Map.of(), restored.relocations());
+    }
+  }
+
+  @Test
   void checksNestedRequiredFieldsAfterUnwrappingStringifiedCaptures() throws Exception {
     String capture = "{\"operations\":[{\"nodeId\":\"script-1\"}]}";
     for (String value : java.util.List.of(capture, mapper.writeValueAsString(capture))) {

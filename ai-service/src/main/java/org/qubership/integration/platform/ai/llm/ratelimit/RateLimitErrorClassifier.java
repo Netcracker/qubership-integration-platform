@@ -64,6 +64,12 @@ public final class RateLimitErrorClassifier {
     Map<String, Object> evidence = new LinkedHashMap<>();
     evidence.put("type", error.getClass().getName());
     evidence.put("message", String.valueOf(error.getMessage()));
+    for (Throwable current = error; current != null; current = current.getCause()) {
+      if (current instanceof HttpException http) {
+        evidence.put("httpStatus", http.statusCode());
+        break;
+      }
+    }
     if (!isRateLimit(error)) return evidence;
     Instant now = clock.instant();
     Map<String, Object> timing = new LinkedHashMap<>();

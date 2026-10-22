@@ -301,6 +301,8 @@ public class RequirementCaptureTools {
           "CONTINUE refused. No requirement draft is saved. Call captureRequirementDraft with the"
               + " known flow. Do not tell the user the draft is ready.");
     }
+    var consistency = RequirementFailureConsistency.issues(draft);
+    if (!consistency.isEmpty()) return Optional.of(consistency.getFirst().message());
     List<RequirementCaptureProjection.PendingWork> pending = draft.authoredDraft() == null
         ? List.of()
         : RequirementCaptureProjection.pending(
@@ -345,7 +347,7 @@ public class RequirementCaptureTools {
     issues.addAll(validatePolicyApplicability(input, issues));
     var repair = ProductCapabilityCaptureContext.binding(conversationId)
         .filter(binding -> binding.mode() == ProductCapabilityCaptureContext.Mode.DISCOVERY
-            && binding.approvedDraft() != null && binding.requirementRepairPaths().isEmpty());
+            && binding.approvedDraft() != null && store.activeRequirementRepairPaths(conversationId).isEmpty());
     var scopeIssues = repair.map(binding -> org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
         .mappingRepairIssues(binding.mappingRepairPaths(), binding.missingMappingTargets(),
             binding.approvedDraft().authoredDraft(), input)).orElse(List.of());
@@ -357,6 +359,8 @@ public class RequirementCaptureTools {
     }
     List<CatalogBindingHint> bindings =
         legacyBindingAdapter.canonicalBindings(input, previous, conversationId);
+    var consistency = RequirementFailureConsistency.issues(input, bindings);
+    if (!consistency.isEmpty()) return reject(conversationId, input, previous, consistency);
     RequirementDraft draft = RequirementCaptureProjection.toDraft(
         input, previous, bindings,
         legacyBindingAdapter.sourceSkillVersion(conversationId),

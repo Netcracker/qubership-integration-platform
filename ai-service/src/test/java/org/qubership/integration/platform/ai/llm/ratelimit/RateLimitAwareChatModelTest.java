@@ -157,6 +157,20 @@ class RateLimitAwareChatModelTest {
   }
 
   @Test
+  void exhaustedTransientAttemptsPreserveTheProviderExceptionAndStopAtTheExistingLimit() {
+    ChatModel delegate = mock(ChatModel.class);
+    var failure = new InternalServerException("Provider gateway failed", new HttpException(502, "Upstream failed"));
+    when(delegate.chat(any(ChatRequest.class))).thenThrow(failure);
+    var sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, new TransientErrorClassifier(), policy,
+        TransientWaitPolicy.fromCsv("2,5,10"), sleeper, false, 3, true, 3, events::add);
+
+    assertSame(failure, assertThrows(InternalServerException.class, () -> model.chat(request)));
+    org.mockito.Mockito.verify(delegate, org.mockito.Mockito.times(3)).chat(request);
+    assertEquals(List.of(2, 5), sleeper.sleptSeconds);
+  }
+
+  @Test
   void transientDisabledDoesNotRetryGatewayError() {
     ChatModel delegate = mock(ChatModel.class);
     Throwable transientError =

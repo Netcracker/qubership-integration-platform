@@ -1978,6 +1978,141 @@ class ProductPipelineStageExecutorTest {
     assertEquals(25L, PipelineGates.recoveryRetryDelayMsOf(wait.prompt()).orElseThrow());
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void nestedProviderGatewayFailureUsesTheExistingSameRunRetryAllowance(boolean recovers) throws Exception {
+    ProductPipelineProfile production;
+    try (var input = getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
+      production = ProductPipelineProfileParser.parse(input);
+    }
+    var stage = production.stages().stream().filter(candidate -> "design-input".equals(candidate.stageId()))
+        .findFirst().orElseThrow();
+    var profile = retryProfile(stage.stageId(), stage.capabilityId(), stage.retry());
+    var calls = new AtomicInteger();
+    var failing = capability(stage.capabilityId(), context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      assertEquals(RUN_ID, context.runId());
+      assertEquals("provided input", context.attributeAsString("userText"));
+      if (calls.incrementAndGet() == 1 || !recovers) {
+        return Multi.createFrom().failure(providerGatewayFailure());
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Recovered.")));
+    });
+    var runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+
+    var doc = requireRun();
+    assertEquals(recovers ? 2 : stage.retry().maxTechnicalRetries() + 1, calls.get());
+    assertEquals(recovers ? RunStatus.PLAN_APPROVED : RunStatus.WAITING_FOR_INPUT, doc.run().status());
+    var failures = doc.attempts().stream().filter(attempt -> attempt.outcome() == StageStatus.FAILED).toList();
+    assertEquals(recovers ? 1 : stage.retry().maxTechnicalRetries() + 1, failures.size());
+    assertTrue(failures.stream().allMatch(attempt -> "Provider gateway failed".equals(attempt.failureEvidence())));
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
+    if (!recovers) {
+      assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL,
+          PipelineGates.gateOf(doc.transitions().getLast().reason()).orElseThrow());
+    }
+  }
+
+  @Test
+  void nestedProviderGatewayFailureCannotResetTheModelRequestBudget() {
+    var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
+        org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    org.mockito.Mockito.when(config.llm().maxRequestsPerRun()).thenReturn(1);
+    var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
+    var calls = new AtomicInteger();
+    var failing = capability("provider-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      budget.reserve(context.runId(), 10, 10);
+      calls.incrementAndGet();
+      return Multi.createFrom().failure(providerGatewayFailure());
+    });
+    var profile = retryProfile("work", "provider-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, failing);
+    runtime.support().withLlmBudget(budget);
+    startAndRecordInput(runtime, profile);
+
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(1, calls.get());
+    assertEquals(1, budget.state(RUN_ID).requests());
+    assertEquals(20, budget.state(RUN_ID).tokens());
+    assertEquals(0, budget.state(RUN_ID).grants());
+    assertNotNull(budget.state(RUN_ID).refusal());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
+  }
+
+  private static Throwable providerGatewayFailure() {
+    return new dev.langchain4j.exception.InternalServerException("Provider gateway failed",
+        new dev.langchain4j.exception.HttpException(502, "{\"error\":{\"code\":502,\"message\":\"upstream failed\"}}"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {400, 401, 403, 404, 422, 500})
+  void nonTransientProviderStatusDoesNotEnterTheAutomaticRetryLoop(int status) {
+    var calls = new AtomicInteger();
+    var failing = capability("provider-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      calls.incrementAndGet();
+      return Multi.createFrom().failure(new dev.langchain4j.exception.InternalServerException("Provider rejected request",
+          new dev.langchain4j.exception.HttpException(status, "{\"error\":{\"code\":502}}")));
+    });
+    var profile = retryProfile("work", "provider-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(1, calls.get());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(PipelineGates.RECOVERY_INTERNAL,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"contract", "http", "tls", "tls-provider"})
+  void quotedConnectionTextCannotTurnNonTransientStageFailuresIntoRetries(String kind) {
+    Throwable failure = switch (kind) {
+      case "contract" -> new IllegalStateException("The contract quotes connection reset.");
+      case "http" -> new dev.langchain4j.exception.InternalServerException("Provider rejected request",
+          new dev.langchain4j.exception.HttpException(400, "connection reset"));
+      case "tls" -> new SSLHandshakeException("connection reset");
+      case "tls-provider" -> new dev.langchain4j.exception.InternalServerException("connection reset",
+          new SSLHandshakeException("PKIX path building failed"));
+      default -> throw new AssertionError(kind);
+    };
+    var calls = new AtomicInteger();
+    var failing = capability("provider-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      calls.incrementAndGet();
+      return Multi.createFrom().failure(failure);
+    });
+    var profile = retryProfile("work", "provider-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(1, calls.get());
+    assertEquals(kind.startsWith("tls") ? PipelineGates.RECOVERY_ENVIRONMENT : PipelineGates.RECOVERY_INTERNAL,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
+  }
+
   @Test
   void aValidationOutcomeRepairsItsProducerWithoutOwnerGuessingOrTechnicalRetry() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.owner("Invalid plan.", "work");
