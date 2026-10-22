@@ -22,7 +22,7 @@ const REPORT: JsonReport = {
         {
           title: "the chain answers on its route",
           file: "runtime/routing.spec.ts",
-          tags: ["engine", "tier1"],
+          tags: ["engine", "slow"],
           tests: [
             {
               status: "expected",
@@ -35,7 +35,7 @@ const REPORT: JsonReport = {
         {
           title: "the trace names both branches",
           file: "runtime/routing.spec.ts",
-          tags: ["engine", "sessions", "tier1"],
+          tags: ["engine", "sessions"],
           tests: [
             {
               status: "unexpected",
@@ -62,7 +62,7 @@ const REPORT: JsonReport = {
             {
               title: "a spec nobody tagged",
               file: "api/orphan.spec.ts",
-              tags: ["tier2"],
+              tags: ["slow"],
               tests: [{ status: "expected", projectName: "api", results: [{ status: "passed" }] }],
             },
           ],

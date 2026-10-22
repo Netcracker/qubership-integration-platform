@@ -50,9 +50,12 @@ export type Status = "covered" | "not-covered";
 export type Kind = "axis" | "element" | "behaviour";
 
 /**
- * Why a `not-covered` row stays out of the coverage denominator. `out-of-scope` means no case on
- * this stack can prove the row, or a case would prove nothing about the platform, as with the Kafka
- * (de)serializer values; `shared` means another family's case proves the code the row runs.
+ * Why a `not-covered` row stays out of the coverage denominator. `out-of-scope` holds four groups:
+ * JMS, which has no broker in `infrastructure/`; the SASL mechanisms no Kafka broker implements; the
+ * elements and values the catalog does not offer; and the Kafka (de)serializer values, whose cases
+ * would prove nothing about the platform. Any other row no case proves, such as a mail element with
+ * no mail sink or a value a case cannot tell from its default, stays in scope with its reason.
+ * `shared` means another family's case proves the code the row runs.
  */
 export type Scope = "out-of-scope" | "shared";
 
@@ -159,7 +162,7 @@ const R_ASYNC_API_TRIGGER_SYSTEM_TYPE =
   "EndpointHelperSource.integrationEndpoint, which kafka and amqp both resolve through, needs only " +
   "an activated environment with a non-blank address and never reads systemType, so INTERNAL and " +
   "IMPLEMENTED behave exactly like the EXTERNAL case; no case covers the other two values";
-// The `script` element has no axis row: it is covered at tier 1 by a fixture chain, and none of the
+// The `script` element has no axis row: it is covered by its corpus fixture chain, and none of the
 // six axes the script specs sweep is a discriminator the schemas declare, so the extractor produces
 // no row for any of them. What those specs settled is written in their headers:
 // `specs/api/script-source.spec.ts` and
@@ -274,16 +277,17 @@ const R_SWIMLANE_COLOR =
 //   `otherwise`, `main-split-element-2` and `split-element-2` (`specs/runtime/routing.spec.ts` and
 //   `control-flow.spec.ts`); `try-2`, `catch-2`, `finally-2` and `on-fallback-2`
 //   (`control-flow.spec.ts`); `async-split-element-2` (`plain-elements.spec.ts`).
-// - A case of its own: `header-modification`, `mapper-2`, `reuse`, `reuse-reference`,
-//   `chain-trigger-2` and `chain-call-2` at tier 1; `file-read`, `file-write`, `xslt` and
+// - A case of its own: `header-modification` in `specs/runtime/http-echo.spec.ts`, `mapper-2` in
+//   `transformation.spec.ts`, `reuse`, `reuse-reference`, `chain-trigger-2` and `chain-call-2` in
+//   `composition.spec.ts`; `file-read`, `file-write`, `xslt` and
 //   `split-async-2` in `specs/runtime/plain-elements.spec.ts`; `checkpoint` in
 //   `specs/runtime/checkpoint-retry.spec.ts`, and its `httpMethodRestrict` on the compile in
 //   `specs/api/checkpoint-snapshot.spec.ts`.
 // - Not offered by the catalog, so no chain can place it: `container`, `scs-sender`, `sds-trigger`.
 // A deprecated element is superseded by the current member of its pair, which carries the case. The
 // deprecated flag is the library's own (`GET /v1/library`), and `SUPERSEDED` below is read against
-// it in `specs/api/element-library.spec.ts`. `choice`, `when` and `otherwise` stay covered: tier 1
-// runs them, and a row holds what a passing test proves.
+// it in `specs/api/element-library.spec.ts`. `choice`, `when` and `otherwise` stay covered:
+// `specs/runtime/routing.spec.ts` runs them, and a row holds what a passing test proves.
 // `quartz-scheduler` is covered in `specs/runtime/scheduler.spec.ts`, and `script` by its fixture chain.
 
 /**
@@ -890,11 +894,8 @@ export function validateRegistry(entries: readonly RegistryEntry[]): string[] {
     if (entry.kind === "axis" && (entry.axisPath === undefined || entry.value === undefined)) {
       problems.push(`${key}: an axis row needs both an axisPath and a value`);
     }
-    if (entry.kind === "element" && (entry.axisPath !== undefined || entry.value !== undefined)) {
-      problems.push(`${key}: an element row carries an axisPath or a value`);
-    }
-    if (entry.kind === "behaviour" && (entry.axisPath !== undefined || entry.value !== undefined)) {
-      problems.push(`${key}: a behaviour row carries an axisPath or a value`);
+    if (entry.kind !== "axis" && (entry.axisPath !== undefined || entry.value !== undefined)) {
+      problems.push(`${key}: ${entry.kind === "element" ? "an element" : "a behaviour"} row carries an axisPath or a value`);
     }
     if (entry.kind === "behaviour" && !entry.behaviour?.trim()) {
       problems.push(`${key}: a behaviour row needs a behaviour label`);
@@ -1065,6 +1066,20 @@ export const COMPONENT_TAGS = [
   "harness",
 ] as const;
 
+/** Every tag a case may carry, bare like `COMPONENT_TAGS`: the component tags, then the rest. */
+export const CASE_TAGS: readonly string[] = [
+  ...COMPONENT_TAGS,
+  "slow",
+  "classic-only",
+  "kafka",
+  "rabbitmq",
+  "pubsub",
+  "sftp",
+  "v1",
+  "v2",
+  "v3",
+];
+
 export interface Declaration {
   key: string;
   test: string;
@@ -1087,14 +1102,16 @@ function proves(test: JsonTest): boolean {
 }
 
 /**
- * Every spec in the report that carries no component tag.
+ * Every spec in the report that carries no component tag, or a tag outside `CASE_TAGS`.
  *
  * A tag is what makes `--grep @engine` and the case catalog possible, and a spec without one is
  * invisible to both — silently, since nothing else reads tags. So an untagged spec fails the
- * reconciliation the same way an unproven `covered` row does.
+ * reconciliation the same way an unproven `covered` row does. The title lint checks the tags a spec
+ * spells as literals; this reads the computed ones too.
  */
 export function untaggedSpecs(report: JsonReport): string[] {
   const components = new Set<string>(COMPONENT_TAGS);
+  const known = new Set(CASE_TAGS);
   const problems: string[] = [];
 
   for (const spec of eachSpec(report)) {
@@ -1102,6 +1119,9 @@ export function untaggedSpecs(report: JsonReport): string[] {
     const where = `${spec.file ?? "?"} › ${spec.title ?? "?"}`;
     if (!tags.some((tag) => components.has(tag))) {
       problems.push(`${where}: no component tag (one of ${[...components].map((t) => `@${t}`).join(", ")})`);
+    }
+    for (const tag of tags.filter((each) => !known.has(each))) {
+      problems.push(`${where}: the tag @${tag} is not in the closed list`);
     }
   }
   return problems;

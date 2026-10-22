@@ -5,15 +5,7 @@
  * The parser sees only code, so a `test(` or a tag quoted in a string or a comment is not a case.
  */
 import ts from "typescript";
-
-/** How a title is written: a string literal, a template string, or any other expression. */
-export type TitleKind = "literal" | "template" | "identifier";
-
-export interface Title {
-  kind: TitleKind;
-  /** The literal text; the literal parts of a template; the source text of any other expression. */
-  text: string;
-}
+import { CASE_TAGS } from "../registry/elements.js";
 
 export interface Annotation {
   type?: string;
@@ -22,13 +14,11 @@ export interface Annotation {
 }
 
 export interface Declaration {
-  /** Absent on an anonymous describe. */
-  title?: Title;
+  /** The literal text, or the literal parts of a template; absent on an anonymous describe and on a title held in a variable. */
+  title?: string;
   line: number;
-  /** The string-literal tags in the options object. */
+  /** The string-literal tags in the options object. A computed tag is left out. */
   tags: string[];
-  /** Whether a tag, or the options object itself, is an expression this parser cannot evaluate. */
-  computedTags: boolean;
   annotations: Annotation[];
 }
 
@@ -46,28 +36,9 @@ export interface ParsedSpec {
   bareFails: number[];
 }
 
-/** Every tag a spec may spell as a literal. */
-export const TITLE_TAGS: readonly string[] = [
-  "@catalog",
-  "@engine",
-  "@sessions",
-  "@testing-service",
-  "@ui",
-  "@infra",
-  "@schema",
-  "@harness",
-  "@slow",
-  "@classic-only",
-  "@kafka",
-  "@rabbitmq",
-  "@pubsub",
-  "@sftp",
-  "@v1",
-  "@v2",
-  "@v3",
-];
+const TITLE_TAGS = CASE_TAGS.map((each) => `@${each}`);
 
-export const MAX_TITLE_LENGTH = 60;
+const MAX_TITLE_LENGTH = 60;
 
 /** Phrases that carry a reason, which belongs in a comment above the case. */
 const REASON_PHRASES = /\b(because|which is why|rather than|so that)\b/i;
@@ -104,12 +75,9 @@ function callKind(call: ts.CallExpression): CallKind {
   return args.length >= 2 && isFunction(args[args.length - 1]) && !isFunction(args[0]) ? "case" : undefined;
 }
 
-function readTitle(node: ts.Expression, source: ts.SourceFile): Title {
-  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return { kind: "literal", text: node.text };
-  if (ts.isTemplateExpression(node)) {
-    return { kind: "template", text: node.head.text + node.templateSpans.map((span) => span.literal.text).join("") };
-  }
-  return { kind: "identifier", text: node.getText(source) };
+function readTitle(node: ts.Expression): string | undefined {
+  if (ts.isTemplateExpression(node)) return node.head.text + node.templateSpans.map((span) => span.literal.text).join("");
+  return literalText(node);
 }
 
 function literalText(node: ts.Expression): string | undefined {
@@ -138,20 +106,17 @@ function readAnnotation(node: ts.Expression, source: ts.SourceFile): Annotation 
 function declaration(call: ts.CallExpression, source: ts.SourceFile): Declaration {
   const args = call.arguments;
   const line = source.getLineAndCharacterOfPosition(call.getStart(source)).line + 1;
-  const found: Declaration = { line, tags: [], computedTags: false, annotations: [] };
-  if (args.length > 0 && !isFunction(args[0])) found.title = readTitle(args[0], source);
+  const found: Declaration = { line, tags: [], annotations: [] };
+  const title = args.length > 0 && !isFunction(args[0]) ? readTitle(args[0]) : undefined;
+  if (title !== undefined) found.title = title;
   if (args.length < 3) return found;
 
   const options = args[1];
-  if (!ts.isObjectLiteralExpression(options)) {
-    found.computedTags = true;
-    return found;
-  }
+  if (!ts.isObjectLiteralExpression(options)) return found;
   const tag = property(options, "tag");
   for (const each of tag && ts.isArrayLiteralExpression(tag) ? tag.elements : tag ? [tag] : []) {
     const text = literalText(each);
-    if (text === undefined) found.computedTags = true;
-    else found.tags.push(text);
+    if (text !== undefined) found.tags.push(text);
   }
   const annotation = property(options, "annotation");
   for (const each of annotation && ts.isArrayLiteralExpression(annotation) ? annotation.elements : annotation ? [annotation] : []) {
@@ -208,25 +173,25 @@ export function titleProblems(text: string, file: string): string[] {
   for (const each of spec.describes.slice(1)) problems.push({ line: each.line, rule: "a second top-level test.describe" });
   for (const line of spec.bareFails) problems.push({ line, rule: "a test.fail() with no arguments marks every case in its scope" });
 
-  const cases = new Set<Declaration>(spec.cases);
-  const collect = (describe: Describe) => {
-    describe.cases.forEach((each) => cases.add(each));
-    describe.describes.forEach(collect);
-  };
-  spec.describes.forEach(collect);
-
-  for (const each of declarations(spec)) {
+  const check = (each: Declaration, isCase: boolean) => {
     for (const tag of each.tags) {
       if (!TITLE_TAGS.includes(tag)) problems.push({ line: each.line, rule: `the tag ${tag} is not in the closed list` });
     }
     const title = each.title;
-    if (!cases.has(each) || !title || title.kind === "identifier") continue;
-    if (title.text.length > MAX_TITLE_LENGTH) {
-      problems.push({ line: each.line, rule: `a title of ${title.text.length} characters, over ${MAX_TITLE_LENGTH}` });
+    if (!isCase || title === undefined) return;
+    if (title.length > MAX_TITLE_LENGTH) {
+      problems.push({ line: each.line, rule: `a title of ${title.length} characters, over ${MAX_TITLE_LENGTH}` });
     }
-    const phrase = REASON_PHRASES.exec(title.text);
+    const phrase = REASON_PHRASES.exec(title);
     if (phrase) problems.push({ line: each.line, rule: `"${phrase[1]}" in a title: the reason goes in a comment above the case` });
-  }
+  };
+  const visit = (describe: Describe) => {
+    check(describe, false);
+    describe.cases.forEach((each) => check(each, true));
+    describe.describes.forEach(visit);
+  };
+  spec.cases.forEach((each) => check(each, true));
+  spec.describes.forEach(visit);
 
   return problems.sort((a, b) => a.line - b.line).map((each) => `${file}:${each.line}: ${each.rule}`);
 }

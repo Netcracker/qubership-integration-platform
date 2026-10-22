@@ -388,6 +388,14 @@ test.describe("coverage registry", { tag: ["@harness"] }, () => {
       expect(untaggedSpecs(taggedReportOf(["harness"], "expected"))).toEqual([]);
     });
 
+    test("a tag outside the closed list fails", () => {
+      // A computed tag escapes the title lint, so the report is where its value is read.
+      expect(untaggedSpecs(taggedReportOf(["engine", "tier1"], "expected"))).toEqual([
+        "specs/runtime/condition.spec.ts › condition › a spec: the tag @tier1 is not in the closed list",
+      ]);
+      expect(untaggedSpecs(taggedReportOf(["engine", "kafka", "v3"], "expected"))).toEqual([]);
+    });
+
     test("an untagged spec also fails the row it declares", () => {
       expect(reconcile(taggedReportOf([], "expected", "condition"), [coveredRow])).toEqual([
         "specs/runtime/condition.spec.ts › condition › a spec: no component tag (one of @catalog, @engine, @sessions, @testing-service, @ui, @infra, @schema, @harness)",

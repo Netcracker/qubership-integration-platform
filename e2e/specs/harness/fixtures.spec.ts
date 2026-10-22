@@ -21,6 +21,7 @@ import {
   assembleFixture,
   assertSubstituted,
   chainFixtureNames,
+  corpusFixtureNames,
   elementsOf,
   readFixtureDocument,
   readServiceFixture,
@@ -28,7 +29,7 @@ import {
   substitute,
   type FixtureElement as ChainElement,
 } from "../../fixtures/templating.js";
-import { SERVICE_IMPORTS } from "../../support/corpus.js";
+import { SERVICE_IMPORTS, UNRECORDED_FIXTURES, seedLogging } from "../../support/corpus.js";
 import { validateDocument } from "../../fixtures/validate.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
@@ -103,6 +104,16 @@ test.describe("fixtures", { tag: ["@harness"] }, () => {
       expect(entries).toEqual(expected);
     });
   }
+
+  test("every unrecorded fixture is seeded with session logging off", () => {
+    // A name the seed does not read leaves the renamed fixture at DEBUG, the setup that ran the
+    // chart's OpenSearch out of memory.
+    const seeded = corpusFixtureNames();
+    for (const name of UNRECORDED_FIXTURES) {
+      expect(seeded, `${name} names no fixture the seed reads`).toContain(name);
+      expect(seedLogging(name).sessionsLoggingLevel, name).toBe("OFF");
+    }
+  });
 
   test("no two scripts in one fixtures/script/ chain share text", () => {
     // The rule `registry/elements.ts` states, enforced where it costs nothing. The engine keys a

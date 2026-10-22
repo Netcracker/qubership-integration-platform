@@ -18,7 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { HARNESS_PROJECTS, countsByProject, eachTest, fixedPinIn, readIfPresent, shortDate, stripAnsi, utcDate } from "./run-report.mjs";
+import { eachTest, fixedPinIn, harnessSplit, readIfPresent, shortDate, stripAnsi, utcDate } from "./run-report.mjs";
 import { fixedSince, historyOf, readHistory, testKey } from "./run-history.mjs";
 
 export const HTML_FILE = "email.html";
@@ -205,16 +205,16 @@ export function emailOf({ report, lastRun, stack, history = [], env = {} }) {
 
   const errors = (report?.errors ?? []).map((each) => excerpt(each.message, 12));
   const stats = report?.stats;
-  const split = report && countsByProject(report, HARNESS_PROJECTS);
+  const split = report && harnessSplit(report);
   /** @type {Counts | undefined} */
   const counts = split && {
-    passed: split.counted.expected,
-    failed: split.counted.unexpected - pins.length,
+    passed: split.product.expected,
+    failed: split.product.unexpected - pins.length,
     pins: pins.length,
-    skipped: split.counted.skipped,
-    total: split.counted.expected + split.counted.unexpected + split.counted.skipped,
+    skipped: split.product.skipped,
+    total: split.product.expected + split.product.unexpected + split.product.skipped,
   };
-  const harness = split && split.excluded.expected + split.excluded.unexpected > 0 ? { passed: split.excluded.expected, failed: split.excluded.unexpected } : undefined;
+  const harness = split?.harness;
   const failedStep = failed.length === 0 && pins.length === 0 && errors.length === 0 ? env.FAILED_STEP || undefined : undefined;
 
   /** @type {[Tone, string]} */

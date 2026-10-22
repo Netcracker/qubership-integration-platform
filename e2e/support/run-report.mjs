@@ -47,37 +47,33 @@ export function eachTest(report, visit) {
   for (const suite of report.suites) walk(suite, []);
 }
 
-/** The projects that test the harness rather than the product, counted apart from the run's own tests. */
-export const HARNESS_PROJECTS = ["harness"];
+/** The project that tests the harness rather than the product, counted apart from the run's own tests. */
+const HARNESS_PROJECT = "harness";
 
 /**
- * @typedef {{ expected: number, unexpected: number, flaky: number, skipped: number }} OutcomeCounts
+ * @typedef {{ expected: number, unexpected: number, skipped: number }} ProductCounts
+ * @typedef {{ passed: number, failed: number }} HarnessCounts
  */
 
 /**
- * The run's counts with the tests of `exclude` taken out, and the counts of those tests alone.
- * `report.stats` tallies every project and cannot be filtered by one, so the excluded tests are
- * counted off the report and subtracted.
+ * The run's counts without the `harness` project, and that project's own, undefined when it ran no
+ * test. `report.stats` tallies every project and cannot be filtered by one, so the harness tests
+ * are counted off the report and subtracted.
  *
  * @param {Report} report
- * @param {string[]} exclude project names
- * @returns {{ counted: OutcomeCounts, excluded: OutcomeCounts }}
+ * @returns {{ product: ProductCounts, harness: HarnessCounts | undefined }}
  */
-export function countsByProject(report, exclude) {
-  /** @type {OutcomeCounts} */
-  const excluded = { expected: 0, unexpected: 0, flaky: 0, skipped: 0 };
+export function harnessSplit(report) {
+  /** @type {ProductCounts} */
+  const own = { expected: 0, unexpected: 0, skipped: 0 };
   eachTest(report, (_spec, test) => {
-    if (exclude.includes(test.projectName)) excluded[/** @type {keyof OutcomeCounts} */ (test.status)]++;
+    if (test.projectName !== HARNESS_PROJECT) return;
+    if (test.status === "expected" || test.status === "unexpected" || test.status === "skipped") own[test.status]++;
   });
-  const { expected, unexpected, flaky, skipped } = report.stats;
+  const { expected, unexpected, skipped } = report.stats;
   return {
-    counted: {
-      expected: expected - excluded.expected,
-      unexpected: unexpected - excluded.unexpected,
-      flaky: flaky - excluded.flaky,
-      skipped: skipped - excluded.skipped,
-    },
-    excluded,
+    product: { expected: expected - own.expected, unexpected: unexpected - own.unexpected, skipped: skipped - own.skipped },
+    harness: own.expected + own.unexpected > 0 ? { passed: own.expected, failed: own.unexpected } : undefined,
   };
 }
 

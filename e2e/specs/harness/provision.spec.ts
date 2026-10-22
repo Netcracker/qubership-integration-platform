@@ -47,6 +47,12 @@ const NOTHING: ProvisionReport = {
 };
 
 test.describe("provisioning", { tag: ["@harness"] }, () => {
+  test("E2E_PROVISION defaults to auto and honors never", () => {
+    expect(withProvisionEnv(undefined, provisionMode)).toBe("auto");
+    expect(withProvisionEnv("auto", provisionMode)).toBe("auto");
+    expect(withProvisionEnv("never", provisionMode)).toBe("never");
+  });
+
   test("an unknown E2E_PROVISION value is rejected", () => {
     // The dangerous reading is the permissive one: a typo that falls through to `auto` rebuilds and
     // recreates containers on a stack the developer asked the suite to leave alone.

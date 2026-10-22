@@ -26,6 +26,7 @@ const problemsOf = (source: string) => titleProblems(source, "a.spec.ts");
 
 test.describe("title rules", { tag: ["@harness"] }, () => {
   test("every spec keeps them", () => {
+    expect(SPEC_FILES, "the lint does not read a known spec file").toEqual(expect.arrayContaining(["harness/title-rules.spec.ts", "api/chains.spec.ts"]));
     expect(SPEC_FILES.flatMap(problemsIn)).toEqual([]);
   });
 
@@ -114,7 +115,7 @@ test("a", async () => {});`);
     test("reads test.fail(title, body) as a case", () => {
       const spec = parseCases(inDescribe(`test.fail("drops the request id", { tag: ["@kafka"] }, async () => {});`));
       expect(spec.describes[0].cases).toEqual([
-        { title: { kind: "literal", text: "drops the request id" }, line: 2, tags: ["@kafka"], computedTags: false, annotations: [] },
+        { title: "drops the request id", line: 2, tags: ["@kafka"], annotations: [] },
       ]);
       expect(spec.bareFails).toEqual([]);
     });
@@ -134,7 +135,7 @@ test.describe.serial("subject", () => {
       expect(spec.cases).toEqual([]);
       expect(spec.describes).toHaveLength(1);
       expect(spec.describes[0].describes).toEqual([]);
-      expect(spec.describes[0].cases.map((each) => each.title)).toEqual([{ kind: "literal", text: "a" }]);
+      expect(spec.describes[0].cases.map((each) => each.title)).toEqual(["a"]);
     });
 
     test("puts the cases of a function inside a describe under it", () => {
@@ -161,10 +162,9 @@ test.describe.serial("subject", () => {
 `);
       expect(spec.describes[0].cases).toEqual([
         {
-          title: { kind: "literal", text: "a" },
+          title: "a",
           line: 2,
           tags: ["@classic-only"],
-          computedTags: false,
           annotations: [
             { type: "classic-only", description: "a reason" },
             { type: "issue", description: "REASON" },
