@@ -118,6 +118,10 @@ class RequirementDiscoveryCapabilityTest {
   void aPersistedPolicyQuestionSurvivesAFabricatedResponseButNotATechnicalDefect(boolean technical) throws Exception {
     var h = captureHarness(null);
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var schemas = h.tools().getClass().getDeclaredField("elementSchemas");
+    schemas.setAccessible(true);
+    schemas.set(h.tools(), org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(mapper));
     String chat = "policy-discovery";
     var policy = new org.qubership.integration.platform.ai.plan.RequirementPolicyConflict(
         org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY,
@@ -129,7 +133,14 @@ class RequirementDiscoveryCapabilityTest {
         List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("access", List.of("entry"),
             org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.CONSTRAINT,
             org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
-            "Request NONE; RBAC is the recommendation.", null, policy)),
+            "Request NONE; RBAC is the recommendation.", null, policy),
+            new FactInput("external-route", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+                "Expose the HTTP endpoint externally.", null, null,
+                new org.qubership.integration.platform.ai.plan.RequirementElementIntent("entry", "http-trigger",
+                    org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.ANCHOR,
+                    "entry", null, null, null,
+                    List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("externalRoute", "true")),
+                    List.of()))),
         List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput("entry", "http-trigger",
             org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode.CUSTOM,
             org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod.GET, "/policy", null, null, null)),
