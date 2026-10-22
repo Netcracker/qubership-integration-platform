@@ -485,9 +485,19 @@ public final class RequirementCaptureEditor {
     for (int i = 0; i < replacements.size(); i++) {
       T value = replacements.get(i);
       String id = value == null ? null : identity.apply(value);
+      boolean alreadyTouched = touched.contains(id);
       if (id == null || !touched.add(id) || (!upsert && !values.containsKey(id))) {
+        String reason = id == null ? "the identity is null" : alreadyTouched
+            ? "this identity was already added, updated, or removed in this edit"
+            : "this identity is absent from the current draft";
         add(issues, "CONFLICTING_EDIT", "/changes/" + operationField(family, "update") + "/" + i, id,
-            "Update an existing " + family + " identity once.");
+            "Rejected update identity=" + id + " for " + family + ": " + reason
+                + ". Current " + family + " identities at this edit step: " + values.keySet()
+                + ". Read the current draft and update an existing identity once."
+                + ("questions".equals(family) && id != null && !alreadyTouched
+                    ? " Use addQuestions only if this question is still required."
+                        + " Keep unresolved choices open and preserve the accepted flow and facts."
+                    : ""));
       } else {
         values.put(id, value);
       }

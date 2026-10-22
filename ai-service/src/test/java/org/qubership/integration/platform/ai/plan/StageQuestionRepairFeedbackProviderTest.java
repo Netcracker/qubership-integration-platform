@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.ToolSession;
@@ -77,6 +78,115 @@ class StageQuestionRepairFeedbackProviderTest {
   @Inject CompilationSessions sessions;
   @Inject AppConfig config;
   @InjectMock RateLimitStreamingChatModel provider;
+
+  @Test
+  void deletedQuestionUpdateReportsItsAbsentIdentityBeforeTheRequiredQuestionIsAddedAgain() throws Exception {
+    String chat = "deleted-question-feedback-" + UUID.randomUUID();
+    String source = SOURCE + " Add one required HTTP header, but I have not chosen its name. Ask for that name.";
+    String headerQuestion = "What is the required HTTP header name?";
+    var input = conversations.archive().beginInput(chat, source, null);
+    conversations.archive().resolveInput(chat, input, source);
+    drafts.beginTurn(chat, source);
+    var endpoint = new FactInput("endpoint", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Create the external POST /question-feedback endpoint with accessControlType=NONE.", null, null,
+        new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+            "entry", null, null, null, List.of(new PlanProperty("externalRoute", "true"),
+                new PlanProperty("accessControlType", "NONE")), List.of()));
+    var policy = new FactInput("access-policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "The company recommends RBAC for requested NONE; the author has not chosen an option.", null,
+        new RequirementPolicyConflict(CompilerSecurityValidator.EXTERNAL_RBAC_POLICY, "accessControlType", "NONE", "RBAC",
+            "security-choice", null), null);
+    var header = new FactInput("required-header", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Add one required HTTP header; the author has not chosen its name.");
+    var security = new QuestionInput("security-choice", List.of("entry"), QUESTION,
+        new AuthorQuestionEvidence("entry", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE,
+            List.of(input.turnId())));
+    var missingHeader = new QuestionInput("header-name", List.of("entry"), headerQuestion,
+        new AuthorQuestionEvidence("entry", "headerName", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(input.turnId())));
+    var initial = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+        "Caller", "POST /question-feedback", null, null, null)), List.of()), List.of(endpoint, policy, header),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+            "/question-feedback", null, null, null)), List.of(security, missingHeader), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = json.readTree(tools.captureRequirementDraft(initial));
+      assertTrue(captured.path("accepted").asBoolean(), captured.toString());
+      var removed = json.readTree(tools.updateRequirementDraft(questionChanges(List.of(), List.of(), List.of("header-name"))));
+      assertTrue(removed.path("accepted").asBoolean(), removed.toString());
+      assertEquals(json.valueToTree(List.of(security)), removed.path("draft").path("openQuestions"));
+    }
+    var currentReference = drafts.latestRevision(chat).orElseThrow().reference();
+    JsonNode sourceBefore = json.valueToTree(conversations.archive().read(chat));
+    var limitsBefore = limits();
+    var rejectedUpdate = questionChanges(List.of(), List.of(missingHeader), List.of());
+    var restored = new DraftInput(initial.flow(), initial.facts(), initial.capabilities(),
+        List.of(security, missingHeader), initial.settings());
+    var script = new ScriptedStreamingChatModel(
+        Turn.tool("update-deleted-question", request -> {
+          assertEquals(currentReference, drafts.latestRevision(chat).orElseThrow().reference());
+          assertEquals(List.of(security), drafts.get(chat).orElseThrow().authoredDraft().openQuestions());
+        }, "updateRequirementDraft", json.writeValueAsString(Map.of("changes", rejectedUpdate))),
+        Turn.tool("add-required-question", request -> {
+          String packet = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
+              .map(UserMessage::singleText).reduce("", (left, right) -> left + "\n" + right);
+          assertTrue(packet.contains(source), "The complete original author input must remain available.");
+          assertTrue(packet.contains(input.turnId()), "The saved author source ID must remain available.");
+          JsonNode result = lastTool(request);
+          assertFalse(result.path("accepted").asBoolean(), result.toString());
+          assertFalse(result.path("changed").asBoolean());
+          assertEquals(json.valueToTree(currentReference), result.path("revision"));
+          assertEquals(json.valueToTree(List.of(security)), result.path("draft").path("openQuestions"));
+          var issue = result.path("issues").get(0);
+          assertEquals("CONFLICTING_EDIT", issue.path("code").asText());
+          assertEquals("/changes/updateQuestions/0", issue.path("path").asText());
+          assertEquals("header-name", issue.path("entityId").asText());
+          String message = issue.path("message").asText();
+          assertTrue(message.startsWith("Rejected update identity=header-name for questions:"
+              + " this identity is absent from the current draft."), message);
+          assertTrue(message.contains("Current questions identities at this edit step: [security-choice]"), message);
+          assertTrue(message.contains("Use addQuestions only if this question is still required."), message);
+          assertTrue(message.contains("Keep unresolved choices open and preserve the accepted flow and facts."), message);
+          var immutable = artifacts.latest(sessions.current(chat).orElseThrow().compilationId(),
+              Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+          assertEquals(result.path("issues"), immutable.payload().path("issues"),
+              "The entire actual native finding must reach the first following provider request.");
+          assertEquals(json.valueToTree(rejectedUpdate), immutable.payload().path("arguments"));
+          assertEquals(json.valueToTree(currentReference), immutable.payload().path("acceptedDraftReference"));
+          assertEquals(input.generation(), immutable.payload().path("sourceGeneration").asText());
+          assertEquals(input.turnId(), immutable.payload().path("sourceTurnId").asText());
+          assertEquals(immutable, artifacts.get(immutable.compilationId(), immutable.reference()).orElseThrow());
+          assertEquals(currentReference, drafts.latestRevision(chat).orElseThrow().reference());
+          assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
+          assertEquals(initial.facts(), drafts.get(chat).orElseThrow().authoredDraft().facts());
+        }, "updateRequirementDraft", json.writeValueAsString(Map.of("changes",
+            questionChanges(List.of(missingHeader), List.of(), List.of())))),
+        Turn.tool("stay-for-author-choices", request -> {
+          var result = lastTool(request);
+          assertTrue(result.path("accepted").asBoolean(), result.toString());
+          assertTrue(result.path("changed").asBoolean());
+          assertEquals(json.valueToTree(restored), result.path("draft"));
+          assertTrue(drafts.validateAuthorQuestions(chat).isEmpty());
+        }, "finishRequirementDiscoveryTurn", "{\"directive\":\"STAY\"}"),
+        Turn.text("normal-questions", request -> {
+          assertTrue(lastTool(request, "finishRequirementDiscoveryTurn").path("accepted").asBoolean());
+        }, QUESTION + "\n" + headerQuestion));
+    var outcome = execute(chat, Map.of("userText", source), script);
+    assertEquals(4, script.requests().size(), "No additional provider dispatch is needed for the diagnostic.");
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(outcome.message()).orElseThrow());
+    assertEquals(RequirementDiscoveryDirective.STAY, drafts.turnDirective(chat));
+    assertEquals(restored, drafts.get(chat).orElseThrow().authoredDraft());
+    assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
+    assertEquals(source, drafts.currentAuthorText(chat).orElseThrow());
+    assertTrue(policyChoices.trusted(chat).isEmpty(), "Neither the refusal nor the correction selects a policy option.");
+    var offered = policyChoices.pending(chat, 42).orElseThrow();
+    assertEquals(policy, offered.fact());
+    assertEquals(security, offered.question());
+    assertEquals(drafts.latestRevision(chat).orElseThrow().reference(), offered.draftReference());
+    assertEquals(input.generation(), offered.sourceGeneration());
+    assertEquals(input.turnId(), offered.sourceTurnId());
+    assertEquals(limitsBefore, limits());
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
@@ -207,14 +317,23 @@ class StageQuestionRepairFeedbackProviderTest {
   }
 
   private JsonNode lastTool(ChatRequest request) {
+    return lastTool(request, "updateRequirementDraft");
+  }
+
+  private JsonNode lastTool(ChatRequest request, String expectedTool) {
     try {
       var result = request.messages().stream().filter(ToolExecutionResultMessage.class::isInstance)
           .map(ToolExecutionResultMessage.class::cast).reduce((left, right) -> right).orElseThrow();
-      assertEquals("updateRequirementDraft", result.toolName());
+      assertEquals(expectedTool, result.toolName());
       return json.readTree(result.text());
     } catch (Exception error) {
       throw new AssertionError(error);
     }
+  }
+
+  private DraftUpdate questionChanges(List<QuestionInput> additions, List<QuestionInput> replacements, List<String> removals) {
+    return new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), additions, replacements, removals, null);
   }
 
   private Map<String, Object> limits() {
