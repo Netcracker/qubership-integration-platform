@@ -342,6 +342,7 @@ public class RequirementCaptureTools {
         && input.capabilities() != null && input.capabilities().stream().allMatch(Objects::nonNull)
         ? targetResolver.resolve(input) : new RequirementTargetResolver.Resolution(Map.of(), List.of());
     issues.addAll(targetResolution.issues());
+    issues.addAll(validatePolicyApplicability(input, issues));
     var repair = ProductCapabilityCaptureContext.binding(conversationId)
         .filter(binding -> binding.mode() == ProductCapabilityCaptureContext.Mode.DISCOVERY
             && binding.approvedDraft() != null && binding.requirementRepairPaths().isEmpty());
@@ -383,6 +384,79 @@ public class RequirementCaptureTools {
       store.rememberRejectedCapture(conversationId, input, issues);
     }
     return view(previous, false, false, withPreservedFacts(issues, previous, store.rejectedCaptureFacts(conversationId)));
+  }
+
+  private List<Issue> validatePolicyApplicability(DraftInput input, List<Issue> nativeIssues) {
+    if (input.facts() == null) return List.of();
+    var findings = new ArrayList<Issue>();
+    for (int i = 0; i < input.facts().size(); i++) {
+      var fact = input.facts().get(i);
+      if (fact == null || fact.policyConflict() == null
+          || !org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY
+              .equals(fact.policyConflict().policyId())) continue;
+      String owner = fact.interactionIds() != null && fact.interactionIds().size() == 1
+          ? fact.interactionIds().getFirst() : null;
+      var anchors = input.facts().stream().filter(Objects::nonNull)
+          .filter(value -> owner != null && value.polarity() == RequirementCaptureInput.Polarity.POSITIVE
+              && value.interactionIds() != null && value.interactionIds().contains(owner))
+          .filter(value -> value.elementIntent() != null && owner != null
+              && owner.equals(value.elementIntent().ownerInteractionId())
+              && owner.equals(value.elementIntent().elementRef())
+              && "http-trigger".equals(value.elementIntent().elementType())
+              && value.elementIntent().placement() == RequirementElementIntent.Placement.ANCHOR).toList();
+      boolean checked = owner != null && input.flow() != null && input.flow().interactions() != null
+          && input.flow().interactions().stream().filter(Objects::nonNull)
+              .filter(value -> owner.equals(value.interactionId())).count() == 1
+          && input.flow().interactions().stream().filter(Objects::nonNull).anyMatch(value ->
+              owner.equals(value.interactionId())
+                  && value.direction() == org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND)
+          && input.capabilities() != null && input.capabilities().stream().filter(Objects::nonNull)
+              .filter(value -> owner.equals(value.interactionId())).count() == 1
+          && input.capabilities().stream().filter(Objects::nonNull).anyMatch(value ->
+              owner.equals(value.interactionId()) && "http-trigger".equals(value.capabilityKey()))
+          && elementSchemas != null && elementSchemas.hasElementSchema("http-trigger")
+          && elementSchemas.allowedPatchPropertyKeys("http-trigger").contains("externalRoute");
+      for (int dependency = 0; dependency < input.facts().size(); dependency++) {
+        var value = input.facts().get(dependency);
+        if (value == null || value.elementIntent() == null || owner == null
+            || !owner.equals(value.elementIntent().elementRef())) continue;
+        String stable = "/draft/facts/" + value.sourceFactId() + "/elementIntent";
+        String indexed = "/draft/facts/" + dependency + "/elementIntent";
+        checked &= nativeIssues.stream().noneMatch(issue -> issue.path().equals(stable)
+            || issue.path().startsWith(stable + "/") || issue.path().equals(indexed)
+            || issue.path().startsWith(indexed + "/"));
+      }
+      var observed = new ArrayList<String>();
+      var values = new java.util.HashSet<Boolean>();
+      for (var anchor : anchors) {
+        var properties = anchor.elementIntent().requestedProperties();
+        if (properties == null) { checked = false; continue; }
+        var flags = properties.stream().filter(Objects::nonNull)
+            .filter(property -> "externalRoute".equals(property.key())).toList();
+        if (flags.size() > 1) checked = false;
+        for (var flag : flags) {
+          observed.add(flag.value());
+          if (elementSchemas == null) { checked = false; continue; }
+          var coerced = elementSchemas.coercePatchPropertyValue("http-trigger", "externalRoute", flag.value());
+          if (!(coerced instanceof Boolean value)
+              || elementSchemas.validateCapturePropertyValue("http-trigger", "externalRoute",
+                  mapper.valueToTree(coerced)).isPresent()) {
+            checked = false;
+          } else values.add(value);
+        }
+      }
+      if (checked && values.equals(java.util.Set.of(true))) continue;
+      findings.add(new Issue("INVALID_POLICY_CONFLICT", "/draft/facts/" + fact.sourceFactId() + "/policyConflict",
+          fact.sourceFactId(), (checked && values.equals(java.util.Set.of(false))
+              ? "The external-route RBAC recommendation does not apply to this internal route. "
+              : "The external-route RBAC recommendation has no proven native applicability. ")
+              + "Its condition requires a valid positive http-trigger ANCHOR on the same owner with explicit externalRoute=true."
+              + " Observed externalRoute values: " + mapper.valueToTree(observed)
+              + ". Review the saved requirements and capture the actual exposure before offering this policy choice."
+              + " Correct only the invalid policy metadata and its question; preserve the fact text, targets, names,"
+              + " properties, literals, and every other requirement. Do not choose a policy answer automatically."));
+    }
+    return findings;
   }
 
   private List<Issue> validateElementEvidence(String conversationId, DraftInput input, RequirementDraft previous) {

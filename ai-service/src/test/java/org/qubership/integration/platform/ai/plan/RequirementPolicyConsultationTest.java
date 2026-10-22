@@ -108,6 +108,8 @@ class RequirementPolicyConsultationTest {
     RequirementDraftTool bindings = mock(RequirementDraftTool.class);
     when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
     RequirementCaptureTools tools = new RequirementCaptureTools(store, bindings, mapper);
+    tools.elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(mapper);
     String conversationId = "policy-consultation";
     begin(conversations, store, conversationId, "Create an external endpoint with NONE. Proceed without IDS.");
     try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
@@ -226,6 +228,10 @@ class RequirementPolicyConsultationTest {
     return new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
         "Caller", "GET /policy-test", "External endpoint", null, null)), List.of()),
         List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Verify policy consultation."),
+            new FactInput("external-route", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+                "Use the external endpoint.", null, null,
+                new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+                    "entry", null, null, null, List.of(new PlanProperty("externalRoute", "true")), List.of())),
             policyFact(decision)),
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
             "/policy-test", null, null, null)),

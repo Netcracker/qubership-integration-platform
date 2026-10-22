@@ -36,6 +36,7 @@ import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -63,9 +64,345 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Intera
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextAction;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void freshInapplicablePolicyDoesNotProtectMetadataWhileRetainingAllOtherRequirements(boolean reload)
+      throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "fresh-policy-" + UUID.randomUUID();
+    String text = policyApplicabilitySource("false");
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    var original = policyApplicabilityDraft("false", true, true, source.turnId());
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    try (var ignored = ToolSession.open(chat)) {
+      var refused = mapper.readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_ELEMENT_OWNER".equals(issue.code())
+          && "prepare".equals(issue.entityId())), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_POLICY_CONFLICT".equals(issue.code())
+          && "/draft/facts/access-policy/policyConflict".equals(issue.path())), refused.toString());
+      assertTrue(h.store().get(chat).isEmpty());
+      var rejectedRef = h.store().rejectedCaptureRevision(chat).orElseThrow();
+      var immutableAttempt = mapper.valueToTree(artifacts.payload(rejectedRef,
+          RequirementDraftStore.RequirementCaptureAttempt.class));
+      assertEquals(mapper.valueToTree(original), immutableAttempt.path("arguments"));
+      assertEquals(mapper.valueToTree(refused.issues()), immutableAttempt.path("issues"));
+      assertEquals(source.turnId(), immutableAttempt.path("sourceTurnId").asText());
+      var retained = h.store().rejectedCaptureFacts(chat);
+      var policy = retained.stream().filter(fact -> fact.sourceFactId().equals("access-policy")).findFirst().orElseThrow();
+      assertEquals(withPolicy(original.facts().get(2), null), policy);
+      assertEquals(original.facts().get(1), retained.stream()
+          .filter(fact -> fact.sourceFactId().equals("route-anchor")).findFirst().orElseThrow());
+      assertEquals(original.facts().get(4), retained.stream()
+          .filter(fact -> fact.sourceFactId().equals("audit")).findFirst().orElseThrow());
+      var protection = mapper.valueToTree(h.store().repairConstraints(chat));
+      if (reload) {
+        h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+        assertEquals(protection, mapper.valueToTree(h.store().repairConstraints(chat)));
+        assertEquals(immutableAttempt, mapper.valueToTree(artifacts.payload(rejectedRef,
+            RequirementDraftStore.RequirementCaptureAttempt.class)));
+      }
+      var corrected = policyApplicabilityDraft("false", false, false, source.turnId());
+      var accepted = mapper.readValue(h.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
+      assertTrue(accepted.accepted(), accepted.toString());
+      assertEquals(corrected, h.store().get(chat).orElseThrow().authoredDraft());
+      var finished = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      var restored = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+      assertEquals(corrected, restored.store().get(chat).orElseThrow().authoredDraft());
+      assertEquals(immutableAttempt, mapper.valueToTree(artifacts.payload(rejectedRef,
+          RequirementDraftStore.RequirementCaptureAttempt.class)));
+      assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
+      assertEquals(text, archive.read(chat).activeTurns().getFirst().message().content());
+      assertTrue(new PolicyChoiceSelection(artifacts,
+          new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations).pending(chat, 8).isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"true", "TRUE", " true "})
+  void explicitSameOwnerExternalRouteRetainsTheNormalTypedPolicyCardAfterReload(String exposure) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "applicable-policy-" + UUID.randomUUID();
+    String text = policyApplicabilitySource(exposure);
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    var input = policyApplicabilityDraft(exposure, false, true, source.turnId());
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var finished = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+      var choices = new PolicyChoiceSelection(artifacts,
+          new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
+      var offered = choices.pending(chat, 7).orElseThrow();
+      assertEquals(h.store().latestRevision(chat).orElseThrow().reference(), offered.draftReference());
+      assertEquals(input.facts().get(2), offered.fact());
+      assertEquals(input.openQuestions().getFirst(), offered.question());
+      var card = choices.decision(offered, 7);
+      assertEquals(List.of("keep-requested", "use-recommended"), card.actions());
+      assertEquals(Map.of("keep-requested", "Keep NONE", "use-recommended", "Use recommended RBAC"), card.actionLabels());
+      var restored = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+      assertEquals(input, restored.store().get(chat).orElseThrow().authoredDraft());
+      assertEquals(offered, new PolicyChoiceSelection(artifacts,
+          new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations).pending(chat, 7).orElseThrow());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"missing", "foreign", "conflicting", "invalid", "unsupported", "duplicate",
+      "negative", "local", "null-value"})
+  void policyApplicabilityRequiresItsOwnValidNativeCondition(String defect) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "unproved-policy-" + UUID.randomUUID();
+    String text = policyApplicabilitySource("true");
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    var base = policyApplicabilityDraft("true", false, true, source.turnId());
+    var facts = new ArrayList<>(base.facts());
+    var anchor = facts.get(1);
+    var intent = anchor.elementIntent();
+    var properties = new ArrayList<>(intent.requestedProperties());
+    if (List.of("missing", "foreign", "invalid", "unsupported", "null-value").contains(defect)) {
+      properties.removeIf(property -> property.key().equals("externalRoute"));
+    }
+    if (defect.equals("invalid")) properties.add(new PlanProperty("externalRoute", "not-a-boolean"));
+    if (defect.equals("unsupported")) properties.add(new PlanProperty("publicRoute", "true"));
+    if (defect.equals("null-value")) properties.add(new PlanProperty("externalRoute", null));
+    if (defect.equals("duplicate")) properties.add(new PlanProperty("externalRoute", "true"));
+    var changed = new RequirementElementIntent(defect.equals("local") ? "nested-route" : intent.elementRef(),
+        intent.elementType(), defect.equals("local") ? RequirementElementIntent.Placement.LOCAL_NODE : intent.placement(),
+        intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(),
+        intent.parentElementRef(), intent.requestedName(), properties, intent.exactValues());
+    facts.set(1, new FactInput(anchor.sourceFactId(), anchor.interactionIds(), anchor.kind(),
+        defect.equals("negative") ? Polarity.NEGATIVE : anchor.polarity(), anchor.text(), null, null, changed));
+    var flow = base.flow();
+    var capabilities = base.capabilities();
+    if (defect.equals("conflicting")) {
+      facts.add(new FactInput("contradictory-exposure", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+          "The same route is internal.", null, null, new RequirementElementIntent("entry", "http-trigger",
+              RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null,
+              List.of(new PlanProperty("externalRoute", "false")), List.of())));
+    }
+    if (defect.equals("foreign")) {
+      flow = new FlowInput(List.of(base.flow().interactions().getFirst(),
+          new InteractionInput("other-entry", Direction.INBOUND, "Other caller", "POST /other", null, null, null)),
+          base.flow().transitions());
+      capabilities = List.of(base.capabilities().getFirst(),
+          new CapabilityInput("other-entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/other", null, null, null));
+      facts.add(new FactInput("other-route", List.of("other-entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+          "Another route has a separate exposure setting.", null, null,
+          new RequirementElementIntent("other-entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+              "other-entry", null, null, null, List.of(new PlanProperty("externalRoute", "true")), List.of())));
+    }
+    var input = new DraftInput(flow, facts, capabilities, base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      var refused = mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_POLICY_CONFLICT".equals(issue.code())
+          && "/draft/facts/access-policy/policyConflict".equals(issue.path())), refused.toString());
+      assertTrue(h.store().get(chat).isEmpty());
+      assertEquals(withPolicy(base.facts().get(2), null), h.store().rejectedCaptureFacts(chat).stream()
+          .filter(fact -> fact.sourceFactId().equals("access-policy")).findFirst().orElseThrow());
+      assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"facts-null", "null-fact", "flow-null", "properties-null"})
+  void malformedPolicyContextFailsClosedWithoutThrowing(String defect) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), policyApplicabilitySource("true"));
+    var base = policyApplicabilityDraft("true", false, true, "source");
+    List<FactInput> facts = new ArrayList<>(base.facts());
+    if (defect.equals("null-fact")) facts.set(1, null);
+    if (defect.equals("properties-null")) {
+      var fact = facts.get(1);
+      var intent = fact.elementIntent();
+      facts.set(1, withIntent(fact, new RequirementElementIntent(intent.elementRef(), intent.elementType(),
+          intent.placement(), intent.ownerInteractionId(), null, null, null, intent.requestedName(), null, intent.exactValues())));
+    }
+    var input = new DraftInput(defect.equals("flow-null") ? null : base.flow(),
+        defect.equals("facts-null") ? null : facts, base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var refused = assertDoesNotThrow(() -> h.mapper().readValue(h.tools().captureRequirementDraft(input),
+          RequirementCaptureResult.class));
+      assertFalse(refused.accepted(), refused.toString());
+      assertFalse(refused.issues().isEmpty());
+      assertTrue(h.store().get(h.conversationId()).isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"literal", "name", "property", "text", "target", "order", "fact"})
+  void correctingFreshInvalidPolicyCannotDiscardOtherProtectedRequirements(String loss) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), policyApplicabilitySource("false"));
+    var original = policyApplicabilityDraft("false", true, true, "source");
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      assertFalse(h.mapper().readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class).accepted());
+      var corrected = policyApplicabilityDraft("false", false, false, "source");
+      var facts = new ArrayList<>(corrected.facts());
+      var audit = facts.get(4);
+      var intent = audit.elementIntent();
+      var properties = new ArrayList<>(intent.requestedProperties());
+      if (loss.equals("property")) properties.removeIf(property -> property.key().equals("logLevel"));
+      var changedIntent = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+          intent.ownerInteractionId(), intent.successorElementRef(), loss.equals("order") ? "prepare-step" : intent.predecessorElementRef(),
+          intent.parentElementRef(), loss.equals("name") ? null : intent.requestedName(), properties,
+          loss.equals("literal") ? List.of() : intent.exactValues());
+      facts.set(4, new FactInput(audit.sourceFactId(), loss.equals("target") ? List.of() : audit.interactionIds(),
+          audit.kind(), audit.polarity(), loss.equals("text") ? audit.text() + " Revised." : audit.text(), null, null, changedIntent));
+      if (loss.equals("fact")) facts.remove(4);
+      var input = new DraftInput(corrected.flow(), facts, corrected.capabilities(), corrected.openQuestions(), corrected.settings());
+      var refused = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "audit".equals(issue.entityId())), refused.toString());
+      assertEquals(audit, h.store().rejectedCaptureFacts(h.conversationId()).stream()
+          .filter(fact -> fact.sourceFactId().equals("audit")).findFirst().orElseThrow());
+      assertTrue(h.store().get(h.conversationId()).isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void historicalProtectedPolicyMetadataIsNotReleasedByFreshApplicabilityDiagnostics(boolean reload) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "historical-policy-" + UUID.randomUUID();
+    String text = policyApplicabilitySource("false");
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    var legacy = policyApplicabilityDraft("false", false, true, source.turnId());
+    // This negative starts with metadata persisted by the earlier metadata-only validation contract.
+    h.store().rememberRejectedCaptureFacts(chat, legacy.facts());
+    var protectedBefore = mapper.valueToTree(h.store().rejectedCaptureFacts(chat));
+    if (reload) h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    try (var ignored = ToolSession.open(chat)) {
+      var removal = policyApplicabilityDraft("false", false, false, source.turnId());
+      var refused = mapper.readValue(h.tools().captureRequirementDraft(removal), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+          && "access-policy".equals(issue.entityId())), refused.toString());
+      assertEquals(protectedBefore, mapper.valueToTree(h.store().rejectedCaptureFacts(chat)));
+      assertTrue(h.store().get(chat).isEmpty());
+      assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
+    }
+  }
+
+  @Test
+  void oneExternalOwnerCannotAuthorizeAMultiOwnerPolicyConflict() throws Exception {
+    var h = harness();
+    h.store().beginTurn(h.conversationId(), policyApplicabilitySource("true"));
+    var base = policyApplicabilityDraft("true", false, true, "source");
+    var facts = new ArrayList<>(base.facts());
+    var policy = facts.get(2);
+    facts.set(2, new FactInput(policy.sourceFactId(), List.of("entry", "other-entry"), policy.kind(),
+        policy.polarity(), policy.text(), null, policy.policyConflict(), null));
+    var input = new DraftInput(new FlowInput(List.of(base.flow().interactions().getFirst(),
+        new InteractionInput("other-entry", Direction.INBOUND, "Other caller", "POST /other", null, null, null)), List.of()),
+        facts, List.of(base.capabilities().getFirst(), new CapabilityInput("other-entry", "http-trigger",
+            HttpMode.CUSTOM, HttpMethod.POST, "/other", null, null, null)),
+        List.of(new RequirementCaptureInput.QuestionInput("security-choice", List.of("entry", "other-entry"), "Keep NONE or choose RBAC?")),
+        base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var refused = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_POLICY_CONFLICT".equals(issue.code())
+          && issue.path().endsWith("/policyConflict")), refused.toString());
+      assertTrue(h.store().get(h.conversationId()).isEmpty());
+    }
+  }
+
+  private static Harness policyApplicabilityHarness(InMemoryArtifactBlobStore blobs, ObjectMapper mapper,
+      ConversationService conversations, String chat, String text) {
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(mapper);
+    h.store().beginTurn(chat, text);
+    return h;
+  }
+
+  private static String policyApplicabilitySource(String exposure) {
+    return "Create chain Policy validation. Use an HTTP trigger named Receive checks with externalRoute=" + exposure
+        + " and accessControlType=NONE. Receive POST /checks. Use the local Script Prepare response to leave the body unchanged."
+        + " After entry, Audit completion logs kept-value at logLevel Info. No IDS.";
+  }
+
+  private static DraftInput policyApplicabilityDraft(String exposure, boolean invalidOwner, boolean policyPresent,
+      String sourceId) {
+    var policy = new RequirementPolicyConflict("CORPORATE_CIP_STANDARDS:12.4", "accessControlType", "NONE", "RBAC",
+        "security-choice", null);
+    var properties = new ArrayList<>(List.of(new PlanProperty("accessControlType", "NONE")));
+    if (exposure != null) properties.add(new PlanProperty("externalRoute", exposure));
+    return new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND, "Caller",
+        "POST /checks", "Receive the request.", null, null)), List.of()), List.of(
+        new FactInput("chain-name", List.of(), FactKind.PARAMETER, Polarity.POSITIVE, "Chain name: Policy validation.",
+            null, null, new RequirementElementIntent("chain", "chain", RequirementElementIntent.Placement.CHAIN,
+                null, null, null, null, "Policy validation", List.of(), List.of())),
+        new FactInput("route-anchor", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+            "Receive checks uses externalRoute=" + exposure + " and accessControlType=NONE.", null, null,
+            new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+                "entry", null, null, null, "Receive checks", properties, List.of("NONE"))),
+        new FactInput("access-policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+            "Keep accessControlType=NONE.", null, policyPresent ? policy : null, null),
+        new FactInput("prepare", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Prepare response leaves the body unchanged.", null, null,
+            new RequirementElementIntent("prepare-step", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+                invalidOwner ? "foreign-owner" : "entry", null, null, null, "Prepare response", List.of(), List.of())),
+        new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Audit completion logs kept-value at logLevel Info.", null, null,
+            new RequirementElementIntent("audit-step", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+                "entry", null, "entry", null, "Audit completion",
+                List.of(new PlanProperty("message", "kept-value"), new PlanProperty("logLevel", "Info")), List.of("kept-value")))),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/checks", null, null, null)),
+        policyPresent ? List.of(new RequirementCaptureInput.QuestionInput("security-choice", List.of("entry"),
+            "Keep NONE or choose RBAC?", new AuthorQuestionEvidence("entry", "accessControlType",
+                AuthorQuestionEvidence.Kind.POLICY_CHOICE, List.of(sourceId)))) : List.of(), new DraftSettings(false, null));
+  }
+
+  private static FactInput withPolicy(FactInput fact, RequirementPolicyConflict policy) {
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+        fact.fieldMapping(), policy, fact.elementIntent());
+  }
+
+  private static FactInput withIntent(FactInput fact, RequirementElementIntent intent) {
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+        fact.fieldMapping(), fact.policyConflict(), intent);
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void aRejectedMappingMayBecomeLocalBehaviorWithoutLosingItsAuthorFact(boolean intermediateMissingMapping)

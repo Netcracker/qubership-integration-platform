@@ -1096,7 +1096,8 @@ public class RequirementDraftStore {
       } catch (IllegalArgumentException malformedArguments) {
         return Optional.empty();
       }
-      return candidate == null ? Optional.empty() : Optional.of(new RequirementCaptureResult.PendingProposal(
+      if (candidate == null) continue;
+      return Optional.of(new RequirementCaptureResult.PendingProposal(
           revision.reference(), attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.acceptedDraftReference(),
           attempt.toolName(), candidate, attempt.issues()));
     }
