@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.capability;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,6 +25,55 @@ import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 
 class RecoveryCauseCaptureIdentityTest {
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void forwardingTheNoProgressInstructionPreservesEachNativeDefectBudget(boolean suppliedNativeFindings) {
+    var marker = new TypedIssue("REPAIR_NO_PROGRESS", "/",
+        "The same proposal was rejected under the current source, base, and repair authority. Submit a different correction.", null);
+    var ledger = new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 1, 12, 1));
+    var keys = new java.util.ArrayList<org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptKey>();
+    for (String entity : List.of("first-fact", "second-fact")) {
+      var issue = new TypedIssue("UNKNOWN_INTERACTION_REFERENCE", "/draft/facts/" + entity + "/interactionIds/0",
+          "Target must name an accepted interaction.", entity);
+      var before = feedback(issue, true);
+      var after = new CaptureAttemptFeedback(before.kind(), before.summary(), before.failureClass(), before.outerAllowed(),
+          before.fieldHints(), before.repairHistoryJson(), before.noProgress(), before.evidenceReference(), List.of(issue, marker));
+      var nativeFinding = new PlanValidationFinding(issue.code(), issue.path() + ": " + issue.message(), true,
+          null, entity, CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()));
+      var markerFinding = new PlanValidationFinding(marker.code(), marker.path() + ": " + marker.message(), true,
+          null, "requirement-draft", "");
+      var original = RecoveryCause.captureFailure(before,
+          suppliedNativeFindings ? List.of(nativeFinding) : List.of(), evidence(Kind.REQUIREMENT_CAPTURE_ATTEMPT, before));
+      var forwarded = RecoveryCause.captureFailure(after,
+          suppliedNativeFindings ? List.of(nativeFinding, markerFinding) : List.of(),
+          evidence(Kind.REQUIREMENT_CAPTURE_ATTEMPT, after));
+
+      assertEquals(original.findings(), forwarded.findings());
+      assertEquals(RecoveryAttemptLedger.evidenceIdentity(original), RecoveryAttemptLedger.evidenceIdentity(forwarded));
+      assertEquals(List.of(issue, marker), forwarded.captureFailure().feedback().issues());
+      assertTrue(forwarded.noProgress());
+      var originalKey = ledger.key("requirement-discovery", original, "accepted-base", List.of());
+      var forwardedKey = ledger.key("requirement-discovery", forwarded, "accepted-base", List.of());
+      assertEquals(originalKey, forwardedKey);
+      keys.add(forwardedKey);
+    }
+    assertNotEquals(keys.get(0), keys.get(1));
+    assertTrue(keys.get(0).findingKeys().stream().noneMatch(keys.get(1).findingKeys()::contains));
+    var journal = List.of(
+        new RunTransition(1, 2, RunStatus.RUNNING, RunStatus.RUNNING, "requirement-discovery", Instant.EPOCH,
+            ledger.recordRepair(keys.get(0), "accepted-base")),
+        new RunTransition(2, 3, RunStatus.RUNNING, RunStatus.RUNNING, "requirement-discovery", Instant.EPOCH,
+            ledger.recordCleanRebuild(keys.get(0), "accepted-base")));
+    assertFalse(ledger.mayRepair(journal, keys.get(0), InputOrigin.TRUSTED));
+    assertFalse(ledger.mayCleanRebuild(journal, keys.get(0)));
+    assertTrue(ledger.mayRepair(journal, keys.get(1), InputOrigin.TRUSTED));
+    assertTrue(ledger.mayCleanRebuild(journal, keys.get(1)));
+
+    var notRepeated = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "Native findings",
+        CaptureFailureClass.CORRECTABLE, true, List.of(), "", false, null, List.of(marker));
+    assertEquals(marker.code(), RecoveryCause.captureFailure(notRepeated, List.of(), null).findings().getFirst().code());
+  }
 
   @ParameterizedTest
   @NullAndEmptySource
