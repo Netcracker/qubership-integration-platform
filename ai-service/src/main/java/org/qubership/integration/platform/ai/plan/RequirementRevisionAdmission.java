@@ -655,6 +655,7 @@ final class RequirementRevisionAdmission {
     }
     preserveValues(retainedInteractions, tree(candidate).get("interactions"), "/interactions", issues);
     preserveTransitions(retained.path("transitions"), tree(candidate).get("transitions"), removable, candidate, issues);
+    if (!issues.isEmpty() && base != null) issues.addAll(RequirementCaptureEditor.capabilityAnchorConflicts(base));
     return List.copyOf(issues);
   }
 
@@ -858,6 +859,31 @@ final class RequirementRevisionAdmission {
       } else {
         var pointer = JsonPointer.compile(path);
         if (values.at(pointer.head()) instanceof ObjectNode parent) parent.putNull(pointer.last().getMatchingProperty());
+      }
+    }
+    return pendingValues(values);
+  }
+
+  static ObjectNode reprojectCapabilityConflicts(DraftInput base, List<FactInput> protectedFacts,
+      JsonNode protectedValues, DraftInput rejected) {
+    var values = pendingValues(protectedValues);
+    var facts = base == null ? protectedFacts : accumulate(base.facts(), protectedFacts);
+    var retained = new DraftInput(rejected.flow(), facts, rejected.capabilities(), rejected.openQuestions(), rejected.settings());
+    var current = RequirementCaptureEditor.capabilityAnchorConflicts(retained);
+    var original = valuesToPreserve(rejected, List.of());
+    for (var finding : RequirementCaptureEditor.capabilityAnchorConflicts(rejected)) {
+      String owner = finding.entityId();
+      if (!current.contains(finding) || base != null && base.capabilities().stream()
+          .anyMatch(capability -> owner.equals(capability.interactionId()))) continue;
+      var anchors = rejected.facts().stream().filter(fact -> fact != null && fact.elementIntent() != null
+          && fact.interactionIds() != null && fact.interactionIds().contains(owner)
+          && fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE
+          && fact.elementIntent().placement() == RequirementElementIntent.Placement.ANCHOR
+          && owner.equals(fact.elementIntent().elementRef()) && owner.equals(fact.elementIntent().ownerInteractionId()))
+          .toList();
+      var capability = values.path("capabilities").path(owner);
+      if (facts.containsAll(anchors) && capability.isObject() && capability.equals(original.path("capabilities").path(owner))) {
+        ((ObjectNode) capability).putNull("capabilityKey");
       }
     }
     return pendingValues(values);

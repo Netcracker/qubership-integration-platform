@@ -202,6 +202,8 @@ public class RequirementDraftStore {
     issues.addAll(validatePolicySelections(conversationId,
         latestRevision(conversationId).map(Revision::reference).orElse(null), input));
     for (var capability : input.capabilities()) {
+      if (issues.stream().anyMatch(issue -> "CAPABILITY_ANCHOR_CONFLICT".equals(issue.code())
+          && capability.interactionId().equals(issue.entityId()))) continue;
       if (!current.readyForPlan() && input.openQuestions().stream().noneMatch(question ->
           question.evidence() != null && capability.interactionId().equals(question.evidence().interactionId()))) {
         continue;
@@ -719,6 +721,7 @@ public class RequirementDraftStore {
                 RequirementRevisionAdmission.pendingValues(previous.values()));
           });
     }
+    revalidateRejectedReferences(conversationId);
     turnDirectives.remove(conversationId);
   }
 
@@ -1099,11 +1102,20 @@ public class RequirementDraftStore {
     }
     if (history.isEmpty() || history.getLast().sequence() != revisions.getLast().sequence()) return;
     var repaired = RejectedReferenceRepair.repair(base, scope.facts(), history);
-    if (repaired.facts().equals(scope.facts())) return;
-    var evidence = revisions.stream().filter(value -> repaired.evidenceSequences().contains(value.sequence()))
+    var values = RequirementRevisionAdmission.pendingValues(scope.values());
+    var evidenceSequences = new java.util.HashSet<>(repaired.evidenceSequences());
+    for (var attempt : history) {
+      var projected = RequirementRevisionAdmission.reprojectCapabilityConflicts(base, scope.facts(), values, attempt.input());
+      if (!projected.equals(values)) evidenceSequences.add(attempt.sequence());
+      values = projected;
+    }
+    if (repaired.facts().equals(scope.facts())
+        && values.equals(RequirementRevisionAdmission.pendingValues(scope.values()))) return;
+    var evidence = revisions.stream().filter(value -> evidenceSequences.contains(value.sequence()))
         .map(Revision::reference).toList();
-    saveFactProtection(conversationId, repaired.facts(), scope.values(), evidence);
+    saveFactProtection(conversationId, repaired.facts(), values, evidence);
     rejectedCaptureFacts.put(conversationId, repaired.facts());
+    rejectedCaptureValues.put(conversationId, values);
   }
 
   private String authorEvidenceHash(String conversationId) {

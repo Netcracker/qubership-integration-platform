@@ -794,6 +794,7 @@ public final class RequirementCaptureEditor {
       }
       checkApplicable(issues, path, capability);
     }
+    issues.addAll(capabilityAnchorConflicts(draft));
     for (FactInput fact : draft.facts()) {
       if (fact == null || fact.elementIntent() == null) continue;
       var intent = fact.elementIntent();
@@ -816,6 +817,37 @@ public final class RequirementCaptureEditor {
       }
     }
     return sorted(issues);
+  }
+
+  static List<Issue> capabilityAnchorConflicts(DraftInput draft) {
+    if (draft == null || draft.flow() == null || draft.flow().interactions() == null
+        || draft.facts() == null || draft.capabilities() == null) return List.of();
+    var issues = new ArrayList<Issue>();
+    for (var capability : draft.capabilities()) {
+      if (capability == null || blank(capability.interactionId()) || blank(capability.capabilityKey())) continue;
+      String owner = capability.interactionId();
+      if (draft.flow().interactions().stream().filter(interaction -> interaction != null
+          && owner.equals(interaction.interactionId())).count() != 1) continue;
+      var anchors = draft.facts().stream().filter(fact -> fact != null && fact.polarity() == Polarity.POSITIVE
+          && fact.interactionIds() != null && fact.interactionIds().contains(owner) && fact.elementIntent() != null)
+          .filter(fact -> fact.elementIntent().placement() == RequirementElementIntent.Placement.ANCHOR
+              && owner.equals(fact.elementIntent().elementRef()) && owner.equals(fact.elementIntent().ownerInteractionId())
+              && !blank(fact.elementIntent().elementType())).toList();
+      if (anchors.isEmpty()) continue;
+      var anchor = anchors.getFirst();
+      String type = anchor.elementIntent().elementType();
+      if (anchors.stream().anyMatch(fact -> !type.equals(fact.elementIntent().elementType()))
+          || capability.capabilityKey().equals(type)) continue;
+      add(issues, "CAPABILITY_ANCHOR_CONFLICT", "/draft/capabilities/" + owner + "/capabilityKey", owner,
+          "Native capability '" + capability.capabilityKey() + "' conflicts with positive ANCHOR fact '"
+              + anchor.sourceFactId() + "' of type '" + anchor.elementIntent().elementType() + "' for interaction '"
+              + owner + "'. Reconcile these declarations against the saved author source; do not invent a replacement anchor."
+              + ("service-call".equals(anchor.elementIntent().elementType())
+                  ? " A named catalog service call has no native capability record." : "")
+              + " An already admitted capability can change only through a source-linked amendment to '/capabilities/"
+              + owner + "' citing an exact eligible author quote; the conflict itself grants no amendment authority.");
+    }
+    return List.copyOf(issues);
   }
 
   private static void validateElementIntents(DraftInput draft, Set<String> interactions,
