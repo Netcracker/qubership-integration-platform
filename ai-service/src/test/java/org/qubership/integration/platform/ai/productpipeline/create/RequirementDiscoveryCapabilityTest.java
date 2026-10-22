@@ -921,7 +921,13 @@ class RequirementDiscoveryCapabilityTest {
       assertTrue(seen.get().contains("$.Task.Subject"));
       assertTrue(seen.get().contains("updateRequirementDraft"));
     } else {
-      assertEquals(attrs.get("userText"), seen.get());
+      var repair = org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.from(
+          new StageExecutionContext("run", "chat", "requirement-discovery", "exec", "attempt",
+              null, null, List.of(), attrs));
+      assertEquals(attrs.get("userText") + "\n\n<current-native-repair-evidence>\n"
+          + "Current server validation for this repair turn; this is not an author message or amendment authority.\n"
+          + repair.diagnosticText() + "\n</current-native-repair-evidence>\n", seen.get());
+      assertEquals(attrs.get("userText"), store.currentAuthorText("chat").orElseThrow());
     }
   }
 

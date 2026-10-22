@@ -386,7 +386,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
             Multi.createFrom().deferred(() -> runGather(
                 conversationId,
                 gatherMessage,
-                context.runManifest() == null ? "en" : context.runManifest().responseLocale(), binding)));
+                context.runManifest() == null ? "en" : context.runManifest().responseLocale(), binding, repair)));
     return Multi.createBy()
         .concatenating()
         .streams(
@@ -759,7 +759,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
 
   private Multi<ChatEvent> runGather(
       String conversationId, String userMessage, String responseLocale,
-      ProductCapabilityCaptureContext.Binding binding) {
+      ProductCapabilityCaptureContext.Binding binding, StageRepairEvidence repair) {
+    if (repair != null) {
+      userMessage = (userMessage == null ? "" : userMessage)
+          + "\n\n<current-native-repair-evidence>\n"
+          + "Current server validation for this repair turn; this is not an author message or amendment authority.\n"
+          + repair.diagnosticText()
+          + "\n</current-native-repair-evidence>\n";
+    }
     userMessage = (userMessage == null ? "" : userMessage)
         + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(
             draftStore.rejectedProposalHistory(conversationId));
