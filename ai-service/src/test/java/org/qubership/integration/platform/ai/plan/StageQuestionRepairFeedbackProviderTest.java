@@ -80,6 +80,110 @@ class StageQuestionRepairFeedbackProviderTest {
   @InjectMock RateLimitStreamingChatModel provider;
 
   @Test
+  void duplicateInteractionFeedbackKeepsTheQuestionCorrectionAtomicAndAllowsItsFocusedRepair() throws Exception {
+    String chat = "duplicate-interaction-feedback-" + UUID.randomUUID();
+    String source = "Create an external POST /review-status endpoint with accessControlType=NONE. "
+        + "Company policy recommends RBAC. I have not chosen between NONE and RBAC. Show this choice; "
+        + "if I choose RBAC, use only audit-reader. Proceed without IDS.";
+    String questionText = "Keep NONE or apply recommended RBAC?";
+    var input = conversations.archive().beginInput(chat, source, null);
+    conversations.archive().resolveInput(chat, input, source);
+    drafts.beginTurn(chat, source);
+    var ingress = new InteractionInput("ingress", Direction.INBOUND, "Portal", "POST /review-status", null, null, null);
+    var endpoint = new FactInput("status-endpoint", List.of("ingress"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Create the external POST /review-status endpoint with accessControlType=NONE.", null, null,
+        new RequirementElementIntent("ingress", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+            "ingress", null, null, null, List.of(new PlanProperty("externalRoute", "true"),
+                new PlanProperty("accessControlType", "NONE")), List.of()));
+    var policy = new FactInput("route-policy", List.of("ingress"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "Company policy recommends RBAC; the author has not chosen between NONE and RBAC.", null,
+        new RequirementPolicyConflict(CompilerSecurityValidator.EXTERNAL_RBAC_POLICY, "accessControlType", "NONE", "RBAC",
+            "policy-review", null), null);
+    var role = new FactInput("conditional-role", List.of("ingress"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "If the author chooses RBAC, use only audit-reader.");
+    var originalQuestion = new QuestionInput("policy-review", List.of("ingress"), questionText);
+    var reviewedQuestion = new QuestionInput("policy-review", List.of("ingress"), questionText,
+        new AuthorQuestionEvidence("ingress", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE,
+            List.of(input.turnId())));
+    var initial = new DraftInput(new FlowInput(List.of(ingress), List.of()), List.of(endpoint, policy, role),
+        List.of(new CapabilityInput("ingress", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+            "/review-status", null, null, null)), List.of(originalQuestion), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = json.readTree(tools.captureRequirementDraft(initial));
+      assertTrue(captured.path("accepted").asBoolean(), captured.toString());
+    }
+    var base = drafts.latestRevision(chat).orElseThrow().reference();
+    JsonNode sourceBefore = json.valueToTree(conversations.archive().read(chat));
+    var limitsBefore = limits();
+    var repeated = new InteractionInput("ingress", Direction.INBOUND, "Different portal", ingress.operation(), null, null, null);
+    var rejectedUpdate = new DraftUpdate(List.of(repeated), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(reviewedQuestion), List.of(), null);
+    var expected = new DraftInput(initial.flow(), initial.facts(), initial.capabilities(), List.of(reviewedQuestion), initial.settings());
+    var script = new ScriptedStreamingChatModel(
+        Turn.tool("duplicate-interaction-and-question", request -> {}, "updateRequirementDraft",
+            json.writeValueAsString(Map.of("changes", rejectedUpdate))),
+        Turn.tool("correct-question-without-readding-interaction", request -> {
+          String packet = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
+              .map(UserMessage::singleText).reduce("", (left, right) -> left + "\n" + right);
+          assertTrue(packet.contains(source));
+          assertTrue(packet.contains(input.turnId()));
+          JsonNode result = lastTool(request);
+          assertFalse(result.path("accepted").asBoolean(), result.toString());
+          assertFalse(result.path("changed").asBoolean());
+          assertEquals(json.valueToTree(base), result.path("revision"));
+          assertEquals(json.valueToTree(initial), result.path("draft"));
+          var issue = result.path("issues").get(0);
+          assertEquals("DUPLICATE_ENTITY", issue.path("code").asText());
+          assertEquals("/changes/addInteractions/0", issue.path("path").asText());
+          assertEquals("ingress", issue.path("entityId").asText());
+          String message = issue.path("message").asText();
+          assertTrue(message.startsWith("Rejected addition identity=ingress for interactions:"
+              + " this identity already exists in the current draft."), message);
+          assertTrue(message.contains("Current interactions identities at this edit step: [ingress]"), message);
+          assertTrue(message.contains("Use updateInteractions to change an existing identity, or omit it when unchanged."), message);
+          var immutable = artifacts.latest(sessions.current(chat).orElseThrow().compilationId(),
+              Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+          assertEquals(result.path("issues"), immutable.payload().path("issues"),
+              "The first following Gather request must carry every immutable native issue without alteration.");
+          assertEquals(json.valueToTree(rejectedUpdate), immutable.payload().path("arguments"));
+          assertEquals(json.valueToTree(base), immutable.payload().path("acceptedDraftReference"));
+          assertEquals(input.generation(), immutable.payload().path("sourceGeneration").asText());
+          assertEquals(input.turnId(), immutable.payload().path("sourceTurnId").asText());
+          assertEquals(immutable, artifacts.get(immutable.compilationId(), immutable.reference()).orElseThrow());
+          assertEquals(base, drafts.latestRevision(chat).orElseThrow().reference());
+          assertEquals(initial, drafts.get(chat).orElseThrow().authoredDraft());
+          assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
+        }, "updateRequirementDraft", json.writeValueAsString(Map.of("changes",
+            questionChanges(List.of(), List.of(reviewedQuestion), List.of())))),
+        Turn.tool("stay-for-policy-review", request -> {
+          var result = lastTool(request);
+          assertTrue(result.path("accepted").asBoolean(), result.toString());
+          assertTrue(result.path("changed").asBoolean());
+          assertEquals(json.valueToTree(expected), result.path("draft"));
+          assertTrue(drafts.validateAuthorQuestions(chat).isEmpty());
+        }, "finishRequirementDiscoveryTurn", "{\"directive\":\"STAY\"}"),
+        Turn.text("offer-the-existing-policy-choice", request -> {
+          assertTrue(lastTool(request, "finishRequirementDiscoveryTurn").path("accepted").asBoolean());
+        }, questionText));
+    var outcome = execute(chat, Map.of("userText", source), script);
+    assertEquals(4, script.requests().size());
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(outcome.message()).orElseThrow());
+    assertEquals(RequirementDiscoveryDirective.STAY, drafts.turnDirective(chat));
+    assertEquals(expected, drafts.get(chat).orElseThrow().authoredDraft());
+    assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
+    assertEquals(source, drafts.currentAuthorText(chat).orElseThrow());
+    assertTrue(policyChoices.trusted(chat).isEmpty());
+    var offered = policyChoices.pending(chat, 42).orElseThrow();
+    assertEquals(policy, offered.fact());
+    assertEquals(reviewedQuestion, offered.question());
+    assertEquals(drafts.latestRevision(chat).orElseThrow().reference(), offered.draftReference());
+    assertEquals(input.generation(), offered.sourceGeneration());
+    assertEquals(input.turnId(), offered.sourceTurnId());
+    assertEquals(limitsBefore, limits());
+  }
+
+  @Test
   void deletedQuestionUpdateReportsItsAbsentIdentityBeforeTheRequiredQuestionIsAddedAgain() throws Exception {
     String chat = "deleted-question-feedback-" + UUID.randomUUID();
     String source = SOURCE + " Add one required HTTP header, but I have not chosen its name. Ask for that name.";

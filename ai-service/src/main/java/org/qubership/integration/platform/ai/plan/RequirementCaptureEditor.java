@@ -474,12 +474,20 @@ public final class RequirementCaptureEditor {
     for (int i = 0; i < additions.size(); i++) {
       T value = additions.get(i);
       String id = value == null ? null : identity.apply(value);
+      boolean alreadyTouched = touched.contains(id);
       if (id == null || !touched.add(id) || values.putIfAbsent(id, value) != null) {
+        String reason = id == null ? "the identity is null" : alreadyTouched
+            ? "this identity was already added, updated, or removed in this edit"
+            : "this identity already exists in the current draft";
         add(issues, "DUPLICATE_ENTITY", "/changes/" + operationField(family, "add") + "/" + i, id,
-            "questions".equals(family) && values.containsKey(id)
-                ? "Question '" + id + "' already exists. Reuse it or change it through updateQuestions."
+            "Rejected addition identity=" + id + " for " + family + ": " + reason
+                + ". Current " + family + " identities at this edit step: " + values.keySet()
+                + ". Use " + operationField(family, "update")
+                + " to change an existing identity, or omit it when unchanged. Add each new identity once."
+                + ("questions".equals(family) && values.containsKey(id)
+                    ? " Question '" + id + "' already exists. Reuse it or change it through updateQuestions."
                     + " Use STAY while awaiting the author answer; preserve the accepted flow and facts."
-                : "Add a new " + family + " identity once.");
+                    : ""));
       }
     }
     for (int i = 0; i < replacements.size(); i++) {
