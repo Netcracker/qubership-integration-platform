@@ -32,6 +32,17 @@ export class ChainGraphPage {
     return this.page.getByRole("group", { name: `Edge from ${fromId} to ${toId}`, exact: true });
   }
 
+  /**
+   * Drags from the output handle of one element to the input handle of another, the only way the
+   * canvas creates a dependency. `@xyflow/react` marks each handle with `data-handlepos`; the source
+   * handle sits on the right and the target on the left.
+   */
+  async connect(fromId: string, toId: string): Promise<void> {
+    await this.node(fromId)
+      .locator('[data-handlepos="right"]')
+      .dragTo(this.node(toId).locator('[data-handlepos="left"]'));
+  }
+
   /** Opens an element's form, which is what a double click on its node does. */
   async openElement(elementId: string): Promise<Locator> {
     await this.node(elementId).dblclick();
