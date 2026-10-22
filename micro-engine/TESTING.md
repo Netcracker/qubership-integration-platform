@@ -269,7 +269,7 @@ and successful processing after rollback. The template adds `transacted=true` fo
 this acknowledgment mode. The fixture accepts active queue polling when Spring
 creates consumers per receive attempt without caching; topic publication waits
 for the broker to report both subscribers. See the
-[resolved defect and verification](../docs/product-defects.md#jms-trigger-does-not-start-with-session_transacted).
+[transactional queue regression](src/test/resources/testspecifications/jms-trigger.yml).
 
 `expectedRedeliveryCount` specifies additional deliveries for each published message.
 It requires `expectedCompletions`: an ordered list of body, header, property, and
@@ -301,7 +301,7 @@ For SESSION_TRANSACTED topics, the template adds `cacheLevelName=CACHE_CONSUMER`
 to retain the non-durable subscription across local transactions. The scenario
 checks rollback and redelivery of each subscriber, followed by successful
 publications to both. See the
-[resolved defect and verification](../docs/product-defects.md#jms-transacted-topic-does-not-redeliver-after-script-failure).
+[transactional topic regression](src/test/resources/testspecifications/jms-trigger.yml).
 
 The idempotency export has ignore, throw-exception, and execute-subchain branches.
 All use header expressions for the business key and context, with a 600-second TTL.
@@ -752,7 +752,7 @@ For plain groups, `autoOffsetReset=none` uses native Kafka offset resolution. Th
 regressions cover fresh groups, partially committed partitions, and a stored offset beyond
 the log end. Each failure must preserve stored offsets and consume no records. The
 valid-offset scenario checks processing and restart. See the
-[fix and verification command](../docs/product-defects.md#kafka-trigger-treats-autooffsetreset-none-as-latest).
+[offset reset regressions](src/test/resources/testspecifications/kafka-trigger.yml).
 
 MaaS and versioned Blue/Green transitions remain deferred. SSL without SASL, mutual TLS,
 other SASL mechanisms, offsets removed by retention, partition expansion, and independent
