@@ -88,6 +88,51 @@ remains mandatory, with ordinary limits and the checkpoint/completion evidence d
 The held-out campaign and variation generator remain separate planned work; the current live pilot does not
 satisfy that independent acceptance requirement.
 
+## Native PLAN recovery proof
+
+`native_plan_proof.verify_plan_recovery(evidence, rejected, graph_row)` checks a saved native PLAN refusal from
+`captureChainSemanticRevision`. It joins the complete immutable feedback to the first next provider request, the
+owning native invocation, its adjacent successful commit, and the exact approved semantic output consumed by the graph.
+It checks the whole semantic payload hash and provenance, without duplicating the semantic adapter.
+Missing or unsupported evidence fails closed. The caller must still verify budgets, source requirements, the consumed
+validated bundle, catalog readback, and generated behavior. This helper proves artifact identity and continuation;
+it does not establish independent business equivalence or grant permission to change requirements.
+
+Run its controls with the existing offline Python recovery checks:
+
+```bash
+python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
+```
+
+## Control-wave checkpoint: October 22, 2026
+
+Six real-model runs used service commit `29775de52dc0116f3d5dc26b26f23fb16ff9a625`, unchanged knowledge, and existing
+limits. Ordinary requests used `gpt-6-luna`; comparison requests used `gpt-4o-mini`. No extra allowance was granted.
+
+| Case | Ordinary model | gpt-4o-mini |
+| --- | --- | --- |
+| Five-node OM to Salesforce | Materialized; original proof FAIL for unsupported PLAN feedback. Separate persisted Script checks: 30/30 PASS. | FAIL before a graph; partial progress, invalid diagnosis, then a local diagnostic timeout. |
+| HTTP and local Script | Full local acceptance PASS; 22/22 Script checks. Recovery was not exercised. | FAIL before an accepted draft; incompatible business-interaction/capability interpretation, then a local diagnostic timeout. |
+| Original internal HTTP/NONE regression | Full local acceptance PASS; 20/20 Script checks and one native requirement repair. | FAIL at repeated rejected output and the recovery-allowance card. |
+
+Original frozen verdicts remain immutable. A versioned PLAN checker assesses saved traces separately; its verification
+and replay receipt is recorded with the local wave evidence. No new model run is implied by a replay.
+After the PLAN proof correction, separate assessments of the same saved traces pass all three ordinary cases
+(30 + 22 + 20 persisted Script effects); all three mini cases remain FAIL. These are post-hoc assessments, not fresh
+model samples. The original Restock FAIL is retained. Final verification passes 86 Python tests, 37 scalar controls,
+101 inherited proof controls, and 30 local Camel calibrations; independent review is clean.
+Two additional Docker subnet-pool startup failures occurred before any provider request and are infrastructure-only.
+
+Open issues are unsupported automatic semantic reinterpretation, ineffective repeated edits, diagnosis validation and
+local deadline/cancellation behavior, and token-reservation settlement after interruption. Native structural validity
+also does not establish complete generated Script behavior. Automatic completion remains NO-GO on the failed cases.
+Catalog-write recovery stays in the previously agreed backlog. New skills, Kimi, browser UI, and full integration runtime
+were not exercised in this wave. Kimi comparison is the next separately configured step, with these failures visible.
+
+Detailed local evidence and the complete baseline pins are in `.dev/ai-stabilization-pre-kimi-20261021/`;
+`ai-service/docs/analysis/2026-10-22-recovery-control-wave.md` records results, proof boundaries, and open issues.
+Both locations follow the repository's ignored local-report convention; neither is force-staged.
+
 ## Isolated recovery pilot
 
 `recovery_campaign.py` tests automatic recovery with the ordinary configured model and limits.
