@@ -2069,30 +2069,58 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         pendingRetry = failed;
         continue;
       }
-      RecoveryDecision decision = reply.decision();
+      RecoveryDecision rawDecision = reply.decision();
+      RecoveryDecision decision = presentedRecoveryDecision(rawDecision);
       RecoveryDecisionValidator.Result validation = RecoveryDecisionValidator.validate(decision, nextContext);
       if (validation.requiresSourceReconciliation()) {
         var question = decision.authorQuestionEvidence();
         var sourceRefs = new ArrayList<String>();
         sourceRefs.add(evidence.failureId());
         context.authorInputs().forEach(input -> sourceRefs.add(input.inputId()));
-        var reconciliation = new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT,
+        var reconciliation = presentedRecoveryDecision(new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT,
             evidence.approvedBriefRef(), sourceRefs, RecoveryAction.REVISE_BRIEF, List.of(), "",
             "Check the saved author messages for " + question.propertyKey() + " on " + question.interactionId()
-                + ". Preserve later corrections and confirmed choices. Ask only if the source leaves the value unresolved.");
+                + ". Preserve later corrections and confirmed choices. Ask only if the source leaves the value unresolved."));
         return saveDiagnosis(runId, identity, calls,
-            new AcceptedRecovery(reconciliation, evidence, true, RecoveryStatus.READY, question));
+            new AcceptedRecovery(reconciliation, evidenceWithDecisionPresentation(evidence, rawDecision, decision),
+                true, RecoveryStatus.READY, question));
       }
       if (validation.accepted()) {
         return saveDiagnosis(runId, identity, calls,
-            new AcceptedRecovery(decision, evidence, rejectedQuestion, RecoveryStatus.READY));
+            new AcceptedRecovery(decision, evidenceWithDecisionPresentation(evidence, rawDecision, decision),
+                rejectedQuestion, RecoveryStatus.READY));
       }
       rejectedQuestion |= decision != null && decision.action() == RecoveryAction.ASK_USER;
-      evidence = evidenceWithDecisionFindings(evidence, validation.findings(), decision);
+      evidence = evidenceWithDecisionFindings(evidence, validation.findings(), rawDecision);
       saveDiagnosis(runId, identity, calls,
           new AcceptedRecovery(null, evidence, rejectedQuestion, RecoveryStatus.INVALID_REPLY));
     }
     return new AcceptedRecovery(null, evidence, rejectedQuestion, RecoveryStatus.INVALID_REPLY);
+  }
+
+  private static RecoveryDecision presentedRecoveryDecision(RecoveryDecision decision) {
+    if (decision == null) return null;
+    String summary = decision.action() == null ? "" : switch (decision.action()) {
+      case REVISE_BRIEF ->
+          "The requirements need reconciliation with the saved messages. Confirmed choices will be preserved.";
+      case REGENERATE_ARTIFACT ->
+          "The generated result needs correction. Recovery will continue with the saved requirements.";
+      case RETRY_OPERATION -> "The operation is temporarily unavailable. A retry will preserve the current progress.";
+      case ASK_USER -> "An unresolved question needs clarification before continuing. The current progress is saved.";
+      case PARK -> "Recovery is paused for review. The current progress is saved.";
+    };
+    return new RecoveryDecision(decision.causeClass(), decision.faultArtifactRef(), decision.evidenceRefs(),
+        decision.action(), decision.proposedBriefChanges(), decision.question(), summary, decision.authorQuestionEvidence());
+  }
+
+  private RecoveryEvidence evidenceWithDecisionPresentation(
+      RecoveryEvidence evidence, RecoveryDecision rawDecision, RecoveryDecision presentedDecision) {
+    var findings = new ArrayList<>(evidence.findings());
+    findings.add(new SemanticFinding("RECOVERY_PRESENTATION", "", evidence.failureId() + "-presentation", "", "",
+        List.of(), List.of(), List.of(), "", Map.of(), List.of(),
+        recoveryJson(Map.of("status", "PRESENTATION_ONLY", "rawDecision", rawDecision,
+            "presentedDecision", presentedDecision))));
+    return evidenceWithFindings(evidence, findings);
   }
 
   private boolean awaitProviderRetry(Instant retryAt) {
@@ -2524,6 +2552,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             rejectedDecision == null ? String.join("\n", validationFindings)
                 : recoveryJson(Map.of("status", "REJECTED", "rejectedDecision", rejectedDecision,
                     "validationFindings", validationFindings))));
+    return evidenceWithFindings(evidence, findings);
+  }
+
+  private static RecoveryEvidence evidenceWithFindings(RecoveryEvidence evidence, List<SemanticFinding> findings) {
     return new RecoveryEvidence(
         evidence.schemaVersion(),
         evidence.failureId(),

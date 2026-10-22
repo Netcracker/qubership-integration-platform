@@ -41,7 +41,7 @@ class ProductAnalysisRepairLoopTest {
   private static final String CHAT = "analysis-repair-loop-test";
   private static final String VALID_BRIEF = """
       {"capture":{"goal":"Greetings","summary":"Return Hello world!",
-        "inputs":["GET /greetings"],"assumptions":[],"citations":[]}}
+        "inputs":["GET /greetings"],"assumptions":[],"citations":[],"sourceOmissions":[]}}
       """;
   @InjectMock RateLimitStreamingChatModel model;
   @Inject ProductDiscoveryAgent agent;
@@ -88,7 +88,7 @@ class ProductAnalysisRepairLoopTest {
       requests.add(request);
       String arguments = requests.size() == 1 ? malformed : """
           {"capture":{"goal":"Greetings","summary":"Return Hello world!",
-          "inputs":["GET /greetings"],"assumptions":[],"citations":[]}}
+          "inputs":["GET /greetings"],"assumptions":[],"citations":[],"sourceOmissions":[]}}
           """;
       handler.onCompleteResponse(ChatResponse.builder().aiMessage(AiMessage.from(
           ToolExecutionRequest.builder().id("call-" + requests.size())

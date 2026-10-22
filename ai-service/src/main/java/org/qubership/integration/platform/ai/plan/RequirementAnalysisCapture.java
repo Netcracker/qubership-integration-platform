@@ -14,14 +14,29 @@ public record RequirementAnalysisCapture(
     @Description("Readable summary for review") String summary,
     @Description("Knowledge references used during analysis") List<CipKnowledgeCitation> citations,
     @Description("Field adaptations on selected flow transitions; omit for pass-through")
-        List<Mapping> mappingIntents) {
+        List<Mapping> mappingIntents,
+    @Description("Requirements omitted from the selected draft, supported by exact saved author quotes; "
+        + "use an empty list after reviewing all source requirements. A report does not authorize changes.")
+        List<SourceOmission> sourceOmissions) {
+
+  public RequirementAnalysisCapture(String goal, List<String> inputs, List<String> assumptions,
+      String summary, List<CipKnowledgeCitation> citations, List<Mapping> mappingIntents) {
+    this(goal, inputs, assumptions, summary, citations, mappingIntents, List.of());
+  }
 
   public RequirementAnalysisCapture {
     inputs = inputs == null ? List.of() : List.copyOf(inputs);
     assumptions = assumptions == null ? List.of() : List.copyOf(assumptions);
     citations = citations == null ? List.of() : List.copyOf(citations);
     mappingIntents = mappingIntents == null ? List.of() : List.copyOf(mappingIntents);
+    sourceOmissions = sourceOmissions == null ? List.of() : List.copyOf(sourceOmissions);
   }
+
+  public record SourceOmission(
+      @Description("The sourceTurnId in the saved author evidence") String sourceTurnId,
+      @Description("Exact source text that states the omitted requirement") String quote,
+      @Description("What the selected draft omits, accounting for later amendments and choices")
+          String explanation) {}
 
   public record Mapping(
       @Description("Selected source interaction id") String sourceRef,

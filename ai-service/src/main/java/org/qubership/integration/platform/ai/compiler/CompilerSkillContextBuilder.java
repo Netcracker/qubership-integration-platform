@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
@@ -32,6 +33,7 @@ import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelo
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -62,6 +64,8 @@ public class CompilerSkillContextBuilder {
   private final KnowledgeClient knowledgeClient;
   private final KnowledgeContextProvider knowledgeContextProvider;
   private final EvidenceEmitter evidenceEmitter;
+
+  @Inject ConversationService conversations;
 
   @Inject
   public CompilerSkillContextBuilder(
@@ -136,8 +140,10 @@ public class CompilerSkillContextBuilder {
       appendCatalogContext(body, document);
     }
 
-    body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
+    body.append("Approved requirement interpretation:\n")
+        .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
     body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
+    appendAuthorSource(body, conversationId);
     if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
     }
@@ -584,13 +590,14 @@ public class CompilerSkillContextBuilder {
     runtimeEligibility.requirePromptContext(document.capabilityId());
 
     if (addonRepository.hasStandaloneSkills()) {
-      StringBuilder prompt = new StringBuilder("User request:\n")
+      StringBuilder prompt = new StringBuilder("Approved requirement interpretation:\n")
           .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\nRequirement brief:\n")
           .append(nullToEmpty(snapshot.requirementBrief())).append("\n\n")
           .append(nullToEmpty(snapshot.mappingGenerationContext())).append("\n\n")
           .append(nullToEmpty(snapshot.editContext())).append("\n\n")
           .append(editsExistingBodies ? "Update existing bodies.\n" : "Fill missing bodies.\n")
           .append("Required script node IDs:\n").append(formatJson(requiredNodeIds)).append("\n\n");
+      appendAuthorSource(prompt, conversationId);
       appendScriptNodeSlice(prompt, snapshot.chainPlanGraph(), requiredNodeIds);
       if (editsExistingBodies && snapshot.chainPlanGraph() != null) {
         prompt.append("\nOriginal script nodes:\n").append(formatJson(
@@ -617,8 +624,10 @@ public class CompilerSkillContextBuilder {
       body.append("Submit only script bodies for the listed targetNodeIds.\n");
     }
     body.append("Do not call captureGraphPatch.\n\n");
-    body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
+    body.append("Approved requirement interpretation:\n")
+        .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
     body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
+    appendAuthorSource(body, conversationId);
     if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
     }
@@ -681,6 +690,12 @@ public class CompilerSkillContextBuilder {
     appendRuntimeContextPackage(body, conversationId, document, snapshot);
     appendGeneratorConstraints(body, document, snapshot);
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
+  }
+
+  private void appendAuthorSource(StringBuilder body, String conversationId) {
+    if (conversations != null && conversationId != null && !conversationId.isBlank()) {
+      body.append(AuthorSourceEvidence.render(conversations.archive().read(conversationId)));
+    }
   }
 
   private void appendGeneratorConstraints(

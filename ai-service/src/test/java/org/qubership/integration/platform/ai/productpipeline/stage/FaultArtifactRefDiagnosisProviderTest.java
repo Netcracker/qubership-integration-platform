@@ -58,6 +58,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.SemanticFi
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 
 @QuarkusTest
 @TestProfile(TestArtifactBlobStoreProducer.Profile.class)
@@ -67,7 +68,7 @@ class FaultArtifactRefDiagnosisProviderTest {
   @InjectMock RateLimitChatModel provider;
 
   @ParameterizedTest
-  @ValueSource(strings = {"nested-attempt", "foreign", "missing-fields", "exhausted"})
+  @ValueSource(strings = {"nested-attempt", "foreign", "missing-fields", "exhausted", "invalid-action", "invalid-question"})
   void invalidFaultReferenceReachesTheNextProviderRequestWithoutChangingAuthorityOrRetryCredit(String mode) throws Exception {
     String runId = "fault-reference-" + UUID.randomUUID();
     var producer = new Reference(Kind.REQUIREMENT_DRAFT, "current-producer", "producer-" + "x".repeat(2_300));
@@ -84,10 +85,16 @@ class FaultArtifactRefDiagnosisProviderTest {
         "requirement-discovery", null, null, List.of(producer), List.of(finding), null, List.of(), List.of(),
         List.of(), List.of(), false, new CaptureFailureEvidence(feedback, null, attempt, List.of()));
     var context = new RecoveryContext(evidence, null, Map.of("producerStageId", "requirement-discovery"), "en");
-    var invalid = "missing-fields".equals(mode)
-        ? new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, null, List.of(),
-            RecoveryAction.REGENERATE_ARTIFACT, List.of(), "", "Repair the generated output. " + "details ".repeat(400))
-        : decision(rejected, evidence);
+    var invalid = switch (mode) {
+      case "missing-fields" -> new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, null, List.of(),
+          RecoveryAction.REGENERATE_ARTIFACT, List.of(), "", "Repair the generated output. " + "details ".repeat(400));
+      case "invalid-action" -> new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, producer,
+          List.of(evidence.failureId()), RecoveryAction.REGENERATE_ARTIFACT, List.of(), "", "Repair the generated output.");
+      case "invalid-question" -> new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT, producer,
+          List.of(evidence.failureId()), RecoveryAction.ASK_USER, List.of(),
+          "Which design-execution output should change?", "An unresolved choice needs clarification.");
+      default -> decision(rejected, evidence);
+    };
     String nativeDiagnostic = RecoveryDecisionValidator.validate(invalid, context).findings().getFirst();
     assertFalse(RecoveryDecisionValidator.validate(invalid, context).accepted());
     var requests = new ArrayList<JsonNode>();
@@ -110,20 +117,8 @@ class FaultArtifactRefDiagnosisProviderTest {
       return ChatResponse.builder().aiMessage(AiMessage.from(json.writeValueAsString(reply))).build();
     }).when(provider).chat(any(ChatRequest.class));
 
-    var blobs = new InMemoryArtifactBlobStore();
-    var clock = Clock.systemUTC();
-    var runs = new ProductPipelineRunStore(blobs, json, clock);
-    var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, json, clock));
-    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts, new StageCapabilityRegistry(List.of()), clock)
-        .failureNarrative(new FailureNarrative(agent)).build();
-    var output = new ArtifactTypeRef("requirement-draft", 1);
-    var profile = new ProductPipelineProfile(1, "fault-reference-diagnostic", "1", List.of(),
-        List.of(new ProfileStage("requirement-discovery", "unused-producer", List.of(), List.of(output), null, null,
-            new RetryPolicy(0, 0L))), new TerminalPolicy("requirement-discovery", "COMPLETE"), List.of());
-    var manifest = new RunManifest(runId, null, List.of(), "product", profile.profileId(), profile.profileVersion(),
-        "profile-hash", "baseline", "baseline-hash", List.of(), "closure-hash", null, "2026.1", List.of(output), null);
-    var before = support.bootstrap(new StartOrResumeCommand(runId, runId, profile, manifest), "diagnostic-test");
-    var executor = assertInstanceOf(ProductPipelineStageExecutor.class, support.stageExecutor());
+    var runtime = diagnosisRuntime(runId);
+    var executor = runtime.executor();
     var accepted = executor.acceptedRecoveryDecision(runId, context);
 
     assertEquals(2, requests.size());
@@ -142,7 +137,7 @@ class FaultArtifactRefDiagnosisProviderTest {
     assertEquals(firstEvidence.path("failureId"), nextEvidence.path("failureId"));
     assertTrue(requests.get(1).path("evidenceRefIds").toString().contains(producer.contentHash()));
     assertFalse(requests.get(1).path("evidenceRefIds").toString().contains(foreign.artifactId()));
-    if (!"missing-fields".equals(mode)) {
+    if (List.of("nested-attempt", "foreign", "exhausted").contains(mode)) {
       assertTrue(nativeDiagnostic.contains("Rejected value: " + json.valueToTree(rejected)));
       assertTrue(nativeDiagnostic.contains(json.valueToTree(producer).toString()),
           "The complete current reference must reach the provider.");
@@ -156,13 +151,83 @@ class FaultArtifactRefDiagnosisProviderTest {
       JsonNode retainedReply = json.readTree(accepted.evidence().findings().getLast().rawValidatorJson());
       assertEquals(json.valueToTree(invalid), retainedReply.path("rejectedDecision"));
     } else {
-      assertEquals(decision(producer, evidence), accepted.decision());
+      var expectedMachineDecision = json.valueToTree(decision(producer, evidence));
+      var actualMachineDecision = json.valueToTree(accepted.decision());
+      ((com.fasterxml.jackson.databind.node.ObjectNode) expectedMachineDecision).remove("userSummary");
+      ((com.fasterxml.jackson.databind.node.ObjectNode) actualMachineDecision).remove("userSummary");
+      assertEquals(expectedMachineDecision, actualMachineDecision);
       assertEquals(RecoveryStatus.READY, accepted.diagnosisStatus());
     }
-    assertEquals(before, runs.load(runId).orElseThrow(), "Diagnosis must not replace accepted work or source input.");
+    assertEquals(runtime.before(), runtime.runs().load(runId).orElseThrow(),
+        "Diagnosis must not replace accepted work or source input.");
     assertEquals(accepted, executor.acceptedRecoveryDecision(runId, context));
     assertEquals(2, requests.size(), "Reentry must reuse the saved result without new diagnosis credit.");
   }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"en-US", "ru-RU"})
+  void modelSummaryIsAuditOnlyWhileTheRegisteredRecoveryRequestKeepsItsMachineDecision(String locale) throws Exception {
+    String runId = "presentation-" + UUID.randomUUID();
+    var producer = new Reference(Kind.CHAIN_PLAN_GRAPH, "current-graph", "current-graph-hash");
+    var evidence = new RecoveryEvidence(1, "presentation-failure", "CONTRACT_SHAPE", "design-execution",
+        "design-execution", null, null, List.of(producer), List.of(), null, List.of(), List.of());
+    var context = new RecoveryContext(evidence, null, Map.of("producerStageId", "design-execution"), locale);
+    var reply = new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, producer, List.of(evidence.failureId()),
+        RecoveryAction.REGENERATE_ARTIFACT, List.of(), null,
+        "Repair design-execution using private-source-literal, /private/source/path, and ref-123.");
+    assertEquals(List.of("userSummary must not contain stage identifiers."),
+        RecoveryDecisionValidator.validate(reply, context).findings());
+    var requests = new ArrayList<ChatRequest>();
+    doAnswer(call -> {
+      ChatRequest request = call.getArgument(0);
+      requests.add(request);
+      String prompt = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
+          .map(UserMessage::singleText).filter(text -> text.startsWith("You diagnose create-chain recovery"))
+          .findFirst().orElseThrow();
+      assertTrue(prompt.contains("\"responseLocale\":\"" + locale + "\""));
+      assertTrue(prompt.contains(producer.contentHash()));
+      return ChatResponse.builder().aiMessage(AiMessage.from(json.writeValueAsString(reply))).build();
+    }).when(provider).chat(any(ChatRequest.class));
+    var runtime = diagnosisRuntime(runId);
+    var accepted = runtime.executor().acceptedRecoveryDecision(runId, context);
+    assertEquals(1, requests.size(), "Presentation must not spend the existing correction call.");
+    assertEquals(RecoveryStatus.READY, accepted.diagnosisStatus());
+    var expectedMachine = json.valueToTree(reply);
+    var actualMachine = json.valueToTree(accepted.decision());
+    ((com.fasterxml.jackson.databind.node.ObjectNode) expectedMachine).remove("userSummary");
+    ((com.fasterxml.jackson.databind.node.ObjectNode) actualMachine).remove("userSummary");
+    assertEquals(expectedMachine, actualMachine);
+    assertEquals("The generated result needs correction. Recovery will continue with the saved requirements.",
+        accepted.decision().userSummary());
+    assertTrue(RecoveryDecisionValidator.validate(accepted.decision(), context).accepted());
+    var audit = json.readTree(accepted.evidence().findings().getLast().rawValidatorJson());
+    assertEquals("PRESENTATION_ONLY", audit.path("status").asText());
+    assertEquals(json.valueToTree(reply), audit.path("rawDecision"));
+    assertEquals(json.valueToTree(accepted.decision()), audit.path("presentedDecision"));
+    assertEquals(accepted, runtime.executor().acceptedRecoveryDecision(runId, context));
+    assertEquals(1, requests.size());
+    assertEquals(runtime.before(), runtime.runs().load(runId).orElseThrow());
+  }
+
+  private DiagnosisRuntime diagnosisRuntime(String runId) {
+    var blobs = new InMemoryArtifactBlobStore();
+    var clock = Clock.systemUTC();
+    var runs = new ProductPipelineRunStore(blobs, json, clock);
+    var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, json, clock));
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts, new StageCapabilityRegistry(List.of()), clock)
+        .failureNarrative(new FailureNarrative(agent)).build();
+    var output = new ArtifactTypeRef("requirement-draft", 1);
+    var profile = new ProductPipelineProfile(1, "fault-reference-diagnostic", "1", List.of(),
+        List.of(new ProfileStage("requirement-discovery", "unused-producer", List.of(), List.of(output), null, null,
+            new RetryPolicy(0, 0L))), new TerminalPolicy("requirement-discovery", "COMPLETE"), List.of());
+    var manifest = new RunManifest(runId, null, List.of(), "product", profile.profileId(), profile.profileVersion(),
+        "profile-hash", "baseline", "baseline-hash", List.of(), "closure-hash", null, "2026.1", List.of(output), null);
+    var before = support.bootstrap(new StartOrResumeCommand(runId, runId, profile, manifest), "diagnostic-test");
+    return new DiagnosisRuntime(assertInstanceOf(ProductPipelineStageExecutor.class, support.stageExecutor()), runs, before);
+  }
+
+  private record DiagnosisRuntime(ProductPipelineStageExecutor executor, ProductPipelineRunStore runs,
+                                  ProductPipelineRunDocument before) {}
 
   private static RecoveryDecision decision(Reference fault, RecoveryEvidence evidence) {
     return new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, fault, List.of(evidence.failureId()),

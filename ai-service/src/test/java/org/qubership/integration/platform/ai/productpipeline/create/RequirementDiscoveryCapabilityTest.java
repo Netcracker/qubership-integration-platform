@@ -1042,6 +1042,55 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   @Test
+  void detailedPreservationRefusalCannotAuthorizeItsForbiddenChangesOnReentry() throws Exception {
+    var h = captureHarness(null);
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    String chat = "mapping-preservation-reentry";
+    var goal = new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Retain the original task.");
+    var original = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+        "Caller", "POST /tasks", "Receive tasks", null, null)), List.of()),
+        List.of(goal, nativeAnchorFact("entry", "http-trigger")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/tasks", null, null, null)),
+        List.of(), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open(chat)) {
+      h.store().beginTurn(chat, goal.text() + " Proceed without IDS.");
+      assertTrue(mapper.readTree(h.tools().captureRequirementDraft(original)).path("accepted").asBoolean());
+    }
+    var accepted = h.store().get(chat).orElseThrow();
+    var cause = new org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause(
+        org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.CONTRACT_SHAPE,
+        List.of(new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+            "REPAIR_FACT_LOSS", "Retain the exact original task.", true,
+            org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails.empty(),
+            "goal", "/facts/goal/text")), "");
+    var checked = new AtomicInteger();
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (cid, prompt) -> {
+      assertTrue(h.store().activeRequirementRepairPaths(cid).isEmpty(),
+          "A preservation refusal describes a prohibited edit; it must not grant that edit on reentry.");
+      var rewritten = new FactInput(goal.sourceFactId(), goal.interactionIds(), goal.kind(), goal.polarity(), "Replace the task.");
+      var refusal = h.tools().updateRequirementDraft(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(rewritten), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null));
+      assertTrue(refusal.contains("REPAIR_FACT_LOSS"), refusal);
+      checked.incrementAndGet();
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    capability.captureFeedback = h.feedback();
+    var attrs = Map.<String, Object>of("requirementCorrectionDraft", accepted, "mappingRepairAutomatic", "true",
+        "mappingRepairFindings", "Retain the exact original task.",
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "REPAIR_FACT_LOSS: Retain the exact original task.",
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR,
+        "CONTRACT_SHAPE",
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
+        mapper.writeValueAsString(cause));
+    capability.execute(new StageExecutionContext("same-run", chat, "requirement-discovery", "execution", "attempt",
+        null, null, List.of(), attrs)).collect().asList().await().indefinitely();
+    assertEquals(1, checked.get());
+    assertEquals(original, h.store().get(chat).orElseThrow().authoredDraft());
+  }
+
+  @Test
   void catalogPathRepairPreservesFactsAndRejectsCollateralChanges() throws Exception {
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var mapping = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(

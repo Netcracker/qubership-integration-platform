@@ -75,7 +75,8 @@ class ProductRequirementBriefSchemaTest {
     collect(root, root.definitions(), fields);
 
     assertTrue(fields.containsAll(Set.of("goal", "summary", "inputs", "assumptions",
-        "citations", "mappingIntents", "sourceRef", "targetRef", "rules")), fields.toString());
+        "citations", "mappingIntents", "sourceRef", "targetRef", "rules", "sourceOmissions",
+        "sourceTurnId", "quote", "explanation")), fields.toString());
     for (String owned : Set.of("facts", "constraints", "flow", "catalogBindings",
         "approvedDraftText", "approvedDraftReference", "mappingIntentId", "sourcePort",
         "targetPort", "status")) {
@@ -89,7 +90,7 @@ class ProductRequirementBriefSchemaTest {
 
     String result = execute("""
         {"capture":{"goal":"Greetings","summary":"Return Hello world!",
-          "inputs":["GET /greetings"],"assumptions":[],"citations":[],"mappingIntents":[]}}
+          "inputs":["GET /greetings"],"assumptions":[],"citations":[],"mappingIntents":[],"sourceOmissions":[]}}
         """);
 
     assertTrue(result.contains("Requirement brief captured"), result);
@@ -175,8 +176,21 @@ class ProductRequirementBriefSchemaTest {
     }
     var capture = (JsonObjectSchema) schema;
     assertFalse(capture.required().contains("mappingIntents"), capture.toString());
-    assertTrue(capture.required().containsAll(List.of("goal", "summary", "inputs", "assumptions", "citations")),
+    assertTrue(capture.required().containsAll(
+        List.of("goal", "summary", "inputs", "assumptions", "citations", "sourceOmissions")),
         capture.toString());
+  }
+
+  @Test
+  void rejectsMissingSourceReviewBeforeRecordDefaultsHideIt() {
+    bind();
+    String result = execute("""
+        {"capture":{"goal":"Greetings","summary":"Return Hello", "inputs":["GET /greetings"],
+          "assumptions":[],"citations":[]}}
+        """);
+    assertTrue(result.contains("/capture/sourceOmissions"), result);
+    assertTrue(ProductCapabilityCaptureContext.binding(CONVERSATION)
+        .orElseThrow().briefCandidate().get() == null);
   }
 
   private void bind() {

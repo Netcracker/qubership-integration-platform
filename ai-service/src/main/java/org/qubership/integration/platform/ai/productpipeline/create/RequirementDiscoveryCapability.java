@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -28,6 +31,7 @@ import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
@@ -63,6 +67,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 public class RequirementDiscoveryCapability implements StageCapability {
 
   public static final String CAPABILITY_ID = "requirement-discovery";
+  private static final ObjectMapper MAPPING_REPAIR_MAPPER = new ObjectMapper();
 
   private final GatherRequirementsAgent gatherRequirementsAgent;
   private final RequirementDraftStore draftStore;
@@ -271,8 +276,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
           Contract findings:
           %s
           %s
+          Native editable scope:
+          %s
           """.formatted(context.attributes().getOrDefault("mappingRepairFindings", repair.diagnosticText()),
-              repair.errorEvidence());
+              repair.errorEvidence(), mappingRepairScope(mappingRepairPaths(context), missingMappingTargets(context),
+                  mappingRepairDraft.authoredDraft()));
     }
     var repair = StageRepairEvidence.from(context);
     if (repair != null && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
@@ -444,6 +452,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
           .readValue(repair.typedCauseJson(), RecoveryCause.class);
       var paths = new java.util.LinkedHashSet<String>();
       for (var finding : cause.findings()) {
+        if ("REPAIR_FACT_LOSS".equals(finding.code())) continue;
         String path = RequirementDraftStore.requirementRepairPath(draft, finding);
         if (path != null) paths.add(path);
       }
@@ -519,10 +528,15 @@ public class RequirementDiscoveryCapability implements StageCapability {
     RequirementDraft repairDraft = mappingRepairDraft(context);
     if (repairDraft != null) repairDraft = ProductCapabilityCaptureContext.binding(conversationId)
         .map(ProductCapabilityCaptureContext.Binding::approvedDraft).orElse(repairDraft);
-    if (repairDraft != null && !preservesMappingRepair(context, repairDraft, draft)) {
+    var mappingIssues = repairDraft == null ? List.<Issue>of()
+        : mappingRepairIssues(mappingRepairPaths(context), missingMappingTargets(context), repairDraft.authoredDraft(),
+            draft == null ? null : draft.authoredDraft());
+    if (!mappingIssues.isEmpty()) {
+      var findings = mappingIssues.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+          MappingValidationDetails.empty(), issue.entityId(), issue.path())).toList();
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
           "REPAIR_FACT_LOSS: Change only the rejected mapping field paths.",
-          RecoveryCause.mappingContract(List.of())));
+          RecoveryCause.mappingContract(findings)));
     }
     if (draft == null) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
@@ -834,9 +848,90 @@ public class RequirementDiscoveryCapability implements StageCapability {
   public static boolean preservesMappingRepair(Map<String, java.util.Set<String>> editable,
       List<MappingValidationDetails> missingTargets, RequirementCaptureInput.DraftInput accepted,
       RequirementCaptureInput.DraftInput proposed) {
+    return mappingRepairIssues(editable, missingTargets, accepted, proposed).isEmpty();
+  }
+
+  /** Reports exactly the protected differences left after applying the existing mapping authority. */
+  public static List<Issue> mappingRepairIssues(
+      Map<String, java.util.Set<String>> editable, List<MappingValidationDetails> missingTargets,
+      RequirementCaptureInput.DraftInput accepted, RequirementCaptureInput.DraftInput proposed) {
+    var retained = retainMappingRepair(editable, missingTargets, accepted, proposed);
+    if (retained != null && accepted.equals(retained)) return List.of();
+    var issues = new ArrayList<Issue>();
+    if (retained != null) {
+      mappingRepairDifferences(mappingRepairTree(accepted), mappingRepairTree(retained), "/draft", null, issues);
+      var beforeIds = accepted.facts().stream().map(RequirementCaptureInput.FactInput::sourceFactId).toList();
+      var afterIds = retained.facts().stream().map(RequirementCaptureInput.FactInput::sourceFactId).toList();
+      if (!beforeIds.equals(afterIds) && beforeIds.size() == afterIds.size()
+          && new java.util.HashSet<>(beforeIds).equals(new java.util.HashSet<>(afterIds))) {
+        mappingRepairDifferences(MAPPING_REPAIR_MAPPER.valueToTree(beforeIds), MAPPING_REPAIR_MAPPER.valueToTree(afterIds),
+            "/draft/facts", null, issues);
+      }
+    }
+    if (issues.isEmpty()) issues.add(new Issue(
+        "REPAIR_FACT_LOSS", "/draft", null, "Preserve the complete selected draft and submit a valid mapping correction."));
+    var first = issues.getFirst();
+    issues.set(0, new Issue(first.code(), first.path(),
+        first.entityId(), first.message() + " " + mappingRepairScope(editable, missingTargets, accepted)));
+    return List.copyOf(issues);
+  }
+
+  private static ObjectNode mappingRepairTree(RequirementCaptureInput.DraftInput draft) {
+    ObjectNode tree = MAPPING_REPAIR_MAPPER.valueToTree(draft);
+    var facts = tree.putObject("facts");
+    draft.facts().forEach(fact -> facts.set(fact.sourceFactId(), MAPPING_REPAIR_MAPPER.valueToTree(fact)));
+    return tree;
+  }
+
+  private static void mappingRepairDifferences(JsonNode before,
+      JsonNode after, String path, String factId,
+      List<Issue> issues) {
+    if (before.equals(after)) return;
+    if (before.isObject() && after.isObject()) {
+      var fields = new java.util.TreeSet<String>();
+      before.fieldNames().forEachRemaining(fields::add);
+      after.fieldNames().forEachRemaining(fields::add);
+      for (String field : fields) mappingRepairDifferences(before.path(field), after.path(field),
+          path + "/" + field.replace("~", "~0").replace("/", "~1"), "/draft/facts".equals(path) ? field : factId, issues);
+      return;
+    }
+    if (before.isArray() && after.isArray()) {
+      for (int i = 0; i < Math.max(before.size(), after.size()); i++)
+        mappingRepairDifferences(before.path(i), after.path(i), path + "/" + i, factId, issues);
+      return;
+    }
+    String reason = after.isMissingNode() ? "A protected requirement was removed."
+        : before.isMissingNode() ? "This addition is outside the authorized missing mapping targets."
+            : "This protected value is outside the editable mapping fields.";
+    issues.add(new Issue("REPAIR_FACT_LOSS", path, factId,
+        reason + " Accepted value: " + (before.isMissingNode() ? "<absent>" : before)
+            + ". Rejected value: " + (after.isMissingNode() ? "<absent>" : after) + "."));
+  }
+
+  private static String mappingRepairScope(Map<String, java.util.Set<String>> editable,
+      List<MappingValidationDetails> missingTargets, RequirementCaptureInput.DraftInput accepted) {
+    var paths = new java.util.TreeSet<String>();
+    if (accepted != null && accepted.facts() != null) accepted.facts().stream().filter(Objects::nonNull)
+        .filter(fact -> fact.fieldMapping() != null).forEach(fact -> {
+          for (String field : editable.getOrDefault(fact.sourceFactId(), java.util.Set.of())) {
+            if (java.util.Set.of("sourcePath", "targetPath", "expression").contains(field))
+              paths.add("/draft/facts/" + fact.sourceFactId().replace("~", "~0").replace("/", "~1") + "/fieldMapping/" + field);
+          }
+        });
+    var additions = missingTargets.stream().map(target -> MAPPING_REPAIR_MAPPER.createObjectNode()
+        .put("sourceInteractionId", target.sourceRef()).put("targetInteractionId", target.targetRef())
+        .put("targetPath", target.targetPath())).toList();
+    return "Allowed existing mapping field paths: " + MAPPING_REPAIR_MAPPER.valueToTree(paths)
+        + ". Add only positive FIELD_MAPPING facts for these source/target/path contracts: "
+        + MAPPING_REPAIR_MAPPER.valueToTree(additions) + ". Preserve all other values and fact order.";
+  }
+
+  private static RequirementCaptureInput.DraftInput retainMappingRepair(Map<String, java.util.Set<String>> editable,
+      List<MappingValidationDetails> missingTargets, RequirementCaptureInput.DraftInput accepted,
+      RequirementCaptureInput.DraftInput proposed) {
     if (accepted == null || proposed == null || accepted.facts() == null || proposed.facts() == null
         || accepted.facts().stream().anyMatch(Objects::isNull) || proposed.facts().stream().anyMatch(Objects::isNull)) {
-      return false;
+      return null;
     }
     var retained = new java.util.ArrayList<RequirementCaptureInput.FactInput>();
     for (var fact : proposed.facts()) {
@@ -864,8 +959,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
       }
       retained.add(fact);
     }
-    return accepted.equals(new RequirementCaptureInput.DraftInput(proposed.flow(), retained,
-        proposed.capabilities(), proposed.openQuestions(), proposed.settings()));
+    return new RequirementCaptureInput.DraftInput(proposed.flow(), retained,
+        proposed.capabilities(), proposed.openQuestions(), proposed.settings());
   }
 
   private static String tokenText(ChatEvent event) {
