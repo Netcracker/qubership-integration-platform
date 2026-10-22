@@ -115,6 +115,13 @@ class StageQuestionRepairFeedbackProviderTest {
     assertEquals("AUTHOR_QUESTION_NOT_SUPPORTED", finding.code());
     assertEquals("/questions[]/security-choice", finding.fieldPointer());
     assertTrue(finding.message().contains(input.turnId()));
+    assertTrue(finding.message().contains("/draft/openQuestions/security-choice/evidence"));
+    assertTrue(finding.message().contains("rejected value null"));
+    assertTrue(finding.message().contains("[interactionId, propertyKey, kind, reviewedInputIds]"));
+    assertTrue(finding.message().contains("changes.updateQuestions"));
+    for (var kind : AuthorQuestionEvidence.Kind.values()) {
+      assertTrue(finding.message().contains(kind.name()), finding.message());
+    }
     assertEquals(originalReference, drafts.latestRevision(chat).orElseThrow().reference());
 
     var question = new QuestionInput("security-choice", List.of("entry"), QUESTION,
@@ -144,6 +151,11 @@ class StageQuestionRepairFeedbackProviderTest {
           assertTrue(packet.contains(finding.fieldPointer()));
           assertTrue(packet.contains(finding.message()));
           assertTrue(packet.contains(input.turnId()));
+          assertTrue(packet.contains("changes.updateQuestions"));
+          assertTrue(packet.contains("rejected value null"));
+          for (var kind : AuthorQuestionEvidence.Kind.values()) {
+            assertTrue(packet.contains(kind.name()), packet);
+          }
           assertEquals(originalSource, json.valueToTree(conversations.archive().read(chat)));
           assertEquals(SOURCE, drafts.currentAuthorText(chat).orElseThrow());
         }, "updateRequirementDraft", json.writeValueAsString(Map.of("changes", update))),

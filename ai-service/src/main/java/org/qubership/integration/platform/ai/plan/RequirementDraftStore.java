@@ -893,7 +893,17 @@ public class RequirementDraftStore {
                 != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
             findings);
       } else if (source != null || prior) {
-        findings.add("Review saved author sources and capture evidence for the target field before asking again.");
+        var schema = (dev.langchain4j.model.chat.request.json.JsonObjectSchema) RequirementCaptureSchemas
+            .parameters("evidence", org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.class)
+            .properties().get("evidence");
+        var kinds = (dev.langchain4j.model.chat.request.json.JsonEnumSchema) schema.properties().get("kind");
+        findings.add("Field " + path + "/evidence has rejected value null. Evidence is required when source history"
+            + " is available or this repeats a prior question; null is reserved for legacy questions with neither."
+            + " The native evidence schema requires fields " + schema.required() + "; kind enum: " + kinds.enumValues()
+            + ". Review saved author sources, then update this existing question using changes.updateQuestions."
+            + " Keep its questionId and interactionIds; target its existing interaction or owned element and the"
+            + " unresolved propertyKey. Set reviewedInputIds to exactly the source turn IDs below."
+            + " Keep unresolved choices open and leave unrelated accepted records unchanged; do not add them again.");
       }
       if (prior && (evidence == null || evidence.kind()
           != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER)) {
