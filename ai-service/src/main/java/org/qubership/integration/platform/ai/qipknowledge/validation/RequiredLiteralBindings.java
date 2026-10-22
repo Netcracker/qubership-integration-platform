@@ -4,11 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
-import org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement;
-import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 
 /** Checks destinations in the typed requirement contract, never incidental graph text. */
 public final class RequiredLiteralBindings {
@@ -25,8 +22,7 @@ public final class RequiredLiteralBindings {
     var unbound = new ArrayList<String>();
     for (String literal : intent.exactValues()) {
       if (literal == null || literal.isBlank()) continue;
-      boolean bound = ownedNameSlot(fact) && literal.equals(intent.requestedName())
-          || intent.placement()
+      boolean bound = intent.placement()
           == org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.ANCHOR
           && facts.stream().filter(candidate -> candidate.polarity() == RequirementFactPolarity.POSITIVE)
           .filter(candidate -> candidate.targetsInteraction(intent.ownerInteractionId() == null
@@ -63,32 +59,7 @@ public final class RequiredLiteralBindings {
         .filter(property -> property != null && "script".equals(property.key()))
         .map(property -> property.value()).toList();
     return intent.exactValues().stream().filter(literal -> literal != null && !literal.isBlank())
-        .filter(literal -> !literal.equals(intent.requestedName()) || !matchingNameSlot(fact, graph))
         .filter(literal -> bodies.stream().noneMatch(body -> body != null && scriptConstant(body, literal))).toList();
-  }
-
-  private static boolean ownedNameSlot(RequirementFact fact) {
-    var intent = fact.elementIntent();
-    return fact.polarity() == RequirementFactPolarity.POSITIVE && intent != null
-        && intent.elementRef() != null && !intent.elementRef().isBlank()
-        && intent.elementType() != null && !intent.elementType().isBlank()
-        && intent.requestedName() != null && !intent.requestedName().isBlank()
-        && intent.ownerInteractionId() != null && fact.interactionIds().contains(intent.ownerInteractionId())
-        && (intent.placement() == Placement.ANCHOR && intent.elementRef().equals(intent.ownerInteractionId())
-            || intent.placement() == Placement.LOCAL_NODE && !intent.elementRef().equals(intent.ownerInteractionId()));
-  }
-
-  private static boolean matchingNameSlot(RequirementFact fact, ChainPlanGraph graph) {
-    if (!ownedNameSlot(fact)) return false;
-    var intent = fact.elementIntent();
-    var nodes = graph.nodes().stream().filter(node -> intent.elementRef().equals(node.nodeId())).toList();
-    if (nodes.size() != 1) return false;
-    var node = nodes.getFirst();
-    return intent.elementType().equals(node.type()) && intent.requestedName().equals(node.label())
-        && Objects.equals(intent.parentElementRef(), node.parentNodeId())
-        && graph.nodes().stream().filter(owner -> intent.ownerInteractionId().equals(owner.nodeId())).count() == 1
-        && (node.properties() == null || node.properties().stream().filter(property -> property != null
-            && "serviceCallId".equals(property.key())).allMatch(property -> intent.ownerInteractionId().equals(property.value())));
   }
 
   private static boolean ownedScript(RequirementFact fact) {
