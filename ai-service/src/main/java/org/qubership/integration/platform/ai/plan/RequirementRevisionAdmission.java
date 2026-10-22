@@ -131,15 +131,28 @@ final class RequirementRevisionAdmission {
     changedPaths(before, after, "", changed);
     var selectedChanges = selectedPolicyChanges(base, candidate, attempt.acceptedDraftReference(),
         attempt.sourceGeneration(), attempt.sourceTurnId(), drafts.trustedPolicyChoices(conversationId));
+    var bodyChanges = source != null && validation.isEmpty()
+        && Objects.equals(current == null ? null : current.reference(), attempt.acceptedDraftReference())
+        && Objects.equals(source.generation(), attempt.sourceGeneration())
+        && Objects.equals(ConversationArchive.latestInputId(source), attempt.sourceTurnId())
+        && attempt.authorEvidenceHash() != null
+        && Objects.equals(attempt.authorEvidenceHash(), CaptureProposal.digest(AuthorSourceEvidence.packet(source)))
+            ? RequirementBodySources.completionPaths(base, candidate, AuthorSourceEvidence.packet(source)) : Set.<String>of();
+    var provenChanges = new LinkedHashMap<>(selectedChanges);
+    changed.stream().filter(path -> bodyChanges.stream().anyMatch(root -> path.equals(root) || path.startsWith(root + "/")))
+        .forEach(path -> provenChanges.put(path, references));
     for (var path : changed) {
-      var selection = selectedChanges.get(path);
+      var selection = provenChanges.get(path);
+      boolean bodyCompletion = selection != null && !selectedChanges.containsKey(path);
       var originRefs = new ArrayList<>(references);
       if (selection != null) originRefs.addAll(selection);
       findings.add(finding(path, owners(path, base, candidate), before.at(path).isMissingNode()
-          ? "candidate-addition" : selection == null ? "accepted-extraction" : "validated-policy-choice", originRefs,
+          ? "candidate-addition" : selection == null ? "accepted-extraction"
+              : bodyCompletion ? "retained-author-source" : "validated-policy-choice", originRefs,
           "author-origin", selection == null ? PreservationOutcome.UNPROVEN : PreservationOutcome.VERIFIED,
           selection == null ? "No independent typed author selection or native meaning contract discharges this changed obligation."
               + " Source occurrence, model labels, and an earlier draft do not establish its meaning."
+              : bodyCompletion ? "The missing metadata is independently reconstructed from retained source for the unchanged native script, complete body, owner, and fact."
               : "The exact policy decision, offered-question closure, or existing property value implements an independently validated selection for this unchanged owner and policy contract."));
     }
     if (changed.isEmpty()) {
@@ -173,9 +186,9 @@ final class RequirementRevisionAdmission {
               PreservationOutcome.VERIFIED, "All recorded protected rejected values remain unchanged."));
         }
         losses.forEach(path -> findings.add(finding(path, owners(path, base, candidate), "rejected-capture-protection",
-            protectionRefs, "protected-retention", selectedChanges.containsKey(path)
+            protectionRefs, "protected-retention", provenChanges.containsKey(path)
                 ? PreservationOutcome.VERIFIED : PreservationOutcome.UNPROVEN,
-            selectedChanges.containsKey(path) ? "The independently selected option supersedes only this exact protected policy value."
+            provenChanges.containsKey(path) ? "Independent native evidence covers only this exact metadata or selected policy value."
                 : "A protected rejected value changed or disappeared; its independent meaning and dependencies remain unproved.")));
       }
     } else if (drafts.repairConstraints(conversationId) != null) {
@@ -183,7 +196,9 @@ final class RequirementRevisionAdmission {
           PreservationOutcome.UNPROVEN, "Active rejected protection has no matching persisted snapshot for this attempt."));
     }
     if (validation.isEmpty()) {
-      var bindingBase = selectedChanges.isEmpty() ? base : amended(base, candidate, selectedChanges.keySet());
+      var nativePaths = new java.util.LinkedHashSet<>(selectedChanges.keySet());
+      nativePaths.addAll(bodyChanges);
+      var bindingBase = nativePaths.isEmpty() ? base : amended(base, candidate, nativePaths);
       var bindings = baseDraft == null ? List.<org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint>of()
           : baseDraft.catalogBindings().stream().filter(binding -> stableOwner(binding.interactionId(), bindingBase, candidate)).toList();
       var targets = new LinkedHashMap<String, String>();
@@ -210,10 +225,10 @@ final class RequirementRevisionAdmission {
         checkConsumers(candidate, baseDraft, bindings, targets, inputs, references, findings);
         for (var path : changed) {
           findings.add(finding(path, dependentOwners(owners(path, base, candidate), base, candidate),
-              "typed-consumer-dependencies", references, "consumer-coverage", selectedChanges.containsKey(path)
+              "typed-consumer-dependencies", references, "consumer-coverage", provenChanges.containsKey(path)
                   ? PreservationOutcome.VERIFIED : PreservationOutcome.UNPROVEN,
-              selectedChanges.containsKey(path)
-                  ? "This exact policy decision, offered-question closure, or selected property value follows the supported policy contract. Native schema, brief coverage, requested-value, quality, and security checks cover the correction; other changes retain their own findings."
+              provenChanges.containsKey(path)
+                  ? "This exact source-derived body metadata or independently selected policy value follows its native contract. Native schema, brief coverage, requested-value, quality, and security checks cover the correction; other changes retain their own findings."
                   : "Independent origin and complete affected-consumer coverage are not established."
                   + " Kind, capability, binding, mapping, question, and order changes require their own native inputs;"
                   + " a disappearing readiness finding does not prove preservation."));
@@ -773,7 +788,8 @@ final class RequirementRevisionAdmission {
                 first(originalIntent.predecessorElementRef(), newIntent.predecessorElementRef()),
                 first(originalIntent.parentElementRef(), newIntent.parentElementRef()),
                 first(originalIntent.requestedName(), newIntent.requestedName()), List.copyOf(properties.values()),
-                List.copyOf(values));
+                List.copyOf(values), originalIntent.bodyBinding() == null
+                    ? newIntent.bodyBinding() : originalIntent.bodyBinding());
           }
           var interactions = new java.util.LinkedHashSet<>(old.interactionIds());
           interactions.addAll(fact.interactionIds());

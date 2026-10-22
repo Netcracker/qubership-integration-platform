@@ -472,6 +472,13 @@ public class RequirementCaptureTools {
               == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER)
           .map(turn -> turn.message().content()).collect(Collectors.joining("\n"));
     }
+    var source = conversations == null
+        ? new AuthorSourceEvidence.Packet(store.writeAuthority(conversationId).sourceGeneration(),
+            authorText == null ? List.of() : List.of(new AuthorSourceEvidence.Input(
+                store.writeAuthority(conversationId).sourceTurnId(), authorText)))
+        : AuthorSourceEvidence.packet(conversations.archive().read(conversationId));
+    var bodyOwners = input.facts().stream().filter(Objects::nonNull).map(FactInput::elementIntent)
+        .filter(Objects::nonNull).toList();
     for (FactInput fact : input.facts()) {
       if (fact == null || fact.text() == null) {
         continue;
@@ -527,6 +534,30 @@ public class RequirementCaptureTools {
                         + elementSchemas.describeElementProperty(intent.elementType(), property.key()))));
           }
         }
+      }
+      if (RequirementBodySources.ownsBody(intent, "script")) {
+        var authority = RequirementBodySources.resolve(intent, bodyOwners, source);
+        if (authority.error() != null) {
+          issues.add(new Issue("BODY_SOURCE_UNPROVEN", path + "/bodyBinding", fact.sourceFactId(), authority.error()));
+        } else {
+          if (!Objects.equals(authority.binding(), intent.bodyBinding())) {
+            issues.add(new Issue(intent.bodyBinding() == null ? "BODY_BINDING_REQUIRED" : "BODY_SOURCE_MISMATCH",
+                path + "/bodyBinding", fact.sourceFactId(),
+                "Native source classification differs from bodyBinding. Retain the fact and other configuration;"
+                    + " copy this source-derived binding: " + mapper.valueToTree(authority.binding())
+                    + ". Generated candidates guide generation and cannot overwrite a validated compiler body."));
+          }
+          if (authority.body() != null && intent.requestedProperties().stream().noneMatch(property ->
+              property != null && "script".equals(property.key()) && authority.body().equals(property.value()))) {
+            issues.add(new Issue("BODY_SOURCE_MISMATCH", path + "/requestedProperties/script", fact.sourceFactId(),
+                "Copy the complete source code value without trimming or rewriting any characters."
+                    + " The source-derived binding is " + mapper.valueToTree(authority.binding())
+                    + "; the exact native script value is " + mapper.valueToTree(authority.body()) + "."));
+          }
+        }
+      } else if (intent.bodyBinding() != null) {
+        issues.add(new Issue("BODY_SOURCE_MISMATCH", path + "/bodyBinding", fact.sourceFactId(),
+            "This element does not own the native script body identified by bodyBinding."));
       }
       boolean unchanged = previous != null && previous.authoredDraft() != null
           && previous.authoredDraft().facts().stream().anyMatch(prior ->

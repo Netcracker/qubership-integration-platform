@@ -85,6 +85,7 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
 
   @Override
   public void chat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
+    chatRequest = org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer.repairRejectedArguments(chatRequest);
     chatRequest = firstToolProtocol(chatRequest);
     ChatRequest requestWithDefaults =
         requestBudget.prepare(chatRequest

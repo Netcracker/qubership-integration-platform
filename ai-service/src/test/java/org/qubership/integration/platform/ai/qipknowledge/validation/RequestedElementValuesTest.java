@@ -19,6 +19,77 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifes
 
 class RequestedElementValuesTest {
   @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void missingBodyAuthorityIdentifiesItsExactSourceFactAtBothCompilerBoundaries(boolean seeding) {
+    String body = "  exchange.message.body = 'source'  \n";
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Example", ""), List.of(
+        new ChainPlanNode("prepare", "script", "Prepare", null, null,
+            List.of(new PlanProperty("script", body)))), List.of());
+    var intent = new RequirementElementIntent("prepare", "script", Placement.LOCAL_NODE,
+        "entry", null, null, null, List.of(new PlanProperty("script", body)), List.of());
+    var source = fact("prepare-source", intent);
+
+    var error = assertThrows(RequestedElementValues.UnprovenBodyBinding.class, () -> {
+      if (seeding) RequestedElementValues.seedBodies(graph, List.of(source));
+      else RequestedElementValues.apply(graph, List.of(source));
+    });
+
+    assertEquals("BODY_BINDING_REQUIRED", error.finding().code());
+    assertEquals("prepare-source", error.finding().originRecordId());
+    assertEquals("/elementIntent/bodyBinding", error.finding().fieldPointer());
+    assertTrue(error.finding().blocker());
+    assertEquals(IllegalArgumentException.class, error.getCause().getClass());
+    assertEquals(body, graph.nodes().getFirst().properties().getFirst().value());
+    assertEquals(null, intent.bodyBinding());
+  }
+
+  @Test
+  void aChangedVerifiedAuthorBodyIsNotRelabeledAsMissingMetadata() {
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Example", ""), List.of(
+        new ChainPlanNode("prepare", "script", "Prepare", null, null,
+            List.of(new PlanProperty("script", "return 'changed'")))), List.of());
+    var binding = new org.qubership.integration.platform.ai.plan.RequirementBodyBinding(
+        org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
+        "prepare", "script", org.qubership.integration.platform.ai.plan.RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+        "generation", "turn", 0, 15, org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Encoding.RAW);
+    var intent = new RequirementElementIntent("prepare", "script", Placement.LOCAL_NODE,
+        "entry", null, null, null, null, List.of(new PlanProperty("script", "return 'author'")), List.of(), binding);
+
+    var error = assertThrows(IllegalArgumentException.class,
+        () -> RequestedElementValues.apply(graph, List.of(fact("prepare-source", intent))));
+
+    assertEquals(IllegalArgumentException.class, error.getClass());
+    assertEquals("return 'changed'", graph.nodes().getFirst().properties().getFirst().value());
+    assertEquals("return 'author'", intent.requestedProperties().getFirst().value());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"preferred implementation", "return 'older generated candidate'"})
+  void compilerBodySurvivesAnUnverifiedImplementationCandidate(String candidate) {
+    String compiled = "exchange.in.body = [message: 'approved result']";
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Example", ""), List.of(
+        new ChainPlanNode("prepare", "script", "Generated", null, null,
+            List.of(new PlanProperty("script", compiled)))), List.of());
+    var intent = new RequirementElementIntent("prepare", "script", Placement.LOCAL_NODE,
+        null, null, null, null, "Approved name", List.of(new PlanProperty("script", candidate)), List.of("approved result"),
+        new org.qubership.integration.platform.ai.plan.RequirementBodyBinding(
+            org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.GENERATED_CANDIDATE,
+            "prepare", "script", org.qubership.integration.platform.ai.plan.RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+            "current-source", "source-turn", null, null, null));
+    var requirement = new RequirementFact("prepare-behavior", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Use a local script to produce the approved result.",
+        "", "", "", "", "", "", List.of(), null, intent);
+    assertTrue(RequiredLiteralBindings.missingScriptLiterals(requirement, graph).isEmpty());
+
+    var projected = RequestedElementValues.apply(graph, List.of(requirement));
+
+    assertEquals(compiled, projected.nodes().getFirst().properties().getFirst().value(),
+        "An implementation candidate is not an exact source-body constraint.");
+    assertEquals("Approved name", projected.nodes().getFirst().label());
+    assertEquals(compiled, graph.nodes().getFirst().properties().getFirst().value());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(strings = {"selected-trigger", "true"})
   void authorIdentityIsRejectedEvenWhenTheGraphAlreadyContainsIt(String boundTarget) {
     var graph = new ChainPlanGraph("1.0", new ChainSection("Call", ""), List.of(

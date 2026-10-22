@@ -246,6 +246,16 @@ public class RequirementDraftStore {
     var current = get(conversationId).orElse(null);
     if (context.isPresent() && current != null && base != null && Objects.equals(base, current.authoredDraft())) {
       var findings = RequirementFailureConsistency.issues(base, current.catalogBindings());
+      // A finding's pointer identifies the obligation; source proof supplies completion authority.
+      paths.removeIf(path -> path.matches("/facts/[^/]+/elementIntent/bodyBinding(?:/.*)?"));
+      var source = currentBodySource(conversationId);
+      boolean sameBase = context.orElseThrow().approvedDraft() == null
+          || Objects.equals(base, context.orElseThrow().approvedDraft().authoredDraft());
+      boolean sameBindings = candidate == null || Objects.equals(current.catalogBindings(), candidate.catalogBindings());
+      var bodyPaths = source == null || !sameBase || !sameBindings ? java.util.Set.<String>of()
+          : candidate == null ? RequirementBodySources.missingBindingPaths(base, source)
+              : RequirementBodySources.completionPaths(base, candidate.authoredDraft(), source);
+      paths.addAll(bodyPaths);
       // A causal-reopen grant must obey the same boundary as the freshly derived native finding.
       if (candidate != null) findings.forEach(issue ->
           paths.remove("/interactions/" + issue.entityId() + "/failureMode"));
@@ -253,7 +263,8 @@ public class RequirementDraftStore {
           && (context.orElseThrow().approvedDraft() == null
               || Objects.equals(base, context.orElseThrow().approvedDraft().authoredDraft()))
           && (candidate == null || Objects.equals(current.catalogBindings(), candidate.catalogBindings())
-              && RequirementFailureConsistency.correctsOnlyModes(base, candidate.authoredDraft(), findings))) {
+              && RequirementFailureConsistency.correctsOnlyModes(base,
+                  RequirementBodySources.normalizeCompletedBindings(candidate.authoredDraft(), bodyPaths), findings))) {
         findings.stream()
             .filter(issue -> candidate == null || candidate.authoredDraft().flow().interactions().stream()
                 .anyMatch(value -> issue.entityId().equals(value.interactionId())
@@ -262,6 +273,13 @@ public class RequirementDraftStore {
       }
     }
     return java.util.Set.copyOf(paths);
+  }
+
+  private AuthorSourceEvidence.Packet currentBodySource(String conversationId) {
+    if (conversations == null || !sourceInputs.containsKey(conversationId) || !currentSource(conversationId)) return null;
+    var source = AuthorSourceEvidence.packet(sourceInputs.get(conversationId));
+    var current = AuthorSourceEvidence.packet(conversations.archive().read(conversationId));
+    return Objects.equals(source, current) ? source : null;
   }
 
   public static boolean isRequirementRepairPath(RequirementDraft draft, String path) {
@@ -813,13 +831,18 @@ public class RequirementDraftStore {
 
   private void saveFactProtection(String conversationId, List<RequirementCaptureInput.FactInput> facts,
       com.fasterxml.jackson.databind.JsonNode values) {
+    saveFactProtection(conversationId, facts, values, List.of());
+  }
+
+  private void saveFactProtection(String conversationId, List<RequirementCaptureInput.FactInput> facts,
+      com.fasterxml.jackson.databind.JsonNode values, List<Reference> evidence) {
     var scope = factProtection(conversationId, facts);
     var protection = new CaptureFactProtection(scope.sourceGeneration(), scope.sourceTurnId(), scope.authorText(),
         facts, values, scope.baseIdentity());
     String compilationId = sessions.active(conversationId);
     var previous = artifacts.latest(compilationId, Kind.REQUIREMENT_CAPTURE_PROTECTION);
     artifacts.append(new AppendCommand(compilationId, Kind.REQUIREMENT_CAPTURE_PROTECTION, "1",
-        "requirement-capture-protection", "1", protection, List.of(),
+        "requirement-capture-protection", "1", protection, evidence,
         previous.map(Revision::artifactId).orElse(null)));
   }
 
@@ -1023,7 +1046,70 @@ public class RequirementDraftStore {
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
         arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId),
-        RequirementCaptureToolProvider.argumentBinding()));
+        RequirementCaptureToolProvider.argumentBinding(), authorEvidenceHash(conversationId)));
+    if (!result.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
+      revalidateRejectedReferences(conversationId);
+    }
+  }
+
+  private void revalidateRejectedReferences(String conversationId) {
+    if (!currentSource(conversationId)) return;
+    String sourceHash = authorEvidenceHash(conversationId);
+    if (sourceHash == null || conversations == null || !sourceHash.equals(
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+            AuthorSourceEvidence.packet(conversations.archive().read(conversationId))))) return;
+    var scope = factProtection(conversationId, rejectedCaptureFacts(conversationId));
+    if (scope.sourceGeneration() == null || scope.sourceTurnId() == null) return;
+    var protection = latestFactProtection(conversationId);
+    if (protection.isEmpty() || !protection.orElseThrow().sameSource(scope)
+        || !Objects.equals(protection.orElseThrow().baseIdentity(), scope.baseIdentity())
+        || !protection.orElseThrow().facts().equals(scope.facts())) return;
+    var current = latestRevision(conversationId);
+    var baseRef = current.map(Revision::reference).orElse(null);
+    var base = current.map(value -> artifacts.payload(value, RequirementDraft.class).authoredDraft()).orElse(null);
+    var session = sessions.current(conversationId);
+    if (session.isEmpty()) return;
+    var revisions = artifacts.history(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream()
+        .filter(value -> "requirement-capture-tools".equals(value.producerId()))
+        .filter(value -> {
+          var attempt = artifacts.payload(value, RequirementCaptureAttempt.class);
+          return !attempt.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())
+              && new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of()).sameSource(scope)
+              && Objects.equals(attempt.authorEvidenceHash(), sourceHash)
+              && Objects.equals(attempt.acceptedDraftReference(), baseRef)
+              && Objects.equals(attempt.repairAuthority(), repairAuthority(conversationId));
+        }).sorted(java.util.Comparator.comparingLong(Revision::sequence)).toList();
+    if (revisions.isEmpty() || !revisions.getLast().reference().equals(
+        artifacts.latest(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow().reference())) return;
+    var history = new ArrayList<RejectedReferenceRepair.Attempt>();
+    var mapper = new ObjectMapper();
+    for (var revision : revisions) {
+      var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
+      try {
+        var input = "captureRequirementDraft".equals(attempt.toolName())
+            ? mapper.convertValue(attempt.arguments(), RequirementCaptureInput.DraftInput.class)
+            : base == null ? null : RequirementCaptureEditor.apply(base,
+                mapper.convertValue(attempt.arguments(), RequirementCaptureInput.DraftUpdate.class)).candidate();
+        if (input != null && input.facts() != null && input.facts().stream().allMatch(Objects::nonNull)) {
+          history.add(new RejectedReferenceRepair.Attempt(revision.sequence(), input, attempt.issues()));
+        }
+      } catch (IllegalArgumentException malformed) {
+        // Malformed arguments cannot establish an internal-reference correction.
+      }
+    }
+    if (history.isEmpty() || history.getLast().sequence() != revisions.getLast().sequence()) return;
+    var repaired = RejectedReferenceRepair.repair(base, scope.facts(), history);
+    if (repaired.facts().equals(scope.facts())) return;
+    var evidence = revisions.stream().filter(value -> repaired.evidenceSequences().contains(value.sequence()))
+        .map(Revision::reference).toList();
+    saveFactProtection(conversationId, repaired.facts(), scope.values(), evidence);
+    rejectedCaptureFacts.put(conversationId, repaired.facts());
+  }
+
+  private String authorEvidenceHash(String conversationId) {
+    var source = sourceInputs.get(conversationId);
+    return source == null ? null : org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+        AuthorSourceEvidence.packet(source));
   }
 
   private String repairAuthority(String conversationId) {
@@ -1186,7 +1272,14 @@ public class RequirementDraftStore {
   public record RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
       String mutationScope, String toolName, Object arguments, boolean accepted,
       List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority,
-      RequirementCaptureToolProvider.ArgumentBinding argumentBinding) {
+      RequirementCaptureToolProvider.ArgumentBinding argumentBinding, String authorEvidenceHash) {
+    public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
+        String mutationScope, String toolName, Object arguments, boolean accepted,
+        List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority,
+        RequirementCaptureToolProvider.ArgumentBinding argumentBinding) {
+      this(sourceGeneration, sourceTurnId, authorText, mutationScope, toolName, arguments, accepted,
+          issues, acceptedDraftReference, repairAuthority, argumentBinding, null);
+    }
     public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
         String mutationScope, String toolName, Object arguments, boolean accepted,
         List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority) {

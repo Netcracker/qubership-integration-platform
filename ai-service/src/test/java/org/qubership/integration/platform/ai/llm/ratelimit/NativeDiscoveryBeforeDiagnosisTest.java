@@ -60,8 +60,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 @TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class NativeDiscoveryBeforeDiagnosisTest {
   private static final String STAGE = "requirement-discovery";
+  private static final String SCRIPT = "exchange.message.body = 'receipt-confirmed'";
   private static final String SOURCE = "Create a private POST /native-first-correction endpoint. "
-      + "After entry run exactly this script: exchange.message.body = 'receipt-confirmed'. Proceed without IDS.";
+      + "After entry run exactly this script: `" + SCRIPT + "`. Proceed without IDS.";
 
   enum Exclusion { MISSING_STORES, MISSING_EVIDENCE, OUTER_FALSE, NO_PROGRESS, SPENT, FOREIGN, STALE, CHANGED_BASE,
     UPSTREAM_INPUT, DIAGNOSIS_DISPATCHED, LEGACY_DIAGNOSIS_DISPATCHED, MALFORMED_DIAGNOSIS, RESOURCE, CATALOG_WRITTEN }
@@ -80,8 +81,8 @@ class NativeDiscoveryBeforeDiagnosisTest {
   void firstFreshNativeRefusalUsesOneExistingCorrectionBeforeAnyDiagnosis() throws Exception {
     Fixture fixture = fixture(null);
     var originalSource = json.valueToTree(conversations.archive().read(fixture.chat));
-    var sourceFacts = draft("receipt-script").facts();
-    var first = initialFailure(false);
+    var sourceFacts = draft("receipt-script", fixture.chat).facts();
+    var first = initialFailure(fixture, false);
     install(fixture, first);
     var failed = fixture.support.stageExecutor().execute(fixture.run, STAGE).await().atMost(Duration.ofSeconds(30));
     first.assertComplete();
@@ -117,7 +118,7 @@ class NativeDiscoveryBeforeDiagnosisTest {
           });
           assertEquals(originalSource, json.valueToTree(conversations.archive().read(fixture.chat)));
           assertEquals(constraints, json.valueToTree(drafts.repairConstraints(fixture.chat)));
-        }, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", draft("receipt-script")))),
+        }, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", draft("receipt-script", fixture.chat)))),
         Turn.tool("finish-corrected-native-draft", request -> {
           assertEquals(ToolChoice.AUTO, request.parameters().toolChoice());
           var accepted = lastTool(request);
@@ -135,7 +136,7 @@ class NativeDiscoveryBeforeDiagnosisTest {
     correction.assertComplete();
     assertInstanceOf(StageDecision.Complete.class, continued.decision());
     verify(fixture.narrative, never()).diagnoseRecovery(anyString(), any());
-    assertEquals(draft("receipt-script"), drafts.get(fixture.chat).orElseThrow().authoredDraft());
+    assertEquals(draft("receipt-script", fixture.chat), drafts.get(fixture.chat).orElseThrow().authoredDraft());
     assertConsumedSource(originalSource, fixture, drafts.latestRevision(fixture.chat).orElseThrow().reference());
     assertEquals(originalRejection, nativeArtifacts.get(originalRejection.compilationId(), originalRejection.reference()).orElseThrow());
     var reloaded = new ProductPipelineRunStore(fixture.blobs, json, Clock.systemUTC()).load(fixture.run).orElseThrow();
@@ -150,7 +151,7 @@ class NativeDiscoveryBeforeDiagnosisTest {
   void unavailableOrSpentNativePermissionNeverSkipsTheExistingGuardedPath(Exclusion exclusion) throws Exception {
     Fixture fixture = fixture(exclusion);
     var sourceBefore = json.valueToTree(conversations.archive().read(fixture.chat));
-    var script = initialFailure(exclusion == Exclusion.NO_PROGRESS);
+    var script = initialFailure(fixture, exclusion == Exclusion.NO_PROGRESS);
     install(fixture, script);
     if (exclusion == Exclusion.MALFORMED_DIAGNOSIS) {
       assertThrows(RuntimeException.class, () -> fixture.support.stageExecutor().execute(fixture.run, STAGE)
@@ -167,7 +168,7 @@ class NativeDiscoveryBeforeDiagnosisTest {
     };
     verify(fixture.narrative, times(diagnoses)).diagnoseRecovery(anyString(), any());
     if (exclusion == Exclusion.CHANGED_BASE) {
-      assertEquals(draft("receipt-script"), drafts.get(fixture.chat).orElseThrow().authoredDraft());
+      assertEquals(draft("receipt-script", fixture.chat), drafts.get(fixture.chat).orElseThrow().authoredDraft());
       assertEquals(fixture.changedBase.get(), drafts.latestRevision(fixture.chat).orElseThrow().reference());
       assertConsumedSource(sourceBefore, fixture, fixture.changedBase.get());
     } else {
@@ -225,8 +226,8 @@ class NativeDiscoveryBeforeDiagnosisTest {
     assertEquals(expected, json.valueToTree(conversations.archive().read(fixture.chat)));
   }
 
-  private ScriptedStreamingChatModel initialFailure(boolean repeated) throws Exception {
-    String arguments = json.writeValueAsString(Map.of("draft", draft("entry")));
+  private ScriptedStreamingChatModel initialFailure(Fixture fixture, boolean repeated) throws Exception {
+    String arguments = json.writeValueAsString(Map.of("draft", draft("entry", fixture.chat)));
     var first = Turn.tool("invalid-local-reference", request -> assertNull(request.parameters().toolChoice()),
         "captureRequirementDraft", arguments);
     if (repeated) {
@@ -297,7 +298,7 @@ class NativeDiscoveryBeforeDiagnosisTest {
       var otherInput = conversations.archive().beginInput(other, SOURCE, null);
       conversations.archive().resolveInput(other, otherInput, SOURCE);
       drafts.beginTurn(other, SOURCE);
-      try (var ignored = ToolSession.open(other)) { assertFalse(json.readTree(tools.captureRequirementDraft(draft("entry"))).path("accepted").asBoolean()); }
+      try (var ignored = ToolSession.open(other)) { assertFalse(json.readTree(tools.captureRequirementDraft(draft("entry", other))).path("accepted").asBoolean()); }
       foreign = drafts.rejectedCaptureRevision(other).orElseThrow().reference();
     }
     var fixture = new Fixture(chat, run, blobs, runs, artifacts, support, ledger, narrative, budget, sourceRef, provenance,
@@ -330,7 +331,7 @@ class NativeDiscoveryBeforeDiagnosisTest {
         conversations.archive().resolveInput(fixture.chat, later, "Keep the original business behavior.");
       } else if (exclusion == Exclusion.CHANGED_BASE) {
         try (var ignored = ToolSession.open(fixture.chat)) {
-          var accepted = json.readTree(tools.captureRequirementDraft(draft("receipt-script")));
+          var accepted = json.readTree(tools.captureRequirementDraft(draft("receipt-script", fixture.chat)));
           assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
           fixture.changedBase.set(drafts.latestRevision(fixture.chat).orElseThrow().reference());
         }
@@ -414,7 +415,16 @@ class NativeDiscoveryBeforeDiagnosisTest {
         && transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count();
   }
 
-  private static DraftInput draft(String localReference) {
+  private DraftInput draft(String localReference, String chat) {
+    var source = org.qubership.integration.platform.ai.plan.AuthorSourceEvidence.packet(conversations.archive().read(chat));
+    var original = source.inputs().getFirst();
+    int offset = original.text().indexOf(SCRIPT);
+    assertTrue(offset >= 0);
+    var body = new org.qubership.integration.platform.ai.plan.RequirementBodyBinding(
+        org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
+        localReference, "script", org.qubership.integration.platform.ai.plan.RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+        source.generation(), original.sourceTurnId(), offset, offset + SCRIPT.length(),
+        org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Encoding.RAW);
     var endpoint = new FactInput("endpoint", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
         "Private POST /native-first-correction endpoint.", null, null,
         new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
@@ -422,8 +432,8 @@ class NativeDiscoveryBeforeDiagnosisTest {
     var script = new FactInput("receipt", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
         "Run exactly this script: exchange.message.body = 'receipt-confirmed'", null, null,
         new RequirementElementIntent(localReference, "script", RequirementElementIntent.Placement.LOCAL_NODE,
-            "entry", null, null, null, List.of(new PlanProperty("script", "exchange.message.body = 'receipt-confirmed'")),
-            List.of("receipt-confirmed")));
+            "entry", null, null, null, null, List.of(new PlanProperty("script", SCRIPT)),
+            List.of("receipt-confirmed"), body));
     return new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND, "Caller",
         "POST /native-first-correction", null, null, null)), List.of()), List.of(endpoint, script),
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,

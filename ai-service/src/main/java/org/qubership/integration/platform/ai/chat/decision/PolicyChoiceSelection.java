@@ -293,7 +293,7 @@ public class PolicyChoiceSelection {
       }
     }
     var intent = new RequirementElementIntent(after.elementRef(), after.elementType(), after.placement(), after.ownerInteractionId(),
-        after.successorElementRef(), after.predecessorElementRef(), after.parentElementRef(), after.requestedName(), properties, after.exactValues());
+        after.successorElementRef(), after.predecessorElementRef(), after.parentElementRef(), after.requestedName(), properties, after.exactValues(), after.bodyBinding());
     return new FactInput(candidate.sourceFactId(), candidate.interactionIds(), candidate.kind(), candidate.polarity(), candidate.text(),
         candidate.fieldMapping(), candidate.policyConflict(), intent);
   }

@@ -45,6 +45,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class RequirementReadyRepairSettlementTest {
+  private static final String SCRIPT = "exchange.message.body = 'receipt-ready'";
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void nativeRepairCheckpointSettlesOnlyAReadyDraftAndPreservesAQuestionWithAForgedReadyMarker(boolean missingRoles)
@@ -68,8 +69,7 @@ class RequirementReadyRepairSettlementTest {
     String chat = "settled-ready-chat", run = "settled-ready-run", stage = "requirement-discovery";
     String source = "Create a private POST /settled-ready endpoint. "
         + (missingRoles ? "Use RBAC; the role names are not decided. " : "")
-        + "After entry run exactly this script: "
-        + "exchange.message.body = 'receipt-ready'\nProceed without IDS.";
+        + "After entry run exactly this script: `" + SCRIPT + "`\nProceed without IDS.";
     var input = conversations.archive().beginInput(chat, source, null);
     conversations.archive().resolveInput(chat, input, source);
     drafts.beginTurn(chat, source);
@@ -79,8 +79,9 @@ class RequirementReadyRepairSettlementTest {
             "entry", null, null, null, missingRoles
                 ? List.of(new PlanProperty("externalRoute", "false"), new PlanProperty("accessControlType", "RBAC"))
                 : List.of(new PlanProperty("externalRoute", "false")), List.of()));
-    var invalid = draft(endpoint, "entry");
-    var correctedBase = draft(endpoint, "receipt-script");
+    var bodySource = AuthorSourceEvidence.packet(conversations.archive().read(chat));
+    var invalid = draft(endpoint, "entry", bodySource);
+    var correctedBase = draft(endpoint, "receipt-script", bodySource);
     String question = "Which roles may access the endpoint? __GATE:requirement-draft-ready__";
     var corrected = missingRoles ? new DraftInput(correctedBase.flow(), correctedBase.facts(), correctedBase.capabilities(),
         List.of(new QuestionInput("missing-roles", List.of("entry"), question,
@@ -232,12 +233,18 @@ class RequirementReadyRepairSettlementTest {
     assertEquals(budgetBefore, budget.state(run));
   }
 
-  private static DraftInput draft(FactInput endpoint, String reference) {
+  private static DraftInput draft(FactInput endpoint, String reference, AuthorSourceEvidence.Packet source) {
+    var original = source.inputs().getFirst();
+    int offset = original.text().indexOf(SCRIPT);
+    assertTrue(offset >= 0);
+    var body = new RequirementBodyBinding(RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
+        reference, "script", RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT, source.generation(),
+        original.sourceTurnId(), offset, offset + SCRIPT.length(), RequirementBodyBinding.Encoding.RAW);
     var script = new FactInput("script", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
         "Run exactly this script: exchange.message.body = 'receipt-ready'", null, null,
         new RequirementElementIntent(reference, "script", RequirementElementIntent.Placement.LOCAL_NODE,
-            "entry", null, null, null, List.of(new PlanProperty("script", "exchange.message.body = 'receipt-ready'")),
-            List.of("receipt-ready")));
+            "entry", null, null, null, null, List.of(new PlanProperty("script", SCRIPT)),
+            List.of("receipt-ready"), body));
     return new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND, "Caller",
         "POST /settled-ready", null, null, null)), List.of()), List.of(endpoint, script),
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,

@@ -2162,9 +2162,11 @@ class RequirementCaptureToolsTest {
       assertTrue(store.get(chat).isEmpty());
       String literal = "{\"error\":\"test-header incorrect value\"}";
       var correct = new RequirementElementIntent(wrong.elementRef(), wrong.elementType(), wrong.placement(),
-          wrong.ownerInteractionId(), null, null, null,
+          wrong.ownerInteractionId(), null, null, null, null,
           List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", "return '" + literal + "'")),
-          List.of(literal));
+          List.of(literal), new RequirementBodyBinding(RequirementBodyBinding.Authority.GENERATED_CANDIDATE,
+              wrong.elementRef(), "script", RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+              null, null, null, null, null));
       var accepted = mapper.readValue(tools.captureRequirementDraft(new DraftInput(input.flow(),
           List.of(new FactInput("error-body", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
               "Respond with " + literal, null, null, correct)), input.capabilities(), input.openQuestions(),

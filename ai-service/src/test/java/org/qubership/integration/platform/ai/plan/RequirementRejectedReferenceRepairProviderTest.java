@@ -1,0 +1,110 @@
+package org.qubership.integration.platform.ai.plan;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.invocation.InvocationParameters;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
+import io.quarkus.test.InjectMock;
+import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import jakarta.inject.Inject;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel;
+import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel.Turn;
+import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitStreamingChatModel;
+import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+
+@QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
+class RequirementRejectedReferenceRepairProviderTest {
+  @Inject ObjectMapper json;
+  @Inject RequirementDraftStore drafts;
+  @Inject RequirementCaptureTools tools;
+  @Inject ConversationService conversations;
+  @Inject CompilationArtifacts artifacts;
+  @Inject CompilationSessions sessions;
+  @Inject GatherRequirementsAgent gather;
+  @Inject GatherRequirementsPromptBuilder prompts;
+  @Inject AppConfig config;
+  @InjectMock RateLimitStreamingChatModel provider;
+  @InjectMock RequirementDraftTool adapter;
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void nativeReferenceRefusalReachesTheProviderAndItsExactCorrectionContinues(boolean predecessor) throws Exception {
+    String chat = "reference-repair-provider-" + UUID.randomUUID();
+    String source = RequirementRejectedReferenceRepairTest.SOURCE;
+    var input = conversations.archive().beginInput(chat, source, null);
+    conversations.archive().resolveInput(chat, input, source);
+    drafts.beginTurn(chat, source);
+    ProductCapabilityCaptureContext.bindDiscovery("run-" + chat, chat, ignored -> {});
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var fixture = new RequirementRejectedReferenceRepairTest.Fixture(predecessor);
+    var sourceBefore = json.valueToTree(conversations.archive().read(chat));
+    var limits = List.of(config.llm().maxRequestsPerRun(), config.llm().maxTokensPerRun(), config.llm().maxActiveTimePerRun());
+    var scripted = new ScriptedStreamingChatModel(
+        capture("original-identity", fixture.original(), request -> {}),
+        capture("incorrect-rename", fixture.renamed(), request -> assertIssue(request, predecessor ? "INVALID_VALUE" : "INVALID_ELEMENT_REFERENCE")),
+        capture("restore-original-target", fixture.corrected(), request -> assertIssue(request, "REPAIR_FACT_LOSS")),
+        capture("retain-protected-reference", fixture.proof(), request -> assertIssue(request, "REPAIR_FACT_LOSS")),
+        capture("correct-native-reference", fixture.corrected(), request -> {
+          var refusal = lastTool(request);
+          assertIssue(request, "UNKNOWN_ELEMENT_REFERENCE");
+          assertTrue(refusal.path("issues").toString().contains("/draft/facts/owner/elementIntent/" + fixture.field()), refusal.toString());
+          var current = artifacts.latest(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+          assertFalse(current.payload().path("accepted").asBoolean());
+          assertEquals(json.valueToTree(fixture.proof()), current.payload().path("arguments"));
+          assertTrue(refusal.path("repairConstraints").toString().contains("prepare-step"), refusal.toString());
+        }),
+        Turn.tool("continue", request -> {
+          assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
+          assertEquals(fixture.corrected(), drafts.get(chat).orElseThrow().authoredDraft());
+        }, "finishRequirementDiscoveryTurn", "{\"directive\":\"CONTINUE\"}"),
+        Turn.text("ready", request -> assertTrue(lastTool(request).path("accepted").asBoolean()), "Requirements are ready."));
+    doAnswer(call -> { scripted.chat(call.getArgument(0, ChatRequest.class), call.getArgument(1, StreamingChatResponseHandler.class)); return null; })
+        .when(provider).chat(any(ChatRequest.class), any(StreamingChatResponseHandler.class));
+    try {
+      gather.chat(chat, prompts.wrap(chat, source, "en"), new InvocationParameters()).collect().asList().await().atMost(Duration.ofSeconds(30));
+      scripted.assertComplete();
+      assertEquals(7, scripted.requests().size());
+      var after = json.valueToTree(conversations.archive().read(chat));
+      ((com.fasterxml.jackson.databind.node.ObjectNode) sourceBefore.at("/turns/0"))
+          .set("consumedDraftReference", after.at("/turns/0/consumedDraftReference"));
+      assertEquals(sourceBefore, after);
+      assertEquals(limits, List.of(config.llm().maxRequestsPerRun(), config.llm().maxTokensPerRun(), config.llm().maxActiveTimePerRun()));
+    } finally { ProductCapabilityCaptureContext.unbind(); }
+  }
+
+  private Turn capture(String id, RequirementCaptureInput.DraftInput input, java.util.function.Consumer<ChatRequest> assertion) throws Exception {
+    return Turn.tool(id, assertion, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", input)));
+  }
+  private void assertIssue(ChatRequest request, String code) {
+    var refusal = lastTool(request);
+    assertFalse(refusal.path("accepted").asBoolean(), refusal.toString());
+    assertTrue(refusal.path("issues").toString().contains(code), refusal.toString());
+  }
+  private JsonNode lastTool(ChatRequest request) {
+    try {
+      return json.readTree(request.messages().stream().filter(ToolExecutionResultMessage.class::isInstance)
+          .map(ToolExecutionResultMessage.class::cast).reduce((left, right) -> right).orElseThrow().text());
+    } catch (Exception failure) { throw new AssertionError(failure); }
+  }
+}
