@@ -17,6 +17,15 @@
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <name>Netcracker</name>
+            <email>opensourcegroup@netcracker.com</email>
+            <organization>Netcracker Technology</organization>
+            <organizationUrl>https://www.netcracker.com</organizationUrl>
+        </developer>
+    </developers>
+
     <scm>
         <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
         <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
