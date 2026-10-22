@@ -1402,7 +1402,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       }
     }
     String failureId = CanonicalPayloadHash.sha256Hex(Map.of(
-        "invocation", invocation == null ? "" : invocation,
+        "invocation", invocation == null ? "" : new ProducerInvocationIdentity(
+            invocation.attemptId(), invocation.stageId(), invocation.inputs()),
         "stage", stage.stageId(), "rejected", rejectedRefs,
         "inputs", RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()),
         "defect", recoveryLedger.key(stage.stageId(), budgetCause,
@@ -1870,6 +1871,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   private record NativeRequirementBaseline(Reference rejectedCapture, Reference feedback) {}
+
+  // Provenance metadata must not change persisted diagnosis identities.
+  private record ProducerInvocationIdentity(String attemptId, String stageId, List<Reference> inputs) {}
 
   private record ProducerInvocation(String attemptId, String stageId, List<Reference> inputs,
       NativeRequirementBaseline requirementBaseline) {}
