@@ -81,10 +81,12 @@ coversBehaviour("service-call", "retry");
 The schemas declare no behaviour label, so `specs/harness/coverage.spec.ts` checks a behaviour row
 against its family alone: the row goes stale when its family leaves the schemas.
 
-**A row that no case on this stack can prove carries a `scope`, and leaves the denominator.**
-`scope: "out-of-scope"` marks a value no case here can prove, or one whose case would prove nothing
-about the platform: JMS, which has no broker in `infrastructure/`, the SASL mechanisms no Kafka
-broker implements, and the Kafka (de)serializer classes. `scope: "shared"` marks a value whose code
+**A row in one of a few named groups carries a `scope`, and leaves the denominator.**
+`scope: "out-of-scope"` holds four groups: JMS, which has no broker in `infrastructure/`, the SASL
+mechanisms no Kafka broker implements, the elements and values the catalog does not offer, and the
+Kafka (de)serializer classes, whose cases would prove nothing about the platform. Any other row no
+case proves, such as a mail element with no mail sink or a value a case cannot tell from its
+default, stays in scope with its reason. `scope: "shared"` marks a value whose code
 another family's case proves, such as an idempotency mode of `kafka-trigger-2`: the shared
 `idempotency.hbs` partial runs it for every trigger, and the `http-trigger` case proves it. Only a `not-covered` axis or element row
 carries a scope, and it keeps its reason; `validateRegistry` refuses a scope on a covered row or on
@@ -231,8 +233,9 @@ right now, so a controller added to a service fails a run.
    have. Fix it where it surfaces, whoever wrote the file, and fix it by asserting what the case is
    about rather than by polling harder.
 10. **Put a file's cases under one `test.describe` that names its subject, and tag the describe.**
-    A file has exactly one top-level describe; nested describes group its sub-topics. Tags come from
-    a closed list:
+    A file has exactly one top-level describe; nested describes group its sub-topics. Setup and
+    teardown files (`*.setup.ts`, `*.teardown.ts`) hold one bare case with its component tag. Tags
+    come from a closed list, `CASE_TAGS` in `registry/elements.ts`:
 
     | Kind | Tags |
     | --- | --- |
@@ -253,7 +256,8 @@ right now, so a controller added to a service fails a run.
     least one component tag through its describe chain; a case that inherits none fails
     `npm run reconcile`. A case in the `ui` project carries `@ui` and never a backend tag, so a
     backend grep with `--no-deps` selects no case that needs Chromium. A computed tag such as
-    `COMPONENT_TAG[role]` is allowed, and reconcile checks its value in the report.
+    `COMPONENT_TAG[role]` is allowed: the title lint skips it, and reconcile fails a tag in the
+    report that is not on the list.
 
     Where one file covers several components, the component goes in a nested describe and the
     cases are declared once in a function, so each title stays a literal:
@@ -286,7 +290,8 @@ right now, so a controller added to a service fails a run.
     expect.** The annotation inverts the verdict, so the run stays green while the defect stands and
     turns red the day it is fixed, which is the signal to remove the annotation. Every case carrying
     it names its defect at the annotation, by issue number where one is filed;
-    `grep -rn "test\.fail(" specs/` lists them, so quote no count. Two limits come with the
+    `grep -rn "test\.fail(" specs/` lists them, so quote no count. Adding or removing a
+    `test.fail()` also updates the Known defects table in `e2e/README.md`. Two limits come with the
     annotation:
     - It accepts **any** failure, so a pinned case narrows itself to the divergence it carries
       through `support/known-defect.ts`: `onlyTheKnownStatus` where the defect is one status and the
@@ -320,15 +325,18 @@ right now, so a controller added to a service fails a run.
     case that tests the suite's own code goes in `specs/harness/`, whose counts the run summary
     keeps apart from the product's.
 15. **Move the registry row in the same commit as the spec.** A covered element row needs a
-    `covers(family, axis, value)` declaration in a passing test, or `npm run reconcile` fails naming
-    the row; an operation row moves to `reached` or `covered` once a passing test calls or asserts
-    it. A tag makes a spec visible; a registry row is what makes it count.
+    `covers(family, axis, value)` declaration, or `coversBehaviour(family, label)` for a behaviour
+    row, in a passing test, or `npm run reconcile` fails naming the row; an operation row moves to
+    `reached` or `covered` once a passing test calls or asserts it. A tag makes a spec visible; a
+    registry row is what makes it count.
 16. **Read the platform over HTTP, never over SQL.** The suite has no database client: a second way
     of seeing the platform sits outside the transports, so nothing it reads counts as `reached`.
 17. **Prove a guard by breaking what it guards.** An assertion nobody has watched fail is a claim, so
     make one edit at a time, each turning its own case red and no other. A transport that drops a
     parameter, a header, or a body field is a failure no spec-side edit can reach, so some mutations
-    belong in `support/`.
+    belong in `support/`. Record each mutation in the spec header, on a line that starts
+    `Shown failing:` and names the edit and the assertion it turned red, or say there why the case
+    is a guard that no mutation reaches.
 18. **An assertion on a log is two-sided, and scoped to a window the spec opened.** `env.logs` takes
     a `since` for that reason: an unscoped read is satisfied by an unrelated earlier line, and an
     absence-only assertion is equally green when the mechanism never ran. Assert the line that
@@ -374,17 +382,17 @@ right now, so a controller added to a service fails a run.
     `specs/harness/target-rules.spec.ts` checks this rule, that the tag and the annotation come
     together, and the `support/kube.ts` half of rule 4.
 21. **Name a case by its subject and the outcome it observes, in at most 60 characters.** The
-    describe path supplies the context, so under `testing-service` the title is
-    `answers its own /health`, not `the testing service answers its own /health`. A title never
-    carries `because`, `which is why`, `rather than`, or `so that`: the reason a case exists goes in
-    a comment above it. A title is a string literal, or a template string in a loop over
-    identifiers, an imported list, or a call such as `idempotencyModes(...)`; only the literal part
-    of a template counts toward the 60. A title taken whole from a variable, such as
-    `test(each.title, …)`, has no length limit. `specs/harness/title-rules.spec.ts` reads every
-    spec with the TypeScript parser and fails, naming `file:line`, on a case outside a describe, a
-    second top-level describe, a literal tag outside the closed list of rule 10, a title that breaks
-    this rule, and a `test.fail()` with no arguments outside a case body, which marks every case in
-    its scope.
+    describe path supplies the context, so under `testing-service` the title is `answers its own
+    /health`, not `the testing service answers its own /health`. A title never carries `because`,
+    `which is why`, `rather than`, or `so that`: the reason a case exists goes in a comment above
+    it. A title is a string literal, or a template string in a loop over identifiers, an imported
+    list, or a call such as `idempotencyModes(...)`; only the literal part of a template counts
+    toward the 60, so the name the report renders can run longer. A title taken whole from a
+    variable, such as `test(each.title, …)`, has no length limit.
+    `specs/harness/title-rules.spec.ts` reads every `*.spec.ts` file with the TypeScript parser and
+    fails, naming `file:line`, on a case outside a describe, a second top-level describe, a literal
+    tag outside the closed list of rule 10, a title that breaks this rule, and a `test.fail()` with
+    no arguments outside a case body, which marks every case in its scope.
 22. **Merge cases only along a shared path, and make each stage a `test.step`.** Create, export,
     delete, and import of one archive are one path, so they are one case with a named step per
     stage: the report shows which stage failed, and the case pays for its setup once. Cases that
@@ -449,6 +457,9 @@ Three steps happen in an order that is not negotiable:
   defaults to `SessionsLoggingLevel.OFF` and `SessionsService` writes nothing at that level, so a
   corpus deployed without `POST /v1/chains/{id}/properties/logging` records no trace at all. The
   properties travel with the deployment, so raising them afterwards leaves the first one silent.
+  The fixtures in `UNRECORDED_FIXTURES` (`support/corpus.ts`) stay at `OFF`: a session at `DEBUG`
+  records each step's body, and a multi-MiB body ran OpenSearch out of memory. A large-body fixture
+  goes there.
 - **Gate on the route, not on the status.** `DEPLOYED` means the catalog accepted and dispatched
   the deployment. A chain whose listener never connects reports `DEPLOYED` indefinitely, and a
   healthy one serves seconds after the status flips, so the seed follows the status poll with a

@@ -87,9 +87,14 @@ viewport once a real interaction has happened, so a graph case asserts over a ch
 (`http-echo`) or over the node it just touched. A case that needs another size calls
 `page.setViewportSize` itself. Dragging nodes and the automatic layout stay uncovered until a
 defect asks for them; adding an element from the library is a `dragTo`, because the library has
-no click-to-add. The project has no `expect` timeout of its own and no warm-up navigation: against
+no click-to-add. A connection is a `dragTo` too, from the node's `data-handlepos="right"` handle to
+the other node's `data-handlepos="left"` one (`ChainGraphPage.connect`); a container hides its
+handles, so connect plain elements. Save a downloaded export under `download.suggestedFilename()`
+before uploading it again: the catalog picks the parser by the file's extension, and the path
+Playwright downloads to has none. The project has no `expect` timeout of its own and no warm-up
+navigation: against
 the bundle, a warm `/chains` shows its first row in 1.1–6.2 s.
 
 A mutation check on `ui/src` (rule 17 in `SKILL.md`) costs a `vite build` each way, about a minute. Make it in the
-working tree with a backup of the file, revert it before the commit, and record in the pull request
-description what was changed and which assertion went red.
+working tree with a backup of the file, revert it before the commit, and record in the spec header
+what was changed and which assertion went red, as rule 17 says.

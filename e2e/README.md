@@ -125,7 +125,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts` and the cases tagged `@classic-only` |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, the proxy's `/e2e/` locations, and a micro domain that a broken chain takes down |
 
-That is fifteen projects on Compose and twenty-three on Kubernetes, three fewer on Compose and five fewer on
+That is sixteen projects on Compose and twenty-four on Kubernetes, three fewer on Compose and five fewer on
 Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project the target
 leaves out, with the reason. It does not list the cases a micro project leaves out; see
 "The classic-only cases" below.
@@ -404,7 +404,8 @@ Wall time 768.4 s: 935 passed, 0 failed, 0 skipped.
 
 "Not run on this target" is the `absent` list: a project this target leaves out, with the reason.
 A case that did not run is not a case that passed, so read the passed, failed, and skipped counts
-off the last line. `test-results/report.json` holds the same run in machine-readable form.
+off the last line. Unlike the step summary, this line counts every project, `harness` included.
+`test-results/report.json` holds the same run in machine-readable form.
 
 ### Reading a failure
 
@@ -444,7 +445,7 @@ A known divergence is pinned with `test.fail()` and a comment naming the defect,
 green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
 turns red the day its defect is fixed, and that is the signal to remove the annotation.
 
-A full Kubernetes run reports five expected failures from four pinned cases:
+The pinned cases, and the projects that run them:
 
 | Case | Projects | Defect |
 | --- | --- | --- |
@@ -453,7 +454,7 @@ A full Kubernetes run reports five expected failures from four pinned cases:
 | `specs/api/sessions-api.spec.ts`: `sessions-management API › a filter clause that names no column is refused` | `api` | A filter clause that omits `feature` or `condition` answers 500 where it should answer 400. |
 | `specs/global/export-all.spec.ts`: `whole-catalog export › the export answers over the whole catalog with no ids named` | `global` | `GET /v1/catalog/export/api-spec` with no chain, snapshot, or deployment named answers 500 on an NPE once a deployed HTTP trigger has an external route, a defect decided as won't fix. |
 
-A Compose run has no `brokers-micro` project, so it reports four.
+A Compose run has no `brokers-micro` project, so the RabbitMQ case fails there once.
 
 A defect only one engine meets, or a race, is pinned with `strikesAsKnown` and a `ConditionalDefect`
 instead, defined in `specs/<project>/<component>-defects.ts`; `grep -rn strikesAsKnown specs/` lists
@@ -467,9 +468,9 @@ below the list.
 
 ### Red runs that were not regressions
 
-Three kinds of red have been seen without a regression behind them. The first two are platform races;
-the third is a race in the suite's own code. Check here before
-you bisect.
+Four kinds of red have been seen without a regression behind them. The first two are platform races,
+the third is a race in the suite's own code, and the cause of the fourth is not known. Check here
+before you bisect.
 
 - **`specs/api/import-export.spec.ts`, three times in eleven full runs.**
   `GET /v1/catalog/import-instructions` answers 500 with `Cannot load from object array because
@@ -480,11 +481,16 @@ you bisect.
   answered `500 CIP-0001`. The case tolerates up to ten such samples and refuses every other
   non-200, so a red there means a status the window does not produce, or a window far wider than
   the one measured.
-- **`specs/runtime/plain-elements.spec.ts`, once.** The `split-async-2` case read one async branch
+- **`specs/runtime/plain-elements.spec.ts`, twice.** The `split-async-2` case read one async branch
   step as `IN_PROGRESS` where it asserts `COMPLETED_NORMALLY`: the lookup waits for eight elements
-  rather than for their statuses. It was green on the next run and has not reproduced since.
+  rather than for their statuses. The second time was CI run 39731789030, and the next run was
+  green both times.
+- **`specs/brokers/files.spec.ts` on `brokers-micro`, twice.** The case `sftp › sftp-trigger-2 › a
+  dropped file records a session found by chain id` found no session within 20 s, in CI runs
+  39720893673 and 39777664543. It passed on the classic engine in both runs, and on the micro engine
+  in the run after the first.
 
-A red that is none of these three is a finding. Read it with the attachments above rather than by
+A red that is none of these four is a finding. Read it with the attachments above rather than by
 re-running.
 
 ## Troubleshooting
@@ -707,8 +713,9 @@ each runs files of its classic counterpart against the micro engine.
 
 The seed imports the services under `fixtures/services/` that the corpus chains call, context and
 MCP services included, then every fixture under `fixtures/chains/`, `fixtures/axes/`, and
-`fixtures/script/` as one archive, raises each chain's session logging so there is a trace to read,
-deploys them in one batch, and waits until the routes answer. What it deployed lands in
+`fixtures/script/` as one archive, raises each chain's session logging so there is a trace to read
+(except the large-body fixtures in `UNRECORDED_FIXTURES`, which stay at `OFF`), deploys them in
+one batch, and waits until the routes answer. What it deployed lands in
 `.e2e-corpus.json`, and the projects that depend on it read the chains from there.
 `fixtures/axes/` is gitignored and rewritten on every seed.
 
@@ -720,9 +727,9 @@ them against the run rather than believing them:
 - `registry/elements.ts` has one row per element family and per axis value the schemas declare,
   and a `behaviour` row for what an element does that no axis value selects, such as the retry of
   `service-call`. A row is `covered` only while a passing test declares it with `covers(...)` or
-  `coversBehaviour(...)`, and `not-covered` otherwise, with a reason. A `not-covered` row that no
-  case on this stack can prove carries a scope and leaves the denominator: `out-of-scope`, as for
-  JMS, which has no broker in `infrastructure/`, or `shared`, as for an idempotency mode of a
+  `coversBehaviour(...)`, and `not-covered` otherwise, with a reason. A `not-covered` row in one of
+  a few named groups carries a scope and leaves the denominator: `out-of-scope`, as for JMS, which
+  has no broker in `infrastructure/`, or `shared`, as for an idempotency mode of a
   broker trigger, whose shared template the `http-trigger` case proves. Reconcile and the run
   summary report the covered rows out of the rows in scope, with the other two counted beside them:
   `Elements: 204 of 290 registry rows in scope covered on k8s (151 out of scope, 15 shared).`
