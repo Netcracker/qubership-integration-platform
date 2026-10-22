@@ -51,10 +51,18 @@ class BlueGreenSchedulerControllerServiceTest {
     }
 
     @Test
-    void shouldSkipSchedulerChangesWhenPreviousStateIsNull() {
+    void shouldKeepSchedulersRunningWhenInitialStateIsActive() {
         service.onStateChange(stateChange(null, state(State.ACTIVE)));
 
         verifyNoInteractions(quartzSchedulerService);
+    }
+
+    @Test
+    void shouldSuspendAllSchedulersWhenInitialStateIsNotActive() {
+        service.onStateChange(stateChange(null, state(State.CANDIDATE)));
+
+        verify(quartzSchedulerService).suspendAllSchedulers();
+        verifyNoMoreInteractions(quartzSchedulerService);
     }
 
     @Test

@@ -62,6 +62,23 @@ class BlueGreenStateServiceTest {
     }
 
     @Test
+    void shouldPassPreviousStateWithEachChange() {
+        BlueGreenState activeState = state(State.ACTIVE, 1);
+        BlueGreenState legacyState = state(State.LEGACY, 1);
+        service.init();
+
+        stateConsumer().accept(activeState);
+        stateConsumer().accept(legacyState);
+
+        ArgumentCaptor<BlueGreenStateService.BlueGreenStateChange> stateChangeCaptor =
+                ArgumentCaptor.forClass(BlueGreenStateService.BlueGreenStateChange.class);
+        verify(eventBus, times(2)).publish(eq(BlueGreenStateService.BLUE_GREEN_STATE_EVENT_ADDRESS), stateChangeCaptor.capture());
+        assertNull(stateChangeCaptor.getAllValues().get(0).oldState());
+        assertSame(activeState, stateChangeCaptor.getAllValues().get(1).oldState());
+        assertSame(legacyState, stateChangeCaptor.getAllValues().get(1).newState());
+    }
+
+    @Test
     void shouldReturnStateDetailsFromPublisher() {
         BlueGreenState activeState = state(State.ACTIVE, 2);
         when(blueGreenStatePublisher.getBlueGreenState()).thenReturn(activeState);
