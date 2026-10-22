@@ -485,7 +485,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
       var replacement = draftStore.pendingPolicyReplacement(conversationId);
       if (replacement.isPresent()) {
         return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-            PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, replacement.get().question().text())));
+            PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, replacement.get().question().text())));
       }
     }
     if (rejection.isPresent() && rejection.get().issues().stream()
@@ -591,7 +591,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
       String questions = String.join("\n", draft.openQuestions());
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-              questions.isBlank() ? "" : PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, questions)));
+              questions.isBlank() ? "" : PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, questions)));
     }
     if (directive == RequirementDiscoveryDirective.NONE && !draftStore.wasCapturedThisTurn(conversationId)) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
@@ -605,7 +605,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-              PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, String.join("\n", draft.openQuestions()))));
+              PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, String.join("\n", draft.openQuestions()))));
     }
     if (draft.facts().isEmpty()) {
       return new CapabilitySignal.Completed(
