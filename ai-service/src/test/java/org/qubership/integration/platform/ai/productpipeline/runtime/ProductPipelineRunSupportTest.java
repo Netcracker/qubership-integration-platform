@@ -61,6 +61,58 @@ class ProductPipelineRunSupportTest {
   }
 
   @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"question", "allowance", "failure", "other-observer"})
+  void onlyTheValidatedReadyGateCanSettleItsOwnDiscoveryDefect(String scenario) {
+    var attrs = new HashMap<String, Object>();
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Retain the unresolved native defect");
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR,
+        "other-observer".equals(scenario) ? "design-execution" : "requirement-discovery");
+    attrs.put(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR, "requirement-discovery");
+    var before = Map.copyOf(attrs);
+    String gate = "question".equals(scenario)
+        ? org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.STAGE_CLARIFICATION
+        : "allowance".equals(scenario)
+            ? org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.RECOVERY_REPAIR_ALLOWANCE
+            : org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.REQUIREMENT_DRAFT_READY;
+    var outcome = org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome.of(
+        "failure".equals(scenario)
+            ? org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.CONTRACT_FAILURE
+            : org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.NEEDS_INPUT,
+        org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.tag(gate, "Native checkpoint"));
+
+    assertFalse(ProductPipelineRunSupport.settleReadyDiscoveryRepair("requirement-discovery", outcome, attrs));
+    assertEquals(before, attrs);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"requirement-discovery", "another-owner"})
+  void readyDiscoverySettlesOnlyItsOwnPreparation(String owner) {
+    var attrs = new HashMap<String, Object>();
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Resolved native defect");
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "requirement-discovery");
+    attrs.put(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR, owner);
+    attrs.put(ProductPipelineRunSupport.ACCEPTED_SOURCE_BRIEF_REF_ATTR, "retained-source-reference");
+    attrs.put("mappingRepairAutomatic", "true");
+    var outcome = org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome.of(
+        org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.NEEDS_INPUT,
+        org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.tag(
+            org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.REQUIREMENT_DRAFT_READY,
+            "Requirements draft saved."));
+
+    assertTrue(ProductPipelineRunSupport.settleReadyDiscoveryRepair("requirement-discovery", outcome, attrs));
+    assertFalse(attrs.containsKey(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
+    if ("another-owner".equals(owner)) {
+      assertEquals(owner, attrs.get(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR));
+      assertEquals("retained-source-reference", attrs.get(ProductPipelineRunSupport.ACCEPTED_SOURCE_BRIEF_REF_ATTR));
+      assertEquals("true", attrs.get("mappingRepairAutomatic"));
+    } else {
+      assertFalse(attrs.containsKey(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR));
+      assertFalse(attrs.containsKey(ProductPipelineRunSupport.ACCEPTED_SOURCE_BRIEF_REF_ATTR));
+      assertFalse(attrs.containsKey("mappingRepairAutomatic"));
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.EnumSource(value = StageStatus.class, names = {"SUCCEEDED"})
   void settledCaptureCannotRestoreAnEarlierActiveError(StageStatus settled) {
     String json = ProductPipelineRunSupport.haltEvidence(Map.of(

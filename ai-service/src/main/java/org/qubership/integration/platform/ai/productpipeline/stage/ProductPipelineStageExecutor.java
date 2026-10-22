@@ -706,12 +706,19 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               StageOutcomeClass.CONTRACT_FAILURE, outcome.message(), outcome.candidates(), emitted,
               true, true, outcome.recoveryCause(), null);
         }
+        Map<String, Object> settled = new java.util.HashMap<>(attributesByRun.getOrDefault(runId, Map.of()));
+        boolean readyRepair = "requirement-discovery".equals(stage.capabilityId())
+            && ProductPipelineRunSupport.settleReadyDiscoveryRepair(stage.stageId(), outcome, settled);
         commitStatus(
             doc,
             RunStatus.WAITING_FOR_INPUT,
             StageStatus.WAITING_FOR_INPUT,
             doc.run().stages(),
-            outcome.message());
+            outcome.message(),
+            readyRepair ? ProductPipelineRunSupport.haltEvidence(settled, null, outcome.message()) : null);
+        if (readyRepair) {
+          attributesByRun.put(runId, settled);
+        }
         String prompt = outcome.message() == null ? "" : outcome.message();
         emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
         yield new StageExecutionResult(

@@ -42,6 +42,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
@@ -4116,6 +4117,25 @@ public final class ProductPipelineRunSupport {
     if (attributes != null && stageId.equals(attributes.get(STAGE_ERROR_FAILED_STAGE_ATTR))) {
       clearActiveRepair(attributes);
     }
+  }
+
+  /** Retires a discovery defect after native validation reaches the normal ready-draft gate. */
+  public static boolean settleReadyDiscoveryRepair(
+      String stageId, StageOutcome outcome, Map<String, Object> attributes) {
+    if (attributes == null || !stageId.equals(attributes.get(STAGE_ERROR_FAILED_STAGE_ATTR))
+        || outcome.outcomeClass() != StageOutcomeClass.NEEDS_INPUT || outcome.recoveryCause() != null
+        || !PipelineGates.REQUIREMENT_DRAFT_READY.equals(PipelineGates.gateOf(outcome.message()).orElse(""))) {
+      return false;
+    }
+    settleActiveRepair(stageId, attributes);
+    Object preparing = attributes.get(RECOVERY_PREPARING_OWNER_ATTR);
+    if (preparing == null || preparing instanceof String owner && (owner.isBlank() || stageId.equals(owner))) {
+      for (String key : List.of(RECOVERY_PREPARING_OWNER_ATTR, ACCEPTED_SOURCE_BRIEF_REF_ATTR,
+          "mappingRepairAutomatic", "mappingRepairPaths", "requirementCorrectionDraft", "missingMappingTargets")) {
+        attributes.remove(key);
+      }
+    }
+    return true;
   }
 
   private static void clearActiveRepair(Map<String, Object> attributes) {
