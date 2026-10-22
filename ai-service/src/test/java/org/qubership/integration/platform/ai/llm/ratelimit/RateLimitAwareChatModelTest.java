@@ -55,6 +55,51 @@ class RateLimitAwareChatModelTest {
   }
 
   @Test
+  void defersKnownWaitOutsideBoundedCallWithoutSpendingAnotherAttempt() {
+    ChatModel delegate = mock(ChatModel.class);
+    when(delegate.chat(any(ChatRequest.class))).thenThrow(
+        new RateLimitHttpException("quota exhausted", java.util.Map.of("Retry-After", "60")));
+    var sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+    var before = java.time.Instant.now();
+    var deferred = assertThrows(RateLimitRetryDeferredException.class, () ->
+        RateLimitRetryDeadline.withDeadline(java.time.Duration.ofSeconds(20), () -> model.chat(request)));
+    assertTrue(!deferred.retryAt().isBefore(before.plusSeconds(60)));
+    org.mockito.Mockito.verify(delegate, org.mockito.Mockito.times(1)).chat(request);
+    assertTrue(sleeper.sleptSeconds.isEmpty());
+    assertTrue(events.isEmpty());
+  }
+
+  @Test
+  void ordinaryCallWaitsForTheProviderUsingTheSameRequest() {
+    ChatModel delegate = mock(ChatModel.class);
+    when(delegate.chat(any(ChatRequest.class))).thenThrow(
+        new RateLimitHttpException("quota exhausted", java.util.Map.of("Retry-After", "60")))
+        .thenReturn(successResponse);
+    var sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+    assertSame(successResponse, model.chat(request));
+    assertEquals(List.of(60), sleeper.sleptSeconds);
+    org.mockito.Mockito.verify(delegate, org.mockito.Mockito.times(2)).chat(request);
+  }
+
+  @Test
+  void scopedDeadlineIsRestoredAfterAnInnerFailure() {
+    assertThrows(IllegalStateException.class, () -> RateLimitRetryDeadline.withDeadline(
+        java.time.Duration.ofSeconds(20), () -> { throw new IllegalStateException("failed"); }));
+    org.junit.jupiter.api.Assertions.assertNull(RateLimitRetryDeadline.current());
+    RateLimitRetryDeadline.withDeadline(java.time.Duration.ofSeconds(60), () -> {
+      var outer = RateLimitRetryDeadline.current();
+      RateLimitRetryDeadline.withDeadline(java.time.Duration.ofSeconds(1), () -> {
+        assertTrue(RateLimitRetryDeadline.current().isBefore(outer));
+        return null;
+      });
+      assertEquals(outer, RateLimitRetryDeadline.current());
+      return null;
+    });
+  }
+
+  @Test
   void nonRateLimitDoesNotRetry() {
     ChatModel delegate = mock(ChatModel.class);
     when(delegate.chat(any(ChatRequest.class))).thenThrow(new IllegalStateException("nope"));

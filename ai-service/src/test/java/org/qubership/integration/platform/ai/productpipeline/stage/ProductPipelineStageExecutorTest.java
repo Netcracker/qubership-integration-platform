@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.stage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -13,6 +14,7 @@ import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.langchain4j.exception.ToolArgumentsException;
+import dev.langchain4j.exception.RateLimitException;
 import io.smallrye.mutiny.Multi;
 import java.time.Clock;
 import java.time.Duration;
@@ -47,6 +49,7 @@ import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitRetryDeferredException;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -2711,6 +2714,121 @@ class ProductPipelineStageExecutorTest {
     assertEquals(brief, artifactStore.payload(
         artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow(), RequirementBrief.class));
     assertEquals(2, calls.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ready", "interrupted", "exhausted"})
+  void knownProviderWaitUsesOnlyTheRemainingDiagnosisAndPreservesInterruptedProgress(String outcome) throws Exception {
+    boolean interruptWait = "interrupted".equals(outcome);
+    boolean exhausted = "exhausted".equals(outcome);
+    var now = new AtomicReference<>(FIXED);
+    Clock clock = org.mockito.Mockito.mock(Clock.class);
+    org.mockito.Mockito.when(clock.instant()).thenAnswer(call -> now.get());
+    org.mockito.Mockito.when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+    runStore = new ProductPipelineRunStore(blobStore, mapper, clock);
+    artifactStore = new ProductPipelineArtifactStore(new CompilationArtifacts(blobStore, mapper, clock));
+    Instant retryAt = FIXED.plusSeconds(60);
+    var observed = new AtomicReference<RecoveryContext>();
+    var diagnosisContexts = new CopyOnWriteArrayList<RecoveryContext>();
+    var calls = new AtomicInteger();
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    FailureNarrative narrative = org.mockito.Mockito.spy(new FailureNarrative(agent, 12, Duration.ofSeconds(20)));
+    org.mockito.Mockito.doAnswer(call -> {
+      observed.set(call.getArgument(1));
+      diagnosisContexts.add(call.getArgument(1));
+      return call.callRealMethod();
+    }).when(narrative).diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class)))
+        .thenAnswer(call -> {
+          if (calls.incrementAndGet() == 1) {
+            throw new RateLimitRetryDeferredException(retryAt, new RateLimitException("Known provider reset"));
+          }
+          assertFalse(now.get().isBefore(retryAt), "The second diagnosis must wait for the existing provider reset");
+          if (exhausted) {
+            throw new RateLimitRetryDeferredException(retryAt.plusSeconds(60),
+                new RateLimitException("The second diagnosis also has a known provider reset"));
+          }
+          RecoveryContext context = observed.get();
+          return new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT,
+              context.evidence().rejectedArtifactRefs().getFirst(), List.of(context.evidence().failureId()),
+              RecoveryAction.REGENERATE_ARTIFACT, List.of(), "", "Regenerate the rejected planner report.");
+        });
+    var planningCalls = new AtomicInteger();
+    StageCapability planning = capability("planning-cap", context -> planningCalls.incrementAndGet() == 1
+        ? Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.CONTRACT_FAILURE, "Planner report has an invalid output shape.")))
+        : planningAlwaysCandidate().execute(context));
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(analysisCandidate(), planning, succeeding("execution-cap", new AtomicInteger()))),
+        clock).failureNarrative(narrative)
+        .recoveryLedger(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 1))).build(), runStore);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    String approved = snapshot(requireRun(), "requirement-analysis").approvedArtifactId();
+    var authorInputs = artifactStore.history(RUN_ID, Kind.USER_INPUT);
+    var sleeps = new AtomicInteger();
+    var executor = (ProductPipelineStageExecutor) runtime.stageExecutor();
+    executor.withProviderRetrySleeper(duration -> {
+      assertEquals(Duration.ofSeconds(60), duration);
+      assertEquals(1, calls.get());
+      assertEquals(1, planningCalls.get());
+      var pending = assertDoesNotThrow(() -> mapper.readTree(String.valueOf(runtime.support().runAttributes(RUN_ID)
+          .get(ProductPipelineRunSupport.RECOVERY_DIAGNOSIS_ATTR))));
+      assertEquals(1, pending.path("calls").asInt());
+      assertEquals(retryAt, mapper.convertValue(pending.path("result").path("retryAt"), Instant.class));
+      sleeps.incrementAndGet();
+      if (interruptWait) throw new InterruptedException("Stop waiting without dispatching another diagnosis");
+      now.updateAndGet(value -> value.plus(duration));
+    });
+    var interruptedAtSettlement = new AtomicBoolean();
+    StageExecutionResult result;
+    try {
+      result = executor.execute(RUN_ID, "design-planning").invoke(settled -> {
+        interruptedAtSettlement.set(Thread.currentThread().isInterrupted());
+        Thread.interrupted();
+      }).await().indefinitely();
+    } finally {
+      Thread.interrupted();
+    }
+
+    assertEquals(1, sleeps.get());
+    assertEquals(interruptWait, interruptedAtSettlement.get());
+    if (!interruptWait) assertEquals(diagnosisContexts.getFirst(), diagnosisContexts.getLast());
+    assertEquals(approved, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
+    assertEquals(authorInputs, artifactStore.history(RUN_ID, Kind.USER_INPUT));
+    assertTrue(requireRun().transitions().stream().noneMatch(transition -> transition.reason() != null
+        && transition.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)));
+    if (interruptWait || exhausted) {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+      assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      int expectedCalls = exhausted ? 2 : 1;
+      assertEquals(expectedCalls, calls.get());
+      var reloaded = new ProductPipelineRunStore(blobStore, mapper, clock).load(RUN_ID).orElseThrow();
+      var halt = ProductPipelineRunSupport.readHaltEvidence(reloaded.attempts().getLast().failureEvidence());
+      var retained = mapper.readTree(String.valueOf(halt.get(ProductPipelineRunSupport.RECOVERY_DIAGNOSIS_ATTR)));
+      assertEquals(expectedCalls, retained.path("calls").asInt());
+      assertEquals("TRANSIENT_PROVIDER_FAILURE", retained.path("result").path("diagnosisStatus").asText());
+      assertEquals(exhausted ? retryAt.plusSeconds(60) : retryAt,
+          mapper.convertValue(retained.path("result").path("retryAt"), Instant.class));
+      assertTrue(reloaded.transitions().stream().noneMatch(transition -> transition.reason() != null
+          && transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)));
+      if (exhausted) {
+        assertEquals(FailureNarrative.RecoveryStatus.TRANSIENT_PROVIDER_FAILURE,
+            executor.acceptedRecoveryDecision(RUN_ID, observed.get()).diagnosisStatus());
+        assertEquals(2, calls.get());
+        assertEquals(1, sleeps.get());
+      }
+    } else {
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      assertEquals(2, calls.get());
+      applyLifecycle(runtime, result);
+      assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "design-planning").decision());
+      assertEquals(2, planningCalls.get());
+      assertEquals(2, calls.get());
+      assertEquals(approved, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
+    }
   }
 
   @ParameterizedTest
