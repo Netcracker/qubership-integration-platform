@@ -102,6 +102,17 @@ class RateLimitErrorClassifierTest {
   }
 
   @Test
+  void errorEvidenceRetainsTheTypedHttpStatusWithoutInferringItFromTheProviderBody() {
+    var error = new dev.langchain4j.exception.InternalServerException("Provider failed",
+        new HttpException(503, "{\"error\":{\"code\":502}}"));
+
+    assertEquals(Map.of("type", error.getClass().getName(), "message", "Provider failed", "httpStatus", 503),
+        classifier.errorEvidence(error));
+    assertFalse(classifier.errorEvidence(new IllegalStateException("{\"error\":{\"code\":502}}"))
+        .containsKey("httpStatus"));
+  }
+
+  @Test
   void largePositiveRetryAfterDoesNotFallBackToASecond() {
     assertEquals(Optional.of(Duration.ofSeconds(2147483648L)), classifier.extractWait(
         new RateLimitHttpException("", Map.of("Retry-After", "2147483648"))));

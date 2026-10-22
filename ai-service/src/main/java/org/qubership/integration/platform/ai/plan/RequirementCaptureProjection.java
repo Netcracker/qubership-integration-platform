@@ -129,6 +129,8 @@ public final class RequirementCaptureProjection {
       DraftInput input, List<CatalogBindingHint> bindings, Map<String, String> targets,
       Set<String> uploadedSpecInteractions) {
     List<PendingWork> pending = new ArrayList<>();
+    RequirementFailureConsistency.issues(input, bindings).forEach(issue ->
+        pending.add(new PendingWork(issue.code(), issue.entityId(), null, issue.message())));
     Map<String, CapabilityInput> capabilities = new HashMap<>();
     for (CapabilityInput capability : input.capabilities()) {
       capabilities.put(capability.interactionId(), capability);

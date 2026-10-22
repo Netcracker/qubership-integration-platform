@@ -106,6 +106,7 @@ class CompilerAuthorSourceProviderTest {
   @Inject CaptureAttemptFeedbackStore feedback;
   @Inject AppConfig config;
   @InjectSpy CompilerSkillAddonRepository addons;
+  @InjectSpy CaptureRouter captureRouter;
   @InjectMock RateLimitStreamingChatModel provider;
   @InjectMock SidecarKnowledgeClient knowledge;
   @InjectMock DefaultKnowledgeContextProvider knowledgeContext;
@@ -139,9 +140,13 @@ class CompilerAuthorSourceProviderTest {
     var bound = bind(SCRIPT_CAPABILITY, graph, ownership);
     var limits = limits();
     var model = new ScriptedStreamingChatModel(
-        Turn.tool("blank-body", request -> assertSource(request, source), "repairScriptBodies", capture("")),
+        Turn.tool("blank-body", request -> {
+          assertSource(request, source);
+          assertSourceOwnedPredicates(request);
+        }, "repairScriptBodies", capture("")),
         Turn.tool("correct-body", request -> {
           assertSource(request, source);
+          assertSourceOwnedPredicates(request);
           assertTrue(request.messages().stream().filter(ToolExecutionResultMessage.class::isInstance)
               .map(ToolExecutionResultMessage.class::cast).anyMatch(result -> result.text().contains("script body is blank")));
           assertEquals(graph, plans.get(chat).orElseThrow(), "A rejected body cannot mutate the graph.");
@@ -167,6 +172,46 @@ class CompilerAuthorSourceProviderTest {
     assertEquals(limits, limits());
     assertEquals(2, model.requests().size());
     assertScriptBehavior(script);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void normalScriptCompilerPublishesSourceOwnedPredicates(boolean standalone) throws Exception {
+    doReturn(standalone).when(addons).hasStandaloneSkills();
+    doReturn(new CaptureRoute(SCRIPT_CAPABILITY,
+        org.qubership.integration.platform.ai.compiler.addon.CaptureTool.CAPTURE_GRAPH_PATCH))
+        .when(captureRouter).routeFor(SCRIPT_CAPABILITY);
+    var source = source();
+    var graph = graph(false);
+    var workspace = workspace(graph);
+    bind(SCRIPT_CAPABILITY, graph,
+        GraphPatchOwnershipPolicy.denyAll().withAdditionalProperties(Map.of("script", Set.of("script"))));
+    String arguments = json.writeValueAsString(Map.of("patch", Map.of("patchId", "source-script",
+        "ownerCapabilityId", SCRIPT_CAPABILITY, "propertyPatches", List.of(Map.of("operation", "ADD",
+            "targetNodeId", "filter", "key", "script", "value", SCRIPT)))));
+    var model = new ScriptedStreamingChatModel(Turn.tool("native-script-patch", request -> {
+      assertSource(request, source);
+      assertSourceOwnedPredicates(request);
+    }, "captureGraphPatch", arguments));
+    install(model);
+    var context = context(SCRIPT_CAPABILITY);
+    runtime.runStreaming(context, workspace, SCRIPT_CAPABILITY).collect().asList().await().atMost(Duration.ofSeconds(30));
+    var result = runtime.run(context, workspace, SCRIPT_CAPABILITY).await().atMost(Duration.ofSeconds(30));
+    model.assertComplete();
+    assertEquals(SkillRunStatus.COMPLETED, result.status(), result.message());
+    assertEquals(1, model.requests().size());
+    assertEquals(source, conversations.archive().read(chat));
+  }
+
+  private static void assertSourceOwnedPredicates(ChatRequest request) {
+    String text = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
+        .map(UserMessage::singleText).reduce("", (first, next) -> first + "\n" + next);
+    assertTrue(text.contains("Use only approved success and failure predicates"), text);
+    assertTrue(text.contains("Missing, null, empty, blank, false, and numeric zero are distinct"), text);
+    assertTrue(text.contains("Whitespace-only strings are truthy"), text);
+    assertTrue(text.contains("Preserve the approved grouping and order of conditions and arithmetic"), text);
+    assertFalse(text.contains("def failed = (status != null && status >= 400)"), text);
+    assertFalse(text.contains("A successful response with errors=[] is success"), text);
   }
 
   @Test

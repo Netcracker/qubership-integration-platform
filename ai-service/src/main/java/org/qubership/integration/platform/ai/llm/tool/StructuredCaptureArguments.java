@@ -26,7 +26,39 @@ public final class StructuredCaptureArguments {
 
   public record Result(ToolExecutionRequest request, Issue issue) {}
 
+  public record Nesting(JsonNode arguments, Map<String, String> relocations) {}
+
   private StructuredCaptureArguments() {}
+
+  /** Restores one argument-envelope level without inventing values or choosing between destinations. */
+  public static Nesting restoreNesting(JsonNode input, JsonObjectSchema parameters) {
+    if (input == null || !input.isObject() || Boolean.TRUE.equals(parameters.additionalProperties())) {
+      return new Nesting(input, Map.of());
+    }
+    com.fasterxml.jackson.databind.node.ObjectNode restored = input.deepCopy();
+    Map<String, String> relocations = new java.util.LinkedHashMap<>();
+    input.fields().forEachRemaining(field -> {
+      if (parameters.properties().containsKey(field.getKey())) {
+        return;
+      }
+      var destinations = parameters.properties().entrySet().stream()
+          .filter(entry -> entry.getValue() instanceof JsonObjectSchema object
+              && object.properties().containsKey(field.getKey()))
+          .map(Map.Entry::getKey).toList();
+      if (destinations.size() != 1) {
+        return;
+      }
+      String destination = destinations.getFirst();
+      if (!(restored.get(destination) instanceof com.fasterxml.jackson.databind.node.ObjectNode target)
+          || target.has(field.getKey())) {
+        return;
+      }
+      target.set(field.getKey(), restored.remove(field.getKey()));
+      String fieldPath = "/" + field.getKey().replace("~", "~0").replace("/", "~1");
+      relocations.put(fieldPath, "/" + destination.replace("~", "~0").replace("/", "~1") + fieldPath);
+    });
+    return new Nesting(restored, Map.copyOf(relocations));
+  }
 
   public static Result inspect(
       ToolExecutionRequest request, ToolMethodCreateInfo method, ObjectMapper mapper) {

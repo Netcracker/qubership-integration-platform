@@ -517,6 +517,9 @@ class CompilerSkillContextBuilderAddonTest {
       assertTrue(message.contains("does not authorize changing a required runtime output value"), message);
       assertTrue(message.contains("field binding. Preserve both the approved behavior"), message);
       assertTrue(message.contains("incompatibility in the capture rationale"), message);
+      assertTrue(message.contains("Use only approved success and failure predicates"), message);
+      assertTrue(message.contains("Missing, null, empty, blank, false, and numeric zero are distinct"), message);
+      assertFalse(message.contains("def failed = (status != null && status >= 400)"), message);
     }
   }
 

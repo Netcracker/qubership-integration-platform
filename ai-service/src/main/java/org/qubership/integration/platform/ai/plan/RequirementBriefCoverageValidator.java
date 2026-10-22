@@ -34,6 +34,9 @@ public final class RequirementBriefCoverageValidator {
     Objects.requireNonNull(approvedDraft, "approvedDraft");
     Objects.requireNonNull(brief, "brief");
 
+    var consistency = RequirementFailureConsistency.issues(approvedDraft);
+    if (!consistency.isEmpty()) return Optional.of(consistency.getFirst().message());
+
     List<RequirementFact> draftFacts = approvedDraft.facts();
     List<RequirementFact> briefFacts = brief.facts();
     if (!approvedDraft.flow().equals(brief.flow())) {

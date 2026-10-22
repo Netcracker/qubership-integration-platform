@@ -39,4 +39,13 @@ class TransientErrorClassifierTest {
   void ignoresOrdinaryErrors() {
     assertFalse(classifier.isTransient(new IllegalStateException("validation failed")));
   }
+
+  @Test
+  void permanentHttpStatusTakesPrecedenceOverQuotedConnectionText() {
+    assertFalse(classifier.isTransient(new HttpException(400, "connection reset")));
+    assertFalse(classifier.isTransient(new InternalServerException("upstream connect error",
+        new HttpException(401, "upstream connect error"))));
+    assertTrue(classifier.isTransient(new IllegalStateException("connection reset")),
+        "The transport wrapper retains its existing network-message fallback");
+  }
 }

@@ -168,8 +168,12 @@ public class RequirementDraftStore {
       }
     }
     if (!issues.isEmpty()) return List.copyOf(issues);
+    var repairPaths = activeRepairPaths(conversationId, base, draft);
+    issues.addAll(RequirementFailureConsistency.unauthorizedModeChanges(base, draft.authoredDraft(),
+        current.map(revision -> artifacts.payload(revision, RequirementDraft.class).catalogBindings()).orElse(List.of()),
+        authorPaths, repairPaths));
     issues.addAll(RequirementRevisionAdmission.validate(base, draft.authoredDraft(),
-        rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, activeRepairPaths(conversationId, base), mappingPaths,
+        rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, repairPaths, mappingPaths,
         fact -> canResolvePolicyChoice(conversationId, fact)));
     if (!issues.isEmpty()) {
       return List.copyOf(issues);
@@ -192,6 +196,7 @@ public class RequirementDraftStore {
   public List<RequirementCaptureEditor.Issue> validateForContinuation(String conversationId) {
     var issues = new ArrayList<>(validateCurrent(conversationId));
     var current = get(conversationId).orElse(null);
+    issues.addAll(RequirementFailureConsistency.issues(current));
     if (current == null || current.authoredDraft() == null) return issues;
     var input = current.authoredDraft();
     issues.addAll(validatePolicySelections(conversationId,
@@ -226,12 +231,37 @@ public class RequirementDraftStore {
   }
 
   private java.util.Set<String> activeRepairPaths(String conversationId, RequirementCaptureInput.DraftInput base) {
-    return org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
+    return activeRepairPaths(conversationId, base, null);
+  }
+
+  private java.util.Set<String> activeRepairPaths(String conversationId, RequirementCaptureInput.DraftInput base,
+      RequirementDraft candidate) {
+    var context = org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
         .binding(conversationId)
         .filter(binding -> binding.mode()
-            == org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Mode.DISCOVERY)
+            == org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Mode.DISCOVERY);
+    var paths = new java.util.LinkedHashSet<>(context
         .filter(binding -> binding.approvedDraft() != null && Objects.equals(base, binding.approvedDraft().authoredDraft()))
-        .map(binding -> binding.requirementRepairPaths()).orElse(java.util.Set.of());
+        .map(binding -> binding.requirementRepairPaths()).orElse(java.util.Set.of()));
+    var current = get(conversationId).orElse(null);
+    if (context.isPresent() && current != null && base != null && Objects.equals(base, current.authoredDraft())) {
+      var findings = RequirementFailureConsistency.issues(base, current.catalogBindings());
+      // A causal-reopen grant must obey the same boundary as the freshly derived native finding.
+      if (candidate != null) findings.forEach(issue ->
+          paths.remove("/interactions/" + issue.entityId() + "/failureMode"));
+      if (currentSource(conversationId)
+          && (context.orElseThrow().approvedDraft() == null
+              || Objects.equals(base, context.orElseThrow().approvedDraft().authoredDraft()))
+          && (candidate == null || Objects.equals(current.catalogBindings(), candidate.catalogBindings())
+              && RequirementFailureConsistency.correctsOnlyModes(base, candidate.authoredDraft(), findings))) {
+        findings.stream()
+            .filter(issue -> candidate == null || candidate.authoredDraft().flow().interactions().stream()
+                .anyMatch(value -> issue.entityId().equals(value.interactionId())
+                    && value.failureMode() == org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.INLINE_RESPONSE))
+            .forEach(issue -> paths.add("/interactions/" + issue.entityId() + "/failureMode"));
+      }
+    }
+    return java.util.Set.copyOf(paths);
   }
 
   public static boolean isRequirementRepairPath(RequirementDraft draft, String path) {
@@ -992,7 +1022,8 @@ public class RequirementDraftStore {
     }
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
-        arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId)));
+        arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId),
+        RequirementCaptureToolProvider.argumentBinding()));
   }
 
   private String repairAuthority(String conversationId) {
@@ -1154,7 +1185,15 @@ public class RequirementDraftStore {
 
   public record RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
       String mutationScope, String toolName, Object arguments, boolean accepted,
-      List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority) {
+      List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority,
+      RequirementCaptureToolProvider.ArgumentBinding argumentBinding) {
+    public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
+        String mutationScope, String toolName, Object arguments, boolean accepted,
+        List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority) {
+      this(sourceGeneration, sourceTurnId, authorText, mutationScope, toolName, arguments, accepted,
+          issues, acceptedDraftReference, repairAuthority, null);
+    }
+
     public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
         String mutationScope, String toolName, Object arguments, boolean accepted,
         List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference) {
