@@ -1,0 +1,249 @@
+package org.qubership.integration.platform.ai.qipknowledge.artifact;
+
+import java.util.List;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+
+/** Renders a structured {@link RequirementBrief} for downstream compiler prompts. */
+public final class RequirementBriefText {
+
+  private RequirementBriefText() {}
+
+  public static String format(RequirementBrief brief) {
+    if (brief == null) {
+      return "";
+    }
+    StringBuilder body = new StringBuilder();
+    appendLine(body, "Goal", brief.goal());
+    appendLine(body, "Summary", brief.summary());
+    appendList(body, "Inputs", brief.inputs());
+    appendList(body, "Constraints", brief.constraints());
+    appendList(body, "Assumptions", brief.assumptions());
+    appendFlow(body, brief.flow());
+    appendFacts(body, brief.facts());
+    appendEntryPoints(body, brief.entryPoints());
+    appendServiceCalls(body, brief.serviceCalls());
+    appendMappingIntents(body, brief.mappingIntents());
+    return body.toString().trim();
+  }
+
+  private static void appendFlow(StringBuilder body, RequirementFlow flow) {
+    if (flow == null || flow.interactions().isEmpty()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append("Business interactions:");
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      body.append('\n')
+          .append("- interactionId=")
+          .append(interaction.interactionId())
+          .append(" direction=")
+          .append(interaction.direction())
+          .append(" participant=")
+          .append(interaction.participant())
+          .append(" operation=")
+          .append(interaction.operation())
+          .append(" failureMode=")
+          .append(interaction.failureMode());
+    }
+    if (flow.transitions().isEmpty()) {
+      return;
+    }
+    body.append('\n').append("Business transitions:");
+    for (RequirementFlow.Transition transition : flow.transitions()) {
+      body.append('\n')
+          .append("- ")
+          .append(transition.sourceInteractionId())
+          .append(" -> ")
+          .append(transition.targetInteractionId());
+    }
+  }
+
+  private static void appendEntryPoints(
+      StringBuilder body, List<RequirementEntryPoint> entryPoints) {
+    if (entryPoints == null || entryPoints.isEmpty()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append("Entry points:");
+    for (var entryPoint : entryPoints) {
+      body.append('\n')
+          .append("- entryPointId=")
+          .append(entryPoint.entryPointId())
+          .append(" capabilityKey=")
+          .append(entryPoint.capabilityKey());
+      if (!entryPoint.httpMethod().isBlank()) {
+        body.append(" method=").append(entryPoint.httpMethod());
+      }
+      if (!entryPoint.path().isBlank()) {
+        body.append(" path=").append(entryPoint.path());
+      }
+      if (!entryPoint.topic().isBlank()) {
+        body.append(" topic=").append(entryPoint.topic());
+      }
+    }
+  }
+
+  private static void appendServiceCalls(
+      StringBuilder body, List<RequirementServiceCall> serviceCalls) {
+    if (serviceCalls == null || serviceCalls.isEmpty()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append("Service calls:");
+    for (var serviceCall : serviceCalls) {
+      body.append('\n')
+          .append("- serviceCallId=")
+          .append(serviceCall.serviceCallId())
+          .append(" failureMode=")
+          .append(serviceCall.failureMode());
+      if (!serviceCall.participant().isBlank() || !serviceCall.operation().isBlank()) {
+        body.append(' ')
+            .append(serviceCall.participant())
+            .append(": ")
+            .append(serviceCall.operation());
+      }
+      CatalogBindingHint hint = serviceCall.catalogBinding();
+      if (hint != null) {
+        appendCatalogIdentity(body, hint);
+      }
+    }
+  }
+
+  private static void appendCatalogIdentity(StringBuilder body, CatalogBindingHint hint) {
+    body.append(" systemId=")
+        .append(hint.systemId())
+        .append(" specificationGroupId=")
+        .append(hint.specificationGroupId())
+        .append(" specificationId=")
+        .append(hint.specificationId())
+        .append(" integrationOperationId=")
+        .append(hint.integrationOperationId());
+    if (hint.protocol() != null && !hint.protocol().isBlank()) {
+      body.append(" protocol=").append(hint.protocol());
+    }
+    if (hint.method() != null && !hint.method().isBlank()) {
+      body.append(" method=").append(hint.method());
+    }
+    if (hint.path() != null && !hint.path().isBlank()) {
+      body.append(" path=").append(hint.path());
+    }
+  }
+
+  private static void appendMappingIntents(StringBuilder body, List<MappingIntent> intents) {
+    if (intents == null || intents.isEmpty()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append("Mapping intents:");
+    for (var intent : intents) {
+      body.append('\n').append("- ");
+      if (!intent.mappingIntentId().isBlank()) {
+        body.append("mappingIntentId=").append(intent.mappingIntentId()).append(' ');
+      }
+      body.append(intent.hopLabel());
+      for (MappingIntentRule rule : intent.rules()) {
+        body.append('\n')
+            .append("  - ")
+            .append(rule.status())
+            .append(' ')
+            .append(rule.sourcePath())
+            .append(" -> ")
+            .append(rule.targetPath());
+        if (rule.expression() != null) {
+          body.append(" | expression: ").append(rule.expression());
+        }
+      }
+    }
+  }
+
+  public static String formatFacts(List<RequirementFact> facts) {
+    StringBuilder body = new StringBuilder();
+    appendFacts(body, facts);
+    return body.toString();
+  }
+
+  private static void appendFacts(StringBuilder body, List<RequirementFact> facts) {
+    if (facts == null || facts.isEmpty()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append("Facts:");
+    for (RequirementFact fact : facts) {
+      if (fact == null || fact.text() == null || fact.text().isBlank()) {
+        continue;
+      }
+      String prefix =
+          fact.polarity() == RequirementFactPolarity.NEGATIVE ? "[NEGATIVE] " : "[POSITIVE] ";
+      body.append('\n').append("- ").append(prefix).append(fact.text().trim());
+      // Design capture is told to copy sourceFactIds from the brief, so the ids have to be here.
+      if (fact.sourceFactId() != null && !fact.sourceFactId().isBlank()) {
+        body.append(" sourceFactId=").append(fact.sourceFactId());
+      }
+      body.append(" kind=").append(fact.kind())
+          .append(" interactionIds=").append(fact.interactionIds());
+      if (fact.elementIntent() != null) {
+        var intent = fact.elementIntent();
+        body.append(" elementIntent=").append(intent);
+        if (intent.parentElementRef() != null) {
+          body.append(" requiredContainment=").append(intent.parentElementRef())
+              .append(" contains ").append(intent.elementRef());
+        }
+        if (intent.predecessorElementRef() != null) {
+          body.append(" requiredExecutionOrder=").append(intent.predecessorElementRef())
+              .append(" -> ").append(intent.elementRef());
+        }
+        if (intent.successorElementRef() != null) {
+          body.append(" requiredExecutionOrder=").append(intent.elementRef())
+              .append(" -> ").append(intent.successorElementRef());
+        }
+      }
+      if (fact.policyConflict() != null) {
+        var policy = fact.policyConflict();
+        body.append(" policyId=").append(policy.policyId())
+            .append(" propertyKey=").append(policy.propertyKey())
+            .append(" requested=").append(policy.requestedValue())
+            .append(" recommended=").append(policy.recommendedValue())
+            .append(" decision=").append(policy.decision())
+            .append(" selected=").append(policy.selectedValue());
+      }
+    }
+  }
+
+  private static void appendLine(StringBuilder body, String label, String value) {
+    if (value == null || value.isBlank()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append(label).append(": ").append(value.trim());
+  }
+
+  private static void appendList(StringBuilder body, String label, List<String> values) {
+    if (values == null || values.isEmpty()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append(label).append(':');
+    for (String value : values) {
+      if (value == null || value.isBlank()) {
+        continue;
+      }
+      body.append('\n').append("- ").append(value.trim());
+    }
+  }
+}

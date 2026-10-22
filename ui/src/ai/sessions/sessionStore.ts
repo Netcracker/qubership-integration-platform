@@ -6,14 +6,92 @@ import {
 } from "./types.ts";
 import { ChatMessage } from "../modelProviders/types.ts";
 import { v4 as uuidv4 } from "uuid";
+import { compressToUTF16, decompressFromUTF16 } from "lz-string";
 
 const STORAGE_KEY = "cip_ai_chat_sessions";
+const LAST_ACTIVE_SESSION_ID_KEY = "cip_ai_last_active_session_id";
+const LEGACY_STORAGE_KEY = "qip_ai_chat_sessions";
+const LEGACY_LAST_ACTIVE_SESSION_ID_KEY = "qip_ai_last_active_session_id";
 const STORAGE_DEBOUNCE_MS = 500;
+
+function readSessions(stored: string): ChatSession[] {
+  return JSON.parse(
+    stored.startsWith("lz:") ? decompressFromUTF16(stored.slice(3)) : stored,
+  ) as ChatSession[];
+}
+
+function serializeSessions(sessions: ChatSession[]): string {
+  return `lz:${compressToUTF16(JSON.stringify(sessions))}`;
+}
+
+function getLatestSessionId(sessions: ChatSession[]): string | null {
+  if (sessions.length === 0) {
+    return null;
+  }
+  let latest = sessions[0];
+  for (let i = 1; i < sessions.length; i++) {
+    if (sessions[i].updatedAt > latest.updatedAt) {
+      latest = sessions[i];
+    }
+  }
+  return latest.id;
+}
 
 class ChatSessionStore {
   private memorySessions: ChatSession[] | null = null;
   private saveTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private pendingSave: ChatSession[] | null = null;
+  private changedSessionFields = new Map<
+    string,
+    Set<keyof ChatSession> | null
+  >();
+
+  constructor() {
+    this.migrateLegacySessions();
+    window.addEventListener("storage", (event) => {
+      if (event.key === STORAGE_KEY && this.pendingSave === null) {
+        this.memorySessions = null;
+      }
+    });
+  }
+
+  private migrateLegacySessions(): void {
+    try {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy === null) return;
+      const legacySessions = readSessions(legacy);
+      const sessions = new Map(
+        legacySessions.map((session) => [session.id, session]),
+      );
+      for (const session of this.readPersistedSessions()) {
+        sessions.set(session.id, session);
+      }
+      // Compress the existing key before migration needs a second copy of the history.
+      localStorage.setItem(
+        LEGACY_STORAGE_KEY,
+        serializeSessions(legacySessions),
+      );
+      localStorage.setItem(
+        STORAGE_KEY,
+        serializeSessions(Array.from(sessions.values())),
+      );
+      const activeSession = localStorage.getItem(
+        LEGACY_LAST_ACTIVE_SESSION_ID_KEY,
+      );
+      if (activeSession && !localStorage.getItem(LAST_ACTIVE_SESSION_ID_KEY)) {
+        localStorage.setItem(LAST_ACTIVE_SESSION_ID_KEY, activeSession);
+      }
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_LAST_ACTIVE_SESSION_ID_KEY);
+    } catch {
+      // Keep legacy history if the migration cannot be saved.
+    }
+  }
+
+  private readPersistedSessions(): ChatSession[] {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? readSessions(stored) : [];
+  }
 
   private ensureLoadedSessions(): ChatSession[] {
     if (this.memorySessions) {
@@ -21,8 +99,7 @@ class ChatSessionStore {
     }
 
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      this.memorySessions = stored ? (JSON.parse(stored) as ChatSession[]) : [];
+      this.memorySessions = this.readPersistedSessions();
     } catch {
       this.memorySessions = [];
     }
@@ -37,9 +114,23 @@ class ChatSessionStore {
   /**
    * Debounced save to localStorage - prevents blocking main thread during streaming
    */
-  private saveSessions(sessions: ChatSession[], immediate = false): void {
+  private saveSessions(
+    sessions: ChatSession[],
+    sessionId: string,
+    fields: (keyof ChatSession)[] | null,
+    immediate = false,
+  ): void {
     this.memorySessions = sessions;
     this.pendingSave = sessions;
+    if (fields === null) {
+      this.changedSessionFields.set(sessionId, null);
+    } else if (this.changedSessionFields.get(sessionId) !== null) {
+      const changed =
+        this.changedSessionFields.get(sessionId) ??
+        new Set<keyof ChatSession>();
+      fields.forEach((field) => changed.add(field));
+      this.changedSessionFields.set(sessionId, changed);
+    }
 
     if (immediate) {
       // Immediate save (for session creation/deletion)
@@ -62,11 +153,34 @@ class ChatSessionStore {
     }
     if (this.pendingSave !== null) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.pendingSave));
+        // ponytail: concurrent writes to the same field use the last writer.
+        const merged = new Map(
+          this.readPersistedSessions().map((session) => [session.id, session]),
+        );
+        for (const [sessionId, fields] of this.changedSessionFields) {
+          const session = this.pendingSave.find(
+            (item) => item.id === sessionId,
+          );
+          const persisted = merged.get(sessionId);
+          if (!session) {
+            merged.delete(sessionId);
+          } else if (fields === null) {
+            merged.set(sessionId, session);
+          } else if (persisted) {
+            const patch = Object.fromEntries(
+              Array.from(fields, (field) => [field, session[field]]),
+            );
+            merged.set(sessionId, { ...persisted, ...patch });
+          }
+        }
+        const sessions = Array.from(merged.values());
+        localStorage.setItem(STORAGE_KEY, serializeSessions(sessions));
+        this.memorySessions = sessions;
       } catch {
         // Ignore storage errors
       }
       this.pendingSave = null;
+      this.changedSessionFields.clear();
     }
   }
 
@@ -82,6 +196,37 @@ class ChatSessionStore {
 
   getAllSessions(): ChatSession[] {
     return this.getStoredSessions();
+  }
+
+  setLastActiveSessionId(sessionId: string): void {
+    try {
+      localStorage.setItem(LAST_ACTIVE_SESSION_ID_KEY, sessionId);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+
+  /** Last opened tab, or the most recently updated chat if none is stored. */
+  resolveDefaultSessionId(sessions: ChatSession[]): string | null {
+    if (sessions.length === 0) {
+      return null;
+    }
+    let sessionId: string | null = null;
+    try {
+      const stored = localStorage.getItem(LAST_ACTIVE_SESSION_ID_KEY);
+      if (stored && sessions.some((s) => s.id === stored)) {
+        sessionId = stored;
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    if (!sessionId) {
+      sessionId = getLatestSessionId(sessions);
+    }
+    if (sessionId) {
+      this.setLastActiveSessionId(sessionId);
+    }
+    return sessionId;
   }
 
   getSession(sessionId: string): ChatSession | null {
@@ -101,7 +246,8 @@ class ChatSessionStore {
       updatedAt: now,
     };
     sessions.push(newSession);
-    this.saveSessions(sessions, true); // Immediate save for session creation
+    this.saveSessions(sessions, newSession.id, null, true); // Immediate save for session creation
+    this.setLastActiveSessionId(newSession.id);
     return newSession;
   }
 
@@ -125,7 +271,7 @@ class ChatSessionStore {
 
       session.messages = Array.from(seen.values());
       session.updatedAt = Date.now();
-      this.saveSessions(sessions); // Debounced save for message updates
+      this.saveSessions(sessions, sessionId, ["messages", "updatedAt"]); // Debounced save for message updates
     }
   }
 
@@ -135,7 +281,7 @@ class ChatSessionStore {
     if (session) {
       session.title = title;
       session.updatedAt = Date.now();
-      this.saveSessions(sessions, true); // Immediate save for title changes
+      this.saveSessions(sessions, sessionId, ["title", "updatedAt"], true); // Immediate save for title changes
     }
   }
 
@@ -151,8 +297,35 @@ class ChatSessionStore {
     if (session) {
       session.conversationId = conversationId;
       session.updatedAt = Date.now();
-      this.saveSessions(sessions, true);
+      this.saveSessions(
+        sessions,
+        sessionId,
+        ["conversationId", "updatedAt"],
+        true,
+      );
     }
+  }
+
+  /**
+   * Return this session's conversationId, minting and persisting one immediately if missing.
+   * Call before the first SSE so a failed or aborted stream does not leave the session
+   * without an id (which would re-mint on the next send).
+   */
+  ensureConversationId(sessionId: string): string {
+    const session = this.getSession(sessionId);
+    const persisted = this.readPersistedSessions().find(
+      (item) => item.id === sessionId,
+    );
+    if (!session || !persisted) {
+      throw new Error(`Chat session not found: ${sessionId}`);
+    }
+    session.conversationId = persisted.conversationId;
+    if (session.conversationId) {
+      return session.conversationId;
+    }
+    const conversationId = uuidv4();
+    this.updateConversationId(sessionId, conversationId);
+    return conversationId;
   }
 
   updateSessionLastAttachmentUrls(
@@ -164,7 +337,30 @@ class ChatSessionStore {
     if (session) {
       session.lastAttachmentUrls = urls;
       session.updatedAt = Date.now();
-      this.saveSessions(sessions, true);
+      this.saveSessions(
+        sessions,
+        sessionId,
+        ["lastAttachmentUrls", "updatedAt"],
+        true,
+      );
+    }
+  }
+
+  updateSessionLastAttachmentObjectKeys(
+    sessionId: string,
+    keys: string[] | undefined,
+  ): void {
+    const sessions = this.getStoredSessions();
+    const session = sessions.find((s) => s.id === sessionId);
+    if (session) {
+      session.lastAttachmentObjectKeys = keys;
+      session.updatedAt = Date.now();
+      this.saveSessions(
+        sessions,
+        sessionId,
+        ["lastAttachmentObjectKeys", "updatedAt"],
+        true,
+      );
     }
   }
 
@@ -174,7 +370,7 @@ class ChatSessionStore {
     if (session) {
       session.mode = mode;
       session.updatedAt = Date.now();
-      this.saveSessions(sessions, true); // Immediate save for mode changes
+      this.saveSessions(sessions, sessionId, ["mode", "updatedAt"], true); // Immediate save for mode changes
     }
   }
 
@@ -182,7 +378,19 @@ class ChatSessionStore {
     this.flushSave(); // Flush any pending saves before deletion
     const sessions = this.getStoredSessions();
     const filtered = sessions.filter((s) => s.id !== sessionId);
-    this.saveSessions(filtered, true); // Immediate save for deletion
+    this.saveSessions(filtered, sessionId, null, true); // Immediate save for deletion
+    try {
+      if (localStorage.getItem(LAST_ACTIVE_SESSION_ID_KEY) === sessionId) {
+        const nextId = getLatestSessionId(filtered);
+        if (nextId) {
+          localStorage.setItem(LAST_ACTIVE_SESSION_ID_KEY, nextId);
+        } else {
+          localStorage.removeItem(LAST_ACTIVE_SESSION_ID_KEY);
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
   }
 
   updateChainCreationPlan(
@@ -194,7 +402,12 @@ class ChatSessionStore {
     if (session) {
       session.chainCreationPlan = plan || undefined;
       session.updatedAt = Date.now();
-      this.saveSessions(sessions, true); // Immediate save for plan changes
+      this.saveSessions(
+        sessions,
+        sessionId,
+        ["chainCreationPlan", "updatedAt"],
+        true,
+      ); // Immediate save for plan changes
     }
   }
 
@@ -230,7 +443,10 @@ class ChatSessionStore {
         }
         session.chainCreationPlan.updatedAt = Date.now();
         session.updatedAt = Date.now();
-        this.saveSessions(sessions);
+        this.saveSessions(sessions, sessionId, [
+          "chainCreationPlan",
+          "updatedAt",
+        ]);
       }
     }
   }
@@ -254,7 +470,10 @@ class ChatSessionStore {
         }
         session.chainCreationPlan.updatedAt = Date.now();
         session.updatedAt = Date.now();
-        this.saveSessions(sessions);
+        this.saveSessions(sessions, sessionId, [
+          "chainCreationPlan",
+          "updatedAt",
+        ]);
       }
     }
   }

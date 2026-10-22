@@ -70,7 +70,7 @@ import {
   MaskedField,
   MaskedFields,
   OperationInfo,
-  PaginationOptions,
+  OperationListOptions,
   PatchElementRequest,
   RestApiError,
   SerializedFile,
@@ -645,9 +645,8 @@ export class VSCodeExtensionApi implements Api {
 
   getOperations = async (
     modelId: string,
-    _paginationOptions: PaginationOptions = {},
+    _options: OperationListOptions = {},
   ): Promise<SystemOperation[]> => {
-    console.log("ALSU VSCODE API");
     return <SystemOperation[]>(
       (await this.sendMessageToExtension("getOperations", modelId)).payload
     );

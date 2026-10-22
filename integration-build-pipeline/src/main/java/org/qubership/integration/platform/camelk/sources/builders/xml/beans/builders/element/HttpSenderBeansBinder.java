@@ -57,6 +57,9 @@ public class HttpSenderBeansBinder implements ElementBeansBuilder {
         writePropertyElement(streamWriter, "protocol", Optional.ofNullable(element.getProperties().get(OPERATION_PROTOCOL_TYPE_PROP))
             .map(Object::toString)
             .orElse(OPERATION_PROTOCOL_TYPE_HTTP));
+        writePropertyElement(streamWriter, "m2mEnabled", Optional.ofNullable(element.getProperties().get(M2M_PROP))
+            .map(Object::toString)
+            .orElse("false"));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();

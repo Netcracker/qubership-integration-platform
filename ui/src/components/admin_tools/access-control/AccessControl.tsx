@@ -403,7 +403,6 @@ export const AccessControl: React.FC = () => {
         value: searchTerm,
         onChange: setSearchTerm,
         placeholder: "Search access control...",
-        allowClear: true,
       }}
       filterButton={filterButton}
       columnSettingsButton={columnSettingsButton}

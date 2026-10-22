@@ -103,6 +103,13 @@ cip:
   chains:
     configuration:
       location: ${CIP_CHAINS_CONFIGURATION_URL:}
+    http-client:
+      m2m:
+        fallback-interceptor:
+          enabled: ${HTTP_CLIENT_KUBERNETES_TOKEN_ENABLED:false}
+          url-cache:
+            size: 500
+            ttl-hours: 5
   libraries:
     path: ${CIP_LIBRARIES_PATH:/tmp/libraries}
   engine:
@@ -247,6 +254,9 @@ quarkus:
         level: INFO
       "org.qubership.integration.platform.engine.service.debugger.sessions.JsonSessionStepLogger":
         level: INFO
+  shutdown:
+    delay-enabled: true
+    delay: 5s # keeps serving after SIGTERM until the proxies drop this pod's endpoint
   http:
     host: 0.0.0.0
     port: 8080

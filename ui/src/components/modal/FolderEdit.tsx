@@ -126,7 +126,9 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
               <Checkbox>Open folder</Checkbox>
             </Form.Item>
             <Form.Item name="newTab" valuePropName="checked" label={null}>
-              <Checkbox disabled={!isOpenChecked}>In new tab</Checkbox>
+              <Checkbox disabled={confirmLoading || !isOpenChecked}>
+                In new tab
+              </Checkbox>
             </Form.Item>
           </Flex>
         ) : null}

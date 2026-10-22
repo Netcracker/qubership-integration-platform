@@ -462,6 +462,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             throw e;
         }
 
+        deploymentProcessingService.processAfterContextStarted(context, deploymentInfo, configuration);
+
         contextsToStop.forEach(p -> stopSupersededContext(p.getRight(), p.getLeft()));
 
         quartzSchedulerService.commitScheduledJobs();

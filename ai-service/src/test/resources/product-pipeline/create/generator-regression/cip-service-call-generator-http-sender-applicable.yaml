@@ -1,0 +1,77 @@
+caseId: cip-service-call-generator-http-sender-applicable
+skillId: cip-service-call-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Forward GET to a direct HTTP endpoint.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Forward GET to a direct HTTP endpoint.
+  approvedDraftReference: approved-draft-cip-service-call-generator-http-sender-applicable
+  approvedDraftText: Forward GET to a direct HTTP endpoint.
+  facts:
+    - sourceFactId: send-http
+      polarity: POSITIVE
+      kind: CAPABILITY
+      capabilityKey: http-sender
+      httpMethod: GET
+      path: http://localhost/orders
+      text: Direct GET to http://localhost/orders.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: HttpSender.Demo.Direct
+    description: Direct HTTP sender without a catalog binding.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: send-http
+      type: http-sender
+      label: Get variables
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: configure-http-sender-direct
+  ownerCapabilityId: cip-service-call-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: send-http
+      property:
+        key: httpMethod
+        value: "GET"
+    - operation: ADD
+      targetNodeId: send-http
+      property:
+        key: uri
+        value: "http://localhost/orders"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Configure the existing http-sender with schema keys httpMethod and uri.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: HttpSender.Demo.Direct
+    description: Direct HTTP sender without a catalog binding.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: send-http
+      type: http-sender
+      label: Get variables
+      parentNodeId: null
+      order: null
+      properties:
+        - key: httpMethod
+          value: "GET"
+        - key: uri
+          value: "http://localhost/orders"
+  edges: []

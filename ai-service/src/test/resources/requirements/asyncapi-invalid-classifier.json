@@ -1,0 +1,178 @@
+{
+  "flow": {
+    "interactions": [
+      {
+        "interactionId": "asyncEvent",
+        "direction": "INBOUND",
+        "participant": "Auto tests kafka service",
+        "operation": "onTaskStart",
+        "description": "Catalog-registered internal AsyncAPI operation onTaskStart, method publish, Kafka protocol; topic classifier cip-auto-tests-topic2; consumer group id CIP; reconnect delay 30000 ms.",
+        "failureMode": null,
+        "retryPolicy": null
+      },
+      {
+        "interactionId": "commonVariables",
+        "direction": "OUTBOUND",
+        "participant": "cloud-integration-platform-catalog",
+        "operation": "GET /v1/common-variables",
+        "description": "Catalog-registered internal REST operation using m2m authorization; errorThrowing=true; retry count 0.",
+        "failureMode": null,
+        "retryPolicy": {
+          "retryCount": 0,
+          "retryDelayMs": null
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "sourceInteractionId": "asyncEvent",
+        "targetInteractionId": "commonVariables"
+      }
+    ]
+  },
+  "facts": [
+    {
+      "sourceFactId": "chain-name",
+      "interactionIds": [],
+      "kind": "PARAMETER",
+      "polarity": "POSITIVE",
+      "text": "Chain name: AsyncAPI trigger.",
+      "fieldMapping": null,
+      "policyConflict": null,
+      "elementIntent": {
+        "elementRef": "chain",
+        "elementType": "chain",
+        "placement": "CHAIN",
+        "ownerInteractionId": null,
+        "successorElementRef": null,
+        "predecessorElementRef": null,
+        "parentElementRef": null,
+        "requestedName": "AsyncAPI trigger",
+        "requestedProperties": [],
+        "exactValues": []
+      }
+    },
+    {
+      "sourceFactId": "chain-folder",
+      "interactionIds": [],
+      "kind": "PARAMETER",
+      "polarity": "POSITIVE",
+      "text": "Chain group / folder: Elements autotest chains.",
+      "fieldMapping": null,
+      "policyConflict": null,
+      "elementIntent": null
+    },
+    {
+      "sourceFactId": "language-version",
+      "interactionIds": [],
+      "kind": "PARAMETER",
+      "polarity": "POSITIVE",
+      "text": "Target CIP language version: 2026.1.",
+      "fieldMapping": null,
+      "policyConflict": null,
+      "elementIntent": null
+    },
+    {
+      "sourceFactId": "purpose",
+      "interactionIds": [
+        "asyncEvent"
+      ],
+      "kind": "GOAL",
+      "polarity": "POSITIVE",
+      "text": "Validate the async-api-trigger element bound by name to a catalog-registered async operation.",
+      "fieldMapping": null,
+      "policyConflict": null,
+      "elementIntent": null
+    },
+    {
+      "sourceFactId": "async-trigger-anchor",
+      "interactionIds": [
+        "asyncEvent"
+      ],
+      "kind": "BEHAVIOR",
+      "polarity": "POSITIVE",
+      "text": "Use an AsyncAPI Trigger bound by name to the catalog-registered internal system Auto tests kafka service, operation onTaskStart (method publish, Kafka protocol). The binding is the configuration; do not use a raw kafka-trigger. Topic classifier cip-auto-tests-topic2; consumer group id CIP; reconnect delay 30000 ms.",
+      "fieldMapping": null,
+      "policyConflict": null,
+      "elementIntent": {
+        "elementRef": "asyncEvent",
+        "elementType": "async-api-trigger",
+        "placement": "ANCHOR",
+        "ownerInteractionId": "asyncEvent",
+        "successorElementRef": "commonVariables",
+        "predecessorElementRef": null,
+        "parentElementRef": null,
+        "requestedName": null,
+        "requestedProperties": [
+          {
+            "key": "integrationOperationAsyncProperties",
+            "value": "{\"groupId\":\"CIP\"}"
+          },
+          {
+            "key": "reconnectDelay",
+            "value": "30000"
+          },
+          {
+            "key": "topicsClassifierName",
+            "value": "cip-auto-tests-topic2"
+          }
+        ],
+        "exactValues": []
+      }
+    },
+    {
+      "sourceFactId": "service-call-anchor",
+      "interactionIds": [
+        "commonVariables"
+      ],
+      "kind": "BEHAVIOR",
+      "polarity": "POSITIVE",
+      "text": "Use a Service Call element bound by name to the catalog-registered internal system cloud-integration-platform-catalog, invoking GET /v1/common-variables over HTTP. Use machine-to-machine (m2m) authorization, errorThrowing=true, and retry count 0. Do not use a raw http-sender.",
+      "fieldMapping": null,
+      "policyConflict": null,
+      "elementIntent": {
+        "elementRef": "commonVariables",
+        "elementType": "service-call",
+        "placement": "ANCHOR",
+        "ownerInteractionId": "commonVariables",
+        "successorElementRef": null,
+        "predecessorElementRef": "asyncEvent",
+        "parentElementRef": null,
+        "requestedName": null,
+        "requestedProperties": [
+          {
+            "key": "authorizationConfiguration",
+            "value": "{\"type\":\"m2m\"}"
+          },
+          {
+            "key": "errorThrowing",
+            "value": "true"
+          },
+          {
+            "key": "retryCount",
+            "value": "0"
+          }
+        ],
+        "exactValues": []
+      }
+    }
+  ],
+  "capabilities": [
+    {
+      "interactionId": "asyncEvent",
+      "capabilityKey": "async-api-trigger",
+      "httpMode": null,
+      "httpMethod": null,
+      "path": null,
+      "topic": null,
+      "mcpServerId": null,
+      "targetReference": null
+    }
+  ],
+  "openQuestions": [],
+  "settings": {
+    "idsRequested": null,
+    "preferredSystemType": null,
+    "targetFolderPath": "Elements autotest chains"
+  }
+}

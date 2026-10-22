@@ -1,0 +1,1 @@
+Map processId from the original processInstanceId retained before the Salesforce call.

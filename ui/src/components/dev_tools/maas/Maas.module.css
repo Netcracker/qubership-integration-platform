@@ -40,6 +40,8 @@
 
 .actionsContainer {
   width: 100%;
+  flex-direction: row-reverse;
+  gap: 8px;
 }
 
 .labelWithIcon {

@@ -70,7 +70,7 @@
 
 
                     <process ref="messagingXHeadersPropagationProcessor"/>
-                    <process ref="rabbitMqSenderProcessor" />
+                    <removeHeader name="Authorization"/>
                     <toD uri="rabbitmq-custom:sample-exchange?addresses=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_addresses}&amp;vhost=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_vhost}&amp;password=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_password}&amp;acknowledgeMode=AUTO&amp;sslProtocol=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_sslProtocol}&amp;username=%%{5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f_username}&amp;exchangePattern=InOnly&amp;metricsCollector=#3281d540-cead-4199-8d18-d6f2b5a6bac7"/>
                     <process ref="messagingXHeadersPropagationRestoreProcessor"/>
                     <setProperty name="internalProperty_enableAuthRestore">

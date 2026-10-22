@@ -1,0 +1,36 @@
+schemaVersion: 1
+profileId: test-two-stage
+profileVersion: "1"
+runInputs:
+  - { type: user-input, schemaVersion: 1 }
+stages:
+  - stageId: collect
+    capabilityId: fake-collector
+    consumes:
+      - { type: user-input, schemaVersion: 1 }
+    produces:
+      - { type: requirement-brief, schemaVersion: 1 }
+    approval:
+      artifact: { type: requirement-brief, schemaVersion: 1 }
+      candidateSet:
+        - { type: requirement-brief, schemaVersion: 1 }
+    retry:
+      maxTechnicalRetries: 0
+      defaultDelayMs: 1000
+  - stageId: finish
+    capabilityId: fake-finisher
+    consumes:
+      - { type: requirement-brief, schemaVersion: 1 }
+    produces:
+      - { type: ids-bypass, schemaVersion: 1 }
+    approval:
+      artifact: { type: ids-bypass, schemaVersion: 1 }
+      candidateSet:
+        - { type: ids-bypass, schemaVersion: 1 }
+    retry:
+      maxTechnicalRetries: 1
+      defaultDelayMs: 1000
+terminal:
+  stageId: finish
+  state: PLAN_APPROVED
+dependencyRoots: [fake-collector, fake-finisher]

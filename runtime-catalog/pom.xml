@@ -18,19 +18,19 @@
   <parent>
       <groupId>org.qubership.integration.platform</groupId>
       <artifactId>qip-monorepo-parent</artifactId>
-      <version>1.5.1-SNAPSHOT</version>
+      <version>1.6.0-SNAPSHOT</version>
       <relativePath>../parent</relativePath>
   </parent>
 
   <properties>
-    <revision>1.5.1</revision>
+    <revision>1.6.0</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <!-- Last released version of the in-repo library, kept equal to integration-build-pipeline's revision by
          scripts/check-version-invariants.sh. The dependency below appends ${changelist}, so a normal build
          resolves the development coordinate from the reactor and a release, which passes -Dchangelist=,
          resolves the published jar. -->
-    <qip-integration-build-pipeline.version>1.5.1</qip-integration-build-pipeline.version>
+    <qip-integration-build-pipeline.version>1.6.0</qip-integration-build-pipeline.version>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -52,7 +52,8 @@
     <plexus-utils.version>3.6.1</plexus-utils.version>
     <commons-beanutils.version>1.11.0</commons-beanutils.version>
     <jose4j.version>0.9.6</jose4j.version>
-    <grpc.version>1.54.2</grpc.version>
+    <!-- The engine and the micro-engine run the stubs this version generates; keep it no newer than the grpc they run. -->
+    <grpc.version>1.75.0</grpc.version>
     <protobuf-java.version>4.33.2</protobuf-java.version>
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
@@ -271,6 +272,10 @@
     </dependencies>
   </dependencyManagement>
   <dependencies>
+    <dependency>
+      <groupId>com.netcracker.cloud.security.core.utils</groupId>
+      <artifactId>k8s-utils</artifactId>
+    </dependency>
     <!--    DbaaS dependencies    -->
     <dependency>
       <groupId>com.netcracker.cloud</groupId>

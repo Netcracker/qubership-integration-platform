@@ -42,13 +42,15 @@ element descriptors → Camel processors handle each integration step.
 
 #### Deployment lifecycle
 
-`DeploymentProcessingService` runs action beans selected by qualifier annotations, in three phases. The actions live in
-`service/deployment/processing/actions/context/{before,create,stop}/`:
+`DeploymentProcessingService` runs action beans selected by qualifier annotations, in four phases. The actions live in
+`service/deployment/processing/actions/context/{before,create,start,stop}/`:
 
 1. `@OnBeforeDeploymentContextCreated`: connectivity and requirement checks, control-plane route registration.
 2. `@OnAfterDeploymentContextCreated`: dependency binders for the chain's elements (HTTP, Kafka, JMS, AMQP, gRPC, SDS
    jobs, MCP tools).
-3. `@OnStopDeploymentContext`: cleanup of what the first two phases registered.
+3. `@OnAfterDeploymentContextStarted`: publication of what the second phase prepared for clients to call, such as a
+   chain's MCP tools. A deployment that fails to compile or to start leaves the running deployment's tools in place.
+4. `@OnStopDeploymentContext`: cleanup of what the earlier phases registered.
 
 #### Datasources
 

@@ -1,0 +1,453 @@
+package org.qubership.integration.platform.ai.integration.catalog.materialize;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jboss.logging.Logger;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.schema.ElementPatchValidationMessages;
+import org.qubership.integration.platform.ai.integration.catalog.util.CatalogElementWrites;
+import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+import org.qubership.integration.platform.ai.integration.catalog.util.HttpMethodRestrictCatalogShape;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+
+/** Applies generator-enriched plan properties to materialized catalog elements. */
+@ApplicationScoped
+public class ChainPlanPropertiesMaterializer {
+
+  private static final Logger LOG = Logger.getLogger(ChainPlanPropertiesMaterializer.class);
+
+  private final CatalogRestClient catalogRestClient;
+  private final DeterministicElementSchemaService schemaService;
+  private final ObjectMapper objectMapper;
+
+  @Inject
+  public ChainPlanPropertiesMaterializer(
+      @RestClient CatalogRestClient catalogRestClient,
+      DeterministicElementSchemaService schemaService,
+      ObjectMapper objectMapper) {
+    this.catalogRestClient = catalogRestClient;
+    this.schemaService = schemaService;
+    this.objectMapper = objectMapper;
+  }
+
+  private static final int MAX_ALLOWED_KEYS_IN_MESSAGE = 10;
+
+  public PropertiesApplyResult apply(ChainPlanGraph graph, MaterializationMap map) {
+    Objects.requireNonNull(graph, "graph");
+    Objects.requireNonNull(map, "map");
+
+    int[] patchedCount = {0};
+    List<String> failedNodeIds = new ArrayList<>();
+    String[] firstValidationError = {null};
+    RuntimeException[] failureCause = {null};
+
+    for (ChainPlanNode node : graph.nodes()) {
+      applyNode(map, node, patchedCount, failedNodeIds, firstValidationError, failureCause);
+    }
+
+    return new PropertiesApplyResult(
+        patchedCount[0], List.copyOf(failedNodeIds), firstValidationError[0], failureCause[0]);
+  }
+
+  private void applyNode(
+      MaterializationMap map,
+      ChainPlanNode node,
+      int[] patchedCount,
+      List<String> failedNodeIds,
+      String[] firstValidationError, RuntimeException[] failureCause) {
+    String elementId = map.nodeIdToElementId().get(node.nodeId());
+    if (elementId == null) {
+      failedNodeIds.add(node.nodeId());
+    } else if (hasPatchableContent(node)) {
+      // Property-less shells (condition/else/try) still need plan labels applied so reconcile
+      // matches catalog element names.
+      applyNodeProperties(map, node, elementId, patchedCount, failedNodeIds, firstValidationError, failureCause);
+    }
+  }
+
+  private static boolean hasPatchableContent(ChainPlanNode node) {
+    return hasProperties(node) || hasLabel(node) || "chain-trigger-2".equals(node.type());
+  }
+
+  private static boolean hasProperties(ChainPlanNode node) {
+    return node.properties() != null && !node.properties().isEmpty();
+  }
+
+  private static boolean hasLabel(ChainPlanNode node) {
+    return node.label() != null && !node.label().isBlank();
+  }
+
+  private void applyNodeProperties(
+      MaterializationMap map,
+      ChainPlanNode node,
+      String elementId,
+      int[] patchedCount,
+      List<String> failedNodeIds,
+      String[] firstValidationError, RuntimeException[] failureCause) {
+    try {
+      CatalogElementResponseDto current = catalogRestClient.getElement(map.chainId(), elementId);
+      Map<String, Object> patchBody = buildPatchBody(node, map);
+      if (patchBody.isEmpty()) {
+        return;
+      }
+      if (patchValidatedProperties(
+          map, node, elementId, current, patchBody, firstValidationError, failureCause)) {
+        patchedCount[0]++;
+      } else {
+        failedNodeIds.add(node.nodeId());
+      }
+    } catch (Exception e) {
+      if (firstValidationError[0] == null) {
+        failureCause[0] = e instanceof RuntimeException runtime ? runtime : new IllegalStateException(e);
+      }
+      LOG.errorf(
+          e,
+          "Catalog element patch failed chainId=%s elementId=%s nodeId=%s",
+          map.chainId(),
+          elementId,
+          node.nodeId());
+      rememberFirstValidationError(
+          firstValidationError,
+          node.nodeId(),
+          node.type(),
+          "The catalog did not confirm the element update.");
+      failedNodeIds.add(node.nodeId());
+    }
+  }
+
+  private boolean patchValidatedProperties(
+      MaterializationMap map,
+      ChainPlanNode node,
+      String elementId,
+      CatalogElementResponseDto current,
+      Map<String, Object> patchBody,
+      String[] firstValidationError, RuntimeException[] failureCause)
+      throws Exception {
+    Map<String, Object> effectivePatch = CatalogElementWrites.mergeWithCurrentElement(current, patchBody);
+    Map<String, Object> knownProperties = new LinkedHashMap<>();
+    Set<String> allowedKeys = schemaService.allowedPatchPropertyKeys(node.type());
+    if (current != null && current.properties != null) {
+      current.properties.forEach((key, value) -> {
+        if (allowedKeys.contains(key)) {
+          knownProperties.put(key, value);
+        }
+      });
+    }
+    if (patchBody.get("properties") instanceof Map<?, ?> overlay) {
+      overlay.forEach((key, value) -> knownProperties.put((String) key, value));
+    }
+    effectivePatch.put("properties", knownProperties);
+    ValidatedPatch validated = validatePatch(node.type(), effectivePatch);
+    if (!validated.valid()) {
+      rememberFirstValidationError(
+          firstValidationError,
+          node.nodeId(),
+          node.type(),
+          validated.validationMessage());
+      return false;
+    }
+    // Catalog PatchElementRequest defaults properties to {} and MapStruct replaces the whole map.
+    // Preserve catalog-only metadata after validating the known effective properties.
+    Map<String, Object> mergedPatch = CatalogElementWrites.mergeWithCurrentElement(current, validated.patchBody());
+    HttpMethodRestrictCatalogShape.applyToPatchBody(mergedPatch);
+    preservePlacementFields(mergedPatch, current);
+    try {
+      catalogRestClient.updateElement(map.chainId(), elementId, mergedPatch);
+      return true;
+    } catch (CatalogNonRetryableResponseException catalogError) {
+      if (firstValidationError[0] == null) {
+        failureCause[0] = catalogError;
+      }
+      rememberFirstValidationError(
+          firstValidationError,
+          node.nodeId(),
+          node.type(),
+          catalogPatchFailureMessage(node.type(), mergedPatch, catalogError));
+      return false;
+    } catch (RuntimeException error) {
+      if (!isTimeout(error)) {
+        throw error;
+      }
+      LOG.warnf(
+          error,
+          "Catalog element patch timed out; confirming by read-back chainId=%s elementId=%s",
+          map.chainId(),
+          elementId);
+      try {
+        CatalogElementResponseDto readBack =
+            catalogRestClient.getElement(map.chainId(), elementId);
+        if (containsPatch(readBack, mergedPatch)) {
+          return true;
+        }
+      } catch (RuntimeException readError) {
+        LOG.warnf(
+            readError,
+            "Catalog element patch read-back failed chainId=%s elementId=%s",
+            map.chainId(),
+            elementId);
+      }
+      if (firstValidationError[0] == null) {
+        failureCause[0] = error;
+      }
+      rememberFirstValidationError(
+          firstValidationError,
+          node.nodeId(),
+          node.type(),
+          "The catalog update timed out, and read-back did not confirm it.");
+      return false;
+    }
+  }
+
+  private boolean containsPatch(
+      CatalogElementResponseDto readBack, Map<String, Object> expectedPatch) {
+    if (readBack == null) {
+      return false;
+    }
+    Map<String, Object> actual = new LinkedHashMap<>();
+    actual.put("name", readBack.name);
+    actual.put("description", readBack.description);
+    actual.put("parentElementId", readBack.parentElementId);
+    actual.put("swimlaneId", readBack.swimlaneId);
+    actual.put("properties", readBack.properties == null ? Map.of() : readBack.properties);
+    for (Map.Entry<String, Object> expected : expectedPatch.entrySet()) {
+      if (!objectMapper.valueToTree(expected.getValue()).equals(
+          objectMapper.valueToTree(actual.get(expected.getKey())))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static boolean isTimeout(Throwable error) {
+    Throwable current = error;
+    while (current != null) {
+      String name = current.getClass().getSimpleName().toLowerCase(java.util.Locale.ROOT);
+      if (name.contains("timeout") || name.contains("timedout")) {
+        return true;
+      }
+      current = current.getCause();
+    }
+    return false;
+  }
+
+  private Map<String, Object> buildPatchBody(ChainPlanNode node, MaterializationMap map) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    if (node.label() != null && !node.label().isBlank()) {
+      body.put("name", node.label());
+    }
+
+    Set<String> allowedKeys = schemaService.allowedPatchPropertyKeys(node.type());
+    Map<String, Object> properties = new LinkedHashMap<>();
+    if (node.properties() != null) {
+      for (PlanProperty property : node.properties()) {
+        if (isAllowedProperty(property, allowedKeys)) {
+          try {
+            properties.put(property.key(), propertyValueAsObject(node.type(), property));
+          } catch (JsonProcessingException e) {
+            LOG.warnf(
+                "Skipping property %s on node type=%s: %s",
+                property.key(),
+                node.type(),
+                e.getMessage());
+          }
+        } else if (property.key() != null && !property.key().isBlank()) {
+          LOG.warnf(
+              "Skipping disallowed property key=%s nodeId=%s type=%s allowedSample=%s",
+              property.key(),
+              node.nodeId(),
+              node.type(),
+              allowedKeySample(allowedKeys));
+        }
+      }
+    }
+    remapCatalogElementIds(node, properties, map);
+    if (!properties.isEmpty()) {
+      body.put("properties", properties);
+    }
+    return body;
+  }
+
+  private static void remapCatalogElementIds(
+      ChainPlanNode node, Map<String, Object> properties, MaterializationMap map) {
+    if ("chain-trigger-2".equals(node.type())) {
+      properties.put("elementId", map.nodeIdToElementId().get(node.nodeId()));
+      return;
+    }
+    if (!"reuse-reference".equals(node.type())) {
+      return;
+    }
+    Object raw = properties.get("reuseElementId");
+    if (!(raw instanceof String planNodeId) || planNodeId.isBlank()) {
+      return;
+    }
+    String catalogId = map.nodeIdToElementId().get(planNodeId);
+    if (catalogId != null && !catalogId.isBlank()) {
+      properties.put("reuseElementId", catalogId);
+    }
+  }
+
+  /**
+   * Renders one property's plan-model string value as the object the catalog PATCH body carries.
+   *
+   * <p>Object/array/boolean shapes are recognized from the string itself. A script body never
+   * looks like JSON true/false or starts with {@code {}}/{@code []}. A property the catalog
+   * schema types as string keeps its text, including JSON stored as text (MCP trigger
+   * {@code inputSchema} and {@code outputSchema}). A number is not safe to guess from digits
+   * alone: a string property can hold a version or a zip code, so that value keeps its
+   * schema-typed shape via {@link DeterministicElementSchemaService#coercePatchPropertyValue},
+   * the same coercion the CREATE-side compiler validation pipeline already uses.
+   */
+  private Object propertyValueAsObject(String elementType, PlanProperty property)
+      throws JsonProcessingException {
+    String value = property.value();
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    if (trimmed.isEmpty()) {
+      return "";
+    }
+    if (schemaService.isStringProperty(elementType, property.key())) {
+      return value;
+    }
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      JsonNode node = objectMapper.readTree(trimmed);
+      return objectMapper.convertValue(node, new TypeReference<>() {});
+    }
+    if ("true".equalsIgnoreCase(trimmed) || "false".equalsIgnoreCase(trimmed)) {
+      return Boolean.parseBoolean(trimmed);
+    }
+    return schemaService.coercePatchPropertyValue(elementType, property.key(), value);
+  }
+
+  private static boolean isAllowedProperty(PlanProperty property, Set<String> allowedKeys) {
+    return property.key() != null
+        && !property.key().isBlank()
+        && (allowedKeys.isEmpty() || allowedKeys.contains(property.key()));
+  }
+
+  private static void preservePlacementFields(
+      Map<String, Object> body, CatalogElementResponseDto current) {
+    if (current == null) {
+      return;
+    }
+    putIfPresent(body, "parentElementId", current.parentElementId);
+    putIfPresent(body, "swimlaneId", current.swimlaneId);
+  }
+
+  private static void putIfPresent(Map<String, Object> body, String key, String value) {
+    if (body.containsKey(key)) {
+      return;
+    }
+    String normalized = CatalogStrings.blankToNull(value);
+    if (normalized != null) {
+      body.put(key, normalized);
+    }
+  }
+
+  private ValidatedPatch validatePatch(String elementType, Map<String, Object> patchBody)
+      throws Exception {
+    String patchJson = objectMapper.writeValueAsString(patchBody);
+    String validationJson = schemaService.validateElementPatch(elementType, patchJson);
+    JsonNode root = objectMapper.readTree(validationJson);
+    if (root.has("error") || !root.path("valid").asBoolean(false)) {
+      String branchMessage =
+          schemaService.missingBranchKeysMessage(elementType, propertyStrings(patchBody));
+      String validationMessage =
+          !branchMessage.isBlank()
+              ? branchMessage
+              : ElementPatchValidationMessages.summarizeFailure(validationJson, objectMapper);
+      LOG.warnf(
+          "Element patch validation failed type=%s result=%s body=%s",
+          elementType,
+          validationJson,
+          patchJson);
+      return new ValidatedPatch(false, patchBody, validationMessage);
+    }
+    JsonNode patchWithDefaults = root.get("patchWithDefaults");
+    if (patchWithDefaults != null && patchWithDefaults.isObject()) {
+      Map<String, Object> enriched = objectMapper.convertValue(patchWithDefaults, new TypeReference<>() {
+      });
+      return new ValidatedPatch(true, enriched, null);
+    }
+    return new ValidatedPatch(true, patchBody, null);
+  }
+
+  private String catalogPatchFailureMessage(
+      String elementType,
+      Map<String, Object> patchBody,
+      CatalogNonRetryableResponseException catalogError) {
+    String branchMessage =
+        schemaService.missingBranchKeysMessage(elementType, propertyStrings(patchBody));
+    String catalogMessage = catalogError.catalogErrorMessage();
+    if (!branchMessage.isBlank()) {
+      if (catalogMessage.isBlank()) {
+        return branchMessage;
+      }
+      return branchMessage + " [catalog: " + catalogMessage + "]";
+    }
+    if (!catalogMessage.isBlank()) {
+      return catalogMessage;
+    }
+    return "The catalog did not confirm the element update.";
+  }
+
+  private static Map<String, String> propertyStrings(Map<String, Object> patchBody) {
+    Object properties = patchBody.get("properties");
+    if (!(properties instanceof Map<?, ?> propertyMap)) {
+      return Map.of();
+    }
+    Map<String, String> strings = new LinkedHashMap<>();
+    for (Map.Entry<?, ?> entry : propertyMap.entrySet()) {
+      if (entry.getKey() == null) {
+        continue;
+      }
+      String key = String.valueOf(entry.getKey());
+      Object value = entry.getValue();
+      strings.put(key, value == null ? null : String.valueOf(value));
+    }
+    return strings;
+  }
+
+  private static void rememberFirstValidationError(
+      String[] firstValidationError, String nodeId, String type, String message) {
+    if (firstValidationError[0] == null && message != null && !message.isBlank()) {
+      firstValidationError[0] = "node " + nodeId + " (" + type + "): " + message;
+    }
+  }
+
+  private static String allowedKeySample(Set<String> allowedKeys) {
+    if (allowedKeys == null || allowedKeys.isEmpty()) {
+      return "(none)";
+    }
+    return allowedKeys.stream().sorted().limit(MAX_ALLOWED_KEYS_IN_MESSAGE).toList().toString();
+  }
+
+  private record ValidatedPatch(boolean valid, Map<String, Object> patchBody, String validationMessage) {
+  }
+
+  public record PropertiesApplyResult(
+      int patchedCount, List<String> failedNodeIds, String firstValidationError,
+      @JsonIgnore RuntimeException failureCause) {
+    public PropertiesApplyResult(int patchedCount, List<String> failedNodeIds, String firstValidationError) {
+      this(patchedCount, failedNodeIds, firstValidationError, null);
+    }
+  }
+}

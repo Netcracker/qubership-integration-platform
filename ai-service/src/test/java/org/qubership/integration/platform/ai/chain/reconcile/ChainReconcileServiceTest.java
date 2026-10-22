@@ -1,0 +1,490 @@
+package org.qubership.integration.platform.ai.chain.reconcile;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogDependency;
+import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogElement;
+import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.skill.orchestration.ReconcileResult;
+
+class ChainReconcileServiceTest {
+
+  private ChainReconcileService service;
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"element", "dependency"})
+  void extraCatalogElementsOrDependenciesCannotPassCompletionVerification(String extra) {
+    var plan = new ChainPlanGraph("1.0", new ChainSection("demo", null), List.of(
+        new ChainPlanNode("first", "script", "First", null, null, List.of()),
+        new ChainPlanNode("second", "script", "Second", null, null, List.of())), List.of());
+    var map = new MaterializationMap("chain-1", Map.of("first", "el-1", "second", "el-2"),
+        Map.of(), Map.of());
+    var elements = new java.util.ArrayList<>(List.of(
+        new ChainCatalogElement("el-1", "script", "First", null, Map.of()),
+        new ChainCatalogElement("el-2", "script", "Second", null, Map.of())));
+    if ("element".equals(extra)) {
+      elements.add(new ChainCatalogElement("el-unrelated", "script", "Unrelated", null, Map.of()));
+    }
+    var dependencies = "dependency".equals(extra)
+        ? List.of(new ChainCatalogDependency("el-2", "el-1"))
+        : List.<ChainCatalogDependency>of();
+    var facts = new ChainCatalogFacts("chain-1", "demo", "", elements.size(), dependencies.size(), "",
+        elements, dependencies, "built_in_catalog");
+    var result = service.compare(plan, map, facts);
+    assertFalse(result.matches(), result.summary());
+    assertTrue(result.chainMismatches().stream().anyMatch(mismatch -> mismatch.startsWith("unexpected")));
+  }
+
+  @BeforeEach
+  void setUp() {
+    service = new ChainReconcileService();
+  }
+
+  @Test
+  void comparesChainTriggerAddressWithItsCatalogIdentity() {
+    ChainPlanGraph plan = new ChainPlanGraph("1.0", new ChainSection("demo", null),
+        List.of(new ChainPlanNode("entry", "chain-trigger-2", "Trigger", null, null,
+            List.of(new PlanProperty("elementId", "Calling chain")))), List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("entry", "trigger-id"), Map.of(), Map.of());
+    ChainCatalogFacts correct = new ChainCatalogFacts("chain-1", "demo", "", 1, 0, "",
+        List.of(new ChainCatalogElement("trigger-id", "chain-trigger-2", "Trigger", null,
+            Map.of("elementId", "trigger-id"))), List.of(), "built_in_catalog");
+    ChainCatalogFacts wrong = new ChainCatalogFacts("chain-1", "demo", "", 1, 0, "",
+        List.of(new ChainCatalogElement("trigger-id", "chain-trigger-2", "Trigger", null,
+            Map.of("elementId", "Calling chain"))), List.of(), "built_in_catalog");
+    assertTrue(service.compare(plan, map, correct).matches());
+    assertEquals(List.of("entry.elementId"), service.compare(plan, map, wrong).propertyMismatches());
+  }
+
+  @Test
+  void reportsApprovedPropertyMismatch() {
+    ChainPlanGraph plan = graphWithProperty("script-1", "script", "return 200");
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("script-1", "catalog-script-1"), Map.of(), Map.of());
+    ChainCatalogFacts facts = factsWithProperty("catalog-script-1", "script", "return 500");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertFalse(result.matches());
+    assertEquals(List.of("script-1.script"), result.propertyMismatches());
+  }
+
+  @Test
+  void ignoresCompilerMappingMetadataAbsentFromCatalog() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(
+                new ChainPlanNode(
+                    "script-1",
+                    "script",
+                    "Script",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("script", "return body"),
+                        new PlanProperty("mappingIntentId", "request-map"),
+                        new PlanProperty("semanticEdgeId", "edge-1"),
+                        new PlanProperty("mappingId", "map-1"),
+                        new PlanProperty("mappingCoverage", "[\"Subject\"]")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("script-1", "catalog-script-1"), Map.of(), Map.of());
+    ChainCatalogFacts facts = factsWithProperty("catalog-script-1", "script", "return body");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches(), result.summary());
+    assertTrue(result.propertyMismatches().isEmpty());
+  }
+
+  @Test
+  void matchesPlanStringScalarsAgainstCatalogBooleansAndNumbers() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(
+                new ChainPlanNode(
+                    "http-trigger-1",
+                    "http-trigger",
+                    "Trigger",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("externalRoute", "false"),
+                        new PlanProperty("connectTimeout", "120000")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("http-trigger-1", "el-trigger"), Map.of(), Map.of());
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "demo",
+            "",
+            1,
+            0,
+            "",
+            List.of(
+                new ChainCatalogElement(
+                    "el-trigger",
+                    "http-trigger",
+                    "Trigger",
+                    null,
+                    Map.<String, Object>of(
+                        "externalRoute", Boolean.FALSE, "connectTimeout", Integer.valueOf(120000)))),
+            List.of(),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches());
+    assertTrue(result.propertyMismatches().isEmpty());
+  }
+
+  @Test
+  void matchesPlanHttpMethodRestrictStringAgainstCatalogObject() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(
+                new ChainPlanNode(
+                    "http-trigger-1",
+                    "http-trigger",
+                    "Trigger",
+                    null,
+                    null,
+                    List.of(new PlanProperty("httpMethodRestrict", "GET")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("http-trigger-1", "el-trigger"), Map.of(), Map.of());
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "demo",
+            "",
+            1,
+            0,
+            "",
+            List.of(
+                new ChainCatalogElement(
+                    "el-trigger",
+                    "http-trigger",
+                    "Trigger",
+                    null,
+                    Map.of("httpMethodRestrict", Map.of("httpMethods", List.of("GET"))))),
+            List.of(),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches());
+    assertTrue(result.propertyMismatches().isEmpty());
+  }
+
+  @Test
+  void matchesReuseElementIdWhenCatalogHasRemappedElementId() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("reuse-chain", null),
+            List.of(
+                new ChainPlanNode("reuse-container", "reuse", "Reuse", null, null, List.of()),
+                new ChainPlanNode(
+                    "reuse-reference",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    null,
+                    List.of(new PlanProperty("reuseElementId", "reuse-container")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1",
+            Map.of("reuse-container", "el-reuse", "reuse-reference", "el-ref"),
+            Map.of(),
+            Map.of());
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "reuse-chain",
+            "",
+            2,
+            0,
+            "",
+            List.of(
+                new ChainCatalogElement("el-reuse", "reuse", "Reuse", null, Map.of()),
+                new ChainCatalogElement(
+                    "el-ref",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    Map.of("reuseElementId", "el-reuse"))),
+            List.of(),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches(), result.summary());
+    assertTrue(result.propertyMismatches().isEmpty());
+  }
+
+  @Test
+  void reportsReuseElementIdMismatchWhenCatalogPointsAtWrongElement() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("reuse-chain", null),
+            List.of(
+                new ChainPlanNode("reuse-container", "reuse", "Reuse", null, null, List.of()),
+                new ChainPlanNode(
+                    "reuse-reference",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    null,
+                    List.of(new PlanProperty("reuseElementId", "reuse-container")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1",
+            Map.of("reuse-container", "el-reuse", "reuse-reference", "el-ref"),
+            Map.of(),
+            Map.of());
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "reuse-chain",
+            "",
+            2,
+            0,
+            "",
+            List.of(
+                new ChainCatalogElement("el-reuse", "reuse", "Reuse", null, Map.of()),
+                new ChainCatalogElement(
+                    "el-ref",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    Map.of("reuseElementId", "el-other"))),
+            List.of(),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertEquals(List.of("reuse-reference.reuseElementId"), result.propertyMismatches());
+  }
+
+  @Test
+  void reportsElementLabelMismatch() {
+    ReconcileResult result = service.compare(planLabelled("Handler"), map(), factsLabelled("Script"));
+    assertEquals(List.of("script-1"), result.labelMismatches());
+  }
+
+  @Test
+  void matchesWhenPlanElementsAndDependenciesExist() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(
+                new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode("n2", "script", "Script", null, null, List.of())),
+            List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
+
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("n1", "el-trigger", "n2", "el-script"), Map.of(), Map.of());
+
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "demo",
+            "",
+            2,
+            1,
+            "",
+            List.of(
+                new ChainCatalogElement(
+                    "el-trigger", "http-trigger", "Trigger", null, null, null, null, Map.of()),
+                new ChainCatalogElement(
+                    "el-script", "script", "Script", null, null, null, null, Map.of())),
+            List.of(new ChainCatalogDependency("el-trigger", "el-script")),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches());
+  }
+
+  @Test
+  void reportsMissingNodeMapping() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of())),
+            List.of());
+
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of(), Map.of(), Map.of());
+    ChainCatalogFacts facts = emptyFacts("chain-1");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertFalse(result.matches());
+    assertTrue(result.missingElementIds().contains("n1"));
+  }
+
+  @Test
+  void skipsStructuralParentChildEdgesWhenMatchingConnections() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(
+                new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode("tcff", "try-catch-finally-2", "EH", null, null, List.of()),
+                new ChainPlanNode("try", "try-2", "Try", "tcff", null, List.of()),
+                new ChainPlanNode("script", "script", "Return ok", "try", null, List.of())),
+            List.of(
+                new ChainPlanEdge("e1", "trigger", "tcff", null),
+                new ChainPlanEdge("e2", "try", "script", "tcff")));
+
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1",
+            Map.of(
+                "trigger", "el-trigger",
+                "tcff", "el-tcff",
+                "try", "el-try",
+                "script", "el-script"), Map.of(), Map.of());
+
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "demo",
+            "",
+            4,
+            1,
+            "",
+            List.of(
+                new ChainCatalogElement(
+                    "el-trigger", "http-trigger", "Trigger", null, null, null, null, Map.of()),
+                new ChainCatalogElement(
+                    "el-tcff", "try-catch-finally-2", "EH", null, null, null, null, Map.of()),
+                new ChainCatalogElement(
+                    "el-try", "try-2", "Try", "el-tcff", null, null, null, Map.of()),
+                new ChainCatalogElement(
+                    "el-script", "script", "Return ok", "el-try", null, null, null, Map.of())),
+            List.of(new ChainCatalogDependency("el-trigger", "el-tcff")),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches());
+    assertTrue(result.missingConnections().isEmpty());
+  }
+
+  @Test
+  void reportsMissingDependency() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(
+                new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode("n2", "script", "Script", null, null, List.of())),
+            List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
+
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("n1", "el-trigger", "n2", "el-script"), Map.of(), Map.of());
+
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "demo",
+            "",
+            2,
+            0,
+            "",
+            List.of(
+                new ChainCatalogElement(
+                    "el-trigger", "http-trigger", "Trigger", null, null, null, null, Map.of()),
+                new ChainCatalogElement(
+                    "el-script", "script", "Script", null, null, null, null, Map.of())),
+            List.of(),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertFalse(result.matches());
+    assertTrue(result.missingConnections().contains("n1->n2"));
+  }
+
+  private static ChainCatalogFacts emptyFacts(String chainId) {
+    return new ChainCatalogFacts(chainId, "demo", "", 0, 0, "", List.of(), List.of(), "built_in_catalog");
+  }
+
+  private static ChainPlanGraph graphWithProperty(String nodeId, String key, String value) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("demo", null),
+        List.of(
+            new ChainPlanNode(
+                nodeId, "script", "Script", null, null, List.of(new PlanProperty(key, value)))),
+        List.of());
+  }
+
+  private static ChainCatalogFacts factsWithProperty(String elementId, String key, String value) {
+    return new ChainCatalogFacts(
+        "chain-1",
+        "demo",
+        "",
+        1,
+        0,
+        "",
+        List.of(
+            new ChainCatalogElement(
+                elementId, "script", "Script", null, Map.of(key, value))),
+        List.of(),
+        "built_in_catalog");
+  }
+
+  private static ChainPlanGraph planLabelled(String label) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("demo", null),
+        List.of(new ChainPlanNode("script-1", "script", label, null, null, List.of())),
+        List.of());
+  }
+
+  private static ChainCatalogFacts factsLabelled(String label) {
+    return new ChainCatalogFacts(
+        "chain-1",
+        "demo",
+        "",
+        1,
+        0,
+        "",
+        List.of(new ChainCatalogElement("catalog-script-1", "script", label, null, Map.of())),
+        List.of(),
+        "built_in_catalog");
+  }
+
+  private static MaterializationMap map() {
+    return new MaterializationMap("chain-1", Map.of("script-1", "catalog-script-1"), Map.of(), Map.of());
+  }
+}

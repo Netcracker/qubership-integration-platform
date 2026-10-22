@@ -20,6 +20,7 @@ import {
   MaskedFields,
   SessionFilterAndSearchRequest,
   PaginationOptions,
+  OperationListOptions,
   SessionSearchResponse,
   Session,
   CheckpointSession,
@@ -1725,15 +1726,18 @@ export class RestApi implements Api {
 
   getOperations = async (
     modelId: string,
-    paginationOptions: PaginationOptions = {},
+    options: OperationListOptions = {},
   ): Promise<SystemOperation[]> => {
     const params: Record<string, string> = { modelId };
 
-    if (paginationOptions.offset !== undefined) {
-      params["offset"] = paginationOptions.offset.toString(10);
+    if (options.offset !== undefined) {
+      params["offset"] = options.offset.toString(10);
     }
-    if (paginationOptions.count !== undefined) {
-      params["count"] = paginationOptions.count.toString(10);
+    if (options.count !== undefined) {
+      params["count"] = options.count.toString(10);
+    }
+    if (options.searchFilter !== undefined) {
+      params["searchFilter"] = options.searchFilter;
     }
 
     const response = await this.instance.get<SystemOperation[]>(
