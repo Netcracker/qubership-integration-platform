@@ -45,44 +45,46 @@ async function apply(tabs: ChainTabsPage, method: "POST" | "DELETE"): Promise<vo
   expect((await answered).ok()).toBe(true);
 }
 
-test("a logging override is saved from the form and dropped again by unchecking it", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, folder, run }) => {
-  const chain = await catalog.createChain(tokenized(run, "ui-logging"), folder.id);
-  const tabs = new ChainTabsPage(page);
-  const override = page.getByRole("checkbox", { name: "Override default properties" });
-  const sessionLevel = tabs.field("combobox", "Session level");
+test.describe("logging settings", { tag: ["@ui"] }, () => {
+  test("an override is saved, and unchecking it drops the override", async ({ page, catalog, folder, run }) => {
+    const chain = await catalog.createChain(tokenized(run, "ui-logging"), folder.id);
+    const tabs = new ChainTabsPage(page);
+    const override = page.getByRole("checkbox", { name: "Override default properties" });
+    const sessionLevel = tabs.field("combobox", "Session level");
 
-  try {
-    const initial = await catalog.getLoggingProperties(chain.id);
-    expect(initial.custom, "a new chain has no custom logging layer").toBeUndefined();
-    const defaultSource = initial.consulDefault ? "Default (Consul)" : "Default (Fallback)";
-    const defaults = initial.consulDefault ?? initial.fallbackDefault;
+    try {
+      const initial = await catalog.getLoggingProperties(chain.id);
+      expect(initial.custom, "a new chain has no custom logging layer").toBeUndefined();
+      const defaultSource = initial.consulDefault ? "Default (Consul)" : "Default (Fallback)";
+      const defaults = initial.consulDefault ?? initial.fallbackDefault;
 
-    await tabs.goto(chain.id, "logging-settings");
-    await expect(page.getByText(defaultSource, { exact: true })).toBeVisible();
-    await expect(override).not.toBeChecked();
-    await expect(sessionLevel).toBeDisabled();
+      await tabs.goto(chain.id, "logging-settings");
+      await expect(page.getByText(defaultSource, { exact: true })).toBeVisible();
+      await expect(override).not.toBeChecked();
+      await expect(sessionLevel).toBeDisabled();
 
-    await override.check();
-    await expect(sessionLevel).toBeEnabled();
-    await choose(tabs, "Session level", "Debug");
-    await choose(tabs, "Log level", "Warning");
-    await apply(tabs, "POST");
+      await override.check();
+      await expect(sessionLevel).toBeEnabled();
+      await choose(tabs, "Session level", "Debug");
+      await choose(tabs, "Log level", "Warning");
+      await apply(tabs, "POST");
 
-    // The fields the case did not touch keep the defaults the form was filled with.
-    expect(sorted(await settledCustom(catalog, chain.id, true))).toEqual(
-      sorted({ ...defaults, sessionsLoggingLevel: "DEBUG", logLoggingLevel: "WARN" }),
-    );
-    await expect(page.getByText("Custom", { exact: true })).toBeVisible();
+      // The fields the case did not touch keep the defaults the form was filled with.
+      expect(sorted(await settledCustom(catalog, chain.id, true))).toEqual(
+        sorted({ ...defaults, sessionsLoggingLevel: "DEBUG", logLoggingLevel: "WARN" }),
+      );
+      await expect(page.getByText("Custom", { exact: true })).toBeVisible();
 
-    await override.uncheck();
-    await expect(sessionLevel).toBeDisabled();
-    await apply(tabs, "DELETE");
+      await override.uncheck();
+      await expect(sessionLevel).toBeDisabled();
+      await apply(tabs, "DELETE");
 
-    expect(await settledCustom(catalog, chain.id, false)).toBeUndefined();
-    await expect(page.getByText(defaultSource, { exact: true })).toBeVisible();
-    await expect(page.getByText("Custom", { exact: true })).toBeHidden();
-  } finally {
-    // The override lives in Consul, which the folder cascade does not reach.
-    await catalog.deleteLoggingProperties(chain.id).catch(leftBehind(`the logging properties of ${chain.name}`));
-  }
+      expect(await settledCustom(catalog, chain.id, false)).toBeUndefined();
+      await expect(page.getByText(defaultSource, { exact: true })).toBeVisible();
+      await expect(page.getByText("Custom", { exact: true })).toBeHidden();
+    } finally {
+      // The override lives in Consul, which the folder cascade does not reach.
+      await catalog.deleteLoggingProperties(chain.id).catch(leftBehind(`the logging properties of ${chain.name}`));
+    }
+  });
 });

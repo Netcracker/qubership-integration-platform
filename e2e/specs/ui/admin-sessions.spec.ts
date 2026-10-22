@@ -58,67 +58,69 @@ function foreignRows(page: Page, chainName: string): Locator {
   return page.getByRole("row").filter({ hasNot: page.getByText(chainName, { exact: true }) }).filter({ has: page.getByRole("cell") });
 }
 
-test("a session found by its chain's name opens to its trace, and its delete leaves the other session", { tag: ["@ui", "@tier1"] }, async ({ page, request, catalog, env, sessions, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  await withBuilt(catalog, async (built) => {
-    const { chain, opened, kept } = await recordedChain({ request, catalog, env, sessions }, run, folder.id, built.chains);
+test.describe("admin sessions", { tag: ["@ui"] }, () => {
+  test("a filtered session opens to its trace and is deleted alone", async ({ page, request, catalog, env, sessions, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    await withBuilt(catalog, async (built) => {
+      const { chain, opened, kept } = await recordedChain({ request, catalog, env, sessions }, run, folder.id, built.chains);
 
-    await page.goto("/admintools/sessions");
-    await new FilterDialog(page).apply("Chain", chain.name);
-    // The warm-up calls recorded sessions as well, so the list holds more rows than these two.
-    await expect(rowOf(page, opened.id)).toBeVisible();
-    await expect(rowOf(page, kept.id)).toBeVisible();
-    await expect(foreignRows(page, chain.name)).toHaveCount(0);
+      await page.goto("/admintools/sessions");
+      await new FilterDialog(page).apply("Chain", chain.name);
+      // The warm-up calls recorded sessions as well, so the list holds more rows than these two.
+      await expect(rowOf(page, opened.id)).toBeVisible();
+      await expect(rowOf(page, kept.id)).toBeVisible();
+      await expect(foreignRows(page, chain.name)).toHaveCount(0);
 
-    await rowOf(page, opened.id).getByText(opened.id, { exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/sessions/${opened.id}$`));
-    await expect(page.getByRole("row").filter({ has: page.getByText("HTTP Trigger", { exact: true }) })).toBeVisible();
-    await expect(page.getByRole("row").getByText("Mark", { exact: true })).toBeVisible();
+      await rowOf(page, opened.id).getByText(opened.id, { exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/sessions/${opened.id}$`));
+      await expect(page.getByRole("row").filter({ has: page.getByText("HTTP Trigger", { exact: true }) })).toBeVisible();
+      await expect(page.getByRole("row").getByText("Mark", { exact: true })).toBeVisible();
 
-    // The filter is kept in the browser's storage, so the list comes back filtered.
-    await page.goBack();
-    await expect(rowOf(page, kept.id)).toBeVisible();
-    await rowOf(page, opened.id).getByRole("checkbox").check();
-    await page.getByTestId("sessions-delete").click();
-    const confirm = page.getByRole("dialog").filter({ hasText: "Delete Sessions" });
-    await confirm.getByRole("button", { name: "OK" }).click();
-    await expect(confirm).toBeHidden();
-    await expect(rowOf(page, opened.id)).toHaveCount(0);
-    await expect(rowOf(page, kept.id)).toBeVisible();
-    expect((await sessions.rawSession(opened.id)).status()).toBe(404);
-    expect((await sessions.rawSession(kept.id)).status()).toBe(200);
+      // The filter is kept in the browser's storage, so the list comes back filtered.
+      await page.goBack();
+      await expect(rowOf(page, kept.id)).toBeVisible();
+      await rowOf(page, opened.id).getByRole("checkbox").check();
+      await page.getByTestId("sessions-delete").click();
+      const confirm = page.getByRole("dialog").filter({ hasText: "Delete Sessions" });
+      await confirm.getByRole("button", { name: "OK" }).click();
+      await expect(confirm).toBeHidden();
+      await expect(rowOf(page, opened.id)).toHaveCount(0);
+      await expect(rowOf(page, kept.id)).toBeVisible();
+      expect((await sessions.rawSession(opened.id)).status()).toBe(404);
+      expect((await sessions.rawSession(kept.id)).status()).toBe(200);
+    });
   });
-});
 
-test("a delete of every loaded session on the admin page removes those sessions only", { tag: ["@ui", "@tier2"] }, async ({ page, request, catalog, env, sessions, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  // Every delete the page sends is answered here and recorded, so a regression to the bare delete
-  // cannot wipe the platform.
-  const deletes: { sent: string; ids: unknown }[] = [];
-  await page.route(/\/sessions-management\/sessions/, async (route) => {
-    const sent = route.request();
-    if (sent.method() !== "DELETE" && !sent.url().endsWith("/sessions/bulk-delete")) return route.continue();
-    deletes.push({ sent: `${sent.method()} ${new URL(sent.url()).pathname}`, ids: sent.postDataJSON() });
-    return route.fulfill({ status: 200 });
-  });
-  await withBuilt(catalog, async (built) => {
-    const { chain, opened, kept } = await recordedChain({ request, catalog, env, sessions }, run, folder.id, built.chains);
-    await page.goto("/admintools/sessions");
-    await new FilterDialog(page).apply("Chain", chain.name);
-    await expect(rowOf(page, opened.id)).toBeVisible();
-    await expect(rowOf(page, kept.id)).toBeVisible();
-    // The unfiltered list shows the two rows too, so the selection waits for the filter to apply.
-    await expect(foreignRows(page, chain.name)).toHaveCount(0);
-    await page.getByRole("row").filter({ has: page.getByRole("columnheader") }).getByRole("checkbox").check();
-    // The answer, not the request: the route records a delete before it answers.
-    const answered = page.waitForResponse((each) => each.request().method() === "DELETE" || each.url().endsWith("/sessions/bulk-delete"));
-    await page.getByTestId("sessions-delete").click();
-    const confirm = page.getByRole("dialog").filter({ hasText: "Delete Sessions" });
-    await confirm.getByRole("button", { name: "OK" }).click();
-    await answered;
-    // The page sent the bare `DELETE /v1/sessions` here until #1108.
-    expect(deletes.map((each) => each.sent)).toEqual(["POST /api/v1/cip/sessions-management/sessions/bulk-delete"]);
-    // Every loaded row is every session of the chain, the ones `deployAndRecord` recorded included.
-    expect(new Set(deletes[0].ids as string[])).toEqual(await sessions.idsOf(chain.id));
+  test("deleting every loaded session removes only those sessions", async ({ page, request, catalog, env, sessions, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    // Every delete the page sends is answered here and recorded, so a regression to the bare delete
+    // cannot wipe the platform.
+    const deletes: { sent: string; ids: unknown }[] = [];
+    await page.route(/\/sessions-management\/sessions/, async (route) => {
+      const sent = route.request();
+      if (sent.method() !== "DELETE" && !sent.url().endsWith("/sessions/bulk-delete")) return route.continue();
+      deletes.push({ sent: `${sent.method()} ${new URL(sent.url()).pathname}`, ids: sent.postDataJSON() });
+      return route.fulfill({ status: 200 });
+    });
+    await withBuilt(catalog, async (built) => {
+      const { chain, opened, kept } = await recordedChain({ request, catalog, env, sessions }, run, folder.id, built.chains);
+      await page.goto("/admintools/sessions");
+      await new FilterDialog(page).apply("Chain", chain.name);
+      await expect(rowOf(page, opened.id)).toBeVisible();
+      await expect(rowOf(page, kept.id)).toBeVisible();
+      // The unfiltered list shows the two rows too, so the selection waits for the filter to apply.
+      await expect(foreignRows(page, chain.name)).toHaveCount(0);
+      await page.getByRole("row").filter({ has: page.getByRole("columnheader") }).getByRole("checkbox").check();
+      // The answer, not the request: the route records a delete before it answers.
+      const answered = page.waitForResponse((each) => each.request().method() === "DELETE" || each.url().endsWith("/sessions/bulk-delete"));
+      await page.getByTestId("sessions-delete").click();
+      const confirm = page.getByRole("dialog").filter({ hasText: "Delete Sessions" });
+      await confirm.getByRole("button", { name: "OK" }).click();
+      await answered;
+      // The page sent the bare `DELETE /v1/sessions` here until #1108.
+      expect(deletes.map((each) => each.sent)).toEqual(["POST /api/v1/cip/sessions-management/sessions/bulk-delete"]);
+      // Every loaded row is every session of the chain, the ones `deployAndRecord` recorded included.
+      expect(new Set(deletes[0].ids as string[])).toEqual(await sessions.idsOf(chain.id));
+    });
   });
 });

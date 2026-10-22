@@ -26,48 +26,50 @@ async function exportFile(page: Page): Promise<{ name: string; manifest: unknown
   return { name: download.suggestedFilename(), manifest: yaml.load(await readFile(await download.path(), "utf8")) };
 }
 
-test("the Kafka MaaS export downloads a topic manifest for the typed classifier", { tag: ["@ui", "@tier2"] }, async ({ page }) => {
-  const classifier = callToken("ui-maas-topic");
+test.describe("MaaS export", { tag: ["@ui"] }, () => {
+  test("Kafka downloads a topic manifest for the typed classifier", async ({ page }) => {
+    const classifier = callToken("ui-maas-topic");
 
-  await page.goto("/devtools/maas/kafka");
-  await page.getByRole("textbox", { name: "Namespace" }).fill(callToken("ui-maas-ns"));
-  await page.getByRole("textbox", { name: "Topic Classifier Name" }).fill(classifier);
-  const { name, manifest } = await exportFile(page);
+    await page.goto("/devtools/maas/kafka");
+    await page.getByRole("textbox", { name: "Namespace" }).fill(callToken("ui-maas-ns"));
+    await page.getByRole("textbox", { name: "Topic Classifier Name" }).fill(classifier);
+    const { name, manifest } = await exportFile(page);
 
-  expect(name).toBe("maas-configuration.yaml");
-  expect(manifest).toEqual({
-    apiVersion: "nc.maas.kafka/v1",
-    kind: "topic",
-    spec: { classifier: { name: classifier, namespace: NAMESPACE_PLACEHOLDER } },
+    expect(name).toBe("maas-configuration.yaml");
+    expect(manifest).toEqual({
+      apiVersion: "nc.maas.kafka/v1",
+      kind: "topic",
+      spec: { classifier: { name: classifier, namespace: NAMESPACE_PLACEHOLDER } },
+    });
   });
-});
 
-test("the RabbitMQ MaaS export downloads a vhost manifest with the typed exchange, queue, and binding", { tag: ["@ui", "@tier2"] }, async ({ page }) => {
-  const vhost = callToken("ui-maas-vhost");
-  const exchange = callToken("ui-maas-exchange");
-  const queue = callToken("ui-maas-queue");
-  const routingKey = callToken("ui-maas-rk");
+  test("RabbitMQ downloads the typed exchange, queue, and binding", async ({ page }) => {
+    const vhost = callToken("ui-maas-vhost");
+    const exchange = callToken("ui-maas-exchange");
+    const queue = callToken("ui-maas-queue");
+    const routingKey = callToken("ui-maas-rk");
 
-  await page.goto("/devtools/maas/rabbitmq");
-  await page.getByRole("textbox", { name: "Namespace" }).fill(callToken("ui-maas-ns"));
-  // The vhost starts at `public`, so the typed value replaces it.
-  await page.getByRole("textbox", { name: "Vhost Classifier Name" }).fill(vhost);
-  await page.getByRole("textbox", { name: "Exchange Name" }).fill(exchange);
-  await page.getByRole("textbox", { name: "Queue Name" }).fill(queue);
-  await page.getByRole("textbox", { name: /^Routing Key/ }).fill(routingKey);
-  const { name, manifest } = await exportFile(page);
+    await page.goto("/devtools/maas/rabbitmq");
+    await page.getByRole("textbox", { name: "Namespace" }).fill(callToken("ui-maas-ns"));
+    // The vhost starts at `public`, so the typed value replaces it.
+    await page.getByRole("textbox", { name: "Vhost Classifier Name" }).fill(vhost);
+    await page.getByRole("textbox", { name: "Exchange Name" }).fill(exchange);
+    await page.getByRole("textbox", { name: "Queue Name" }).fill(queue);
+    await page.getByRole("textbox", { name: /^Routing Key/ }).fill(routingKey);
+    const { name, manifest } = await exportFile(page);
 
-  expect(name).toBe("maas-configuration.yaml");
-  expect(manifest).toMatchObject({
-    apiVersion: "nc.maas.rabbit/v1",
-    kind: "vhost",
-    spec: {
-      classifier: { name: vhost, namespace: NAMESPACE_PLACEHOLDER },
-      entities: {
-        exchanges: [{ name: exchange, type: "direct", durable: "true", auto_delete: "false" }],
-        queues: [{ name: queue, durable: "true", auto_delete: "false" }],
-        bindings: [{ source: exchange, destination: queue, routing_key: routingKey }],
+    expect(name).toBe("maas-configuration.yaml");
+    expect(manifest).toMatchObject({
+      apiVersion: "nc.maas.rabbit/v1",
+      kind: "vhost",
+      spec: {
+        classifier: { name: vhost, namespace: NAMESPACE_PLACEHOLDER },
+        entities: {
+          exchanges: [{ name: exchange, type: "direct", durable: "true", auto_delete: "false" }],
+          queues: [{ name: queue, durable: "true", auto_delete: "false" }],
+          bindings: [{ source: exchange, destination: queue, routing_key: routingKey }],
+        },
       },
-    },
+    });
   });
 });

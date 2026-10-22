@@ -25,34 +25,36 @@ async function markLoad(page: Page): Promise<() => Promise<boolean>> {
   return () => page.evaluate(() => "e2eDocLoad" in window);
 }
 
-test("the documentation opens at its first page, and a contents entry opens another in place", { tag: ["@ui", "@tier2"] }, async ({ page }) => {
-  await page.goto("/doc/");
-  await expect(page).toHaveURL(/\/doc\/00__Overview\/readme$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
-  const sameLoad = await markLoad(page);
+test.describe("documentation", { tag: ["@ui"] }, () => {
+  test("opens the first page and moves through contents in place", async ({ page }) => {
+    await page.goto("/doc/");
+    await expect(page).toHaveURL(/\/doc\/00__Overview\/readme$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    const sameLoad = await markLoad(page);
 
-  await page.getByRole("tree").getByText("Chains", { exact: true }).click();
-  await expect(page).toHaveURL(/\/doc\/01__Chains\/readme$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Chains" })).toBeVisible();
-  expect(await sameLoad()).toBe(true);
-});
+    await page.getByRole("tree").getByText("Chains", { exact: true }).click();
+    await expect(page).toHaveURL(/\/doc\/01__Chains\/readme$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Chains" })).toBeVisible();
+    expect(await sameLoad()).toBe(true);
+  });
 
-test("a documentation search result opens its page in place", { tag: ["@ui", "@tier2"] }, async ({ page }) => {
-  await page.goto("/doc/");
-  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
-  const sameLoad = await markLoad(page);
+  test("a search result opens its page in place", async ({ page }) => {
+    await page.goto("/doc/");
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    const sameLoad = await markLoad(page);
 
-  await page.getByRole("textbox", { name: "Search documentation..." }).fill("Circuit Breaker");
-  // Each result shows its page's title, and its breadcrumb and snippets below it.
-  await page.getByRole("listitem").filter({ has: page.getByTitle("Circuit Breaker", { exact: true }) }).click();
-  await expect(page).toHaveURL(/\/1__Circuit_Breaker\/readme$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Circuit Breaker" })).toBeVisible();
-  expect(await sameLoad()).toBe(true);
-});
+    await page.getByRole("textbox", { name: "Search documentation..." }).fill("Circuit Breaker");
+    // Each result shows its page's title, and its breadcrumb and snippets below it.
+    await page.getByRole("listitem").filter({ has: page.getByTitle("Circuit Breaker", { exact: true }) }).click();
+    await expect(page).toHaveURL(/\/1__Circuit_Breaker\/readme$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Circuit Breaker" })).toBeVisible();
+    expect(await sameLoad()).toBe(true);
+  });
 
-test("a path outside the contents shows the not-found page", { tag: ["@ui", "@tier2"] }, async ({ page }) => {
-  await page.goto("/doc/e2e-no-such-page");
-  await expect(page.getByText("Document Not Found", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Go to Documentation Home" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+  test("a path outside the contents shows the not-found page", async ({ page }) => {
+    await page.goto("/doc/e2e-no-such-page");
+    await expect(page.getByText("Document Not Found", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Go to Documentation Home" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+  });
 });

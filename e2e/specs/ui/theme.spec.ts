@@ -160,45 +160,47 @@ async function expectReadable(surfaces: Surface[], mode: Mode): Promise<void> {
   }
 }
 
-for (const { mode, title, system } of MODES) {
-  test(`the chain list and the chain editor stay readable in ${mode} mode, which survives a reload`, { tag: ["@ui", "@tier2"] }, async ({ page }) => {
-    test.setTimeout(THEME_CASE_TIMEOUT);
-    const chain = seedChain(readCorpusState(), "http-echo");
-    const header = chain.elements["Header Modification"];
-    const chains = new ChainsPage(page);
-    const graph = new ChainGraphPage(page);
-    const listSurfaces: Surface[] = [
-      { name: "the Name column header", text: page.getByRole("columnheader", { name: "Name" }), onPage: true },
-      { name: "the Create button", text: page.getByRole("button", { name: "Create" }), onPage: false },
-      { name: "the search field", text: chains.searchField, onPage: false },
-    ];
-    // The table swaps in a fixed header once its first rows arrive and replaces the header cell a
-    // measurement may already be reading. The chain's micro copy shares its name, hence `first()`.
-    const listed = chains.link(chain.name).first();
-    // The node's label renders before its type badge, which repeats the same text at 8 px.
-    const nodeLabel = graph.node(header).getByText("Header Modification", { exact: true }).first();
-    const editorSurfaces: Surface[] = [
-      { name: "the Snapshots tab", text: page.getByRole("tab", { name: "Snapshots" }), onPage: true },
-      { name: "the element node's label", text: nodeLabel, onPage: false },
-    ];
+test.describe("theme modes", { tag: ["@ui"] }, () => {
+  for (const { mode, title, system } of MODES) {
+    test(`${mode} mode keeps the list and the editor readable after a reload`, { tag: ["@slow"] }, async ({ page }) => {
+      test.setTimeout(THEME_CASE_TIMEOUT);
+      const chain = seedChain(readCorpusState(), "http-echo");
+      const header = chain.elements["Header Modification"];
+      const chains = new ChainsPage(page);
+      const graph = new ChainGraphPage(page);
+      const listSurfaces: Surface[] = [
+        { name: "the Name column header", text: page.getByRole("columnheader", { name: "Name" }), onPage: true },
+        { name: "the Create button", text: page.getByRole("button", { name: "Create" }), onPage: false },
+        { name: "the search field", text: chains.searchField, onPage: false },
+      ];
+      // The table swaps in a fixed header once its first rows arrive and replaces the header cell a
+      // measurement may already be reading. The chain's micro copy shares its name, hence `first()`.
+      const listed = chains.link(chain.name).first();
+      // The node's label renders before its type badge, which repeats the same text at 8 px.
+      const nodeLabel = graph.node(header).getByText("Header Modification", { exact: true }).first();
+      const editorSurfaces: Surface[] = [
+        { name: "the Snapshots tab", text: page.getByRole("tab", { name: "Snapshots" }), onPage: true },
+        { name: "the element node's label", text: nodeLabel, onPage: false },
+      ];
 
-    await watchThemeEvents(page);
-    await page.emulateMedia({ colorScheme: system });
-    await chains.goto();
-    await expect(listed).toBeVisible();
-    await waitForTheme(page, system);
+      await watchThemeEvents(page);
+      await page.emulateMedia({ colorScheme: system });
+      await chains.goto();
+      await expect(listed).toBeVisible();
+      await waitForTheme(page, system);
 
-    await chooseTheme(page, title);
-    await waitForTheme(page, mode);
-    await expectReadable(listSurfaces, mode);
+      await chooseTheme(page, title);
+      await waitForTheme(page, mode);
+      await expectReadable(listSurfaces, mode);
 
-    await page.reload();
-    await expect(listed).toBeVisible();
-    await waitForTheme(page, mode);
-    await expectReadable(listSurfaces, mode);
+      await page.reload();
+      await expect(listed).toBeVisible();
+      await waitForTheme(page, mode);
+      await expectReadable(listSurfaces, mode);
 
-    await graph.goto(chain.id);
-    await waitForTheme(page, mode);
-    await expectReadable(editorSurfaces, mode);
-  });
-}
+      await graph.goto(chain.id);
+      await waitForTheme(page, mode);
+      await expectReadable(editorSurfaces, mode);
+    });
+  }
+});

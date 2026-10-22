@@ -46,121 +46,123 @@ function rowOf(page: Page, text: string): Locator {
  */
 const HOLD_MS = 25_000;
 
-test("a common variable typed over two lines is stored whole and listed by its first line", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, run }) => {
-  const key = tokenized(run, "ui-common");
-  const table = new TableView(page);
+test.describe("admin tools", { tag: ["@ui"] }, () => {
+  test("a two-line variable is stored whole and listed by line one", async ({ page, catalog, run }) => {
+    const key = tokenized(run, "ui-common");
+    const table = new TableView(page);
 
-  await page.goto("/admintools/variables/common");
-  await page.getByTestId("common-variables-add").click();
-  const keyField = page.getByPlaceholder("Key");
-  await expect(keyField).toBeFocused();
-  try {
-    await keyField.fill(key);
-    // Shift+Enter breaks the line, and Enter alone submits the row.
-    await page.getByPlaceholder("Value").click();
-    await page.keyboard.type("first line");
-    await page.keyboard.press("Shift+Enter");
-    await page.keyboard.type("second line");
-    await page.keyboard.press("Enter");
-    // The editor row closes only after the create succeeds.
-    await expect(keyField).toBeHidden();
-    expect((await catalog.listCommonVariables())[key]).toBe("first line\nsecond line");
+    await page.goto("/admintools/variables/common");
+    await page.getByTestId("common-variables-add").click();
+    const keyField = page.getByPlaceholder("Key");
+    await expect(keyField).toBeFocused();
+    try {
+      await keyField.fill(key);
+      // Shift+Enter breaks the line, and Enter alone submits the row.
+      await page.getByPlaceholder("Value").click();
+      await page.keyboard.type("first line");
+      await page.keyboard.press("Shift+Enter");
+      await page.keyboard.type("second line");
+      await page.keyboard.press("Enter");
+      // The editor row closes only after the create succeeds.
+      await expect(keyField).toBeHidden();
+      expect((await catalog.listCommonVariables())[key]).toBe("first line\nsecond line");
 
-    await page.getByRole("textbox", { name: "Search variables..." }).fill(key);
-    const row = table.rows.filter({ has: page.getByText(key, { exact: true }) });
-    // Selection, key, value: a value of more than one line is drawn as its first line.
-    await expect(row.getByRole("cell").nth(2)).toHaveText("first line...");
-  } finally {
-    await catalog.deleteCommonVariables([key]).catch(leftBehind(`common variable ${key}`));
-  }
-});
+      await page.getByRole("textbox", { name: "Search variables..." }).fill(key);
+      const row = table.rows.filter({ has: page.getByText(key, { exact: true }) });
+      // A value of more than one line is drawn as its first line.
+      await expect(await table.cell(row, "Value")).toHaveText("first line...");
+    } finally {
+      await catalog.deleteCommonVariables([key]).catch(leftBehind(`common variable ${key}`));
+    }
+  });
 
-test("a secured variable added through the UI leaves its value nowhere on the page", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, run }) => {
-  await ensureSecretFixture(catalog);
-  const key = tokenized(run, "ui-secured");
-  const value = `secret-${callToken()}`;
+  test("a secured value is left nowhere on the page", async ({ page, catalog, run }) => {
+    await ensureSecretFixture(catalog);
+    const key = tokenized(run, "ui-secured");
+    const value = `secret-${callToken()}`;
 
-  await page.goto("/admintools/variables/secured");
-  await page.getByRole("textbox", { name: "Search secrets..." }).fill(SECRET_FIXTURE_NAME);
-  const secretRow = rowOf(page, SECRET_FIXTURE_NAME);
-  await secretRow.getByTestId("secured-variables-add").click();
-  const keyField = page.getByPlaceholder("Key");
-  await expect(keyField).toBeFocused();
-  try {
-    await keyField.fill(key);
-    await page.getByPlaceholder("Value").fill(value);
-    await page.getByPlaceholder("Value").press("Enter");
-
-    const row = rowOf(page, key);
-    await expect(row.getByRole("cell").nth(2)).toHaveText("*****");
-    expect(await catalog.securedVariablesInSecret(SECRET_FIXTURE_NAME)).toContain(key);
-    // The typed value is kept only by the editor row, which closes once the variable is stored.
-    await expect(page.getByPlaceholder("Value")).toHaveCount(0);
-    await expect(page.getByText(value)).toHaveCount(0);
-    const fields = await page.locator("input, textarea").evaluateAll((elements) => elements.map((each) => (each as HTMLInputElement).value));
-    expect(fields).not.toContain(value);
-  } finally {
-    await catalog.deleteSecuredVariablesFromSecret(SECRET_FIXTURE_NAME, [key]).catch(leftBehind(`secured variable ${key}`));
-  }
-});
-
-test("editing a secured variable starts from an empty value, not from the mask", { tag: ["@ui", "@tier2"] }, async ({ page, catalog, run }) => {
-  await ensureSecretFixture(catalog);
-  const key = tokenized(run, "ui-secured-edit");
-  await catalog.addSecuredVariables(SECRET_FIXTURE_NAME, { [key]: "stored" });
-  try {
     await page.goto("/admintools/variables/secured");
     await page.getByRole("textbox", { name: "Search secrets..." }).fill(SECRET_FIXTURE_NAME);
     const secretRow = rowOf(page, SECRET_FIXTURE_NAME);
-    await secretRow.getByRole("button", { name: "Expand row" }).click();
-    const row = rowOf(page, key);
-    await row.getByText("*****", { exact: true }).click();
-    const editor = row.getByRole("textbox");
-    await expect(editor).toBeVisible();
-    await expect(editor).toHaveValue("");
-  } finally {
-    await catalog.deleteSecuredVariablesFromSecret(SECRET_FIXTURE_NAME, [key]).catch(leftBehind(`secured variable ${key}`));
-  }
-});
+    await secretRow.getByTestId("secured-variables-add").click();
+    const keyField = page.getByPlaceholder("Key");
+    await expect(keyField).toBeFocused();
+    try {
+      await keyField.fill(key);
+      await page.getByPlaceholder("Value").fill(value);
+      await page.getByPlaceholder("Value").press("Enter");
 
-test("a live exchange is killed only after its termination is confirmed", { tag: ["@ui", "@tier1"] }, async ({ page, request, env, catalog }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  const chain = seedChain(readCorpusState(), "long-running");
-  const { answer } = hold(request, env, chain.contextPath, HOLD_MS);
-  try {
-    const listed = await untilListed(catalog, chain.id);
-    const kills: string[] = [];
-    page.on("request", (sent) => {
-      if (sent.method() === "DELETE" && sent.url().includes("/live-exchanges/")) kills.push(sent.url());
-    });
+      const row = rowOf(page, key);
+      await expect(await new TableView(page).cell(row, "Value")).toHaveText("*****");
+      expect(await catalog.securedVariablesInSecret(SECRET_FIXTURE_NAME)).toContain(key);
+      // The typed value is kept only by the editor row, which closes once the variable is stored.
+      await expect(page.getByPlaceholder("Value")).toHaveCount(0);
+      await expect(page.getByText(value)).toHaveCount(0);
+      const fields = await page.locator("input, textarea").evaluateAll((elements) => elements.map((each) => (each as HTMLInputElement).value));
+      expect(fields).not.toContain(value);
+    } finally {
+      await catalog.deleteSecuredVariablesFromSecret(SECRET_FIXTURE_NAME, [key]).catch(leftBehind(`secured variable ${key}`));
+    }
+  });
 
-    await page.goto("/admintools/exchanges");
-    const row = new TableView(page).rows.filter({ has: page.getByText(listed.sessionId, { exact: true }) });
-    const dialog = page.getByRole("dialog").filter({ hasText: "Terminate Exchange" });
-    // The actions column shows its buttons only while the row is hovered.
-    const terminate = async () => {
-      await row.hover();
-      await row.getByTestId("live-exchanges-terminate").click();
-    };
+  test("a secured variable is edited from an empty value", async ({ page, catalog, run }) => {
+    await ensureSecretFixture(catalog);
+    const key = tokenized(run, "ui-secured-edit");
+    await catalog.addSecuredVariables(SECRET_FIXTURE_NAME, { [key]: "stored" });
+    try {
+      await page.goto("/admintools/variables/secured");
+      await page.getByRole("textbox", { name: "Search secrets..." }).fill(SECRET_FIXTURE_NAME);
+      const secretRow = rowOf(page, SECRET_FIXTURE_NAME);
+      await secretRow.getByRole("button", { name: "Expand row" }).click();
+      const row = rowOf(page, key);
+      await row.getByText("*****", { exact: true }).click();
+      const editor = row.getByRole("textbox");
+      await expect(editor).toBeVisible();
+      await expect(editor).toHaveValue("");
+    } finally {
+      await catalog.deleteSecuredVariablesFromSecret(SECRET_FIXTURE_NAME, [key]).catch(leftBehind(`secured variable ${key}`));
+    }
+  });
 
-    await terminate();
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Cancel" }).click();
-    await expect(dialog).toBeHidden();
-    // Cancelling sends nothing, so the exchange is still running.
-    expect(kills).toEqual([]);
-    await expect(row).toBeVisible();
+  test("a live exchange is terminated only after the confirmation", { tag: ["@slow"] }, async ({ page, request, env, catalog }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    const chain = seedChain(readCorpusState(), "long-running");
+    const { answer } = hold(request, env, chain.contextPath, HOLD_MS);
+    try {
+      const listed = await untilListed(catalog, chain.id);
+      const kills: string[] = [];
+      page.on("request", (sent) => {
+        if (sent.method() === "DELETE" && sent.url().includes("/live-exchanges/")) kills.push(sent.url());
+      });
 
-    await terminate();
-    await dialog.getByRole("button", { name: "OK" }).click();
-    // The row leaves once the kill is accepted, with no refresh.
-    await expect(row).toHaveCount(0);
-    expect(kills).toHaveLength(1);
-    // `CIP-0114` is the engine's code for a session ended by hand.
-    const response = await answer;
-    expect(response.status()).toBe(500);
-    expect(((await response.json()) as { code: string }).code).toBe("CIP-0114");
-  } finally {
-    await answer.catch(() => undefined);
-  }
+      await page.goto("/admintools/exchanges");
+      const row = new TableView(page).rows.filter({ has: page.getByText(listed.sessionId, { exact: true }) });
+      const dialog = page.getByRole("dialog").filter({ hasText: "Terminate Exchange" });
+      // The actions column shows its buttons only while the row is hovered.
+      const terminate = async () => {
+        await row.hover();
+        await row.getByTestId("live-exchanges-terminate").click();
+      };
+
+      await terminate();
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await expect(dialog).toBeHidden();
+      // Cancelling sends nothing, so the exchange is still running.
+      expect(kills).toEqual([]);
+      await expect(row).toBeVisible();
+
+      await terminate();
+      await dialog.getByRole("button", { name: "OK" }).click();
+      // The row leaves once the kill is accepted, with no refresh.
+      await expect(row).toHaveCount(0);
+      expect(kills).toHaveLength(1);
+      // `CIP-0114` is the engine's code for a session ended by hand.
+      const response = await answer;
+      expect(response.status()).toBe(500);
+      expect(((await response.json()) as { code: string }).code).toBe("CIP-0114");
+    } finally {
+      await answer.catch(() => undefined);
+    }
+  });
 });

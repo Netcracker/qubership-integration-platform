@@ -14,7 +14,7 @@ import { parseCases, titleProblems } from "../../support/title-rules.js";
 const SPECS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The spec directories whose files do not keep the rules yet. */
-const TITLE_RULES_PENDING = ["env", "k8s", "tooling", "ui"];
+const TITLE_RULES_PENDING = ["env", "k8s", "tooling"];
 
 /** Every spec file, relative to `specs/`. */
 const SPEC_FILES = fs

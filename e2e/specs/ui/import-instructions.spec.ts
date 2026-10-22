@@ -19,41 +19,43 @@ async function ignoredChains(catalog: Catalog): Promise<string[]> {
   return ((await catalog.listImportInstructions()).chains.ignore ?? []).map((each) => each.id);
 }
 
-test("a chain ignored through the dialog stays out of an import until its instruction is deleted", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, folder, run }) => {
-  const chain = await tokenizedChain(catalog, run, { prefix: "ui-instructions", what: callToken("ignored"), parentId: folder.id });
-  const archive = await catalog.exportChains([chain.id]);
-  await catalog.deleteChain(chain.id);
-  // The deleted chain has no name to show, so the row shows its id.
-  const row = new TableView(page).rows.filter({ has: page.getByText(chain.id, { exact: true }) });
+test.describe("import instructions", { tag: ["@ui"] }, () => {
+  test("an ignore instruction keeps a chain out until it is deleted", async ({ page, catalog, folder, run }) => {
+    const chain = await tokenizedChain(catalog, run, { prefix: "ui-instructions", what: callToken("ignored"), parentId: folder.id });
+    const archive = await catalog.exportChains([chain.id]);
+    await catalog.deleteChain(chain.id);
+    // The deleted chain has no name to show, so the row shows its id.
+    const row = new TableView(page).rows.filter({ has: page.getByText(chain.id, { exact: true }) });
 
-  const loaded = page.waitForResponse((response) => response.url().endsWith("/catalog/import-instructions"));
-  await page.goto("/admintools/import-instructions");
-  expect((await loaded).ok()).toBe(true);
-  try {
-    await page.getByRole("button", { name: "Add", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Add Instruction" });
-    await dialog.getByRole("textbox", { name: "Id" }).fill(chain.id);
-    await dialog.getByRole("button", { name: "Save" }).click();
-    await expect(dialog).toBeHidden();
-    await expect(row).toBeVisible();
-    expect(await ignoredChains(catalog)).toContain(chain.id);
+    const loaded = page.waitForResponse((response) => response.url().endsWith("/catalog/import-instructions"));
+    await page.goto("/admintools/import-instructions");
+    expect((await loaded).ok()).toBe(true);
+    try {
+      await page.getByRole("button", { name: "Add", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Add Instruction" });
+      await dialog.getByRole("textbox", { name: "Id" }).fill(chain.id);
+      await dialog.getByRole("button", { name: "Save" }).click();
+      await expect(dialog).toBeHidden();
+      await expect(row).toBeVisible();
+      expect(await ignoredChains(catalog)).toContain(chain.id);
 
-    await importChains(catalog, archive);
-    expect(await chainExists(catalog, chain.id), "the import created a chain its instruction ignores").toBe(false);
+      await importChains(catalog, archive);
+      expect(await chainExists(catalog, chain.id), "the import created a chain its instruction ignores").toBe(false);
 
-    await row.getByRole("checkbox").check();
-    await page.getByTestId("import-instructions-delete").click();
-    const confirm = page.getByRole("dialog").filter({ hasText: "Delete instructions" });
-    await confirm.getByRole("button", { name: "Delete" }).click();
-    await expect(confirm).toBeHidden();
-    await expect(row).toHaveCount(0);
-    expect(await ignoredChains(catalog)).not.toContain(chain.id);
+      await row.getByRole("checkbox").check();
+      await page.getByTestId("import-instructions-delete").click();
+      const confirm = page.getByRole("dialog").filter({ hasText: "Delete instructions" });
+      await confirm.getByRole("button", { name: "Delete" }).click();
+      await expect(confirm).toBeHidden();
+      await expect(row).toHaveCount(0);
+      expect(await ignoredChains(catalog)).not.toContain(chain.id);
 
-    await importChains(catalog, archive);
-    expect(await chainExists(catalog, chain.id), "the import left out a chain no instruction names").toBe(true);
-  } finally {
-    await catalog.deleteImportInstructions({ chains: [chain.id] }).catch(leftBehind(`import instruction ${chain.id}`));
-    // The import puts the chain back into the worker folder by name, so the folder cascade covers it too.
-    await catalog.deleteChain(chain.id).catch(() => undefined);
-  }
+      await importChains(catalog, archive);
+      expect(await chainExists(catalog, chain.id), "the import left out a chain no instruction names").toBe(true);
+    } finally {
+      await catalog.deleteImportInstructions({ chains: [chain.id] }).catch(leftBehind(`import instruction ${chain.id}`));
+      // The import puts the chain back into the worker folder by name, so the folder cascade covers it too.
+      await catalog.deleteChain(chain.id).catch(() => undefined);
+    }
+  });
 });

@@ -39,34 +39,36 @@ async function defaultEngineHost(catalog: Catalog): Promise<string> {
   return host;
 }
 
-test("the default domain lists its engine pod where the domain source lists pods", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, env }) => {
-  const host = await defaultEngineHost(catalog);
-  const engine = await expandDefaultDomain(page, host);
-  // The expanded domain row holds the engine table, so it matches the engine row's filter too.
-  await expect(engine.getByRole("cell", { name: host, exact: true })).toHaveCount(env.domainFacts().listsEnginePods ? 1 : 0);
-});
+test.describe("domains", { tag: ["@ui"] }, () => {
+  test("the default domain shows the engine pods its source lists", async ({ page, catalog, env }) => {
+    const host = await defaultEngineHost(catalog);
+    const engine = await expandDefaultDomain(page, host);
+    // The expanded domain row holds the engine table, so it matches the engine row's filter too.
+    await expect(engine.getByRole("cell", { name: host, exact: true })).toHaveCount(env.domainFacts().listsEnginePods ? 1 : 0);
+  });
 
-test("a chain shows on its engine's row after the deploy and leaves after the undeploy with no reload", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, env, folder, run }) => {
-  test.skip(!env.domainFacts().listsEnginePods, "the domain source lists no engine pod, so no engine row exists to expand");
-  // A call token in the route keeps repeats of the case apart.
-  const chain = await tokenizedChain(catalog, run, { prefix: "ui-domains", what: callToken("deploy"), parentId: folder.id });
-  const snapshot = await catalog.createSnapshot(chain.id);
-  const host = await defaultEngineHost(catalog);
-  const listed = page.getByRole("link", { name: chain.name, exact: true });
+  test("an engine row shows a deployed chain and drops it in place", async ({ page, catalog, env, folder, run }) => {
+    test.skip(!env.domainFacts().listsEnginePods, "the domain source lists no engine pod, so no engine row exists to expand");
+    // A call token in the route keeps repeats of the case apart.
+    const chain = await tokenizedChain(catalog, run, { prefix: "ui-domains", what: callToken("deploy"), parentId: folder.id });
+    const snapshot = await catalog.createSnapshot(chain.id);
+    const host = await defaultEngineHost(catalog);
+    const listed = page.getByRole("link", { name: chain.name, exact: true });
 
-  const engine = await expandDefaultDomain(page, host);
-  const deployments = page.waitForResponse((response) => response.url().endsWith(`/engines/${host}/deployments`));
-  await engine.getByRole("button", { name: "Expand row" }).click();
-  expect((await deployments).ok()).toBe(true);
-  await expect(listed).toHaveCount(0);
+    const engine = await expandDefaultDomain(page, host);
+    const deployments = page.waitForResponse((response) => response.url().endsWith(`/engines/${host}/deployments`));
+    await engine.getByRole("button", { name: "Expand row" }).click();
+    expect((await deployments).ok()).toBe(true);
+    await expect(listed).toHaveCount(0);
 
-  try {
-    await catalog.deploy(chain.id, snapshot.id);
-    await expect(listed).toBeVisible({ timeout: DEPLOY_TIMEOUT });
-    // The row's name is its cells; the rows of the levels above hold the cell too.
-    await expect(page.getByRole("row", { name: `${chain.name} ${snapshot.name} Status: Deployed`, exact: true })).toBeVisible({ timeout: DEPLOY_TIMEOUT });
-  } finally {
-    await catalog.undeployAll(chain.id).catch(leftBehind(`chain ${chain.name}`, "undeployed"));
-  }
-  await expect(listed).toBeHidden({ timeout: DEPLOY_TIMEOUT });
+    try {
+      await catalog.deploy(chain.id, snapshot.id);
+      await expect(listed).toBeVisible({ timeout: DEPLOY_TIMEOUT });
+      // The row's name is its cells; the rows of the levels above hold the cell too.
+      await expect(page.getByRole("row", { name: `${chain.name} ${snapshot.name} Status: Deployed`, exact: true })).toBeVisible({ timeout: DEPLOY_TIMEOUT });
+    } finally {
+      await catalog.undeployAll(chain.id).catch(leftBehind(`chain ${chain.name}`, "undeployed"));
+    }
+    await expect(listed).toBeHidden({ timeout: DEPLOY_TIMEOUT });
+  });
 });

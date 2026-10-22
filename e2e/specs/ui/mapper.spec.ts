@@ -29,51 +29,53 @@ interface SavedMapping {
   actions: Array<{ sources: Array<{ type: string; kind?: string; path?: string[] }>; target: { type: string; kind?: string; path?: string[] } }>;
 }
 
-test("a header mapped in the mapper's text view is saved and copied by the deployed chain", { tag: ["@ui", "@tier1"] }, async ({ page, request, catalog, env, sessions, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  await withBuilt(catalog, async (built) => {
-    const chain = await createStepsChain(
-      catalog,
-      run,
-      // A call token in the route keeps repeats of the case apart.
-      { what: callToken("ui-mapper"), parentId: folder.id, steps: [{ name: "Mapper", type: "mapper-2", properties: {} }], logging: SEED_LOGGING },
-      built.chains,
-    );
-    const mapperId = chain.elements["Mapper"];
-    const graph = new ChainGraphPage(page);
+test.describe("mapper form", { tag: ["@ui"] }, () => {
+  test("a text-view header mapping is copied by the deployed chain", async ({ page, request, catalog, env, sessions, folder, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    await withBuilt(catalog, async (built) => {
+      const chain = await createStepsChain(
+        catalog,
+        run,
+        // A call token in the route keeps repeats of the case apart.
+        { what: callToken("ui-mapper"), parentId: folder.id, steps: [{ name: "Mapper", type: "mapper-2", properties: {} }], logging: SEED_LOGGING },
+        built.chains,
+      );
+      const mapperId = chain.elements["Mapper"];
+      const graph = new ChainGraphPage(page);
 
-    await graph.goto(chain.id);
-    const form = await graph.openElement(mapperId);
-    await form.getByRole("tab", { name: "Mapping", exact: true }).click();
-    await form.getByRole("tab", { name: "Text", exact: true }).click();
-    // The model is attached once `data-uri` shows on the editor inside the id'd wrapper.
-    const editor = form.getByTestId("mapping-actions-editor").locator(".monaco-editor[data-uri]");
-    await expect(editor).toBeVisible();
-    await editor.click();
-    await page.keyboard.type(`header.${SOURCE_HEADER} -> header.${TARGET_HEADER}`);
-    await form.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(form).toBeHidden();
+      await graph.goto(chain.id);
+      const form = await graph.openElement(mapperId);
+      await form.getByRole("tab", { name: "Mapping", exact: true }).click();
+      await form.getByRole("tab", { name: "Text", exact: true }).click();
+      // The model is attached once `data-uri` shows on the editor inside the id'd wrapper.
+      const editor = form.getByTestId("mapping-actions-editor").locator(".monaco-editor[data-uri]");
+      await expect(editor).toBeVisible();
+      await editor.click();
+      await page.keyboard.type(`header.${SOURCE_HEADER} -> header.${TARGET_HEADER}`);
+      await form.getByRole("button", { name: "Save", exact: true }).click();
+      await expect(form).toBeHidden();
 
-    const mapping = (await catalog.getElement(chain.id, mapperId)).properties.mappingDescription as SavedMapping;
-    const [source] = mapping.source.headers;
-    const [target] = mapping.target.headers;
-    expect([source?.name, target?.name]).toEqual([SOURCE_HEADER, TARGET_HEADER]);
-    // A path names the attribute by id, which is what the compiled mapper resolves.
-    expect(mapping.actions).toEqual([
-      expect.objectContaining({
-        sources: [expect.objectContaining({ type: "attribute", kind: "header", path: [source.id] })],
-        target: expect.objectContaining({ type: "attribute", kind: "header", path: [target.id] }),
-      }),
-    ]);
+      const mapping = (await catalog.getElement(chain.id, mapperId)).properties.mappingDescription as SavedMapping;
+      const [source] = mapping.source.headers;
+      const [target] = mapping.target.headers;
+      expect([source?.name, target?.name]).toEqual([SOURCE_HEADER, TARGET_HEADER]);
+      // A path names the attribute by id, which is what the compiled mapper resolves.
+      expect(mapping.actions).toEqual([
+        expect.objectContaining({
+          sources: [expect.objectContaining({ type: "attribute", kind: "header", path: [source.id] })],
+          target: expect.objectContaining({ type: "attribute", kind: "header", path: [target.id] }),
+        }),
+      ]);
 
-    await deployAndRecord(catalog, env, sessions, chain);
+      await deployAndRecord(catalog, env, sessions, chain);
 
-    const value = callToken("ui-mapper");
-    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "mapper" }, headers: { [SOURCE_HEADER]: value } });
-    // The mapping writes no body, so the chain answers 204.
-    expect(call.response.status()).toBe(204);
-    expect(call.response.headers()[TARGET_HEADER]).toBe(value);
-    const session = await sessions.byExternalId(call.token, { elements: HTTP_TRIGGER_STEPS.length + 1 });
-    expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Mapper"]);
+      const value = callToken("ui-mapper");
+      const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "mapper" }, headers: { [SOURCE_HEADER]: value } });
+      // The mapping writes no body, so the chain answers 204.
+      expect(call.response.status()).toBe(204);
+      expect(call.response.headers()[TARGET_HEADER]).toBe(value);
+      const session = await sessions.byExternalId(call.token, { elements: HTTP_TRIGGER_STEPS.length + 1 });
+      expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Mapper"]);
+    });
   });
 });
