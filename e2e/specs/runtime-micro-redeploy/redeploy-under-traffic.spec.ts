@@ -1,17 +1,19 @@
 /**
- * The micro case of `specs/runtime/redeploy-under-traffic.spec.ts`: a chain redeployed while it
- * takes calls stops answering for a bounded window, then answers from the new deployment.
+ * A chain redeployed on the micro engine while it takes calls stops answering for a bounded window,
+ * then answers from the new deployment. The classic case is "a redeploy swaps the response and never
+ * loses the route" in `specs/api/deployments.spec.ts`.
  *
  * A redeploy rolls the micro domain's pod, so the domain answers non-2xx between the old pod and the
- * new one, where the classic engine answers every call. The case runs in a domain of its own for
- * that reason, as `placeholder-redeploy.spec.ts` does.
+ * new one. The case runs in a domain of its own for that reason, as `placeholder-redeploy.spec.ts`
+ * does.
  *
  * Measured on the Kubernetes of Docker Desktop over eight redeploys: the domain answered v1 for 41 to
  * 61 calls, then 503 for 11.5 to 12.3 s, with an occasional 502 or 504 among them, then v2. The
  * limit allows about three times that window, for a slower CI runner.
  *
- * The case turns red when the window of non-2xx answers runs past `UNAVAILABLE_LIMIT`, when a call
- * answers v1 after the window, or when the new marker never arrives within `MICRO_READY_TIMEOUT`.
+ * The case turns red when the window of non-2xx answers runs past `UNAVAILABLE_LIMIT`, when a 2xx
+ * before the switch carries no v1 marker, when a call answers v1 after the window, or when the new
+ * marker never arrives within `MICRO_READY_TIMEOUT`.
  *
  * Shown failing: a limit of 5 s against a window of 11830 ms, and v1 expected after the window.
  */
@@ -64,18 +66,6 @@ async function answerOf(request: APIRequestContext, env: Env, chain: DeployableC
 
 const ok = (each: Answer) => each.status >= 200 && each.status <= 299;
 
-/** The answers as runs, such as `200 v1 x40, 503 x120, 200 v2 x1`. */
-function runs(answers: readonly Answer[]): string {
-  const labels = answers.map((each) => (ok(each) ? `${each.status} ${each.marker}` : `${each.status}`));
-  const out: Array<[string, number]> = [];
-  for (const label of labels) {
-    const last = out.at(-1);
-    if (last?.[0] === label) last[1]++;
-    else out.push([label, 1]);
-  }
-  return out.map(([label, count]) => `${label} x${count}`).join(", ");
-}
-
 test.describe("redeploy under traffic on the micro engine", { tag: ["@engine", "@catalog", "@slow"] }, () => {
   test.beforeAll(async ({ catalog, folder, run, microDomainState }) => {
     test.setTimeout(SETUP_TIMEOUT);
@@ -99,15 +89,21 @@ test.describe("redeploy under traffic on the micro engine", { tag: ["@engine", "
 
     await setMarker(catalog, live, "v2");
     const redeploy = dispatchToDomain(catalog, target, [live]);
-    const answers = await samplesUntil(() => answerOf(request, target.env, live), (each) => each.marker === "v2", MICRO_READY_TIMEOUT, CALL_PAUSE);
+    // A rejected dispatch ends the sampling, and the await below rethrows it.
+    let rejected = false;
+    redeploy.catch(() => {
+      rejected = true;
+    });
+    const answers = await samplesUntil(() => answerOf(request, target.env, live), (each) => rejected || each.marker === "v2", MICRO_READY_TIMEOUT, CALL_PAUSE);
     await redeploy;
 
     const switched = answers.findIndex((each) => each.marker === "v2");
     const failed = answers.filter((each) => !ok(each));
     const window = failed.length === 0 ? 0 : failed[failed.length - 1].at - failed[0].at;
-    test.info().annotations.push({ type: "redeploy", description: `${runs(answers)}, non-2xx for ${window} ms` });
+    test.info().annotations.push({ type: "redeploy", description: `${answers.length} calls, the first v2 answer at call ${switched + 1}, ${failed.length} non-2xx over ${window} ms` });
     expect(switched, `the redeployed chain never answered v2 on micro domain ${target.domain}`).toBeGreaterThan(0);
     expect(window, "the non-2xx window of the redeploy").toBeLessThanOrEqual(UNAVAILABLE_LIMIT);
+    expect(answers.slice(0, switched).filter((each) => ok(each) && each.marker !== "v1"), "a 2xx before the switch carried no v1 marker").toEqual([]);
     // With no non-2xx answer at all, every answer before v2 is the old deployment's.
     const lastFailed = failed.length === 0 ? switched : answers.indexOf(failed[failed.length - 1]);
     expect(answers.slice(lastFailed + 1, switched).filter((each) => each.marker === "v1"), "v1 answers after the unavailable window").toEqual([]);
