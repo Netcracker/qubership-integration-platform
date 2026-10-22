@@ -44,7 +44,7 @@ test.describe("concurrent calls", { tag: ["@engine", "@sessions"] }, () => {
       expect(JSON.parse(await response.text()), "the echo carries the call's own token").toEqual({ ping: token });
     }
 
-    const recorded = await Promise.all(calls.map(({ token }) => sessions.byExternalId(token, { elements: STEPS.length })));
+    const recorded = await Promise.all(calls.map(async ({ token }) => sessions.settled(await sessions.byExternalId(token, { elements: STEPS.length }))));
     expect(new Set(recorded.map((session) => session.id)).size, "one session per call").toBe(CALLS);
     for (const session of recorded) {
       expect(session.chainId).toBe(chain.id);
