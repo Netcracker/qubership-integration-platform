@@ -178,6 +178,8 @@ test.describe("kafka security", { tag: ["@engine", "@kafka"] }, () => {
     test("kafka-trigger-2 with sslProtocol=TLSv1.2 is refused", { tag: ["@sessions", "@classic-only"], annotation: { type: "classic-only", description: "the case deploys a chain of its own, and a deploy into the shared micro domain rolls its pod" } }, async ({ env, catalog, sessions, run }) => {
       covers("kafka-trigger-2", "sslProtocol", "TLSv1.2");
       test.setTimeout(ENGINE_CASE_TIMEOUT);
+      // DEPLOYED is the control: the pre-deploy check lists the topic on TLS13 with the default
+      // protocol and the engine's trust store, so a broken listener or certificate parks the chain.
       const topic = tokenized(run, "kafka-trigger-tlsv1-2-refused");
       const since = logWindowStart();
       await withRefusedFixture(catalog, run, "kafka-trigger-tlsv1-2-refused.yaml", topic, async (chain) => {

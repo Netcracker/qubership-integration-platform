@@ -4,7 +4,11 @@
  *
  * Every other runtime case sends one call at a time, so a body, a header, or a session step that
  * leaked between two exchanges in flight would pass all of them. This is a guard case: no product
- * change on this stack is known to turn it red, so it has not been shown failing.
+ * change on this stack is known to turn it red.
+ *
+ * Shown failing: one of the twenty calls sending a body other than its token turns the echo check
+ * red. The session checks have not been shown failing, because the local cluster records no
+ * session a lookup finds.
  *
  * Each session is found by its call's own token. On the micro engine `global` deletes every session
  * in OpenSearch while `runtime-micro` runs, so a count of the chain's sessions could drop at any time.

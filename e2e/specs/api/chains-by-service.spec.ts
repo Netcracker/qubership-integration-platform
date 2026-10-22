@@ -13,6 +13,7 @@
 import { test, expect } from "../../support/fixtures.js";
 import type { Catalog, ChainOfService } from "../../support/catalog.js";
 import { tokenized } from "../../support/run.js";
+import { ABSENT_ID } from "../../support/absent.js";
 
 /** The ids a `service-call` names, minted per case and per call. */
 interface CalledOperation {
@@ -97,5 +98,19 @@ test.describe("chains of a service", { tag: ["@catalog"] }, () => {
       for (const id of chains) await catalog.deleteChain(id).catch(() => {});
       await catalog.deleteSystem(system.id).catch(() => {});
     }
+
+    await test.step("an id nothing names finds no chain, and no reader answers 404", async () => {
+      for (const path of [
+        `/v1/chains/systems/${ABSENT_ID}`,
+        `/v1/chains/${ABSENT_ID}/${ABSENT_ID}`,
+        `/v1/chains/${ABSENT_ID}/model/${ABSENT_ID}`,
+        `/v1/chains/${ABSENT_ID}/specificationGroup/${ABSENT_ID}`,
+        `/v1/chains/${ABSENT_ID}/specificationGroup`,
+      ]) {
+        const response = await catalog.raw("get", path);
+        expect(response.status(), path).toBe(200);
+        expect(await response.json(), path).toEqual([]);
+      }
+    });
   });
 });

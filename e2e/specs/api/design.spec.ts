@@ -185,10 +185,6 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   // `circuit-breaker-2` opens its block with the configuration's threshold.
   "circuit-breaker-count-based": { labels: ["Main Script", "Fallback Script"], blocks: ["alt Failure rate < 60%", "else On Fallback"] },
   "circuit-breaker-time-based": { labels: ["Main Script", "Fallback Script"], blocks: ["alt Failure rate < 60%", "else On Fallback"] },
-  condition: {
-    labels: ["If Branch", "Else Branch"],
-    blocks: ["alt If, on condition: ", "else Else"],
-  },
   // The blocks follow document order, not the priority the engine routes by.
   "condition-branches": {
     labels: ["Broad Branch", "Narrow Branch", "Else Branch"],
@@ -338,10 +334,6 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
     blocks: ["par main", "else aux"],
   },
   "split-async": { labels: ["First Async Script", "Second Async Script", "After Split"], blocks: ["par First Async Branch", "else Second Async Branch"] },
-  "try-catch-finally": {
-    labels: ["Throwing Script", "Catch Branch", "Finally Branch"],
-    blocks: ["alt Try", "else Catch, on exception: java.lang.Exception", "else Finally"],
-  },
   "try-catch-finally-branches": {
     labels: ["Try Script", "Runtime Catch Branch", "Argument Catch Branch", "Finally Branch"],
     blocks: [

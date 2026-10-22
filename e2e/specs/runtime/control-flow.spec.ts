@@ -156,6 +156,7 @@ test.describe("control flow", { tag: ["@engine", "@sessions"] }, () => {
           "Finally Branch",
         ]);
         expect(element(session, "Try Script")?.executionStatus).toBe(each.thrown === "none" ? "COMPLETED_NORMALLY" : "COMPLETED_WITH_ERRORS");
+        if (each.caught.length > 0) expect(element(session, each.caught[1])?.executionStatus).toBe("COMPLETED_NORMALLY");
         expect(element(session, "Finally Branch")?.executionStatus).toBe("COMPLETED_NORMALLY");
       });
     }
