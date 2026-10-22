@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
+import dev.langchain4j.model.openai.OpenAiResponsesChatRequestParameters;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -285,7 +286,7 @@ public final class FailureNarrative {
     ChatRequestParameters requestParameters;
     try {
       recoveryContextJson = RecoveryContextProjector.project(context, new ObjectMapper().findAndRegisterModules());
-      requestParameters = ChatRequestParameters.builder()
+      requestParameters = OpenAiResponsesChatRequestParameters.builder().strictJsonSchema(true)
           .responseFormat(RecoveryDecisionSchemas.responseFormat(context)).build();
     } catch (RuntimeException ex) {
       LOG.warnf(ex, "Recovery context projection failed; keeping raw evidence");
@@ -300,11 +301,7 @@ public final class FailureNarrative {
     if (turn.status() != RecoveryStatus.READY) {
       return new RecoveryResult(turn.status(), null, turn.detail(), turn.retryAt());
     }
-    RecoveryDecision decision = turn.value();
-    if (decision == null || decision.causeClass() == null || decision.action() == null) {
-      return new RecoveryResult(RecoveryStatus.INVALID_REPLY, null, "Recovery decision is incomplete.");
-    }
-    return RecoveryResult.reply(decision);
+    return RecoveryResult.reply(turn.value());
   }
 
   /**

@@ -2088,7 +2088,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             new AcceptedRecovery(decision, evidence, rejectedQuestion, RecoveryStatus.READY));
       }
       rejectedQuestion |= decision != null && decision.action() == RecoveryAction.ASK_USER;
-      evidence = evidenceWithDecisionFindings(evidence, validation.findings());
+      evidence = evidenceWithDecisionFindings(evidence, validation.findings(), decision);
       saveDiagnosis(runId, identity, calls,
           new AcceptedRecovery(null, evidence, rejectedQuestion, RecoveryStatus.INVALID_REPLY));
     }
@@ -2498,8 +2498,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return null;
   }
 
-  private static RecoveryEvidence evidenceWithDecisionFindings(
+  private RecoveryEvidence evidenceWithDecisionFindings(
       RecoveryEvidence evidence, List<String> validationFindings) {
+    return evidenceWithDecisionFindings(evidence, validationFindings, null);
+  }
+
+  private RecoveryEvidence evidenceWithDecisionFindings(
+      RecoveryEvidence evidence, List<String> validationFindings, RecoveryDecision rejectedDecision) {
     List<SemanticFinding> findings = new ArrayList<>(evidence.findings());
     long priorInvalid =
         findings.stream().filter(finding -> "INVALID_RECOVERY_DECISION".equals(finding.code())).count();
@@ -2516,7 +2521,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             "",
             Map.of(),
             List.of(),
-            String.join("\n", validationFindings)));
+            rejectedDecision == null ? String.join("\n", validationFindings)
+                : recoveryJson(Map.of("status", "REJECTED", "rejectedDecision", rejectedDecision,
+                    "validationFindings", validationFindings))));
     return new RecoveryEvidence(
         evidence.schemaVersion(),
         evidence.failureId(),

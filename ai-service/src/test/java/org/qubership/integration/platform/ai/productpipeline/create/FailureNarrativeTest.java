@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAc
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContext;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
@@ -991,6 +992,27 @@ class FailureNarrativeTest {
         org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(FailureNarrative.RecoveryStatus.RESOURCE_REFUSAL,
         narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
+  }
+
+  @Test
+  void incompleteParsedDecisionsReachNativeValidationWithoutLosingTheirContent() {
+    var original = sampleRecoveryDecision();
+    var missingCause = new RecoveryDecision(null, original.faultArtifactRef(), original.evidenceRefs(),
+        original.action(), original.proposedBriefChanges(), original.question(), original.userSummary());
+    var missingAction = new RecoveryDecision(original.causeClass(), original.faultArtifactRef(), original.evidenceRefs(),
+        null, original.proposedBriefChanges(), original.question(), original.userSummary());
+    for (var incomplete : List.of(missingCause, missingAction)) {
+      var agent = FakeFailureNarrativeAgent.narrates("unused").recoverReturns(incomplete);
+      var result = new FailureNarrative(agent).diagnoseRecovery("incomplete-decision", sampleRecoveryContext());
+
+      assertEquals(FailureNarrative.RecoveryStatus.READY, result.status());
+      assertEquals(incomplete, result.decision());
+      var validation = RecoveryDecisionValidator.validate(result.decision(), sampleRecoveryContext());
+      assertFalse(validation.accepted());
+      assertEquals(List.of(incomplete.causeClass() == null ? "Missing cause class." : "Missing recovery action."),
+          validation.findings());
+      assertEquals(1, agent.calls.get());
+    }
   }
 
   @Test
