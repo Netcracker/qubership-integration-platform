@@ -89,7 +89,6 @@ export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
             value: searchString,
             onChange: handleSearchChange,
             placeholder: "Search services...",
-            allowClear: true,
             onSearchConfirm: (value) => {
               clearTimeout(searchDebounceRef.current);
               setDebouncedSearch(value);

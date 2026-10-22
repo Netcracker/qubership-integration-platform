@@ -590,7 +590,6 @@ export const Sessions: React.FC<SessionsProps> = ({
           value: searchString,
           onChange: setSearchString,
           placeholder: "Search sessions...",
-          allowClear: true,
         }}
         filterButton={filterButton}
         columnSettingsButton={columnSettingsButton}

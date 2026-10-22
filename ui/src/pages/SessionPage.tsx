@@ -355,7 +355,6 @@ export const SessionPage: React.FC = () => {
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: "Search session elements...",
-          allowClear: true,
           style: { minWidth: 160, maxWidth: 360, flex: "0 1 auto" },
         }}
         columnSettingsButton={columnSettingsButton}

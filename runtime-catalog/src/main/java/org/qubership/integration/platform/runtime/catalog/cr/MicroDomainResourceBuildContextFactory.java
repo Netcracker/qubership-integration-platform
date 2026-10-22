@@ -139,6 +139,9 @@ public class MicroDomainResourceBuildContextFactory {
         return MountOptions.builder()
                 .emptyDirs(source.getEmptyDirs() == null ? new HashSet<>() : new HashSet<>(source.getEmptyDirs()))
                 .resources(source.getResources() == null ? new HashSet<>() : new HashSet<>(source.getResources()))
+                .serviceAccountTokens(source.getServiceAccountTokens() == null
+                        ? new ArrayList<>()
+                        : new ArrayList<>(source.getServiceAccountTokens()))
                 .build();
     }
 

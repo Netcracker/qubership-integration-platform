@@ -533,7 +533,6 @@ export const SecuredVariables: React.FC = () => {
               value: searchTerm,
               onChange: setSearchTerm,
               placeholder: "Search secrets...",
-              allowClear: true,
             }}
             filterButton={filterButton}
             actions={
