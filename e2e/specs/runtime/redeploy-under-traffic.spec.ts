@@ -12,6 +12,9 @@
  *
  * The case turns red when a call during the redeploy answers anything but 2xx, or when the new
  * marker never arrives within `DEPLOY_TIMEOUT`.
+ *
+ * Shown failing: an undeploy before the deploy (298 calls answered non-2xx), a redeploy that never
+ * ran (no v2 within 60 s), and v1 expected after the deploy.
  */
 import type { APIRequestContext } from "@playwright/test";
 import { test, expect } from "../../support/fixtures.js";

@@ -8,6 +8,8 @@
  * The two snapshots differ in one element property, the sender of a Log Record. The case fails when
  * the diff omits either value, and when the revert leaves the later value in place or reverts to the
  * other snapshot.
+ *
+ * Shown failing: the second snapshot's sender expected after the revert fails the case.
  */
 import { test, expect } from "../../support/page-guard.js";
 import { ChainTabsPage } from "../../pages/ChainTabsPage.js";

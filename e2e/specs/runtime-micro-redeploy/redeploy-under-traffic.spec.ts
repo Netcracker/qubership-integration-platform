@@ -12,6 +12,8 @@
  *
  * The case turns red when the window of non-2xx answers runs past `UNAVAILABLE_LIMIT`, when a call
  * answers v1 after the window, or when the new marker never arrives within `MICRO_READY_TIMEOUT`.
+ *
+ * Shown failing: a limit of 5 s against a window of 11830 ms, and v1 expected after the window.
  */
 import type { APIRequestContext } from "@playwright/test";
 import { test, expect } from "../../support/fixtures.js";

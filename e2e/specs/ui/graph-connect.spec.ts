@@ -9,6 +9,8 @@
  * The elements are created through the API, and both are plain ones: a container hides its handles.
  * The case fails when the drag sends nothing, sends the elements in reverse, or leaves the canvas
  * without the edge.
+ *
+ * Shown failing: a dependency expected in the reverse order fails the case.
  */
 import { test, expect } from "../../support/page-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";

@@ -9,6 +9,8 @@
  * The chain is deleted between the two (rule 5), so the import has to create it. The case fails
  * when the export holds another chain or none, when the import reports anything but Created, and
  * when the chain comes back outside its folder.
+ *
+ * Shown failing: a chain expected back with no folder fails the case.
  */
 import { test, expect } from "../../support/page-guard.js";
 import { ChainsPage } from "../../pages/ChainsPage.js";

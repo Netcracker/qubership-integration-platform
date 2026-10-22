@@ -1,5 +1,8 @@
 /**
  * `samplesUntil`, which the redeploy cases read every call of, over a counter instead of a stack.
+ *
+ * Shown failing: four edits to `samplesUntil` each turned a case red. They ignored `done`, ignored
+ * the deadline, returned only the last reading, and dropped the first.
  */
 import { test, expect } from "@playwright/test";
 import { samplesUntil } from "../../support/poll.js";
