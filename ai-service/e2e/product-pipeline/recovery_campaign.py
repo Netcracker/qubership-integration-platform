@@ -920,6 +920,7 @@ class IsolatedInstance:
         return self.probe([conversation, str(output)], output)
 
     def probe(self, arguments, output):
+        output.parent.mkdir(parents=True, exist_ok=True)
         classpath = ROOT / "ai-service/target/recovery-probe-classpath.txt"
         if not classpath.exists():
             raise RuntimeError(

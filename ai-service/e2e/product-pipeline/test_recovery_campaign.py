@@ -653,6 +653,31 @@ class RecoveryContractTest(unittest.TestCase):
                     )
 
 
+class EvidenceProbeOutputTest(unittest.TestCase):
+    def test_probe_creates_nested_output_parent_before_launching_java(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            classpath = root / "ai-service/target/recovery-probe-classpath.txt"
+            classpath.parent.mkdir(parents=True)
+            classpath.write_text("fixture-classpath")
+            instance = object.__new__(campaign.IsolatedInstance)
+            instance.output = root
+            instance.storage_url = "http://localhost:9000"
+            output = root / "nested/evidence/snapshot.json"
+
+            def write_probe(arguments, **kwargs):
+                destination = Path(arguments[-1])
+                self.assertEqual(output, destination)
+                self.assertTrue(destination.parent.is_dir())
+                destination.write_text('{"captured": true}')
+
+            with patch.object(campaign, "ROOT", root), patch.object(
+                campaign.subprocess, "run", side_effect=write_probe
+            ) as invoke:
+                self.assertEqual({"captured": True}, instance.export("conversation", output))
+                invoke.assert_called_once()
+
+
 class ElementPatchEvidenceTest(unittest.TestCase):
     def test_actual_messages_preserve_complete_schema_data(self):
         issue = {"code": "enum", "entityId": "element", "path": "/properties/options/mode",
