@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -13,6 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -55,6 +57,59 @@ class RequirementPendingProposalTest {
     assertTrue(reloaded.store.get(CHAT).isEmpty());
     assertEquals(history, reloaded.artifacts.history(reloaded.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_ATTEMPT));
     assertEquals(source, reloaded.json.valueToTree(reloaded.archive.read(CHAT)));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void updateWithoutAnAcceptedBaseDoesNotHideTheCompleteRejectedProposal(boolean reload) throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    h.begin(TEXT);
+    var draft = input("invalid id", TEXT);
+    var candidate = new DraftInput(draft.flow(), draft.facts(), draft.capabilities(), draft.openQuestions(),
+        new RequirementCaptureInput.DraftSettings(null, null));
+    try (var ignored = ToolSession.open(CHAT)) {
+      var initial = h.json.readValue(h.tools.captureRequirementDraft(candidate), RequirementCaptureResult.class);
+      assertFalse(initial.accepted());
+      assertTrue(initial.issues().stream().anyMatch(issue -> "INVALID_VALUE".equals(issue.code())));
+      var expected = h.store.pendingProposal(CHAT).orElseThrow();
+      var original = h.artifacts.get(h.sessions.active(CHAT), expected.attempt()).orElseThrow();
+      var protection = h.json.valueToTree(h.store.repairConstraints(CHAT));
+      var source = h.json.valueToTree(h.archive.read(CHAT));
+      var scope = h.store.captureMutationScope(CHAT);
+      var changes = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+      var failed = h.json.readValue(h.tools.updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertFalse(failed.accepted());
+      assertTrue(failed.issues().stream().anyMatch(issue -> "DRAFT_NOT_FOUND".equals(issue.code())));
+      assertEquals(protection, h.json.valueToTree(h.store.repairConstraints(CHAT)));
+      var diagnostic = h.artifacts.latest(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+      assertFalse(diagnostic.reference().equals(expected.attempt()));
+      assertEquals("updateRequirementDraft", diagnostic.payload().path("toolName").asText());
+      assertEquals(h.json.valueToTree(changes), diagnostic.payload().path("arguments"));
+      assertEquals(h.json.valueToTree(failed.issues()), diagnostic.payload().path("issues"));
+      var current = reload ? new Harness(h.blobs) : h;
+      if (reload) current.store.beginTurn(CHAT, TEXT); // Reattach the same archived turn; no new input.
+      var beforeRead = current.persisted();
+      int credits = current.fingerprints.softCreditsUsed(CHAT);
+      assertTrue(credits > 0);
+      var read = current.json.readValue(current.tools.readRequirementDraft(), RequirementCaptureResult.class);
+      assertAll("reload=" + reload,
+          () -> assertEquals(expected, read.pendingProposal()),
+          () -> assertEquals(RequirementCaptureResult.Readiness.EMPTY, read.readiness()),
+          () -> assertEquals(null, read.draft()),
+          () -> assertEquals(null, read.revision()),
+          () -> assertFalse(read.changed()),
+          () -> assertTrue(current.store.get(CHAT).isEmpty()),
+          () -> assertFalse(current.store.wasCapturedThisTurn(CHAT)),
+          () -> assertEquals(protection, current.json.valueToTree(current.store.repairConstraints(CHAT))),
+          () -> assertEquals(source, current.json.valueToTree(current.archive.read(CHAT))),
+          () -> assertEquals(scope, current.store.captureMutationScope(CHAT)),
+          () -> assertEquals(credits, current.fingerprints.softCreditsUsed(CHAT)),
+          () -> assertEquals(original, current.artifacts.get(current.sessions.active(CHAT), expected.attempt()).orElseThrow()),
+          () -> assertEquals(diagnostic, current.artifacts.latest(current.sessions.active(CHAT),
+              Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow()),
+          () -> assertEquals(beforeRead, current.persisted()));
+    }
   }
 
   @Test
@@ -158,6 +213,8 @@ class RequirementPendingProposalTest {
     final CompilationSessions sessions;
     final ConversationArchive archive;
     final RequirementDraftStore store;
+    final org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore fingerprints;
+    final RequirementCaptureTools tools;
 
     Harness(InMemoryArtifactBlobStore blobs) {
       this.blobs = blobs;
@@ -167,6 +224,22 @@ class RequirementPendingProposalTest {
       var conversations = mock(ConversationService.class);
       when(conversations.archive()).thenReturn(archive);
       store = new RequirementDraftStore(artifacts, sessions, conversations);
+      fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(
+          json, artifacts, sessions);
+      var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+          fingerprints, artifacts, sessions);
+      tools = new RequirementCaptureTools(store, mock(RequirementDraftTool.class), json,
+          new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
+          feedback, null);
+    }
+
+    java.util.Map<String, String> persisted() {
+      var snapshot = new java.util.LinkedHashMap<String, String>();
+      for (String key : blobs.list("")) {
+        var document = blobs.getVersioned(key).orElseThrow();
+        snapshot.put(key, document.version() + ":" + java.util.Base64.getEncoder().encodeToString(document.content()));
+      }
+      return snapshot;
     }
 
     void begin(String source) {

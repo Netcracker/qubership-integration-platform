@@ -31,13 +31,13 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFin
 import org.qubership.integration.platform.ai.plan.*;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.*;
 import org.qubership.integration.platform.ai.plan.RequirementPolicyConflict.Decision;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
-import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
@@ -373,9 +373,11 @@ class PolicyChoiceSelectionTest {
     final ToolCallFingerprintStore fingerprints = new ToolCallFingerprintStore();
     final CaptureAttemptFeedbackStore feedback = new CaptureAttemptFeedbackStore(fingerprints);
 
-    Harness() {
+    Harness() throws Exception {
       tools = new RequirementCaptureTools(store, new RequirementDraftTool(store), json,
           new CaptureToolOutcomeGateway(fingerprints, feedback), feedback, null, null, null, conversations);
+      field(tools, "elementSchemas", org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+          .createForUnitTests(json));
     }
 
     void captureQuestion() throws Exception {
@@ -383,7 +385,11 @@ class PolicyChoiceSelectionTest {
       var input = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
           "Caller", "GET /policy", "External endpoint", null, null)), List.of()),
           List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Exercise policy choices."),
-              RequirementFactFixtures.nativeAnchorFact("entry", "http-trigger"), policy(null)),
+              new FactInput("native-entry", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+                  "Use the external HTTP endpoint.", null, null,
+                  new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+                      "entry", null, null, null, List.of(new PlanProperty("externalRoute", "true")), List.of())),
+              policy(null)),
           List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/policy", null, null, null)),
           List.of(new QuestionInput("policy-choice", List.of("entry"), "Keep NONE or use recommended RBAC?",
               new AuthorQuestionEvidence("entry", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE,

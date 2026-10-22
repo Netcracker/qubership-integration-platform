@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -74,6 +75,120 @@ class PendingRequirementCaptureReadProviderTest {
   @Inject AppConfig config;
   @InjectMock RateLimitStreamingChatModel provider;
 
+  @Test
+  void inapplicableFreshPolicyAndOwnerFindingReachTheFirstRequestBeforeCorrectionContinues() throws Exception {
+    String chat = "policy-applicability-provider-" + UUID.randomUUID();
+    var endpoint = new FactInput("endpoint", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Receive POST /policy-applicability with externalRoute=false and accessControlType=NONE.", null, null,
+        new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+            "entry", null, null, null, List.of(new PlanProperty("externalRoute", "false"),
+                new PlanProperty("accessControlType", "NONE")), List.of()));
+    var policy = new FactInput("access-policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "The internal HTTP route uses accessControlType=NONE.", null,
+        new RequirementPolicyConflict(
+            org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY,
+            "accessControlType", "NONE", "RBAC", "access-choice", null));
+    var scriptFact = new FactInput("local-script", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "After entry, run this exact script:\n" + SCRIPT, null, null,
+        new RequirementElementIntent("local-script", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+            "missing-owner", null, "entry", null, List.of(new PlanProperty("script", SCRIPT)), List.of(LITERAL)));
+    var proposed = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+        "Caller", "POST /policy-applicability", null, null, null)), List.of()), List.of(endpoint, policy, scriptFact),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+            "/policy-applicability", null, null, null)), List.of(new RequirementCaptureInput.QuestionInput(
+                "access-choice", List.of("entry"), "Retain the requested access control or use the corporate recommendation?")),
+        new DraftSettings(false, null));
+    var oldIntent = scriptFact.elementIntent();
+    var correctedScript = new FactInput(scriptFact.sourceFactId(), scriptFact.interactionIds(), scriptFact.kind(),
+        scriptFact.polarity(), scriptFact.text(), null, null,
+        new RequirementElementIntent(oldIntent.elementRef(), oldIntent.elementType(), oldIntent.placement(), "entry",
+            oldIntent.successorElementRef(), oldIntent.predecessorElementRef(), oldIntent.parentElementRef(),
+            oldIntent.requestedName(), oldIntent.requestedProperties(), oldIntent.exactValues()));
+    var correctedPolicy = new FactInput(policy.sourceFactId(), policy.interactionIds(), policy.kind(), policy.polarity(),
+        policy.text(), policy.fieldMapping(), null, policy.elementIntent());
+    var corrected = new DraftInput(proposed.flow(), List.of(endpoint, correctedPolicy, correctedScript),
+        proposed.capabilities(), List.of(), proposed.settings());
+    String source = endpoint.text() + "\n" + policy.text() + "\n" + scriptFact.text() + "\nProceed without IDS.";
+    var input = conversations.archive().beginInput(chat, source, null);
+    conversations.archive().resolveInput(chat, input, source);
+    drafts.beginTurn(chat, source);
+    var sourceBefore = json.valueToTree(conversations.archive().read(chat));
+    var limitsBefore = limits();
+    var rejected = new AtomicReference<JsonNode>();
+    var attempt = new AtomicReference<Revision>();
+    var beforeRead = new AtomicReference<Map<String, String>>();
+    var script = new ScriptedStreamingChatModel(
+        Turn.tool("capture-both-defects", request -> assertLocalFactIdSchemas(request),
+            "captureRequirementDraft", json.writeValueAsString(Map.of("draft", proposed))),
+        Turn.tool("first-next-refusal", request -> {
+          var refusal = lastTool(request, "captureRequirementDraft");
+          rejected.set(refusal);
+          assertFalse(refusal.path("accepted").asBoolean(), refusal.toString());
+          assertTrue(java.util.stream.StreamSupport.stream(refusal.path("issues").spliterator(), false)
+              .anyMatch(issue -> "INVALID_ELEMENT_OWNER".equals(issue.path("code").asText())
+                  && "/draft/facts/local-script/elementIntent".equals(issue.path("path").asText())), refusal.toString());
+          assertTrue(java.util.stream.StreamSupport.stream(refusal.path("issues").spliterator(), false)
+              .anyMatch(issue -> "INVALID_POLICY_CONFLICT".equals(issue.path("code").asText())
+                  && "/draft/facts/access-policy/policyConflict".equals(issue.path("path").asText())), refusal.toString());
+          var saved = artifacts.latest(sessions.current(chat).orElseThrow().compilationId(),
+              Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+          attempt.set(saved);
+          assertEquals(refusal.path("issues"), saved.payload().path("issues"));
+          assertEquals(json.valueToTree(proposed), saved.payload().path("arguments"));
+          assertEquals(input.generation(), saved.payload().path("sourceGeneration").asText());
+          assertEquals(input.turnId(), saved.payload().path("sourceTurnId").asText());
+          assertTrue(saved.payload().path("acceptedDraftReference").isNull());
+          assertTrue(drafts.get(chat).isEmpty());
+          var protectedPolicy = drafts.rejectedCaptureFacts(chat).stream()
+              .filter(fact -> policy.sourceFactId().equals(fact.sourceFactId())).findFirst().orElseThrow();
+          assertEquals(correctedPolicy, protectedPolicy);
+          assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
+          beforeRead.set(persistedState());
+        }, "readRequirementDraft", "{}"),
+        Turn.tool("correct-the-full-pending-proposal", request -> {
+          var read = lastTool(request, "readRequirementDraft");
+          assertEquals("EMPTY", read.path("readiness").asText());
+          assertTrue(read.path("draft").isNull());
+          var pending = read.path("pendingProposal");
+          assertEquals(json.valueToTree(proposed), pending.path("draft"));
+          assertEquals(json.valueToTree(attempt.get().reference()), pending.path("attempt"));
+          assertEquals(rejected.get().path("issues"), pending.path("issues"));
+          assertEquals(input.generation(), pending.path("sourceGeneration").asText());
+          assertEquals(input.turnId(), pending.path("sourceTurnId").asText());
+          assertTrue(pending.path("base").isNull());
+          assertEquals(beforeRead.get(), persistedState());
+        }, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", corrected))),
+        Turn.tool("continue-after-native-correction", request -> {
+          var accepted = lastTool(request, "captureRequirementDraft");
+          assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
+          assertEquals(json.valueToTree(corrected), accepted.path("draft"));
+          assertEquals(corrected, drafts.get(chat).orElseThrow().authoredDraft());
+          assertTrue(drafts.rejectedCaptureFacts(chat).isEmpty());
+          assertEquals(attempt.get(), artifacts.get(attempt.get().compilationId(), attempt.get().reference()).orElseThrow());
+        }, "finishRequirementDiscoveryTurn", "{\"directive\":\"CONTINUE\"}"),
+        Turn.text("native-continuation", request -> {
+          var continuation = lastTool(request, "finishRequirementDiscoveryTurn");
+          assertTrue(continuation.path("accepted").asBoolean(), continuation.toString());
+        }, "The corrected requirements are ready to continue."));
+    doAnswer(call -> {
+      ChatRequest request = call.getArgument(0);
+      StreamingChatResponseHandler handler = call.getArgument(1);
+      script.chat(request, handler);
+      return null;
+    }).when(provider).chat(any(ChatRequest.class), any(StreamingChatResponseHandler.class));
+    gather.chat(chat, prompts.wrap(chat, source, "en"), new InvocationParameters())
+        .collect().asList().await().atMost(Duration.ofSeconds(30));
+    script.assertComplete();
+    assertEquals(5, script.requests().size());
+    assertEquals(RequirementDiscoveryDirective.CONTINUE, drafts.turnDirective(chat));
+    assertEquals(corrected, drafts.get(chat).orElseThrow().authoredDraft());
+    JsonNode consumedSource = sourceBefore.deepCopy();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) consumedSource.path("turns").get(0))
+        .put("consumedDraftReference", drafts.latestRevision(chat).orElseThrow().artifactId());
+    assertEquals(consumedSource, json.valueToTree(conversations.archive().read(chat)));
+    assertEquals(limitsBefore, limits());
+  }
+
   @ParameterizedTest
   @CsvSource({"false,false", "true,false", "true,true"})
   void rejectedOnlyProposalReachesTheProviderWithoutBecomingAnAcceptedBase(
@@ -102,10 +217,11 @@ class PendingRequirementCaptureReadProviderTest {
     var attempt = new AtomicReference<Revision>();
     var persistedBeforeRead = new AtomicReference<Map<String, String>>();
     var constraintsBeforeRead = new AtomicReference<JsonNode>();
+    var latestDiagnostic = new AtomicReference<Revision>();
     var emptyUpdate = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
         List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of());
     String nextTool = updateWithoutBase ? "updateRequirementDraft" : "readRequirementDraft";
-    var script = new ScriptedStreamingChatModel(
+    var turns = new java.util.ArrayList<Turn>(List.of(
         Turn.tool("capture", request -> {
           assertLocalFactIdSchemas(request);
           String description = request.parameters().toolSpecifications().stream()
@@ -151,52 +267,87 @@ class PendingRequirementCaptureReadProviderTest {
           assertFalse(drafts.wasCapturedThisTurn(chat));
           constraintsBeforeRead.set(json.valueToTree(drafts.repairConstraints(chat)));
           persistedBeforeRead.set(persistedState());
-        }, nextTool, updateWithoutBase ? json.writeValueAsString(Map.of("changes", emptyUpdate)) : "{}"),
-        Turn.text("pending-proposal", request -> {
-          JsonNode result = lastTool(request, nextTool);
-          if (updateWithoutBase) {
-            assertFalse(result.path("accepted").asBoolean(), result.toString());
-            JsonNode issue = result.path("issues").get(0);
-            assertEquals("DRAFT_NOT_FOUND", issue.path("code").asText());
-            assertEquals("/changes", issue.path("path").asText());
-            assertTrue(issue.path("message").asText().startsWith(
-                "No accepted requirement draft exists. captureRequirementDraft initializes the draft;"
-                + " updateRequirementDraft requires an accepted base."
-                + " If initialization was rejected, correct the full candidate and call captureRequirementDraft again."),
-                issue.path("message").asText());
-            Revision failedUpdate = artifacts.latest(sessions.current(chat).orElseThrow().compilationId(),
-                Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
-            assertEquals("updateRequirementDraft", failedUpdate.payload().path("toolName").asText());
-            assertTrue(failedUpdate.payload().path("acceptedDraftReference").isNull());
-            assertEquals(input.generation(), failedUpdate.payload().path("sourceGeneration").asText());
-            assertEquals(input.turnId(), failedUpdate.payload().path("sourceTurnId").asText());
-            assertEquals(json.valueToTree(emptyUpdate), failedUpdate.payload().path("arguments"));
-            assertEquals(result.path("issues"), failedUpdate.payload().path("issues"));
-          } else {
-            JsonNode pending = result.path("pendingProposal");
-            assertTrue(pending.isObject(), result.toString());
-            assertEquals(json.valueToTree(proposed), pending.path("draft"));
-            assertEquals(json.valueToTree(attempt.get().reference()), pending.path("attempt"));
-            assertEquals(input.generation(), pending.path("sourceGeneration").asText());
-            assertEquals(input.turnId(), pending.path("sourceTurnId").asText());
-            assertTrue(pending.path("base").isNull());
-            assertEquals("captureRequirementDraft", pending.path("toolName").asText());
-            assertEquals(rejected.get().path("issues"), pending.path("issues"));
-            assertTrue(pending.path("draft").toString().contains(LITERAL));
-            assertEquals(persistedBeforeRead.get(), persistedState(),
-                "Read must not append or rewrite durable authority, source, or approvals.");
-          }
-          assertEquals("EMPTY", result.path("readiness").asText());
-          assertTrue(result.path("draft").isNull(), "Pending content must stay separate from the accepted draft.");
-          assertTrue(result.path("revision").isNull());
-          assertFalse(result.path("changed").asBoolean());
-          assertTrue(drafts.latestRevision(chat).isEmpty());
-          assertTrue(drafts.get(chat).isEmpty());
-          assertFalse(drafts.wasCapturedThisTurn(chat));
-          assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
-          assertEquals(constraintsBeforeRead.get(), json.valueToTree(drafts.repairConstraints(chat)));
-          assertEquals(attempt.get(), artifacts.get(attempt.get().compilationId(), attempt.get().reference()).orElseThrow());
-        }, "The rejected proposal is available for correction; it is not an accepted requirement draft."));
+        }, nextTool, updateWithoutBase ? json.writeValueAsString(Map.of("changes", emptyUpdate)) : "{}")));
+    java.util.function.Consumer<ChatRequest> checkNextResult = request -> {
+      JsonNode result = lastTool(request, nextTool);
+      if (updateWithoutBase) {
+        assertFalse(result.path("accepted").asBoolean(), result.toString());
+        JsonNode issue = result.path("issues").get(0);
+        assertEquals("DRAFT_NOT_FOUND", issue.path("code").asText());
+        assertEquals("/changes", issue.path("path").asText());
+        assertTrue(issue.path("message").asText().startsWith(
+            "No accepted requirement draft exists. captureRequirementDraft initializes the draft;"
+            + " updateRequirementDraft requires an accepted base."
+            + " If initialization was rejected, correct the full candidate and call captureRequirementDraft again."),
+            issue.path("message").asText());
+        Revision failedUpdate = artifacts.latest(sessions.current(chat).orElseThrow().compilationId(),
+            Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+        assertEquals("updateRequirementDraft", failedUpdate.payload().path("toolName").asText());
+        assertTrue(failedUpdate.payload().path("acceptedDraftReference").isNull());
+        assertEquals(input.generation(), failedUpdate.payload().path("sourceGeneration").asText());
+        assertEquals(input.turnId(), failedUpdate.payload().path("sourceTurnId").asText());
+        assertEquals(json.valueToTree(emptyUpdate), failedUpdate.payload().path("arguments"));
+        assertEquals(result.path("issues"), failedUpdate.payload().path("issues"));
+        latestDiagnostic.set(failedUpdate);
+        persistedBeforeRead.set(persistedState());
+      } else {
+        JsonNode pending = result.path("pendingProposal");
+        assertTrue(pending.isObject(), result.toString());
+        assertEquals(json.valueToTree(proposed), pending.path("draft"));
+        assertEquals(json.valueToTree(attempt.get().reference()), pending.path("attempt"));
+        assertEquals(input.generation(), pending.path("sourceGeneration").asText());
+        assertEquals(input.turnId(), pending.path("sourceTurnId").asText());
+        assertTrue(pending.path("base").isNull());
+        assertEquals("captureRequirementDraft", pending.path("toolName").asText());
+        assertEquals(rejected.get().path("issues"), pending.path("issues"));
+        assertTrue(pending.path("draft").toString().contains(LITERAL));
+        assertEquals(persistedBeforeRead.get(), persistedState(),
+            "Read must not append or rewrite durable authority, source, or approvals.");
+      }
+      assertEquals("EMPTY", result.path("readiness").asText());
+      assertTrue(result.path("draft").isNull(), "Pending content must stay separate from the accepted draft.");
+      assertTrue(result.path("revision").isNull());
+      assertFalse(result.path("changed").asBoolean());
+      assertTrue(drafts.latestRevision(chat).isEmpty());
+      assertTrue(drafts.get(chat).isEmpty());
+      assertFalse(drafts.wasCapturedThisTurn(chat));
+      assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
+      assertEquals(constraintsBeforeRead.get(), json.valueToTree(drafts.repairConstraints(chat)));
+      assertEquals(attempt.get(), artifacts.get(attempt.get().compilationId(), attempt.get().reference()).orElseThrow());
+    };
+    turns.add(updateWithoutBase
+        ? Turn.tool("read-after-rejected-update", checkNextResult, "readRequirementDraft", "{}")
+        : Turn.text("pending-proposal", checkNextResult,
+            "The rejected proposal is available for correction; it is not an accepted requirement draft."));
+    if (updateWithoutBase) {
+      turns.add(Turn.text("original-pending-proposal", request -> {
+        var result = lastTool(request, "readRequirementDraft");
+        var pending = result.path("pendingProposal");
+        assertTrue(pending.isObject(), result.toString());
+        assertEquals(json.valueToTree(proposed), pending.path("draft"));
+        assertEquals(json.valueToTree(attempt.get().reference()), pending.path("attempt"));
+        assertEquals(input.generation(), pending.path("sourceGeneration").asText());
+        assertEquals(input.turnId(), pending.path("sourceTurnId").asText());
+        assertTrue(pending.path("base").isNull());
+        assertEquals("captureRequirementDraft", pending.path("toolName").asText());
+        assertEquals(rejected.get().path("issues"), pending.path("issues"));
+        assertTrue(pending.path("draft").toString().contains(LITERAL));
+        assertEquals("EMPTY", result.path("readiness").asText());
+        assertTrue(result.path("draft").isNull());
+        assertTrue(result.path("revision").isNull());
+        assertFalse(result.path("changed").asBoolean());
+        assertTrue(drafts.latestRevision(chat).isEmpty());
+        assertTrue(drafts.get(chat).isEmpty());
+        assertFalse(drafts.wasCapturedThisTurn(chat));
+        assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
+        assertEquals(constraintsBeforeRead.get(), json.valueToTree(drafts.repairConstraints(chat)));
+        assertEquals(attempt.get(), artifacts.get(attempt.get().compilationId(), attempt.get().reference()).orElseThrow());
+        assertEquals(latestDiagnostic.get(), artifacts.latest(sessions.current(chat).orElseThrow().compilationId(),
+            Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow());
+        assertEquals(persistedBeforeRead.get(), persistedState(), "Read must not mutate any durable state or credit.");
+      }, "The complete original proposal remains available without creating an accepted base."));
+    }
+    var script = new ScriptedStreamingChatModel(turns.toArray(Turn[]::new));
     doAnswer(call -> {
       ChatRequest request = call.getArgument(0);
       StreamingChatResponseHandler handler = call.getArgument(1);
@@ -206,7 +357,7 @@ class PendingRequirementCaptureReadProviderTest {
     gather.chat(chat, prompts.wrap(chat, source, "en"), new InvocationParameters())
         .collect().asList().await().atMost(Duration.ofSeconds(30));
     script.assertComplete();
-    assertEquals(3, script.requests().size());
+    assertEquals(updateWithoutBase ? 4 : 3, script.requests().size());
     assertEquals(limitsBefore, limits());
   }
 
