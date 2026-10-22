@@ -193,6 +193,18 @@ export const SEED_LOGGING: LoggingProperties = {
 };
 
 /**
+ * The fixtures the seed deploys with session logging `OFF`. A session at `DEBUG` records the body of
+ * every step, and the 8 MiB bodies of `specs/runtime/large-body.spec.ts` ran the chart's OpenSearch
+ * (512 MiB heap) out of memory, then into a crash loop while it replayed them from its translog.
+ */
+export const UNRECORDED_FIXTURES: ReadonlySet<string> = new Set(["large-body-echo", "script-large-body.yaml"]);
+
+/** The session logging the seed deploys fixture `fixture` with. */
+export function seedLogging(fixture: string): LoggingProperties {
+  return UNRECORDED_FIXTURES.has(fixture) ? { ...SEED_LOGGING, sessionsLoggingLevel: "OFF" } : SEED_LOGGING;
+}
+
+/**
  * The one fixture that deploys with a masked field, and the field it masks.
  *
  * The field is created between the import and the deploy for the same reason the logging level is:
@@ -361,7 +373,7 @@ export async function seedCorpus(
     `seed-${run}.zip`,
   );
 
-  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, SEED_LOGGING);
+  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, seedLogging(chain.fixture));
 
   const masked = chains.find((each) => each.fixture === MASKED_FIXTURE);
   if (masked) await catalog.createMaskedField(masked.id, MASKED_FIELD);
@@ -809,7 +821,7 @@ export async function seedMicroCorpus(
   const corpus: MicroCorpus = { run, domain: microDomainName(run), chains, services };
   writeMicroCorpusState(corpus);
 
-  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, SEED_LOGGING);
+  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, seedLogging(chain.fixture));
   // The build compiles the masked fields into the Integration, so the field exists before the deploy.
   const masked = chains.find((each) => each.fixture === MASKED_FIXTURE);
   if (masked) await catalog.createMaskedField(masked.id, MASKED_FIELD);

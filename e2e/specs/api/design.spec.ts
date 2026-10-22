@@ -271,6 +271,7 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   ...Object.fromEntries(
     LOG_LEVELS.map((value) => [axisFixtureName({ family: "log-record", axisPath: "logLevel", value }), { labels: [`logLevel=${value}`] }]),
   ),
+  "large-body-echo": { labels: ["Header Modification"] },
   "logging-level-debug": { labels: ["Probe Script"] },
   "logging-level-error": { labels: ["Probe Script"] },
   "logging-level-off": { labels: ["Probe Script"] },
@@ -323,6 +324,7 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
     labels: ["Seed Split", "Main Pass", "First Pass", "Second Pass"],
     blocks: ["par main", "else first", "else second"],
   },
+  "script-large-body.yaml": { labels: ["Digest Body"] },
   "script-libraries-datetime.yaml": { labels: ["Use Datetime"] },
   "script-libraries-jdk.yaml": { labels: ["Use Jdk"] },
   "script-libraries-json.yaml": { labels: ["Slurp Json", "Write Json"] },
