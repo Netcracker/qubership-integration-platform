@@ -78,8 +78,9 @@ class GatherRequirementsPromptBuilderTest {
   }
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-  void mandatoryInputSeparatesCompleteConstantsFromTheFullBehavior(boolean documentUnavailable) {
+  @org.junit.jupiter.params.provider.MethodSource("runtimeModes")
+  void mandatoryInputSeparatesCompleteConstantsFromTheFullBehavior(boolean documentUnavailable, boolean standalone) {
+    when(addonRepository.hasStandaloneSkills()).thenReturn(standalone);
     if (documentUnavailable) {
       when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
           .thenThrow(new IllegalStateException("skill unavailable"));
@@ -105,8 +106,9 @@ class GatherRequirementsPromptBuilderTest {
   }
 
   @org.junit.jupiter.params.ParameterizedTest
-  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-  void nativeRepairScopeReachesTheMandatoryPrompt(boolean documentUnavailable) {
+  @org.junit.jupiter.params.provider.MethodSource("runtimeModes")
+  void nativeRepairScopeReachesTheMandatoryPrompt(boolean documentUnavailable, boolean standalone) {
+    when(addonRepository.hasStandaloneSkills()).thenReturn(standalone);
     if (documentUnavailable) {
       when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
           .thenThrow(new IllegalStateException("skill unavailable"));
@@ -125,6 +127,14 @@ class GatherRequirementsPromptBuilderTest {
     } finally {
       ProductCapabilityCaptureContext.unbind("repair-scope");
     }
+  }
+
+  static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> runtimeModes() {
+    return java.util.stream.Stream.of(
+        org.junit.jupiter.params.provider.Arguments.of(false, false),
+        org.junit.jupiter.params.provider.Arguments.of(false, true),
+        org.junit.jupiter.params.provider.Arguments.of(true, false),
+        org.junit.jupiter.params.provider.Arguments.of(true, true));
   }
 
   @Test

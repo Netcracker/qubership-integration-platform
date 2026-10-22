@@ -20,6 +20,7 @@ Mentioned functionality is available on "**Deployments**" tab, that could be fou
 ### Deploy through Rocky
 
 With a chain open, a request such as `Deploy this chain to domain default` starts the deployment conversation.
+Deploying an existing chain remains available without the private `rocky-skills` package.
 Rocky asks for confirmation before replacing an existing deployment, then automatically asks for the session logging level.
 The level choices correspond to Off, Error, Info, and Debug. Other logging settings keep their existing values.
 

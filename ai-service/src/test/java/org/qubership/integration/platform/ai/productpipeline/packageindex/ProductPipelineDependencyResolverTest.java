@@ -17,7 +17,7 @@ class ProductPipelineDependencyResolverTest {
   @Test
   void failsClosedWhenMandatorySkillMissing() {
     Path packRoot = CipKnowledgePackFixturePaths.packRoot();
-    Path repoRoot = packRoot.getParent();
+    Path repoRoot = CipKnowledgePackFixturePaths.repositoryRoot();
     CapabilityManifest broken =
         new CapabilityManifest(
             1,
@@ -32,25 +32,25 @@ class ProductPipelineDependencyResolverTest {
     IllegalStateException error =
         assertThrows(
             IllegalStateException.class,
-            () -> resolver.resolveClosure(repoRoot, List.of(broken), List.of()));
+            () -> resolver.resolveClosure(repoRoot, packRoot, List.of(broken), List.of()));
     assertTrue(error.getMessage().contains("missing-skill-xyz"));
   }
 
   @Test
   void closureContainsOnlySkillAddonAndRulePins() {
     Path packRoot = CipKnowledgePackFixturePaths.packRoot();
-    Path repoRoot = packRoot.getParent();
+    Path repoRoot = CipKnowledgePackFixturePaths.repositoryRoot();
     List<CapabilityManifest> capabilities =
-        resolver.loadCapabilities(packRoot.resolve("product-pipelines"));
+        resolver.loadCapabilities(ProductPipelinePackageIndexBuilder.productPipelinesRoot(packRoot));
 
     List<DependencyPin> pins =
-        resolver.resolveClosure(repoRoot, capabilities, List.of());
+        resolver.resolveClosure(repoRoot, packRoot, capabilities, List.of());
 
     assertFalse(pins.isEmpty());
     assertTrue(
         pins.stream()
             .allMatch(
                 pin ->
-                    Set.of("skill", "addon", "rule").contains(pin.kind())));
+                    Set.of("skill", "addon", "runtime-metadata", "rule").contains(pin.kind())));
   }
 }

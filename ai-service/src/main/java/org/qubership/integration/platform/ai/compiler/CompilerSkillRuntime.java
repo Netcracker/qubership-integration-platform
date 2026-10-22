@@ -1319,9 +1319,7 @@ public class CompilerSkillRuntime {
         HttpTriggerCaptureSession.get(conversationId).orElseThrow();
     StringBuilder text = new StringBuilder();
     text.append("\n\n## Active HTTP trigger capture\n\n");
-    text.append("Call captureHttpTriggers with endpoints only. This tool replaces ");
-    text.append("captureConfiguredTriggerSet for this HTTP-only run. Do not send trigger ");
-    text.append("properties or copy JSON examples above. Use each approved role and node once.\n");
+    text.append("Active capture tool: captureHttpTriggers\n");
     text.append("Approved role ids: ")
         .append(String.join(", ", binding.skeleton().entryPointRoleIds())).append("\n");
     for (var entry : binding.revision().entryPoints()) {
@@ -1334,8 +1332,7 @@ public class CompilerSkillRuntime {
             .append(approved.path()).append("\n");
       }
     }
-    text.append("externalRoute must be a JSON boolean. Choose true only for an ");
-    text.append("explicit external or public route; otherwise choose false.\n");
+
     return text.toString();
   }
 

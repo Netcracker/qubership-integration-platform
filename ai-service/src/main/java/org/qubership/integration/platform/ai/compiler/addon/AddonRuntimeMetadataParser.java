@@ -33,6 +33,21 @@ public final class AddonRuntimeMetadataParser {
   private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
   public AddonRuntimeMetadata parseAddonContent(String content, String sourceLabel) {
+    if (content.stripLeading().startsWith("{")) {
+      try {
+        JsonNode node = yamlMapper.readTree(content).path("runtime");
+        if (node.isMissingNode() || node.isNull()) {
+          return null;
+        }
+        AddonRuntimeMetadata metadata = yamlMapper.treeToValue(node, AddonRuntimeMetadata.class);
+        if (!metadata.promoted() || metadata.category() == null || metadata.category().isBlank()) {
+          throw new CompilerGeneratorPolicyParseException("Invalid runtime definition: " + sourceLabel);
+        }
+        return metadata;
+      } catch (IOException e) {
+        throw new CompilerGeneratorPolicyParseException("Invalid runtime definition: " + sourceLabel, e);
+      }
+    }
     Matcher sectionMatcher = RUNTIME_SECTION.matcher(content);
     if (!sectionMatcher.find()) {
       return null;

@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
@@ -681,7 +682,9 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .transform(RequirementAnalysisCapability::tokenText);
           }
           if (productDiscoveryAgent != null) {
-            return productDiscoveryAgent.chat(context.conversationId(), message,
+            return productDiscoveryAgent.chat(context.conversationId(),
+                QuteUserMessageEscaping.escapeForAiServiceUserMessage(
+                    new RockySkills().instructions("cip-conf-requirement-analysis")) + "\n\n" + message,
                 ProductCapabilityCaptureContext.invocationParameters(binding));
           }
           if (discoveryAgent == null) {

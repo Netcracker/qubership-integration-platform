@@ -21,12 +21,7 @@ import java.util.Set;
 public final class CipKnowledgeExportValidator {
 
   public static final Path EXPORT_RELATIVE_PATH =
-      Path.of(
-          ".apm",
-          "skills",
-          "cip-runtime-context-loader",
-          "assets",
-          "knowledge-export");
+      Path.of("knowledge-export");
 
   private static final List<String> CAPABILITY_FILES =
       List.of(

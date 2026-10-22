@@ -16,6 +16,7 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditClarificationStore;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditEscalationStore;
@@ -67,6 +68,9 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 @ApplicationScoped
 @ForScenario(ScenarioType.COMPARE_AND_PATCH)
 public class ChainPatchScenario implements ScenarioHandler {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private static final Logger LOG = Logger.getLogger(ChainPatchScenario.class);
 
@@ -120,6 +124,10 @@ public class ChainPatchScenario implements ScenarioHandler {
   @Override
   public Multi<ChatEvent> handle(
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
+    if (!rockySkills.available()) {
+      return Multi.createFrom().item(ChatEvent.token(
+          RockySkills.UNAVAILABLE));
+    }
     ChatDecisionCommand decision = request == null ? null : request.getDecision();
     if (decision != null
         && (ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(decision.getAction())

@@ -38,7 +38,7 @@ public final class ProductPipelineDependencyResolver {
   }
 
   public List<DependencyPin> resolveClosure(
-      Path repoRoot, List<CapabilityManifest> capabilities, List<String> dynamicSkills) {
+      Path repoRoot, Path packRoot, List<CapabilityManifest> capabilities, List<String> dynamicSkills) {
     Set<String> skillIds = new LinkedHashSet<>();
     Set<String> addonIds = new LinkedHashSet<>();
     Set<String> ruleIds = new LinkedHashSet<>();
@@ -53,13 +53,13 @@ public final class ProductPipelineDependencyResolver {
 
     List<DependencyPin> pins = new ArrayList<>();
     for (String skillId : skillIds) {
-      pins.add(pinSkill(repoRoot, skillId));
+      pins.add(pinSkill(repoRoot, packRoot, skillId));
     }
     for (String addonId : addonIds) {
-      pins.add(pinAddon(repoRoot, addonId));
+      pins.add(pinAddon(repoRoot, packRoot, addonId));
     }
     for (String ruleId : ruleIds) {
-      pins.add(pinRule(repoRoot, ruleId));
+      pins.add(pinRule(repoRoot, packRoot, ruleId));
     }
     pins.sort(Comparator.comparing(DependencyPin::dependencyId).thenComparing(DependencyPin::kind));
     return List.copyOf(pins);
@@ -96,15 +96,18 @@ public final class ProductPipelineDependencyResolver {
           readArtifactRefs(root.path("produces")),
           readStringList(root.path("skills").path("required")),
           textOr(root.path("skills").path("dynamicSet"), "none"),
-          readStringList(root.path("addons").path("required")),
+          readStringList(root.path(root.has("runtimeMetadata") ? "runtimeMetadata" : "addons").path("required")),
           readStringList(root.path("rules").path("required")));
     } catch (IOException e) {
       throw new IllegalStateException("cannot parse capability " + file, e);
     }
   }
 
-  private DependencyPin pinSkill(Path repoRoot, String skillId) {
-    Path path = repoRoot.resolve("integration-platform-skills/.apm/skills/" + skillId + "/SKILL.md");
+  private DependencyPin pinSkill(Path repoRoot, Path packRoot, String skillId) {
+    Path path = packRoot.resolve("skills/" + skillId + "/SKILL.md");
+    if (!Files.isRegularFile(path)) {
+      path = packRoot.resolve(".apm/skills/" + skillId + "/SKILL.md");
+    }
     if (Files.isRegularFile(path)) {
       return new DependencyPin(
           skillId,
@@ -113,6 +116,11 @@ public final class ProductPipelineDependencyResolver {
           sha256(path),
           ReferenceDisposition.ADOPTED,
           null);
+    }
+    Path runtime = packRoot.resolve("runtime/skills/" + skillId + ".json");
+    if (Files.isRegularFile(runtime)) {
+      return new DependencyPin(skillId, "runtime-metadata", relativize(repoRoot, runtime), sha256(runtime),
+          ReferenceDisposition.TARGET_ONLY, "Java stage definition");
     }
     if ("plan-validator".equals(skillId)) {
       Path prompt =
@@ -130,9 +138,13 @@ public final class ProductPipelineDependencyResolver {
     throw new IllegalStateException("unreachable");
   }
 
-  private DependencyPin pinAddon(Path repoRoot, String addonId) {
-    Path path =
-        repoRoot.resolve("integration-platform-skills/addons/skills/" + addonId + ".addon.md");
+  private DependencyPin pinAddon(Path repoRoot, Path packRoot, String addonId) {
+    Path data = packRoot.resolve("runtime/skills/" + addonId + ".json");
+    if (Files.isRegularFile(data)) {
+      return new DependencyPin(addonId, "runtime-metadata", relativize(repoRoot, data), sha256(data),
+          ReferenceDisposition.TARGET_ONLY, "Machine-only capability definition");
+    }
+    Path path = packRoot.resolve("addons/skills/" + addonId + ".addon.md");
     requireFile(path, "addon", addonId);
     return new DependencyPin(
         addonId,
@@ -143,9 +155,9 @@ public final class ProductPipelineDependencyResolver {
         "ai-service addon with no reference counterpart");
   }
 
-  private DependencyPin pinRule(Path repoRoot, String ruleId) {
+  private DependencyPin pinRule(Path repoRoot, Path packRoot, String ruleId) {
     Path product =
-        repoRoot.resolve("integration-platform-skills/product-pipelines/rules/" + ruleId + ".yaml");
+        ProductPipelinePackageIndexBuilder.productPipelinesRoot(packRoot).resolve("rules/" + ruleId + ".yaml");
     if (Files.isRegularFile(product)) {
       return new DependencyPin(
           ruleId,
@@ -164,7 +176,7 @@ public final class ProductPipelineDependencyResolver {
           ReferenceDisposition.TARGET_ONLY,
           "generated pack index / schema contract");
     }
-    Path path = repoRoot.resolve("integration-platform-skills/.apm/instructions/" + ruleId + ".md");
+    Path path = packRoot.resolve("instructions/" + ruleId + ".md");
     requireFile(path, "rule", ruleId);
     return new DependencyPin(
         ruleId, "rule", relativize(repoRoot, path), sha256(path), ReferenceDisposition.ADOPTED, null);

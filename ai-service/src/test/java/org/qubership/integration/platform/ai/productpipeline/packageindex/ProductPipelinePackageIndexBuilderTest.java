@@ -16,13 +16,14 @@ class ProductPipelinePackageIndexBuilderTest {
   @Test
   void buildsIndexWithOnlySkillAddonAndRulePins() {
     Path packRoot = CipKnowledgePackFixturePaths.packRoot();
-    Path repoRoot = packRoot.getParent();
+    Path repoRoot = CipKnowledgePackFixturePaths.repositoryRoot();
 
     ProductPipelinePackageIndex index =
         new ProductPipelinePackageIndexBuilder()
             .build(repoRoot, packRoot, List.of("cip-auth-generator"));
 
-    assertEquals("experimental-migration", index.baselineId());
+    assertEquals(java.nio.file.Files.isRegularFile(packRoot.resolve("runtime/generator-contracts.json"))
+        ? "rocky-skills" : "experimental-migration", index.baselineId());
     assertFalse(index.dependencyPins().isEmpty());
     assertTrue(
         index.dependencyPins().stream()
@@ -41,12 +42,12 @@ class ProductPipelinePackageIndexBuilderTest {
   @Test
   void shuffledPinsProduceStableClosureDigest() {
     Path packRoot = CipKnowledgePackFixturePaths.packRoot();
-    Path repoRoot = packRoot.getParent();
+    Path repoRoot = CipKnowledgePackFixturePaths.repositoryRoot();
     ProductPipelineDependencyResolver resolver = new ProductPipelineDependencyResolver();
     List<CapabilityManifest> capabilities =
-        resolver.loadCapabilities(packRoot.resolve("product-pipelines"));
+        resolver.loadCapabilities(ProductPipelinePackageIndexBuilder.productPipelinesRoot(packRoot));
     List<DependencyPin> pins =
-        new ArrayList<>(resolver.resolveClosure(repoRoot, capabilities, List.of()));
+        new ArrayList<>(resolver.resolveClosure(repoRoot, packRoot, capabilities, List.of()));
     String first = resolver.closureDigest(pins);
     Collections.reverse(pins);
     String second = resolver.closureDigest(pins);

@@ -17,12 +17,20 @@ public final class CipKnowledgePackFixturePaths {
     return resolveRepoPath(System.getProperty("qip.test.pack-root", "target/public-pack-fixture/" + PACK_DIR));
   }
 
+  public static Path repositoryRoot() {
+    Path parent = packRoot().getParent();
+    return ".private".equals(parent.getFileName().toString()) ? parent.getParent() : parent;
+  }
+
   public static Path addonRoot() {
-    return packRoot().resolve(ADDON_PACK_DIR);
+    Path runtime = packRoot().resolve("runtime");
+    return Files.isDirectory(runtime) ? runtime : packRoot().resolve(ADDON_PACK_DIR);
   }
 
   public static Path knowledgeRoot() {
-    return packRoot().resolve("knowledge");
+    return Files.isRegularFile(packRoot().resolve("runtime/generator-contracts.json"))
+        ? packRoot().resolveSibling("rocky-skills-maintenance").resolve("tests/knowledge")
+        : packRoot().resolve("knowledge");
   }
 
   public static CipKnowledgePackVersion packVersion() {

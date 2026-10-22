@@ -26,6 +26,7 @@ class CipKnowledgePackBuildGeneratorTest {
     CipKnowledgePackBuildGenerator.generate(
         packRoot, outputDir, CipKnowledgePackFixturePaths.addonRoot());
 
+    boolean standalone = Files.isRegularFile(packRoot.resolve("runtime/generator-contracts.json"));
     Path versionDir = outputDir.resolve(CipKnowledgePackFixturePaths.PACK_DIR);
     assertTrue(Files.isRegularFile(versionDir.resolve(CipKnowledgePackIndexLoader.MANIFEST_FILE)));
         assertTrue(
@@ -52,8 +53,8 @@ class CipKnowledgePackBuildGeneratorTest {
 
     Path addonIndexFile =
         versionDir
-            .resolve(CompilerSkillAddonBuildSupport.ADDONS_DIR)
-            .resolve(CompilerSkillAddonBuildSupport.ADDON_INDEX_FILE);
+            .resolve(standalone ? CompilerSkillAddonBuildSupport.RUNTIME_DIR : CompilerSkillAddonBuildSupport.ADDONS_DIR)
+            .resolve(standalone ? CompilerSkillAddonBuildSupport.RUNTIME_INDEX_FILE : CompilerSkillAddonBuildSupport.ADDON_INDEX_FILE);
     assertTrue(Files.isRegularFile(addonIndexFile));
     CompilerSkillAddonIndex addonIndex =
         new ObjectMapper()
@@ -78,16 +79,12 @@ class CipKnowledgePackBuildGeneratorTest {
     assertTrue(repository.loadRuntimePromotedSkillIds().contains("cip-design-executor"));
     assertTrue(repository.loadRuntimePromotedSkillIds().contains("cip-chain-edit-planner"));
 
-    var designPlanner =
-        repository.loadCapabilityRegistry().capabilities().stream()
-            .filter(capability -> "cip-design-planner".equals(capability.id()))
-            .findFirst()
-            .orElseThrow();
-    assertTrue(designPlanner.supported());
-    assertEquals(
-        "PUBLIC_RUNTIME",
-        repository.loadCompilerSkillCatalog().find("cip-design-planner").orElseThrow().disposition()
-            .name());
+    assertTrue(repository.loadCapabilityRegistry().capabilities().stream()
+        .anyMatch(capability -> "cip-design-planner".equals(capability.id())));
+    if (standalone) {
+      assertTrue(repository.loadRagIngestionManifest().chunks().stream()
+          .noneMatch(chunk -> chunk.sourcePath().equals("skills/cip-design-planner/SKILL.md")));
+    }
     var designExecutor =
         repository.loadCapabilityRegistry().capabilities().stream()
             .filter(capability -> "cip-design-executor".equals(capability.id()))

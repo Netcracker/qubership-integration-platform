@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
@@ -55,6 +56,9 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
  */
 @ApplicationScoped
 public class CreateChainApplicationFacade {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private static final Logger LOG =
       Logger.getLogger(CreateChainApplicationFacade.class);
@@ -145,6 +149,7 @@ public class CreateChainApplicationFacade {
 
   /** Starts or resumes create-chain for {@code taskId} (== conversationId). */
   public Multi<CreateChainEvent> start(StartCreateChainCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     selectionService.selectOrCreate(taskId, command.requirementText());
@@ -199,6 +204,7 @@ public class CreateChainApplicationFacade {
 
   /** Continues the same durable run with clarification input. */
   public Multi<CreateChainEvent> continueWithInput(ContinueCreateChainCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     selectionService.selectOrCreate(taskId);
@@ -248,6 +254,7 @@ public class CreateChainApplicationFacade {
 
   /** Creates a derived run and resumes it from the selected durable checkpoint. */
   public Multi<CreateChainEvent> restart(RestartCreateChainCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument active =
@@ -329,6 +336,7 @@ public class CreateChainApplicationFacade {
 
   /** Approves the current expected artifact or recovers a blocked implementation gate. */
   public ApproveCreateChainOutcome approve(ApproveCreateChainArtifactCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument doc =
@@ -411,12 +419,12 @@ public class CreateChainApplicationFacade {
     }
   }
 
-
   /**
    * Validates an approve command without starting pipeline work. Empty means the command may
    * stream; a present value is a typed rejection.
    */
   public Optional<ApproveCreateChainOutcome> validateApprove(ApproveCreateChainArtifactCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument doc =
@@ -498,6 +506,7 @@ public class CreateChainApplicationFacade {
    * second runtime approval.
    */
   public Multi<CreateChainEvent> streamApprove(ApproveCreateChainArtifactCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument doc =
@@ -536,6 +545,7 @@ public class CreateChainApplicationFacade {
    * #streamApprove} it already relies on.
    */
   public Multi<CreateChainEvent> streamApproveOnly(ApproveCreateChainArtifactCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument doc =
@@ -586,6 +596,7 @@ public class CreateChainApplicationFacade {
    * stale card cannot create a chain from a plan that was revised in the meantime.
    */
   public Multi<CreateChainEvent> streamCreateChain(String taskId, String planHash, long revision) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(taskId, "taskId");
     ProductPipelineRunDocument doc =
         runStore
@@ -1393,7 +1404,6 @@ public class CreateChainApplicationFacade {
     }
     return text;
   }
-
 
   private Optional<CreateChainEvent.ArtifactReady> materializationArtifact(
       String taskId, ProductPipelineRunDocument doc) {

@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.knowledge;
 
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.health.HealthCheck;
@@ -12,6 +13,9 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 @ApplicationScoped
 public class KnowledgeSidecarReadinessCheck implements HealthCheck {
 
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
+
   private final KnowledgeSidecarApi api;
 
   @Inject
@@ -21,6 +25,10 @@ public class KnowledgeSidecarReadinessCheck implements HealthCheck {
 
   @Override
   public HealthCheckResponse call() {
+    if (!rockySkills.available()) {
+      return HealthCheckResponse.named("knowledge-sidecar").up()
+          .withData("required", false).build();
+    }
     try {
       KnowledgeSidecarApi.HealthDto ready = api.ready();
       if (ready == null || !"ok".equalsIgnoreCase(ready.status())) {

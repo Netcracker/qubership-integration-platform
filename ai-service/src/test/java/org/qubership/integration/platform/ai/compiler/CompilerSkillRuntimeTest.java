@@ -735,6 +735,9 @@ class CompilerSkillRuntimeTest {
           assertEquals(approved.brief(), captureSession.get(
               CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, CONVERSATION_ID),
               org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief.class).orElseThrow());
+          String prompt = invocation.getArgument(1, String.class);
+          assertTrue(prompt.contains("Active capture tool: captureHttpTriggers"));
+          assertFalse(prompt.contains("This tool replaces"));
           var binding = HttpTriggerCaptureSession.get(CONVERSATION_ID).orElseThrow();
           var triggers = new HttpTriggerCaptureAdapter().adapt(
               new HttpTriggerCapture(List.of(new HttpTriggerCapture.Endpoint(
@@ -787,7 +790,7 @@ class CompilerSkillRuntimeTest {
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
     verify(scriptBodyRepairAgent).chat(eq(memoryId(SCRIPT_GENERATOR_ID)), message.capture());
     assertTrue(message.getValue().contains("Runtime Context Package"));
-    assertTrue(message.getValue().contains("package: fixture@1.0.0"));
+    assertFalse(message.getValue().contains("package: fixture@1.0.0"));
     assertEquals(1, knowledgeClient.contextCalls());
   }
 

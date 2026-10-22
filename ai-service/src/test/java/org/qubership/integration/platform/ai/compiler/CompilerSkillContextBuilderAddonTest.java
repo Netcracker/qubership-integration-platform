@@ -36,6 +36,7 @@ class CompilerSkillContextBuilderAddonTest {
 
   private CompilerSkillContextBuilder contextBuilder;
   private CompilerSkillDocumentService documentService;
+  private CompilerSkillAddonRepository addonRepository;
   private String previousAddonPackRoot;
 
   @BeforeEach
@@ -66,8 +67,8 @@ class CompilerSkillContextBuilderAddonTest {
     CipKnowledgePackVersion version = CipKnowledgePackFixturePaths.packVersion();
     FilesystemCipKnowledgePackRepository repository =
         new FilesystemCipKnowledgePackRepository(outputDir, version);
-    CompilerSkillAddonRepository addonRepository =
-        CompilerSkillAddonRepository.forFilesystem(outputDir, version, getClass().getClassLoader());
+    addonRepository = org.mockito.Mockito.spy(
+        CompilerSkillAddonRepository.forFilesystem(outputDir, version, getClass().getClassLoader()));
     documentService = new CompilerSkillDocumentService(repository);
     CompilerSkillRuntimeEligibility runtimeEligibility =
         new CompilerSkillRuntimeEligibility(repository);
@@ -487,8 +488,10 @@ class CompilerSkillContextBuilderAddonTest {
     assertTrue(message.contains("Catch scripts vs try-path scripts"));
   }
 
-  @Test
-  void scriptProductionAndRepairReceiveTheSameExecutableLiteralContract() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void scriptProductionAndRepairReceiveTheSameExecutableLiteralContract(boolean standalone) {
+    org.mockito.Mockito.doReturn(standalone).when(addonRepository).hasStandaloneSkills();
     CompilerSkillDocument document = documentService.loadByCapabilityId("cip-script-generator");
     String behavior = "Copy the original identifier to the result and prepend the approved label.";
     String brief = "{\"text\":\"" + behavior + "\",\"exactValues\":[\"Ready \",\"a=b\"]}";

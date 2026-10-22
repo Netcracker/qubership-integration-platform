@@ -11,8 +11,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -141,6 +139,14 @@ public class ProductPipelineRuntimeProducers {
     return new CompilerRunPinResolver(
         packRepository.loadCompilerPipelineIndex(),
         skillId -> {
+          // These stages run in Java; pin their machine definitions rather than placeholder prompts.
+          if (Set.of("cip-design-planner", "cip-design-executor").contains(skillId)) {
+            String hash = packRepository.loadManifest().addonSha256().get(skillId);
+            if (hash == null || hash.isBlank()) {
+              throw new IllegalStateException("Missing Java stage definition: " + skillId);
+            }
+            return hash;
+          }
           CompilerSkillDocument document = skillDocuments.loadByCapabilityId(skillId);
           return sha256Hex(document.markdown());
         });
@@ -241,22 +247,6 @@ public class ProductPipelineRuntimeProducers {
   }
 
   private static ArtifactSchemaRegistry loadArtifactSchemas() {
-    Path[] candidates =
-        new Path[] {
-          Path.of("integration-platform-skills/product-pipelines/artifact-schemas.yaml"),
-          Path.of("../integration-platform-skills/product-pipelines/artifact-schemas.yaml"),
-          Path.of(
-              "ai-service/../integration-platform-skills/product-pipelines/artifact-schemas.yaml")
-        };
-    for (Path candidate : candidates) {
-      if (Files.isRegularFile(candidate)) {
-        try (InputStream in = Files.newInputStream(candidate)) {
-          return parseArtifactSchemas(in);
-        } catch (IOException e) {
-          throw new UncheckedIOException("cannot read artifact schemas: " + candidate, e);
-        }
-      }
-    }
     InputStream classpath =
         ProductPipelineRuntimeProducers.class.getResourceAsStream(
             "/product-pipelines/artifact-schemas.yaml");
@@ -297,22 +287,6 @@ public class ProductPipelineRuntimeProducers {
   }
 
   private static ProductPipelineProfile loadProfile(String fileName) {
-    Path[] candidates =
-        new Path[] {
-          Path.of("integration-platform-skills/product-pipelines/profiles/" + fileName),
-          Path.of("../integration-platform-skills/product-pipelines/profiles/" + fileName),
-          Path.of(
-              "ai-service/../integration-platform-skills/product-pipelines/profiles/" + fileName)
-        };
-    for (Path candidate : candidates) {
-      if (Files.isRegularFile(candidate)) {
-        try (InputStream in = Files.newInputStream(candidate)) {
-          return ProductPipelineProfileParser.parse(in);
-        } catch (IOException e) {
-          throw new UncheckedIOException("cannot read profile: " + candidate, e);
-        }
-      }
-    }
     InputStream classpath =
         ProductPipelineRuntimeProducers.class.getResourceAsStream(
             "/product-pipelines/profiles/" + fileName);

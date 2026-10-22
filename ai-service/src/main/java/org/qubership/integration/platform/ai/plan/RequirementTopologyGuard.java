@@ -162,7 +162,7 @@ public class RequirementTopologyGuard {
         // Worktree path for unit tests that do not copy skills resources onto the classpath.
         try (InputStream fallback =
             java.nio.file.Files.newInputStream(
-                java.nio.file.Path.of("integration-platform-skills")
+                java.nio.file.Path.of("rocky-skills")
                     .resolve(RULE_RESOURCE)
                     .toAbsolutePath()
                     .normalize())) {

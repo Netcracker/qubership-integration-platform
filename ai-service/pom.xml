@@ -53,8 +53,9 @@
             https://github.com/Netcracker/qubership-integration-schemas/archive/refs/heads/main.tar.gz
         </qip.schemas.download.url>
         <qip.ai.qipknowledge.build.skip>true</qip.ai.qipknowledge.build.skip>
-        <qip.ai.qipknowledge.pack-root></qip.ai.qipknowledge.pack-root>
-        <qip.ai.qipknowledge.addon-pack-root></qip.ai.qipknowledge.addon-pack-root>
+        <qip.ai.qipknowledge.pack-root>${project.basedir}/../.private/rocky-skills</qip.ai.qipknowledge.pack-root>
+        <qip.knowledge.export>${project.basedir}/../.private/rocky-knowledge</qip.knowledge.export>
+        <qip.ai.qipknowledge.skill-metadata-root>${qip.ai.qipknowledge.pack-root}/runtime</qip.ai.qipknowledge.skill-metadata-root>
         <qip.ai.qipknowledge.knowledge-overlay></qip.ai.qipknowledge.knowledge-overlay>
         <qip.ai.qipknowledge.output-root>${project.build.outputDirectory}/qipknowledge</qip.ai.qipknowledge.output-root>
         <qip.test.pack-root>${project.build.directory}/public-pack-fixture/integration-platform-skills</qip.test.pack-root>
@@ -411,8 +412,12 @@
                             </arguments>
                             <systemProperties>
                                 <systemProperty>
-                                    <key>qip.ai.qipknowledge.addon-pack-root</key>
-                                    <value>${qip.ai.qipknowledge.addon-pack-root}</value>
+                                    <key>qip.knowledge.export</key>
+                                    <value>${qip.knowledge.export}</value>
+                                </systemProperty>
+                                <systemProperty>
+                                    <key>qip.ai.qipknowledge.skill-metadata-root</key>
+                                    <value>${qip.ai.qipknowledge.skill-metadata-root}</value>
                                 </systemProperty>
                                 <systemProperty>
                                     <key>qip.ai.qipknowledge.knowledge-overlay</key>
@@ -439,9 +444,38 @@
                             <outputDirectory>${project.build.directory}/knowledge-runtime</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>${project.basedir}/../integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export</directory>
+                                    <directory>${qip.knowledge.export}</directory>
                                 </resource>
                             </resources>
+                            <overwrite>true</overwrite>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>stage-rocky-source-manifest</id>
+                        <phase>process-resources</phase>
+                        <goals><goal>copy-resources</goal></goals>
+                        <configuration>
+                            <skip>${qip.ai.qipknowledge.build.skip}</skip>
+                            <outputDirectory>${project.build.outputDirectory}/META-INF/rocky-skills</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${qip.ai.qipknowledge.pack-root}</directory>
+                                    <includes><include>manifest.json</include><include>skills/**/SKILL.md</include></includes>
+                                </resource>
+                            </resources>
+                            <overwrite>true</overwrite>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>stage-rocky-product-pipelines</id>
+                        <phase>process-resources</phase>
+                        <goals><goal>copy-resources</goal></goals>
+                        <configuration>
+                            <skip>${qip.ai.qipknowledge.build.skip}</skip>
+                            <outputDirectory>${project.build.outputDirectory}/product-pipelines</outputDirectory>
+                            <resources><resource>
+                                <directory>${qip.ai.qipknowledge.pack-root}/runtime/product-pipelines</directory>
+                            </resource></resources>
                             <overwrite>true</overwrite>
                         </configuration>
                     </execution>
@@ -469,6 +503,14 @@
                 <artifactId>groovy-maven-plugin</artifactId>
                 <version>2.1.1</version>
                 <executions>
+                    <execution>
+                        <id>clear-private-build-output</id>
+                        <phase>initialize</phase>
+                        <goals><goal>execute</goal></goals>
+                        <configuration>
+                            <source>${project.basedir}/scripts/clear-private-build-output.groovy</source>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>merge-system-prompts</id>
                         <phase>process-resources</phase>
@@ -582,7 +624,7 @@
         <profile>
             <id>certified-pack-tests</id>
             <properties>
-                <qip.test.pack-root>${project.basedir}/../integration-platform-skills</qip.test.pack-root>
+                <qip.test.pack-root>${project.basedir}/../.private/rocky-skills</qip.test.pack-root>
 
                 <qip.test.excluded-groups></qip.test.excluded-groups>
                 <qip.test.groups>certified-pack</qip.test.groups>
@@ -603,8 +645,12 @@
                                     </arguments>
                                     <systemProperties>
                                         <systemProperty>
-                                            <key>qip.ai.qipknowledge.addon-pack-root</key>
-                                            <value>${qip.test.pack-root}/addons</value>
+                                            <key>qip.knowledge.export</key>
+                                    <value>${qip.knowledge.export}</value>
+                                </systemProperty>
+                                <systemProperty>
+                                    <key>qip.ai.qipknowledge.skill-metadata-root</key>
+                                            <value>${qip.test.pack-root}/runtime</value>
                                         </systemProperty>
                                     </systemProperties>
                                 </configuration>
@@ -621,16 +667,12 @@
             </properties>
         </profile>
         <profile>
-            <id>with-knowledge</id>
-            <activation>
-                <file>
-                    <exists>../integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export/manifest.yaml</exists>
-                </file>
-            </activation>
+            <id>with-rocky-skills</id>
+
             <properties>
                 <qip.ai.qipknowledge.build.skip>false</qip.ai.qipknowledge.build.skip>
-                <qip.ai.qipknowledge.pack-root>${project.basedir}/../integration-platform-skills</qip.ai.qipknowledge.pack-root>
-                <qip.ai.qipknowledge.addon-pack-root>${project.basedir}/../integration-platform-skills/addons</qip.ai.qipknowledge.addon-pack-root>
+                <qip.ai.qipknowledge.pack-root>${project.basedir}/../.private/rocky-skills</qip.ai.qipknowledge.pack-root>
+                <qip.ai.qipknowledge.skill-metadata-root>${qip.ai.qipknowledge.pack-root}/runtime</qip.ai.qipknowledge.skill-metadata-root>
             </properties>
         </profile>
         <profile>

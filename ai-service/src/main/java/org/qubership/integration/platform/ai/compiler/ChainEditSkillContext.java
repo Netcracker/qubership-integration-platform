@@ -66,6 +66,10 @@ public final class ChainEditSkillContext {
   }
 
   public static String render(SkillWorkspace workspace) {
+    return render(workspace, false);
+  }
+
+  public static String render(SkillWorkspace workspace, boolean dataOnly) {
     ChainEditIntent intent =
         workspace
             .get(SkillArtifactType.CHAIN_EDIT_INTENT)
@@ -99,7 +103,11 @@ public final class ChainEditSkillContext {
       }
     }
     if (structuralPlan != null) {
-      appendStructuralPlan(body, structuralPlan);
+      appendStructuralPlan(body, structuralPlan, dataOnly);
+    }
+    if (dataOnly) {
+      body.append("- disposition: ").append(intent.disposition()).append('\n');
+      return body.toString();
     }
     if (intent != null
         && intent.action() == ChainEditAction.ADD_ELEMENTS
@@ -215,7 +223,8 @@ public final class ChainEditSkillContext {
     return body.toString();
   }
 
-  private static void appendStructuralPlan(StringBuilder body, ChainEditStructuralPlan plan) {
+  private static void appendStructuralPlan(
+      StringBuilder body, ChainEditStructuralPlan plan, boolean dataOnly) {
     body.append("Validated structural plan (follow these branch assignments; do not choose a")
         .append(" failure-delivery strategy again):\n");
     body.append("- failureDelivery: ").append(plan.failureDelivery()).append('\n');
@@ -237,6 +246,9 @@ public final class ChainEditSkillContext {
     }
     if (plan.reporterSchemaVariant() != null) {
       body.append("- reporterSchemaVariant: ").append(plan.reporterSchemaVariant()).append('\n');
+    }
+    if (dataOnly) {
+      return;
     }
     if (plan.failureDelivery() == FailureDeliveryStrategy.OM_TASK_RESULT) {
       body.append(
