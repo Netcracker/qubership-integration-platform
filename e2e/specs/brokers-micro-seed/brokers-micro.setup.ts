@@ -19,7 +19,7 @@ const BROKERS_MICRO_SEED_TIMEOUT =
 
 test(
   "the micro copy of the broker corpus is imported, deployed to a micro domain, and answering",
-  { tag: ["@catalog", "@engine", "@tier1"] },
+  { tag: ["@catalog", "@engine"] },
   async ({ catalog, env, run }) => {
     test.setTimeout(BROKERS_MICRO_SEED_TIMEOUT);
     const corpus = await seedMicroBrokers(catalog, env, run);

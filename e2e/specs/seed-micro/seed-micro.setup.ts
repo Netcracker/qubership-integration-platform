@@ -17,7 +17,7 @@ const SEED_MICRO_TIMEOUT = 2 * corpusRequestTimeout(corpusChainNames().length) +
 
 test(
   "the micro copy of the corpus is imported, deployed to a micro domain, and answering",
-  { tag: ["@catalog", "@engine", "@tier1"] },
+  { tag: ["@catalog", "@engine"] },
   async ({ catalog, env, run }) => {
     test.setTimeout(SEED_MICRO_TIMEOUT);
     const { corpus, readyMs } = await seedMicroCorpus(catalog, env, run);

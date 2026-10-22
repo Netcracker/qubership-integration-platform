@@ -26,53 +26,55 @@ import { tokenized } from "../../support/run.js";
 /** The first crash took 25 to 30 s from the deploy; the rest is building the chains and the delete. */
 const CASE_TIMEOUT = MICRO_READY_TIMEOUT + 60_000;
 
-test("a chain that fails to load takes its micro domain down, and the catalog reports the domain's engine not ready", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ request, catalog, folder, run }) => {
-  test.setTimeout(CASE_TIMEOUT);
-  const variable = tokenized(run, "broken-chain-missing");
+test.describe("micro domain with a broken chain", { tag: ["@engine", "@catalog", "@slow"] }, () => {
+  test("goes down and the catalog reports its engine not ready", async ({ request, catalog, folder, run }) => {
+    test.setTimeout(CASE_TIMEOUT);
+    const variable = tokenized(run, "broken-chain-missing");
 
-  await withBuilt(catalog, async (built) => {
-    const healthy = await tokenizedChain(catalog, run, { prefix: "broken-chain", what: "healthy", parentId: folder.id });
-    const broken = await tokenizedChain(catalog, run, {
-      prefix: "broken-chain",
-      what: "missing-variable",
-      parentId: folder.id,
-      marker: `#{${variable}}`,
+    await withBuilt(catalog, async (built) => {
+      const healthy = await tokenizedChain(catalog, run, { prefix: "broken-chain", what: "healthy", parentId: folder.id });
+      const broken = await tokenizedChain(catalog, run, {
+        prefix: "broken-chain",
+        what: "missing-variable",
+        parentId: folder.id,
+        marker: `#{${variable}}`,
+      });
+      for (const chain of [healthy, broken]) {
+        built.chains.push(chain);
+        noteChain(chain);
+      }
+
+      const target = tokenedDomain(run, "broken-chain");
+      const since = logWindowStart();
+      try {
+        await dispatchToDomain(catalog, target, [healthy, broken]);
+
+        // A starting pod is PENDING; a RUNNING pod whose container is not ready has exited, since
+        // micro pods declare no readiness probe.
+        await expect
+          .poll(
+            async () =>
+              (await catalog.domainEngines(target.domain)).map((engine) => `${engine.runningStatus} ready=${engine.ready}`),
+            { timeout: MICRO_READY_TIMEOUT, message: `the catalog never reported micro domain ${target.domain} down` },
+          )
+          .toEqual(["RUNNING ready=false"]);
+
+        await expect
+          .poll(async () => await target.env.engineLogs(since).catch((cause: unknown) => String(cause)), {
+            timeout: MICRO_READY_TIMEOUT,
+            message: "the micro engine did not log the unresolved variable as the reason it stopped",
+          })
+          .toContain(`Couldn't resolve variables. #{${variable}} variable doesn't exist`);
+
+        // The healthy chain went down with the domain: no engine reported either chain deployed,
+        // and its route answers from the proxy, not from a live route (405 to a GET).
+        expect(await catalog.runtimeDeploymentsOf(healthy.id), "the healthy chain was reported deployed").toEqual([]);
+        expect(await catalog.runtimeDeploymentsOf(broken.id), "the broken chain was reported deployed").toEqual([]);
+        const status = (await request.get(target.env.chainUrl(healthy.contextPath), { failOnStatusCode: false })).status();
+        expect([502, 503, 504], `the healthy chain answered ${status}`).toContain(status);
+      } finally {
+        await deleteDomain(catalog, target);
+      }
     });
-    for (const chain of [healthy, broken]) {
-      built.chains.push(chain);
-      noteChain(chain);
-    }
-
-    const target = tokenedDomain(run, "broken-chain");
-    const since = logWindowStart();
-    try {
-      await dispatchToDomain(catalog, target, [healthy, broken]);
-
-      // A starting pod is PENDING; a RUNNING pod whose container is not ready has exited, since
-      // micro pods declare no readiness probe.
-      await expect
-        .poll(
-          async () =>
-            (await catalog.domainEngines(target.domain)).map((engine) => `${engine.runningStatus} ready=${engine.ready}`),
-          { timeout: MICRO_READY_TIMEOUT, message: `the catalog never reported micro domain ${target.domain} down` },
-        )
-        .toEqual(["RUNNING ready=false"]);
-
-      await expect
-        .poll(async () => await target.env.engineLogs(since).catch((cause: unknown) => String(cause)), {
-          timeout: MICRO_READY_TIMEOUT,
-          message: "the micro engine did not log the unresolved variable as the reason it stopped",
-        })
-        .toContain(`Couldn't resolve variables. #{${variable}} variable doesn't exist`);
-
-      // The healthy chain went down with the domain: no engine reported either chain deployed,
-      // and its route answers from the proxy, not from a live route (405 to a GET).
-      expect(await catalog.runtimeDeploymentsOf(healthy.id), "the healthy chain was reported deployed").toEqual([]);
-      expect(await catalog.runtimeDeploymentsOf(broken.id), "the broken chain was reported deployed").toEqual([]);
-      const status = (await request.get(target.env.chainUrl(healthy.contextPath), { failOnStatusCode: false })).status();
-      expect([502, 503, 504], `the healthy chain answered ${status}`).toContain(status);
-    } finally {
-      await deleteDomain(catalog, target);
-    }
   });
 });

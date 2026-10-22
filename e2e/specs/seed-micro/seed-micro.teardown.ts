@@ -11,7 +11,7 @@ import { test } from "../../support/fixtures.js";
 import { readMicroCorpusState, teardownMicroCorpus } from "../../support/corpus.js";
 import { MICRO_CORPUS_STATE_FILE } from "../../env/k8s.js";
 
-test("the micro copy of the corpus is removed", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
+test("the micro copy of the corpus is removed", { tag: ["@catalog"] }, async ({ catalog, run }) => {
   if (!fs.existsSync(MICRO_CORPUS_STATE_FILE)) {
     console.log("[seed-micro] no micro corpus state to tear down");
     return;

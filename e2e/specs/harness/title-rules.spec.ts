@@ -1,9 +1,8 @@
 /**
  * The title rules of the `e2e-spec-authoring` skill (rules 10 and 21), read off every spec file.
  *
- * A directory in `TITLE_RULES_PENDING` is not held to them yet; each area leaves the list once its
- * files comply. Whether every case inherits a component tag is checked by `npm run reconcile` over
- * the report instead, since a case declared in a helper function carries no tag of its own here.
+ * Whether every case inherits a component tag is checked by `npm run reconcile` over the report
+ * instead, since a case declared in a helper function carries no tag of its own here.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -13,16 +12,12 @@ import { parseCases, titleProblems } from "../../support/title-rules.js";
 
 const SPECS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The spec directories whose files do not keep the rules yet. */
-const TITLE_RULES_PENDING = ["env", "k8s", "tooling"];
-
 /** Every spec file, relative to `specs/`. */
 const SPEC_FILES = fs
   .readdirSync(SPECS, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile() && entry.name.endsWith(".spec.ts"))
   .map((entry) => path.relative(SPECS, path.join(entry.parentPath, entry.name)));
 
-const directoryOf = (file: string) => file.split(path.sep)[0];
 const problemsIn = (file: string) => titleProblems(fs.readFileSync(path.join(SPECS, file), "utf-8"), `specs/${file}`);
 
 /** A compliant file around `body`, which stands inside its one describe. */
@@ -30,17 +25,8 @@ const inDescribe = (body: string) => `test.describe("subject", { tag: ["@engine"
 const problemsOf = (source: string) => titleProblems(source, "a.spec.ts");
 
 test.describe("title rules", { tag: ["@harness"] }, () => {
-  test("every spec outside the pending directories keeps them", () => {
-    const checked = SPEC_FILES.filter((file) => !TITLE_RULES_PENDING.includes(directoryOf(file)));
-    expect(checked.flatMap(problemsIn)).toEqual([]);
-  });
-
-  test("a pending directory that complies leaves the list", () => {
-    const complying = TITLE_RULES_PENDING.filter((directory) => {
-      const files = SPEC_FILES.filter((file) => directoryOf(file) === directory);
-      return files.length === 0 || files.every((file) => problemsIn(file).length === 0);
-    });
-    expect(complying).toEqual([]);
+  test("every spec keeps them", () => {
+    expect(SPEC_FILES.flatMap(problemsIn)).toEqual([]);
   });
 
   test.describe("titleProblems", () => {

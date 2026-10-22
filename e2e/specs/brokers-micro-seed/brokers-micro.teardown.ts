@@ -11,7 +11,7 @@ import { test } from "../../support/fixtures.js";
 import { MICRO_GROUP_LEAVE_TIMEOUT, readMicroBrokersCorpusState, teardownMicroBrokers } from "../../support/brokers.js";
 import { BROKERS_MICRO_CORPUS_STATE_FILE } from "../../env/k8s.js";
 
-test("the micro copy of the broker corpus is removed", { tag: ["@engine", "@tier1"] }, async ({ catalog, run }) => {
+test("the micro copy of the broker corpus is removed", { tag: ["@engine"] }, async ({ catalog, run }) => {
   // The consumer groups empty only after the domain's pod has gone; the rest takes seconds.
   test.setTimeout(MICRO_GROUP_LEAVE_TIMEOUT + 60_000);
   if (!fs.existsSync(BROKERS_MICRO_CORPUS_STATE_FILE)) {

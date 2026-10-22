@@ -41,7 +41,7 @@ const BROKERS_SEED_TIMEOUT =
 
 test(
   "the broker fixture corpus is imported, deployed, and answering",
-  { tag: ["@engine", "@tier1"] },
+  { tag: ["@engine"] },
   async ({ catalog, env, run }) => {
     test.setTimeout(BROKERS_SEED_TIMEOUT);
     const fixtures = corpusFixtureNames([BROKERS_FIXTURE_DIR]);

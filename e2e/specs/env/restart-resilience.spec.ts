@@ -149,129 +149,131 @@ function corpusOfEveryFixture(): SeedChain[] {
 // makes the second case's reading meaningless rather than red.
 test.describe.configure({ mode: "serial" });
 
-test("every seed chain answers again after the engine restarts, with nothing redeployed", { tag: ["@engine", "@infra", "@tier1"] }, async ({ catalog, env, request }) => {
-  test.setTimeout(RESTART_TIMEOUT);
-  const chains = corpusOfEveryFixture();
+test.describe("restart resilience", { tag: ["@engine", "@infra", "@slow"] }, () => {
+  test("seed chains answer after an engine restart, none redeployed", async ({ catalog, env, request }) => {
+    test.setTimeout(RESTART_TIMEOUT);
+    const chains = corpusOfEveryFixture();
 
-  // What the engine reports it is running, and that every route serves *now*: a route missing after
-  // the restart is then the restart's doing rather than damage an earlier project left.
-  const address = await env.address("engine");
-  const before = await runtimeRows(catalog, chains, address);
-  expect(before.length, "the corpus is not deployed, so a restart cannot be shown to survive").toBe(
-    chains.length,
-  );
-  await waitForRoutes(env, chains);
+    // What the engine reports it is running, and that every route serves *now*: a route missing after
+    // the restart is then the restart's doing rather than damage an earlier project left.
+    const address = await env.address("engine");
+    const before = await runtimeRows(catalog, chains, address);
+    expect(before.length, "the corpus is not deployed, so a restart cannot be shown to survive").toBe(
+      chains.length,
+    );
+    await waitForRoutes(env, chains);
 
-  const began = Date.now();
-  await env.restart("engine");
-  const healthy = Date.now();
-  const after = await env.address("engine");
-  // Nothing between the restart and this poll deploys anything. That is the assertion: the engine
-  // rebuilt its routes from Consul and the catalog on its own.
-  await waitForRoutes(env, chains, RECOVERY_BUDGET);
-  console.log(
-    `[restart] engine: ${chains.length} seed routes answered again ` +
-      `${((Date.now() - healthy) / 1000).toFixed(1)} s after the container reported healthy, ` +
-      `${((Date.now() - began) / 1000).toFixed(1)} s after the restart began`,
-  );
+    const began = Date.now();
+    await env.restart("engine");
+    const healthy = Date.now();
+    const after = await env.address("engine");
+    // Nothing between the restart and this poll deploys anything. That is the assertion: the engine
+    // rebuilt its routes from Consul and the catalog on its own.
+    await waitForRoutes(env, chains, RECOVERY_BUDGET);
+    console.log(
+      `[restart] engine: ${chains.length} seed routes answered again ` +
+        `${((Date.now() - healthy) / 1000).toFixed(1)} s after the container reported healthy, ` +
+        `${((Date.now() - began) / 1000).toFixed(1)} s after the restart began`,
+    );
 
-  // Polled rather than read: the view is rebuilt from the engine's own report and the report
-  // arrives after the routes do, so a chain can be serving and still be momentarily unkeyed here.
-  await expect
-    .poll(() => runtimeRows(catalog, chains, after), {
-      timeout: RECOVERY_BUDGET,
-      message:
-        "the engine reports a different deployment or snapshot than it did before the restart, so " +
-        "the routes came back because something redeployed them rather than because the engine " +
-        "restored what it had — or it came back without one of them",
-    })
-    .toEqual(before);
+    // Polled rather than read: the view is rebuilt from the engine's own report and the report
+    // arrives after the routes do, so a chain can be serving and still be momentarily unkeyed here.
+    await expect
+      .poll(() => runtimeRows(catalog, chains, after), {
+        timeout: RECOVERY_BUDGET,
+        message:
+          "the engine reports a different deployment or snapshot than it did before the restart, so " +
+          "the routes came back because something redeployed them rather than because the engine " +
+          "restored what it had — or it came back without one of them",
+      })
+      .toEqual(before);
 
-  // A route answering 405 is a listener rather than a working chain, so one chain is driven end to
-  // end: the trigger, the element after it, and the body that comes back.
-  const echo = seedChain(readCorpusState(), "http-echo");
-  const { response } = await callChain(request, env.chainUrl(echo.contextPath), {
-    data: { ping: "after-engine-restart" },
+    // A route answering 405 is a listener rather than a working chain, so one chain is driven end to
+    // end: the trigger, the element after it, and the body that comes back.
+    const echo = seedChain(readCorpusState(), "http-echo");
+    const { response } = await callChain(request, env.chainUrl(echo.contextPath), {
+      data: { ping: "after-engine-restart" },
+    });
+    expect(response.status()).toBe(200);
+    expect(JSON.parse(await response.text()), "the restored route runs a different chain").toEqual({
+      ping: "after-engine-restart",
+    });
+
+    await expectEngineApiSurface(
+      env,
+      "the proxy still points at the container the restart replaced, and every /api/ assertion after " +
+        "this spec would read a stale address",
+    );
   });
-  expect(response.status()).toBe(200);
-  expect(JSON.parse(await response.text()), "the restored route runs a different chain").toEqual({
-    ping: "after-engine-restart",
+
+  test("a catalog restart leaves deployments and traffic untouched", { tag: ["@catalog"] }, async ({ catalog, env }) => {
+    test.setTimeout(RESTART_TIMEOUT);
+    const chains = corpusOfEveryFixture();
+    const before = await deploymentRows(catalog, chains);
+    const echo = seedChain(readCorpusState(), "http-echo");
+    const url = env.chainUrl(echo.contextPath);
+
+    // Driven *during* the downtime rather than after it. The engine holds its routes in memory, and
+    // the assertion is that it never needs the catalog to serve one. A call made after the catalog is
+    // back cannot tell that apart from a route that stopped and came back.
+    let restarting = true;
+    const restart = env.restart("runtime-catalog").finally(() => {
+      restarting = false;
+    });
+    // Handled the moment it exists. The loop below runs for the ~30 s the recreate takes before
+    // `await restart` attaches anything, and a rejection inside that window is reported as an
+    // `unhandledRejection` — which fails the worker rather than this test, and buries the reason.
+    restart.catch(() => {});
+    const refused: string[] = [];
+    let calls = 0;
+    while (restarting) {
+      calls += 1;
+      // The global fetch rather than the `request` fixture: this is a poll of sixty-odd calls and
+      // every one of them would otherwise land in the failure trace.
+      const status = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ping: "during-catalog-restart" }),
+      })
+        .then((response) => response.status)
+        .catch(() => 0);
+      if (status !== 200) refused.push(`call ${calls} answered ${status}`);
+      await sleep(500);
+    }
+    await restart;
+    // Taken here and nowhere later: `env.restart` returns once the container reports healthy, and the
+    // number this test prints is quoted as a measurement from that point. Two assertions and a
+    // deployment-rows round trip sit between here and the poll below.
+    const healthy = Date.now();
+
+    // A restart the loop never overlapped proves nothing: measured, the recreate takes about 30 s and
+    // the loop calls twice a second, so a handful of calls means the loop raced the container.
+    expect(calls, "the call loop did not span the catalog's downtime").toBeGreaterThan(10);
+    expect(
+      refused,
+      "the engine stopped serving a deployed chain while the catalog was down, so a catalog restart " +
+        "is an outage of the running platform rather than of its control plane",
+    ).toEqual([]);
+
+    expect(
+      await deploymentRows(catalog, chains),
+      "the deployments are not what they were before the catalog restarted",
+    ).toEqual(before);
+    await waitForRoutes(env, chains, RECOVERY_BUDGET);
+    console.log(
+      `[restart] catalog: ${chains.length} seed routes answering ` +
+        `${((Date.now() - healthy) / 1000).toFixed(1)} s after the container reported healthy, ` +
+        `over ${calls} calls driven through the downtime`,
+    );
+
+    // The **engine's** surface, not the catalog's. `ComposeEnv.recreate` ends in `reloadProxy`, which
+    // polls `/api/…/v1/folders` to 200 and throws otherwise, so a catalog assertion here restates
+    // what the restart already guaranteed. What the reload does not check is every other upstream it
+    // just re-resolved, and the engine is the one that served traffic throughout this test.
+    await expectEngineApiSurface(
+      env,
+      "the catalog's proxy reload left the engine's upstream unresolved, and every /api/ assertion " +
+        "against the engine after this spec would read a stranded address",
+    );
   });
-
-  await expectEngineApiSurface(
-    env,
-    "the proxy still points at the container the restart replaced, and every /api/ assertion after " +
-      "this spec would read a stale address",
-  );
-});
-
-test("the catalog restarts without disturbing what is deployed, and the engine keeps answering", { tag: ["@catalog", "@engine", "@infra", "@tier1"] }, async ({ catalog, env }) => {
-  test.setTimeout(RESTART_TIMEOUT);
-  const chains = corpusOfEveryFixture();
-  const before = await deploymentRows(catalog, chains);
-  const echo = seedChain(readCorpusState(), "http-echo");
-  const url = env.chainUrl(echo.contextPath);
-
-  // Driven *during* the downtime rather than after it. The engine holds its routes in memory, and
-  // the assertion is that it never needs the catalog to serve one. A call made after the catalog is
-  // back cannot tell that apart from a route that stopped and came back.
-  let restarting = true;
-  const restart = env.restart("runtime-catalog").finally(() => {
-    restarting = false;
-  });
-  // Handled the moment it exists. The loop below runs for the ~30 s the recreate takes before
-  // `await restart` attaches anything, and a rejection inside that window is reported as an
-  // `unhandledRejection` — which fails the worker rather than this test, and buries the reason.
-  restart.catch(() => {});
-  const refused: string[] = [];
-  let calls = 0;
-  while (restarting) {
-    calls += 1;
-    // The global fetch rather than the `request` fixture: this is a poll of sixty-odd calls and
-    // every one of them would otherwise land in the failure trace.
-    const status = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ping: "during-catalog-restart" }),
-    })
-      .then((response) => response.status)
-      .catch(() => 0);
-    if (status !== 200) refused.push(`call ${calls} answered ${status}`);
-    await sleep(500);
-  }
-  await restart;
-  // Taken here and nowhere later: `env.restart` returns once the container reports healthy, and the
-  // number this test prints is quoted as a measurement from that point. Two assertions and a
-  // deployment-rows round trip sit between here and the poll below.
-  const healthy = Date.now();
-
-  // A restart the loop never overlapped proves nothing: measured, the recreate takes about 30 s and
-  // the loop calls twice a second, so a handful of calls means the loop raced the container.
-  expect(calls, "the call loop did not span the catalog's downtime").toBeGreaterThan(10);
-  expect(
-    refused,
-    "the engine stopped serving a deployed chain while the catalog was down, so a catalog restart " +
-      "is an outage of the running platform rather than of its control plane",
-  ).toEqual([]);
-
-  expect(
-    await deploymentRows(catalog, chains),
-    "the deployments are not what they were before the catalog restarted",
-  ).toEqual(before);
-  await waitForRoutes(env, chains, RECOVERY_BUDGET);
-  console.log(
-    `[restart] catalog: ${chains.length} seed routes answering ` +
-      `${((Date.now() - healthy) / 1000).toFixed(1)} s after the container reported healthy, ` +
-      `over ${calls} calls driven through the downtime`,
-  );
-
-  // The **engine's** surface, not the catalog's. `ComposeEnv.recreate` ends in `reloadProxy`, which
-  // polls `/api/…/v1/folders` to 200 and throws otherwise, so a catalog assertion here restates
-  // what the restart already guaranteed. What the reload does not check is every other upstream it
-  // just re-resolved, and the engine is the one that served traffic throughout this test.
-  await expectEngineApiSurface(
-    env,
-    "the catalog's proxy reload left the engine's upstream unresolved, and every /api/ assertion " +
-      "against the engine after this spec would read a stranded address",
-  );
 });

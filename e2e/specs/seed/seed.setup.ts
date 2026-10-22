@@ -27,7 +27,7 @@ const CHAINS = corpusChainNames().length;
 const SEED_TIMEOUT =
   2 * corpusRequestTimeout(CHAINS) + DEPLOY_TIMEOUT + CHAINS * DEPLOY_TIMEOUT_PER_CHAIN + DEPLOY_TIMEOUT + 60_000;
 
-test("the fixture corpus is imported, deployed, and answering", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, run }) => {
+test("the fixture corpus is imported, deployed, and answering", { tag: ["@catalog", "@engine"] }, async ({ catalog, env, run }) => {
   test.setTimeout(SEED_TIMEOUT);
   // The generated axis chains are written first, so the corpus below is read off a fresh directory.
   await writeAxisFixtures();

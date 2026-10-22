@@ -7,7 +7,7 @@
 import { test } from "@playwright/test";
 import { ensureUiServer, UI_PORT } from "../../support/ui-server.js";
 
-test("the UI bundle answers on port 4200", { tag: ["@ui", "@tier1"] }, async () => {
+test("the UI bundle answers on port 4200", { tag: ["@ui"] }, async () => {
   // A cold build of the bundle, `fetch-docs` included, takes minutes.
   test.setTimeout(600_000);
   const { pid, built } = await ensureUiServer();

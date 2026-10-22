@@ -24,7 +24,7 @@ import { OVERLAY_NAMES } from "../../env/containers.js";
 import { keepEntities, test } from "../../support/fixtures.js";
 import { BROKERS_CORPUS_STATE_FILE, readBrokersCorpusState, teardownBrokers } from "../../support/brokers.js";
 
-test("the broker fixture corpus is removed", { tag: ["@engine", "@tier1"] }, async ({ catalog, env, run }) => {
+test("the broker fixture corpus is removed", { tag: ["@engine"] }, async ({ catalog, env, run }) => {
   if (!fs.existsSync(BROKERS_CORPUS_STATE_FILE)) {
     console.log("[brokers-seed] no broker corpus state to tear down");
     return;
