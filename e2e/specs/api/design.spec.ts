@@ -266,6 +266,7 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
       }),
   ),
   "service-call-graphql-no-before": { labels: ["GraphQL request (query/mutation)"], groups: ["Service Call"] },
+  "service-call-retry": { labels: ["POST /e2e-"], groups: ["Service Call"] },
   // A generated log record is drawn as a line named after the branch.
   ...Object.fromEntries(
     LOG_LEVELS.map((value) => [axisFixtureName({ family: "log-record", axisPath: "logLevel", value }), { labels: [`logLevel=${value}`] }]),
@@ -290,10 +291,12 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   "method-echo": { labels: ["Echo Method"] },
   "metrics-failure": { labels: ["Failing Script"] },
   "placeholder-resolution": { labels: ["Resolve Placeholder"] },
+  "retry-target": {},
   // The reference renders the reused block inline where the reference sits, which is why the
   // reused script appears and the reference itself never does.
   reuse: { labels: ["Reused Script", "Report"] },
   "scheduler-basic": { labels: ["Header Modification"], trigger: "Scheduler" },
+  "sender-response-timeout": { labels: ["POST, /routes/e2e-"], participants: ["Internal service: http://localhost:8080"] },
   script: { labels: ["Script"] },
   // The script corpus under `fixtures/script/`, drawn like any other script: one line per
   // element, under the name the fixture gave it. The `.yaml` is part of the fixture name, because
