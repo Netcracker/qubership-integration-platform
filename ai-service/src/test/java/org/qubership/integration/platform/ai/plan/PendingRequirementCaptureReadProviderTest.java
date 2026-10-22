@@ -12,6 +12,9 @@ import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.invocation.InvocationParameters;
 import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.json.JsonArraySchema;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
@@ -104,6 +107,7 @@ class PendingRequirementCaptureReadProviderTest {
     String nextTool = updateWithoutBase ? "updateRequirementDraft" : "readRequirementDraft";
     var script = new ScriptedStreamingChatModel(
         Turn.tool("capture", request -> {
+          assertLocalFactIdSchemas(request);
           String description = request.parameters().toolSpecifications().stream()
               .filter(spec -> "captureRequirementDraft".equals(spec.name())).findFirst().orElseThrow().description();
           assertTrue(description.contains("until a draft is accepted"), description);
@@ -204,6 +208,27 @@ class PendingRequirementCaptureReadProviderTest {
     script.assertComplete();
     assertEquals(3, script.requests().size());
     assertEquals(limitsBefore, limits());
+  }
+
+  private void assertLocalFactIdSchemas(ChatRequest request) {
+    for (String[] field : List.of(
+        new String[] {"captureRequirementDraft", "draft", "facts"},
+        new String[] {"updateRequirementDraft", "changes", "addFacts"},
+        new String[] {"updateRequirementDraft", "changes", "updateFacts"})) {
+      var tool = request.parameters().toolSpecifications().stream()
+          .filter(spec -> field[0].equals(spec.name())).findFirst().orElseThrow();
+      var input = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonObjectSchema.class,
+          tool.parameters().properties().get(field[1]));
+      var facts = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonArraySchema.class,
+          input.properties().get(field[2]));
+      var fact = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonObjectSchema.class, facts.items());
+      var id = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonStringSchema.class,
+          fact.properties().get("sourceFactId"));
+      assertTrue(fact.required().contains("sourceFactId"));
+      assertTrue(id.description().contains(RequirementCaptureEditor.localIdPattern()), id.description());
+      assertTrue(id.description().contains("Stable local fact ID"), id.description());
+      assertTrue(id.description().contains("complete value"), id.description());
+    }
   }
 
   private JsonNode lastTool(ChatRequest request, String tool) {

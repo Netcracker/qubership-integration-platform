@@ -176,6 +176,12 @@ public final class RequirementCaptureSchemas {
               .map(value -> ((Enum<?>) value).name()).toList()).build();
     }
     if (clazz == String.class) {
+      if ("sourceFactId".equals(name)) {
+        return JsonStringSchema.builder().description(
+            "Stable local fact ID matching " + RequirementCaptureEditor.localIdPattern()
+                + " as a complete value. Field paths belong in their declared fields.")
+            .build();
+      }
       if ("targetPath".equals(name)) {
         return JsonStringSchema.builder().description(
             "Exactly one target field path. Capture a separate FIELD_MAPPING fact for each output field.")
