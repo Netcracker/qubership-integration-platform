@@ -183,6 +183,244 @@ scenarios:
           - Authorization
           - X-Request-Id
           - snapshotPrevious
+- id: consumes-repeated-publications-with-auto-ack
+  scope: Short
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: repeated-publication
+    repeat: 2
+    body: repeated-payload
+    headers:
+      source: repeated-publication
+    expectedBody: Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 1
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+        headers:
+          CamelGooglePubsubAttributes:
+            source: repeated-publication
+      response:
+        properties:
+          expectedAcknowledgments: 2
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - count: 2
+            body: Triggered
+            headers:
+              snapshotDeliveryAttempt: 1
+- id: redelivers-each-repeated-publication-after-script-failure
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: repeated-failure-and-redelivery
+    repeat: 2
+    body: repeated-failure
+    headers:
+      snapshotFailOnce: 'true'
+    expectedBody: Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 2
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 4
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+        headers:
+          CamelGooglePubsubAttributes:
+            snapshotFailOnce: 'true'
+      response:
+        properties:
+          expectedCompletionCounts: [2, 2]
+          expectedAcknowledgments: 2
+          expectedNegativeAcknowledgments: 2
+          expectedCompletions:
+          - headers:
+              snapshotDeliveryAttempt: 1
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Pub/Sub snapshot script failure
+              cause: null
+          - body: Triggered
+            headers:
+              snapshotDeliveryAttempt: 2
+          - headers:
+              snapshotDeliveryAttempt: 1
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Pub/Sub snapshot script failure
+              cause: null
+          - body: Triggered
+            headers:
+              snapshotDeliveryAttempt: 2
+  - id: repeated-publication-after-recovery
+    repeat: 2
+    body: recovered
+    expectedBody: Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 1
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          expectedCompletionCounts: [1, 1]
+          expectedAcknowledgments: 2
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - count: 2
+            body: Triggered
+            headers:
+              snapshotDeliveryAttempt: 1
+- id: deduplicates-repeated-publications-with-unequal-delivery-counts
+  scope: Long
+  deployment: idempotency-ignore
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: 800be329-a255-5d52-8abd-7e2d04b587f4
+  invocations:
+  - id: repeated-key-after-first-script-failure
+    repeat: 2
+    body: repeated-payload
+    headers:
+      businessContext: orders
+      businessKey: repeated-failed
+      snapshotFailOnce: 'true'
+    expectedBody: repeated-payload
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: repeated-failed
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-ignore
+      expectedRequest:
+        count: 3
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-ignore
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: repeated-failed
+            snapshotFailOnce: 'true'
+      response:
+        properties:
+          expectedCompletionCounts: [2, 1]
+          expectedAcknowledgments: 2
+          expectedNegativeAcknowledgments: 1
+          expectedCompletions:
+          - body: repeated-payload
+            headers:
+              snapshotMainExecuted: true
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: 1
+            properties:
+              CamelDuplicateMessage: null
+              systemProperty_idempotencyKey: repeated-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Pub/Sub snapshot script failure
+              cause: null
+          - count: 2
+            body: repeated-payload
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: repeated-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 3
+          key: orders:repeated-failed
+          keyExpiry: 600
+          storedKeys:
+          - orders:repeated-failed
+          updatedKeys:
+          - orders:repeated-failed
+          records:
+          - key: orders:repeated-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: repeated-duplicates-in-next-invocation
+    repeat: 2
+    body: duplicate-payload
+    headers:
+      businessContext: orders
+      businessKey: repeated-failed
+    expectedBody: duplicate-payload
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: repeated-failed
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: pubsub-idempotency-ignore
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-idempotency-ignore
+        headers:
+          CamelGooglePubsubAttributes:
+            businessContext: orders
+            businessKey: repeated-failed
+      response:
+        properties:
+          expectedCompletionCounts: [1, 1]
+          expectedAcknowledgments: 2
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - count: 2
+            body: duplicate-payload
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+              snapshotDeliveryAttempt: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: repeated-failed
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+    - fixture: pubsub-idempotency-store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 2
+          key: orders:repeated-failed
+          keyExpiry: 600
+          storedKeys:
+          - orders:repeated-failed
+          updatedKeys: []
+          records:
+          - key: orders:repeated-failed
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
 - id: recovers-after-failure-restart-connection-loss-and-subscription-recreation
   scope: Long
   deployment: auto

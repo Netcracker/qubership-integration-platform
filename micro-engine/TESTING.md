@@ -1170,6 +1170,30 @@ recreation, the failed ordering key remains paused and produces no Publish RPC; 
 different key succeeds through the same publisher. The fixture does not call
 `resumePublish` or recreate the publisher to hide this behavior.
 
+The `pubsub-trigger.yml` manifest defines 13 scenarios and 50 invocations across five
+generated exports. Two scenarios are Short; the remaining 11 are Long.
+Each trigger interaction uses `expectedRequest.count` for the total received deliveries
+across the invocation's repeats, including redelivery. Each driver call publishes fresh
+message IDs and waits for the completions of that publication.
+
+For `repeat: 1`, the driver waits for `expectedRequest.count` completions, including
+expected failed deliveries. For repeated publications that complete once per message,
+the total must equal the number of messages per publication multiplied by `repeat`.
+The driver then waits for one completion per published message in each repetition.
+
+For repeated publications with additional deliveries, set
+`response.properties.expectedCompletionCounts` to one positive integer per repetition.
+The list must sum to `expectedRequest.count`. For example, `[2, 2]` expects a failed
+delivery and redelivery in each repetition. `[2, 1]` handles an idempotency Ignore case:
+the first publication fails and is redelivered as a duplicate; the next publication
+is immediately handled as a duplicate. The list starts at its first entry for each
+invocation. `expectedCompletions` checks the ordered results across all repetitions,
+including exact failures. Ack and nack counts also cover the whole invocation.
+
+The repeat scenarios check normal AUTO acknowledgments, failure and redelivery for
+each publication, and unequal delivery counts with PostgreSQL idempotency records.
+Subsequent invocations check that completion counts reset while stored keys persist.
+
 Circuit breaker fixtures accept `awaitState` to wait up to 10 seconds before sending
 an invocation. The fixture polls the state every 25 milliseconds in the invocation
 thread and propagates interruption. It observes state without changing it; use it to

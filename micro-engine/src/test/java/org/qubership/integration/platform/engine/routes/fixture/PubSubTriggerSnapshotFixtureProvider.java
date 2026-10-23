@@ -40,7 +40,7 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
     private static final Logger LOG = LoggerFactory.getLogger(PubSubTriggerSnapshotFixtureProvider.class);
     private static final Set<String> CONTROLS = Set.of("consumerAction", "startupUnavailable", "missingSubscription",
             "expectedAcknowledgments", "expectedNegativeAcknowledgments", "expectedAbsentHeaders", "expectedCompletions",
-            "resourceProbe", "subscriptionAction", "maxDeliveriesPerMessage");
+            "expectedCompletionCounts", "resourceProbe", "subscriptionAction", "maxDeliveriesPerMessage");
 
     @Override
     public String getId() {
@@ -88,6 +88,21 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 && (!(controls.get("maxDeliveriesPerMessage") instanceof Number value)
                 || value.intValue() < 1 || value.doubleValue() != value.intValue())) {
             throw new IllegalArgumentException("Pub/Sub maxDeliveriesPerMessage must be a positive integer.");
+        }
+        if (controls.containsKey("expectedCompletionCounts")) {
+            if (!(controls.get("expectedCompletionCounts") instanceof List<?> counts)) {
+                throw new IllegalArgumentException("Pub/Sub expectedCompletionCounts must be a list of positive integers.");
+            }
+            long total = 0;
+            for (Object item : counts) {
+                if (!(item instanceof Number count) || count.intValue() < 1 || count.doubleValue() != count.intValue()) {
+                    throw new IllegalArgumentException("Pub/Sub expectedCompletionCounts must contain positive integers.");
+                }
+                total += count.intValue();
+            }
+            if (total != interaction.getExpectedRequest().getCount()) {
+                throw new IllegalArgumentException("Pub/Sub expectedCompletionCounts must sum to expectedRequest.count.");
+            }
         }
     }
 
@@ -189,7 +204,7 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 assertTrue(!endpoint.isSynchronousPull(), "Generated Pub/Sub trigger must use streaming pull.");
             }
             Map<String, Object> control = controls(binding.interaction(invocation.getId()));
-            runtime.beforeInvocation(binding.interaction(invocation.getId()));
+            runtime.beforeInvocation(invocation, binding.interaction(invocation.getId()));
             broker.maxDeliveriesPerMessage(((Number) control.getOrDefault("maxDeliveriesPerMessage", Integer.MAX_VALUE)).intValue());
             if (Boolean.TRUE.equals(control.get("startupUnavailable"))) {
                 await(() -> broker.statistics().rejectedConnections() > 0, "startup connection rejection");

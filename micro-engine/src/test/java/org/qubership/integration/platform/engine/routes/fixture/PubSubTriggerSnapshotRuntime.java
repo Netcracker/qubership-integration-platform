@@ -48,6 +48,7 @@ public final class PubSubTriggerSnapshotRuntime {
     private final List<String> currentIds = new ArrayList<>();
     private final List<String> allCompletedIds = new CopyOnWriteArrayList<>();
     private SnapshotFixtureInteraction interaction;
+    private int publicationIndex;
     private Runnable afterPublish = () -> { };
     private volatile List<String> currentPublishedMessageIds = List.of();
     private volatile String phase = "not-started";
@@ -70,6 +71,7 @@ public final class PubSubTriggerSnapshotRuntime {
             return result;
         }
         List<PubsubMessage> messages = messages(invocation.getBody(), invocation.getHeaders(), parameters);
+        int expectedCount = expectedCompletionCount(invocation, messages.size());
         phase = "publishing";
         List<String> ids = broker.publish(messages).getMessageIdsList();
         currentPublishedMessageIds = List.copyOf(ids);
@@ -81,7 +83,6 @@ public final class PubSubTriggerSnapshotRuntime {
         currentIds.addAll(ids);
         phase = "after-publish";
         afterPublish.run();
-        int expectedCount = interaction.getExpectedRequest().getCount();
         Map<String, Exchange> lastById = new LinkedHashMap<>();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         phase = "waiting-for-completions";
@@ -100,6 +101,21 @@ public final class PubSubTriggerSnapshotRuntime {
         }
         phase = "completed";
         return result;
+    }
+
+    private int expectedCompletionCount(SnapshotScenarioInvocation invocation, int messageCount) {
+        Map<String, Object> controls = interaction.getResponse() == null ? Map.of() : interaction.getResponse().getProperties();
+        if (controls.get("expectedCompletionCounts") instanceof List<?> counts) {
+            return ((Number) counts.get(publicationIndex++)).intValue();
+        }
+        int total = interaction.getExpectedRequest().getCount();
+        if (invocation.getRepeat() == 1) {
+            return total;
+        }
+        if (total != (long) messageCount * invocation.getRepeat()) {
+            throw new IllegalArgumentException("Pub/Sub repeated publications with redelivery require expectedCompletionCounts.");
+        }
+        return messageCount;
     }
 
     public static List<PubsubMessage> messages(Object body, Map<String, Object> headers, Map<String, Object> parameters) {
@@ -175,7 +191,11 @@ public final class PubSubTriggerSnapshotRuntime {
         return result;
     }
 
-    void beforeInvocation(SnapshotFixtureInteraction expected) {
+    void beforeInvocation(SnapshotScenarioInvocation invocation, SnapshotFixtureInteraction expected) {
+        Map<String, Object> controls = expected.getResponse() == null ? Map.of() : expected.getResponse().getProperties();
+        if (controls.get("expectedCompletionCounts") instanceof List<?> counts && counts.size() != invocation.getRepeat()) {
+            throw new IllegalArgumentException("Pub/Sub expectedCompletionCounts requires one entry per invocation repeat.");
+        }
         assertTrue(completions.isEmpty(), "Pub/Sub delivered an unexpected completion between invocations.");
         inputs.clear();
         finished.clear();
@@ -183,6 +203,7 @@ public final class PubSubTriggerSnapshotRuntime {
         currentPublishedMessageIds = List.of();
         phase = "setup";
         interaction = expected;
+        publicationIndex = 0;
         afterPublish = () -> { };
     }
 
