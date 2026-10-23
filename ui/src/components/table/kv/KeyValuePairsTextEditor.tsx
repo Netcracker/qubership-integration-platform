@@ -64,21 +64,19 @@ function formatPairs(pairs: KeyValuePair[]): string {
     .join("\n");
 }
 
-export const KeyValuePairsTextEditor: React.FC<KeyValuePairsEditorProps> = ({
-  onChange,
-  value,
-}) => {
+export type KeyValuePairsTextEditorProps = KeyValuePairsEditorProps & {
+  // Receives the parse error of the text, or undefined once the text parses.
+  // While the text does not parse, value keeps the last pairs that did.
+  onErrorChange?: (error: string | undefined) => void;
+};
+
+export const KeyValuePairsTextEditor: React.FC<
+  KeyValuePairsTextEditorProps
+> = ({ onChange, onErrorChange, value }) => {
   const [text, setText] = useState<string>("");
   // The text of the pairs last passed to onChange. A value that formats to it
   // came from typing here, so the typed text stays as it is.
   const emittedTextRef = useRef<string>();
-
-  useEffect(() => {
-    const formatted = formatPairs(value ?? []);
-    if (formatted !== emittedTextRef.current) {
-      setText(formatted);
-    }
-  }, [value]);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
   const monacoRef = useRef<Monaco>();
@@ -126,6 +124,15 @@ export const KeyValuePairsTextEditor: React.FC<KeyValuePairsEditorProps> = ({
     setMarkers([]);
   }, [setMarkers]);
 
+  useEffect(() => {
+    const formatted = formatPairs(value ?? []);
+    if (formatted !== emittedTextRef.current) {
+      setText(formatted);
+      clearMarkers();
+      onErrorChange?.(undefined);
+    }
+  }, [value, clearMarkers, onErrorChange]);
+
   return (
     <Editor
       className="cip-editor"
@@ -145,11 +152,13 @@ export const KeyValuePairsTextEditor: React.FC<KeyValuePairsEditorProps> = ({
         try {
           const parsed = removeDuplicateKeys(parse(v));
           emittedTextRef.current = formatPairs(parsed);
-          onChange?.(parsed);
           clearMarkers();
+          onErrorChange?.(undefined);
+          onChange?.(parsed);
         } catch (error) {
           if (isParseError(error)) {
             setMarker(error.location, error.message);
+            onErrorChange?.(error.message);
           }
         }
       }}

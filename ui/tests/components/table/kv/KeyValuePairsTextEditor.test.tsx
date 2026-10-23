@@ -143,13 +143,21 @@ describe("KeyValuePairsTextEditor", () => {
 
   it("should set an error marker and keep the value when text is invalid", () => {
     const onChange = jest.fn();
-    render(<KeyValuePairsTextEditor value={[]} onChange={onChange} />);
+    const onErrorChange = jest.fn();
+    render(
+      <KeyValuePairsTextEditor
+        value={[]}
+        onChange={onChange}
+        onErrorChange={onErrorChange}
+      />,
+    );
 
     fireEvent.change(screen.getByTestId("monaco"), {
       target: { value: "a=1" },
     });
 
     expect(onChange).not.toHaveBeenCalled();
+    expect(onErrorChange).toHaveBeenLastCalledWith(expect.any(String));
     expect(screen.getByTestId("monaco")).toHaveValue("a=1");
     expect(mockSetModelMarkers).toHaveBeenLastCalledWith(
       mockModel,
@@ -161,6 +169,44 @@ describe("KeyValuePairsTextEditor", () => {
           endLineNumber: 1,
         }),
       ],
+    );
+  });
+
+  it("should clear the error when the text parses again", () => {
+    const onErrorChange = jest.fn();
+    render(
+      <KeyValuePairsTextEditor value={[]} onErrorChange={onErrorChange} />,
+    );
+    const editor = screen.getByTestId("monaco");
+
+    fireEvent.change(editor, { target: { value: "a=1" } });
+    fireEvent.change(editor, { target: { value: "a=1;" } });
+
+    expect(onErrorChange).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it("should clear the error when the value changes from outside", () => {
+    const onErrorChange = jest.fn();
+    const { rerender } = render(
+      <KeyValuePairsTextEditor value={[]} onErrorChange={onErrorChange} />,
+    );
+    fireEvent.change(screen.getByTestId("monaco"), {
+      target: { value: "a=1" },
+    });
+
+    rerender(
+      <KeyValuePairsTextEditor
+        value={[{ key: "b", value: "1" }]}
+        onErrorChange={onErrorChange}
+      />,
+    );
+
+    expect(screen.getByTestId("monaco")).toHaveValue("b=1;");
+    expect(onErrorChange).toHaveBeenLastCalledWith(undefined);
+    expect(mockSetModelMarkers).toHaveBeenLastCalledWith(
+      mockModel,
+      "cip-kv-pairs",
+      [],
     );
   });
 });

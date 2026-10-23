@@ -67,6 +67,11 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
 
   const ExpandButton = treeExpandIcon<void>();
   const propertiesEditorRef = useRef<KeyValuePairsEditorRef>(null);
+  // A ref, so the validator sees an error set in the same change.
+  const propertiesTextErrorRef = useRef<string>();
+  const setPropertiesTextError = useCallback((error: string | undefined) => {
+    propertiesTextErrorRef.current = error;
+  }, []);
 
   const isAsyncProtocolSupported =
     isKafkaProtocol(protocol ?? "") || isAmqpProtocol(protocol ?? "");
@@ -284,9 +289,22 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
             </Flex>
           }
           name="properties"
+          rules={[
+            {
+              validator: () =>
+                propertiesTextErrorRef.current
+                  ? Promise.reject(
+                      new Error(
+                        `Properties text can't be parsed: ${propertiesTextErrorRef.current}`,
+                      ),
+                    )
+                  : Promise.resolve(),
+            },
+          ]}
         >
           <KeyValuePairsEditor
             actionRef={propertiesEditorRef}
+            onTextErrorChange={setPropertiesTextError}
             renderTabBar={() => <></>}
             style={showProperties ? undefined : { display: "none" }}
           />

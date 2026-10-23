@@ -24,6 +24,7 @@ export type KeyValuePairsEditorExProps = KeyValuePairsEditorProps &
   Omit<TabsProps, keyof KeyValuePairsEditorProps> & {
     tableHeader?: ReactNode;
     tableColumnNames?: KeyValuePair;
+    onTextErrorChange?: (error: string | undefined) => void;
     actionRef?: Ref<KeyValuePairsEditorRef>;
   };
 
@@ -32,6 +33,7 @@ export const KeyValuePairsEditor: React.FC<KeyValuePairsEditorExProps> = ({
   value,
   tableHeader,
   tableColumnNames,
+  onTextErrorChange,
   actionRef,
   style,
   ...rest
@@ -79,7 +81,11 @@ export const KeyValuePairsEditor: React.FC<KeyValuePairsEditorExProps> = ({
           key: "text",
           label: "Text",
           children: (
-            <KeyValuePairsTextEditor value={value} onChange={onChange} />
+            <KeyValuePairsTextEditor
+              value={value}
+              onChange={onChange}
+              onErrorChange={onTextErrorChange}
+            />
           ),
         },
       ]}

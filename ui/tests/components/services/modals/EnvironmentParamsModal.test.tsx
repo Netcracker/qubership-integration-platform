@@ -276,6 +276,29 @@ describe("EnvironmentParamsModal", () => {
     });
   });
 
+  it("should not submit while the properties text cannot be parsed", async () => {
+    const { onSubmit } = renderModal("kafka");
+
+    expandProperties();
+    fireEvent.click(screen.getByLabelText("Text"));
+    const editor = await screen.findByTestId("key-value-pairs-editor");
+    fireEvent.change(editor, { target: { value: "client.id=new" } });
+    save();
+
+    expect(
+      await screen.findByText(/Properties text can't be parsed/),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.change(editor, { target: { value: "client.id=new;" } });
+    save();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].properties).toEqual({
+      "client.id": "new",
+    });
+  });
+
   it("should add an empty property row when the add button is clicked", () => {
     renderModal("kafka", { properties: {} });
 
