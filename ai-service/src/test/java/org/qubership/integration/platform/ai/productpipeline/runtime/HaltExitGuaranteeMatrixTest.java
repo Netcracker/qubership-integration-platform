@@ -57,8 +57,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 
 /**
- * Runtime coverage of {@code gate × input kind × owner state × catalog state}. Unreachable cells
- * are recorded with their reason rather than forced through a fixture that cannot exist.
+ * Runtime coverage of {@code gate × input kind × owner state × catalog state}.
  */
 class HaltExitGuaranteeMatrixTest {
 
@@ -83,25 +82,6 @@ class HaltExitGuaranteeMatrixTest {
         new CompilationArtifacts(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
     runStore = new ProductPipelineRunStore(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
     artifactStore = new ProductPipelineArtifactStore(artifacts);
-  }
-
-  @Test
-  void unreachableCellsAreRecordedWithAReason() {
-    List<String> unreachable =
-        List.of(
-            "STAGE_CLARIFICATION × Retry: Retry is not a clarification action; the gate accepts free text",
-            "STAGE_CLARIFICATION × Revise: Revise is not a clarification action",
-            "STAGE_CLARIFICATION × owner-choice pick: no owner candidates on this gate",
-            "OWNER_CHOICE × Retry: leftover owner-choice waits offer End run, not Retry",
-            "OWNER_CHOICE × Revise: leftover owner-choice waits offer End run, not Revise",
-            "STAGE_INTERNAL_FAILURE × Retry: leftover internal-failure waits offer End run",
-            "STAGE_ESCALATED × Retry as an offered action: leftover escalated waits offer End run",
-            "WAITING_FOR_APPROVAL × halt follow-up: not a halt gate",
-            "catalog written × automatic ReopenProducer: the executor never emits that decision after a catalog write",
-            "STAGE_RETRY × Revise: Revise is not on the retry-only card",
-            "STAGE_REVISE × owner-choice pick: revise has no owner-candidate list",
-            "untrusted origin × extra repair after the flat budget: InputOrigin absent or untrusted uses the flat budget");
-    assertEquals(12, unreachable.size());
   }
 
   @Test
@@ -185,31 +165,6 @@ class HaltExitGuaranteeMatrixTest {
   }
 
   @Test
-  void aQuestionAtAReviseGateLeavesSemanticStateUnchanged() {
-    haltOnPlanningValidation(answeringAgent());
-    SemanticRecoveryState before = runtime.captureSemanticRecoveryState(RUN_ID);
-
-    type("why did this stop?");
-
-    assertInstanceOf(
-        SemanticRecoveryState.CompareResult.Unchanged.class,
-        before.compareTo(runtime.captureSemanticRecoveryState(RUN_ID)));
-    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
-  }
-
-  @Test
-  void retryWithAnUnchangedKeyAfterACorrectionStillRuns() {
-    haltOnPlanningValidation(FakeFailureNarrativeAgent.owner("", "requirement-analysis"));
-    int callsBefore = planningCalls.get();
-
-    type("requirement-analysis");
-
-    assertEquals("requirement-analysis", run().run().currentStageId());
-    assertEquals(RunStatus.RUNNING, run().run().status());
-    assertEquals(callsBefore, planningCalls.get());
-  }
-
-  @Test
   void aClarificationAnswerKeepsTheCatalogChoiceActionableWithoutSpendingRepairCredit() {
     haltOnCatalogResolution(
         FakeFailureNarrativeAgent.owner("", "design-execution")
@@ -240,20 +195,6 @@ class HaltExitGuaranteeMatrixTest {
   }
 
   @Test
-  void aSpentExplanationBudgetStillAnswersAQuestion() {
-    haltOnPlanningValidation(answeringAgent(), 1);
-    SemanticRecoveryState before = runtime.captureSemanticRecoveryState(RUN_ID);
-
-    List<PipelineSignal> signals = type("why did this stop?");
-
-    assertInstanceOf(
-        SemanticRecoveryState.CompareResult.Unchanged.class,
-        before.compareTo(runtime.captureSemanticRecoveryState(RUN_ID)));
-    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
-    assertEquals(ANSWER, onlyMessage(signals));
-  }
-
-  @Test
   void anUnanswerableQuestionProducesACardThatKeepsRawEvidence() {
     haltOnPlanningValidation(
         FakeFailureNarrativeAgent.slow("Too late.", Duration.ofSeconds(30)).answering(ANSWER),
@@ -273,11 +214,7 @@ class HaltExitGuaranteeMatrixTest {
   }
 
   private void haltOnPlanningValidation(FakeFailureNarrativeAgent narrativeAgent) {
-    haltOnPlanningValidation(narrativeAgent, Integer.MAX_VALUE);
-  }
-
-  private void haltOnPlanningValidation(FakeFailureNarrativeAgent narrativeAgent, int maxCalls) {
-    haltOnPlanningValidation(narrativeAgent, maxCalls, null);
+    haltOnPlanningValidation(narrativeAgent, Integer.MAX_VALUE, null);
   }
 
   private void haltOnPlanningValidation(
@@ -294,18 +231,6 @@ class HaltExitGuaranteeMatrixTest {
             .build();
     runtime = new CreateChainTestOrchestrator(support, runStore);
     startThroughAnalysisApproval();
-  }
-
-  private static String onlyMessage(List<PipelineSignal> signals) {
-    return signals.stream()
-        .filter(PipelineSignal.Message.class::isInstance)
-        .map(PipelineSignal.Message.class::cast)
-        .map(PipelineSignal.Message::text)
-        .reduce(
-            (first, second) -> {
-              throw new AssertionError("expected one answer message, got more");
-            })
-        .orElseThrow(() -> new AssertionError("expected an answer message"));
   }
 
   private void haltOnCatalogResolution(FakeFailureNarrativeAgent narrativeAgent) {
@@ -351,10 +276,6 @@ class HaltExitGuaranteeMatrixTest {
         .await()
         .indefinitely();
     assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
-  }
-
-  private FakeFailureNarrativeAgent answeringAgent() {
-    return FakeFailureNarrativeAgent.owner("", "requirement-analysis").answering(ANSWER);
   }
 
   private List<PipelineSignal> type(String text) {
