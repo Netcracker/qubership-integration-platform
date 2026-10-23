@@ -209,14 +209,16 @@ public class CipKnowledgePackIngestionService {
     writeJson(
         versionDir.resolve(CipKnowledgePackIndexLoader.ELEMENT_SUPPORT_MATRIX_FILE),
         supportMatrix);
+    Path profilesDir = packRoot.resolve("product-pipelines").resolve("profiles");
     PipelineCompatibilityReport compatibilityReport =
         new CompilerPipelineCompatibilityAnalyzer()
             .compare(loadPreviousCertifiedPipelineIndex(), pipelineIndex);
     compatibilityReport =
         PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
             compatibilityReport,
-            ProductPipelineProfileKeys.readFromProfilesDirectory(
-                packRoot.resolve("product-pipelines").resolve("profiles")));
+            ProductPipelineProfileKeys.readFromProfilesDirectory(profilesDir),
+            ProductPipelineProfileKeys.loadFromProfilesDirectory(profilesDir),
+            pipelineIndex);
     writeJson(
         versionDir.resolve(CipKnowledgePackIndexLoader.PIPELINE_COMPATIBILITY_REPORT_FILE),
         compatibilityReport);

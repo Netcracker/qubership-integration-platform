@@ -35,7 +35,7 @@
 
     <properties>
         <revision>1.5.2</revision>
-        <changelist>-SNAPSHOT</changelist>
+        <changelist>-ai-reviewed-1-SNAPSHOT</changelist>
 
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
         <maven.compiler.release>21</maven.compiler.release>

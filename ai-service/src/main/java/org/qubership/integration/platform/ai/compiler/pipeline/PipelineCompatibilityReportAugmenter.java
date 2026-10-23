@@ -2,7 +2,9 @@ package org.qubership.integration.platform.ai.compiler.pipeline;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 
 /**
  * Merges knowledge-pack product profile versions into a pipeline compatibility report.
@@ -16,8 +18,13 @@ public final class PipelineCompatibilityReportAugmenter {
   private PipelineCompatibilityReportAugmenter() {}
 
   public static PipelineCompatibilityReport augmentWithPackShippedProfiles(
-      PipelineCompatibilityReport report, List<String> packShippedProfileKeys) {
+      PipelineCompatibilityReport report,
+      List<String> packShippedProfileKeys,
+      Map<String, ProductPipelineProfile> profilesByKey,
+      CompilerPipelineIndex activeIndex) {
     Objects.requireNonNull(report, "report");
+    Objects.requireNonNull(profilesByKey, "profilesByKey");
+    Objects.requireNonNull(activeIndex, "activeIndex");
     if (!report.activationAllowed()) {
       return report;
     }
@@ -28,6 +35,14 @@ public final class PipelineCompatibilityReportAugmenter {
     boolean changed = false;
     for (String key : packShippedProfileKeys) {
       if (key == null || key.isBlank()) {
+        continue;
+      }
+      if (merged.contains(key)) {
+        continue;
+      }
+      ProductPipelineProfile profile = profilesByKey.get(key);
+      if (profile == null
+          || !CompilerPipelineClosureSupport.requiredTerminalsProducible(profile, activeIndex)) {
         continue;
       }
       if (merged.add(key)) {

@@ -60,6 +60,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -779,6 +781,71 @@ class MaterializationCapabilityTest {
   }
 
   @Test
+  void createChainV3ProfileUsesDesignExecutionMaterializationPath() throws Exception {
+    ProductPipelineProfile profile = createChainV3FromBundledV2();
+    PreparedV2Inputs prepared = appendHappyPathV2Inputs();
+    appendWaitingCheckpoint(prepared.approvalRef(), prepared);
+    RunManifest manifestV3 = runManifestWithProfileVersion("3");
+    StageExecutionContext context =
+        new StageExecutionContext(
+            RUN_ID,
+            "conv-1",
+            "materialization",
+            RUN_ID,
+            "attempt-1",
+            profile,
+            manifestV3,
+            List.of(prepared.requestRef(), prepared.bundleRef(), prepared.runManifestRef()),
+            Map.of());
+    MaterializationResult readBack =
+        new MaterializationResult(
+            1,
+            "catalog-chain-1",
+            new MaterializationMap(
+                "catalog-chain-1",
+                Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of()),
+            prepared.request().graphDigest(),
+            MaterializationPhase.READ_BACK);
+    MaterializationResult reconciled =
+        new MaterializationResult(
+            1,
+            "catalog-chain-1",
+            readBack.materializationMap(),
+            prepared.request().graphDigest(),
+            MaterializationPhase.RECONCILE);
+    MaterializationResult complete =
+        new MaterializationResult(
+            1,
+            "catalog-chain-1",
+            readBack.materializationMap(),
+            prepared.request().graphDigest(),
+            MaterializationPhase.COMPLETE);
+    when(materializer.resume(any(), any())).thenReturn(readBack);
+    when(materializer.markReconciled(any(), any())).thenReturn(reconciled);
+    when(materializer.markComplete(any(), any())).thenReturn(complete);
+    when(factsService.load("catalog-chain-1"))
+        .thenReturn(
+            new org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts(
+                "catalog-chain-1",
+                "demo-chain",
+                "Demo",
+                2,
+                0,
+                "",
+                List.of(),
+                List.of(),
+                "built_in_catalog"));
+    when(reconcileService.compare(any(), any(), any()))
+        .thenReturn(
+            new org.qubership.integration.platform.ai.skill.orchestration.ReconcileResult(
+                true, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "ok"));
+
+    CapabilitySignal.Completed completed = completed(capability.execute(context));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+  }
+
+  @Test
   void v2SuccessfulReadbackMovesExecutorCheckpointToComplete() {
     PreparedV2Inputs prepared = appendHappyPathV2Inputs();
     appendWaitingCheckpoint(prepared.approvalRef(), prepared);
@@ -998,14 +1065,32 @@ class MaterializationCapabilityTest {
         null);
   }
 
-  private static RunManifest runManifestV2() {
+  private static ProductPipelineProfile createChainV3FromBundledV2() throws Exception {
+    try (var input =
+        MaterializationCapabilityTest.class.getResourceAsStream(
+            "/product-pipelines/profiles/create-chain-v2.yaml")) {
+      ProductPipelineProfile v2 = ProductPipelineProfileParser.parse(input);
+      return new ProductPipelineProfile(
+          v2.schemaVersion(),
+          v2.profileId(),
+          "3",
+          v2.runInputs(),
+          v2.stages(),
+          v2.terminal(),
+          v2.dependencyRoots(),
+          v2.compilerPipeline(),
+          v2.implementationGate());
+    }
+  }
+
+  private static RunManifest runManifestWithProfileVersion(String profileVersion) {
     return new RunManifest(
         RUN_ID,
         null,
         List.of(),
         "product",
         "create-chain",
-        "2",
+        profileVersion,
         "profile-sha",
         "baseline",
         "baseline-sha",
@@ -1021,6 +1106,10 @@ class MaterializationCapabilityTest {
         "24.4",
         List.of(new ArtifactTypeRef("implementation-plan", 2)),
         null);
+  }
+
+  private static RunManifest runManifestV2() {
+    return runManifestWithProfileVersion("2");
   }
 
   private PreparedV2Inputs appendHappyPathV2Inputs() {

@@ -129,12 +129,15 @@ public class ProductPipelineRuntimeProducers {
       ProductPipelineProfile packProfile = loadPackProfile(packRepository, relativePath);
       merged.put(profileKey(packProfile), packProfile);
     }
+    CompilerPipelineIndex activeIndex = packRepository.loadCompilerPipelineIndex();
     PipelineCompatibilityReport compatibilityReport =
         resolveCompatibilityReport(packRepository);
     compatibilityReport =
         PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
-            compatibilityReport, ProductPipelineProfileKeys.readFromPackRepository(packRepository));
-    CompilerPipelineIndex activeIndex = packRepository.loadCompilerPipelineIndex();
+            compatibilityReport,
+            ProductPipelineProfileKeys.readFromPackRepository(packRepository),
+            merged,
+            activeIndex);
     ProductPipelineCompatibilityVerifier compatibilityVerifier =
         new ProductPipelineCompatibilityVerifier();
     List<ProductPipelineProfile> profiles = new ArrayList<>();

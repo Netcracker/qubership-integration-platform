@@ -6,7 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
@@ -19,6 +21,29 @@ public final class ProductPipelineProfileKeys {
   public static String key(ProductPipelineProfile profile) {
     Objects.requireNonNull(profile, "profile");
     return profile.profileId() + "@" + profile.profileVersion();
+  }
+
+  public static Map<String, ProductPipelineProfile> loadFromProfilesDirectory(Path profilesDir)
+      throws IOException {
+    if (profilesDir == null || !Files.isDirectory(profilesDir)) {
+      return Map.of();
+    }
+    Map<String, ProductPipelineProfile> profiles = new LinkedHashMap<>();
+    try (Stream<Path> files = Files.list(profilesDir)) {
+      files
+          .filter(path -> path.getFileName().toString().endsWith(".yaml"))
+          .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+          .forEach(
+              path -> {
+                try (InputStream input = Files.newInputStream(path)) {
+                  ProductPipelineProfile profile = ProductPipelineProfileParser.parse(input);
+                  profiles.put(key(profile), profile);
+                } catch (IOException e) {
+                  throw new IllegalStateException("cannot read product profile " + path, e);
+                }
+              });
+    }
+    return Map.copyOf(profiles);
   }
 
   public static List<String> readFromProfilesDirectory(Path profilesDir) throws IOException {

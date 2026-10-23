@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -20,6 +19,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineClosureSupport;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineNode;
@@ -92,10 +92,13 @@ public final class CompilerRunPinResolver {
     }
 
     Set<String> allowedPhases = new LinkedHashSet<>(policy.allowedPhases());
-    Set<String> requiredTerminals = normalizeArtifacts(policy.requiredTerminalArtifacts());
-    Map<String, CompilerPipelineNode> byId = indexBySkillId(activeIndex.nodes());
+    Set<String> requiredTerminals =
+        CompilerPipelineClosureSupport.normalizeArtifacts(policy.requiredTerminalArtifacts());
+    Map<String, CompilerPipelineNode> byId =
+        CompilerPipelineClosureSupport.indexBySkillId(activeIndex.nodes());
 
-    LinkedHashSet<String> closureIds = resolveClosure(byId, allowedPhases, requiredTerminals);
+    LinkedHashSet<String> closureIds =
+        CompilerPipelineClosureSupport.resolveClosure(byId, allowedPhases, requiredTerminals);
     List<CompilerPipelineNode> closureNodes =
         closureIds.stream()
             .map(byId::get)
@@ -263,7 +266,8 @@ public final class CompilerRunPinResolver {
               + ")");
     }
 
-    Map<String, CompilerPipelineNode> byId = indexBySkillId(activeIndex.nodes());
+    Map<String, CompilerPipelineNode> byId =
+        CompilerPipelineClosureSupport.indexBySkillId(activeIndex.nodes());
     for (Map.Entry<String, String> entry : pin.skillSha256ById().entrySet()) {
       CompilerPipelineNode node = byId.get(entry.getKey());
       if (node != null) {
@@ -324,80 +328,6 @@ public final class CompilerRunPinResolver {
         .anyMatch(
             stage ->
                 DesignPlanningCapability.CAPABILITY_ID.equals(stage.capabilityId()));
-  }
-
-  private static LinkedHashSet<String> resolveClosure(
-      Map<String, CompilerPipelineNode> byId,
-      Set<String> allowedPhases,
-      Set<String> requiredTerminals) {
-    LinkedHashSet<String> closure = new LinkedHashSet<>();
-    ArrayDeque<String> queue = new ArrayDeque<>();
-    for (CompilerPipelineNode node : byId.values()) {
-      if (!allowedPhases.isEmpty() && !allowedPhases.contains(node.compilerPhase())) {
-        continue;
-      }
-      if (producesAny(node, requiredTerminals)) {
-        queue.add(node.skillId());
-      }
-    }
-    if (queue.isEmpty() && !requiredTerminals.isEmpty()) {
-      throw new IllegalStateException(
-          "no compiler nodes produce required terminal artifacts " + requiredTerminals);
-    }
-    while (!queue.isEmpty()) {
-      String skillId = queue.poll();
-      if (!closure.add(skillId)) {
-        continue;
-      }
-      CompilerPipelineNode node = byId.get(skillId);
-      if (node == null) {
-        throw new IllegalStateException("compiler closure references unknown skill: " + skillId);
-      }
-      for (String dependency : node.dependsOn()) {
-        CompilerPipelineNode dep = byId.get(dependency);
-        if (dep == null) {
-          throw new IllegalStateException(
-              "compiler node " + skillId + " depends on unknown skill: " + dependency);
-        }
-        if (!allowedPhases.isEmpty() && !allowedPhases.contains(dep.compilerPhase())) {
-          continue;
-        }
-        queue.add(dependency);
-      }
-    }
-    return closure;
-  }
-
-  private static boolean producesAny(CompilerPipelineNode node, Set<String> requiredTerminals) {
-    for (String produced : node.produces()) {
-      if (requiredTerminals.contains(normalizeArtifactName(produced))) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static Set<String> normalizeArtifacts(List<ArtifactTypeRef> refs) {
-    LinkedHashSet<String> normalized = new LinkedHashSet<>();
-    for (ArtifactTypeRef ref : refs) {
-      if (ref == null || ref.type() == null || ref.type().isBlank()) {
-        continue;
-      }
-      normalized.add(normalizeArtifactName(ref.type()));
-    }
-    return normalized;
-  }
-
-  private static String normalizeArtifactName(String raw) {
-    return raw.trim().replace('-', '_').toUpperCase(Locale.ROOT);
-  }
-
-  private static Map<String, CompilerPipelineNode> indexBySkillId(List<CompilerPipelineNode> nodes) {
-    Map<String, CompilerPipelineNode> byId = new LinkedHashMap<>();
-    for (CompilerPipelineNode node : nodes) {
-      byId.put(node.skillId(), node);
-    }
-    return byId;
   }
 
   private static ResolvedCompilerNode toResolved(CompilerPipelineNode node) {
