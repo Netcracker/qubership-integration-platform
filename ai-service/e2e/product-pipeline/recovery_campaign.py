@@ -18,7 +18,8 @@ from urllib.request import urlopen
 
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_CASES = HERE / "fixtures/recovery/cases.json"
+TESTING_ROOT = Path(os.environ.get("QIP_SKILLS_TESTING_ROOT", str(HERE.parents[2] / ".private/rocky-skills/testing")))
+DEFAULT_CASES = TESTING_ROOT / "product-pipeline/fixtures/recovery/cases.json"
 ROOT = HERE.parents[2]
 COMPOSE = ROOT / "infrastructure/docker/docker-compose.ai-recovery.yml"
 PASS = {"CHECKPOINT_PASS", "COMPLETION_PASS"}

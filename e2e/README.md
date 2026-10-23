@@ -7,6 +7,10 @@ what failed, and a person decides what to do about it.
 This page covers running the suite and reading its result. The rules for writing or changing a spec
 are in [`AGENTS.md`](AGENTS.md), generated from `.apm/instructions/e2e.instructions.md`.
 
+The `ai-tests` project checks the [local AI test UI](../ai-service/e2e/test-system.md) with temporary
+synthetic test commands. It needs Python and Chromium, and starts no product stack:
+`npx playwright test --project=ai-tests --no-deps`.
+
 - [Prerequisites](#prerequisites)
 - [What a run changes on the stack](#what-a-run-changes-on-the-stack)
 - [Targets](#targets)

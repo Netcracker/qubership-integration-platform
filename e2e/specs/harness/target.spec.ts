@@ -36,6 +36,7 @@ const E2E_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".
  * `schemas-build` added ahead of `ui-server`, `vscode-server` with its teardown added, and `vscode`.
  */
 const COMPOSE_PROJECTS = [
+  "ai-tests",
   "schema",
   "harness",
   "api",
@@ -68,6 +69,7 @@ function composeProjects(brokers: string | undefined): SuiteProject[] {
  * this table in the same commit.
  */
 const COMPOSE_SCHEDULE: Record<string, string> = {
+  "ai-tests": "./specs/ai-tests",
   schema: "./specs/schema; parallel",
   harness: "./specs/harness; parallel",
   api: "./specs/api; after seed; parallel",

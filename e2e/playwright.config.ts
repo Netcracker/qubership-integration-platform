@@ -45,6 +45,12 @@ const workers = Number(process.env.E2E_WORKERS ?? 8);
 
 const suite: SuiteProject[] = [
   {
+    name: "ai-tests",
+    testDir: "./specs/ai-tests",
+    metadata: { stack: false },
+    use: { ...devices["Desktop Chrome"] },
+  },
+  {
     // Reads the product's tracked files off disk: the schemas, routes.conf, the Compose files, the
     // migrations. No stack, no network, seconds to run — so it goes first and a broken file costs
     // nothing to discover.

@@ -1,5 +1,8 @@
 # Product-pipeline quality gate
 
+Use [the shared runner](../test-system.md) for agent and UI runs. Live cases and fixtures are supplied
+by `.private/rocky-skills/testing/product-pipeline`; the scripts here read that development bundle.
+
 This harness verifies CREATE and COMPARE_AND_PATCH against one certified knowledge package. It has
 no FULL/SLIM runtime selection.
 
@@ -217,9 +220,9 @@ Set `CIP_RECOVERY_AI_IMAGE` when running that check against a candidate image.
 The variation generator, transport fault matrix, and complete 18-run acceptance campaign follow this pilot.
 An independent wave over the implemented HTTP boundaries does not satisfy missing families in that campaign.
 
-The retained [missing-route regression](fixtures/recovery/regressions/missing-route-repeated.json) records a stage
+The retained [missing-route regression](test-fixtures/recovery/missing-route-repeated.json) records a stage
 that accepted the author's path and then requested it again at a newer revision. Its
-[native trace](fixtures/recovery/regressions/missing-route-repeated-evidence.json) remains a failed recovery.
+[native trace](test-fixtures/recovery/missing-route-repeated-evidence.json) remains a failed recovery.
 Replay that case with the ordinary model after a separately approved service fix:
 
 ```bash
