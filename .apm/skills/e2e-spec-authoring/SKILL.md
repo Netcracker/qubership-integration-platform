@@ -60,8 +60,9 @@ npm test -- --project=schema --project=harness
 Before you push a broad change, run the whole suite on Compose with `npm test`, about 13 minutes on
 the classic engine alone. Dispatch `.github/workflows/e2e-k8s.yaml`, about 37 minutes on both
 engines on Kubernetes, in three cases only: the change touches the micro engine, a project only
-`k8s` declares, or provisioning (`env/provision/`); the work reaches a checkpoint, before a merge or
-at the end of a large step; or a failure looks flaky and needs a second run on the reference
+`k8s` declares, or Kubernetes provisioning (`env/provision/k8s.ts`, or `env/provision.ts` and
+`env/provision/common.ts`, which both targets share); the work reaches a checkpoint, before a merge
+or at the end of a large step; or a failure looks flaky and needs a second run on the reference
 environment. Queue no second dispatch while one runs. The workflow's `concurrency` group sets no
 `cancel-in-progress`, so a third dispatch cancels the second while it waits in the queue.
 
