@@ -1,8 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MapperFeature;
@@ -30,6 +28,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
@@ -150,12 +149,10 @@ public class RequirementCaptureToolProvider {
         return tools.rejectArguments(toolName, arguments, issue);
       }
       return action.apply(mapper.treeToValue(input.get(field), type));
-    } catch (JsonProcessingException error) {
-      return tools.rejectArguments(toolName, arguments, new Issue(
-          jsonErrorCode(error), "/", null, "Send one valid JSON argument object."));
     } catch (IOException error) {
       return tools.rejectArguments(toolName, arguments, new Issue(
-          "INVALID_JSON", "/", null, "Send one valid JSON argument object."));
+          StructuredCaptureArguments.jsonErrorCode(error), "/", null,
+          StructuredCaptureArguments.syntaxMessage("Send one valid JSON argument object.", error)));
     } finally {
       if (previous == null) ARGUMENT_BINDING.remove();
       else ARGUMENT_BINDING.set(previous);
@@ -169,36 +166,17 @@ public class RequirementCaptureToolProvider {
           : tools.rejectArguments("readRequirementDraft", arguments, issue);
     } catch (IOException error) {
       return tools.rejectArguments("readRequirementDraft", arguments, new Issue(
-          jsonErrorCode(error), "/", null, "Send an empty JSON object."));
+          StructuredCaptureArguments.jsonErrorCode(error), "/", null,
+          StructuredCaptureArguments.syntaxMessage("Send an empty JSON object.", error)));
     }
   }
 
   private JsonNode parse(String arguments) throws IOException {
-    JsonNode input = parseOnce(arguments);
+    JsonNode input = StructuredCaptureArguments.parseJson(mapper, arguments, "outer");
     if (input != null && input.isTextual()) {
-      input = parseOnce(input.textValue());
+      input = StructuredCaptureArguments.parseJson(mapper, input.textValue(), "decoded rootString argument /");
     }
     return input;
-  }
-
-  private JsonNode parseOnce(String input) throws IOException {
-    if (input == null || input.isBlank()) {
-      throw new IOException("Empty JSON arguments");
-    }
-    try (JsonParser parser = mapper.getFactory().createParser(input)) {
-      JsonNode value = mapper.readTree(parser);
-      if (parser.nextToken() != null) {
-        throw new IOException("Trailing JSON content");
-      }
-      return value;
-    }
-  }
-
-  private static String jsonErrorCode(IOException error) {
-    return error instanceof JsonParseException
-        && error.getMessage() != null
-        && error.getMessage().contains("Duplicate field")
-        ? "DUPLICATE_JSON_KEY" : "INVALID_JSON";
   }
 
   private static Issue check(JsonNode value, JsonSchemaElement schema, String path) {

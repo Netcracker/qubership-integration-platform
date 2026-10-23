@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.llm.tool;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
@@ -18,6 +19,7 @@ import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
 import java.io.IOException;
 import java.util.Map;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 
 /** Checks a structured capture call before Quarkus maps its arguments to a Java record. */
 public final class StructuredCaptureArguments {
@@ -64,7 +66,7 @@ public final class StructuredCaptureArguments {
       ToolExecutionRequest request, ToolMethodCreateInfo method, ObjectMapper mapper) {
     ObjectMapper strict = mapper.copy().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
     try {
-      JsonNode input = parse(strict, request.arguments());
+      JsonNode input = parseJson(strict, request.arguments(), "outer");
       if (!input.isObject()) {
         return invalid("INVALID_TYPE", "/", "Send one JSON argument object.");
       }
@@ -77,7 +79,7 @@ public final class StructuredCaptureArguments {
       }
       JsonNode capture = input.get(parameter);
       if (capture.isTextual()) {
-        capture = parse(strict, capture.textValue());
+        capture = parseJson(strict, capture.textValue(), "decoded named argument /" + parameter.replace("~", "~0").replace("/", "~1"));
         ((com.fasterxml.jackson.databind.node.ObjectNode) input).set(parameter, capture);
       }
       Issue issue = unknownField(
@@ -98,24 +100,52 @@ public final class StructuredCaptureArguments {
       }
       return new Result(request.toBuilder().arguments(strict.writeValueAsString(input)).build(), null);
     } catch (IOException error) {
-      String code = error instanceof JsonParseException
-          && error.getMessage() != null && error.getMessage().contains("Duplicate field")
-          ? "DUPLICATE_JSON_KEY" : "INVALID_JSON";
-      return invalid(code, "/", "Send one valid JSON argument object.");
+      return invalid(jsonErrorCode(error), "/", syntaxMessage("Send one valid JSON argument object.", error));
     }
   }
 
-  private static JsonNode parse(ObjectMapper mapper, String arguments) throws IOException {
-    if (arguments == null || arguments.isBlank()) {
-      throw new IOException("Empty JSON arguments");
-    }
-    try (JsonParser parser = mapper.getFactory().createParser(arguments)) {
-      JsonNode input = mapper.readTree(parser);
-      if (parser.nextToken() != null) {
-        throw new IOException("Trailing JSON content");
+  /** Parses one existing argument layer while retaining the native failure and its coordinate space. */
+  public static JsonNode parseJson(ObjectMapper mapper, String arguments, String layer) throws IOException {
+    try {
+      if (arguments == null || arguments.isBlank()) {
+        throw new IOException("Empty JSON arguments");
       }
-      return input;
+      try (JsonParser parser = mapper.getFactory().createParser(arguments)) {
+        JsonNode input = mapper.readTree(parser);
+        if (parser.nextToken() != null) {
+          throw new JsonParseException(parser, "Trailing JSON content", parser.currentTokenLocation());
+        }
+        return input;
+      }
+    } catch (IOException error) {
+      String details = "layer=" + layer;
+      if (error instanceof JsonProcessingException nativeError) {
+        if (nativeError.getProcessor() instanceof JsonParser parser) {
+          details += "; context=" + parser.getParsingContext().pathAsPointer();
+        }
+        var location = nativeError.getLocation();
+        if (location != null) {
+          details += "; line=" + location.getLineNr() + "; column=" + location.getColumnNr()
+              + "; charOffset=" + location.getCharOffset() + "; byteOffset=" + location.getByteOffset();
+        }
+        details += "; reason=" + nativeError.getOriginalMessage();
+      } else {
+        details += "; location unavailable; reason=" + error.getMessage();
+      }
+      throw new IOException(ToolCallFingerprints.NATIVE_PARSER_DETAILS + details, error);
     }
+  }
+
+  /** Appends diagnostics only for a proven failure of the strict argument parser. */
+  public static String syntaxMessage(String legacyMessage, IOException error) {
+    return error.getMessage() != null && error.getMessage().startsWith(ToolCallFingerprints.NATIVE_PARSER_DETAILS)
+        ? legacyMessage + error.getMessage() : legacyMessage;
+  }
+
+  public static String jsonErrorCode(IOException error) {
+    Throwable nativeError = error.getCause() == null ? error : error.getCause();
+    return nativeError instanceof JsonParseException && nativeError.getMessage() != null
+        && nativeError.getMessage().contains("Duplicate field") ? "DUPLICATE_JSON_KEY" : "INVALID_JSON";
   }
 
   private static Issue unknownField(

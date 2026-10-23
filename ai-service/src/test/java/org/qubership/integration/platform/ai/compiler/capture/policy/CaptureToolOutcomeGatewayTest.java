@@ -30,6 +30,40 @@ class CaptureToolOutcomeGatewayTest {
   }
 
   @Test
+  void parserDetailsNeverRenewAnExistingNativeSoftCredit() {
+    for (String code : List.of("INVALID_JSON", "DUPLICATE_JSON_KEY")) {
+      String legacy = code + " /: Send one valid JSON argument object. Resubmit the complete captureGraphPatch argument object.";
+      String detailed = legacy + ToolCallFingerprints.NATIVE_PARSER_DETAILS
+          + "layer=outer; context=/patch/other; line=4; column=98; charOffset=9000; reason=node 'untrusted' property 'text' [x]";
+      assertEquals(legacy, ToolCallFingerprints.stripNativeParserDetails(detailed));
+      assertEquals(ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", legacy),
+          ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", detailed));
+      assertEquals(ToolCallFingerprints.failureSignature(legacy), ToolCallFingerprints.failureSignature(detailed));
+      assertEquals(ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", legacy),
+          ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", " \n" + detailed));
+      assertEquals(legacy, gateway.onFailure(CaptureFeedbackChannel.PATCH, code, "owner",
+          CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE, "captureGraphPatch", Map.of(), legacy));
+      assertThrows(CaptureValidationException.class, () -> gateway.onFailure(CaptureFeedbackChannel.PATCH,
+          code, "owner", CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE,
+          "captureGraphPatch", Map.of("changed", "arguments"), detailed));
+      var refused = feedbackStore.lastPatchFailure(code, "owner").orElseThrow();
+      assertEquals(CaptureFailureClass.IDENTICAL_SPAM, refused.failureClass());
+      assertFalse(refused.outerAllowed());
+      assertEquals(detailed, refused.summary());
+      assertEquals(1, fingerprintStore.softCreditsUsed(code));
+      for (String suffix : List.of("line=1; charOffset=2; reason=another native cause", " \n node 'other' property 'other'")) {
+        assertEquals(ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", legacy),
+            ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", legacy + ToolCallFingerprints.NATIVE_PARSER_DETAILS + suffix));
+      }
+    }
+    for (String foreign : List.of("INVALID_VALUE /: business", "user text INVALID_JSON /: body", "INVALID_JSON /other: body")) {
+      String text = foreign + ToolCallFingerprints.NATIVE_PARSER_DETAILS + "keep this data";
+      assertEquals(text, ToolCallFingerprints.stripNativeParserDetails(text));
+    }
+    assertEquals("INVALID_JSON /: no suffix", ToolCallFingerprints.stripNativeParserDetails("INVALID_JSON /: no suffix"));
+  }
+
+  @Test
   void nativeUnknownKeysReceiveCreditPerNodeAndField() {
     String first = "node 'script-a' (script) has unknown property key 'incorrectA'";
     String second = "node 'script-b' (script) has unknown property key 'incorrectB'";

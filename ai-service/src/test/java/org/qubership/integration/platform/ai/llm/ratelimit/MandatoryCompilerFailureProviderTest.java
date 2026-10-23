@@ -131,6 +131,12 @@ class MandatoryCompilerFailureProviderTest {
         Turn.tool("bad-1", request -> assertTrue(request.messages().toString().contains("/retained-progress")), "captureGraphPatch", controlled ? good : raw),
         Turn.tool("bad-2", request -> {
           assertTrue(request.messages().toString().contains("INVALID_JSON"));
+          assertParserDetails(request.messages().toString(), raw);
+          var refusal = request.messages().stream()
+              .filter(dev.langchain4j.data.message.ToolExecutionResultMessage.class::isInstance)
+              .map(dev.langchain4j.data.message.ToolExecutionResultMessage.class::cast)
+              .filter(result -> "bad-1".equals(result.id())).findFirst().orElseThrow();
+          assertEquals(feedback.lastPatchFailure(h.chat, OWNER).orElseThrow().summary(), refusal.text());
           String historic = request.messages().stream().filter(AiMessage.class::isInstance).map(AiMessage.class::cast)
               .flatMap(message -> message.toolExecutionRequests().stream()).filter(call -> "bad-1".equals(call.id()))
               .findFirst().orElseThrow().arguments();
@@ -170,6 +176,10 @@ class MandatoryCompilerFailureProviderTest {
       }
       assertEquals(feedback.inputScope(h.chat, OWNER), packet.at("/nativeObservation/proposal/inputScope").asText());
       assertTrue(packet.at("/feedback/summary").asText().startsWith("INVALID_JSON /:"));
+      assertParserDetails(packet.at("/feedback/summary").asText(), raw);
+      assertEquals("INVALID_JSON /: Send one valid JSON argument object. Resubmit the complete captureGraphPatch argument object.",
+          org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints
+              .stripNativeParserDetails(packet.at("/feedback/summary").asText()));
       assertEquals("IDENTICAL_SPAM", packet.at("/feedback/failureClass").asText());
       assertFalse(packet.at("/feedback/outerAllowed").asBoolean());
       assertFalse(packet.at("/feedback/noProgress").asBoolean());
@@ -291,6 +301,7 @@ class MandatoryCompilerFailureProviderTest {
       assertTrue(context.contains("COMPILER_SKILL_FAILED"), context);
       assertTrue(context.contains(tail), "Full native raw data must reach the repair request.");
       assertTrue(context.contains("nativeObservation"));
+      assertParserDetails(context, raw);
       assertTrue(context.contains(SOURCE));
     }, "captureGraphPatch", corrected));
     var model = new ScriptedStreamingChatModel(turns.toArray(Turn[]::new));
@@ -316,6 +327,10 @@ class MandatoryCompilerFailureProviderTest {
       assertTrue(failure.outerAllowed());
       var packet = delivered.get().at("/evidence/captureFailure");
       assertEquals(json.valueToTree(failure), packet.path("feedback"));
+      assertParserDetails(packet.at("/feedback/summary").asText(), raw);
+      assertEquals("INVALID_JSON /: Send one valid JSON argument object. Resubmit the complete captureGraphPatch argument object.",
+          org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints
+              .stripNativeParserDetails(packet.at("/feedback/summary").asText()));
       assertEquals(raw, packet.at("/nativeObservation/proposal/arguments").asText());
       assertEquals("permitted-1", packet.at("/nativeObservation/proposal/toolCallId").asText());
       assertFalse(packet.at("/feedback/repairHistoryJson").asText().contains(tail));
@@ -365,6 +380,25 @@ class MandatoryCompilerFailureProviderTest {
         && (transition.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)
             || transition.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX))).count());
     assertEquals(0, h.budget.state(h.run).grants());
+  }
+
+  private void assertParserDetails(String delivered, String raw) {
+    try (var parser = json.getFactory().createParser(raw)) {
+      try {
+        json.readTree(parser);
+        fail("The fixture must reach a real native syntax refusal.");
+      } catch (com.fasterxml.jackson.core.JsonProcessingException nativeFailure) {
+        assertTrue(delivered.contains("Native JSON parser details:"), delivered);
+        assertTrue(delivered.contains("layer=outer"), delivered);
+        assertTrue(delivered.contains("context=" + parser.getParsingContext().pathAsPointer()), delivered);
+        assertTrue(delivered.contains("line=" + nativeFailure.getLocation().getLineNr()), delivered);
+        assertTrue(delivered.contains("column=" + nativeFailure.getLocation().getColumnNr()), delivered);
+        assertTrue(delivered.contains("charOffset=" + nativeFailure.getLocation().getCharOffset()), delivered);
+        assertTrue(delivered.contains(nativeFailure.getOriginalMessage()), delivered);
+      }
+    } catch (java.io.IOException error) {
+      throw new AssertionError(error);
+    }
   }
 
   private JsonNode jsonUnchecked(String value) {
