@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Wait for the module builds a pull request triggers and fail if one fails.
+# Wait for the Maven build jobs a pull request triggers and fail if one fails.
+# Sonar results do not gate the snapshot flow.
 # The snapshot flow builds every module itself, so a module build only gates it:
 # a module the pull request does not touch is not built again.
 #
@@ -65,19 +66,35 @@ find_run() {
         "
 }
 
-wait_for_run() {
+read_build_state() {
+    local run_id="$1"
+    local build_state
+
+    # Both the caller and reusable workflow name their Maven job "build".
+    build_state=$(gh api --paginate \
+        "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" \
+        --jq '.jobs[] | select(.name == "build / build") | [.status, (.conclusion // "")] | @tsv') || return 1
+
+    if [ -n "$build_state" ]; then
+        printf '%s\n' "$build_state"
+    else
+        # Queued runs may have no jobs yet; completed runs must have a build.
+        gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" \
+            --jq '[.status, "build job missing"] | @tsv'
+    fi
+}
+
+wait_for_build() {
     local build_name="$1"
     local run_id="$2"
     local run_url="$3"
-    local run_state
+    local build_state
     local status
     local conclusion
     local status_read_failures=0
 
     while :; do
-        if ! run_state=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" \
-            --jq '[.status, (.conclusion // "")] | @tsv'); then
+        if ! build_state=$(read_build_state "$run_id"); then
             status_read_failures=$((status_read_failures + 1))
             if [ "$status_read_failures" -ge 3 ]; then
                 echo "::error::Could not read ${build_name} status after three attempts: ${run_url}"
@@ -89,10 +106,10 @@ wait_for_run() {
         fi
         status_read_failures=0
 
-        IFS=$'\t' read -r status conclusion <<< "$run_state"
+        IFS=$'\t' read -r status conclusion <<< "$build_state"
         if [ "$status" = "completed" ]; then
             if [ "$conclusion" != "success" ]; then
-                echo "::error::${build_name} did not complete successfully: ${run_url}"
+                echo "::error::${build_name} did not complete successfully (${conclusion}): ${run_url}"
                 exit 1
             fi
             return
@@ -133,7 +150,7 @@ await_build() {
 
     IFS=$'\t' read -r run_id run_url <<< "$run"
     echo "Waiting for ${build_name}: ${run_url}"
-    wait_for_run "$build_name" "$run_id" "$run_url"
+    wait_for_build "$build_name" "$run_id" "$run_url"
     echo "| ${build_name} | [passed](${run_url}) |" >> "$GITHUB_STEP_SUMMARY"
 }
 
