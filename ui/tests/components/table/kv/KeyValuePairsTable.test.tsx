@@ -217,8 +217,14 @@ describe("KeyValuePairsTable", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("should accept the key unchanged when the edit is committed", async () => {
-    render(<KeyValuePairsTable value={[{ key: "a", value: "1" }]} />);
+  it("should accept the key unchanged without calling onChange", async () => {
+    const onChange = jest.fn();
+    render(
+      <KeyValuePairsTable
+        value={[{ key: "a", value: "1" }]}
+        onChange={onChange}
+      />,
+    );
 
     editCell("a", "a");
 
@@ -226,6 +232,24 @@ describe("KeyValuePairsTable", () => {
       await screen.findByRole("button", { name: "a" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("Already exists: a")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("should not call onChange when the value is committed unchanged", async () => {
+    const onChange = jest.fn();
+    render(
+      <KeyValuePairsTable
+        value={[{ key: "a", value: "1" }]}
+        onChange={onChange}
+      />,
+    );
+
+    editCell("1", "1");
+
+    expect(
+      await screen.findByRole("button", { name: "1" }),
+    ).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("should update the edited pair when the rows are sorted", async () => {

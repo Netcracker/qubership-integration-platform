@@ -3,6 +3,7 @@
  */
 import React, { useEffect } from "react";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -267,6 +268,28 @@ describe("EnvironmentParamsModal", () => {
   it("should close without a prompt on Cancel when nothing changed", async () => {
     renderModal("http");
 
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() =>
+      expect(screen.queryByText("Edit Environment")).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
+  });
+
+  it("should close without a prompt on Cancel when a property is committed unchanged", async () => {
+    renderModal("kafka");
+    expandProperties();
+
+    for (const text of ["authMethod", "SASL_SSL"]) {
+      fireEvent.click(screen.getByRole("button", { name: text }));
+      const input = screen.getByDisplayValue(text);
+      await act(async () => {
+        fireEvent.keyDown(input, { key: "Enter", code: "Enter", keyCode: 13 });
+      });
+      expect(
+        await screen.findByRole("button", { name: text }),
+      ).toBeInTheDocument();
+    }
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     await waitFor(() =>

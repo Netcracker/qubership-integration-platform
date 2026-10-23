@@ -110,10 +110,10 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
               viewer={value}
               initialActive={value === ""}
               onSubmit={({ value }) => {
-                if (
-                  tableData?.some((r) => r.key === value) &&
-                  record.key !== value
-                ) {
+                if (record.key === value) {
+                  return;
+                }
+                if (tableData?.some((r) => r.key === value)) {
                   void messageApi.error(`Already exists: ${value}`);
                 } else {
                   updateRecord(record.key, { key: value });
@@ -135,7 +135,9 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
               editor={<TextValueEdit name="value" rules={[]} />}
               viewer={value}
               onSubmit={({ value }) => {
-                updateRecord(record.key, { value });
+                if (record.value !== value) {
+                  updateRecord(record.key, { value });
+                }
               }}
             />
           );
