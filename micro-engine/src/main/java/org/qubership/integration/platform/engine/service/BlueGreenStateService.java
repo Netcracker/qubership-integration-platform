@@ -4,13 +4,16 @@ import com.netcracker.cloud.bluegreen.api.model.BlueGreenState;
 import com.netcracker.cloud.bluegreen.api.model.State;
 import com.netcracker.cloud.bluegreen.api.service.BlueGreenStatePublisher;
 import io.quarkus.arc.Unremovable;
+import io.quarkus.runtime.Startup;
 import io.vertx.mutiny.core.eventbus.EventBus;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 
+// Started eagerly: otherwise nothing subscribes to the blue-green state until route registration first reads the version.
 @Slf4j
+@Startup
 @ApplicationScoped
 @Unremovable
 public class BlueGreenStateService {
@@ -50,9 +53,9 @@ public class BlueGreenStateService {
     private synchronized void updateState(BlueGreenState newState) {
         boolean firstUpdate = lastState == null;
         log.info("BG state changed: {}, is initial: {}", newState, firstUpdate);
-        this.lastState = newState;
 
         BlueGreenStateChange stateChange = new BlueGreenStateChange(lastState, newState);
+        this.lastState = newState;
         eventBus.publish(BLUE_GREEN_STATE_EVENT_ADDRESS, stateChange);
     }
 }

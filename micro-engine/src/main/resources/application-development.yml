@@ -5,6 +5,11 @@ cip:
       address: pubsub:8085
   logging:
     format: ${LOG_FORMAT:text}
+  camel:
+    component:
+      quartz:
+        # FakeDBaaSClient gives every domain one scheduler database, where DBaaS gives each domain its own
+        scheduler-name: ${cloud.microservice.name}
   local-truststore:
     store:
       path: /app/truststore/defaulttruststore.jks
