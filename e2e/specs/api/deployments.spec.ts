@@ -23,8 +23,9 @@
  *   the marker flips partway through. It is not a promise that every sample answers 200: there is
  *   no drain handshake, and a call that resolves a suspended consumer — or that is still executing
  *   when the superseded context stops — answers `500 CIP-0001`, which is indistinguishable from a
- *   chain that threw. The redeploy case tolerates that one answer, bounds how many samples may
- *   carry it, and refuses everything else; issue #845 has the mechanism and the reproduction.
+ *   chain that threw, or 500 with the request echoed back. The redeploy case tolerates those two
+ *   answers, bounds how many samples may carry them, and refuses everything else; issue #845 has
+ *   the mechanism and the reproduction.
  * - Two **chains** sharing one `contextPath` on one domain both reach `DEPLOYED`, and the last one
  *   deployed owns the route. Camel does not treat it as a route conflict, and the second deployment
  *   never reaches `FAILED`.
@@ -53,6 +54,7 @@ import {
 } from "../../support/deployable.js";
 import { DEPLOY_TIMEOUT } from "../../support/corpus.js";
 import { sleep } from "../../support/poll.js";
+import { isDrainAnswer, type RouteAnswer } from "../../support/drain-answer.js";
 import type { Env } from "../../env/index.js";
 import type { APIRequestContext } from "@playwright/test";
 import { coversBehavior } from "../../registry/covers.js";
@@ -84,29 +86,6 @@ const SAMPLE_PAUSE = 100;
  */
 const DRAIN_SAMPLE_LIMIT = 10;
 
-interface RouteAnswer {
-  status: number;
-  marker: string | null;
-  body: string;
-}
-
-/**
- * Whether a sample is the engine's answer for a route that is not serving right now.
- *
- * `CustomErrorController` maps every chain-URI error status except 404 and 405 to `CIP-0001` at
- * HTTP 500, so a suspended consumer's 503 and a genuine chain failure reach the caller as the same
- * document. That is a filed platform defect, and it is why this reads the code out of the body
- * rather than accepting any 500: the status alone would also accept a chain that broke.
- */
-function isDrainAnswer(answer: RouteAnswer): boolean {
-  if (answer.status !== 500) return false;
-  try {
-    return (JSON.parse(answer.body) as { code?: string }).code === "CIP-0001";
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Calls the chain on its route and reads the marker off the response.
  *
@@ -130,6 +109,7 @@ async function callDeployedChain(
     status: response.status(),
     marker: response.headers()[MARKER_HEADER] ?? null,
     body: await response.text(),
+    sent: JSON.stringify(body),
   };
 }
 
@@ -362,14 +342,16 @@ test.describe("deployments", { tag: ["@catalog"] }, () => {
     // What the engine does not promise is that every sample answers 200. There is no drain handshake:
     // a request that resolves the superseded consumer while it is suspended, or that is still
     // executing when its context stops, answers `500 CIP-0001` — the same body a chain that threw
-    // would produce. Issue #845 has the mechanism and the reproduction. The second of the two paths
+    // would produce — or 500 with the request echoed back, which
+    // `HandlingHttpBinding.doWriteExceptionResponse` writes for an exchange the stopping context
+    // rejects. Issue #845 has the mechanism and the reproduction. The second of the two paths
     // it describes is the one that reaches a redeploy: `stopSupersededContext` tears the old context
     // down under whatever is still executing on it, and `CamelServlet.service` answers that request
     // 500. This suite has seen it once, against 31,890 redeploy calls that produced no non-200: rare,
     // not impossible, which is why the window is tolerated here rather than pinned with `test.fail()`.
     //
-    // Tolerated is not unread. A sample that is neither a 200 nor that one answer fails the case, so
-    // a redeploy that starts answering 502, or 500 with some other code, is still a regression, and
+    // Tolerated is not unread. A sample that is neither a 200 nor one of those answers fails the case,
+    // so a redeploy that starts answering 502, or 500 with some other code, is still a regression, and
     // the assertion after this one bounds how much of the redeploy the window may swallow.
     expect(
       samples.filter((each) => each.status !== 200 && !isDrainAnswer(each)),
@@ -380,7 +362,7 @@ test.describe("deployments", { tag: ["@catalog"] }, () => {
     const drains = samples.filter(isDrainAnswer);
     test.info().annotations.push({
       type: "drain-window",
-      description: `${drains.length} of ${samples.length} samples answered 500 CIP-0001`,
+      description: `${drains.length} of ${samples.length} samples answered the drain window`,
     });
     expect(
       drains.length,
