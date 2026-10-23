@@ -171,7 +171,7 @@ test.describe("kafka security", { tag: ["@engine", "@kafka"] }, () => {
         expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "sslProtocol=TLSv1.2"]);
         const failed = failedElements(session);
         expect(failed.map((each) => each.elementName)).toEqual(["sslProtocol=TLSv1.2"]);
-        expect(failed[0].exceptionInfo?.stackTrace).toContain("SSLHandshakeException: Received fatal alert: protocol_version");
+        expect(failed[0].exceptionInfo?.stackTrace).toContain("SSLHandshakeException: (protocol_version) Received fatal alert: protocol_version");
       });
     });
 
