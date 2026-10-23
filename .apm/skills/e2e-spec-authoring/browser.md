@@ -65,6 +65,10 @@ the page, and with `expect(...).toPass()` for a block that throws until the page
   `animationend`, and with no animation the element never becomes visible.
 - A control shown only while its row is hovered is clicked after `row.hover()`
   (`chains-row-actions`, `live-exchanges-terminate`).
+- An option in a freshly opened antd list is picked through `pickOption` in
+  `support/pick-option.ts`. The list opens scaled up from 0.8, so a click during the animation can
+  press on one option, release over another, and pick nothing. `pickOption` repeats the click, an
+  exception to rule 9 in `SKILL.md`, and the repeat is safe because a pick closes the list.
 - Read a computed style only after the state behind it settles. The theme cases wait for
   `data-theme`, for the `theme-switching` class to go, and for the last `theme-variables-updated`
   event, which an init script records, to name the mode. The contrast read also throws while a

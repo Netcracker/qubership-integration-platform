@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { pickOption } from "../support/pick-option.js";
 
 export type ChainTab = "snapshots" | "deployments" | "sessions" | "logging-settings" | "masking" | "properties";
 
@@ -78,13 +79,14 @@ export class ChainTabsPage {
     await this.createDeployment.click();
     // Snapshot first: the Domains dropdown opens over the Snapshot field below it.
     await this.deploymentDialog.getByRole("combobox", { name: "Snapshot" }).click();
-    // antd renders the visible options apart from its listbox, whose options stay hidden.
-    await this.page.getByTitle(snapshotName, { exact: true }).click();
+    await pickOption(this.page, snapshotName);
     await this.deploymentDialog.getByRole("combobox", { name: "Domains" }).click();
-    await this.page.getByTitle("default", { exact: true }).click();
-    // A multiple select stays open after a pick. Escape closes it without closing the dialog, where
-    // Tab would pick the active option again and so clear it.
+    // A multiple select stays open after a pick, so the pick is read off Deploy, which a domain enables.
+    const deploy = this.deploymentDialog.getByRole("button", { name: "Deploy", disabled: false });
+    await pickOption(this.page, "default", deploy);
+    // Escape closes the list without closing the dialog, where Tab would pick the active option
+    // again and so clear it.
     await this.page.keyboard.press("Escape");
-    await this.deploymentDialog.getByRole("button", { name: "Deploy" }).click();
+    await deploy.click();
   }
 }

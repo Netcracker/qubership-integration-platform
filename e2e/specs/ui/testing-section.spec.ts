@@ -27,6 +27,7 @@ import { TestingPage } from "../../pages/TestingPage.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { tokenized } from "../../support/run.js";
 import { leftBehind } from "../../support/teardown.js";
+import { pickOption } from "../../support/pick-option.js";
 
 /** The seed chain every case uses, and the design-time id of its one HTTP trigger. */
 function httpEcho() {
@@ -124,7 +125,7 @@ test.describe("testing section", { tag: ["@ui"] }, () => {
       // Another condition drops the parameters of the old one, so the rule is invalid again. The
       // condition editor opens with its list already open.
       await page.getByRole("button", { name: "Equals" }).click();
-      await page.getByTitle("Matches pattern", { exact: true }).click();
+      await pickOption(page, "Matches pattern");
       await expect(invalid).toBeVisible();
       await expect(testing.save).toBeDisabled();
       await invalid.hover();

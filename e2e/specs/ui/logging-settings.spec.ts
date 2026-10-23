@@ -10,6 +10,7 @@
  */
 import { test, expect } from "../../support/page-guard.js";
 import { ChainTabsPage } from "../../pages/ChainTabsPage.js";
+import { pickOption } from "../../support/pick-option.js";
 import type { Catalog, LoggingProperties } from "../../support/catalog.js";
 import { tokenized } from "../../support/run.js";
 import { leftBehind } from "../../support/teardown.js";
@@ -30,10 +31,10 @@ function sorted(properties: LoggingProperties | undefined): LoggingProperties | 
   return properties && { ...properties, logPayload: [...properties.logPayload].sort() };
 }
 
-/** Picks `option` in the select labelled `label`; antd renders a visible option by its title. */
+/** Picks `option` in the select labelled `label`. */
 async function choose(tabs: ChainTabsPage, label: string, option: string): Promise<void> {
   await tabs.field("combobox", label).click();
-  await tabs.page.getByTitle(option, { exact: true }).click();
+  await pickOption(tabs.page, option);
 }
 
 /** Clicks Apply and returns once the page has the answer, so the next change starts from the saved form. */
