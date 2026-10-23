@@ -19,17 +19,15 @@ package org.qubership.integration.platform.engine.model;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentUpdate;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -42,33 +40,25 @@ public class RuntimeIntegrationCache {
     private final ConcurrentMap<String, SpringCamelContext> contexts = new ConcurrentHashMap<>(); // <deploymentId, context>
     private final ConcurrentMap<String, EngineDeployment> deployments = new ConcurrentHashMap<>(); // <deploymentId, deployment>
 
+    // Deployment threads add and remove while the retry tick flushes; the methods below synchronize on the cache.
     @Getter(AccessLevel.NONE)
-    @Setter(AccessLevel.NONE)
-    private final AtomicReference<Collection<DeploymentUpdate>> deploymentsToRetry =
-        new AtomicReference<>(new LinkedList<>());
+    private final List<DeploymentUpdate> deploymentsToRetry = new ArrayList<>();
 
     public Lock getLockForChain(String chainId) {
         return chainLocks.computeIfAbsent(chainId, (key) -> new ReentrantLock(true /* for FIFO tasks order */));
     }
 
-    public Collection<DeploymentUpdate> flushDeploymentsToRetry() {
-        if (deploymentsToRetry.get().isEmpty()) {
-            return Collections.emptyList();
-        }
-        return deploymentsToRetry.getAndSet(new LinkedList<>());
+    public synchronized Collection<DeploymentUpdate> flushDeploymentsToRetry() {
+        List<DeploymentUpdate> flushed = new ArrayList<>(deploymentsToRetry);
+        deploymentsToRetry.clear();
+        return flushed;
     }
 
-    public void putToRetryQueue(DeploymentUpdate deployment) {
-        deploymentsToRetry.updateAndGet(collection -> {
-            collection.add(deployment);
-            return collection;
-        });
+    public synchronized void putToRetryQueue(DeploymentUpdate deployment) {
+        deploymentsToRetry.add(deployment);
     }
 
-    public void removeRetryDeploymentFromQueue(String deploymentId) {
-        deploymentsToRetry.updateAndGet(collection -> {
-            collection.removeIf(deployment -> deploymentId.equals(deployment.getDeploymentInfo().getDeploymentId()));
-            return collection;
-        });
+    public synchronized void removeRetryDeploymentFromQueue(String deploymentId) {
+        deploymentsToRetry.removeIf(deployment -> deploymentId.equals(deployment.getDeploymentInfo().getDeploymentId()));
     }
 }
