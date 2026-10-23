@@ -87,6 +87,8 @@ Paths resolve from the repository root. The launcher owns the candidate, frozen 
 proof dependencies, isolated stores, and helper cleanup. Its local handoff lists the preparation dependencies.
 Missing preparation is `BLOCKED`. Changed source, schemas, or package files require a new preparation.
 Keep the old snapshot and hashes; do not edit them to admit another build.
+The native `recovery_campaign.py` stays byte-identical to the frozen proof dependency. The common runner passes
+`--cases` explicitly; its legacy default is a compatibility symlink to the external corpus.
 
 ```bash
 python3 ai-service/e2e/run.py run recovery-acceptance-check

@@ -2,8 +2,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from test_system.native import summarize
+from test_system.native import summarize, main
 
 
 class NativeTest(unittest.TestCase):
@@ -17,6 +18,35 @@ class NativeTest(unittest.TestCase):
         target = self.root / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(value))
+
+    def test_recovery_passes_the_selected_external_corpus_explicitly(self):
+        package = self.root / "external-testing"
+        with patch.dict(
+            "os.environ",
+            QIP_TEST_TASK_DIR=str(self.root),
+            QIP_SERVICE_ROOT=str(self.root),
+            QIP_SKILLS_TESTING_ROOT=str(package),
+        ), patch(
+            "sys.argv",
+            [
+                "native",
+                "recovery",
+                "--base-url",
+                "http://localhost:8094",
+                "--image",
+                "existing-image",
+            ],
+        ), patch(
+            "test_system.native.subprocess.call", return_value=0
+        ) as dispatch, patch(
+            "test_system.native.summarize", return_value={"status": "PASS"}
+        ):
+            self.assertEqual(0, main())
+        command = dispatch.call_args.args[0]
+        self.assertEqual(
+            str(package / "product-pipeline/fixtures/recovery/cases.json"),
+            command[command.index("--cases") + 1],
+        )
 
     def test_native_failure_verdict_wins_over_a_zero_exit_code(self):
         self.save(
