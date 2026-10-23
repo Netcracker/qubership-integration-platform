@@ -8,6 +8,7 @@ import {
   KeyValuePair,
   makeArray,
   parse,
+  removeDuplicateKeys,
 } from "../../../misc/key-value-text-util.ts";
 import {
   applyVSCodeThemeToMonaco,
@@ -142,7 +143,7 @@ export const KeyValuePairsTextEditor: React.FC<KeyValuePairsEditorProps> = ({
         const v = value ?? "";
         setText(v);
         try {
-          const parsed = parse(v);
+          const parsed = removeDuplicateKeys(parse(v));
           emittedTextRef.current = formatPairs(parsed);
           onChange?.(parsed);
           clearMarkers();

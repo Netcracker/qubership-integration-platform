@@ -279,13 +279,14 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         component: (
           <EnvironmentParamsModal
             action={"edit"}
+            protocol={system?.protocol}
             environment={env}
             onSubmit={(request) => updateEnvironment(env.id, request)}
           />
         ),
       });
     },
-    [showModal, updateEnvironment],
+    [showModal, system?.protocol, updateEnvironment],
   );
 
   const handleAddClick = useCallback(() => {
@@ -293,6 +294,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
       component: (
         <EnvironmentParamsModal
           action={"create"}
+          protocol={system?.protocol}
           environment={getDefaultEnvironment(
             system?.id ?? "",
             normalizeProtocol(system?.protocol ?? ""),

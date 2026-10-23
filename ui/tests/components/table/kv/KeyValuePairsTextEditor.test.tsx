@@ -128,6 +128,19 @@ describe("KeyValuePairsTextEditor", () => {
     );
   });
 
+  it("should keep the first pair when the text repeats a key", () => {
+    const onChange = jest.fn();
+    render(<KeyValuePairsTextEditor value={[]} onChange={onChange} />);
+
+    fireEvent.change(screen.getByTestId("monaco"), {
+      target: { value: "client.id=first;\nclient.id=second;" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([
+      { key: "client.id", value: "first" },
+    ]);
+  });
+
   it("should set an error marker and keep the value when text is invalid", () => {
     const onChange = jest.fn();
     render(<KeyValuePairsTextEditor value={[]} onChange={onChange} />);

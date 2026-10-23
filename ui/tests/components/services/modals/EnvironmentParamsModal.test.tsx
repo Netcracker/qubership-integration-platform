@@ -18,7 +18,6 @@ import {
   EnvironmentSourceType,
 } from "../../../../src/api/apiTypes";
 import { EnvironmentParamsModal } from "../../../../src/components/services/modals/EnvironmentParamsModal";
-import { ServiceContext } from "../../../../src/components/services/detail/ServiceParametersPage";
 import { Modals, useModalsContext } from "../../../../src/Modals.tsx";
 
 Object.defineProperty(globalThis, "matchMedia", {
@@ -93,19 +92,18 @@ function renderModal(
     .mockResolvedValue(undefined),
 ) {
   render(
-    <ServiceContext.Provider value={{ id: "svc-1", protocol } as never}>
-      <Modals>
-        <ShowOnMount
-          component={
-            <EnvironmentParamsModal
-              action="edit"
-              environment={{ ...ENVIRONMENT, ...overrides }}
-              onSubmit={onSubmit}
-            />
-          }
-        />
-      </Modals>
-    </ServiceContext.Provider>,
+    <Modals>
+      <ShowOnMount
+        component={
+          <EnvironmentParamsModal
+            action="edit"
+            protocol={protocol}
+            environment={{ ...ENVIRONMENT, ...overrides }}
+            onSubmit={onSubmit}
+          />
+        }
+      />
+    </Modals>,
   );
   return { onSubmit };
 }
@@ -189,6 +187,12 @@ describe("EnvironmentParamsModal", () => {
       );
     },
   );
+
+  it("should enable the source type when the protocol is async", () => {
+    renderModal("kafka");
+
+    expect(screen.getByLabelText("Manual")).toBeEnabled();
+  });
 
   it("should disable the source type when the protocol is not async", () => {
     renderModal("http");

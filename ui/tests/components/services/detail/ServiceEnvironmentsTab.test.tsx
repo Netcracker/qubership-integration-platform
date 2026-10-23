@@ -78,6 +78,7 @@ const REQUEST: EnvironmentRequest = {
 
 type ModalProps = {
   action: "create" | "edit";
+  protocol: string | undefined;
   environment: Environment;
   onSubmit: (request: EnvironmentRequest) => Promise<void>;
 };
@@ -156,6 +157,16 @@ describe("ServiceEnvironmentsTab", () => {
       REQUEST,
     );
   });
+
+  // The modal renders outside ServiceContext, so the tab passes the protocol.
+  it.each(["Env 1", "Add Environment"])(
+    "should pass the service protocol to the modal opened by %s",
+    async (buttonName) => {
+      const { protocol } = await openModal(buttonName);
+
+      expect(protocol).toBe("http");
+    },
+  );
 
   it("should open the create modal with the default HTTP environment when Add Environment is clicked", async () => {
     const { action, environment } = await openModal("Add Environment");

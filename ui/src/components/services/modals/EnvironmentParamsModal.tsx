@@ -16,7 +16,6 @@ import {
   EnvironmentRequest,
   EnvironmentSourceType,
 } from "../../../api/apiTypes";
-import { useServiceContext } from "../detail/ServiceParametersPage";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { environmentLabelOptions } from "../utils.tsx";
 import { isAmqpProtocol, isKafkaProtocol } from "../../../misc/protocol-utils";
@@ -40,6 +39,7 @@ type EnvironmentAction = "create" | "edit";
 
 type EnvironmentParamsModalProps = {
   action: EnvironmentAction;
+  protocol: string | undefined;
   environment: Environment;
   onSubmit: (request: EnvironmentRequest) => Promise<void>;
 };
@@ -50,6 +50,7 @@ type EnvironmentFormData = Omit<EnvironmentRequest, "properties"> & {
 
 export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   action,
+  protocol,
   environment,
   onSubmit,
 }) => {
@@ -67,10 +68,8 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   const ExpandButton = treeExpandIcon<void>();
   const propertiesEditorRef = useRef<KeyValuePairsEditorRef>(null);
 
-  const system = useServiceContext();
-  const protocol = system?.protocol || "";
   const isAsyncProtocolSupported =
-    isKafkaProtocol(protocol) || isAmqpProtocol(protocol);
+    isKafkaProtocol(protocol ?? "") || isAmqpProtocol(protocol ?? "");
 
   useEffect(() => {
     setPropertiesCount(Object.keys(environment?.properties ?? {}).length);
