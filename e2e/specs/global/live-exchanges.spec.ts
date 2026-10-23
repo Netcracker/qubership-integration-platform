@@ -44,8 +44,10 @@
  *   the engine's 404 to a 404 that keeps the engine's message, so a kill aimed at nothing is a 404
  *   on both services, and an address that is no registered engine pod is a 404 of its own.
  */
+import type { APIResponse } from "@playwright/test";
 import { test, expect } from "../../support/fixtures.js";
 import { ENGINE_CASE_TIMEOUT, projectCorpus, readCorpusState, seedChain } from "../../support/corpus.js";
+import { microId } from "../../fixtures/templating.js";
 import { element } from "../../support/sessions.js";
 import { tokenized } from "../../support/run.js";
 import type { Catalog, LiveExchangeExtView } from "../../support/catalog.js";
@@ -69,6 +71,36 @@ function listedWhileHeld(catalog: Catalog, call: HeldCall, chainId: string): Pro
   return withHeldAnswer(call, () => untilListed(catalog, chainId));
 }
 
+/** The corpus cron chain. It fires every 3 s on each engine and is in flight for milliseconds each time. */
+const CRON_FIXTURE = "scheduler-basic";
+
+/** The ids of the cron chain's classic copy and of its micro copy; a list can carry either. */
+function cronChainIds(): Set<string> {
+  const classic = readCorpusState().chains.find((each) => each.fixture === CRON_FIXTURE);
+  if (!classic) throw new Error(`the seeded corpus holds no chain from fixture ${CRON_FIXTURE}`);
+  return new Set([classic.id, microId(classic.id)]);
+}
+
+/**
+ * Reads `read` until it answers 204 with no body. An exchange of the cron chain is read past, since
+ * a firing can be in flight at any read; an exchange of any other chain fails the case at once.
+ */
+async function expectNoContent(read: () => Promise<APIResponse>, what: string): Promise<void> {
+  const cron = cronChainIds();
+  let foreign: string[] = [];
+  await expect(async () => {
+    const response = await read();
+    const body = await response.text();
+    if (response.status() === 200) {
+      foreign = (JSON.parse(body) as LiveExchange[]).map((each) => each.chainId).filter((id) => !cron.has(id));
+      if (foreign.length > 0) return;
+    }
+    expect(response.status(), `${what}: ${body}`).toBe(204);
+    expect(body).toBe("");
+  }).toPass({ timeout: 10_000 });
+  expect(foreign, `${what} listed exchanges of chains other than ${CRON_FIXTURE}`).toEqual([]);
+}
+
 /** Waits until the platform reports nothing in flight, so an emptiness assertion means something. */
 async function untilNothingInFlight(catalog: Catalog): Promise<void> {
   await expect
@@ -83,13 +115,9 @@ test.describe("live exchanges", () => {
   test("both services return 204 with nothing in flight", { tag: ["@catalog", "@engine"] }, async ({ catalog, engine }) => {
     await untilNothingInFlight(catalog);
 
-    const fromCatalog = await catalog.liveExchangesResponse();
-    expect(fromCatalog.status()).toBe(204);
-    expect(await fromCatalog.text()).toBe("");
-
-    const fromEngine = await engine.raw("get", "/v1/engine/live-exchanges");
-    expect(fromEngine.status()).toBe(204);
-    expect(await fromEngine.text()).toBe("");
+    // Retried because `scheduler-basic` is in flight for about 20 ms of every 3 s on each engine.
+    await expectNoContent(() => catalog.liveExchangesResponse(), "the catalog");
+    await expectNoContent(() => engine.raw("get", "/v1/engine/live-exchanges"), "the engine");
   });
 
   test("both services list an exchange in flight until it ends", { tag: ["@catalog", "@engine"] }, async ({ catalog, engine, env, request }) => {

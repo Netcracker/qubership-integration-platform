@@ -168,7 +168,7 @@ const LOOPBACK_ROUTES = new RegExp(`${escapeRegExp(ENGINE_LOOPBACK)}/routes(?=[/
 const UUID_PATTERN = new RegExp(`\\b${UUID_TEXT}\\b`, "gi");
 
 /** The id a chain or an element takes in the micro copy, derived from its id in the fixture. */
-function microId(id: string): string {
+export function microId(id: string): string {
   const hex = crypto.createHash("sha256").update(`micro/${id.toLowerCase()}`).digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
