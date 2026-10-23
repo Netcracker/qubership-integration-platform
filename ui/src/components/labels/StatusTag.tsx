@@ -1,6 +1,6 @@
 import { formatSnakeCased } from "../../misc/format-utils.ts";
 import React from "react";
-import { Tooltip } from "antd";
+import type { TooltipProps } from "antd";
 import {
   BulkDeploymentStatus,
   ImportEntityStatus,
@@ -57,11 +57,15 @@ function getStatusColor(status?: CombinedStatus): StatusTone {
 export const StatusTag: React.FC<{
   status?: CombinedStatus;
   message?: string;
-}> = ({ status, message }) => {
-  const statusNode = (
-    <StatusToneTag tone={getStatusColor(status)}>
+  placement?: TooltipProps["placement"];
+}> = ({ status, message, placement }) => {
+  return (
+    <StatusToneTag
+      tone={getStatusColor(status)}
+      message={message}
+      placement={placement}
+    >
       {formatSnakeCased(status ?? "")}
     </StatusToneTag>
   );
-  return message ? <Tooltip title={message}>{statusNode}</Tooltip> : statusNode;
 };

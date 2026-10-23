@@ -56,6 +56,28 @@ import {
 /** rc-table selection column when `rowSelection` is set; not in `columns`. */
 const IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH = 48;
 
+const NOTHING_TO_IMPORT_MESSAGE =
+  "Nothing to import: the archive contains no chains, services, variables, or import instructions. Expected chains/<id>/, services/<id>/, variables/common-variables.yaml, or import-instructions.yaml";
+
+function hasArchiveInstructions(preview: ImportPreview): boolean {
+  const lists = [
+    preview.instructions?.chains?.delete,
+    preview.instructions?.chains?.ignore,
+    preview.instructions?.chains?.override,
+    preview.instructions?.services?.delete,
+    preview.instructions?.services?.ignore,
+    preview.instructions?.specificationGroups?.delete,
+    preview.instructions?.specificationGroups?.ignore,
+    preview.instructions?.specifications?.delete,
+    preview.instructions?.specifications?.ignore,
+    preview.instructions?.commonVariables?.delete,
+    preview.instructions?.commonVariables?.ignore,
+  ];
+  return lists.some((list) =>
+    list?.some((instruction) => instruction.preview === true),
+  );
+}
+
 type ImportChainsProps = {
   onSuccess?: () => void;
 };
@@ -273,28 +295,43 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     ]);
   }, [importPreview]);
 
-  const getImportPreview = async (file: File) => {
+  const getImportPreview = async (file: File): Promise<boolean> => {
     setLoading(true);
     try {
       const preview = await api.getImportPreview(file);
+      const nothingToImport =
+        !preview.chains?.length &&
+        !preview.systems?.length &&
+        !preview.contextService?.length &&
+        !preview.mcpService?.length &&
+        !preview.variables?.length &&
+        !hasArchiveInstructions(preview);
+      if (nothingToImport) {
+        notificationService.error("Import failed", NOTHING_TO_IMPORT_MESSAGE);
+        return false;
+      }
       setImportPreview(preview);
+      return true;
     } catch (error) {
       notificationService.requestFailed("Failed to get import preview", error);
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
   const buildImportRequest = (): ImportRequest => ({
-    chainCommitRequests: previewImportChainTableItems.map((item) => ({
-      id: item.id,
-      archiveName: fileList[0].name,
-      deployAction: item.deployAction,
-      domains: item.domains.map((domain) => ({
-        id: domain.id,
-        name: domain.name,
+    chainCommitRequests: previewImportChainTableItems
+      .filter((item) => !item.errorMessage)
+      .map((item) => ({
+        id: item.id,
+        archiveName: fileList[0].name,
+        deployAction: item.deployAction,
+        domains: item.domains.map((domain) => ({
+          id: domain.id,
+          name: domain.name,
+        })),
       })),
-    })),
     systemsCommitRequest: {
       importMode:
         selectedServiceRowKeys.length === previewServicesCount
@@ -429,59 +466,73 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
           key: "id",
         },
         {
+          title: "Status",
+          key: "status",
+          render: (_, item) =>
+            item.errorMessage ? (
+              <StatusTag
+                status={ImportEntityStatus.ERROR}
+                message={item.errorMessage}
+                placement="bottom"
+              />
+            ) : null,
+        },
+        {
           title: "Domain",
           key: "domains",
-          render: (_, item) => (
-            <InlineEdit<{ domains: string[] }>
-              values={{ domains: item.domains.map((i) => i.id) }}
-              editor={
-                <SelectEdit
-                  name="domains"
-                  multiple
-                  options={Object.values(domains).map((i) => ({
-                    label: i.name,
-                    value: i.id,
-                  }))}
-                  selectProps={{
-                    // Tags mode turns a typed name into a value on Enter, as SelectDomains does.
-                    mode: microDomainsEnabled ? "tags" : "multiple",
-                    labelRender: (props) => getDomainOptionNode(props, domains),
-                    optionRender: (props) =>
-                      getDomainOptionNode(props, domains),
-                  }}
-                />
-              }
-              viewer={
-                <Flex gap="4px 4px" wrap>
-                  {item.domains.map((i) => (
-                    <Tag key={i.id}>
-                      <EngineDomainItem
-                        variant={"outlined"}
-                        name={i.name}
-                        type={getDomainType(i.id, domains)}
-                      />
-                    </Tag>
-                  ))}
-                </Flex>
-              }
-              onSubmit={(values) => {
-                setPreviewImportChainTableItems(
-                  previewImportChainTableItems.map((i) =>
-                    i.id === item.id
-                      ? {
-                          ...i,
-                          domains: resolveDomains(
-                            values.domains,
-                            domains,
-                            microDomainsEnabled,
-                          ),
-                        }
-                      : i,
-                  ),
-                );
-              }}
-            />
-          ),
+          render: (_, item) =>
+            item.errorMessage ? null : (
+              <InlineEdit<{ domains: string[] }>
+                values={{ domains: item.domains.map((i) => i.id) }}
+                editor={
+                  <SelectEdit
+                    name="domains"
+                    multiple
+                    options={Object.values(domains).map((i) => ({
+                      label: i.name,
+                      value: i.id,
+                    }))}
+                    selectProps={{
+                      // Tags mode turns a typed name into a value on Enter, as SelectDomains does.
+                      mode: microDomainsEnabled ? "tags" : "multiple",
+                      labelRender: (props) =>
+                        getDomainOptionNode(props, domains),
+                      optionRender: (props) =>
+                        getDomainOptionNode(props, domains),
+                    }}
+                  />
+                }
+                viewer={
+                  <Flex gap="4px 4px" wrap>
+                    {item.domains.map((i) => (
+                      <Tag key={i.id}>
+                        <EngineDomainItem
+                          variant={"outlined"}
+                          name={i.name}
+                          type={getDomainType(i.id, domains)}
+                        />
+                      </Tag>
+                    ))}
+                  </Flex>
+                }
+                onSubmit={(values) => {
+                  setPreviewImportChainTableItems(
+                    previewImportChainTableItems.map((i) =>
+                      i.id === item.id
+                        ? {
+                            ...i,
+                            domains: resolveDomains(
+                              values.domains,
+                              domains,
+                              microDomainsEnabled,
+                            ),
+                          }
+                        : i,
+                    ),
+                  );
+                }}
+              />
+            ),
         },
         {
           title: "Instruction Action",
@@ -516,33 +567,36 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
               </Dropdown>
             </Space>
           ),
-          render: (_, item) => (
-            <InlineEdit<{ action: ChainCommitRequestAction }>
-              values={{ action: item.deployAction }}
-              editor={
-                <SelectEdit
-                  name="action"
-                  options={Object.values(ChainCommitRequestAction).map((i) => ({
-                    label: capitalize(i),
-                    value: i,
-                  }))}
-                />
-              }
-              viewer={capitalize(item.deployAction)}
-              onSubmit={({ action }) => {
-                setPreviewImportChainTableItems(
-                  previewImportChainTableItems.map((i) =>
-                    i.id === item.id
-                      ? {
-                          ...i,
-                          deployAction: action,
-                        }
-                      : i,
-                  ),
-                );
-              }}
-            />
-          ),
+          render: (_, item) =>
+            item.errorMessage ? null : (
+              <InlineEdit<{ action: ChainCommitRequestAction }>
+                values={{ action: item.deployAction }}
+                editor={
+                  <SelectEdit
+                    name="action"
+                    options={Object.values(ChainCommitRequestAction).map(
+                      (i) => ({
+                        label: capitalize(i),
+                        value: i,
+                      }),
+                    )}
+                  />
+                }
+                viewer={capitalize(item.deployAction)}
+                onSubmit={({ action }) => {
+                  setPreviewImportChainTableItems(
+                    previewImportChainTableItems.map((i) =>
+                      i.id === item.id
+                        ? {
+                            ...i,
+                            deployAction: action,
+                          }
+                        : i,
+                    ),
+                  );
+                }}
+              />
+            ),
         },
       ],
       [domains, microDomainsEnabled, previewImportChainTableItems],
@@ -575,7 +629,11 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
           dataIndex: "status",
           key: "status",
           render: (_, item) => (
-            <StatusTag status={item.status} message={item.errorMessage} />
+            <StatusTag
+              status={item.status}
+              message={item.errorMessage}
+              placement="bottom"
+            />
           ),
         },
       ],
@@ -630,6 +688,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
   } = useTableConfiguration(previewChainTableColumns, {
     name: 180,
     id: 220,
+    status: 180,
     domains: 220,
     instructionAction: 160,
     deployAction: 170,
@@ -716,7 +775,11 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                     case 0: {
                       if (fileList[0].originFileObj) {
                         void getImportPreview(fileList[0].originFileObj).then(
-                          () => setStep(1),
+                          (hasPreview) => {
+                            if (hasPreview) {
+                              setStep(1);
+                            }
+                          },
                         );
                       }
                       break;

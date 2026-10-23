@@ -243,7 +243,6 @@ export const DesignTemplates: React.FC = () => {
               value: searchTerm,
               onChange: setSearchTerm,
               placeholder: "Search templates...",
-              allowClear: true,
             }}
             columnSettingsButton={columnSettingsButton}
             filterButton={filterButton}

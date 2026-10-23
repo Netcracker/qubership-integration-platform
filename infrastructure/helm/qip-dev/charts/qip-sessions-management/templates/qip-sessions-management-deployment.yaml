@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - args:
-            - /opt/java/openjdk/bin/java
+            - /usr/lib/jvm/java-21-openjdk/bin/java
             - -Xmx416m
             - -XX:MetaspaceSize=192m
             - -XX:MaxMetaspaceSize=192m

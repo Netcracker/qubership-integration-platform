@@ -458,7 +458,9 @@ describe("Chains page", () => {
   it("renders full text search in toolbar", async () => {
     render(<Chains />);
     await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
-    expect(screen.getByPlaceholderText("Full text search")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Search chains and folders..."),
+    ).toBeInTheDocument();
   });
 
   it("renders toolbar ProtectedButtons by tooltip title", async () => {

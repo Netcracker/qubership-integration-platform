@@ -526,7 +526,6 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: "Search environments...",
-          allowClear: true,
         }}
         columnSettingsButton={columnSettingsButton}
         actions={environmentsToolbarActions}

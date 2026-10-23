@@ -100,6 +100,7 @@ describe("McpServiceParametersPage", () => {
     mockUpdateMcpSystem.mockResolvedValue(makeMcpSystem());
     jest.mocked(useNotificationService).mockReturnValue({
       requestFailed: mockRequestFailed,
+      error: jest.fn(),
       info: jest.fn(),
       warning: jest.fn(),
       errorWithDetails: jest.fn(),

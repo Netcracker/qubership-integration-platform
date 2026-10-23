@@ -100,7 +100,7 @@ jest.mock("../../../../src/permissions/ProtectedButton.tsx", () => ({
       <button
         type="button"
         data-testid={`param-toolbar-${String(tooltipProps.title).replace(/\s+/g, "-").toLowerCase()}`}
-        {...(rest)}
+        {...rest}
       />
     );
   },
@@ -159,6 +159,7 @@ describe("ServiceParametersTab", () => {
     mockExportServices.mockResolvedValue(new File([], "x"));
     jest.mocked(useNotificationService).mockReturnValue({
       requestFailed: mockRequestFailed,
+      error: jest.fn(),
       info: jest.fn(),
       warning: jest.fn(),
       errorWithDetails: jest.fn(),
