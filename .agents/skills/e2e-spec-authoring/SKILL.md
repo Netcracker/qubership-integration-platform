@@ -48,6 +48,23 @@ adapters, and the lint cases over the spec sources. The run summary and the fail
 the run. A change to `support/`, `registry/`, or `env/` changes its `harness` cases in the same
 commit.
 
+**Run the smallest selection that shows the change.** While you iterate, run the changed spec
+against a kept corpus, red first and then green, and run `schema` and `harness` beside it. Each
+takes seconds:
+
+```bash
+E2E_SWEEP=never npm test -- --project=<project> --no-deps specs/<dir>/<file>.spec.ts
+npm test -- --project=schema --project=harness
+```
+
+Before you push a broad change, run the whole suite on Compose with `npm test`, about 13 minutes on
+the classic engine alone. Dispatch `.github/workflows/e2e-k8s.yaml`, about 37 minutes on both
+engines on Kubernetes, in three cases only: the change touches the micro engine, a project only
+`k8s` declares, or provisioning (`env/provision/`); the work reaches a checkpoint, before a merge or
+at the end of a large step; or a failure looks flaky and needs a second run on the reference
+environment. Queue no second dispatch while one runs. The workflow's `concurrency` group sets no
+`cancel-in-progress`, so a third dispatch cancels the second while it waits in the queue.
+
 ## Coverage registries
 
 Two registries under `registry/` hold what the suite claims to cover, and both are checked against
