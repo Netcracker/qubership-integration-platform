@@ -28,6 +28,7 @@
 
 .source-type-label {
   margin-right: 24px;
+
   > label::after {
     display: none;
   }
