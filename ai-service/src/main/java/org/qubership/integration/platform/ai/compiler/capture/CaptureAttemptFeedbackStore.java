@@ -144,7 +144,7 @@ public class CaptureAttemptFeedbackStore {
     var previous = prior.orElseThrow();
     var feedback = previous.feedback();
     var duplicate = observe(conversationId, previous.channel(), new CaptureAttemptFeedback(
-        feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true, null, feedback.issues()));
+        feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true, null, feedback.issues(), feedback.presentationDetails()));
     cache(conversationId, capability, previous.channel(), duplicate);
     throw new CaptureNoProgressException("REPAIR_NO_PROGRESS: The same proposal was rejected under the current inputs. " + duplicate.summary(),
         new CaptureFailureEvidence(duplicate, null, duplicate.evidenceReference(), List.of()));
@@ -193,7 +193,7 @@ public class CaptureAttemptFeedbackStore {
         .projectValues(relevant, json, org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET)
         .toString();
     return new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
-        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference(), feedback.issues());
+        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference(), feedback.issues(), feedback.presentationDetails());
   }
 
   /** Retains unmapped input verbatim; validation identity never depends on its payload. */
@@ -383,7 +383,7 @@ public class CaptureAttemptFeedbackStore {
             var saved = rejection.feedback();
             return new RequirementRejection(new CaptureAttemptFeedback(saved.kind(), saved.summary(), saved.failureClass(),
                 saved.outerAllowed(), saved.fieldHints(), saved.repairHistoryJson(), saved.noProgress(),
-                revision.reference(), rejection.issues()), rejection.issues());
+                revision.reference(), rejection.issues(), saved.presentationDetails()), rejection.issues());
           });
     }
     return Optional.ofNullable(requirementFailures.get(conversationId));
@@ -418,12 +418,19 @@ public class CaptureAttemptFeedbackStore {
       boolean outerAllowed,
       String summary,
       List<CaptureFieldHint> fieldHints) {
+    recordClassifiedPlanFailure(conversationId, kind, failureClass, outerAllowed, summary, fieldHints, null);
+  }
+
+  public void recordClassifiedPlanFailure(
+      String conversationId, CaptureFailureKind kind, CaptureFailureClass failureClass,
+      boolean outerAllowed, String summary, List<CaptureFieldHint> fieldHints, String presentationDetails) {
     if (conversationId == null || conversationId.isBlank()) {
       return;
     }
     planFailures.put(
         conversationId,
-        observe(conversationId, "PLAN", new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, fieldHints)));
+        observe(conversationId, "PLAN", new CaptureAttemptFeedback(kind, summary, failureClass,
+            outerAllowed, fieldHints, "", false, null, List.of(), presentationDetails)));
   }
 
   public void recordClassifiedPatchFailure(
@@ -599,9 +606,9 @@ public class CaptureAttemptFeedbackStore {
         if (saved != null && proposal != null && Objects.equals(capabilityId, nativeValue.capabilityId())
             && Objects.equals(capabilityId, proposal.capabilityId()) && scope.equals(proposal.inputScope())
             && new CaptureAttemptFeedback(saved.kind(), saved.summary(), saved.failureClass(), saved.outerAllowed(),
-                saved.fieldHints(), "", saved.noProgress(), reference, saved.issues())
+                saved.fieldHints(), "", saved.noProgress(), reference, saved.issues(), saved.presentationDetails())
                 .equals(new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
-                    feedback.outerAllowed(), feedback.fieldHints(), "", feedback.noProgress(), reference, feedback.issues()))) {
+                    feedback.outerAllowed(), feedback.fieldHints(), "", feedback.noProgress(), reference, feedback.issues(), feedback.presentationDetails()))) {
           observation = nativeValue;
         }
       }

@@ -47,7 +47,12 @@ public class CaptureRepairMessageBuilder {
       case VALIDATION ->
           validationMessage(feedback.summary(), captureToolName, feedback.fieldHints());
     };
-    return message + issueDetails(feedback) + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(feedback.repairHistoryJson());
+    return message + presentationDetails(feedback) + issueDetails(feedback) + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(feedback.repairHistoryJson());
+  }
+
+  private static String presentationDetails(CaptureAttemptFeedback feedback) {
+    return feedback == null || feedback.presentationDetails() == null
+        ? "" : "\n" + feedback.presentationDetails();
   }
 
   /** Structured repair data is independent of the prose preview and its size limit. */
@@ -161,9 +166,9 @@ public class CaptureRepairMessageBuilder {
         && !feedback.summary().isBlank()) {
       message.append("Previous attempt: ").append(feedback.summary().trim()).append('\n');
     }
-    return mappingGenerationContext != null && !mappingGenerationContext.isBlank()
+    return (mappingGenerationContext != null && !mappingGenerationContext.isBlank()
         ? message.toString()
-        : truncate(message.toString());
+        : truncate(message.toString())) + presentationDetails(feedback);
   }
 
   public static String mappingCaptureExhaustedMessage(

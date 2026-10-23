@@ -730,7 +730,7 @@ public class RequirementAnalysisCapability implements StageCapability {
             "captureRequirementBrief",
             safeMessage,
             true,
-            failure -> userMessage + "\n\nRepair captureRequirementBrief:\n" + failure.summary(),
+            failure -> userMessage + "\n\nRepair captureRequirementBrief:\n" + failure.modelSummary(),
             () -> repairDanglingToolCalls(context.conversationId()),
             1)
         .onItem()
@@ -748,7 +748,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .lastPlanFailure(conversationId)
                 .map(
                     org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback
-                        ::summary)
+                        ::modelSummary)
                 .orElse(null);
     chatMemorySanitizer.repairDanglingToolCalls(conversationId, feedback);
   }
