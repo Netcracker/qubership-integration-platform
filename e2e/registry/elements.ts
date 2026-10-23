@@ -95,11 +95,6 @@ const R_KAFKA_SERIALIZER_PROPORTIONAL =
   "(R_KAFKA_SERIALIZER_INDISTINGUISHABLE), and most of the remaining (de)serializer values would only " +
   "prove that a mismatched type fails to serialize";
 
-const R_RABBITMQ_CONTEXT_ALWAYS_SENT =
-  "a defect: RabbitMqSenderProcessor copies the request context into the message headers on every send, so the " +
-  "caller's X-Request-Id reaches the message with propagateContext false on both engines; the test.fail() case in " +
-  "specs/brokers/rabbitmq.spec.ts carries it";
-
 const R_KAFKA_CONSUMER_CONSISTENCY =
   "the two values select a NetCracker Cloud Blue-Green consumer mode " +
   "(com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode) with no counterpart on this stack";
@@ -694,7 +689,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "maas", status: NOT_COVERED, reason: R_MAAS_AGENT_ABSENT, tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "connectionSourceType", value: "manual", status: "covered", tags: ENGINE },
   { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: true, status: "covered", tags: ENGINE },
-  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: false, status: NOT_COVERED, reason: R_RABBITMQ_CONTEXT_ALWAYS_SENT, tags: ENGINE },
+  { family: "rabbitmq-sender-2", kind: "axis", axisPath: "propagateContext", value: false, status: "covered", tags: ENGINE },
   { family: "rabbitmq-trigger-2", kind: "element", status: "covered", tags: ENGINE },
   // MANUAL and NONE leave the same state on a failing chain; see the async-api-trigger rows.
   { family: "rabbitmq-trigger-2", kind: "axis", axisPath: "acknowledgeMode", value: "NONE", status: "covered", tags: ENGINE },

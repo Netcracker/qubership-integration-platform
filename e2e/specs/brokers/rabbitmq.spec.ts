@@ -30,7 +30,9 @@
  * dead-letter queue.
  *
  * `propagateContext` is read off the AMQP headers of the message the spec's own queue receives. The
- * false case is a `test.fail()`: `RabbitMqSenderProcessor` sends the request context either way.
+ * false case pinned a defect with `test.fail()` until #1161: the sender templates ran
+ * `rabbitMqSenderProcessor` whatever the property said, so the caller's request id reached the
+ * message with `propagateContext` false too.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { brokerChain, readBrokersCorpusState } from "../../support/brokers.js";
@@ -38,7 +40,6 @@ import { publishAmqp as publish, bindConsumerQueue, expectAckOutcome, waitForAmq
 import { callToken } from "../../support/run.js";
 import { CALLER_REQUEST_ID, callChain, elementNames, failedElements, HTTP_TRIGGER_STEPS, REQUEST_ID_HEADER, type Sessions } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
-import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import type { APIRequestContext } from "@playwright/test";
 import type { Env } from "../../env/index.js";
 
@@ -160,16 +161,9 @@ test.describe("rabbitmq", { tag: ["@engine", "@sessions", "@rabbitmq"] }, () => 
       expect((await sentHeaders(request, env, sessions, true))[REQUEST_ID_HEADER]).toBe(CALLER_REQUEST_ID);
     });
 
-    // `RabbitMqSenderProcessor` copies the request context into the message headers on every send, so the
-    // caller's request id reaches the message with `propagateContext` false too, on both engines. No issue
-    // is filed yet; the registry row stays not covered.
-    test.fail("propagateContext=false drops the caller's request id", async ({ request, env, sessions }) => {
-      const headers = await outsideTheDefect("sending through the chain", () => sentHeaders(request, env, sessions, false));
-      const received = headers[REQUEST_ID_HEADER];
-      if (received !== undefined && received !== CALLER_REQUEST_ID) {
-        notTheKnownDefect(`the message carried ${REQUEST_ID_HEADER} ${String(received)}, which is neither the caller's id nor no id`);
-      }
-      expect(received, "the sender drops the request id: delete the test.fail() annotation and cover the row").toBeUndefined();
+    test("propagateContext=false drops the caller's request id", async ({ request, env, sessions }) => {
+      covers("rabbitmq-sender-2", "propagateContext", false);
+      expect((await sentHeaders(request, env, sessions, false))[REQUEST_ID_HEADER]).toBeUndefined();
     });
   });
 });

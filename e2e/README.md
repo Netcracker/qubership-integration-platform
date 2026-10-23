@@ -449,12 +449,9 @@ The pinned cases, and the projects that run them:
 
 | Case | Projects | Defect |
 | --- | --- | --- |
-| `specs/brokers/rabbitmq.spec.ts`: `rabbitmq › rabbitmq-sender-2 › propagateContext=false drops the caller's request id` | `brokers`, `brokers-micro` | `RabbitMqSenderProcessor` copies the request context into the message headers on every send, so the caller's request id reaches the message with `propagateContext` false. No issue is filed. |
 | `specs/api/error-contract.spec.ts`: `error contract › sessions-management negotiates an Accept it cannot write` | `api` | With `Accept: application/xml`, the 404 handler of sessions-management throws `HttpMediaTypeNotAcceptableException` and the service answers 500 with an empty body, where the catalog and the engine answer 406. |
 | `specs/api/sessions-api.spec.ts`: `sessions-management API › a filter clause that names no column is refused` | `api` | A filter clause that omits `feature` or `condition` answers 500 where it should answer 400. |
 | `specs/global/export-all.spec.ts`: `whole-catalog export › the export answers over the whole catalog with no ids named` | `global` | `GET /v1/catalog/export/api-spec` with no chain, snapshot, or deployment named answers 500 on an NPE once a deployed HTTP trigger has an external route, a defect decided as won't fix. |
-
-A Compose run has no `brokers-micro` project, so the RabbitMQ case fails there once.
 
 A defect only one engine meets, or a race, is pinned with `strikesAsKnown` and a `ConditionalDefect`
 instead, defined in `specs/<project>/<component>-defects.ts`; `grep -rn strikesAsKnown specs/` lists
