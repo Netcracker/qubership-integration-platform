@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "http-reference-checkpoint",
+      "sourceScenario": "product-create-chain-greetings",
+      "inputMode": "complete",
+      "mechanism": "model-correction",
+      "boundary": "checkpoint",
+      "fault": {
+        "kind": "http-semantic-reference",
+        "selector": "first-http-endpoint",
+        "applications": 1
+      },
+      "scenario": {
+        "tier": "product-pipeline",
+        "status": "active",
+        "pipeline": "create-chain-v1",
+        "profileId": "create-chain",
+        "profileVersion": "2",
+        "terminalState": "CHAIN_MATERIALIZED",
+        "expectsApproval": true,
+        "expectsImplement": true,
+        "retainCatalogChain": true,
+        "uniqueChainNamePrefix": "RecoveryPilot",
+        "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". Receive GET on the internal route /greetings (externalRoute=false). Use accessControlType=RBAC with exactly the role qip-viewer. Connect the HTTP trigger directly to one Groovy script returning exactly the plain text Hello world. No mapping or transformation is needed on the connection. No service calls, APIHub, MCP, error handling, ABAC, or chain failure handler. No target folder. Generate a full IDS and an implementation plan for approval.",
+        "requiredFacts": [
+          "GET /greetings",
+          "Hello world",
+          "script"
+        ],
+        "forbiddenFacts": [
+          "service-call",
+          "APIHub"
+        ],
+        "designInputChoice": "Generate full IDS",
+        "catalog": {
+          "requiredTypes": [
+            "http-trigger",
+            "script"
+          ],
+          "forbiddenTypes": [
+            "service-call"
+          ],
+          "properties": [
+            {
+              "type": "http-trigger",
+              "key": "contextPath",
+              "equals": "/greetings"
+            },
+            {
+              "type": "http-trigger",
+              "key": "httpMethodRestrict",
+              "equals": "GET"
+            },
+            {
+              "type": "http-trigger",
+              "key": "externalRoute",
+              "equals": "false"
+            },
+            {
+              "type": "http-trigger",
+              "key": "accessControlType",
+              "equals": "RBAC"
+            },
+            {
+              "type": "http-trigger",
+              "key": "roles",
+              "contains": "qip-viewer"
+            },
+            {
+              "type": "script",
+              "key": "script",
+              "contains": "Hello world"
+            }
+          ],
+          "skeleton": {
+            "minDependencies": 1,
+            "triggerMustHaveOutgoing": true
+          }
+        }
+      },
+      "checks": {
+        "exactTypes": [
+          "http-trigger",
+          "script"
+        ],
+        "edges": 1,
+        "scriptContains": "Hello world",
+        "properties": [
+          {
+            "type": "http-trigger",
+            "key": "contextPath",
+            "equals": "/greetings"
+          },
+          {
+            "type": "http-trigger",
+            "key": "httpMethodRestrict",
+            "equals": "GET"
+          },
+          {
+            "type": "http-trigger",
+            "key": "externalRoute",
+            "equals": "false"
+          },
+          {
+            "type": "http-trigger",
+            "key": "accessControlType",
+            "equals": "RBAC"
+          },
+          {
+            "type": "http-trigger",
+            "key": "roles",
+            "equals": "[\"qip-viewer\"]"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI service tests</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">Qubership Integration Platform</p>
+        <h1>AI service tests</h1>
+      </div>
+      <span>Agent and manual runs · one history</span>
+    </header>
+    <main>
+      <section aria-labelledby="launch-title">
+        <h2 id="launch-title">Start a run</h2>
+        <form id="launch">
+          <label>Profile<select id="profile" required></select></label>
+          <label
+            >AI service URL<input
+              id="base-url"
+              type="url"
+              value="http://localhost:8094"
+              required
+          /></label>
+          <label
+            >Model / deployment identifier<input
+              id="model"
+              value="unspecified"
+              list="acceptance-models"
+          /></label>
+          <label
+            >Service image (recovery)<input id="image" value="unspecified"
+          /></label>
+          <label class="check"
+            ><input id="allow-llm" type="checkbox" />Allow this run to call the
+            configured LLM</label
+          >
+          <datalist id="acceptance-models">
+            <option value="kimi"></option>
+            <option value="ordinary"></option>
+            <option value="both"></option>
+          </datalist>
+          <p>
+            Recovery acceptance selects kimi (default), ordinary, or both. Other
+            profiles use the configured deployment.
+          </p>
+          <p id="profile-detail"></p>
+          <button type="submit" id="start">Start run</button>
+        </form>
+        <p id="error" role="alert"></p>
+      </section>
+      <div class="workspace">
+        <nav aria-label="Run history">
+          <h2>Run history</h2>
+          <div id="history"></div>
+        </nav>
+        <section id="detail" aria-live="polite">
+          <h2>Select a run</h2>
+          <p>Start tests through your agent or use the form above.</p>
+        </section>
+      </div>
+    </main>
+    <footer>
+      Results are local to this workspace. PASS applies to the boundary listed
+      in each suite.
+    </footer>
+  </body>
+</html>

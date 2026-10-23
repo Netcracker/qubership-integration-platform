@@ -45,6 +45,8 @@ RECOVERY_TESTS+="RequirementDiscoveryCapabilityTest,RequirementCaptureToolsTest,
 RECOVERY_TESTS+="CaptureAttemptFeedbackStoreTest,RecoveryDecisionValidatorTest,CompilerQualityValidatorTest,"
 RECOVERY_TESTS+="ProviderBoundaryEvidenceTest,HaltExitGuaranteeMatrixTest"
 RECOVERY_TESTS+=",RequirementSchemaToolWiringTest"
+RECOVERY_TESTS+=",ToolReadProgressTest,CompilerReadNoProgressProviderTest,RequirementProtectionAcceptanceTest"
+RECOVERY_TESTS+=",RequirementFailureConsistencyAdmissionTest,RequirementRevisionAdmissionTest"
 RECOVERY_TESTS+=",MappingRepairCaptureValidatorTest,ProductRequirementBriefToolTest"
 RECOVERY_TESTS+=",RequirementCaptureProjectionTest,RequirementFlowValidatorTest,AuthorQuestionAdmissionTest"
 

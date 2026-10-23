@@ -43,6 +43,12 @@ const workers = Number(process.env.E2E_WORKERS ?? 8);
 
 const suite: SuiteProject[] = [
   {
+    name: "ai-tests",
+    testDir: "./specs/ai-tests",
+    metadata: { stack: false },
+    use: { ...devices["Desktop Chrome"] },
+  },
+  {
     // Reads the tracked schemas and the registries off disk. No stack, no network, seconds to
     // run — so it goes first and a broken registry costs nothing to discover.
     //

@@ -6,6 +6,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${DIR}/../testing-paths.sh"
 SCRIPTS_DIR="$(cd "${DIR}/scripts" && pwd)"
 
 SCENARIO_ID=""
@@ -61,7 +62,7 @@ done
 # shellcheck source=scripts/lib.sh
 source "${SCRIPTS_DIR}/lib.sh"
 
-SCENARIOS_FILE="${DIR}/scenarios.json"
+SCENARIOS_FILE="${QIP_SKILLS_TESTING_ROOT}/product-pipeline/scenarios.json"
 [[ -f "${SCENARIOS_FILE}" ]] || e2e_fail "missing scenarios.json"
 jq -e --arg s "${SCENARIO_ID}" '.[$s]' "${SCENARIOS_FILE}" > /dev/null ||
     e2e_fail "unknown scenario ${SCENARIO_ID}"

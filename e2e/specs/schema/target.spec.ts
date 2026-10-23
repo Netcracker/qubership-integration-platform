@@ -15,8 +15,9 @@ import { targetSetup, type SuiteProject } from "../../env/target-setup.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
 import { BROKER_PROJECTS } from "./projects.js";
 
-/** The projects the config declared on 2026-09-24, before the target seam, with brokers on. */
+/** The projects a Compose run must retain, with brokers on. */
 const COMPOSE_PROJECTS = [
+  "ai-tests",
   "schema",
   "api",
   "seed",
@@ -58,6 +59,7 @@ test("an unknown target fails, naming both valid values", { tag: ["@infra", "@ti
  * this table in the same commit.
  */
 const COMPOSE_SCHEDULE: Record<string, string> = {
+  "ai-tests": "./specs/ai-tests",
   schema: "./specs/schema; parallel",
   api: "./specs/api; after seed; parallel",
   seed: "./specs/seed /.*\\.setup\\.ts$/; teardown seed-teardown",
