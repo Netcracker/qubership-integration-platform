@@ -3,6 +3,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${DIR}/../testing-paths.sh"
 SCRIPTS_DIR="$(cd "${DIR}/scripts" && pwd)"
 
 SCENARIO_ID=""
@@ -11,7 +12,7 @@ BASE_URL=""
 EVALUATOR_URL=""
 REPORT_PATH=""
 TRANSPORT="chat"
-SCENARIOS_FILE="${DIR}/scenarios.json"
+SCENARIOS_FILE="${QIP_SKILLS_TESTING_ROOT}/product-pipeline/scenarios.json"
 INITIAL_CONVERSATION_ID="-"
 STRICT_RECOVERY=0
 
@@ -469,7 +470,7 @@ while IFS= read -r uploaded_spec; do
             echo "FAIL: uploaded specification fixture must be non-blank" >&2
             exit 1
         }
-    uploaded_spec_path="${DIR}/${uploaded_spec_fixture}"
+    uploaded_spec_path="$(dirname "${SCENARIOS_FILE}")/${uploaded_spec_fixture}"
     [[ -f "${uploaded_spec_path}" ]] ||
         {
             echo "FAIL: uploaded specification fixture not found: ${uploaded_spec_path}" >&2

@@ -3,8 +3,9 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${DIR}/../testing-paths.sh"
 ROOT="$(cd "${DIR}/../../.." && pwd)"
-SCENARIOS_FILE="${DIR}/scenarios.json"
+SCENARIOS_FILE="${QIP_SKILLS_TESTING_ROOT}/product-pipeline/scenarios.json"
 COMPOSE_FILE="${ROOT}/infrastructure/docker/docker-compose.yml"
 COMPOSE_OVERLAY=""
 STUB_EVALUATOR_URL="http://127.0.0.1:9"

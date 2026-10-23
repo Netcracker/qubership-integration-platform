@@ -121,7 +121,7 @@ class RecoveryContractTest(unittest.TestCase):
         self.assertNotEqual(running, campaign.process_identity(container))
 
     def setUp(self):
-        self.case = next(iter(campaign.load_cases().values()))
+        self.case = next(iter(campaign.load_cases(campaign.HERE / "test-fixtures/recovery/cases.json").values()))
         self.evidence = evidence_fixture()
 
     def outcome(self):
@@ -388,7 +388,7 @@ class RecoveryContractTest(unittest.TestCase):
         self.assertEqual("PUBLICATION_FAILURE", self.outcome())
 
     def test_archived_native_repeat_question_is_not_recovered(self):
-        directory = campaign.HERE / "fixtures/recovery/regressions"
+        directory = campaign.HERE / "test-fixtures/recovery"
         case = next(
             iter(
                 campaign.load_cases(directory / "missing-route-repeated.json").values()
@@ -513,17 +513,6 @@ class RecoveryContractTest(unittest.TestCase):
                 instance.close.assert_called_once()
                 if failure == "export":
                     instance.stop.assert_called_once_with(retain=True)
-
-    def test_pilot_pairs_remove_the_missing_value_from_the_initial_request(self):
-        cases = list(campaign.load_cases().values())
-        focused, complete, control = cases
-        self.assertEqual("completion", complete["boundary"])
-        self.assertNotIn(
-            control["clarification"]["answer"], control["scenario"]["prompt"]
-        )
-        self.assertIsNone(control["fault"])
-        self.assertEqual(complete["checks"], control["checks"])
-        self.assertIn("/greetings", focused["scenario"]["prompt"])
 
     def test_observation_budget_uses_only_reachable_backoffs(self):
         base = {"LLM_TIMEOUT": "180s"}

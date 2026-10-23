@@ -1,7 +1,9 @@
 # ai-service end-to-end
 
-CREATE and COMPARE_AND_PATCH acceptance tests live under `product-pipeline/`.
-Isolated design-planner evaluations live under `planner-eval/`.
+Use [the shared test runner](test-system.md) for agent, terminal, and browser runs.
+The service owns the runner, UI, regression tests, and mechanism tests. Chain acceptance cases,
+planner/executor inputs, generator goldens, and the chain test skill ship in the separate
+`.private/rocky-skills/testing` bundle. Generic drivers remain under this directory.
 
 Run the [deployment and logging smoke test](deployment-logging-smoke.md) once per live browser campaign
 on a retained HTTP chain. It checks the automatic logging question, chat reload, logging settings, and engine deployment.
@@ -15,8 +17,12 @@ It checks creation results, patch review, and import cards for multiple specific
 ai-service/e2e/test-offline.sh
 ```
 
-This command runs the live-runner contract tests and the stubbed quality gate without Docker,
-network access, or a private knowledge package.
+This compatibility command needs the skills testing bundle. It runs corpus contracts and the stubbed
+quality gate without Docker, network access, or an LLM. Service regression works without the bundle:
+
+```bash
+python3 ai-service/e2e/run.py run core-regression
+```
 
 ## Live
 

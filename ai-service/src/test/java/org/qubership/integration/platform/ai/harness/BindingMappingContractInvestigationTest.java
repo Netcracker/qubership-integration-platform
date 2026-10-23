@@ -26,7 +26,7 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
 /** Characterizes binding and mapping boundary behavior without invoking an LLM. */
 class BindingMappingContractInvestigationTest {
 
-  private static final Path INPUTS = Path.of("e2e", "executor-eval", "inputs");
+  private static final Path INPUTS = Path.of("src", "test", "resources", "executor-contract", "inputs");
   private static final ObjectMapper JSON = new ObjectMapper().registerModule(new JavaTimeModule());
 
   private final DefaultChainSemanticGraphCompiler compiler =

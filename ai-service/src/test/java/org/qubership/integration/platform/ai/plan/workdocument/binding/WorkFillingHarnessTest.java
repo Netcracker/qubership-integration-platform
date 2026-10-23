@@ -841,6 +841,6 @@ class WorkFillingHarnessTest {
   }
 
   private static Path fixtureRoot() {
-    return repoRoot().resolve("ai-service/e2e/product-pipeline/fixtures/work-checkpoints");
+    return repoRoot().resolve("ai-service/src/test/resources/work-checkpoint-contract");
   }
 }
