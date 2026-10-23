@@ -93,6 +93,73 @@ class RequirementRejectedReferenceRepairProviderTest {
     } finally { ProductCapabilityCaptureContext.unbind(); }
   }
 
+  @org.junit.jupiter.api.Test
+  void displayNameRefusalShowsCanonicalDeclarationsInTheActualNextRequestAndNativeCorrectionContinues() throws Exception {
+    String chat = "declared-reference-provider-" + UUID.randomUUID();
+    String source = RequirementRejectedReferenceRepairTest.SOURCE;
+    var sourceInput = conversations.archive().beginInput(chat, source, null);
+    conversations.archive().resolveInput(chat, sourceInput, source);
+    drafts.beginTurn(chat, source);
+    ProductCapabilityCaptureContext.bindDiscovery("run-" + chat, chat, ignored -> {});
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var canonical = new RequirementRejectedReferenceRepairTest.Fixture(false).corrected();
+    var tree = (com.fasterxml.jackson.databind.node.ObjectNode) json.valueToTree(canonical);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) tree.at("/facts/1/elementIntent"))
+        .put("successorElementRef", "Prepare work");
+    var rejected = json.treeToValue(tree, RequirementCaptureInput.DraftInput.class);
+    String raw = json.writeValueAsString(Map.of("draft", rejected));
+    var sourceBefore = json.valueToTree(conversations.archive().read(chat));
+    var rejectedRevision = new java.util.concurrent.atomic.AtomicReference<CompilationArtifacts.Revision>();
+    var originalSchemas = new java.util.concurrent.atomic.AtomicReference<List<dev.langchain4j.agent.tool.ToolSpecification>>();
+    var limits = List.of(config.llm().maxRequestsPerRun(), config.llm().maxTokensPerRun(),
+        config.llm().maxActiveTimePerRun(), config.capture().maxRepairAttempts());
+    var scripted = new ScriptedStreamingChatModel(
+        Turn.tool("name-as-reference", request -> originalSchemas.set(request.parameters().toolSpecifications()),
+            "captureRequirementDraft", raw),
+        capture("canonical-reference", canonical, request -> {
+          assertIssue(request, "UNKNOWN_ELEMENT_REFERENCE");
+          var refusal = lastTool(request);
+          var issue = refusal.path("issues").get(0);
+          assertEquals("/draft/facts/owner/elementIntent/successorElementRef", issue.path("path").asText());
+          String message = issue.path("message").asText();
+          assertTrue(message.contains("Rejected successorElementRef=\"Prepare work\""), message);
+          assertTrue(message.contains("Canonical IDs recognized by this check: [\"prepare-step\"]"), message);
+          assertTrue(message.contains("\"elementRef\":\"prepare-step\",\"requestedName\":\"Prepare work\",\"ownerInteractionId\":\"entry\""), message);
+          var original = request.messages().stream().filter(dev.langchain4j.data.message.AiMessage.class::isInstance)
+              .map(dev.langchain4j.data.message.AiMessage.class::cast)
+              .flatMap(value -> value.toolExecutionRequests().stream())
+              .filter(value -> "name-as-reference".equals(value.id())).findFirst().orElseThrow();
+          assertEquals(raw, original.arguments(), "The actual next request must retain the entire rejected proposal.");
+          assertTrue(request.messages().toString().contains(source), "The complete original source must reach the provider.");
+          assertEquals(originalSchemas.get(), request.parameters().toolSpecifications());
+          var revision = artifacts.latest(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+          rejectedRevision.set(revision);
+          assertFalse(revision.payload().path("accepted").asBoolean());
+          assertEquals(json.valueToTree(rejected), revision.payload().path("arguments"));
+          assertTrue(drafts.get(chat).isEmpty());
+        }),
+        Turn.tool("continue-canonical", request -> {
+          assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
+          assertEquals(canonical, drafts.get(chat).orElseThrow().authoredDraft());
+        }, "finishRequirementDiscoveryTurn", "{\"directive\":\"CONTINUE\"}"),
+        Turn.text("ready-canonical", request -> assertTrue(lastTool(request).path("accepted").asBoolean()), "Requirements are ready."));
+    doAnswer(call -> { scripted.chat(call.getArgument(0, ChatRequest.class), call.getArgument(1, StreamingChatResponseHandler.class)); return null; })
+        .when(provider).chat(any(ChatRequest.class), any(StreamingChatResponseHandler.class));
+    try {
+      gather.chat(chat, prompts.wrap(chat, source, "en"), new InvocationParameters()).collect().asList().await().atMost(Duration.ofSeconds(30));
+      scripted.assertComplete();
+      assertEquals(4, scripted.requests().size());
+      assertNotNull(rejectedRevision.get());
+      assertEquals(rejectedRevision.get(), artifacts.get(sessions.active(chat), rejectedRevision.get().reference()).orElseThrow());
+      var after = json.valueToTree(conversations.archive().read(chat));
+      ((com.fasterxml.jackson.databind.node.ObjectNode) sourceBefore.at("/turns/0"))
+          .set("consumedDraftReference", after.at("/turns/0/consumedDraftReference"));
+      assertEquals(sourceBefore, after);
+      assertEquals(limits, List.of(config.llm().maxRequestsPerRun(), config.llm().maxTokensPerRun(),
+          config.llm().maxActiveTimePerRun(), config.capture().maxRepairAttempts()));
+    } finally { ProductCapabilityCaptureContext.unbind(); }
+  }
+
   private Turn capture(String id, RequirementCaptureInput.DraftInput input, java.util.function.Consumer<ChatRequest> assertion) throws Exception {
     return Turn.tool(id, assertion, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", input)));
   }
