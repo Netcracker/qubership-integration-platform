@@ -309,6 +309,7 @@ def _execute(catalog: Catalog, store: RunStore, run_id: str, index: int) -> dict
         {name: value.format_map(values) for name, value in suite.get("env", {}).items()}
     )
     if not suite["usesLlm"]:
+        env["QIP_RECOVERY_LIVE"] = "false"
         for name in list(env):
             if name.endswith(("API_KEY", "API_TOKEN")) or name in {
                 "QIP_LLM_PASSWORD",
