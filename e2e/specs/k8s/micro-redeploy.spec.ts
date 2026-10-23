@@ -10,9 +10,13 @@
  *
  * The redeploy swaps the marker header, so the answers show the new version took over: a redeploy
  * that rolled nothing would pass the status check on its own.
+ *
+ * The case declares the `redeploy-under-traffic-micro` behavior row. The classic case is "a redeploy
+ * swaps the response and never loses the route" in `specs/api/deployments.spec.ts`.
  */
 import type { APIRequestContext } from "@playwright/test";
 import { test, expect } from "../../support/fixtures.js";
+import { coversBehavior } from "../../registry/covers.js";
 import { MICRO_READY_TIMEOUT } from "../../support/corpus.js";
 import { MARKER_HEADER, setMarker, tokenizedChain } from "../../support/deployable.js";
 import { integrationPods, microChainUrl, microServiceOf } from "../../support/kube.js";
@@ -45,6 +49,7 @@ async function call(request: APIRequestContext, url: string): Promise<Answer> {
 test.describe("a micro domain redeployed under load", { tag: ["@catalog", "@engine", "@slow"] }, () => {
   test("answers every call with 200", async ({ catalog, folder, run, request }) => {
     test.setTimeout(CASE_TIMEOUT);
+    coversBehavior("http-trigger", "redeploy-under-traffic-micro");
     const domain = tokenized(run, "redeploy");
     const resource = microServiceOf(domain);
     const chain = await tokenizedChain(catalog, run, {

@@ -690,8 +690,8 @@ specs/
   runtime-micro-redeploy/
                 k8s only: micro cases that deploy and redeploy, each file in a micro domain of its
                 own, one file at a time
-  k8s/          k8s only: custom resources, gateway routes, discovery, the /e2e/ locations, and a
-                micro domain that a broken chain takes down
+  k8s/          k8s only: custom resources, gateway routes, discovery, the /e2e/ locations, a
+                micro domain that a broken chain takes down, and one redeployed under load
 pages/      page objects for the UI and the shared TableView; selectors by role, test id, then title
 ```
 
