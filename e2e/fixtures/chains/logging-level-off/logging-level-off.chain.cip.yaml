@@ -1,0 +1,31 @@
+---
+id: "e2e00037-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-logging-level-off"
+description: "logging-level.spec.ts sets this chain's session logging to OFF in place. The script throws when the e2e-fail header is yes."
+content:
+  labels: []
+  elements:
+  - id: "e2e00037-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-logging-level-off"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00037-0000-4000-8000-000000000003"
+    name: "Probe Script"
+    type: "script"
+    properties:
+      script: "if (exchange.getMessage().getHeader('e2e-fail') == 'yes') throw new IllegalStateException('probe failure'); exchange.getMessage().setBody('{\"probe\":\"ok\"}')"
+  dependencies:
+  - from: "e2e00037-0000-4000-8000-000000000002"
+    to: "e2e00037-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

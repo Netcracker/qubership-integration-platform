@@ -2,6 +2,6 @@
 import { test } from "@playwright/test";
 import { stopUiServer } from "../../support/ui-server.js";
 
-test("the UI preview server is stopped", { tag: ["@ui", "@tier1"] }, async () => {
+test("the UI preview server is stopped", { tag: ["@ui"] }, async () => {
   await stopUiServer();
 });

@@ -35,6 +35,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -247,6 +248,19 @@ class KubeOperatorQueryTest {
                 () -> kubeOperator.getIntegrationsByLabels(labels));
 
         assertSame(apiException, exception.getOriginalException());
+    }
+
+    @Test
+    void getCamelKIntegrationReadsTheCamelKCoordinates() throws ApiException {
+        CustomObjectsApi.APIgetNamespacedCustomObjectRequest request =
+                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.getNamespacedCustomObject(
+                CAMEL_K_GROUP, CAMEL_K_VERSION, NAMESPACE, INTEGRATIONS_PLURAL, "order-chain")).thenReturn(request);
+        when(request.execute()).thenReturn(rawObject("Integration", "order-chain"));
+
+        Optional<KubeCustomObject> integration = kubeOperator.getCamelKIntegration("order-chain");
+
+        assertEquals("order-chain", integration.orElseThrow().getMetadata().getName());
     }
 
     @Test

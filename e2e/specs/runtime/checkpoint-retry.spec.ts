@@ -16,7 +16,7 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain, type SeedChain } from "../../support/corpus.js";
-import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, SESSION_TIMEOUT, type RecordedSession, type Sessions } from "../../support/sessions.js";
+import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, type RecordedSession, type Sessions } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import type { Env } from "../../env/index.js";
@@ -32,10 +32,7 @@ async function failedSession(request: APIRequestContext, env: Env, sessions: Ses
   const session = await sessions.byExternalId(call.token, { elements: FAILED_TRACE.length });
   expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
   expect(elementNames(session)).toEqual(FAILED_TRACE);
-  // A step's status settles after the session's: measured IN_PROGRESS on a session already failed.
-  await expect
-    .poll(async () => element(await sessions.session(session.id), "Fail On Flag")?.executionStatus, { timeout: SESSION_TIMEOUT })
-    .toBe("COMPLETED_WITH_ERRORS");
+  expect(element(session, "Fail On Flag")?.executionStatus).toBe("COMPLETED_WITH_ERRORS");
   return session;
 }
 
@@ -54,52 +51,54 @@ async function failedIds(engine: Engine, chainId: string): Promise<string[]> {
   return (await engine.failedSessions(chainId)).map((each) => each.id);
 }
 
-test("a failed session is listed for retry, and a retry from its first checkpoint resumes there and completes", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engine }) => {
-  covers("checkpoint");
+test.describe("checkpoint retry", { tag: ["@engine"] }, () => {
+  test("a listed failed session retries from its first checkpoint", { tag: ["@sessions"] }, async ({ request, env, sessions, engine }) => {
+    covers("checkpoint");
 
-  const chain = seedChain(readCorpusState(), "checkpoint-retry");
-  const failed = await failedSession(request, env, sessions, chain, "from-first");
+    const chain = seedChain(readCorpusState(), "checkpoint-retry");
+    const failed = await failedSession(request, env, sessions, chain, "from-first");
 
-  const listed = (await engine.failedSessions(chain.id)).find((each) => each.id === failed.id);
-  expect(listed, `${failed.id} under sessions/failed`).toBeDefined();
-  expect(listed?.executionStatus).toBe("COMPLETED_WITH_ERRORS");
-  expect(listed?.checkpoints.map((each) => each.checkpointElementId).sort()).toEqual(
-    [chain.elements["First Checkpoint"], chain.elements["Second Checkpoint"]].sort(),
-  );
+    const listed = (await engine.failedSessions(chain.id)).find((each) => each.id === failed.id);
+    expect(listed, `${failed.id} under sessions/failed`).toBeDefined();
+    expect(listed?.executionStatus).toBe("COMPLETED_WITH_ERRORS");
+    expect(listed?.checkpoints.map((each) => each.checkpointElementId).sort()).toEqual(
+      [chain.elements["First Checkpoint"], chain.elements["Second Checkpoint"]].sort(),
+    );
 
-  await accepted(engine.retryFromCheckpoint(chain.id, failed.id, chain.elements["First Checkpoint"], REPLACE));
-  const retried = await retriedSession(sessions, chain.id, failed.id, 4);
-  expect(retried.executionStatus).toBe("COMPLETED_NORMALLY");
-  expect(elementNames(retried)).toEqual(["First Checkpoint", "Between Checkpoints", "Second Checkpoint", "Fail On Flag"]);
-  // The checkpoint step takes the retry's request and hands on the body it saved.
-  expect(JSON.parse(element(retried, "First Checkpoint")?.bodyAfter ?? "null")).toEqual({ ping: "from-first" });
-  expect(JSON.parse(element(retried, "Fail On Flag")?.bodyAfter ?? "null")).toEqual({ checkpoint: "completed" });
+    await accepted(engine.retryFromCheckpoint(chain.id, failed.id, chain.elements["First Checkpoint"], REPLACE));
+    const retried = await retriedSession(sessions, chain.id, failed.id, 4);
+    expect(retried.executionStatus).toBe("COMPLETED_NORMALLY");
+    expect(elementNames(retried)).toEqual(["First Checkpoint", "Between Checkpoints", "Second Checkpoint", "Fail On Flag"]);
+    // The checkpoint step takes the retry's request and hands on the body it saved.
+    expect(JSON.parse(element(retried, "First Checkpoint")?.bodyAfter ?? "null")).toEqual({ ping: "from-first" });
+    expect(JSON.parse(element(retried, "Fail On Flag")?.bodyAfter ?? "null")).toEqual({ checkpoint: "completed" });
 
-  await expect.poll(() => failedIds(engine, chain.id), { message: "a completed retry takes the session off the list" }).not.toContain(failed.id);
-});
+    await expect.poll(() => failedIds(engine, chain.id), { message: "a completed retry takes the session off the list" }).not.toContain(failed.id);
+  });
 
-test("a session retry resumes from the latest checkpoint, not from the trigger", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engine }) => {
-  const chain = seedChain(readCorpusState(), "checkpoint-retry");
-  const failed = await failedSession(request, env, sessions, chain, "from-latest");
+  test("a session retry resumes from the latest checkpoint", { tag: ["@sessions"] }, async ({ request, env, sessions, engine }) => {
+    const chain = seedChain(readCorpusState(), "checkpoint-retry");
+    const failed = await failedSession(request, env, sessions, chain, "from-latest");
 
-  await accepted(engine.retrySession(chain.id, failed.id, REPLACE));
-  const retried = await retriedSession(sessions, chain.id, failed.id, 2);
-  expect(retried.executionStatus).toBe("COMPLETED_NORMALLY");
-  expect(elementNames(retried)).toEqual(["Second Checkpoint", "Fail On Flag"]);
-  expect(JSON.parse(element(retried, "Second Checkpoint")?.bodyAfter ?? "null")).toEqual({ ping: "from-latest" });
-  expect(JSON.parse(element(retried, "Fail On Flag")?.bodyAfter ?? "null")).toEqual({ checkpoint: "completed" });
-});
+    await accepted(engine.retrySession(chain.id, failed.id, REPLACE));
+    const retried = await retriedSession(sessions, chain.id, failed.id, 2);
+    expect(retried.executionStatus).toBe("COMPLETED_NORMALLY");
+    expect(elementNames(retried)).toEqual(["Second Checkpoint", "Fail On Flag"]);
+    expect(JSON.parse(element(retried, "Second Checkpoint")?.bodyAfter ?? "null")).toEqual({ ping: "from-latest" });
+    expect(JSON.parse(element(retried, "Fail On Flag")?.bodyAfter ?? "null")).toEqual({ checkpoint: "completed" });
+  });
 
-test("a retry of a session with no checkpoint answers 404 naming the session", { tag: ["@engine", "@tier2"] }, async ({ engine }) => {
-  const chain = seedChain(readCorpusState(), "checkpoint-retry");
-  const absent = `never-existed-${chain.id}`;
+  test("a retry with no checkpoint returns 404 naming the session", async ({ engine }) => {
+    const chain = seedChain(readCorpusState(), "checkpoint-retry");
+    const absent = `never-existed-${chain.id}`;
 
-  const whole = await engine.retrySession(chain.id, absent);
-  expect(whole.status()).toBe(404);
-  expect((await whole.json()).errorMessage).toBe(`Can't find checkpoint for session with id: ${absent}`);
+    const whole = await engine.retrySession(chain.id, absent);
+    expect(whole.status()).toBe(404);
+    expect((await whole.json()).errorMessage).toBe(`Can't find checkpoint for session with id: ${absent}`);
 
-  const checkpoint = chain.elements["First Checkpoint"];
-  const fromCheckpoint = await engine.retryFromCheckpoint(chain.id, absent, checkpoint);
-  expect(fromCheckpoint.status()).toBe(404);
-  expect((await fromCheckpoint.json()).errorMessage).toBe(`Can't find checkpoint ${checkpoint} for session with id: ${absent}`);
+    const checkpoint = chain.elements["First Checkpoint"];
+    const fromCheckpoint = await engine.retryFromCheckpoint(chain.id, absent, checkpoint);
+    expect(fromCheckpoint.status()).toBe(404);
+    expect((await fromCheckpoint.json()).errorMessage).toBe(`Can't find checkpoint ${checkpoint} for session with id: ${absent}`);
+  });
 });

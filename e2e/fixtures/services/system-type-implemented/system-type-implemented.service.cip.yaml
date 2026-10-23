@@ -1,0 +1,22 @@
+---
+id: "e2e00036-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service"
+name: "e2e-{{RUN}}-system-type-implemented"
+content:
+  activeEnvironmentId: "e2e00036-0000-4000-8000-000000000002"
+  integrationSystemType: "IMPLEMENTED"
+  protocol: "HTTP"
+  environments:
+  - id: "e2e00036-0000-4000-8000-000000000002"
+    name: "implemented"
+    address: "/"
+    sourceType: "MANUAL"
+    labels: []
+    properties:
+      soTimeout: "120000"
+      getWithBody: "false"
+      connectTimeout: "120000"
+      deleteWithBody: "false"
+      responseTimeout: "120000"
+      connectionRequestTimeout: "120000"
+  migrations: "[100, 101, 102]"

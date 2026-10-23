@@ -70,6 +70,9 @@ const (
 	migrationLockTimeout       = 2 * time.Minute
 	migrationLockRetryInterval = time.Second
 	migrationUnlockTimeout     = 5 * time.Second
+	// postgresStartupTimeout bounds the startup wait for PostgreSQL, dial timeouts included.
+	postgresStartupTimeout = 2 * time.Minute
+	postgresRetryInterval  = time.Second
 	// defaultBodyLimit caps a request body. The zip imports are the large ones,
 	// and fiber's own 4 MiB default is well under what the proxies in front of
 	// this service allow through.
@@ -324,12 +327,42 @@ func lockMigrations(ctx context.Context, bunDB *bun.DB, schema string, logger *s
 		if attempt == 0 {
 			logger.Info("Waiting for another instance to finish the migrations")
 		}
-		select {
-		case <-waitCtx.Done():
+		if err := sleepContext(waitCtx, migrationLockRetryInterval); err != nil {
 			_ = conn.Close()
-			return nil, fmt.Errorf("lock the migrations: %w", waitCtx.Err())
-		case <-time.After(migrationLockRetryInterval):
+			return nil, fmt.Errorf("lock the migrations: %w", err)
 		}
+	}
+}
+
+// waitForPostgres pings until PostgreSQL accepts a connection, so a database that
+// starts after this process does not fail it. Once postgresStartupTimeout has
+// passed, it returns the error of the last ping.
+func waitForPostgres(ctx context.Context, ping func(context.Context) error,
+	sleep func(context.Context, time.Duration) error, logger *slog.Logger) error {
+	deadlineCtx, cancel := context.WithTimeout(ctx, postgresStartupTimeout)
+	defer cancel()
+	for attempt := 1; ; attempt++ {
+		// With no context deadline, pgdriver lets one read block for db.DefaultReadTimeout.
+		err := ping(deadlineCtx)
+		if err == nil {
+			return nil
+		}
+		logger.Warn("PostgreSQL does not accept connections yet", "attempt", attempt, "error", err)
+		if sleep(deadlineCtx, postgresRetryInterval) != nil {
+			return fmt.Errorf("connect to PostgreSQL, gave up after %d attempts: %w", attempt, err)
+		}
+	}
+}
+
+// sleepContext waits for d and returns the error of ctx if it is done first.
+func sleepContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 
@@ -417,6 +450,9 @@ func run() error {
 
 	bunDB, err := database.GetBunDb(ctx)
 	if err != nil {
+		return err
+	}
+	if err := waitForPostgres(ctx, bunDB.PingContext, sleepContext, logger); err != nil {
 		return err
 	}
 	if err := prepareDatabase(ctx, bunDB, cfg.Postgres.Schema, logger); err != nil {

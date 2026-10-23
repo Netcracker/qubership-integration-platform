@@ -467,9 +467,7 @@ describe("Sessions", () => {
     fireEvent.click(within(row).getByRole("checkbox"));
 
     // Click delete
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     // Confirm
     expect(capturedConfirmOnOk).toBeDefined();
@@ -495,9 +493,7 @@ describe("Sessions", () => {
 
       const headerRow = screen.getAllByRole("row")[0];
       fireEvent.click(within(headerRow).getByRole("checkbox"));
-      fireEvent.click(
-        screen.getByTestId("protected-btn-delete-selected-sessions"),
-      );
+      fireEvent.click(screen.getByTestId("sessions-delete"));
       await act(async () => {
         await capturedConfirmOnOk!();
       });
@@ -529,9 +525,7 @@ describe("Sessions", () => {
         "checkbox",
       ),
     );
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
     await act(async () => {
       await capturedConfirmOnOk!();
     });
@@ -558,9 +552,7 @@ describe("Sessions", () => {
     fireEvent.click(
       within(screen.getByRole("row", { name: /r1/ })).getByRole("checkbox"),
     );
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
     await act(async () => {
       await capturedConfirmOnOk!();
     });
@@ -581,9 +573,7 @@ describe("Sessions", () => {
   test("delete does nothing when no rows selected", async () => {
     await renderWithSessions([baseSession({ id: "n1" })]);
 
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     expect(capturedConfirmOnOk).toBeUndefined();
     expect(mockDeleteSessions).not.toHaveBeenCalled();
@@ -599,9 +589,7 @@ describe("Sessions", () => {
 
     const row = screen.getByRole("row", { name: /f1/i });
     fireEvent.click(within(row).getByRole("checkbox"));
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     await act(async () => {
       await capturedConfirmOnOk!();
@@ -941,9 +929,11 @@ describe("Sessions", () => {
     fireEvent.click(screen.getByTestId("protected-btn-"));
 
     await waitFor(() => {
-      expect(
-        mockRetrySessionFromCheckpointForMicroDomain,
-      ).toHaveBeenCalledWith("micro-dom", "chain-1", "retry-micro");
+      expect(mockRetrySessionFromCheckpointForMicroDomain).toHaveBeenCalledWith(
+        "micro-dom",
+        "chain-1",
+        "retry-micro",
+      );
     });
     expect(mockRetrySessionFromCheckpoint).not.toHaveBeenCalled();
   });

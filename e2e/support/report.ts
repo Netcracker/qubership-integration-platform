@@ -19,7 +19,7 @@
  * walk and the container table be shared with the registry rather than copied here: a fourth copy
  * of a recursive walk is a fourth place it can stop one level early and report nothing.
  *
- * `COMPONENT_TAGS` stays a parameter rather than an import, so `specs/schema/report.spec.ts` can
+ * `COMPONENT_TAGS` stays a parameter rather than an import, so `specs/harness/report.spec.ts` can
  * render the catalog against a tag set it names.
  */
 import fs from "node:fs";
@@ -56,7 +56,7 @@ export interface ServiceFacts {
   imageCreated: string | null;
 }
 
-/** A project or spec file the run leaves out, and why. */
+/** A project the run leaves out, and why. */
 export interface Absence {
   name: string;
   reason: string;
@@ -356,8 +356,7 @@ function headerSection(header: StackHeader | null, report: JsonReport): string[]
   }
 
   lines.push(
-    `Wall time ${wall}: ${stats.expected ?? 0} passed, ${stats.unexpected ?? 0} failed, ` +
-      `${stats.flaky ?? 0} flaky, ${stats.skipped ?? 0} skipped.`,
+    `Wall time ${wall}: ${stats.expected ?? 0} passed, ${stats.unexpected ?? 0} failed, ${stats.skipped ?? 0} skipped.`,
     "",
   );
   return lines;

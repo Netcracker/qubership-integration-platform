@@ -37,6 +37,14 @@ and no assertion.
    is fine: `@xyflow/react` gives each node `data-testid="rf__node-<element id>"` and each edge the
    name `Edge from <id> to <id>`.
 
+Three more selector rules, each met by a case under `specs/ui/`:
+
+- A multiple Select is closed with Escape. Tab picks the active option again, which clears it.
+- After a save, antd can keep the hidden loading icon in a button, whose name then reads
+  `loading Apply`, so the locator matches `/Apply$/` (`pages/ChainTabsPage.ts`).
+- An entity a UI case creates carries a `callToken` beside the run token, in its name or its route,
+  so `--repeat-each` runs on one run token do not collide on it.
+
 A Monaco editor is located by the id its mount site passes through `@monaco-editor/react`'s
 `wrapperProps`, always ending in `-editor` (`script-editor`, `snapshot-xml-editor`,
 `session-body-before-editor`). That id is attached at mount, about 1.3 s before the editor can be
@@ -57,6 +65,13 @@ the page, and with `expect(...).toPass()` for a block that throws until the page
   `animationend`, and with no animation the element never becomes visible.
 - A control shown only while its row is hovered is clicked after `row.hover()`
   (`chains-row-actions`, `live-exchanges-terminate`).
+- An option in a freshly opened antd list is picked through `pickOption` in
+  `support/pick-option.ts`. The list opens scaled up from 0.8, so a click during the animation can
+  press on one option, release over another, and pick nothing. `pickOption` repeats the click, an
+  exception to rule 9 in `SKILL.md`. A pick in a single select closes the list, so a click that
+  landed is never repeated. A multiple select stays open, so `pickOption` relies on the caller's
+  `picked` locator to see the pick land, and repeats the click only while the list reports no
+  option of that name selected, because a second click would clear the pick.
 - Read a computed style only after the state behind it settles. The theme cases wait for
   `data-theme`, for the `theme-switching` class to go, and for the last `theme-variables-updated`
   event, which an init script records, to name the mode. The contrast read also throws while a
@@ -79,9 +94,14 @@ viewport once a real interaction has happened, so a graph case asserts over a ch
 (`http-echo`) or over the node it just touched. A case that needs another size calls
 `page.setViewportSize` itself. Dragging nodes and the automatic layout stay uncovered until a
 defect asks for them; adding an element from the library is a `dragTo`, because the library has
-no click-to-add. The project has no `expect` timeout of its own and no warm-up navigation: against
+no click-to-add. A connection is a `dragTo` too, from the node's `data-handlepos="right"` handle to
+the other node's `data-handlepos="left"` one (`ChainGraphPage.connect`); a container hides its
+handles, so connect plain elements. Save a downloaded export under `download.suggestedFilename()`
+before uploading it again: the catalog picks the parser by the file's extension, and the path
+Playwright downloads to has none. The project has no `expect` timeout of its own and no warm-up
+navigation: against
 the bundle, a warm `/chains` shows its first row in 1.1–6.2 s.
 
 A mutation check on `ui/src` (rule 17 in `SKILL.md`) costs a `vite build` each way, about a minute. Make it in the
-working tree with a backup of the file, revert it before the commit, and record in the pull request
-description what was changed and which assertion went red.
+working tree with a backup of the file, revert it before the commit, and record in the spec header
+what was changed and which assertion went red, as rule 17 says.

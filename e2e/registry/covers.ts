@@ -10,7 +10,7 @@
  * reconciliation loads the registry outside Playwright.
  */
 import { test } from "@playwright/test";
-import { COVERS_ANNOTATION, coverageKey, type SchemaValue } from "./elements.js";
+import { COVERS_ANNOTATION, behaviorKey, coverageKey, type SchemaValue } from "./elements.js";
 
 /**
  * Declare an element family, or one axis value of it, as covered by the calling test.
@@ -22,5 +22,17 @@ export function covers(family: string, axisPath?: string, value?: SchemaValue): 
   test.info().annotations.push({
     type: COVERS_ANNOTATION,
     description: coverageKey(family, axisPath, value),
+  });
+}
+
+/**
+ * Declare one behavior row of an element family as covered by the calling test.
+ *
+ *     coversBehavior("service-call", "retry");
+ */
+export function coversBehavior(family: string, label: string): void {
+  test.info().annotations.push({
+    type: COVERS_ANNOTATION,
+    description: behaviorKey(family, label),
   });
 }

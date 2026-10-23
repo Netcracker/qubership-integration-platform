@@ -560,6 +560,7 @@ export const Sessions: React.FC<SessionsProps> = ({
           require={{ session: ["delete"] }}
           tooltipProps={{ title: "Delete selected sessions" }}
           buttonProps={{
+            "data-testid": "sessions-delete",
             iconName: "delete",
             onClick: onDeleteBtnClick,
             disabled: !hasSelection,

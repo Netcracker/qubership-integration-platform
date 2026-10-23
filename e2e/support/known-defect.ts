@@ -21,6 +21,10 @@
  */
 import { test } from "@playwright/test";
 import type { APIResponse } from "@playwright/test";
+import type { EngineKind } from "../env/index.js";
+import { withoutColors } from "./colors.js";
+import type { ProjectUse } from "./corpus.js";
+import { STRUCK_ANNOTATION } from "../registry/elements.js";
 
 /**
  * Fails the running `test.fail()` case for real, because what it saw is not the defect it pins.
@@ -66,24 +70,47 @@ export async function onlyTheKnownStatus(
 }
 
 /**
- * A defect a case meets only on some stacks, because it depends on how much data the stack holds, so
- * the case cannot carry a plain `test.fail()`: on a small stack it passes, and the annotation would
- * turn that pass red.
+ * A defect a case meets only on one engine, or only in a race, so the case cannot carry a plain
+ * `test.fail()`: where the defect does not strike the case passes, and the annotation would turn
+ * that pass red.
  */
 export interface ConditionalDefect {
   title: string;
+  /**
+   * The engine that meets the defect. On the other engine a failure `matches` accepts stays a real
+   * one. `any` is a defect outside the engines, which a case meets on either.
+   */
+  engine: EngineKind | "any";
   matches(message: string): boolean;
 }
 
 /**
- * Runs `step`, and marks the running case an expected failure only when `step` throws `defect`. Any
- * other failure stays a real one, and a step that succeeds leaves the case an ordinary passing case.
+ * Whether a step that failed with `message` on `engine` met `defect`. A `matches` reads the message
+ * without color codes, which Playwright writes into every matcher failure in a worker.
+ */
+export function strikes(defect: ConditionalDefect, engine: EngineKind, message: string): boolean {
+  return (defect.engine === "any" || engine === defect.engine) && defect.matches(withoutColors(message));
+}
+
+/** The engine the running project's chains run on, which a project sets with `use: { engineKind }`. */
+function projectEngine(): EngineKind {
+  return (test.info().project.use as ProjectUse).engineKind ?? "classic";
+}
+
+/**
+ * Runs `step`, and marks the running case an expected failure only when `step` throws `defect` on an
+ * engine that meets it. Any other failure stays a real one, and a step that succeeds leaves the case
+ * an ordinary passing case. A strike is recorded as a `struck` annotation, so reconcile still reads
+ * the calls the case made before the step.
  */
 export async function strikesAsKnown<T>(defect: ConditionalDefect, step: () => Promise<T>): Promise<T> {
   try {
     return await step();
   } catch (cause) {
-    if (defect.matches(String(cause))) test.fail(true, defect.title);
+    if (strikes(defect, projectEngine(), String(cause))) {
+      test.info().annotations.push({ type: STRUCK_ANNOTATION, description: defect.title });
+      test.fail(true, defect.title);
+    }
     throw cause;
   }
 }

@@ -1,0 +1,39 @@
+---
+id: "e2e0e004-0000-4000-8000-000000000001-amqp-calls-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e0e004-0000-4000-8000-000000000001-amqp-calls-1.0.0-e2e-{{RUN}}-service-call-amqp-receive"
+    name: "e2e-{{RUN}}-service-call-amqp-receive"
+    method: "receive"
+    path: "e2e-{{RUN}}-service-call-amqp-receive"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+        properties:
+          ping:
+            type: "string"
+  - id: "e2e0e004-0000-4000-8000-000000000001-amqp-calls-1.0.0-e2e-{{RUN}}-service-call-amqp-send"
+    name: "e2e-{{RUN}}-service-call-amqp-send"
+    method: "send"
+    path: "e2e-{{RUN}}-service-call-amqp-send"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+        properties:
+          ping:
+            type: "string"
+  specificationSources:
+  - id: "e2e0e004-0000-4000-8000-000000000003"
+    name: "amqp-calls.yaml"
+    fileName: "source-e2e0e004-0000-4000-8000-000000000001-amqp-calls-1.0.0/amqp-calls.yaml"
+    mainSource: true
+  parentId: "e2e0e004-0000-4000-8000-000000000001-amqp-calls"

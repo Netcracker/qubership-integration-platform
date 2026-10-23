@@ -1,0 +1,40 @@
+---
+id: "e2e00033-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-service-call-graphql-no-before"
+description: "A graphql service call with no before property, on the widget query of the service-call-widgets\
+  \ service fixture, which posts to the http echo. The generated graphql axis chain carries the before\
+  \ the element form writes."
+content:
+  labels: []
+  elements:
+  - id: "e2e00033-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-service-call-graphql-no-before"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      handleChainFailureAction: "default"
+  - id: "e2e00033-0000-4000-8000-000000000003"
+    name: "Service Call"
+    type: "service-call"
+    properties:
+      systemType: "INTERNAL"
+      integrationSystemId: "e2e00032-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e00032-0000-4000-8000-000000000001-widgets"
+      integrationSpecificationId: "e2e00032-0000-4000-8000-000000000001-widgets-1.0.0"
+      integrationOperationId: "e2e00032-0000-4000-8000-000000000001-widgets-1.0.0-widget"
+      integrationOperationPath: "widget(id: ID!): Widget"
+      integrationOperationMethod: "query"
+      integrationOperationProtocolType: "graphql"
+      integrationGqlQuery: "query Widget($id: ID!) { widget(id: $id) { id name } }"
+      integrationGqlVariablesJSON: "{\"id\":\"e2e-widget\"}"
+      retryCount: 0
+      retryDelay: 5000
+  dependencies:
+  - from: "e2e00033-0000-4000-8000-000000000002"
+    to: "e2e00033-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
