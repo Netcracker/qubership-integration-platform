@@ -40,17 +40,19 @@ Neither belongs in the generation agent's context.
 
 ## Profiles and boundaries
 
-| Profile | Owner | LLM | What a pass proves |
-| --- | --- | --- | --- |
-| `core-regression` | Service | No | Runner, imports, conversations, presentation, and recovery mechanisms |
-| `service-full` | Service | No | Full Java suite, knowledge sidecar, evaluator, and runner tests |
-| `runner-self-test` | Service | No | Runner and HTTP report contracts |
-| `chain-offline` | Skills bundle | No | Corpus, generic driver, planner/executor, and golden comparison contracts |
-| `chain-acceptance` | Skills bundle | Yes | Existing product assertions and catalog readback |
-| `planner` | Skills bundle | Yes | Isolated planner contract |
-| `executor` | Skills bundle | Yes | Executor contract over saved planner input |
-| `generators` | Skills bundle | Yes | Accepted element goldens and catalog readback; proposals cannot pass |
-| `recovery` | Skills bundle | Yes | Native fault, feedback, budget, and consumer proof at the case's declared boundary |
+| Profile                     | Owner         | LLM | What a pass proves                                                                        |
+| --------------------------- | ------------- | --- | ----------------------------------------------------------------------------------------- |
+| `core-regression`           | Service       | No  | Runner, imports, conversations, presentation, and recovery mechanisms                     |
+| `service-full`              | Service       | No  | Full Java suite, knowledge sidecar, evaluator, and runner tests                           |
+| `runner-self-test`          | Service       | No  | Runner and HTTP report contracts                                                          |
+| `chain-offline`             | Skills bundle | No  | Corpus, generic driver, planner/executor, and golden comparison contracts                 |
+| `chain-acceptance`          | Skills bundle | Yes | Existing product assertions and catalog readback                                          |
+| `planner`                   | Skills bundle | Yes | Isolated planner contract                                                                 |
+| `executor`                  | Skills bundle | Yes | Executor contract over saved planner input                                                |
+| `generators`                | Skills bundle | Yes | Accepted element goldens and catalog readback; proposals cannot pass                      |
+| `recovery`                  | Skills bundle | Yes | Native fault, feedback, budget, and consumer proof at the case's declared boundary        |
+| `recovery-acceptance-check` | Skills bundle | No  | Prepared candidate, source, image, schema, settings, and proof-tool readiness             |
+| `recovery-acceptance`       | Skills bundle | Yes | Registered recovery components and separate full product cases on Kimi, ordinary, or both |
 
 Live profiles run the core regression gate first. Selecting a live suite retains its profile's mandatory gates.
 A failed, blocked, or unexecuted gate prevents dependent model work. Missing packages leave service profiles available
@@ -75,6 +77,40 @@ The quality driver uses `--skip-deploy`. Its fault cases may still recreate the 
 Recovery uses the existing isolated campaign driver and requires an explicit existing image. Generated catalog
 objects and failed campaign resources follow those drivers' retention and cleanup rules. Inspect lifecycle artifacts
 after cancellation; forcing a process to stop cannot certify that external teardown completed.
+
+## Prepared recovery acceptance
+
+The prepared launcher from the recovery campaign stays immutable. The common runner calls its native checks and
+verifiers; it does not replace them with the generic recovery campaign. Install the testing bundle and a local
+`.dev/recovery-acceptance.json` containing `launcher`, `launcherSha256`, `candidateSha256`, and `waveRoot`.
+Paths resolve from the repository root. The launcher owns the candidate, frozen inputs, provider settings,
+proof dependencies, isolated stores, and helper cleanup. Its local handoff lists the preparation dependencies.
+Missing preparation is `BLOCKED`. Changed source, schemas, or package files require a new preparation.
+Keep the old snapshot and hashes; do not edit them to admit another build.
+
+```bash
+python3 ai-service/e2e/run.py run recovery-acceptance-check
+# Paid; run only after explicit authorization:
+python3 ai-service/e2e/run.py start recovery-acceptance --allow-llm --model kimi
+python3 ai-service/e2e/run.py start recovery-acceptance --allow-llm --model ordinary
+python3 ai-service/e2e/run.py start recovery-acceptance --allow-llm --model both
+```
+
+The UI offers the same profiles. For this profile only, the model field selects `kimi` (default), `ordinary`, or
+`both`; it changes the provider through the pinned launcher. Other live profiles keep using their configured service.
+Kimi uses the existing OpenRouter/CoreWeave route and Responses transport. Normal budgets, output tokens,
+recovery allowances, and provider fallback settings stay unchanged. Credentials remain in the existing local secret
+store or container configuration and are never placed in the testing bundle.
+
+The matrix checks requirement protection and read-loop recovery at registered-component boundaries, then a fresh
+parcel-credit construction and its controlled HTTP-capture recovery variant through the full product API and catalog.
+The two full cases share one business input. Component success does not prove full-chain recovery from either new
+failure. The native verdict must retain this distinction and the open prose-only meaning-preservation gap.
+`UI=NOT_RUN` and `engineRuntime=NOT_RUN` describe product execution; viewing this results UI does not change them.
+
+Each common run gets a fresh native attempt. Native summaries, component receipts, original refusals, attempts,
+model captures, product proofs, catalog readback, and script checks are copied into that run's artifacts.
+A native failure or missing proof cannot pass because the command exited successfully. Reruns retain earlier failures.
 
 ## Ownership and distribution
 

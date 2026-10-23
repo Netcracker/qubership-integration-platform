@@ -28,7 +28,10 @@
               required
           /></label>
           <label
-            >Model / deployment identifier<input id="model" value="unspecified"
+            >Model / deployment identifier<input
+              id="model"
+              value="unspecified"
+              list="acceptance-models"
           /></label>
           <label
             >Service image (recovery)<input id="image" value="unspecified"
@@ -37,6 +40,15 @@
             ><input id="allow-llm" type="checkbox" />Allow this run to call the
             configured LLM</label
           >
+          <datalist id="acceptance-models">
+            <option value="kimi"></option>
+            <option value="ordinary"></option>
+            <option value="both"></option>
+          </datalist>
+          <p>
+            Recovery acceptance selects kimi (default), ordinary, or both. Other
+            profiles use the configured deployment.
+          </p>
           <p id="profile-detail"></p>
           <button type="submit" id="start">Start run</button>
         </form>

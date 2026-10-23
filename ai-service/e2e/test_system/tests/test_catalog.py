@@ -47,6 +47,24 @@ class CatalogTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             inside(self.root, "../../etc/passwd")
 
+    def test_prepared_acceptance_selects_kimi_and_validates_model_selection(self):
+        self.document["profiles"]["recovery-acceptance"] = ["imports"]
+        (self.root / "ai-service/e2e/suites.json").write_text(json.dumps(self.document))
+        catalog = Catalog(self.root)
+        self.assertEqual(
+            "kimi", catalog.plan("recovery-acceptance")["settings"]["model"]
+        )
+        self.assertEqual(
+            "both",
+            catalog.plan("recovery-acceptance", settings={"model": "both"})["settings"][
+                "model"
+            ],
+        )
+        with self.assertRaisesRegex(ValueError, "ordinary, kimi, or both"):
+            catalog.plan(
+                "recovery-acceptance", settings={"model": "arbitrary-provider"}
+            )
+
     def test_urls_cannot_embed_credentials(self):
         with self.assertRaises(ValueError):
             Catalog(self.root).plan(

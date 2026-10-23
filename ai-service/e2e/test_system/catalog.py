@@ -139,6 +139,8 @@ class Catalog:
         for name in (
             "chain-acceptance",
             "recovery",
+            "recovery-acceptance",
+            "recovery-acceptance-check",
             "chain-offline",
             "planner",
             "executor",
@@ -203,10 +205,17 @@ class Catalog:
         )
         options.setdefault("model", "unspecified")
         options.setdefault("image", "unspecified")
+        if profile == "recovery-acceptance":
+            if options["model"] == "unspecified":
+                options["model"] = "kimi"
+            if options["model"] not in {"ordinary", "kimi", "both"}:
+                raise ValueError("Recovery acceptance needs model ordinary, kimi, or both.")
         if profile not in self.profiles:
             if profile in {
                 "chain-acceptance",
                 "recovery",
+                "recovery-acceptance",
+                "recovery-acceptance-check",
                 "chain-offline",
                 "planner",
                 "executor",
