@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+scenarios:
+  - id: "maps-customer-and-generates-values"
+    scope: Short
+    endpointUri: "cip-chain:dd1278ad-01e6-4748-998e-b4653776682a"
+    body: |-
+      {"personId":"person-123","phone":"+1-202-555-0100","firstName":"Ada","lastName":"Lovelace","marketingConsent":true,"email":"ada@example.com","countryCode":"US","city":"London"}
+    headers:
+      "Content-Type": "text/plain"
+      "X-Person-Id": "stale-person-id"
+      "X-Unchanged-Header": "preserved"
+    properties:
+      "personId": "stale-person-id"
+      "unrelatedProperty": "preserved"
+    expectedBody: {
+      "customerId": "person-123",
+      "phoneNumber": "+1-202-555-0100",
+      "preferredContactChannel": "PHONE",
+      "displayName": "Ada_Lovelace",
+      "marketingAllowed": true,
+      "emailAddress": "ada@example.com",
+      "loyaltyProgramId": {
+        "$match": "uuid"
+      },
+      "residence": "United States",
+      "registeredAt": {
+        "$match": "date-time",
+        "format": "uuuu-MM-dd'T'HH:mm:ss'Z'"
+      },
+      "city": "London"
+    }
+    expectedHeaders:
+      "Content-Type": "application/json"
+      "X-Person-Id": "person-123"
+      "X-Unchanged-Header": "preserved"
+    expectedProperties:
+      "personId": "person-123"
+      "unrelatedProperty": "preserved"

@@ -1,0 +1,110 @@
+---
+id: 4def091a-4284-5bfc-9f10-d137631c4580
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-idempotency
+content:
+  labels: []
+  elements:
+  - id: 326d7d68-bb57-56e8-9a73-f904dcdfd06d
+    name: JMS Trigger ignore
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency/ignore
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: 1d4403a2-b358-5ce5-88f8-f29520a24931
+    name: Process ignore message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 1d4403a2-b358-5ce5-88f8-f29520a24931.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: e479293d-5349-5de3-b0cd-14f17bedf699
+    name: JMS Trigger throw
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency/throw
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: throw-exception
+  - id: 2199c28f-25d4-56c1-87ff-6eb854065e81
+    name: Process throw message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 2199c28f-25d4-56c1-87ff-6eb854065e81.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 4aeb271c-f138-50b2-9bb9-1aec4ae9526c
+    name: JMS Trigger subchain
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency/subchain
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 471f8242-a9b1-550f-a24d-63af4ff02b77
+          chainCallTimeout: 30000
+  - id: 3af42207-439a-52cf-970d-639f69333e51
+    name: Process subchain message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 3af42207-439a-52cf-970d-639f69333e51.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 471f8242-a9b1-550f-a24d-63af4ff02b77
+    name: Handle duplicate
+    type: chain-trigger-2
+    properties:
+      elementId: 471f8242-a9b1-550f-a24d-63af4ff02b77
+  - id: e9749b89-c0f6-5a38-9ec2-cad9ba3b1690
+    name: Complete duplicate handler
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: e9749b89-c0f6-5a38-9ec2-cad9ba3b1690.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 326d7d68-bb57-56e8-9a73-f904dcdfd06d
+    to: 1d4403a2-b358-5ce5-88f8-f29520a24931
+  - from: e479293d-5349-5de3-b0cd-14f17bedf699
+    to: 2199c28f-25d4-56c1-87ff-6eb854065e81
+  - from: 4aeb271c-f138-50b2-9bb9-1aec4ae9526c
+    to: 3af42207-439a-52cf-970d-639f69333e51
+  - from: 471f8242-a9b1-550f-a24d-63af4ff02b77
+    to: e9749b89-c0f6-5a38-9ec2-cad9ba3b1690
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

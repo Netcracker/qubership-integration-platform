@@ -11,6 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 final class SnapshotInvocationRunner implements AutoCloseable {
@@ -30,10 +31,18 @@ final class SnapshotInvocationRunner implements AutoCloseable {
     }
 
     SnapshotInvocationRunner(Duration timeout, Duration terminationTimeout) {
+        this(timeout, terminationTimeout, createExecutor());
+    }
+
+    SnapshotInvocationRunner(Duration timeout, Duration terminationTimeout, ExecutorService executor) {
         this.timeout = requirePositive(timeout, "Invocation timeout");
         this.terminationTimeout = requirePositive(terminationTimeout, "Invocation termination timeout");
+        this.executor = Objects.requireNonNull(executor, "executor");
+    }
+
+    private static ExecutorService createExecutor() {
         ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-        this.executor = Executors.newSingleThreadExecutor(runnable -> {
+        return Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "snapshot-invocation");
             thread.setContextClassLoader(contextClassLoader);
             thread.setDaemon(true);
@@ -64,17 +73,45 @@ final class SnapshotInvocationRunner implements AutoCloseable {
             Callable<T> invocation,
             TimeoutCleanup timeoutCleanup
     ) throws Exception {
+        return execute(null, executionName, invocation, timeoutCleanup);
+    }
+
+    <T> T execute(
+            Integer timeoutSeconds,
+            Supplier<String> executionName,
+            Callable<T> invocation,
+            TimeoutCleanup timeoutCleanup
+    ) throws Exception {
+        return execute(timeoutSeconds, executionName, invocation, () -> "", timeoutCleanup);
+    }
+
+    <T> T execute(
+            Integer timeoutSeconds,
+            Supplier<String> executionName,
+            Callable<T> invocation,
+            Supplier<String> timeoutDiagnostics,
+            TimeoutCleanup timeoutCleanup
+    ) throws Exception {
         Objects.requireNonNull(executionName, "executionName");
         Objects.requireNonNull(invocation, "invocation");
+        Objects.requireNonNull(timeoutDiagnostics, "timeoutDiagnostics");
         Objects.requireNonNull(timeoutCleanup, "timeoutCleanup");
-        Future<T> future = submit(invocation);
+        Duration effectiveTimeout = timeoutSeconds == null
+                ? timeout
+                : requirePositive(Duration.ofSeconds(timeoutSeconds), "Invocation timeout");
+        AtomicReference<Thread> worker = new AtomicReference<>();
+        Future<T> future = submit(() -> {
+            worker.set(Thread.currentThread());
+            return invocation.call();
+        });
         try {
-            return future.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+            return future.get(effectiveTimeout.toNanos(), TimeUnit.NANOSECONDS);
         } catch (TimeoutException exception) {
             AssertionError timeoutFailure = new AssertionError(
-                    executionName.get() + " timed out after " + timeout.toMillis() + " ms.",
+                    executionName.get() + " timed out after " + effectiveTimeout.toMillis() + " ms.",
                     exception
             );
+            addTimeoutDiagnostics(timeoutFailure, worker.get(), timeoutDiagnostics);
             cancelAndCleanUp(future, timeoutCleanup, timeoutFailure);
             throw timeoutFailure;
         } catch (InterruptedException exception) {
@@ -92,6 +129,27 @@ final class SnapshotInvocationRunner implements AutoCloseable {
             throw new IllegalStateException(executionName.get() + " failed with an unsupported throwable.", cause);
         } finally {
             forget(future);
+        }
+    }
+
+    private static void addTimeoutDiagnostics(
+            AssertionError timeoutFailure,
+            Thread worker,
+            Supplier<String> timeoutDiagnostics
+    ) {
+        if (worker != null) {
+            Throwable workerDiagnostic = new Throwable("Invocation worker '" + worker.getName()
+                    + "' state at timeout: " + worker.getState());
+            workerDiagnostic.setStackTrace(worker.getStackTrace());
+            timeoutFailure.addSuppressed(workerDiagnostic);
+        }
+        try {
+            String fixtureDiagnostics = timeoutDiagnostics.get();
+            if (fixtureDiagnostics != null && !fixtureDiagnostics.isBlank()) {
+                timeoutFailure.addSuppressed(new Throwable("Fixture timeout diagnostics:\n" + fixtureDiagnostics));
+            }
+        } catch (Throwable diagnosticFailure) {
+            timeoutFailure.addSuppressed(diagnosticFailure);
         }
     }
 

@@ -1,6 +1,6 @@
 id: 43a37736-5ff8-52db-add2-444269fb4a4b
 $schema: http://qubership.org/schemas/product/qip/chain
-name: http-sender-dynamic-uri
+name: http-sender-addressing
 content:
   labels: []
   elements:
@@ -20,9 +20,44 @@ content:
       m2m: false
       propagateContext: true
       reuseEstablishedConnection: true
+  - id: 7bc3a198-ab3f-5c4c-aef6-e4c4f6e4314b
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 7bc3a198-ab3f-5c4c-aef6-e4c4f6e4314b
+  - id: e3bd4b30-223a-5540-a774-9bcc7773e639
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=external
+      connectTimeout: 5000
+      isExternalCall: true
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+  - id: 841f1b08-9b74-5ff1-ac64-913155b42cad
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 841f1b08-9b74-5ff1-ac64-913155b42cad
+  - id: f1a26664-4439-5f21-921e-c9156b33bfa6
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=external-default
+      connectTimeout: 5000
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
   dependencies:
   - from: 716d9462-69ff-536b-8b9a-eeb7738993a4
     to: a4979157-ac8c-5860-9376-0ac60ebb87e3
+  - from: 7bc3a198-ab3f-5c4c-aef6-e4c4f6e4314b
+    to: e3bd4b30-223a-5540-a774-9bcc7773e639
+  - from: 841f1b08-9b74-5ff1-ac64-913155b42cad
+    to: f1a26664-4439-5f21-921e-c9156b33bfa6
   deployments:
   - domain: default
   deployAction: DEPLOY

@@ -12,6 +12,7 @@ import static org.qubership.integration.platform.engine.routes.support.SnapshotC
 public class SnapshotScenarioInvocation {
     private final String id;
     private final int repeat;
+    private final Integer timeoutSeconds;
     private final String endpointUri;
     private final SnapshotScenarioDriverDefinition driver;
     private final Object body;
@@ -43,7 +44,8 @@ public class SnapshotScenarioInvocation {
             @JsonProperty("expectedProperties") Map<String, Object> expectedProperties,
             @JsonProperty("interactions") List<SnapshotFixtureInteraction> interactions,
             @JsonProperty("expectedExchangeHeaders") Map<String, Object> expectedExchangeHeaders,
-            @JsonProperty("expectedAbsentExchangeHeaders") List<String> expectedAbsentExchangeHeaders
+            @JsonProperty("expectedAbsentExchangeHeaders") List<String> expectedAbsentExchangeHeaders,
+            @JsonProperty("timeoutSeconds") Integer timeoutSeconds
     ) {
         this.id = requireNonBlank(id);
         this.repeat = repeat == null ? 1 : repeat;
@@ -52,6 +54,12 @@ public class SnapshotScenarioInvocation {
                     "Snapshot scenario invocation '" + this.id + "' repeat must be greater than zero."
             );
         }
+        if (timeoutSeconds != null && timeoutSeconds <= 0) {
+            throw new IllegalArgumentException(
+                    "Snapshot scenario invocation '" + this.id + "' timeoutSeconds must be greater than zero."
+            );
+        }
+        this.timeoutSeconds = timeoutSeconds;
         this.endpointUri = optionalNonBlank(endpointUri, "endpointUri");
         this.driver = driver;
         if (this.endpointUri != null && this.driver != null) {
@@ -82,6 +90,10 @@ public class SnapshotScenarioInvocation {
 
     public int getRepeat() {
         return repeat;
+    }
+
+    public Integer getTimeoutSeconds() {
+        return timeoutSeconds;
     }
 
     public String getEndpointUri() {

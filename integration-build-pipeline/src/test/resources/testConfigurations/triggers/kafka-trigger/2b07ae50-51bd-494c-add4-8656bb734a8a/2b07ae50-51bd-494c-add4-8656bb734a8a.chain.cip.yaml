@@ -1,0 +1,37 @@
+---
+id: "2b07ae50-51bd-494c-add4-8656bb734a8a"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "kafka-trigger"
+content:
+  labels: []
+  elements:
+  - id: "6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599"
+    name: "Kafka Trigger"
+    type: "kafka-trigger-2"
+    properties:
+      autoOffsetReset: "latest"
+      brokers: "localhost:9092"
+      connectionSourceType: "manual"
+      consumersCount: 1
+      groupId: "snapshot-kafka-trigger"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: "GSSAPI"
+      securityProtocol: "PLAINTEXT"
+      sslProtocol: "TLS"
+      topics: "snapshot.kafka.trigger.one,snapshot.kafka.trigger.two"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+  - id: "e6f3990b-0162-4c4d-a8d8-43887f24e53c"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "e6f3990b-0162-4c4d-a8d8-43887f24e53c.element.script.cip.groovy"
+      propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599"
+    to: "e6f3990b-0162-4c4d-a8d8-43887f24e53c"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

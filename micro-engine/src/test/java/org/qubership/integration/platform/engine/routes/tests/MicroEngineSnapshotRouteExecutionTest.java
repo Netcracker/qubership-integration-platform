@@ -118,6 +118,7 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
             .configProperty("cip.metrics.prometheus.init.delay", "30")
             .configProperty("cip.camel.startup.error-handling.ignore-variables-errors", "false")
             .configProperty("cip.camel.startup.error-handling.ignore-route-loading-errors", "false")
+            .configProperty("cip.chains.http-client.m2m.fallback-interceptor.enabled", "false")
             .configProperty("kubernetes.variables-secret.label", "cip-variable-type")
             .configProperty("kubernetes.variables-secret.name", "snapshot-test-variables")
             .configProperty("tenant.default.id", "default-tenant")

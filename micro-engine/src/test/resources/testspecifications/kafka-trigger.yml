@@ -1,0 +1,3989 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: basic
+deployments:
+- id: basic
+  route: kafka-trigger
+- id: offsets
+  route: kafka-trigger-offsets
+- id: group
+  route: kafka-trigger-group
+- id: slow
+  route: kafka-trigger-slow
+- id: lifecycle
+  route: kafka-trigger-lifecycle
+- id: typed-binary
+  route: kafka-trigger-typed-binary
+- id: typed-integer
+  route: kafka-trigger-typed-integer
+- id: typed-long
+  route: kafka-trigger-typed-long
+- id: sasl-ssl
+  route: kafka-trigger-sasl-ssl
+- id: sasl-ssl-invalid-credentials
+  route: kafka-trigger-sasl-ssl-invalid-credentials
+- id: sasl-plaintext
+  route: kafka-trigger-sasl-plaintext
+- id: idempotency-ignore
+  route: kafka-trigger-idempotency-ignore
+- id: idempotency-throw
+  route: kafka-trigger-idempotency-throw
+- id: idempotency-subchain
+  route: kafka-trigger-idempotency-subchain
+fixtures:
+- id: kafka-broker
+  provider: kafka-trigger
+  sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+  deployment: basic
+- id: kafka-offsets-earliest
+  provider: kafka-trigger
+  deployment: offsets
+  sourceElementId: 0134675f-6446-5dc6-af1b-5dfaa484f56b
+- id: kafka-offsets-none
+  provider: kafka-trigger
+  deployment: offsets
+  sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
+- id: kafka-group
+  provider: kafka-trigger
+  deployment: group
+  sourceElementId: 0720cdf4-186b-55b7-859e-8fb1ab5ca904
+- id: kafka-slow
+  provider: kafka-trigger
+  deployment: slow
+  sourceElementId: fd7a887f-84cf-55a4-8925-981006aedb22
+- id: kafka-lifecycle
+  provider: kafka-trigger
+  deployment: lifecycle
+  sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+- id: kafka-typed-binary
+  provider: kafka-trigger
+  deployment: typed-binary
+  sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
+- id: kafka-typed-integer
+  provider: kafka-trigger
+  deployment: typed-integer
+  sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
+- id: kafka-typed-long
+  provider: kafka-trigger
+  deployment: typed-long
+  sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
+- id: kafka-sasl-ssl
+  provider: kafka-trigger
+  deployment: sasl-ssl
+  sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+- id: kafka-sasl-ssl-invalid-credentials
+  provider: kafka-trigger
+  deployment: sasl-ssl-invalid-credentials
+  sourceElementId: 701daba0-36f1-5ff1-8bc1-871140fdf9b7
+- id: kafka-sasl-plaintext
+  provider: kafka-trigger
+  deployment: sasl-plaintext
+  sourceElementId: 961f1762-a201-59f3-b4b0-85b80652916d
+- id: kafka-idempotency-ignore
+  provider: kafka-trigger
+  deployment: idempotency-ignore
+  sourceElementId: 8841196c-d048-59b3-9ac3-e6bedbd8e357
+- id: kafka-idempotency-store-ignore
+  provider: idempotency-postgres
+  deployment: idempotency-ignore
+  sourceElementId: 40de57de-51c2-53ed-85fb-45cf5767d4c7
+- id: kafka-idempotency-throw
+  provider: kafka-trigger
+  deployment: idempotency-throw
+  sourceElementId: 27b2aef8-adde-5635-b546-02be45bfe7e1
+- id: kafka-idempotency-store-throw
+  provider: idempotency-postgres
+  deployment: idempotency-throw
+  sourceElementId: b4d6565c-f3cb-5db1-9294-8983c8eee305
+- id: kafka-idempotency-subchain
+  provider: kafka-trigger
+  deployment: idempotency-subchain
+  sourceElementId: af33bece-ad20-5ff9-b2f0-5980df60258d
+- id: kafka-idempotency-store-subchain
+  provider: idempotency-postgres
+  deployment: idempotency-subchain
+  sourceElementId: 2fd86b7a-1615-580c-917d-6444c966a31a
+- id: kafka-idempotency-handler-subchain
+  provider: idempotency-postgres
+  deployment: idempotency-subchain
+  sourceElementId: 91681d2d-fd70-5aad-a65f-54b6e7d38e08
+scenarios:
+- id: consumes-values-keys-headers-and-isolates-exchanges
+  scope: Short
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      topic: snapshot.kafka.trigger.one
+      partition: 0
+  invocations:
+  - id: plain-text
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        key: order-1
+    body: Kafka trigger input
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: order-1
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: Kafka trigger input
+        headers:
+          Content-Type: application/json
+          kafka.KEY: order-1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: json-text
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        key: order-2
+    body: '{"id":"order-2","active":true}'
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: order-2
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: '{"id":"order-2","active":true}'
+        headers:
+          Content-Type: application/json
+          kafka.KEY: order-2
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: malformed-json-without-schema
+    body: '{invalid json'
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: null
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: '{invalid json'
+        headers:
+          Content-Type: application/json
+          kafka.KEY: null
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: empty-value-and-key
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        key: ''
+    body: ''
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: ''
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: ''
+        headers:
+          Content-Type: application/json
+          kafka.KEY: ''
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: tombstone-and-null-key
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        key: null
+    body: null
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: null
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: null
+        headers:
+          Content-Type: application/json
+          kafka.KEY: null
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: utf8-value-key-and-header
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        key: résumé
+    body: café delivery
+    headers:
+      X-Snapshot-Text: naïve request
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: résumé
+      X-Snapshot-Text: naïve request
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: café delivery
+        headers:
+          Content-Type: application/json
+          kafka.KEY: résumé
+          X-Snapshot-Text: naïve request
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: custom-content-type
+    body: <order id="3"/>
+    headers:
+      Content-Type: application/xml; charset=UTF-8
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/xml; charset=UTF-8
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: <order id="3"/>
+        headers:
+          Content-Type: application/xml; charset=UTF-8
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: empty-content-type
+    body: empty-content-type
+    headers:
+      Content-Type: ''
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: ''
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: empty-content-type
+        headers:
+          Content-Type: ''
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: null-content-type
+    body: null-content-type
+    headers:
+      Content-Type: null
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: null-content-type
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: repeated-and-empty-headers
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        recordHeaders:
+        - key: X-Snapshot-Repeat
+          value: second
+        - key: X-Snapshot-Repeat
+          value: last
+        - key: X-Snapshot-Empty
+          value: ''
+        - key: X-Snapshot-Null
+          value: null
+    body: header-values
+    headers:
+      X-Snapshot-Repeat: first
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      X-Snapshot-Repeat: last
+      X-Snapshot-Empty: ''
+      X-Snapshot-Null: null
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: header-values
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Repeat: last
+          X-Snapshot-Empty: ''
+          X-Snapshot-Null: null
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: protected-kafka-and-camel-headers
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        key: real-key
+        timestamp: 1000
+    body: protected-metadata
+    headers:
+      kafka.TOPIC: spoofed-topic
+      kafka.PARTITION: '999'
+      kafka.OFFSET: '999'
+      kafka.KEY: spoofed-key
+      kafka.TIMESTAMP: '999'
+      CamelMessageTimestamp: '999'
+      CamelSnapshot: filtered
+      camelSnapshot: filtered
+      org.apache.camel.snapshot: filtered
+      kafka.snapshot: filtered
+      X-Snapshot-Allowed: kept
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.TOPIC: snapshot.kafka.trigger.one
+      kafka.PARTITION: 0
+      kafka.KEY: real-key
+      X-Snapshot-Allowed: kept
+    expectedAbsentHeaders:
+    - CamelSnapshot
+    - camelSnapshot
+    - org.apache.camel.snapshot
+    - kafka.snapshot
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: protected-metadata
+        headers:
+          Content-Type: application/json
+          kafka.TOPIC: snapshot.kafka.trigger.one
+          kafka.PARTITION: 0
+          kafka.KEY: real-key
+          X-Snapshot-Allowed: kept
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          expectedAbsentHeaders:
+          - CamelSnapshot
+          - camelSnapshot
+          - org.apache.camel.snapshot
+          - kafka.snapshot
+  - id: repeated-key-first
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        key: same-key
+    body: same-key-first
+    headers:
+      X-Snapshot-Previous: first
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: same-key
+      X-Snapshot-Previous: first
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: same-key-first
+        headers:
+          Content-Type: application/json
+          kafka.KEY: same-key
+          X-Snapshot-Previous: first
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  - id: repeated-key-second
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        key: same-key
+    body: same-key-second
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: same-key
+    expectedAbsentHeaders:
+    - X-Snapshot-Previous
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: same-key-second
+        headers:
+          Content-Type: application/json
+          kafka.KEY: same-key
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          expectedAbsentHeaders:
+          - X-Snapshot-Previous
+  - id: fresh-exchange-after-custom-headers
+    body: clean-input
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+      kafka.KEY: null
+    expectedAbsentHeaders:
+    - X-Snapshot-Text
+    - X-Snapshot-Repeat
+    - X-Snapshot-Empty
+    - X-Snapshot-Null
+    - X-Snapshot-Allowed
+    - X-Snapshot-Previous
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: clean-input
+        headers:
+          Content-Type: application/json
+          kafka.KEY: null
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          expectedAbsentHeaders:
+          - X-Snapshot-Text
+          - X-Snapshot-Repeat
+          - X-Snapshot-Empty
+          - X-Snapshot-Null
+          - X-Snapshot-Allowed
+          - X-Snapshot-Previous
+  deployment: basic
+- id: consumes-beyond-poll-limit-from-two-topics-in-partition-order
+  scope: Long
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      topic: snapshot.kafka.trigger.one
+      partition: 0
+  invocations:
+  - id: six-hundred-records-across-both-topics
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        messages:
+        - topic: snapshot.kafka.trigger.one
+          partition: 0
+          key: key-0
+          body: snapshot.kafka.trigger.one-partition-0
+          headers:
+            X-Snapshot-Batch: bulk
+          messageCount: 100
+        - topic: snapshot.kafka.trigger.one
+          partition: 1
+          key: key-1
+          body: snapshot.kafka.trigger.one-partition-1
+          headers:
+            X-Snapshot-Batch: bulk
+          messageCount: 100
+        - topic: snapshot.kafka.trigger.one
+          partition: 2
+          key: key-2
+          body: snapshot.kafka.trigger.one-partition-2
+          headers:
+            X-Snapshot-Batch: bulk
+          messageCount: 100
+        - topic: snapshot.kafka.trigger.two
+          partition: 0
+          key: key-0
+          body: snapshot.kafka.trigger.two-partition-0
+          headers:
+            X-Snapshot-Batch: bulk
+          messageCount: 100
+        - topic: snapshot.kafka.trigger.two
+          partition: 1
+          key: key-1
+          body: snapshot.kafka.trigger.two-partition-1
+          headers:
+            X-Snapshot-Batch: bulk
+          messageCount: 100
+        - topic: snapshot.kafka.trigger.two
+          partition: 2
+          key: key-2
+          body: snapshot.kafka.trigger.two-partition-2
+          headers:
+            X-Snapshot-Batch: bulk
+          messageCount: 100
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 600
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Batch: bulk
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          consumerAction: stop-until-published
+          awaitCommit: true
+          expectedCompletionHeaders:
+            Content-Type: application/json
+            X-Snapshot-Batch: bulk
+    timeoutSeconds: 60
+  - id: ignores-an-unsubscribed-topic
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.two
+        partition: 2
+    body: subscribed-after-bulk
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Snapshot-Batch
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: subscribed-after-bulk
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          ignoredRecords:
+          - topic: snapshot.kafka.trigger.unsubscribed
+            partition: 0
+            body: must-not-trigger
+            key: ignored
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - X-Snapshot-Batch
+  - id: fresh-record-after-bulk
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 1
+    body: after-bulk
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: after-bulk
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+  deployment: basic
+- id: starts-at-latest-and-skips-existing-records
+  scope: Short
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      topic: snapshot.kafka.trigger.one
+      partition: 0
+  invocations:
+  - id: first-record-after-assignment
+    body: after-initial-assignment
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: after-initial-assignment
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          startupRecords:
+          - topic: snapshot.kafka.trigger.one
+            partition: 0
+            body: before-initial-assignment
+            key: old-record
+          - topic: snapshot.kafka.trigger.one
+            partition: 1
+            body: before-initial-assignment
+            key: old-record
+          - topic: snapshot.kafka.trigger.one
+            partition: 2
+            body: before-initial-assignment
+            key: old-record
+          - topic: snapshot.kafka.trigger.two
+            partition: 0
+            body: before-initial-assignment
+            key: old-record
+          - topic: snapshot.kafka.trigger.two
+            partition: 1
+            body: before-initial-assignment
+            key: old-record
+          - topic: snapshot.kafka.trigger.two
+            partition: 2
+            body: before-initial-assignment
+            key: old-record
+  - id: second-topic-after-assignment
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.two
+        partition: 2
+    body: new-second-topic
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: new-second-topic
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+  deployment: basic
+- id: resumes-from-committed-offsets-after-consumer-restart
+  scope: Long
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      topic: snapshot.kafka.trigger.one
+      partition: 0
+  invocations:
+  - id: commits-before-stop
+    body: committed-before-stop
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: committed-before-stop
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+  - id: consumes-backlog-after-restart
+    body: published-while-stopped
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: published-while-stopped
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          consumerAction: stop-until-published
+          awaitCommit: true
+  - id: consumes-new-record-after-restart
+    body: published-after-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: published-after-restart
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+  deployment: basic
+- id: recovers-after-consumer-connection-loss
+  scope: Long
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      topic: snapshot.kafka.trigger.one
+      partition: 0
+  invocations:
+  - id: commits-before-disconnect
+    body: before-disconnect
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: before-disconnect
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+  - id: consumes-backlog-after-reconnect
+    body: published-while-disconnected
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: published-while-disconnected
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          consumerAction: disconnect-until-published
+          awaitCommit: true
+  - id: consumes-new-record-after-reconnect
+    body: published-after-reconnect
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: published-after-reconnect
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+  deployment: basic
+- id: continues-after-script-failure-and-commits-offsets
+  scope: Long
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      topic: snapshot.kafka.trigger.one
+      partition: 0
+  invocations:
+  - id: valid-before-script-failure
+    body: before-script-failure
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: before-script-failure
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+  - id: script-failure
+    body: failed-record
+    headers:
+      snapshotFail: 'true'
+    expectedBody: failed-record
+    expectedHeaders:
+      Content-Type: application/json
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: failed-record
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletions:
+          - body: failed-record
+            headers:
+              snapshotFail: 'true'
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Kafka snapshot failure
+              cause: null
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: Kafka snapshot failure
+      cause: null
+  - id: valid-after-script-failure
+    body: after-script-failure
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - snapshotFail
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: after-script-failure
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - snapshotFail
+  - id: does-not-replay-committed-failure-after-restart
+    body: after-failure-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - snapshotFail
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: after-failure-restart
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          consumerAction: stop-until-published
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - snapshotFail
+  deployment: basic
+- id: continues-and-commits-after-script-failure-in-one-partition-batch
+  scope: Long
+  deployment: basic
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      topic: snapshot.kafka.trigger.one
+      partition: 0
+  invocations:
+  - id: processes-valid-failed-valid-backlog-in-order
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        topic: snapshot.kafka.trigger.one
+        partition: 0
+        messages:
+        - body: queued-before-failure
+          key: queued-1
+          headers:
+            snapshotSequence: '1'
+        - body: queued-script-failure
+          key: queued-2
+          headers:
+            snapshotSequence: '2'
+            snapshotFail: 'true'
+        - body: queued-after-failure
+          key: queued-3
+          headers:
+            snapshotSequence: '3'
+    expectedBody:
+    - Triggered
+    - queued-script-failure
+    - Triggered
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: Kafka snapshot failure
+      cause: null
+    expectedHeaders:
+      snapshotSequence: '3'
+    expectedAbsentHeaders:
+    - snapshotFail
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    timeoutSeconds: 60
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 3
+        destination: snapshot.kafka.trigger.one
+        headers:
+          Content-Type: application/json
+      expectedExchanges:
+      - body: queued-before-failure
+        headers:
+          kafka.KEY: queued-1
+          snapshotSequence: '1'
+      - body: queued-script-failure
+        headers:
+          kafka.KEY: queued-2
+          snapshotSequence: '2'
+          snapshotFail: 'true'
+      - body: queued-after-failure
+        headers:
+          kafka.KEY: queued-3
+          snapshotSequence: '3'
+      response:
+        properties:
+          consumerAction: stop-until-published
+          awaitCommit: true
+          expectedCompletions:
+          - body: Triggered
+            headers:
+              snapshotSequence: '1'
+              snapshotFail: null
+          - body: queued-script-failure
+            headers:
+              snapshotSequence: '2'
+              snapshotFail: 'true'
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Kafka snapshot failure
+              cause: null
+          - body: Triggered
+            headers:
+              snapshotSequence: '3'
+              snapshotFail: null
+            properties:
+              internalProperty_sessionFailed: null
+              internalProperty_elementFailed: null
+  - id: does-not-replay-failed-batch-after-restart
+    body: after-queued-failure-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - snapshotFail
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: after-queued-failure-restart
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - snapshotFail
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          consumerAction: stop-until-published
+  - id: consumes-new-record-after-batch-restart
+    body: new-after-queued-failure-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - snapshotFail
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: new-after-queued-failure-restart
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - snapshotFail
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+- id: consumes-existing-records-from-earliest-and-resumes-after-restart
+  scope: Long
+  deployment: offsets
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0134675f-6446-5dc6-af1b-5dfaa484f56b
+    parameters:
+      topic: snapshot.kafka.trigger.offsets.earliest
+      partition: 0
+  invocations:
+  - id: consumes-existing-records-from-initial-offsets
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0134675f-6446-5dc6-af1b-5dfaa484f56b
+      parameters:
+        consumeStartup: true
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 3
+        destination: snapshot.kafka.trigger.offsets.earliest
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+          expectedStartupRecords:
+          - topic: snapshot.kafka.trigger.offsets.earliest
+            partition: 0
+            key: earliest-backlog-0
+            body: earliest-backlog-partition-0
+            headers:
+              X-Snapshot-Offset: earliest-backlog
+          - topic: snapshot.kafka.trigger.offsets.earliest
+            partition: 1
+            key: earliest-backlog-1
+            body: earliest-backlog-partition-1
+            headers:
+              X-Snapshot-Offset: earliest-backlog
+          - topic: snapshot.kafka.trigger.offsets.earliest
+            partition: 2
+            key: earliest-backlog-2
+            body: earliest-backlog-partition-2
+            headers:
+              X-Snapshot-Offset: earliest-backlog
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            offset: 0
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+  - id: consumes-new-record-after-earliest-backlog
+    body: after-earliest-backlog
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Snapshot-Offset
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 1
+        destination: snapshot.kafka.trigger.offsets.earliest
+        headers:
+          Content-Type: application/json
+        body: after-earliest-backlog
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - X-Snapshot-Offset
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+  - id: resumes-earliest-from-committed-offsets
+    body: after-earliest-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Snapshot-Offset
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 1
+        destination: snapshot.kafka.trigger.offsets.earliest
+        headers:
+          Content-Type: application/json
+        body: after-earliest-restart
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - X-Snapshot-Offset
+          consumerAction: stop-until-published
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+- id: resumes-none-from-existing-committed-offsets
+  scope: Long
+  deployment: offsets
+  driver:
+    provider: kafka-trigger
+    sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
+    parameters:
+      topic: snapshot.kafka.trigger.offsets.none
+      partition: 0
+  invocations:
+  - id: consumes-existing-records-from-initial-offsets
+    driver:
+      provider: kafka-trigger
+      sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
+      parameters:
+        consumeStartup: true
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 3
+        destination: snapshot.kafka.trigger.offsets.none
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+          startupRecords:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            key: committed-prefix-0
+            body: committed-prefix-partition-0
+            headers:
+              X-Snapshot-Offset: committed-prefix
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            key: committed-prefix-1
+            body: committed-prefix-partition-1
+            headers:
+              X-Snapshot-Offset: committed-prefix
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            key: committed-prefix-2
+            body: committed-prefix-partition-2
+            headers:
+              X-Snapshot-Offset: committed-prefix
+          expectedStartupRecords:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            key: none-backlog-0
+            body: none-backlog-partition-0
+            headers:
+              X-Snapshot-Offset: none-backlog
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            key: none-backlog-1
+            body: none-backlog-partition-1
+            headers:
+              X-Snapshot-Offset: none-backlog
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            key: none-backlog-2
+            body: none-backlog-partition-2
+            headers:
+              X-Snapshot-Offset: none-backlog
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            offset: 1
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            offset: 1
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            offset: 1
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+  - id: consumes-new-record-with-existing-offsets
+    body: after-none-backlog
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Snapshot-Offset
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 1
+        destination: snapshot.kafka.trigger.offsets.none
+        headers:
+          Content-Type: application/json
+        body: after-none-backlog
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - X-Snapshot-Offset
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+  - id: resumes-none-after-consumer-restart
+    body: after-none-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      Content-Type: application/json
+    expectedAbsentHeaders:
+    - X-Snapshot-Offset
+    expectedProperties:
+      internalProperty_sessionFailed: null
+      internalProperty_elementFailed: null
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 1
+        destination: snapshot.kafka.trigger.offsets.none
+        headers:
+          Content-Type: application/json
+        body: after-none-restart
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedCompletionProperties:
+            internalProperty_sessionFailed: null
+            internalProperty_elementFailed: null
+          awaitCommit: true
+          expectedAbsentHeaders:
+          - X-Snapshot-Offset
+          consumerAction: stop-until-published
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+- id: rejects-none-when-the-group-has-no-committed-offsets
+  scope: Long
+  deployment: offsets
+  driver:
+    provider: kafka-trigger
+    sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: reports-missing-offsets-without-consuming-or-committing
+    expectedFailure:
+      type: org.apache.kafka.clients.consumer.NoOffsetForPartitionException
+      ignoreMessage: true
+      cause: null
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          startupRecords:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            key: must-not-consume-0
+            body: must-not-consume-partition-0
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            key: must-not-consume-1
+            body: must-not-consume-partition-1
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            key: must-not-consume-2
+            body: must-not-consume-partition-2
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          expectedConsumerFailure:
+            type: org.apache.kafka.clients.consumer.NoOffsetForPartitionException
+            ignoreMessage: true
+            cause: null
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+- id: rejects-none-when-only-some-partitions-have-committed-offsets
+  scope: Long
+  deployment: offsets
+  driver:
+    provider: kafka-trigger
+    sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: reports-missing-offsets-without-changing-partial-commits
+    expectedFailure:
+      type: org.apache.kafka.clients.consumer.NoOffsetForPartitionException
+      ignoreMessage: true
+      cause: null
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          startupRecords:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            key: must-not-consume-0
+            body: must-not-consume-partition-0
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            key: must-not-consume-1
+            body: must-not-consume-partition-1
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            key: must-not-consume-2
+            body: must-not-consume-partition-2
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          expectedConsumerFailure:
+            type: org.apache.kafka.clients.consumer.NoOffsetForPartitionException
+            ignoreMessage: true
+            cause: null
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            offset: 1
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+- id: rejects-none-when-a-committed-offset-is-beyond-the-log-end
+  scope: Long
+  deployment: offsets
+  driver:
+    provider: kafka-trigger
+    sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: reports-offset-out-of-range-without-resetting-commits
+    expectedFailure:
+      type: org.apache.kafka.clients.consumer.OffsetOutOfRangeException
+      ignoreMessage: true
+      cause: null
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          startupRecords:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            key: must-not-consume-0
+            body: must-not-consume-partition-0
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            key: must-not-consume-1
+            body: must-not-consume-partition-1
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            key: must-not-consume-2
+            body: must-not-consume-partition-2
+            headers:
+              X-Snapshot-Offset: must-not-consume
+          expectedConsumerFailure:
+            type: org.apache.kafka.clients.consumer.OffsetOutOfRangeException
+            ignoreMessage: true
+            cause: null
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            offset: 9
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            offset: 1
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            offset: 1
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+- id: reassigns-partitions-between-competing-consumers-without-loss
+  scope: Long
+  deployment: group
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0720cdf4-186b-55b7-859e-8fb1ab5ca904
+    parameters:
+      partition: 0
+  invocations:
+  - id: consumes-with-three-group-members
+    body: record
+    interactions:
+    - fixture: kafka-group
+      expectedRequest:
+        count: 6
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedMembers: 3
+          awaitCommit: true
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0720cdf4-186b-55b7-859e-8fb1ab5ca904
+      parameters:
+        messages:
+        - body: partition-0
+          partition: 0
+          key: key-0
+          messageCount: 2
+        - body: partition-1
+          partition: 1
+          key: key-1
+          messageCount: 2
+        - body: partition-2
+          partition: 2
+          key: key-2
+          messageCount: 2
+  - id: remaining-consumers-drain-all-partitions
+    body: record
+    interactions:
+    - fixture: kafka-group
+      expectedRequest:
+        count: 90
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          consumerAction: stop-peer-until-published
+          expectedMembers: 2
+          awaitCommit: true
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0720cdf4-186b-55b7-859e-8fb1ab5ca904
+      parameters:
+        messages:
+        - body: backlog-0
+          partition: 0
+          messageCount: 30
+        - body: backlog-1
+          partition: 1
+          messageCount: 30
+        - body: backlog-2
+          partition: 2
+          messageCount: 30
+  - id: peer-rejoins-the-group
+    body: record
+    interactions:
+    - fixture: kafka-group
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          consumerAction: start-peer
+          expectedMembers: 3
+          awaitCommit: true
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0720cdf4-186b-55b7-859e-8fb1ab5ca904
+      parameters:
+        messages:
+        - body: after-rejoin-0
+          partition: 0
+        - body: after-rejoin-1
+          partition: 1
+        - body: after-rejoin-2
+          partition: 2
+- id: rejoins-after-processing-exceeds-max-poll-interval
+  scope: Long
+  deployment: slow
+  driver:
+    provider: kafka-trigger
+    sourceElementId: fd7a887f-84cf-55a4-8925-981006aedb22
+    parameters:
+      partition: 0
+  invocations:
+  - id: commits-before-slow-processing
+    body: record
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-slow
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+          expectedMembers: 1
+  - id: finishes-processing-after-leaving-the-group
+    body: slow-record
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-slow
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          consumerAction: exceed-poll-interval
+          allowRedelivery: true
+          awaitCommit: true
+          expectedMembers: 1
+  - id: consumes-after-rejoining
+    body: after-slow
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-slow
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+          expectedMembers: 1
+- id: waits-for-in-flight-processing-before-graceful-shutdown
+  scope: Long
+  deployment: lifecycle
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+    parameters:
+      partition: 0
+  invocations:
+  - id: stops-with-a-record-in-progress
+    body: in-flight
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          consumerAction: stop-during-processing
+          awaitCommit: true
+  - id: continues-after-graceful-shutdown
+    body: after-shutdown
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+  - id: does-not-replay-after-another-restart
+    body: after-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          consumerAction: stop-until-published
+          awaitCommit: true
+- id: resumes-after-the-broker-restarts-with-persistent-offsets
+  scope: Long
+  deployment: lifecycle
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+    parameters:
+      partition: 0
+  invocations:
+  - id: commits-before-broker-restart
+    body: before-broker-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+  - id: consumes-after-broker-restart
+    timeoutSeconds: 60
+    body: after-broker-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          consumerAction: restart-broker
+          awaitCommit: true
+  - id: preserves-position-after-route-restart
+    body: after-route-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          consumerAction: stop-until-published
+          awaitCommit: true
+- id: recovers-when-the-broker-is-unreachable-at-consumer-start
+  scope: Long
+  deployment: lifecycle
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+    parameters:
+      consumeStartup: true
+  invocations:
+  - id: consumes-backlog-after-startup-connectivity-returns
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          startupUnavailable: true
+          expectedStartupRecords:
+          - body: startup-0
+            partition: 0
+          - body: startup-1
+            partition: 1
+          - body: startup-2
+            partition: 2
+          awaitCommit: true
+  - id: consumes-new-record-after-startup-recovery
+    body: after-startup
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+      parameters:
+        partition: 0
+- id: consumes-exact-binary-types-and-values
+  scope: Short
+  deployment: typed-binary
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
+  invocations:
+  - id: exact-binary-record
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
+      parameters:
+        partition: 0
+        keyEncoding: bytes
+        valueEncoding: bytes
+        key:
+        - 255
+        - 0
+        - 127
+    body:
+    - 0
+    - 128
+    - 255
+    - 195
+    - 40
+    expectedBody: bytes:AID/wyg=|key:/wB/
+    interactions:
+    - fixture: kafka-typed-binary
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: bytes:AID/wyg=|key:/wB/
+  - id: empty-binary-record
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
+      parameters:
+        partition: 0
+        keyEncoding: bytes
+        valueEncoding: bytes
+        key: []
+    body: []
+    expectedBody: 'bytes:|key:'
+    interactions:
+    - fixture: kafka-typed-binary
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: 'bytes:|key:'
+  - id: binary-tombstone
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 75dc9919-4a9c-5d11-96dc-96d7c7259dca
+      parameters:
+        partition: 0
+        keyEncoding: bytes
+        valueEncoding: bytes
+        key: null
+    body: null
+    expectedBody: bytes:null|key:null
+    interactions:
+    - fixture: kafka-typed-binary
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: bytes:null|key:null
+- id: consumes-exact-integer-types-and-values
+  scope: Short
+  deployment: typed-integer
+  driver:
+    provider: kafka-trigger
+    sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
+  invocations:
+  - id: minimum-integer
+    driver:
+      provider: kafka-trigger
+      sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
+      parameters:
+        partition: 0
+        keyEncoding: integer
+        valueEncoding: integer
+        key: 2147483647
+    body: -2147483648
+    expectedBody: java.lang.Integer:-2147483648|key:java.lang.Integer:2147483647
+    interactions:
+    - fixture: kafka-typed-integer
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: java.lang.Integer:-2147483648|key:java.lang.Integer:2147483647
+  - id: maximum-integer
+    driver:
+      provider: kafka-trigger
+      sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
+      parameters:
+        partition: 0
+        keyEncoding: integer
+        valueEncoding: integer
+        key: -2147483648
+    body: 2147483647
+    expectedBody: java.lang.Integer:2147483647|key:java.lang.Integer:-2147483648
+    interactions:
+    - fixture: kafka-typed-integer
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: java.lang.Integer:2147483647|key:java.lang.Integer:-2147483648
+  - id: integer-tombstone
+    driver:
+      provider: kafka-trigger
+      sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
+      parameters:
+        partition: 0
+        keyEncoding: integer
+        valueEncoding: integer
+        key: null
+    body: null
+    expectedBody: null|key:null
+    interactions:
+    - fixture: kafka-typed-integer
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: null|key:null
+- id: consumes-exact-long-types-and-values
+  scope: Short
+  deployment: typed-long
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
+  invocations:
+  - id: minimum-long
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
+      parameters:
+        partition: 0
+        keyEncoding: long
+        valueEncoding: long
+        key: 9223372036854775807
+    body: -9223372036854775808
+    expectedBody: java.lang.Long:-9223372036854775808|key:java.lang.Long:9223372036854775807
+    interactions:
+    - fixture: kafka-typed-long
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: java.lang.Long:-9223372036854775808|key:java.lang.Long:9223372036854775807
+  - id: maximum-long
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
+      parameters:
+        partition: 0
+        keyEncoding: long
+        valueEncoding: long
+        key: -9223372036854775808
+    body: 9223372036854775807
+    expectedBody: java.lang.Long:9223372036854775807|key:java.lang.Long:-9223372036854775808
+    interactions:
+    - fixture: kafka-typed-long
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: java.lang.Long:9223372036854775807|key:java.lang.Long:-9223372036854775808
+  - id: long-tombstone
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
+      parameters:
+        partition: 0
+        keyEncoding: long
+        valueEncoding: long
+        key: null
+    body: null
+    expectedBody: null|key:null
+    interactions:
+    - fixture: kafka-typed-long
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: null|key:null
+- id: reports-malformed-integer-value-and-blocks-following-records
+  scope: Long
+  deployment: typed-integer
+  driver:
+    provider: kafka-trigger
+    sourceElementId: cb77ee21-e4a8-5996-86d1-e7afc7b9ad0f
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: poison-and-following-valid-record
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.integer-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: org.apache.kafka.common.errors.SerializationException
+        message: Size of data received by IntegerDeserializer is not 4
+        cause: null
+    interactions:
+    - fixture: kafka-typed-integer
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          ignoredRecords:
+          - partition: 0
+            body:
+            - 0
+            - 1
+            - 2
+            valueEncoding: bytes
+            key: 9
+            keyEncoding: integer
+          - partition: 0
+            body: 42
+            valueEncoding: integer
+            key: 43
+            keyEncoding: integer
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.integer-0 at offset 0.
+              If needed, please seek past the record to continue consumption.
+            cause:
+              type: org.apache.kafka.common.errors.SerializationException
+              message: Size of data received by IntegerDeserializer is not 4
+              cause: null
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.typed.integer
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.integer
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.integer
+            partition: 2
+            offset: 0
+  - id: later-valid-record-stays-blocked
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.integer-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: org.apache.kafka.common.errors.SerializationException
+        message: Size of data received by IntegerDeserializer is not 4
+        cause: null
+    interactions:
+    - fixture: kafka-typed-integer
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          ignoredRecords:
+          - partition: 0
+            body: 42
+            valueEncoding: integer
+            key: 43
+            keyEncoding: integer
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.integer-0 at offset 0.
+              If needed, please seek past the record to continue consumption.
+            cause:
+              type: org.apache.kafka.common.errors.SerializationException
+              message: Size of data received by IntegerDeserializer is not 4
+              cause: null
+          resetConsumerFailure: true
+- id: reports-malformed-long-key-and-blocks-following-records
+  scope: Long
+  deployment: typed-long
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 8c6852f9-641a-5dcb-88c5-d68ac0682c36
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: poison-and-following-valid-record
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing KEY for partition snapshot.kafka.trigger.typed.long-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: org.apache.kafka.common.errors.SerializationException
+        message: Size of data received by LongDeserializer is not 8
+        cause: null
+    interactions:
+    - fixture: kafka-typed-long
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          ignoredRecords:
+          - partition: 0
+            body: 7
+            valueEncoding: long
+            key:
+            - 0
+            - 1
+            - 2
+            keyEncoding: bytes
+          - partition: 0
+            body: 42
+            valueEncoding: long
+            key: 43
+            keyEncoding: long
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing KEY for partition snapshot.kafka.trigger.typed.long-0 at offset 0. If needed,
+              please seek past the record to continue consumption.
+            cause:
+              type: org.apache.kafka.common.errors.SerializationException
+              message: Size of data received by LongDeserializer is not 8
+              cause: null
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.typed.long
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.long
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.long
+            partition: 2
+            offset: 0
+  - id: later-valid-record-stays-blocked
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing KEY for partition snapshot.kafka.trigger.typed.long-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: org.apache.kafka.common.errors.SerializationException
+        message: Size of data received by LongDeserializer is not 8
+        cause: null
+    interactions:
+    - fixture: kafka-typed-long
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          ignoredRecords:
+          - partition: 0
+            body: 42
+            valueEncoding: long
+            key: 43
+            keyEncoding: long
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing KEY for partition snapshot.kafka.trigger.typed.long-0 at offset 0. If needed,
+              please seek past the record to continue consumption.
+            cause:
+              type: org.apache.kafka.common.errors.SerializationException
+              message: Size of data received by LongDeserializer is not 8
+              cause: null
+          resetConsumerFailure: true
+- id: consumes-authenticated-records-over-sasl-ssl
+  scope: Long
+  deployment: sasl-ssl
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+    parameters:
+      topic: snapshot.kafka.trigger.sasl-ssl
+      partition: 0
+  invocations:
+  - id: first-authenticated-record
+    body: first authenticated Kafka trigger record
+    headers:
+      X-Snapshot-Security: first
+    expectedBody: Triggered
+    expectedHeaders:
+      kafka.KEY: first
+      X-Snapshot-Security: first
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: first authenticated Kafka trigger record
+        destination: snapshot.kafka.trigger.sasl-ssl
+        headers:
+          kafka.KEY: first
+          X-Snapshot-Security: first
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          minSuccessfulAuthentications: 1
+          minSuccessfulTlsHandshakes: 1
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        topic: snapshot.kafka.trigger.sasl-ssl
+        partition: 0
+        key: first
+  - id: second-authenticated-record
+    body: second authenticated Kafka trigger record
+    headers:
+      X-Snapshot-Security: second
+    expectedBody: Triggered
+    expectedHeaders:
+      kafka.KEY: second
+      X-Snapshot-Security: second
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: second authenticated Kafka trigger record
+        destination: snapshot.kafka.trigger.sasl-ssl
+        headers:
+          kafka.KEY: second
+          X-Snapshot-Security: second
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+          minSuccessfulAuthentications: 1
+          minSuccessfulTlsHandshakes: 1
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        topic: snapshot.kafka.trigger.sasl-ssl
+        partition: 0
+        key: second
+- id: consumes-authenticated-records-over-sasl-plaintext
+  scope: Long
+  deployment: sasl-plaintext
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 961f1762-a201-59f3-b4b0-85b80652916d
+    parameters:
+      topic: snapshot.kafka.trigger.sasl-plaintext
+      partition: 0
+  invocations:
+  - id: first-authenticated-record
+    body: first authenticated Kafka trigger record
+    headers:
+      X-Snapshot-Security: first
+    expectedBody: Triggered
+    expectedHeaders:
+      kafka.KEY: first
+      X-Snapshot-Security: first
+    interactions:
+    - fixture: kafka-sasl-plaintext
+      expectedRequest:
+        count: 1
+        body: first authenticated Kafka trigger record
+        destination: snapshot.kafka.trigger.sasl-plaintext
+        headers:
+          kafka.KEY: first
+          X-Snapshot-Security: first
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          minSuccessfulAuthentications: 1
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 961f1762-a201-59f3-b4b0-85b80652916d
+      parameters:
+        topic: snapshot.kafka.trigger.sasl-plaintext
+        partition: 0
+        key: first
+  - id: second-authenticated-record
+    body: second authenticated Kafka trigger record
+    headers:
+      X-Snapshot-Security: second
+    expectedBody: Triggered
+    expectedHeaders:
+      kafka.KEY: second
+      X-Snapshot-Security: second
+    interactions:
+    - fixture: kafka-sasl-plaintext
+      expectedRequest:
+        count: 1
+        body: second authenticated Kafka trigger record
+        destination: snapshot.kafka.trigger.sasl-plaintext
+        headers:
+          kafka.KEY: second
+          X-Snapshot-Security: second
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          awaitCommit: true
+          minSuccessfulAuthentications: 1
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 961f1762-a201-59f3-b4b0-85b80652916d
+      parameters:
+        topic: snapshot.kafka.trigger.sasl-plaintext
+        partition: 0
+        key: second
+- id: rejects-invalid-consumer-credentials-over-tls
+  scope: Long
+  deployment: sasl-ssl-invalid-credentials
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 701daba0-36f1-5ff1-8bc1-871140fdf9b7
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: rejects-credentials-before-entering-the-chain
+    expectedFailure:
+      type: org.apache.kafka.common.errors.SaslAuthenticationException
+      message: 'Authentication failed: Invalid username or password'
+      cause: null
+    interactions:
+    - fixture: kafka-sasl-ssl-invalid-credentials
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          startupRecords:
+          - topic: snapshot.kafka.trigger.sasl-ssl-invalid-credentials
+            partition: 0
+            body: must-not-consume-invalid-credentials
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.SaslAuthenticationException
+            message: 'Authentication failed: Invalid username or password'
+            cause: null
+          minSuccessfulTlsHandshakes: 1
+          minFailedAuthentications: 1
+- id: restores-topic-read-access-on-the-running-consumer
+  scope: Long
+  deployment: sasl-ssl
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: rejects-read-access-without-delivery-or-offset-progress
+    expectedFailure:
+      type: org.apache.kafka.common.errors.TopicAuthorizationException
+      ignoreMessage: true
+      cause: null
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          initialConsumerAccess: topic-denied
+          expectedStartupRecords:
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 0
+            body: protected-backlog-0
+            key: protected-0
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 1
+            body: protected-backlog-1
+            key: protected-1
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 2
+            body: protected-backlog-2
+            key: protected-2
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 2
+            offset: 0
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.TopicAuthorizationException
+            ignoreMessage: true
+            cause: null
+          minSuccessfulTlsHandshakes: 1
+          minSuccessfulAuthentications: 1
+  - id: consumes-protected-backlog-after-restoring-access
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 3
+        destination: snapshot.kafka.trigger.sasl-ssl
+      response:
+        properties:
+          consumerAccess: allow
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: consumes-new-record-after-access-recovery
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        topic: snapshot.kafka.trigger.sasl-ssl
+        partition: 0
+        key: after-recovery
+    body: record-after-access-recovery
+    expectedBody: Triggered
+    expectedHeaders:
+      kafka.KEY: after-recovery
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: record-after-access-recovery
+        destination: snapshot.kafka.trigger.sasl-ssl
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+- id: restores-group-read-access-on-the-running-consumer
+  scope: Long
+  deployment: sasl-ssl
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: rejects-read-access-without-delivery-or-offset-progress
+    expectedFailure:
+      type: org.apache.kafka.common.errors.GroupAuthorizationException
+      ignoreMessage: true
+      cause: null
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          initialConsumerAccess: group-denied
+          expectedStartupRecords:
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 0
+            body: protected-backlog-0
+            key: protected-0
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 1
+            body: protected-backlog-1
+            key: protected-1
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 2
+            body: protected-backlog-2
+            key: protected-2
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 2
+            offset: 0
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.GroupAuthorizationException
+            ignoreMessage: true
+            cause: null
+          minSuccessfulTlsHandshakes: 1
+          minSuccessfulAuthentications: 1
+  - id: consumes-protected-backlog-after-restoring-access
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 3
+        destination: snapshot.kafka.trigger.sasl-ssl
+      response:
+        properties:
+          consumerAccess: allow
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: consumes-new-record-after-access-recovery
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        topic: snapshot.kafka.trigger.sasl-ssl
+        partition: 0
+        key: after-recovery
+    body: record-after-access-recovery
+    expectedBody: Triggered
+    expectedHeaders:
+      kafka.KEY: after-recovery
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: record-after-access-recovery
+        destination: snapshot.kafka.trigger.sasl-ssl
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+- id: deduplicates-kafka-business-keys-with-ignore
+  scope: Long
+  deployment: idempotency-ignore
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 8841196c-d048-59b3-9ac3-e6bedbd8e357
+    parameters:
+      partition: 0
+      key: transport-original
+  invocations:
+  - id: first-business-key
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: first-payload
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: same-business-key-new-payload-key-and-partition
+    body: changed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: changed-payload
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: changed-payload
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: changed-payload
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 8841196c-d048-59b3-9ac3-e6bedbd8e357
+      parameters:
+        partition: 1
+        key: transport-changed
+  - id: repeated-duplicate-records
+    body: repeated-duplicate
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody:
+    - repeated-duplicate
+    - repeated-duplicate
+    - repeated-duplicate
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-ignore
+      expectedRequest:
+        count: 3
+        body: repeated-duplicate
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: repeated-duplicate
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 3
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 8841196c-d048-59b3-9ac3-e6bedbd8e357
+      parameters:
+        partition: 2
+        key: transport-batch
+        messageCount: 3
+  - id: same-key-independent-context
+    body: independent-context
+    headers:
+      businessContext: invoices
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: invoices
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: independent-context
+        headers:
+          businessContext: invoices
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: invoices
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: invoices:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          updatedKeys:
+          - invoices:order-1
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: fresh-key-after-duplicates
+    body: fresh-key
+    headers:
+      businessContext: orders
+      businessKey: order-2
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-2
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: fresh-key
+        headers:
+          businessContext: orders
+          businessKey: order-2
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-2
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-2
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-2
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: reacquires-expired-business-key
+    body: expired-key
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: expired-key
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+      response:
+        properties:
+          expireKey: orders:order-1
+  - id: duplicate-after-consumer-restart
+    body: after-restart
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: after-restart
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: after-restart
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: after-restart
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+          consumerAction: stop-until-published
+    - fixture: kafka-idempotency-store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys: []
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+- id: deduplicates-kafka-business-keys-with-throw-exception
+  scope: Long
+  deployment: idempotency-throw
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 27b2aef8-adde-5635-b546-02be45bfe7e1
+    parameters:
+      partition: 0
+      key: transport-original
+  invocations:
+  - id: first-business-key
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-throw
+      expectedRequest:
+        count: 1
+        body: first-payload
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: same-business-key-new-payload-key-and-partition
+    body: changed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: changed-payload
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-throw
+      expectedRequest:
+        count: 1
+        body: changed-payload
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: changed-payload
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+          expectedCompletions:
+          - count: 1
+            body: changed-payload
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+              message: Duplicated idempotency key
+              cause: null
+    - fixture: kafka-idempotency-store-throw
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+      message: Duplicated idempotency key
+      cause: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 27b2aef8-adde-5635-b546-02be45bfe7e1
+      parameters:
+        partition: 1
+        key: transport-changed
+  - id: repeated-duplicate-records
+    body: repeated-duplicate
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody:
+    - repeated-duplicate
+    - repeated-duplicate
+    - repeated-duplicate
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-throw
+      expectedRequest:
+        count: 3
+        body: repeated-duplicate
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: repeated-duplicate
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+          expectedCompletions:
+          - count: 3
+            body: repeated-duplicate
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+              message: Duplicated idempotency key
+              cause: null
+    - fixture: kafka-idempotency-store-throw
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 3
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+      message: Duplicated idempotency key
+      cause: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 27b2aef8-adde-5635-b546-02be45bfe7e1
+      parameters:
+        partition: 2
+        key: transport-batch
+        messageCount: 3
+  - id: same-key-independent-context
+    body: independent-context
+    headers:
+      businessContext: invoices
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: invoices
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-throw
+      expectedRequest:
+        count: 1
+        body: independent-context
+        headers:
+          businessContext: invoices
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: invoices
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: invoices:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          updatedKeys:
+          - invoices:order-1
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: fresh-key-after-duplicates
+    body: fresh-key
+    headers:
+      businessContext: orders
+      businessKey: order-2
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-2
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-throw
+      expectedRequest:
+        count: 1
+        body: fresh-key
+        headers:
+          businessContext: orders
+          businessKey: order-2
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-2
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-2
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-2
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+  - id: reacquires-expired-business-key
+    body: expired-key
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-throw
+      expectedRequest:
+        count: 1
+        body: expired-key
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+      response:
+        properties:
+          expireKey: orders:order-1
+  - id: duplicate-after-consumer-restart
+    body: after-restart
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: after-restart
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-throw
+      expectedRequest:
+        count: 1
+        body: after-restart
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: after-restart
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+          consumerAction: stop-until-published
+          expectedCompletions:
+          - count: 1
+            body: after-restart
+            headers:
+              snapshotMainExecuted: null
+              snapshotDuplicateHandler: null
+            properties:
+              CamelDuplicateMessage: true
+              systemProperty_idempotencyKey: order-1
+              systemProperty_idempotencyContext: orders
+              systemProperty_keyExpiry: '600'
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+              message: Duplicated idempotency key
+              cause: null
+    - fixture: kafka-idempotency-store-throw
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys: []
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+      message: Duplicated idempotency key
+      cause: null
+- id: deduplicates-kafka-business-keys-with-execute-subchain
+  scope: Long
+  deployment: idempotency-subchain
+  driver:
+    provider: kafka-trigger
+    sourceElementId: af33bece-ad20-5ff9-b2f0-5980df60258d
+    parameters:
+      partition: 0
+      key: transport-original
+  invocations:
+  - id: first-business-key
+    body: first-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-subchain
+      expectedRequest:
+        count: 1
+        body: first-payload
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: kafka-idempotency-handler-subchain
+      expectedRequest:
+        count: 0
+  - id: same-business-key-new-payload-key-and-partition
+    body: changed-payload
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Duplicate handled
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-subchain
+      expectedRequest:
+        count: 1
+        body: changed-payload
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Duplicate handled
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: true
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-subchain
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: kafka-idempotency-handler-subchain
+      expectedRequest:
+        count: 1
+    driver:
+      provider: kafka-trigger
+      sourceElementId: af33bece-ad20-5ff9-b2f0-5980df60258d
+      parameters:
+        partition: 1
+        key: transport-changed
+  - id: repeated-duplicate-records
+    body: repeated-duplicate
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody:
+    - Duplicate handled
+    - Duplicate handled
+    - Duplicate handled
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-subchain
+      expectedRequest:
+        count: 3
+        body: repeated-duplicate
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Duplicate handled
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: true
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-subchain
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 3
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - orders:order-1
+          updatedKeys: []
+          records:
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: kafka-idempotency-handler-subchain
+      expectedRequest:
+        count: 3
+    driver:
+      provider: kafka-trigger
+      sourceElementId: af33bece-ad20-5ff9-b2f0-5980df60258d
+      parameters:
+        partition: 2
+        key: transport-batch
+        messageCount: 3
+  - id: same-key-independent-context
+    body: independent-context
+    headers:
+      businessContext: invoices
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: invoices
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-subchain
+      expectedRequest:
+        count: 1
+        body: independent-context
+        headers:
+          businessContext: invoices
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: invoices
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: invoices:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          updatedKeys:
+          - invoices:order-1
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: kafka-idempotency-handler-subchain
+      expectedRequest:
+        count: 0
+  - id: fresh-key-after-duplicates
+    body: fresh-key
+    headers:
+      businessContext: orders
+      businessKey: order-2
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-2
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-subchain
+      expectedRequest:
+        count: 1
+        body: fresh-key
+        headers:
+          businessContext: orders
+          businessKey: order-2
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-2
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-2
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-2
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: kafka-idempotency-handler-subchain
+      expectedRequest:
+        count: 0
+  - id: reacquires-expired-business-key
+    body: expired-key
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Processed
+    expectedHeaders:
+      snapshotMainExecuted: true
+      snapshotDuplicateHandler: null
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-subchain
+      expectedRequest:
+        count: 1
+        body: expired-key
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Processed
+          expectedCompletionHeaders:
+            snapshotMainExecuted: true
+            snapshotDuplicateHandler: null
+          expectedCompletionProperties:
+            CamelDuplicateMessage: null
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+    - fixture: kafka-idempotency-store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys:
+          - orders:order-1
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+      response:
+        properties:
+          expireKey: orders:order-1
+    - fixture: kafka-idempotency-handler-subchain
+      expectedRequest:
+        count: 0
+  - id: duplicate-after-consumer-restart
+    body: after-restart
+    headers:
+      businessContext: orders
+      businessKey: order-1
+    expectedBody: Duplicate handled
+    expectedHeaders:
+      snapshotMainExecuted: null
+      snapshotDuplicateHandler: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: order-1
+      systemProperty_idempotencyContext: orders
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: kafka-idempotency-subchain
+      expectedRequest:
+        count: 1
+        body: after-restart
+        headers:
+          businessContext: orders
+          businessKey: order-1
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Duplicate handled
+          expectedCompletionHeaders:
+            snapshotMainExecuted: null
+            snapshotDuplicateHandler: true
+          expectedCompletionProperties:
+            CamelDuplicateMessage: true
+            systemProperty_idempotencyKey: order-1
+            systemProperty_idempotencyContext: orders
+            systemProperty_keyExpiry: '600'
+          consumerAction: stop-until-published
+    - fixture: kafka-idempotency-store-subchain
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:order-1
+          keyExpiry: 600
+          storedKeys:
+          - invoices:order-1
+          - orders:order-1
+          - orders:order-2
+          updatedKeys: []
+          records:
+          - key: invoices:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-1
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:order-2
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: kafka-idempotency-handler-subchain
+      expectedRequest:
+        count: 1
