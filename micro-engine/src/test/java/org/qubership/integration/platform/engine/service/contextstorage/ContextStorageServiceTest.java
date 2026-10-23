@@ -57,68 +57,24 @@ class ContextStorageServiceTest {
     }
 
     @Test
-    void storeValueShouldCreateNewRecordWhenNoOldRecordAndNoExistingStorage() {
-        when(repository.findByContextServiceIdAndContextId("svc", "ctx"))
-                .thenReturn(Optional.empty());
+    void storeValueShouldIssueOneMergeWithTheKeyUnderContext() {
+        Instant before = Instant.now();
 
-        long ttl = 60;
+        service.storeValue("k1", "v1", "svc", "ctx", 60);
 
-        service.storeValue("k1", "v1", "svc", "ctx", ttl);
-
-        ArgumentCaptor<ContextSystemRecords> captor = ArgumentCaptor.forClass(ContextSystemRecords.class);
-        verify(repository).persist(captor.capture());
-
-        ContextSystemRecords saved = captor.getValue();
-        assertNotNull(saved.getId());
-        assertEquals("svc", saved.getContextServiceId());
-        assertEquals("ctx", saved.getContextId());
-        assertNotNull(saved.getCreatedAt());
-        assertNotNull(saved.getUpdatedAt());
-        assertNotNull(saved.getExpiresAt());
-
-        Instant now = Instant.now();
-        Instant exp = saved.getExpiresAt().toInstant();
-        assertTrue(exp.isAfter(now.minusSeconds(5)));
-        assertTrue(exp.isBefore(now.plusSeconds(ttl + 10)));
-
-        JsonNode valueNode = saved.getValue();
-        assertNotNull(valueNode);
-        assertTrue(valueNode.has("context"));
-        assertEquals("v1", valueNode.get("context").get("k1").asText());
-
-        verify(repository).findByContextServiceIdAndContextId("svc", "ctx");
+        ArgumentCaptor<Timestamp> now = ArgumentCaptor.forClass(Timestamp.class);
+        ArgumentCaptor<Timestamp> expiresAt = ArgumentCaptor.forClass(Timestamp.class);
+        verify(repository).mergeValue(anyString(), eq("{\"context\":{\"k1\":\"v1\"}}"), eq("svc"), eq("ctx"), now.capture(), expiresAt.capture());
+        verifyNoMoreInteractions(repository);
+        assertFalse(now.getValue().toInstant().isBefore(before));
+        assertEquals(now.getValue().toInstant().plusSeconds(60), expiresAt.getValue().toInstant());
     }
 
     @Test
-    void storeValueShouldReuseIdAndCreatedAtAndUpdateExistingKey() throws Exception {
-        ObjectMapper om = new ObjectMapper();
+    void storeValueShouldSendNullValueAsJsonNull() {
+        service.storeValue("k1", null, "svc", "ctx", 60);
 
-        JsonNode existingValue = om.readTree("""
-            { "context": { "a": "1", "b": "2" } }
-        """);
-
-        Timestamp createdAt = Timestamp.from(Instant.now().minusSeconds(3600));
-        ContextSystemRecords old = ContextSystemRecords.builder()
-                .id("fixed-id")
-                .createdAt(createdAt)
-                .value(existingValue)
-                .build();
-
-        when(repository.findByContextServiceIdAndContextId("svc", "ctx"))
-                .thenReturn(Optional.of(old));
-
-        service.storeValue("b", "NEW", "svc", "ctx", 120);
-
-        verify(repository).findByContextServiceIdAndContextId("svc", "ctx");
-        verify(repository, never()).persist(any(ContextSystemRecords.class));
-        assertEquals("fixed-id", old.getId());
-        assertEquals(createdAt, old.getCreatedAt());
-        assertNotNull(old.getUpdatedAt());
-        assertTrue(old.getExpiresAt().toInstant().isAfter(Instant.now().plusSeconds(60)));
-
-        JsonNode ctx = old.getValue().get("context");
-        assertEquals("1", ctx.get("a").asText());
-        assertEquals("NEW", ctx.get("b").asText());
+        verify(repository).mergeValue(anyString(), eq("{\"context\":{\"k1\":null}}"), eq("svc"), eq("ctx"), any(), any());
     }
 
     @Test
@@ -243,50 +199,5 @@ class ContextStorageServiceTest {
 
         assertTrue(ex.getMessage().contains("Error occurred while deleting old records"));
         assertNotNull(ex.getCause());
-    }
-
-    @Test
-    void storeValueShouldCreateNewContextWhenExistingRecordValueIsNull() {
-        ContextStorageRepository repo = mock(ContextStorageRepository.class);
-        ObjectMapper mapper = new ObjectMapper();
-        ContextStorageService service = new ContextStorageService(repo, mapper);
-
-        Timestamp createdAt = Timestamp.from(Instant.now().minusSeconds(100));
-        ContextSystemRecords old = ContextSystemRecords.builder()
-                .id("fixed-id")
-                .createdAt(createdAt)
-                .build();
-
-        when(repo.findByContextServiceIdAndContextId("svc", "ctx"))
-                .thenReturn(Optional.of(old));
-
-        service.storeValue("k1", "v1", "svc", "ctx", 60);
-
-        verify(repo, never()).persist(any(ContextSystemRecords.class));
-        assertEquals("fixed-id", old.getId());
-        assertEquals(createdAt, old.getCreatedAt());
-
-        JsonNode ctx = old.getValue().get("context");
-        assertEquals("v1", ctx.get("k1").asText());
-    }
-
-    @Test
-    void storeValueShouldThrowContextStorageExceptionWhenStoredContextCannotBeMerged() {
-        ContextStorageRepository repo = mock(ContextStorageRepository.class);
-        ObjectMapper mapper = new ObjectMapper();
-        ContextStorageService service = new ContextStorageService(repo, mapper);
-
-        ContextSystemRecords old = ContextSystemRecords.builder()
-                .id("fixed-id")
-                .value(mapper.createObjectNode())
-                .build();
-        when(repo.findByContextServiceIdAndContextId("svc", "ctx"))
-                .thenReturn(Optional.of(old));
-
-        ContextStorageException ex = assertThrows(ContextStorageException.class,
-                () -> service.storeValue("k", "v", "svc", "ctx", 60));
-
-        assertTrue(ex.getMessage().contains("Error occurred while processing contextKey"));
-        assertInstanceOf(NullPointerException.class, ex.getCause());
     }
 }
