@@ -207,7 +207,7 @@ export async function expectAckOutcome(
   try {
     await publishAmqp(target.exchange, target.routingKey, token, body);
 
-    const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
+    const session = await sessions.byExternalId(token, { elements: 2 });
     expect(session.chainId).toBe(chainId);
     expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
     expect(failedElements(session).map((each) => each.elementName)).toEqual(["HTTP Sender"]);

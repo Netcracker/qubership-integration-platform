@@ -19,7 +19,7 @@ import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { branchName, PASSED_STEP } from "../../fixtures/axis-generator.js";
 import { McpSession, mcpSessionsOf, offeredTool } from "../../support/mcp.js";
-import { element, elementNames, SESSION_TIMEOUT, trace, type RecordedSession, type Sessions } from "../../support/sessions.js";
+import { element, elementNames, isSettled, SESSION_TIMEOUT, stepsInProgress, trace, type RecordedSession, type Sessions } from "../../support/sessions.js";
 import { coversIdempotency, firstSteps, IDEMPOTENCY_STEP, idempotencyModes } from "../../support/idempotency.js";
 
 const PASSED = JSON.stringify({ called: "downstream" });
@@ -41,9 +41,9 @@ async function callTool(mcp: McpSession, sessions: Sessions, chainId: string, to
     expect(mine, `sessions of ${chainId} carrying ${key}`).toHaveLength(1);
     found = mine[0];
     expect(trace(found).length).toBeGreaterThanOrEqual(elements);
-    expect(found.executionStatus).not.toBe("IN_PROGRESS");
+    expect(isSettled(found), `${stepsInProgress(found).join(", ") || "the session"} still IN_PROGRESS`).toBe(true);
   }).toPass({ timeout: SESSION_TIMEOUT });
-  return { result, session: await sessions.settled(found!) };
+  return { result, session: found! };
 }
 
 test.describe("mcp-trigger idempotency", { tag: ["@engine", "@sessions"] }, () => {

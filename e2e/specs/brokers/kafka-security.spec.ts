@@ -108,7 +108,7 @@ test.describe("kafka security", { tag: ["@engine", "@kafka"] }, () => {
 
         await publishKafka(chain.broker.topics as string, token, JSON.stringify({ ping: variant.fixture }));
 
-        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
+        const session = await sessions.byExternalId(token, { elements: 2 });
         expect(session.chainId).toBe(chain.id);
         expect(elementNames(session)).toEqual([variant.element, "Header Modification"]);
         expect(failedElements(session)).toEqual([]);
@@ -123,7 +123,7 @@ test.describe("kafka security", { tag: ["@engine", "@kafka"] }, () => {
 
         const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body });
         expect(response.status()).toBe(200);
-        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
+        const session = await sessions.byExternalId(token, { elements: 3 });
         expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, variant.element]);
         expect(failedElements(session)).toEqual([]);
 
@@ -167,7 +167,7 @@ test.describe("kafka security", { tag: ["@engine", "@kafka"] }, () => {
 
         const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "tlsv1-2-refused" } });
         expect(response.status()).toBe(500);
-        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
+        const session = await sessions.byExternalId(token, { elements: 3 });
         expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "sslProtocol=TLSv1.2"]);
         const failed = failedElements(session);
         expect(failed.map((each) => each.elementName)).toEqual(["sslProtocol=TLSv1.2"]);

@@ -141,7 +141,7 @@ test.describe("rabbitmq", { tag: ["@engine", "@sessions", "@rabbitmq"] }, () => 
       try {
         const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), { data: body, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
         expect(response.status()).toBe(200);
-        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 3 }));
+        const session = await sessions.byExternalId(token, { elements: 3 });
         expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, `propagateContext=${value}`]);
         expect(failedElements(session)).toEqual([]);
 

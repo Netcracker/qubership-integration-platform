@@ -40,8 +40,7 @@ test.describe("sender retry and timeout", { tag: ["@engine", "@sessions"] }, () 
     expect(response.status(), body).toBe(200);
     expect(JSON.parse(body), "the target counted three calls under one context id").toEqual({ attempts: 3 });
 
-    // CI run 39777664543 read the second attempt IN_PROGRESS in a session already COMPLETED_NORMALLY.
-    const session = await sessions.settled(await sessions.onlyOf(chain.id, HTTP_TRIGGER_STEPS.length + 4, (each) => !before.has(each.id)));
+    const session = await sessions.onlyOf(chain.id, HTTP_TRIGGER_STEPS.length + 4, (each) => !before.has(each.id));
     expect(trace(session)[0].headersBefore?.[CONTEXT_ID_HEADER]).toBe(contextId);
     expect(session.executionStatus).toBe("COMPLETED_NORMALLY");
     expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Service Call", ATTEMPT, ATTEMPT, ATTEMPT]);
@@ -62,7 +61,7 @@ test.describe("sender retry and timeout", { tag: ["@engine", "@sessions"] }, () 
     expect(response.status(), body).toBe(500);
     expect(JSON.parse(body).code, body).toBe("CIP-0103");
 
-    const session = await sessions.settled(await sessions.onlyOf(chain.id, HTTP_TRIGGER_STEPS.length + 1, (each) => !before.has(each.id)));
+    const session = await sessions.onlyOf(chain.id, HTTP_TRIGGER_STEPS.length + 1, (each) => !before.has(each.id));
     expect(trace(session)[0].headersBefore?.[HOLD_HEADER]).toBe(HOLD_MS);
     expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Call Long Running"]);
     const sender = trace(session).find((each) => each.elementName === "Call Long Running");

@@ -47,7 +47,6 @@ import {
   CALLER_REQUEST_ID,
   HTTP_TRIGGER_STEPS,
   REQUEST_ID_HEADER,
-  SESSION_TIMEOUT,
   callChain,
   elementNames,
   failedElements,
@@ -55,17 +54,13 @@ import {
   type ChainCall,
   type Sessions,
 } from "../../support/sessions.js";
-import { readUntil } from "../../support/poll.js";
 import { covers } from "../../registry/covers.js";
 
 /** Asserts a sender call answered 200; a failure carries the exceptions its session recorded. */
 async function expectSent(sessions: Sessions, call: ChainCall): Promise<void> {
-  // A failed step can still read IN_PROGRESS, with no exception, after its session has completed.
-  const causes = async () =>
-    trace(await sessions.byExternalId(call.token, { elements: 3 })).map((step) => step.exceptionInfo?.message).filter(Boolean);
   const cause = call.response.status() === 200
     ? ""
-    : (await readUntil(causes, (found) => found.length > 0, SESSION_TIMEOUT, 1_000)).join("; ");
+    : trace(await sessions.byExternalId(call.token, { elements: 3 })).map((step) => step.exceptionInfo?.message).filter(Boolean).join("; ");
   expect(call.response.status(), cause).toBe(200);
 }
 
@@ -158,7 +153,7 @@ test.describe("pubsub", { tag: ["@engine", "@sessions", "@pubsub"] }, () => {
         try {
           const call = await callChain(request, env.chainUrl(chain.contextPath), { data: body, headers: { [REQUEST_ID_HEADER]: CALLER_REQUEST_ID } });
           await expectSent(sessions, call);
-          const session = await sessions.settled(await sessions.byExternalId(call.token, { elements: 3 }));
+          const session = await sessions.byExternalId(call.token, { elements: 3 });
           expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, branch]);
           expect(failedElements(session)).toEqual([]);
 

@@ -55,7 +55,6 @@ import {
 } from "../../fixtures/axis-generator.js";
 import { createStepsChain } from "../../support/deployable.js";
 import { logWindowStart } from "../../support/logs.js";
-import { readUntil } from "../../support/poll.js";
 import { callToken, tokenized } from "../../support/run.js";
 import { noChainRequestId, type RequestMatcher } from "../../support/testing-service.js";
 import {
@@ -67,6 +66,7 @@ import {
   REQUEST_ID_HEADER,
   Sessions,
   SESSION_TIMEOUT,
+  stepsInProgress,
   trace,
   type ChainCall,
   type RecordedSession,
@@ -243,12 +243,9 @@ test.describe("misc elements", { tag: ["@engine", "@sessions"] }, () => {
 
     /** Asserts a SET answered 200. The answer names no cause, so a failure carries what the trace recorded. */
     async function expectStored(sessions: Sessions, call: ChainCall): Promise<void> {
-      // A failed step can still read IN_PROGRESS, with no exception, after its session has completed.
-      const causes = async () =>
-        trace(await sessions.byExternalId(call.token, { elements: 3 })).map((step) => step.exceptionInfo?.message).filter(Boolean);
       const cause = call.response.status() === 200
         ? ""
-        : (await readUntil(causes, (found) => found.length > 0, SESSION_TIMEOUT, 1_000)).join("; ");
+        : trace(await sessions.byExternalId(call.token, { elements: 3 })).map((step) => step.exceptionInfo?.message).filter(Boolean).join("; ");
       expect(call.response.status(), cause).toBe(200);
     }
 
@@ -361,6 +358,7 @@ test.describe("misc elements", { tag: ["@engine", "@sessions"] }, () => {
         const [session] = await mcpSessionsOf(sessions, chain.id, ping);
         expect(session, `the session of the tool call carrying ${ping}`).toBeDefined();
         expect(session?.executionStatus).toBe("COMPLETED_NORMALLY");
+        expect(stepsInProgress(session as RecordedSession), "the steps still IN_PROGRESS").toEqual([]);
         expect(elementNames(session as RecordedSession)).toEqual([MCP_TRIGGER, ECHO_STEP]);
       }).toPass({ timeout: SESSION_TIMEOUT });
     });

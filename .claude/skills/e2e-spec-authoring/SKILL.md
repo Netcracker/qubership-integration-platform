@@ -130,8 +130,8 @@ trace, walked through `children[]`. A branch can answer the same status as the d
 keeps the failure's status, and only the trace shows which handler ran. Children of a parallel
 branch arrive in completion order, so compare them as a set. Find the session by a per-call token,
 because `GET /v1/sessions/external-id/{id}` returns one session and the run token matches any
-spec's. `byExternalId` waits for the number of steps, not for each step's status, so a case that
-asserts step statuses or `failedElements()` reads the session through `Sessions.settled` first; a
+spec's. `byExternalId` waits for the number of steps and for the session and each step to leave
+`IN_PROGRESS`, so a case asserts step statuses and `failedElements()` on the session it returns; a
 message the broker can deliver more than once is read with `Sessions.earliestOf`. The exception is
 a call that must not carry the correlation header, because the testing service would mock it, or
 cannot, like an MCP tool call. Such a case finds the session through `Sessions.onlyOf` in

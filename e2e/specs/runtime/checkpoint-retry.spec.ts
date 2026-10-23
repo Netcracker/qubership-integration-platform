@@ -16,7 +16,7 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain, type SeedChain } from "../../support/corpus.js";
-import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, SESSION_TIMEOUT, type RecordedSession, type Sessions } from "../../support/sessions.js";
+import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, type RecordedSession, type Sessions } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import type { Env } from "../../env/index.js";
@@ -32,10 +32,7 @@ async function failedSession(request: APIRequestContext, env: Env, sessions: Ses
   const session = await sessions.byExternalId(call.token, { elements: FAILED_TRACE.length });
   expect(session.executionStatus).toBe("COMPLETED_WITH_ERRORS");
   expect(elementNames(session)).toEqual(FAILED_TRACE);
-  // A step's status settles after the session's: measured IN_PROGRESS on a session already failed.
-  await expect
-    .poll(async () => element(await sessions.session(session.id), "Fail On Flag")?.executionStatus, { timeout: SESSION_TIMEOUT })
-    .toBe("COMPLETED_WITH_ERRORS");
+  expect(element(session, "Fail On Flag")?.executionStatus).toBe("COMPLETED_WITH_ERRORS");
   return session;
 }
 

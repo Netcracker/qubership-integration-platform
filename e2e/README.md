@@ -468,9 +468,8 @@ below the list.
 
 ### Red runs that were not regressions
 
-Four kinds of red have been seen without a regression behind them. The first two are platform races,
-the third is a race in the suite's own code, and the cause of the fourth is not known. Check here
-before you bisect.
+Three kinds of red have been seen without a regression behind them. The first two are platform
+races, and the cause of the third is not known. Check here before you bisect.
 
 - **`specs/api/import-export.spec.ts`, three times in eleven full runs.**
   `GET /v1/catalog/import-instructions` answers 500 with `Cannot load from object array because
@@ -481,16 +480,12 @@ before you bisect.
   answered `500 CIP-0001`. The case tolerates up to ten such samples and refuses every other
   non-200, so a red there means a status the window does not produce, or a window far wider than
   the one measured.
-- **`specs/runtime/plain-elements.spec.ts`, twice.** The `split-async-2` case read one async branch
-  step as `IN_PROGRESS` where it asserts `COMPLETED_NORMALLY`: the lookup waits for eight elements
-  rather than for their statuses. The second time was CI run 39731789030, and the next run was
-  green both times.
 - **`specs/brokers/files.spec.ts` on `brokers-micro`, twice.** The case `sftp › sftp-trigger-2 › a
   dropped file records a session found by chain id` found no session within 20 s, in CI runs
   39720893673 and 39777664543. It passed on the classic engine in both runs, and on the micro engine
   in the run after the first.
 
-A red that is none of these four is a finding. Read it with the attachments above rather than by
+A red that is none of these three is a finding. Read it with the attachments above rather than by
 re-running.
 
 ## Troubleshooting

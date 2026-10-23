@@ -31,6 +31,7 @@ import {
   elementNames,
   failedElements,
   hasTrace,
+  isSettled,
   trace,
   type RecordedSession,
   type Sessions,
@@ -62,7 +63,7 @@ async function nextFiring(
         const fresh = page.sessions.find((each) => !before.has(each.id));
         if (!fresh) return false;
         const full = await sessions.session(fresh.id);
-        if (!hasTrace(full) || trace(full).length < elements || full.executionStatus === "IN_PROGRESS") {
+        if (!hasTrace(full) || trace(full).length < elements || !isSettled(full)) {
           return false;
         }
         found = full;

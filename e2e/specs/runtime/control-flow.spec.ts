@@ -144,7 +144,7 @@ test.describe("control flow", { tag: ["@engine", "@sessions"] }, () => {
           expect(JSON.parse(await call.response.text())).toMatchObject({ code: "CIP-0001" });
         }
 
-        const session = await sessions.settled(await sessions.byExternalId(call.token, { elements: 7 + each.caught.length }));
+        const session = await sessions.byExternalId(call.token, { elements: 7 + each.caught.length });
         expect(session.executionStatus).toBe(each.executionStatus);
         expect(elementNames(session)).toEqual([
           ...HTTP_TRIGGER_STEPS,

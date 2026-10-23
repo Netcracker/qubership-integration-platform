@@ -211,7 +211,7 @@ test.describe("async-api", { tag: ["@engine", "@sessions"] }, () => {
         const token = callToken("async-api-receive");
         await publishAmqp(chain.broker.integrationOperationPath as string, "", token, { ping: "async-api-receive" });
 
-        const session = await sessions.settled(await sessions.byExternalId(token, { elements: 2 }));
+        const session = await sessions.byExternalId(token, { elements: 2 });
         expect(session.chainId).toBe(chain.id);
         expect(elementNames(session)).toEqual(["AsyncAPI Trigger", "Header Modification"]);
         expect(failedElements(session)).toEqual([]);
@@ -264,7 +264,7 @@ test.describe("async-api", { tag: ["@engine", "@sessions"] }, () => {
 
           const session = await sessions.byExternalId(token, { elements: 4 });
           expect(session.chainId).toBe(chain.id);
-          expect(failedElements(await sessions.settled(session))).toEqual([]);
+          expect(failedElements(session)).toEqual([]);
           expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Service Call", "Request attempt"]);
 
           // Started only now, after the session lookup above already spent part of its own budget: the
@@ -301,7 +301,7 @@ test.describe("async-api", { tag: ["@engine", "@sessions"] }, () => {
 
             const session = await sessions.byExternalId(token, { elements: 4 });
             expect(session.chainId).toBe(chain.id);
-            expect(failedElements(await sessions.settled(session))).toEqual([]);
+            expect(failedElements(session)).toEqual([]);
             expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Service Call", "Request attempt"]);
 
             const message = await waitForAmqpMessage(channel, queue);

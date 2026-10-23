@@ -111,10 +111,9 @@ test.describe("broker trigger idempotency", { tag: ["@engine", "@sessions"] }, (
       const before = await sessions.idsOf(chain.id);
       try {
         const second = await broker.deliver({ sessions, chain, key, elements: MODE.steps.length + 1, before });
-        const settled = await sessions.settled(second);
-        expect(settled.executionStatus).toBe(MODE.executionStatus);
-        expect(elementNames(settled)).toEqual([branchName(MODE), ...MODE.steps]);
-        expect(element(settled, IDEMPOTENCY_STEP)?.exceptionInfo?.message).toBe(MODE.failure);
+        expect(second.executionStatus).toBe(MODE.executionStatus);
+        expect(elementNames(second)).toEqual([branchName(MODE), ...MODE.steps]);
+        expect(element(second, IDEMPOTENCY_STEP)?.exceptionInfo?.message).toBe(MODE.failure);
 
         const fresh = await readUntil(
           async () => (await sessions.search({}, { chainId: chain.id })).sessions.filter((each) => !before.has(each.id)),

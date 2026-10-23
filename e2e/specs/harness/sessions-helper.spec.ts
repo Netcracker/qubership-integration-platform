@@ -11,10 +11,12 @@
  * alone. Rewriting it to a placeholder would make the file a paraphrase of a response instead of a
  * response.
  *
- * The live lookup is not exercised here. It needs port 8093, and this project is defined as needing
- * no stack; `specs/runtime/http-echo.spec.ts` is where the same helper is proven against the engine.
+ * The lookup against a stack is not exercised here. It needs port 8093, and this project is defined
+ * as needing no stack; `specs/runtime/http-echo.spec.ts` is where the same helper is proven against
+ * the engine. The `lookups` cases run `byExternalId` and `onlyOf` over a stubbed transport instead,
+ * on a base that matches no operation row, so a stubbed call is never recorded as reached.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import fs from "node:fs";
 import { RECORDED_SESSION_FIXTURE } from "../../fixtures/templating.js";
 import {
@@ -24,12 +26,55 @@ import {
   elementsOfType,
   failedElements,
   hasTrace,
+  isSettled,
+  Sessions,
+  stepsInProgress,
   trace,
   type RecordedSession,
 } from "../../support/sessions.js";
 
 function recorded(): RecordedSession {
   return JSON.parse(fs.readFileSync(RECORDED_SESSION_FIXTURE, "utf-8")) as RecordedSession;
+}
+
+/** A sessions host that exists nowhere, under a path prefix the registry does not describe. */
+const STUB_BASE = "http://sessions.invalid/stub";
+
+/**
+ * The recording as the index can return it for about one refresh interval: the session completed,
+ * and `Validate Request` still at its first version.
+ */
+function halfIndexed(): RecordedSession {
+  const session = recorded();
+  return {
+    ...session,
+    sessionElements: (session.sessionElements ?? []).map((each) => ({
+      ...each,
+      children: (each.children ?? []).map((child) => ({
+        ...child,
+        executionStatus: "IN_PROGRESS" as const,
+        headersAfter: null,
+        bodyAfter: null,
+      })),
+    })),
+  };
+}
+
+/**
+ * A client whose transport returns the next of `reads` to each read of one session, and the last
+ * one once they run out. A search returns the session in a light page.
+ */
+function stubbedSessions(reads: RecordedSession[]): { sessions: Sessions; served: () => number } {
+  let served = 0;
+  const api = {
+    fetch(url: string, options: { method?: string } = {}) {
+      const body = options.method === "POST" && url.includes("/v1/sessions/chains/")
+        ? { offset: 1, sessions: [{ ...reads[0], sessionElements: null }] }
+        : reads[Math.min(served++, reads.length - 1)];
+      return Promise.resolve({ ok: () => true, status: () => 200, text: () => Promise.resolve(JSON.stringify(body)) });
+    },
+  };
+  return { sessions: new Sessions(api as unknown as APIRequestContext, { base: STUB_BASE }), served: () => served };
 }
 
 test.describe("sessions helper", { tag: ["@harness"] }, () => {
@@ -128,5 +173,42 @@ test.describe("sessions helper", { tag: ["@harness"] }, () => {
 
     // The nested one, specifically: a top-level scan reports a clean run over a chain that failed.
     expect(failedElements(broken).map((each) => each.elementName)).toEqual(["Validate Request"]);
+  });
+
+  // Shown failing: dropping the step check from `byExternalId` turned its two cases red, and dropping
+  // it from `settledOf` turned the `onlyOf` case red.
+  test.describe("lookups", () => {
+    test("a completed session with a step in progress is not settled", () => {
+      expect(stepsInProgress(halfIndexed())).toEqual(["Validate Request"]);
+      expect(isSettled(halfIndexed())).toBe(false);
+      expect(stepsInProgress(recorded())).toEqual([]);
+      expect(isSettled(recorded())).toBe(true);
+      expect(isSettled({ ...recorded(), executionStatus: "IN_PROGRESS" })).toBe(false);
+    });
+
+    test("byExternalId reads again until no step is in progress", async () => {
+      const { sessions, served } = stubbedSessions([halfIndexed(), recorded()]);
+      const found = await sessions.byExternalId("call-recorded000001", { elements: 3 });
+
+      expect(served()).toBe(2);
+      expect(stepsInProgress(found)).toEqual([]);
+      expect(element(found, "Validate Request")?.headersAfter).not.toBeNull();
+    });
+
+    test("byExternalId names the steps in progress on a timeout", async () => {
+      const { sessions } = stubbedSessions([halfIndexed()]);
+
+      await expect(sessions.byExternalId("call-recorded000001", { elements: 3, timeout: 300 })).rejects.toThrow(
+        /with Validate Request still IN_PROGRESS/,
+      );
+    });
+
+    test("onlyOf reads again until no step is in progress", async () => {
+      const { sessions, served } = stubbedSessions([halfIndexed(), recorded()]);
+      const found = await sessions.onlyOf("chain-1", 3, () => true);
+
+      expect(served()).toBe(2);
+      expect(stepsInProgress(found)).toEqual([]);
+    });
   });
 });
