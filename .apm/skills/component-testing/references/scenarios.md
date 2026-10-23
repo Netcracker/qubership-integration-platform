@@ -23,7 +23,7 @@ Reuse a chain when the case changes only runtime input or an existing fixture's
 response. When element settings or topology must change, add an exported chain:
 
 ```text
-testConfigurations/<folder>/<name>/<chainId>/<chainId>.chain.qip.yaml
+testConfigurations/<folder>/<name>/<chainId>/<chainId>.chain.cip.yaml
 testConfigurations/<folder>/<name>/<chainId>/resources/
 ```
 
