@@ -1,15 +1,11 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Editor } from "@monaco-editor/react";
 import type * as monacoNs from "monaco-editor";
-import { editor, languages, MarkerSeverity } from "monaco-editor";
+import type { editor, languages } from "monaco-editor";
 type Monaco = typeof monacoNs;
 import { LocationRange } from "pegjs";
 import {
+  KeyValuePair,
   makeArray,
   parse,
 } from "../../../misc/key-value-text-util.ts";
@@ -61,14 +57,26 @@ function configureKeyValuePairsLanguage(monaco: Monaco) {
   );
 }
 
+function formatPairs(pairs: KeyValuePair[]): string {
+  return makeArray(pairs)
+    .map((pair) => `${pair};`)
+    .join("\n");
+}
+
 export const KeyValuePairsTextEditor: React.FC<KeyValuePairsEditorProps> = ({
   onChange,
   value,
 }) => {
   const [text, setText] = useState<string>("");
+  // The text of the pairs last passed to onChange. A value that formats to it
+  // came from typing here, so the typed text stays as it is.
+  const emittedTextRef = useRef<string>();
 
   useEffect(() => {
-    setText(makeArray(value ?? []).join(";\n"));
+    const formatted = formatPairs(value ?? []);
+    if (formatted !== emittedTextRef.current) {
+      setText(formatted);
+    }
   }, [value]);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
@@ -94,9 +102,13 @@ export const KeyValuePairsTextEditor: React.FC<KeyValuePairsEditorProps> = ({
 
   const setMarker = useCallback(
     (locationRange: LocationRange, message: string) => {
+      const monaco = monacoRef.current;
+      if (!monaco) {
+        return;
+      }
       const markers: editor.IMarkerData[] = [
         {
-          severity: MarkerSeverity.Error,
+          severity: monaco.MarkerSeverity.Error,
           message,
           startLineNumber: locationRange.start.line,
           startColumn: locationRange.start.column,
@@ -131,6 +143,7 @@ export const KeyValuePairsTextEditor: React.FC<KeyValuePairsEditorProps> = ({
         setText(v);
         try {
           const parsed = parse(v);
+          emittedTextRef.current = formatPairs(parsed);
           onChange?.(parsed);
           clearMarkers();
         } catch (error) {

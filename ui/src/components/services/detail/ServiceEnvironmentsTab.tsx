@@ -250,6 +250,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
           getErrorMessage(e, "Update failed"),
           e,
         );
+        throw e;
       }
     },
     [notificationService, systemId],
@@ -266,6 +267,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
           getErrorMessage(e, "Create failed"),
           e,
         );
+        throw e;
       }
     },
     [notificationService, systemId],

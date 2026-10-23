@@ -70,6 +70,10 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
 
   useEffect(() => {
     setPropertiesCount(Object.keys(environment?.properties ?? {}).length);
+    setIsMaasSelected(
+      environment?.sourceType === EnvironmentSourceType.MAAS ||
+        environment?.sourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER,
+    );
   }, [environment]);
 
   const handleSubmit = useCallback(async () => {
@@ -145,6 +149,10 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
         layout="vertical"
         initialValues={{
           ...environment,
+          sourceType:
+            environment.sourceType === EnvironmentSourceType.MAAS
+              ? EnvironmentSourceType.MAAS_BY_CLASSIFIER
+              : environment.sourceType,
           properties: buildKeyValuePairsFromObject(
             environment.properties ?? {},
           ),
@@ -181,7 +189,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
             disabled={!isAsyncProtocolSupported}
           >
             <Radio.Button value="MANUAL">Manual</Radio.Button>
-            <Radio.Button value="MAAS">
+            <Radio.Button value="MAAS_BY_CLASSIFIER">
               <Space>
                 <span>MAAS</span>
                 <Tooltip
@@ -260,6 +268,8 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                 </Radio.Group>
                 <Tooltip title="Add property">
                   <Button
+                    data-testid="environment-properties-add"
+                    aria-label="Add property"
                     disabled={!addButtonEnabled}
                     type={"text"}
                     icon={<OverridableIcon name={"plus"} />}

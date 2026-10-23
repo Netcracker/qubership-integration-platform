@@ -1,16 +1,5 @@
-import {
-  Button,
-  Flex,
-  Form,
-  Input,
-  message,
-} from "antd";
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { Button, Flex, Form, Input, message } from "antd";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   KeyValuePair,
   makeArray,
@@ -46,16 +35,15 @@ const DictionaryEditor: React.FC<DictionaryAdapterProps> = ({
     }
   }, [messageApi, value]);
 
-  useEffect(() => {
-
-  }, []);
-
-  const handleChange = useCallback((updatedParams: KeyValuePair[]) => {
-    const safeValue = value ?? [];
-    const base = safeValue[0] ?? "";
-    const merged = makeArray(updatedParams);
-    onChange?.(merged.length ? [base, ...merged] : [base]);
-  }, [onChange, value]);
+  const handleChange = useCallback(
+    (updatedParams: KeyValuePair[]) => {
+      const safeValue = value ?? [];
+      const base = safeValue[0] ?? "";
+      const merged = makeArray(updatedParams);
+      onChange?.(merged.length ? [base, ...merged] : [base]);
+    },
+    [onChange, value],
+  );
 
   const editorRef = useRef<KeyValuePairsEditorRef>(null);
 
