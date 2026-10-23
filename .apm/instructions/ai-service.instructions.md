@@ -1,0 +1,18 @@
+---
+description: "ai-service: run the server-restart integration test by hand, since the default build skips it."
+applyTo: "ai-service/**"
+---
+
+When changing ai-service crash recovery, A2A message receipts, command replay, or the Flow and JDBC
+persistence they rely on, run `CreateChainServerRestartIT` by hand before pushing. The default build
+skips it (JUnit tag `server-restart`, listed in `qip.test.excluded-groups` in `ai-service/pom.xml`),
+so CI does not catch a regression there.
+
+```bash
+cd ai-service && ./mvnw test -Dtest=CreateChainServerRestartIT -Dqip.test.excluded-groups=certified-pack
+```
+
+The test needs a running Docker daemon and takes about ten minutes. Each of its 15 scenarios starts
+its own PostgreSQL container and two Quarkus processes, kills the first one mid-flight, and checks
+that the second resumes the work without losing or repeating it. Keep the scenarios sequential:
+parallel children race on `target/test-classes/test-classes.idx`, which Quarkus deletes on shutdown.

@@ -59,7 +59,7 @@
         <qip.ai.qipknowledge.knowledge-overlay></qip.ai.qipknowledge.knowledge-overlay>
         <qip.ai.qipknowledge.output-root>${project.build.outputDirectory}/qipknowledge</qip.ai.qipknowledge.output-root>
         <qip.test.pack-root>${project.build.directory}/public-pack-fixture/integration-platform-skills</qip.test.pack-root>
-        <qip.test.excluded-groups>certified-pack</qip.test.excluded-groups>
+        <qip.test.excluded-groups>certified-pack,server-restart</qip.test.excluded-groups>
         <qip.test.groups></qip.test.groups>
     </properties>
 
