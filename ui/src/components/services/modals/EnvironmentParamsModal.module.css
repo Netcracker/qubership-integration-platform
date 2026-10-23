@@ -1,0 +1,34 @@
+.modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: calc(85vh - 7rem);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.environment-edit-form {
+  display: flex;
+  flex-direction: column;
+  height: 75vh;
+}
+
+.properties-form-item {
+  > :global(.ant-form-item-row) {
+    flex-wrap: nowrap;
+
+    > :global(.ant-form-item-label) {
+      label {
+        width: 100%;
+      }
+    }
+  }
+}
+
+.source-type-label {
+  margin-right: 24px;
+  > label::after {
+    display: none;
+  }
+}

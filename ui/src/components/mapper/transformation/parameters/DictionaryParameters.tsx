@@ -4,408 +4,89 @@ import {
   Form,
   Input,
   message,
-  Table,
-  TableProps,
-  Tabs,
 } from "antd";
-import type { ColumnsType } from "antd/es/table";
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
-import { InlineEdit } from "../../../InlineEdit";
 import {
   KeyValuePair,
   makeArray,
   parse,
+  removeDuplicateKeys,
   sliceParameter,
-} from "./key-value-text-util";
-import { TextValueEdit } from "../../../table/TextValueEdit";
-import { Editor } from "@monaco-editor/react";
-import type * as monacoNs from "monaco-editor";
-import { editor, languages, MarkerSeverity } from "monaco-editor";
-type Monaco = typeof monacoNs;
-import { isParseError } from "../../../../mapper/actions-text/parser.ts";
-import { LocationRange } from "pegjs";
+} from "../../../../misc/key-value-text-util.ts";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import {
-  useMonacoTheme,
-  applyVSCodeThemeToMonaco,
-} from "../../../../hooks/useMonacoTheme";
-import { useTableConfiguration } from "../../../table/useTableConfiguration.tsx";
-import { tableScroll } from "../../../table/tableScroll.ts";
-
-const MAPPER_DICTIONARY_LANGUAGE_ID = "cip-mapper-dictionary";
-
-const MAPPER_DICTIONARY_LANGUAGE_CONFIGURATION: languages.LanguageConfiguration =
-  {};
-
-const MAPPER_DICTIONARY_LANGUAGE_TOKENIZER: languages.IMonarchLanguage = {
-  tokenizer: {
-    start: [
-      { regex: /[ \t\r\n]+/, action: { token: "white" } },
-      { regex: /([^=;\\]|\\[=;\\])+/, action: { token: "string" } },
-      { regex: /[=;]/, action: { token: "delimiter" } },
-    ],
-  },
-  defaultToken: "invalid",
-  start: "start",
-  includeLF: true,
-};
-
-function configureMapperDictionaryLanguage(monaco: Monaco) {
-  const alreadyRegistered = monaco.languages
-    .getLanguages()
-    .some(
-      (language: { id: string }) =>
-        language.id === MAPPER_DICTIONARY_LANGUAGE_ID,
-    );
-  if (alreadyRegistered) {
-    console.log(
-      `Language already registered: ${MAPPER_DICTIONARY_LANGUAGE_ID}`,
-    );
-    return;
-  }
-  monaco.languages.register({
-    id: MAPPER_DICTIONARY_LANGUAGE_ID,
-  });
-  monaco.languages.setLanguageConfiguration(
-    MAPPER_DICTIONARY_LANGUAGE_ID,
-    MAPPER_DICTIONARY_LANGUAGE_CONFIGURATION,
-  );
-  monaco.languages.setMonarchTokensProvider(
-    MAPPER_DICTIONARY_LANGUAGE_ID,
-    MAPPER_DICTIONARY_LANGUAGE_TOKENIZER,
-  );
-}
-
-export type DictionaryEditorProps = {
-  value?: string;
-  onChange?: (value: KeyValuePair[]) => void;
-};
+  KeyValuePairsEditor,
+  KeyValuePairsEditorRef,
+} from "../../../table/kv/KeyValuePairsEditor.tsx";
 
 export type DictionaryAdapterProps = {
   value?: string[];
   onChange?: (value: string[]) => void;
 };
 
-function removeDuplicateKeys(data: KeyValuePair[]): KeyValuePair[] {
-  const seenKeys = new Set<string>();
-  return data.filter((item) => {
-    if (seenKeys.has(item.key)) {
-      return false;
-    } else {
-      seenKeys.add(item.key);
-      return true;
-    }
-  });
-}
-
-const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
-  onChange,
-  value,
-}) => {
-  const [messageApi, contextHolder] = message.useMessage();
-  const [tableData, setTableData] = useState<
-    TableProps<KeyValuePair>["dataSource"]
-  >([]);
-
-  useEffect(() => {
-    try {
-      setTableData(removeDuplicateKeys(parse(value ?? "")));
-    } catch (error) {
-      void messageApi.error(`Invalid dictionary: ${String(error)}`);
-      setTableData([]);
-    }
-  }, [messageApi, value]);
-
-  const updateRecord = useCallback(
-    (index: number, changes: Partial<KeyValuePair>) => {
-      setTableData((data) => {
-        const result =
-          data?.map((r, idx) => (idx === index ? { ...r, ...changes } : r)) ??
-          [];
-        onChange?.(result);
-        return result;
-      });
-    },
-    [onChange],
-  );
-
-  const addRecord = useCallback(() => {
-    setTableData((data) => {
-      if (data?.some((r) => r.key === "")) {
-        return data;
-      }
-      const result = [...(data ?? []), { key: "", value: "" }];
-      onChange?.(result);
-      return result;
-    });
-  }, [onChange]);
-
-  const deleteRecord = useCallback(
-    (index: number) => {
-      setTableData((data) => {
-        const result =
-          data?.slice(0, index)?.concat(data?.slice(index + 1)) ?? [];
-        onChange?.(result);
-        return result;
-      });
-    },
-    [onChange],
-  );
-
-  const clearRecords = useCallback(() => {
-    setTableData([]);
-    onChange?.([]);
-  }, [onChange]);
-
-  const dictionaryColumns = useMemo<ColumnsType<KeyValuePair>>(
-    () => [
-      {
-        key: "key",
-        title: "Input",
-        dataIndex: "key",
-        sorter: (a, b, sortOrder) => {
-          if (sortOrder === "ascend") {
-            return a.key.localeCompare(b.key);
-          } else if (sortOrder === "descend") {
-            return b.key.localeCompare(a.key);
-          }
-          return 0;
-        },
-        render: (value: string, _record: KeyValuePair, index: number) => {
-          return (
-            <InlineEdit<{ value: string }>
-              values={{ value }}
-              editor={<TextValueEdit name="value" />}
-              viewer={value}
-              initialActive={value === ""}
-              onSubmit={({ value }) => {
-                if (tableData?.some((r) => r.key === value)) {
-                  messageApi.error(`Already exists: ${value}`);
-                } else {
-                  updateRecord(index, { key: value });
-                }
-              }}
-            />
-          );
-        },
-      },
-      {
-        key: "value",
-        title: "Result",
-        dataIndex: "value",
-        sorter: (a, b, sortOrder) => {
-          if (sortOrder === "ascend") {
-            return a.value.localeCompare(b.value);
-          } else if (sortOrder === "descend") {
-            return b.value.localeCompare(a.value);
-          }
-          return 0;
-        },
-        render: (value: string, _record: KeyValuePair, index: number) => {
-          return (
-            <InlineEdit<{ value: string }>
-              values={{ value }}
-              editor={<TextValueEdit name="value" rules={[]} />}
-              viewer={value}
-              onSubmit={({ value }) => {
-                updateRecord(index, { value });
-              }}
-            />
-          );
-        },
-      },
-      {
-        key: "actions",
-        className: "actions-column",
-        width: 40,
-        align: "right" as const,
-        render: (_: unknown, _record: KeyValuePair, index: number) => {
-          return (
-            <Button
-              type="text"
-              icon={<OverridableIcon name="delete" />}
-              onClick={() => deleteRecord(index)}
-            />
-          );
-        },
-      },
-    ],
-    [tableData, messageApi, updateRecord, deleteRecord],
-  );
-
-  const { columnsWithResize, scrollX, components } =
-    useTableConfiguration(
-      dictionaryColumns,
-      {
-        key: 160,
-        value: 220,
-      },
-      { applyDisableResizeBeforeActions: false },
-    );
-
-  return (
-    <>
-      {contextHolder}
-      <Flex style={{ height: "100%" }} vertical gap={8}>
-        <Flex wrap="wrap" vertical={false} gap={8}>
-          <Button
-            size="small"
-            icon={<OverridableIcon name="plusCircle" />}
-            onClick={() => addRecord()}
-          >
-            Add rule
-          </Button>
-          <Button
-            size="small"
-            icon={<OverridableIcon name="delete" />}
-            onClick={() => clearRecords()}
-          >
-            Clear rules
-          </Button>
-        </Flex>
-        <Table
-          className="flex-table"
-          size="small"
-          scroll={tableScroll(scrollX, tableData?.length ?? 0)}
-          columns={columnsWithResize}
-          dataSource={tableData}
-          pagination={false}
-          rowKey={(record) => record.key}
-          components={components}
-        />
-      </Flex>
-    </>
-  );
-};
-
-const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
-  onChange,
-  value,
-}) => {
-  const [text, setText] = useState<string>("");
-
-  useEffect(() => {
-    setText(value ?? "");
-  }, [value]);
-
-  const editorRef = useRef<editor.IStandaloneCodeEditor>();
-  const monacoRef = useRef<Monaco>();
-  const monacoTheme = useMonacoTheme();
-  useEffect(() => {
-    if (monacoRef.current) {
-      applyVSCodeThemeToMonaco(monacoRef.current);
-    }
-  }, [monacoTheme]);
-
-  const setMarkers = useCallback((markers: editor.IMarkerData[]) => {
-    const model = editorRef.current?.getModel();
-    if (!model) {
-      return;
-    }
-    monacoRef.current?.editor?.setModelMarkers(
-      model,
-      MAPPER_DICTIONARY_LANGUAGE_ID,
-      markers,
-    );
-  }, []);
-
-  const setMarker = useCallback(
-    (locationRange: LocationRange, message: string) => {
-      const markers: editor.IMarkerData[] = [
-        {
-          severity: MarkerSeverity.Error,
-          message,
-          startLineNumber: locationRange.start.line,
-          startColumn: locationRange.start.column,
-          endLineNumber: locationRange.end.line,
-          endColumn: locationRange.end.column,
-        },
-      ];
-      setMarkers(markers);
-    },
-    [setMarkers],
-  );
-
-  const clearMarkers = useCallback(() => {
-    setMarkers([]);
-  }, [setMarkers]);
-
-  return (
-    <Editor
-      className="cip-editor"
-      wrapperProps={{ "data-testid": "mapper-dictionary-editor" }}
-      theme={monacoTheme}
-      value={text}
-      language={MAPPER_DICTIONARY_LANGUAGE_ID}
-      onMount={(editor, monaco: Monaco) => {
-        editorRef.current = editor;
-        monacoRef.current = monaco;
-        configureMapperDictionaryLanguage(monaco);
-        applyVSCodeThemeToMonaco(monaco);
-      }}
-      onChange={(value) => {
-        const v = value ?? "";
-        setText(v);
-        try {
-          const parsed = parse(v);
-          onChange?.(parsed);
-          clearMarkers();
-        } catch (error) {
-          if (isParseError(error)) {
-            setMarker(error.location, error.message);
-          }
-        }
-      }}
-      options={{
-        fixedOverflowWidgets: true,
-      }}
-    />
-  );
-};
-
 const DictionaryEditor: React.FC<DictionaryAdapterProps> = ({
   onChange,
   value,
 }) => {
-  const safeValue = value ?? [];
-  const base = safeValue[0] ?? "";
-  const parameters = sliceParameter(safeValue);
+  const [messageApi, contextHolder] = message.useMessage();
+  const [keyValuePairs, setKeyValuePairs] = useState<KeyValuePair[]>([]);
 
-  const handleChange = (updatedParams: KeyValuePair[]) => {
+  useEffect(() => {
+    try {
+      const parameters = sliceParameter(value ?? []);
+      setKeyValuePairs(removeDuplicateKeys(parse(parameters ?? "")));
+    } catch (error) {
+      void messageApi.error(`Invalid dictionary: ${String(error)}`);
+      setKeyValuePairs([]);
+    }
+  }, [messageApi, value]);
+
+  useEffect(() => {
+
+  }, []);
+
+  const handleChange = useCallback((updatedParams: KeyValuePair[]) => {
+    const safeValue = value ?? [];
+    const base = safeValue[0] ?? "";
     const merged = makeArray(updatedParams);
     onChange?.(merged.length ? [base, ...merged] : [base]);
-  };
+  }, [onChange, value]);
+
+  const editorRef = useRef<KeyValuePairsEditorRef>(null);
 
   return (
-    <Tabs
-      style={{ height: "100%", width: "100%" }}
-      className={"flex-tabs"}
-      tabPosition="bottom"
-      size="small"
-      defaultActiveKey="table"
-      items={[
-        {
-          key: "table",
-          label: "Table",
-          children: (
-            <DictionaryTableEditor value={parameters} onChange={handleChange} />
-          ),
-        },
-        {
-          key: "text",
-          label: "Text",
-          children: (
-            <DictionaryTextEditor value={parameters} onChange={handleChange} />
-          ),
-        },
-      ]}
-    />
+    <>
+      {contextHolder}
+      <KeyValuePairsEditor
+        value={keyValuePairs}
+        onChange={handleChange}
+        tableHeader={
+          <Flex wrap="wrap" vertical={false} gap={8}>
+            <Button
+              size="small"
+              icon={<OverridableIcon name="plusCircle" />}
+              onClick={() => editorRef.current?.add()}
+            >
+              Add rule
+            </Button>
+            <Button
+              size="small"
+              icon={<OverridableIcon name="delete" />}
+              onClick={() => editorRef.current?.clear()}
+            >
+              Clear rules
+            </Button>
+          </Flex>
+        }
+        actionRef={editorRef}
+        tableColumnNames={{ key: "Input", value: "Result" }}
+      />
+    </>
   );
 };
 

@@ -45,6 +45,7 @@ import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
 import { useResizeHeight } from "../../../hooks/useResizeHeigth.tsx";
+import { useModalsContext } from "../../../Modals.tsx";
 
 interface ServiceEnvironmentsTabProps {
   formatTimestamp: (val: number) => string;
@@ -70,6 +71,75 @@ function environmentMatchesSearch(env: Environment, term: string): boolean {
   ]);
 }
 
+function getDefaultProperties(
+  protocol: string,
+  sourceType: EnvironmentSourceType,
+): Record<string, unknown> {
+  const normalized = normalizeProtocol(protocol);
+
+  if (sourceType === EnvironmentSourceType.MANUAL) {
+    if (isAmqpProtocol(normalized)) {
+      return {
+        password: "",
+        username: "",
+        routingKey: "",
+        acknowledgeMode: "AUTO",
+      };
+    }
+    if (isKafkaProtocol(normalized)) {
+      return {
+        key: "",
+        sslProtocol: "",
+        saslMechanism: "",
+        saslJaasConfig: "",
+        securityProtocol: "",
+        sslEnabledProtocols: "",
+        sslEndpointAlgorithm: "",
+      };
+    }
+    if (normalized === "http") {
+      return {
+        connectTimeout: "120000",
+        soTimeout: "120000",
+        connectionRequestTimeout: "120000",
+        responseTimeout: "120000",
+        getWithBody: "false",
+        deleteWithBody: "false",
+      };
+    }
+  }
+
+  if (sourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER) {
+    if (isAmqpProtocol(normalized)) {
+      return {
+        routingKey: "",
+        acknowledgeMode: "AUTO",
+      };
+    }
+    return {};
+  }
+
+  return {};
+}
+
+function getDefaultEnvironment(
+  systemId: string,
+  protocol: string,
+): Environment {
+  return {
+    id: "",
+    systemId,
+    name: "New Environment",
+    address: "",
+    labels: [],
+    properties: getDefaultProperties(
+      protocol ?? "",
+      EnvironmentSourceType.MANUAL,
+    ),
+    sourceType: EnvironmentSourceType.MANUAL,
+  };
+}
+
 const SERVICE_ENVIRONMENTS_TABLE_HEAD_RESERVE_PX = 59;
 
 export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
@@ -77,8 +147,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   setSystem,
 }) => {
   const system = useServiceContext();
-  const protocol = system?.protocol || "";
-  const normalizedProtocol = normalizeProtocol(protocol);
+  const { showModal } = useModalsContext();
   const systemId = system?.id || "";
   const activeEnvironmentId = system?.activeEnvironmentId;
 
@@ -87,80 +156,12 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cacheRef = useRef<{ [key: string]: Environment[] }>({});
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingEnv, setEditingEnv] = useState<Environment | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [addModalOpen, setAddModalOpen] = useState(false);
   const [switchingEnvId, setSwitchingEnvId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const notificationService = useNotificationService();
   const location = useLocation();
   const { setToolbar } = useServiceParametersToolbar() ?? {};
   const permissions = usePermissions();
-
-  const getDefaultProperties = useCallback(
-    (protocol: string, sourceType: EnvironmentSourceType) => {
-      const normalized = normalizeProtocol(protocol);
-
-      if (sourceType === EnvironmentSourceType.MANUAL) {
-        if (isAmqpProtocol(normalized)) {
-          return {
-            password: "",
-            username: "",
-            routingKey: "",
-            acknowledgeMode: "AUTO",
-          };
-        }
-        if (isKafkaProtocol(normalized)) {
-          return {
-            key: "",
-            sslProtocol: "",
-            saslMechanism: "",
-            saslJaasConfig: "",
-            securityProtocol: "",
-            sslEnabledProtocols: "",
-            sslEndpointAlgorithm: "",
-          };
-        }
-        if (normalized === "http") {
-          return {
-            connectTimeout: "120000",
-            soTimeout: "120000",
-            connectionRequestTimeout: "120000",
-            responseTimeout: "120000",
-            getWithBody: "false",
-            deleteWithBody: "false",
-          };
-        }
-      }
-
-      if (sourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER) {
-        if (isAmqpProtocol(normalized)) {
-          return {
-            routingKey: "",
-            acknowledgeMode: "AUTO",
-          };
-        }
-        return {};
-      }
-
-      return {};
-    },
-    [],
-  );
-
-  const defaultNewEnv: Environment = {
-    id: "",
-    systemId,
-    name: "New Environment",
-    address: "",
-    labels: [],
-    properties: getDefaultProperties(
-      normalizedProtocol ?? "",
-      EnvironmentSourceType.MANUAL,
-    ),
-    sourceType: EnvironmentSourceType.MANUAL,
-  };
 
   const handleSwitchEnvironment = useCallback(
     (env: Environment) => {
@@ -232,10 +233,73 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
     }
   }, [location.pathname, systemId, loadEnvironments]);
 
-  const handleEditClick = useCallback((env: Environment) => {
-    setEditingEnv(env);
-    setEditModalOpen(true);
-  }, []);
+  const updateEnvironment = useCallback(
+    async (environmentId: string, request: EnvironmentRequest) => {
+      try {
+        const updated = await api.updateEnvironment(
+          systemId,
+          environmentId,
+          request,
+        );
+        setEnvironments((envs) =>
+          envs.map((e) => (e.id === updated.id ? updated : e)),
+        );
+        message.success("Environment updated");
+      } catch (e: unknown) {
+        notificationService.requestFailed(
+          getErrorMessage(e, "Update failed"),
+          e,
+        );
+      }
+    },
+    [notificationService, systemId],
+  );
+
+  const addEnvironment = useCallback(
+    async (envRequest: EnvironmentRequest) => {
+      try {
+        const created = await api.createEnvironment(systemId, envRequest);
+        setEnvironments((envs) => [...envs, created]);
+        message.success("Environment created");
+      } catch (e: unknown) {
+        notificationService.requestFailed(
+          getErrorMessage(e, "Create failed"),
+          e,
+        );
+      }
+    },
+    [notificationService, systemId],
+  );
+
+  const handleEditClick = useCallback(
+    (env: Environment) => {
+      showModal({
+        component: (
+          <EnvironmentParamsModal
+            action={"edit"}
+            environment={env}
+            onSubmit={(request) => updateEnvironment(env.id, request)}
+          />
+        ),
+      });
+    },
+    [showModal, updateEnvironment],
+  );
+
+  const handleAddClick = useCallback(() => {
+    showModal({
+      component: (
+        <EnvironmentParamsModal
+          action={"create"}
+          environment={getDefaultEnvironment(
+            system?.id ?? "",
+            normalizeProtocol(system?.protocol ?? ""),
+          )}
+          onSubmit={(request) => addEnvironment(request)}
+        />
+      ),
+    });
+  }, [addEnvironment, showModal, system?.id, system?.protocol]);
 
   const handleDelete = useCallback(
     (envId: string) => {
@@ -506,14 +570,14 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
             tooltipProps={{ title: "Add Environment", placement: "bottom" }}
             buttonProps={{
               type: "primary",
-              onClick: () => setAddModalOpen(true),
+              onClick: () => handleAddClick(),
               children: "Add Environment",
             }}
           />
         )}
       </>
     ),
-    [notificationService, system?.type, systemId],
+    [handleAddClick, notificationService, system?.type, systemId],
   );
 
   useEffect(() => {
@@ -593,62 +657,6 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
           />
         </div>
       </TablePageLayout>
-      <EnvironmentParamsModal
-        open={editModalOpen}
-        environment={editingEnv}
-        onClose={() => {
-          setEditModalOpen(false);
-          setEditingEnv(null);
-        }}
-        onSave={async (envRequest: EnvironmentRequest) => {
-          try {
-            setSaving(true);
-            if (!editingEnv) throw new Error("No environment selected");
-            const updated = await api.updateEnvironment(
-              systemId,
-              editingEnv.id,
-              envRequest,
-            );
-            setEnvironments((envs) =>
-              envs.map((e) => (e.id === updated.id ? updated : e)),
-            );
-            setEditModalOpen(false);
-            message.success("Environment updated");
-          } catch (e: unknown) {
-            notificationService.requestFailed(
-              getErrorMessage(e, "Update failed"),
-              e,
-            );
-            throw e;
-          } finally {
-            setSaving(false);
-          }
-        }}
-        saving={saving}
-      />
-      <EnvironmentParamsModal
-        open={addModalOpen}
-        environment={defaultNewEnv}
-        onClose={() => setAddModalOpen(false)}
-        onSave={async (envRequest: EnvironmentRequest) => {
-          try {
-            setSaving(true);
-            const created = await api.createEnvironment(systemId, envRequest);
-            setEnvironments((envs) => [...envs, created]);
-            setAddModalOpen(false);
-            message.success("Environment created");
-          } catch (e: unknown) {
-            notificationService.requestFailed(
-              getErrorMessage(e, "Create failed"),
-              e,
-            );
-            throw e;
-          } finally {
-            setSaving(false);
-          }
-        }}
-        saving={saving}
-      />
     </Flex>
   );
 };

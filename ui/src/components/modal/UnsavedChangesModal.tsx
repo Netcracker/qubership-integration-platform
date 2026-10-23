@@ -1,5 +1,6 @@
-import { Button, Modal } from "antd";
+import { Button, Modal, Space } from "antd";
 import { useModalContext } from "../../ModalContextProvider";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 type UnsavedChangesModalProps = {
   onYes: () => void;
@@ -29,7 +30,12 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = (
 
   return (
     <Modal
-      title="Unsaved Changes"
+      title={
+        <Space>
+          <OverridableIcon name={"exclamationCircle"} />
+          <span>Unsaved Changes</span>
+        </Space>
+      }
       open={true}
       onCancel={handleCancelQuestion}
       onOk={handleYes}
