@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -942,11 +944,35 @@ public final class RequirementCaptureEditor {
             || ref.equals(intent.elementRef()))) {
           add(issues, "UNKNOWN_ELEMENT_REFERENCE", "/draft/facts/" + fact.sourceFactId()
               + "/elementIntent/" + fields[i], fact.sourceFactId(),
-              "Relative placement must name another accepted elementRef or business interaction.");
+              "Relative placement must name another accepted elementRef or business interaction."
+                  + referenceContext(draft, interactions, intents, intent.elementRef(), fields[i], ref));
         }
       }
       checkElementOrder(issues, intent, fact.sourceFactId(), interactions, successors);
     }
+  }
+
+  private static String referenceContext(DraftInput draft, Set<String> interactions,
+      Map<String, List<RequirementElementIntent>> intents, String currentElement, String field, String rejected) {
+    var ids = java.util.stream.Stream.concat(interactions.stream(), intents.keySet().stream())
+        .filter(RequirementCaptureEditor::validFactId).filter(id -> !id.equals(currentElement))
+        .distinct().sorted().toList();
+    var canonicalIds = JsonNodeFactory.instance.arrayNode();
+    ids.forEach(canonicalIds::add);
+    var declarations = JsonNodeFactory.instance.arrayNode();
+    draft.facts().stream().filter(fact -> fact != null && fact.elementIntent() != null
+        && ids.contains(fact.elementIntent().elementRef()))
+        .sorted(Comparator.comparing((FactInput fact) -> fact.elementIntent().elementRef())
+            .thenComparing(FactInput::sourceFactId, Comparator.nullsFirst(Comparator.naturalOrder())))
+        .forEach(fact -> declarations.addObject().put("sourceFactId", fact.sourceFactId())
+            .put("elementRef", fact.elementIntent().elementRef())
+            .put("requestedName", fact.elementIntent().requestedName())
+            .put("ownerInteractionId", fact.elementIntent().ownerInteractionId()));
+    return " Rejected " + field + "=" + JsonNodeFactory.instance.textNode(rejected)
+        + ". Canonical IDs recognized by this check: " + canonicalIds
+        + ". Candidate element declarations: " + declarations
+        + ". requestedName is display text, not a reference alias. Use canonical IDs in reference fields."
+        + " These declarations are diagnostic context; other owner and order checks still apply.";
   }
 
   private static boolean conflictingValue(String left, String right) {
