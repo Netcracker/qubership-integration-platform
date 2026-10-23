@@ -150,7 +150,12 @@ public final class RequirementCaptureSchemas {
               .build();
         }
         object.addProperty(component.getName(), field);
-        required.add(component.getName());
+        try {
+          JsonProperty declaration = clazz.getDeclaredField(component.getName()).getAnnotation(JsonProperty.class);
+          if (declaration == null || declaration.required()) required.add(component.getName());
+        } catch (NoSuchFieldException error) {
+          throw new IllegalStateException(error);
+        }
       }
       return object.required(required).build();
     }

@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProductCapab
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
@@ -274,6 +275,9 @@ public class ProductRequirementBriefTool {
       if (coverageError != null) {
         return repair(binding, capture, "BRIEF_COVERAGE", "/", coverageError);
       }
+    } catch (ApprovedMappingMismatch error) {
+      return repair(binding, capture, "BRIEF_CONTRACT_VIOLATION", "/mappingIntents",
+          error.getMessage(), error.presentationDetails);
     } catch (IllegalArgumentException error) {
       return repair(binding, capture, "BRIEF_CONTRACT_VIOLATION", "/mappingIntents",
           error.getMessage());
@@ -338,14 +342,25 @@ public class ProductRequirementBriefTool {
   private Result repair(
       Binding binding, RequirementAnalysisCapture capture, String code, String path,
       String message) {
-    failure(binding, CaptureFailureKind.VALIDATION, code + " at " + path + ": " + message);
+    return repair(binding, capture, code, path, message, null);
+  }
+
+  private Result repair(
+      Binding binding, RequirementAnalysisCapture capture, String code, String path,
+      String message, String presentationDetails) {
+    failure(binding, CaptureFailureKind.VALIDATION, code + " at " + path + ": " + message,
+        presentationDetails);
     return rejected(code, path, message, false);
   }
 
   private void failure(Binding binding, CaptureFailureKind kind, String message) {
+    failure(binding, kind, message, null);
+  }
+
+  private void failure(Binding binding, CaptureFailureKind kind, String message, String presentationDetails) {
     outcomeGateway.onFailure(CaptureFeedbackChannel.PLAN, binding.conversationId(),
         binding.runId() + ":" + binding.attemptId() + ":" + binding.approvedDraftReference(), kind,
-        CaptureFailureClass.CORRECTABLE, "captureRequirementBrief", null, message);
+        CaptureFailureClass.CORRECTABLE, "captureRequirementBrief", null, message, List.of(), presentationDetails);
   }
 
   private static List<String> constraints(RequirementDraft approved) {
@@ -361,7 +376,7 @@ public class ProductRequirementBriefTool {
     return new ArrayList<>(constraints);
   }
 
-  private static List<MappingIntent> approvedMappings(
+  private List<MappingIntent> approvedMappings(
       RequirementDraft approved, RequirementAnalysisCapture capture) {
     if (approved.authoredDraft() == null) {
       return capture.toIntents();
@@ -373,16 +388,39 @@ public class ProductRequirementBriefTool {
             intent.sourceRef().equals(proposal.sourceRef())
                 && intent.targetRef().equals(proposal.targetRef())
                 && intent.rules().stream().anyMatch(pinnedRule ->
-                    pinnedRule.withRequirementIds(List.of()).equals(rule)));
+                    pinnedRule.withRequirementIds(List.of())
+                        .withTargetPath(MappingContract.canonicalPath(pinnedRule.targetPath()))
+                        .equals(rule.withTargetPath(MappingContract.canonicalPath(rule.targetPath())))));
         if (!approvedRule) {
-          throw new IllegalArgumentException(
+          var matching = pinned.stream().filter(intent ->
+              intent.sourceRef().equals(proposal.sourceRef())
+                  && intent.targetRef().equals(proposal.targetRef()))
+              .flatMap(intent -> intent.rules().stream())
+              .filter(pinnedRule -> MappingContract.canonicalPath(pinnedRule.targetPath())
+                  .equals(MappingContract.canonicalPath(rule.targetPath())))
+              .toList();
+          String details = mapper.valueToTree(java.util.Map.of(
+              "sourceRef", proposal.sourceRef(), "targetRef", proposal.targetRef(),
+              "proposedRule", rule, "approvedRules", matching,
+              "instruction", "For authored FIELD_MAPPING facts, omit mappingIntents; "
+                  + "the server projects those approved rules.")).toString();
+          throw new ApprovedMappingMismatch(
               "Field mapping differs from the approved requirement: "
                   + proposal.sourceRef() + " -> " + proposal.targetRef() + " / "
-                  + rule.targetPath());
+                  + rule.targetPath(), details);
         }
       }
     }
     return List.copyOf(pinned);
+  }
+
+  private static final class ApprovedMappingMismatch extends IllegalArgumentException {
+    private final String presentationDetails;
+
+    private ApprovedMappingMismatch(String message, String presentationDetails) {
+      super(message);
+      this.presentationDetails = presentationDetails;
+    }
   }
 
   private static Result rejected(String code, String path, String message, boolean terminal) {

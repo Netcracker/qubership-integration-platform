@@ -102,12 +102,11 @@ final class RequirementRevisionAdmission {
     DraftInput candidate;
     List<Issue> validation;
     try {
-      if ("captureRequirementDraft".equals(attempt.toolName())) {
-        candidate = MAPPER.convertValue(attempt.arguments(), DraftInput.class);
+      candidate = drafts.captureCandidate(attemptRevision);
+      if ("captureRequirementDraft".equals(attempt.toolName()) || attempt.resolvedCandidate() != null) {
         validation = RequirementCaptureEditor.initialize(candidate).issues();
       } else {
         var edit = RequirementCaptureEditor.apply(base, MAPPER.convertValue(attempt.arguments(), DraftUpdate.class));
-        candidate = edit.candidate();
         validation = edit.issues();
       }
     } catch (IllegalArgumentException invalidArguments) {

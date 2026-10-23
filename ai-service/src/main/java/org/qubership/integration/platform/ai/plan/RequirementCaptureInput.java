@@ -170,7 +170,25 @@ public final class RequirementCaptureInput {
       List<QuestionInput> updateQuestions,
       List<String> removeQuestionIds,
       @NullableCaptureValue DraftSettings settings,
-      List<AmendmentInput> amendments) {
+      List<AmendmentInput> amendments,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "Exact pendingProposal.attempt from readRequirementDraft; only for focused"
+          + " repair of the current rejected initial proposal. Omit or use null for accepted-draft updates.")
+      org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference pendingAttempt) {
+
+    public DraftUpdate(
+        List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
+        List<String> removeInteractionIds, List<TransitionInput> addTransitions,
+        List<TransitionInput> removeTransitions, List<FactInput> addFacts, List<FactInput> updateFacts,
+        List<String> removeFactIds, List<CapabilityInput> setCapabilities,
+        List<String> removeCapabilityInteractionIds, List<QuestionInput> addQuestions,
+        List<QuestionInput> updateQuestions, List<String> removeQuestionIds, DraftSettings settings,
+        List<AmendmentInput> amendments) {
+      this(addInteractions, updateInteractions, removeInteractionIds, addTransitions, removeTransitions,
+          addFacts, updateFacts, removeFactIds, setCapabilities, removeCapabilityInteractionIds,
+          addQuestions, updateQuestions, removeQuestionIds, settings, amendments, null);
+    }
 
     public DraftUpdate(
         List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,

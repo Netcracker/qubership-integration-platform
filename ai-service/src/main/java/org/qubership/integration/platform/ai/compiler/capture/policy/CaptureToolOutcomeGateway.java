@@ -198,6 +198,19 @@ public class CaptureToolOutcomeGateway {
       Object fingerprintArgs,
       String message,
       List<CaptureFieldHint> fieldHints) {
+    return onFailure(channel, conversationId, capabilityId, kind, failureClass, toolName,
+        fingerprintArgs, message, fieldHints, null);
+  }
+
+  /** PLAN presentation detail is retained separately from the unchanged defect identity. */
+  public String onFailure(
+      CaptureFeedbackChannel channel, String conversationId, String capabilityId,
+      CaptureFailureKind kind, CaptureFailureClass failureClass, String toolName,
+      Object fingerprintArgs, String message, List<CaptureFieldHint> fieldHints,
+      String presentationDetails) {
+    if (presentationDetails != null && channel != CaptureFeedbackChannel.PLAN) {
+      throw new IllegalArgumentException("Presentation details require the PLAN feedback channel");
+    }
     CaptureFailureKind safeKind = kind == null ? CaptureFailureKind.VALIDATION : kind;
     CaptureFailureClass classified =
         failureClass == null ? CaptureFailureClass.CORRECTABLE : failureClass;
@@ -207,7 +220,7 @@ public class CaptureToolOutcomeGateway {
     boolean softUsed = fingerprintStore.softCreditUsed(conversationId, fingerprint);
     CaptureFailureDecision decision =
         policy.decide(classified, CaptureAttemptState.forFingerprint(softUsed), message);
-    recordFeedback(channel, conversationId, capabilityId, safeKind, decision, fieldHints);
+    recordFeedback(channel, conversationId, capabilityId, safeKind, decision, fieldHints, presentationDetails);
     recordMetrics(decision, capabilityId, toolName);
     if (decision.softToolResult()) {
       fingerprintStore.consumeSoftCredit(conversationId, fingerprint);
@@ -267,7 +280,8 @@ public class CaptureToolOutcomeGateway {
       String capabilityId,
       CaptureFailureKind kind,
       CaptureFailureDecision decision,
-      List<CaptureFieldHint> fieldHints) {
+      List<CaptureFieldHint> fieldHints,
+      String presentationDetails) {
     CaptureFeedbackChannel safeChannel =
         channel == null ? CaptureFeedbackChannel.PATCH : channel;
     List<CaptureFieldHint> hints = fieldHints == null ? List.of() : fieldHints;
@@ -279,7 +293,7 @@ public class CaptureToolOutcomeGateway {
               decision.failureClass(),
               decision.outerAllowed(),
               decision.message(),
-              hints);
+              hints, presentationDetails);
       case PATCH ->
           feedbackStore.recordClassifiedPatchFailure(
               conversationId,

@@ -22,7 +22,17 @@ public record CaptureAttemptFeedback(
     List<CaptureFieldHint> fieldHints,
     String repairHistoryJson,
     boolean noProgress, Reference evidenceReference,
-    List<org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue> issues) {
+    List<org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue> issues,
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    String presentationDetails) {
+
+  public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
+      CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,
+      String repairHistoryJson, boolean noProgress, Reference evidenceReference,
+      List<org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue> issues) {
+    this(kind, summary, failureClass, outerAllowed, fieldHints, repairHistoryJson, noProgress,
+        evidenceReference, issues, null);
+  }
 
   public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
       CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,
@@ -38,7 +48,13 @@ public record CaptureAttemptFeedback(
 
   public CaptureAttemptFeedback withEvidenceReference(Reference reference) {
     return new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, fieldHints,
-        repairHistoryJson, noProgress, reference, issues);
+        repairHistoryJson, noProgress, reference, issues, presentationDetails);
+  }
+
+  /** Additional model wording does not change the summary used by native and outer defect keys. */
+  @com.fasterxml.jackson.annotation.JsonIgnore
+  public String modelSummary() {
+    return presentationDetails == null ? summary : summary + "\n" + presentationDetails;
   }
 
   public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
@@ -73,6 +89,7 @@ public record CaptureAttemptFeedback(
     issues = issues == null ? List.of() : List.copyOf(issues);
     repairHistoryJson = repairHistoryJson == null ? "" : repairHistoryJson;
     fieldHints = fieldHints == null ? List.of() : List.copyOf(fieldHints);
+    presentationDetails = presentationDetails == null || presentationDetails.isBlank() ? null : presentationDetails;
   }
 
   private static CaptureFailureClass defaultClass(CaptureFailureKind kind) {
