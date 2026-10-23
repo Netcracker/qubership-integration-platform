@@ -3,6 +3,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${DIR}/../testing-paths.sh"
 ROOT="$(cd "${DIR}/../../.." && pwd)"
 REQUEST=""
 RESPONSE=""

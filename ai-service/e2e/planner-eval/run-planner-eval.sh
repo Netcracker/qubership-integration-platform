@@ -3,7 +3,9 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CASES_FILE="${DIR}/cases.json"
+source "${DIR}/../testing-paths.sh"
+DATA_DIR="${QIP_SKILLS_TESTING_ROOT}/planner-eval"
+CASES_FILE="${DATA_DIR}/cases.json"
 BASE_URL="${BASE_URL:-http://localhost:8094}"
 RUNS=""
 REPORT_DIR=""
@@ -98,7 +100,7 @@ case_ids() {
 
 while IFS= read -r case_id; do
     input_relative="$(jq -r --arg id "${case_id}" '.cases[] | select(.id == $id) | .inputFile' "${CASES_FILE}")"
-    input_path="${DIR}/${input_relative}"
+    input_path="${DATA_DIR}/${input_relative}"
     repair_relative="$(
         jq -r --arg id "${case_id}" \
             '.cases[] | select(.id == $id) | .repairEvidenceFile // empty' "${CASES_FILE}"
@@ -146,7 +148,7 @@ while IFS= read -r case_id; do
         conversation_id="planner-eval-${case_id}-${rep}-$(date +%s)-$$"
 
         if [[ -n "${repair_relative}" ]]; then
-            repair_path="${DIR}/${repair_relative}"
+            repair_path="${DATA_DIR}/${repair_relative}"
             [[ -f "${repair_path}" ]] || {
                 echo "FAIL: missing repair evidence ${repair_path}" >&2
                 exit 1
