@@ -96,6 +96,26 @@ class RunsTest(unittest.TestCase):
         self.assertEqual(result["status"], "ERROR")
         self.assertEqual(result["tasks"][1]["status"], "NOT_RUN")
 
+    def test_non_llm_tasks_disable_an_inherited_live_recovery_provider(self):
+        catalog = self.catalog(
+            [
+                {
+                    "id": "offline",
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        "import os; assert os.environ['QIP_RECOVERY_LIVE'] == 'false'; assert 'LLM_API_KEY' not in os.environ",
+                    ],
+                }
+            ]
+        )
+        with patch.dict(
+            "os.environ", QIP_RECOVERY_LIVE="true", LLM_API_KEY="local-fixture"
+        ):
+            run = create_run(catalog, self.store, "core-regression")
+            execute_run(self.store, run["id"])
+        self.assertEqual("PASS", self.store.read(run["id"])["status"])
+
     def test_llm_is_blocked_without_explicit_execution_setting(self):
         catalog = self.catalog(
             [{"id": "chain", "usesLlm": True, "command": ["must-not-run"]}]
