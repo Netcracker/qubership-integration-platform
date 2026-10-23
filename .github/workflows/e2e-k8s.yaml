@@ -148,11 +148,11 @@ jobs:
           mkdir -p "$HISTORY_DIR"
           for id in $(gh run list -R "$GITHUB_REPOSITORY" --workflow e2e-k8s.yaml --branch "$GITHUB_REF_NAME" \
               --status completed --limit 30 --json databaseId --jq '.[].databaseId'); do
-            [ "$(ls "$HISTORY_DIR" | wc -l)" -ge "$HISTORY_RUNS" ] && break
+            [ "$(find "$HISTORY_DIR" -mindepth 1 -maxdepth 1 | wc -l)" -ge "$HISTORY_RUNS" ] && break
             gh run download "$id" -R "$GITHUB_REPOSITORY" -n e2e-outcomes -D "$HISTORY_DIR/$id" > /dev/null 2>&1 ||
               rm -rf "${HISTORY_DIR:?}/$id"
           done
-          echo "Fetched the outcomes of $(ls "$HISTORY_DIR" | wc -l) earlier runs"
+          echo "Fetched the outcomes of $(find "$HISTORY_DIR" -mindepth 1 -maxdepth 1 | wc -l) earlier runs"
 
       # A run that fails before the suite has no test-results directory to summarize.
       - name: Write the step summary
