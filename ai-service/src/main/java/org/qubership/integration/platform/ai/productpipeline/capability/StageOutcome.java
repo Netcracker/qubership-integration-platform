@@ -53,6 +53,8 @@ public record StageOutcome(
   }
 
   public static StageOutcome invocationFailure(Throwable failure) {
+    var read = org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException.find(failure);
+    if (read.isPresent()) return of(StageOutcomeClass.CONTRACT_FAILURE, read.get().getMessage(), read.get().recoveryCause());
     var capture = captureFailure(failure);
     return capture.orElseGet(() -> technicalFailure(failure));
   }

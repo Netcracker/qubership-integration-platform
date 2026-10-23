@@ -17,7 +17,7 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 public final class LlmRequestBudget {
   private static final Logger LOG = Logger.getLogger(LlmRequestBudget.class);
   private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
-  private static final Set<String> REPLACEABLE_READS = Set.of("readRequirementDraft",
+  static final Set<String> REPLACEABLE_READS = Set.of("readRequirementDraft",
       "searchCatalogSystems", "getApiSpecifications", "listCatalogOperations", "describeBoundOperation",
       "describeElementPatchSchema", "describeElementProperty");
   public static final class Overflow extends IllegalArgumentException {

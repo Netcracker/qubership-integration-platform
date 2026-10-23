@@ -185,6 +185,59 @@ public class RequirementDraftStore {
     return List.of();
   }
 
+  com.fasterxml.jackson.databind.node.ObjectNode copyRejectedCaptureValues(String conversationId) {
+    var values = rejectedCaptureValues.get(conversationId);
+    return values == null ? null : values.deepCopy();
+  }
+
+  void replaceRejectedCaptureValues(String conversationId, com.fasterxml.jackson.databind.node.ObjectNode values) {
+    if (values == null) rejectedCaptureValues.remove(conversationId);
+    else rejectedCaptureValues.put(conversationId, values);
+  }
+
+  void noteNamedModeCorrection(String conversationId, RequirementCaptureInput.DraftInput restored,
+      List<CatalogBindingHint> bindings) {
+    var values = rejectedCaptureValues.get(conversationId);
+    if (values == null || restored == null || restored.flow() == null) return;
+    var interactions = values.path("interactions");
+    if (!interactions.isObject() || restored.flow().interactions() == null) return;
+    var reverted = restored.flow().interactions().stream().map(value -> {
+      var stored = interactions.path(value.interactionId()).path("failureMode");
+      boolean named = value.failureMode()
+          == org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.INLINE_RESPONSE
+          && (stored.isMissingNode() || stored.isNull()
+              || org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.PROPAGATE.name()
+                  .equals(stored.asText()));
+      return named ? new RequirementCaptureInput.InteractionInput(value.interactionId(), value.direction(),
+          value.participant(), value.operation(), value.description(),
+          org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.PROPAGATE, value.retryPolicy())
+          : value;
+    }).toList();
+    var probe = new RequirementCaptureInput.DraftInput(
+        new RequirementCaptureInput.FlowInput(reverted, restored.flow().transitions()), restored.facts(),
+        restored.capabilities(), restored.openQuestions(), restored.settings());
+    for (var finding : RequirementFailureConsistency.issues(probe, bindings == null ? List.of() : bindings)) {
+      var node = interactions.path(finding.entityId());
+      var storedMode = node.path("failureMode");
+      if (node instanceof com.fasterxml.jackson.databind.node.ObjectNode object
+          && (storedMode.isNull() || storedMode.isMissingNode()
+              || org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.PROPAGATE.name()
+                  .equals(storedMode.asText()))) {
+        object.put("failureMode",
+            org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.INLINE_RESPONSE.name());
+      }
+    }
+  }
+
+  RequirementCaptureInput.DraftInput restoreProtectedCandidate(String conversationId,
+      RequirementCaptureInput.DraftInput candidate, List<CatalogBindingHint> bindings,
+      List<RequirementCaptureEditor.Issue> issues) {
+    var base = latestRevision(conversationId)
+        .map(revision -> artifacts.payload(revision, RequirementDraft.class).authoredDraft()).orElse(null);
+    return RequirementRevisionAdmission.restoreProtectedSnapshot(base, candidate, rejectedCaptureFacts(conversationId),
+        rejectedCaptureValues.get(conversationId), bindings, issues);
+  }
+
   public List<RequirementCaptureEditor.Issue> validateCurrent(String conversationId) {
     var current = get(conversationId).orElse(null);
     if (current == null || current.authoredDraft() == null) return List.of();
@@ -765,6 +818,42 @@ public class RequirementDraftStore {
 
   void rememberRejectedCapture(String conversationId, RequirementCaptureInput.DraftInput input,
       List<RequirementCaptureEditor.Issue> issues) {
+    rememberRejectedCapture(conversationId, input, issues, List.of());
+  }
+
+  void revalidateRejectedModeCorrection(String conversationId, RequirementCaptureInput.DraftInput candidate,
+      List<CatalogBindingHint> bindings) {
+    if (!currentSource(conversationId) || conversations == null || authorEvidenceHash(conversationId) == null) return;
+    var source = factProtection(conversationId, List.of());
+    if (!Objects.equals(authorEvidenceHash(conversationId), org.qubership.integration.platform.ai.compiler.capture.CaptureProposal
+        .digest(AuthorSourceEvidence.packet(conversations.archive().read(conversationId))))) return;
+    var session = sessions.current(conversationId);
+    if (session.isEmpty()) return;
+    for (var revision : artifacts.history(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT)) {
+      if (!"requirement-capture-tools".equals(revision.producerId())) continue;
+      var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
+      if (attempt.accepted() || !List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())
+          || !new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of()).sameSource(source)
+          || !Objects.equals(attempt.authorEvidenceHash(), authorEvidenceHash(conversationId))
+          || !Objects.equals(attempt.acceptedDraftReference(), latestRevision(conversationId).map(Revision::reference).orElse(null))
+          || !Objects.equals(attempt.repairAuthority(), repairAuthority(conversationId))) continue;
+      try {
+        var original = captureCandidate(revision);
+        var findings = RequirementFailureConsistency.issues(original, bindings);
+        if (!findings.isEmpty() && findings.stream().allMatch(finding -> attempt.issues().stream().anyMatch(issue ->
+            finding.code().equals(issue.code()) && finding.path().equals(issue.path()) && Objects.equals(finding.entityId(), issue.entityId())))
+            && RequirementFailureConsistency.correctsOnlyModes(original, candidate, findings)) {
+          rememberRejectedCapture(conversationId, original, findings, bindings);
+          return;
+        }
+      } catch (IllegalArgumentException malformed) {
+        // An unreadable historical candidate supplies no correction authority.
+      }
+    }
+  }
+
+  void rememberRejectedCapture(String conversationId, RequirementCaptureInput.DraftInput input,
+      List<RequirementCaptureEditor.Issue> issues, List<CatalogBindingHint> bindings) {
     var base = get(conversationId).map(RequirementDraft::authoredDraft).orElse(null);
     var retained = RequirementRevisionAdmission.retainedAdditions(base, input, issues);
     var previousFacts = rejectedCaptureFacts(conversationId);
@@ -777,6 +866,20 @@ public class RequirementDraftStore {
     var facts = retainsIdentities ? RequirementRevisionAdmission.accumulate(previousFacts, retained.facts()) : previousFacts;
     var values = RequirementRevisionAdmission.accumulateValues(rejectedCaptureValues.get(conversationId),
         retained.values());
+    // A later native check can disprove a value retained before that check was reachable.
+    for (var finding : RequirementFailureConsistency.issues(input, bindings)) {
+      if (!issues.contains(finding) || !facts.containsAll(input.facts())) continue;
+      String id = finding.entityId();
+      if (base != null && base.flow().interactions().stream().anyMatch(value -> id.equals(value.interactionId()))) continue;
+      var original = input.flow().interactions().stream().filter(value -> id.equals(value.interactionId()))
+          .findFirst().orElseThrow();
+      var protectedMode = values.path("interactions").path(id).path("failureMode");
+      if (original.failureMode() != null && protectedMode.asText().equals(original.failureMode().name())) {
+        ((com.fasterxml.jackson.databind.node.ObjectNode) values.path("interactions").path(id))
+            .put("failureMode", org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.INLINE_RESPONSE.name());
+      }
+    }
+    values = RequirementRevisionAdmission.pendingValues(values);
     if (!facts.equals(rejectedCaptureFacts(conversationId)) || !values.equals(rejectedCaptureValues.get(conversationId))) {
       saveFactProtection(conversationId, facts, values);
       rejectedCaptureFacts.put(conversationId, facts);

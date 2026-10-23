@@ -107,6 +107,20 @@ An artifact proposed to correct a rejected chain-construction result. Replacing 
 plan requires renewed approval; repairing generated properties, scripts, or a graph within those inputs is automatic.
 _Avoid_: silent approval of a replacement brief or plan, in-place edit of an approved plan
 
+**Author constraint** (proposed, ADR 0007):
+Information, a requirement, or an informed decision established by the author's saved sources.
+It includes explicit formulas, exclusions, and element order or type when the author specifies them.
+_Avoid_: treating every value in an accepted draft as an author constraint
+
+**Model interpretation** (proposed, ADR 0007):
+A representation or implementation choice inferred while translating author constraints into a chain.
+Its revision must preserve those constraints; a field name or the model's own origin label does not prove its origin.
+
+**Repair authority** (proposed, ADR 0007):
+Verified evidence that a candidate may revise a particular interpretation while retaining author constraints
+and platform contracts. It belongs to the source generation, base revision, and affected producer.
+_Avoid_: treating a validator pointer, sourceFactId, or a matching quote as sufficient authority by itself
+
 **Complete construction request**:
 A chain-construction request for which all required author facts and decisions are already available.
 It requires no additional business input to construct the requested chain.

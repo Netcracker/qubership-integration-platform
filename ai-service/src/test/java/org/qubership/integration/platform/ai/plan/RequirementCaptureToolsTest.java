@@ -2660,6 +2660,49 @@ class RequirementCaptureToolsTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"http-trigger", "http-sender"})
+  void escapedQuotesMatchTheSameAuthorLiteral(String elementType) throws Exception {
+    String author = "Configure " + elementType + " with value=\"[\\\"qip-viewer\\\"]\".";
+    String supplied = "[\"qip-viewer\"]";
+    String absent = "[\"qip-admin\"]";
+    for (String literal : List.of(supplied, absent)) {
+      var result = captureLiteral(elementType, author, literal);
+      assertEquals(literal.equals(supplied), result.accepted(), result.toString());
+      if (!result.accepted()) {
+        assertTrue(result.issues().stream().anyMatch(issue -> "ELEMENT_LITERAL_SOURCE_MISMATCH".equals(issue.code())
+            && issue.path().contains("/exactValues/")), result.toString());
+      }
+    }
+  }
+
+  @Test
+  void roleWordAloneDoesNotSupplyAJsonArrayLiteral() throws Exception {
+    var result = captureLiteral("http-trigger", "Use RBAC with the explicit role qip-viewer.",
+        "[\"qip-viewer\"]");
+    assertFalse(result.accepted(), result.toString());
+    assertTrue(result.issues().stream().anyMatch(issue -> "ELEMENT_LITERAL_SOURCE_MISMATCH".equals(issue.code())
+        && issue.path().contains("/exactValues/")), result.toString());
+  }
+
+  private RequirementCaptureResult captureLiteral(String elementType, String author, String literal) throws Exception {
+    var h = harness();
+    h.store().beginTurn(h.conversationId(), author);
+    String owner = "http-sender".equals(elementType) ? "submit" : "entry";
+    var intent = new RequirementElementIntent(owner, elementType,
+        RequirementElementIntent.Placement.ANCHOR, owner, null, null, null,
+        List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", literal)),
+        List.of(literal));
+    var fact = new FactInput("security", List.of(owner), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "Use roles " + literal + ".", null, null, intent);
+    var base = readyHttpDraft();
+    var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+        base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      return h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+    }
+  }
+
   private static Harness uploadedHarness() {
     var conversations = new ConversationService();
     var s3 = mock(org.qubership.integration.platform.ai.storage.S3Service.class);
