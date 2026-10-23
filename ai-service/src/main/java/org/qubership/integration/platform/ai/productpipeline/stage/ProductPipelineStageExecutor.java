@@ -3079,7 +3079,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private DeclaredInputResolution resolveDeclaredInputs(
       ProductPipelineProfile profile, ProfileStage stage, List<Reference> committed) {
-    if (profile == null || !"2".equals(profile.profileVersion())) {
+    if (profile == null || !profile.usesDeclaredStageInputs()) {
       return new DeclaredInputResolution(committed, null);
     }
     List<Reference> resolved = new ArrayList<>();

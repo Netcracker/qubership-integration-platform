@@ -156,7 +156,7 @@ def mutate_fixture(package: Path, mutation: str) -> None:
         _write_yaml(package / "manifest.yaml", manifest)
     elif mutation == "wrong_product":
         manifest = yaml.safe_load((package / "manifest.yaml").read_text())
-        manifest["product"] = "OTHER"
+        manifest["product"] = "   "
         _write_yaml(package / "manifest.yaml", manifest)
     elif mutation == "unsupported_runtime":
         manifest = yaml.safe_load((package / "manifest.yaml").read_text())

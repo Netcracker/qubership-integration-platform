@@ -17,6 +17,15 @@
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <name>Netcracker</name>
+            <email>opensourcegroup@netcracker.com</email>
+            <organization>Netcracker Technology</organization>
+            <organizationUrl>https://www.netcracker.com</organizationUrl>
+        </developer>
+    </developers>
+
     <scm>
         <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
         <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
@@ -25,7 +34,7 @@
     </scm>
 
     <properties>
-        <revision>1.5.1</revision>
+        <revision>1.5.2</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
@@ -55,7 +64,7 @@
         <qip.ai.qipknowledge.build.skip>true</qip.ai.qipknowledge.build.skip>
         <qip.ai.qipknowledge.pack-root></qip.ai.qipknowledge.pack-root>
         <qip.ai.qipknowledge.addon-pack-root></qip.ai.qipknowledge.addon-pack-root>
-        <qip.ai.qipknowledge.knowledge-overlay></qip.ai.qipknowledge.knowledge-overlay>
+        <qip.ai.qipknowledge.export-dir></qip.ai.qipknowledge.export-dir>
         <qip.ai.qipknowledge.output-root>${project.build.outputDirectory}/qipknowledge</qip.ai.qipknowledge.output-root>
         <qip.test.pack-root>${project.build.directory}/public-pack-fixture/integration-platform-skills</qip.test.pack-root>
         <qip.test.excluded-groups>certified-pack</qip.test.excluded-groups>
@@ -414,10 +423,6 @@
                                     <key>qip.ai.qipknowledge.addon-pack-root</key>
                                     <value>${qip.ai.qipknowledge.addon-pack-root}</value>
                                 </systemProperty>
-                                <systemProperty>
-                                    <key>qip.ai.qipknowledge.knowledge-overlay</key>
-                                    <value>${qip.ai.qipknowledge.knowledge-overlay}</value>
-                                </systemProperty>
                             </systemProperties>
                         </configuration>
                     </execution>
@@ -439,7 +444,7 @@
                             <outputDirectory>${project.build.directory}/knowledge-runtime</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>${project.basedir}/../integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export</directory>
+                                    <directory>${qip.ai.qipknowledge.export-dir}</directory>
                                 </resource>
                             </resources>
                             <overwrite>true</overwrite>
@@ -631,6 +636,7 @@
                 <qip.ai.qipknowledge.build.skip>false</qip.ai.qipknowledge.build.skip>
                 <qip.ai.qipknowledge.pack-root>${project.basedir}/../integration-platform-skills</qip.ai.qipknowledge.pack-root>
                 <qip.ai.qipknowledge.addon-pack-root>${project.basedir}/../integration-platform-skills/addons</qip.ai.qipknowledge.addon-pack-root>
+                <qip.ai.qipknowledge.export-dir>${project.basedir}/../integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export</qip.ai.qipknowledge.export-dir>
             </properties>
         </profile>
         <profile>
@@ -657,7 +663,7 @@
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.7.0</version>
+                        <version>0.12.0</version>
                         <extensions>true</extensions>
                         <configuration>
                             <publishingServerId>central</publishingServerId>

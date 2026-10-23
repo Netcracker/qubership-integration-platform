@@ -380,15 +380,15 @@ public class MaterializationCapability implements StageCapability {
   }
 
   private ResolvedInputs resolveInputs(StageExecutionContext context) {
-    if (isCreateChainV2(context)) {
+    if (usesDesignExecutionMaterialization(context)) {
       return resolveV2Inputs(context);
     }
     return resolveV1Inputs(context);
   }
 
-  private static boolean isCreateChainV2(StageExecutionContext context) {
-    if (context.profile() != null && "2".equals(context.profile().profileVersion())) {
-      return true;
+  private static boolean usesDesignExecutionMaterialization(StageExecutionContext context) {
+    if (context.profile() != null) {
+      return context.profile().usesDesignExecutionMaterializationContract();
     }
     RunManifest manifest = context.runManifest();
     return manifest != null && "2".equals(manifest.profileVersion());

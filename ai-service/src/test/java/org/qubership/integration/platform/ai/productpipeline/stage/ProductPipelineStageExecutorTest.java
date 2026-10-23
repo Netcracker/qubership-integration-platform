@@ -4491,6 +4491,107 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void profileVersionThreeFiltersCommittedInputsToDeclaredConsumes() {
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef revision = new ArtifactTypeRef("chain-semantic-revision", 1);
+    AtomicReference<Integer> revisionRefs = new AtomicReference<>();
+    StageCapability firstRevision =
+        capability(
+            "first-revision-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            new StageOutcome(
+                                StageOutcomeClass.SUCCEEDED,
+                                List.of(
+                                    new ArtifactCandidate(
+                                        Kind.CHAIN_SEMANTIC_REVISION, twoEntryRevision(), List.of())),
+                                "first",
+                                null))));
+    StageCapability secondRevision =
+        capability(
+            "second-revision-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            new StageOutcome(
+                                StageOutcomeClass.SUCCEEDED,
+                                List.of(
+                                    new ArtifactCandidate(
+                                        Kind.CHAIN_SEMANTIC_REVISION,
+                                        SemanticFixtures.linearOrders(),
+                                        List.of())),
+                                "second",
+                                null))));
+    StageCapability execution =
+        capability(
+            "execution-cap",
+            context -> {
+              revisionRefs.set(
+                  (int)
+                      context.inputRefs().stream()
+                          .filter(ref -> ref.kind() == Kind.CHAIN_SEMANTIC_REVISION)
+                          .count());
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(StageOutcomeClass.SUCCEEDED, "ok")));
+            });
+    ProductPipelineProfile profile =
+        new ProductPipelineProfile(
+            1,
+            "declared-inputs-v3",
+            "3",
+            List.of(new ArtifactTypeRef("user-input", 1)),
+            List.of(
+                new ProfileStage(
+                    "requirement-analysis",
+                    "analysis-cap",
+                    List.of(new ArtifactTypeRef("user-input", 1)),
+                    List.of(brief),
+                    new ApprovalPolicy(brief),
+                    null,
+                    new RetryPolicy(0, 1L)),
+                new ProfileStage(
+                    "design-input",
+                    "first-revision-cap",
+                    List.of(brief),
+                    List.of(revision),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L)),
+                new ProfileStage(
+                    "design-planning",
+                    "second-revision-cap",
+                    List.of(brief),
+                    List.of(revision),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L)),
+                new ProfileStage(
+                    "design-execution",
+                    "execution-cap",
+                    List.of(revision),
+                    List.of(),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L))),
+            new TerminalPolicy("design-execution", "PLAN_APPROVED"),
+            List.of("analysis-cap", "first-revision-cap", "second-revision-cap", "execution-cap"));
+    CreateChainTestOrchestrator runtime =
+        newRuntime(profile, analysisCandidate(), firstRevision, secondRevision, execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+    applyLifecycle(runtime, execute(runtime, "design-planning"));
+    applyLifecycle(runtime, execute(runtime, "design-execution"));
+
+    assertEquals(1, revisionRefs.get());
+  }
+
+  @Test
   void recapturedSemanticRevisionReplacesTheStaleAttributeOnDesignExecution() {
     AtomicInteger inputCalls = new AtomicInteger();
     AtomicInteger executionCalls = new AtomicInteger();
