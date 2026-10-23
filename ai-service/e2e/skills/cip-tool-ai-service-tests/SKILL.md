@@ -29,3 +29,12 @@ Use target `recovery` for the separate explanation of why recovery failed. Previ
 
 Chain acceptance, planner/executor, and live recovery belong to the separately installed skills testing bundle.
 Use its test skill for those profiles. Missing bundles are reported as `BLOCKED`.
+
+## Prepared Kimi recovery acceptance
+
+Use `recovery-acceptance-check` to validate the locally prepared candidate without model requests.
+Use `recovery-acceptance` only with explicit authorization for paid requests and `--allow-llm`.
+For that profile, `--model kimi`, `--model ordinary`, or `--model both` selects the actual prepared provider.
+Preserve the pinned launcher, frozen candidate, native proof rules, budgets, and earlier results.
+Report registered-component recovery separately from full product recovery; viewing results does not prove product UI
+or engine runtime behavior. See the prepared recovery acceptance section in the test-system reference.

@@ -1,7 +1,14 @@
 /** Local test tooling owns its temporary store and needs no product stack or corpus. */
 import { test, expect } from "@playwright/test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+} from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +21,48 @@ let directory: string, server: ChildProcess, url: string;
 test.beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), "ai-test-ui-"));
   mkdirSync(join(directory, "package/testing"), { recursive: true });
+  const fixtureRoot = join(directory, "prepared-workspace");
+  const preparation = join(fixtureRoot, ".dev/prepared");
+  mkdirSync(preparation, { recursive: true });
+  const launcher = join(preparation, "acceptance.py");
+  const launcherSource = `import json, sys
+from pathlib import Path
+if sys.argv[1:] == ['check']:
+    print(json.dumps(dict(outcome='READY', limitsChanged=False, paidRequestsInPreparation=0)))
+else:
+    Path(__file__).with_name('paid-command').write_text('Unexpected live dispatch')
+    raise RuntimeError('No paid command is authorized')
+`;
+  writeFileSync(launcher, launcherSource);
+  const source = join(fixtureRoot, "ai-service/src/fixture.txt");
+  mkdirSync(join(fixtureRoot, "ai-service/src"), { recursive: true });
+  writeFileSync(source, "prepared source");
+  const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+  const candidate = JSON.stringify({
+    limitsChanged: false,
+    files: { "ai-service/src/fixture.txt": sha("prepared source") },
+  });
+  writeFileSync(join(preparation, "candidate.json"), candidate);
+  writeFileSync(
+    join(fixtureRoot, ".dev/recovery-acceptance.json"),
+    JSON.stringify({
+      launcher,
+      launcherSha256: sha(launcherSource),
+      candidateSha256: sha(candidate),
+      waveRoot: "wave",
+    }),
+  );
+  const acceptanceSuite = {
+    usesLlm: false,
+    timeoutSeconds: 30,
+    format: "result",
+    command: ["{python}", "-m", "test_system.acceptance", "check"],
+    env: {
+      PYTHONPATH: resolve(root, "ai-service/e2e"),
+      QIP_SERVICE_ROOT: fixtureRoot,
+    },
+    reports: "{task_dir}/result.json",
+  };
   const fixture = join(directory, "fixture.py");
   writeFileSync(
     fixture,
@@ -38,8 +87,24 @@ else:
       profiles: {
         "report-fixture": ["fixture-report"],
         "cancel-fixture": ["fixture-wait"],
+        "recovery-acceptance-check": ["acceptance-readiness"],
+        "recovery-acceptance": ["acceptance-live"],
       },
       suites: [
+        { ...acceptanceSuite, id: "acceptance-readiness" },
+        {
+          ...acceptanceSuite,
+          id: "acceptance-live",
+          usesLlm: true,
+          command: [
+            "{python}",
+            "-m",
+            "test_system.acceptance",
+            "run",
+            "--model",
+            "{model}",
+          ],
+        },
         {
           id: "fixture-report",
           usesLlm: false,
@@ -218,5 +283,57 @@ test(
     await expect(
       page.getByRole("navigation", { name: "Run history" }),
     ).toContainText("CANCELLED");
+  },
+);
+
+test(
+  "prepared recovery readiness appears in the UI and Kimi stays blocked without LLM authorization",
+  { tag: ["@ui", "@tier1"] },
+  async ({ page, request }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(url);
+    const profile = page.getByRole("combobox", {
+      name: "Profile",
+      exact: true,
+    });
+    await profile.selectOption("recovery-acceptance-check");
+    let response = page.waitForResponse(
+      (r) => r.url() === url + "/api/runs" && r.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "Start run", exact: true }).click();
+    const check = await (await response).json();
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get(url + `/api/runs/${check.id}`)).json())
+            .status,
+      )
+      .toBe("PASS");
+    await expect(page.locator("#detail")).toContainText(
+      "prepared-acceptance-readiness",
+    );
+    await profile.selectOption("recovery-acceptance");
+    await page.getByLabel("Model / deployment identifier").fill("kimi");
+    response = page.waitForResponse(
+      (r) => r.url() === url + "/api/runs" && r.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "Start run", exact: true }).click();
+    const live = await (await response).json();
+    expect(live.status).toBe("BLOCKED");
+    expect(live.settings.model).toBe("kimi");
+    await expect(page.locator("#detail")).toContainText(
+      "LLM execution is disabled",
+    );
+    expect(
+      existsSync(
+        join(directory, "prepared-workspace/.dev/prepared/paid-command"),
+      ),
+    ).toBe(false);
+    await page.reload();
+    await expect(
+      page.getByRole("navigation", { name: "Run history" }),
+    ).toContainText(live.id);
+    expect(errors).toEqual([]);
   },
 );
