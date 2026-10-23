@@ -854,6 +854,8 @@ public class RequirementAnalysisCapability implements StageCapability {
             .append(interaction.participant())
             .append(" operation=")
             .append(interaction.operation())
+            .append(" failureMode=")
+            .append(interaction.failureMode())
             .append('\n');
       }
       if (!flow.transitions().isEmpty()) {

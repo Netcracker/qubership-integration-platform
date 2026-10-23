@@ -17,6 +17,103 @@ public final class ElementSchemaCompactFormatter {
 
   private ElementSchemaCompactFormatter() {}
 
+  /**
+   * Retains the selected native schema and adds bounded reference-resolution metadata.
+   *
+   * <p>{@code $refTarget} is display metadata, not a conjunction with the native schema.
+   * In draft 7, siblings of {@code $ref} do not add assertions to its target.
+   */
+  public static JsonNode describePropertySchema(
+      JsonNode schema,
+      SchemaRefResolver resolver,
+      JsonNode documentRoot,
+      String documentUri,
+      int depth) {
+    return describePropertySchema(schema, resolver, documentRoot, documentUri, depth, new ArrayDeque<>());
+  }
+
+  private static JsonNode describePropertySchema(
+      JsonNode schema,
+      SchemaRefResolver resolver,
+      JsonNode documentRoot,
+      String documentUri,
+      int depth,
+      Deque<String> activeRefs) {
+    if (schema == null || !schema.isObject()) {
+      return schema == null ? NF.nullNode() : schema.deepCopy();
+    }
+    ObjectNode out = schema.deepCopy();
+    String baseUri = resolver.readDocumentUri(schema, documentUri);
+    if (depth <= 0) {
+      if (schema.has("$ref")) {
+        out.set("$refTarget", referenceStatus(schema, baseUri, "DEPTH_LIMIT"));
+      } else {
+        out.put("$refExpansionStatus", "DEPTH_LIMIT");
+      }
+      return out;
+    }
+    // Recurse only through schema-bearing keywords. Enum, const, and default values are data.
+    for (String key : List.of("properties", "patternProperties", "dependencies", "dependentSchemas")) {
+      if (schema.path(key).isObject()) {
+        ObjectNode children = (ObjectNode) out.get(key);
+        schema.get(key).fields().forEachRemaining(entry -> children.set(entry.getKey(),
+            describePropertySchema(entry.getValue(), resolver, documentRoot, baseUri, depth - 1, activeRefs)));
+      }
+    }
+    for (String key : List.of("oneOf", "anyOf", "allOf", "prefixItems")) {
+      if (schema.path(key).isArray()) {
+        ArrayNode alternatives = NF.arrayNode();
+        schema.get(key).forEach(child -> alternatives.add(
+            describePropertySchema(child, resolver, documentRoot, baseUri, depth - 1, activeRefs)));
+        out.set(key, alternatives);
+      }
+    }
+    for (String key : List.of("if", "then", "else", "not", "items", "additionalProperties",
+        "additionalItems", "contains", "propertyNames")) {
+      if (schema.has(key)) {
+        JsonNode child = schema.get(key);
+        if (child.isArray()) {
+          ArrayNode items = NF.arrayNode();
+          child.forEach(item -> items.add(
+              describePropertySchema(item, resolver, documentRoot, baseUri, depth - 1, activeRefs)));
+          out.set(key, items);
+        } else {
+          out.set(key, describePropertySchema(child, resolver, documentRoot, baseUri, depth - 1, activeRefs));
+        }
+      }
+    }
+    if (schema.has("$ref")) {
+      ObjectNode target = referenceStatus(schema, baseUri, "RESOLVED");
+      String ref = target.path("ref").asText();
+      if (activeRefs.contains(ref)) {
+        target.put("status", "CYCLE");
+      } else {
+        try {
+          JsonNode resolved = resolver.dereference(documentRoot, baseUri, schema, new ArrayDeque<>());
+          activeRefs.push(ref);
+          try {
+            target.set("schema",
+                describePropertySchema(resolved, resolver, documentRoot, baseUri, depth - 1, activeRefs));
+          } finally {
+            activeRefs.pop();
+          }
+        } catch (SchemaRefResolutionException | SchemaNotFoundException ex) {
+          target.put("status", "UNRESOLVED");
+          target.put("warning", ex.getMessage());
+        }
+      }
+      out.set("$refTarget", target);
+    }
+    return out;
+  }
+
+  private static ObjectNode referenceStatus(JsonNode schema, String documentUri, String status) {
+    String ref = schema.path("$ref").asText();
+    ObjectNode target = NF.objectNode().put("status", status);
+    target.put("ref", ref.startsWith("#") ? CipConfModelUris.stripFragment(documentUri) + ref : ref);
+    return target;
+  }
+
   public static ObjectNode patchShapeSummary() {
     ObjectNode n = NF.objectNode();
     n.put("name", "optional string");

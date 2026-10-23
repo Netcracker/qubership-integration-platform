@@ -128,8 +128,7 @@ class ElementSchemaContractTest {
   void keepsHintsAndStructuredValuesAcrossPropertyVariants() throws Exception {
     var hint = mapper.readTree(schemas.describeElementProperty("http-trigger", "httpMethodRestrict"))
         .path("schema");
-    assertEquals("anyOf", hint.path("type").asText(), hint.toString());
-    assertEquals(2, hint.path("variants").size(), hint.toString());
+    assertEquals(2, hint.path("anyOf").size(), hint.toString());
     var methods = mapper.readTree(schemas.describeElementProperty(
         "http-trigger", "httpMethodRestrict.httpMethods")).path("schema");
     assertEquals("array", methods.path("type").asText(), methods.toString());
