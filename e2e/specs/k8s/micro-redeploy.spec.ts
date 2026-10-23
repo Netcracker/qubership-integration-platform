@@ -9,7 +9,8 @@
  * 100 ms across a redeploy and holds every answer to 200, until the old pod is gone.
  *
  * The redeploy swaps the marker header, so the answers show the new version took over: a redeploy
- * that rolled nothing would pass the status check on its own.
+ * that rolled nothing would pass the status check on its own. Every answer carries one of the two
+ * markers, so a 200 that the chain did not produce fails the case.
  *
  * The case declares the `redeploy-under-traffic-micro` behavior row. The classic case is "a redeploy
  * swaps the response and never loses the route" in `specs/api/deployments.spec.ts`.
@@ -97,6 +98,7 @@ test.describe("a micro domain redeployed under load", { tag: ["@catalog", "@engi
       }
 
       expect(answers.filter((each) => each.status !== 200), "every call during the redeploy answers 200").toEqual([]);
+      expect(answers.filter((each) => each.marker !== "before" && each.marker !== "after"), "every answer comes from the old or the redeployed version").toEqual([]);
       expect(answers.at(-1)?.marker, "the redeployed version answers last").toBe("after");
       expect(answers.map((each) => each.marker), "the old version answered during the redeploy").toContain("before");
     } finally {
