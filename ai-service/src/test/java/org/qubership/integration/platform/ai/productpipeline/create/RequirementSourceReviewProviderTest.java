@@ -16,6 +16,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +36,10 @@ import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel.Turn
 import org.qubership.integration.platform.ai.llm.agent.ProductDiscoveryAgent;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitStreamingChatModel;
 import org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
@@ -134,15 +139,33 @@ class RequirementSourceReviewProviderTest {
     var discarded = append(chat, "Withdrawn requirement: allow public access.");
     conversations.clearMessages(chat);
     var active = append(chat, ALGORITHM);
+    var archiveBefore = json.valueToTree(conversations.archive().read(chat));
+    var selected = RequirementFactFixtures.greetingsApprovedDraft();
+    var inbound = selected.flow().interactions().getFirst();
+    var flow = new RequirementFlow(List.of(inbound,
+        new RequirementFlow.Interaction("invoke", RequirementFlow.Direction.OUTBOUND,
+            "Inventory", "reserve", "Return invocation failures in the response.",
+            ServiceCallFailureMode.INLINE_RESPONSE),
+        new RequirementFlow.Interaction("deliver", RequirementFlow.Direction.OUTBOUND,
+            "Notifications", "send", "Deliver the result.")),
+        List.of(new RequirementFlow.Transition(inbound.interactionId(), "invoke"),
+            new RequirementFlow.Transition("invoke", "deliver")));
+    var approved = selected.withFlow(flow)
+        .withBoundInteraction("invoke", new CatalogBindingHint("3", "invoke", "invoke", "reserve",
+            "inventory", "group", "spec", "reserve", "http", "POST", "/reserve", "catalog", Instant.EPOCH, "test"))
+        .withBoundInteraction("deliver", new CatalogBindingHint("3", "deliver", "deliver", "send",
+            "notifications", "group", "spec", "send", "http", "POST", "/send", "catalog", Instant.EPOCH, "test"));
+    assertTrue(approved.readyForPlan(), approved.readinessError().orElse(""));
     String turn = fault.equals("foreign-turn") ? "not-in-this-invocation"
         : fault.equals("reset-turn") ? discarded.turnId() : active.turnId();
     String quote = fault.equals("invented-quote") ? "An algorithm never supplied by the author."
         : fault.equals("reset-turn") ? "Withdrawn requirement: allow public access." : ALGORITHM;
     String code = fault.equals("invented-quote") ? "SOURCE_QUOTE_MISMATCH" : "SOURCE_TURN_NOT_FOUND";
     var script = new ScriptedStreamingChatModel(
-        Turn.tool("invalid-source-report", request -> {}, "captureRequirementBrief",
+        Turn.tool("invalid-source-report", request -> assertSelectedModes(request, flow), "captureRequirementBrief",
             arguments(List.of(new RequirementAnalysisCapture.SourceOmission(turn, quote, "Report an omission.")))),
         Turn.tool("correct-source-report", request -> {
+          assertSelectedModes(request, flow);
           String text = userText(request);
           assertTrue(text.contains(code), text);
           assertTrue(text.contains(ALGORITHM), text);
@@ -154,13 +177,17 @@ class RequirementSourceReviewProviderTest {
         }, "captureRequirementBrief", arguments(List.of(new RequirementAnalysisCapture.SourceOmission(
             active.turnId(), ALGORITHM, "The selected draft omits the source algorithm.")))));
 
-    StageOutcome outcome = execute(chat, script);
+    StageOutcome outcome = execute(chat, script, approved);
 
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
     assertEquals(RecoveryCauseCode.MISSING_BRIEF_FACTS, outcome.recoveryCause().causeCode());
     assertTrue(outcome.candidates().isEmpty());
     assertEquals(2, script.requests().size());
     assertTrue(outcome.recoveryCause().formattedFindings().contains(active.turnId()));
+    assertTrue(outcome.recoveryCause().findings().stream()
+        .allMatch(finding -> finding.fieldPointer().isEmpty() && finding.originRecordId().isEmpty()));
+    assertEquals(archiveBefore, json.valueToTree(conversations.archive().read(chat)));
+    assertEquals(flow, approved.flow());
   }
 
   private String arguments(List<RequirementAnalysisCapture.SourceOmission> omissions) throws Exception {
@@ -176,6 +203,10 @@ class RequirementSourceReviewProviderTest {
   }
 
   private StageOutcome execute(String chat, ScriptedStreamingChatModel script) {
+    return execute(chat, script, RequirementFactFixtures.greetingsApprovedDraft());
+  }
+
+  private StageOutcome execute(String chat, ScriptedStreamingChatModel script, RequirementDraft approved) {
     doAnswer(call -> {
       script.chat(call.getArgument(0, ChatRequest.class), call.getArgument(1, StreamingChatResponseHandler.class));
       return null;
@@ -183,16 +214,26 @@ class RequirementSourceReviewProviderTest {
     var knowledge = FakeKnowledgeClient.defaultFixture();
     var capability = new RequirementAnalysisCapability(knowledge, knowledge, captureSession, feedback,
         agent, null, null, repairRunner, sanitizer, null, null, conversations);
-    var approved = RequirementFactFixtures.greetingsApprovedDraft();
     var signals = capability.execute(new StageExecutionContext(chat + "-run", chat, "requirement-analysis",
         "execution", "attempt", null, null, List.of(), Map.of("approvedDraft", approved)))
         .collect().asList().await().atMost(Duration.ofSeconds(30));
-    assertFalse(script.requests().isEmpty(), "The registered analysis agent did not call the provider.");
+    assertFalse(script.requests().isEmpty(), "The registered analysis agent did not call the provider: " + signals);
     assertTrue(userText(script.requests().getFirst()).contains(ALGORITHM),
         "The registered ProductDiscoveryAgent request lost the original source algorithm.");
     script.assertComplete();
     return signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
         .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+  }
+
+  private static void assertSelectedModes(ChatRequest request, RequirementFlow flow) {
+    String text = userText(request);
+    for (var interaction : flow.interactions()) {
+      assertTrue(text.contains("interactionId=" + interaction.interactionId()
+          + " direction=" + interaction.direction()
+          + " participant=" + interaction.participant()
+          + " operation=" + interaction.operation()
+          + " failureMode=" + interaction.failureMode()), text);
+    }
   }
 
   private static String userText(ChatRequest request) {

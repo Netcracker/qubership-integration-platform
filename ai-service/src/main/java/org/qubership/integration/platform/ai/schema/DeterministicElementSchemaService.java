@@ -162,7 +162,9 @@ public class DeterministicElementSchemaService {
     if (schema == null || schema.isMissingNode()) {
       return errorJson("Unknown property: " + segments[0]);
     }
-    schema = derefOne(schema, schemaRefResolver, elementRoot, docUri, refStack);
+    if (segments.length > 1) {
+      schema = derefOne(schema, schemaRefResolver, elementRoot, docUri, refStack);
+    }
     for (int i = 1; i < segments.length; i++) {
       schema = navigatePropertySchema(
           schema, segments[i], schemaRefResolver, elementRoot, docUri, refStack);
@@ -175,8 +177,11 @@ public class DeterministicElementSchemaService {
     out.put("propertyPath", normalized);
     out.set(
         "schema",
-        ElementSchemaCompactFormatter.summarizePropertySchema(
-            schema, schemaRefResolver, elementRoot, docUri, MAX_DESCRIPTION, 8));
+        ElementSchemaCompactFormatter.describePropertySchema(
+            schema, schemaRefResolver, elementRoot, docUri, 8));
+    out.put("schemaView", "Native schema with $refTarget resolution metadata. In draft 7, $ref siblings"
+        + " are not additional assertions. Depth and cycle markers leave references unexpanded."
+        + " Resolution metadata does not assert complete expansion or change native validation.");
     return objectMapper.writeValueAsString(out);
   }
 
