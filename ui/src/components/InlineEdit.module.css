@@ -60,6 +60,13 @@
   padding-inline: 7px;
 }
 
+/* A vertical form lays out every form item it contains in a column, including
+   the one an inline editor renders inside a table cell. There the column
+   collapses to zero height, so an inline editor keeps the horizontal row. */
+.inlineEditEditorWrap :global(.ant-form-item-row) {
+  flex-direction: row;
+}
+
 .inlineEditEditorWrap > *:first-child {
   flex: 1;
   min-width: 0;
