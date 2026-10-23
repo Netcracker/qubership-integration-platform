@@ -90,4 +90,9 @@ public record ProductPipelineProfile(
   public boolean usesDesignExecutionMaterializationContract() {
     return stageConsumes("materialization", "materialization-request");
   }
+
+  /** create-chain@1 receives every committed reference; every other version receives only declared consumes. */
+  public boolean usesDeclaredStageInputs() {
+    return !"1".equals(profileVersion);
+  }
 }

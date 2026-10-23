@@ -77,6 +77,41 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void resolveFailsWhenRequiredTerminalHasNoProducerInAllowedPhases() {
+    CompilerPipelineNode assembler =
+        node(
+            "cip-chain-assembler",
+            "Assembly",
+            "",
+            List.of("CHAIN_STRUCTURE"),
+            List.of("GRAPH_ASSEMBLY_RESULT"),
+            List.of(),
+            null,
+            true,
+            List.of(),
+            "skill-sha-assembler",
+            "addon-sha-assembler",
+            0,
+            0,
+            CompilerNodeExecutionMode.JAVA_ADAPTER,
+            "graph-assembly");
+    CompilerPipelineIndex assemblerOnly =
+        new CompilerPipelineIndex(
+            CompilerPipelineIndexBuilder.SCHEMA_VERSION,
+            new CipKnowledgePackVersion("v1_0_0", "v1_0_0"),
+            new CompilerPipelineIndexSource("catalog", "policy"),
+            List.of(),
+            new CompilerPackageIdentity("compiler-v2", "1.0.0", "digest-assembler-only"),
+            Map.of(),
+            List.of(assembler),
+            List.of());
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> resolverFor(assemblerOnly).resolve(createChainProfile, fullKnowledgeContext));
+  }
+
+  @Test
   void resolvesAndPinsCreateChainClosure() {
     CompilerRunPin pin =
         resolverFor(readySchemaV2IndexFixture()).resolve(createChainProfile, fullKnowledgeContext);

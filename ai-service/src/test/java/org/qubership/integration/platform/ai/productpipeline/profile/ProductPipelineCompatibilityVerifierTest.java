@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.profile;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.util.List;
@@ -35,6 +36,42 @@ class ProductPipelineCompatibilityVerifierTest {
             Map.of("create-chain@3", profile),
             activeIndex);
     assertDoesNotThrow(() -> verifier.verify(profile, activeIndex, report));
+  }
+
+  @Test
+  void startupRejectsIncompatiblePackOverrideWithUncoveredTerminalReason() throws Exception {
+    ProductPipelineProfile bundledV2 = createChainV2FromBundled();
+    ProductPipelineProfile discoveryOnlyOverride =
+        new ProductPipelineProfile(
+            bundledV2.schemaVersion(),
+            bundledV2.profileId(),
+            "2",
+            bundledV2.runInputs(),
+            bundledV2.stages(),
+            bundledV2.terminal(),
+            bundledV2.dependencyRoots(),
+            new CompilerPipelinePolicy(
+                List.of(2),
+                List.of("Discovery"),
+                bundledV2.compilerPipeline().preSatisfiedArtifacts(),
+                bundledV2.compilerPipeline().requiredTerminalArtifacts()),
+            bundledV2.implementationGate());
+    CompilerPipelineIndex activeIndex = activeIndexWithCreateChainTerminals("digest-active");
+    PipelineCompatibilityReport report =
+        PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+            reportForActiveDigest(),
+            List.of("create-chain@2"),
+            Map.of("create-chain@2", discoveryOnlyOverride),
+            activeIndex);
+
+    IllegalStateException failure =
+        assertThrows(
+            IllegalStateException.class,
+            () -> verifier.verify(discoveryOnlyOverride, activeIndex, report));
+    assertTrue(
+        failure.getMessage().contains("GRAPH_ASSEMBLY_RESULT")
+            || failure.getMessage().contains("COMPILER_VALIDATION_BUNDLE"),
+        failure.getMessage());
   }
 
   @Test
@@ -138,6 +175,14 @@ class ProductPipelineCompatibilityVerifierTest {
         List.of(),
         true,
         List.of());
+  }
+
+  private static ProductPipelineProfile createChainV2FromBundled() throws Exception {
+    try (InputStream input =
+        ProductPipelineCompatibilityVerifierTest.class.getResourceAsStream(
+            "/product-pipelines/profiles/create-chain-v2.yaml")) {
+      return ProductPipelineProfileParser.parse(input);
+    }
   }
 
   private static ProductPipelineProfile createChainV3FromBundledV2() throws Exception {

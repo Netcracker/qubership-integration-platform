@@ -10,8 +10,9 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
  * Merges knowledge-pack product profile versions into a pipeline compatibility report.
  *
  * <p>The {@link CompilerPipelineCompatibilityAnalyzer} certifies {@code create-chain@1} and
- * {@code create-chain@2} against the compiler index. Additional profile versions shipped only in
- * the pack (for example {@code create-chain@3}) must be listed when compiler activation is allowed.
+ * {@code create-chain@2} against the compiler index. Pack-shipped profiles are validated against the
+ * active compiler index even when they override an already-listed version (for example a pack
+ * {@code create-chain@2} with a stricter {@code compilerPipeline} policy).
  */
 public final class PipelineCompatibilityReportAugmenter {
 
@@ -37,15 +38,15 @@ public final class PipelineCompatibilityReportAugmenter {
       if (key == null || key.isBlank()) {
         continue;
       }
-      if (merged.contains(key)) {
-        continue;
-      }
       ProductPipelineProfile profile = profilesByKey.get(key);
-      if (profile == null
-          || !CompilerPipelineClosureSupport.requiredTerminalsProducible(profile, activeIndex)) {
+      if (profile == null) {
         continue;
       }
-      if (merged.add(key)) {
+      if (CompilerPipelineClosureSupport.requiredTerminalsProducible(profile, activeIndex)) {
+        if (merged.add(key)) {
+          changed = true;
+        }
+      } else if (merged.remove(key)) {
         changed = true;
       }
     }

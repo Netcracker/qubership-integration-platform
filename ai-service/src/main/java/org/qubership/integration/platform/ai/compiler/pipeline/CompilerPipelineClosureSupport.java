@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.CompilerPipelinePolicy;
@@ -19,26 +20,36 @@ public final class CompilerPipelineClosureSupport {
 
   public static boolean requiredTerminalsProducible(
       ProductPipelineProfile profile, CompilerPipelineIndex activeIndex) {
+    return terminalCoverageProblem(profile, activeIndex).isEmpty();
+  }
+
+  /** Human-readable reason when required terminals cannot be produced; empty when producible. */
+  public static Optional<String> terminalCoverageProblem(
+      ProductPipelineProfile profile, CompilerPipelineIndex activeIndex) {
     Objects.requireNonNull(profile, "profile");
     Objects.requireNonNull(activeIndex, "activeIndex");
     CompilerPipelinePolicy policy = profile.compilerPipeline();
     if (policy == null) {
-      return false;
+      return Optional.of("profile has no compilerPipeline policy");
     }
     if (!policy.supportedIndexSchemas().contains(activeIndex.schemaVersion())) {
-      return false;
+      return Optional.of(
+          "compiler index schema "
+              + activeIndex.schemaVersion()
+              + " is not in supportedIndexSchemas "
+              + policy.supportedIndexSchemas());
     }
     if (activeIndex.packageIdentity() == null) {
-      return false;
+      return Optional.of("active compiler index has no package identity");
     }
     try {
       resolveClosure(
           indexBySkillId(activeIndex.nodes()),
           new LinkedHashSet<>(policy.allowedPhases()),
           normalizeArtifacts(policy.requiredTerminalArtifacts()));
-      return true;
-    } catch (IllegalStateException ignored) {
-      return false;
+      return Optional.empty();
+    } catch (IllegalStateException ex) {
+      return Optional.of(ex.getMessage());
     }
   }
 
@@ -48,17 +59,15 @@ public final class CompilerPipelineClosureSupport {
       Set<String> requiredTerminals) {
     LinkedHashSet<String> closure = new LinkedHashSet<>();
     ArrayDeque<String> queue = new ArrayDeque<>();
+    LinkedHashSet<String> uncovered = new LinkedHashSet<>(requiredTerminals);
     for (CompilerPipelineNode node : byId.values()) {
       if (!allowedPhases.isEmpty() && !allowedPhases.contains(node.compilerPhase())) {
         continue;
       }
-      if (producesAny(node, requiredTerminals)) {
-        queue.add(node.skillId());
+      if (producesMatching(node, requiredTerminals).isEmpty()) {
+        continue;
       }
-    }
-    if (queue.isEmpty() && !requiredTerminals.isEmpty()) {
-      throw new IllegalStateException(
-          "no compiler nodes produce required terminal artifacts " + requiredTerminals);
+      queue.add(node.skillId());
     }
     while (!queue.isEmpty()) {
       String skillId = queue.poll();
@@ -69,6 +78,7 @@ public final class CompilerPipelineClosureSupport {
       if (node == null) {
         throw new IllegalStateException("compiler closure references unknown skill: " + skillId);
       }
+      uncovered.removeAll(producesMatching(node, requiredTerminals));
       for (String dependency : node.dependsOn()) {
         CompilerPipelineNode dep = byId.get(dependency);
         if (dep == null) {
@@ -80,6 +90,10 @@ public final class CompilerPipelineClosureSupport {
         }
         queue.add(dependency);
       }
+    }
+    if (!uncovered.isEmpty()) {
+      throw new IllegalStateException(
+          "no compiler nodes produce required terminal artifacts " + uncovered);
     }
     return closure;
   }
@@ -103,13 +117,16 @@ public final class CompilerPipelineClosureSupport {
     return normalized;
   }
 
-  private static boolean producesAny(CompilerPipelineNode node, Set<String> requiredTerminals) {
+  private static LinkedHashSet<String> producesMatching(
+      CompilerPipelineNode node, Set<String> requiredTerminals) {
+    LinkedHashSet<String> matched = new LinkedHashSet<>();
     for (String produced : node.produces()) {
-      if (requiredTerminals.contains(normalizeArtifactName(produced))) {
-        return true;
+      String normalized = normalizeArtifactName(produced);
+      if (requiredTerminals.contains(normalized)) {
+        matched.add(normalized);
       }
     }
-    return false;
+    return matched;
   }
 
   private static String normalizeArtifactName(String raw) {

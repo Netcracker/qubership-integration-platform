@@ -90,6 +90,110 @@ class PipelineCompatibilityReportAugmenterTest {
   }
 
   @Test
+  void removesIncompatiblePackOverrideOfAlreadyListedProfile() throws Exception {
+    ProductPipelineProfile bundledV2 = createChainV2FromBundled();
+    ProductPipelineProfile discoveryOnlyOverride =
+        new ProductPipelineProfile(
+            bundledV2.schemaVersion(),
+            bundledV2.profileId(),
+            "2",
+            bundledV2.runInputs(),
+            bundledV2.stages(),
+            bundledV2.terminal(),
+            bundledV2.dependencyRoots(),
+            new CompilerPipelinePolicy(
+                List.of(2),
+                List.of("Discovery"),
+                bundledV2.compilerPipeline().preSatisfiedArtifacts(),
+                bundledV2.compilerPipeline().requiredTerminalArtifacts()),
+            bundledV2.implementationGate());
+    CompilerPipelineIndex index = indexProducingCreateChainTerminals();
+    PipelineCompatibilityReport base =
+        new PipelineCompatibilityReport(
+            1,
+            "prev",
+            "candidate",
+            PipelineChangeClass.CONTENT_ONLY,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of("create-chain@1", "create-chain@2"),
+            List.of(),
+            true,
+            List.of());
+
+    PipelineCompatibilityReport augmented =
+        PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+            base,
+            List.of("create-chain@2"),
+            Map.of("create-chain@2", discoveryOnlyOverride),
+            index);
+
+    assertFalse(augmented.compatibleProfileVersions().contains("create-chain@2"));
+    assertEquals(List.of("create-chain@1"), augmented.compatibleProfileVersions());
+  }
+
+  @Test
+  void keepsCompatiblePackOverrideOfAlreadyListedProfileWithoutDuplicates() throws Exception {
+    ProductPipelineProfile bundledV2 = createChainV2FromBundled();
+    CompilerPipelineIndex index = indexProducingCreateChainTerminals();
+    PipelineCompatibilityReport base =
+        new PipelineCompatibilityReport(
+            1,
+            "prev",
+            "candidate",
+            PipelineChangeClass.CONTENT_ONLY,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of("create-chain@1", "create-chain@2"),
+            List.of(),
+            true,
+            List.of());
+
+    PipelineCompatibilityReport augmented =
+        PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+            base,
+            List.of("create-chain@2"),
+            Map.of("create-chain@2", bundledV2),
+            index);
+
+    assertEquals(List.of("create-chain@1", "create-chain@2"), augmented.compatibleProfileVersions());
+  }
+
+  @Test
+  void skipsPackShippedProfileWhenOnlyOneOfTwoRequiredTerminalsIsProducible() throws Exception {
+    ProductPipelineProfile twoTerminals = createChainV3FromBundledV2();
+    CompilerPipelineIndex assemblerOnly = indexWithAssemblerOnly();
+    PipelineCompatibilityReport base =
+        new PipelineCompatibilityReport(
+            1,
+            "prev",
+            "candidate",
+            PipelineChangeClass.CONTENT_ONLY,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of("create-chain@1", "create-chain@2"),
+            List.of(),
+            true,
+            List.of());
+
+    PipelineCompatibilityReport augmented =
+        PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+            base,
+            List.of("create-chain@3"),
+            Map.of("create-chain@3", twoTerminals),
+            assemblerOnly);
+
+    assertFalse(augmented.compatibleProfileVersions().contains("create-chain@3"));
+    assertEquals(List.of("create-chain@1", "create-chain@2"), augmented.compatibleProfileVersions());
+  }
+
+  @Test
   void leavesReportUnchangedWhenActivationDenied() {
     PipelineCompatibilityReport base =
         new PipelineCompatibilityReport(
@@ -117,6 +221,14 @@ class PipelineCompatibilityReportAugmenterTest {
     assertFalse(augmented.compatibleProfileVersions().contains("create-chain@3"));
   }
 
+  private static ProductPipelineProfile createChainV2FromBundled() throws Exception {
+    try (InputStream input =
+        PipelineCompatibilityReportAugmenterTest.class.getResourceAsStream(
+            "/product-pipelines/profiles/create-chain-v2.yaml")) {
+      return ProductPipelineProfileParser.parse(input);
+    }
+  }
+
   private static ProductPipelineProfile createChainV3FromBundledV2() throws Exception {
     try (InputStream input =
         PipelineCompatibilityReportAugmenterTest.class.getResourceAsStream(
@@ -133,6 +245,39 @@ class PipelineCompatibilityReportAugmenterTest {
           v2.compilerPipeline(),
           v2.implementationGate());
     }
+  }
+
+  private static CompilerPipelineIndex indexWithAssemblerOnly() {
+    CompilerPipelineNode assembler =
+        new CompilerPipelineNode(
+            "cip-chain-assembler",
+            "Assembly",
+            "",
+            List.of("CHAIN_STRUCTURE"),
+            List.of("GRAPH_ASSEMBLY_RESULT"),
+            List.of(),
+            null,
+            List.of(),
+            List.of(),
+            true,
+            List.of(),
+            "skill-sha-assembler",
+            "addon-sha-assembler",
+            0,
+            0,
+            true,
+            CompilerNodeExecutionMode.JAVA_ADAPTER,
+            "graph-assembly",
+            null);
+    return new CompilerPipelineIndex(
+        CompilerPipelineIndexBuilder.SCHEMA_VERSION,
+        new CipKnowledgePackVersion("v1_0_0", "v1_0_0"),
+        new CompilerPipelineIndexSource("catalog", "policy"),
+        List.of(),
+        new CompilerPackageIdentity("compiler-v2", "1.0.0", "digest-ready-v2"),
+        Map.of(),
+        List.of(assembler),
+        List.of());
   }
 
   private static CompilerPipelineIndex indexProducingCreateChainTerminals() {
