@@ -1,10 +1,4 @@
-import {
-  Button,
-  Flex,
-  message,
-  Table,
-  TableProps,
-} from "antd";
+import { Button, Flex, message, Table, TableProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import React, {
   ReactNode,
@@ -191,7 +185,7 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
     {
       key: 160,
       value: 220,
-      actions: 40
+      actions: 40,
     },
     { applyDisableResizeBeforeActions: true },
   );

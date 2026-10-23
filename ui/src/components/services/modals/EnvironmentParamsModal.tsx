@@ -61,7 +61,11 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   const { showModal } = useModalsContext();
   const [isMaasSelected, setIsMaasSelected] = useState(false);
   const [propertiesCount, setPropertiesCount] = useState<number>(0);
-  const [addButtonEnabled, setAddButtonEnabled] = useState(true);
+  const [propertiesTab, setPropertiesTab] =
+    useState<KeyValuePairsEditorTab>("table");
+
+  const ExpandButton = treeExpandIcon<void>();
+  const propertiesEditorRef = useRef<KeyValuePairsEditorRef>(null);
 
   const system = useServiceContext();
   const protocol = system?.protocol || "";
@@ -75,6 +79,10 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
         environment?.sourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER,
     );
   }, [environment]);
+
+  useEffect(() => {
+    propertiesEditorRef.current?.activateTab(propertiesTab);
+  }, [propertiesTab, showProperties]);
 
   const handleSubmit = useCallback(async () => {
     try {
@@ -127,10 +135,6 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
     },
     [],
   );
-
-  const ExpandButton = treeExpandIcon<void>();
-
-  const propertiesEditorRef = useRef<KeyValuePairsEditorRef>(null);
 
   return (
     <Modal
@@ -255,12 +259,11 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                 <Radio.Group
                   block
                   optionType={"button"}
-                  defaultValue={"table"}
+                  value={propertiesTab}
                   onChange={(event) => {
-                    propertiesEditorRef.current?.activateTab(
+                    setPropertiesTab(
                       event.target.value as KeyValuePairsEditorTab,
                     );
-                    setAddButtonEnabled(event.target.value === "table");
                   }}
                 >
                   <Radio.Button value="table">Table</Radio.Button>
@@ -270,7 +273,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                   <Button
                     data-testid="environment-properties-add"
                     aria-label="Add property"
-                    disabled={!addButtonEnabled}
+                    disabled={propertiesTab !== "table"}
                     type={"text"}
                     icon={<OverridableIcon name={"plus"} />}
                     onClick={() => {

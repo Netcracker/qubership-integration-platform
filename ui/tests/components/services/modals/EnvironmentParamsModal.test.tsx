@@ -223,6 +223,21 @@ describe("EnvironmentParamsModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("should show the text tab after collapsing and expanding the properties when Text is selected", async () => {
+    renderModal("kafka");
+
+    expandProperties();
+    fireEvent.click(screen.getByRole("radio", { name: "Text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse row" }));
+    expandProperties();
+
+    expect(screen.getByRole("radio", { name: "Text" })).toBeChecked();
+    expect(
+      await screen.findByTestId("key-value-pairs-editor"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add property" })).toBeDisabled();
+  });
+
   it("should submit properties edited as text", async () => {
     const { onSubmit } = renderModal("kafka");
 
