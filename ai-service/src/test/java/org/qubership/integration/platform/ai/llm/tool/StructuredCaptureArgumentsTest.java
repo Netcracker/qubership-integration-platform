@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.llm.tool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.ReturnBehavior;
@@ -17,6 +18,52 @@ import org.junit.jupiter.api.Test;
 
 class StructuredCaptureArgumentsTest {
   private final ObjectMapper mapper = new ObjectMapper();
+
+  @Test
+  void malformedArgumentsRetainNativeCoordinatesAndContext() {
+    var issue = inspect("{\"capture\":{\"items\":[{\"name\":\"ok\",\"broken\":}]}}").issue();
+    assertEquals("INVALID_JSON", issue.code());
+    assertEquals("/", issue.path());
+    assertTrue(issue.message().contains("Unexpected character"), issue.message());
+    assertTrue(issue.message().contains("layer=outer"), issue.message());
+    assertTrue(issue.message().contains("context=/capture/items/0/broken"), issue.message());
+    assertTrue(issue.message().contains("line=1; column=44; charOffset=43"), issue.message());
+  }
+
+  @Test
+  void decodedNamedArgumentsUseTheirOwnCoordinateSpace() throws Exception {
+    String decoded = "{\"items\":[{\"name\":\"ok\",\"broken\":}]}";
+    var issue = inspect("{\"capture\":" + mapper.writeValueAsString(decoded) + "}").issue();
+    assertEquals("/", issue.path());
+    assertTrue(issue.message().contains("layer=decoded named argument /capture"), issue.message());
+    assertTrue(issue.message().contains("context=/items/0/broken"), issue.message());
+    assertTrue(issue.message().contains("line=1; column=33; charOffset=32"), issue.message());
+    assertEquals("INVALID_TYPE", inspect(mapper.writeValueAsString("{\"capture\":{}}")).issue().code(),
+        "The compiler capture still rejects a whole-root string envelope.");
+  }
+
+  @Test
+  void nativeDuplicateTrailingBlankAndUnicodeDetailsRemainSyntaxFailures() {
+    var duplicate = inspect("{\"capture\":{\"x\":1,\"x\":2}}").issue();
+    assertEquals("DUPLICATE_JSON_KEY", duplicate.code());
+    assertEquals("/", duplicate.path());
+    assertTrue(duplicate.message().contains("context=/capture/x"), duplicate.message());
+    assertTrue(duplicate.message().contains("Duplicate field 'x'"), duplicate.message());
+    var trailing = inspect("{\"capture\":{}} []").issue();
+    assertEquals("INVALID_JSON", trailing.code());
+    assertTrue(trailing.message().contains("Trailing JSON content"), trailing.message());
+    assertTrue(trailing.message().contains("charOffset=15"), trailing.message());
+    var blank = inspect("  ").issue();
+    assertEquals("INVALID_JSON", blank.code());
+    assertTrue(blank.message().contains("layer=outer; location unavailable; reason=Empty JSON arguments"));
+    assertTrue(!blank.message().contains("charOffset="));
+    String raw = "{\"capture\":{\"a/b~\":[\"😀\",{\"pad\":\"" + "ø".repeat(13_000) + "\",\n\"broken\":}]}}";
+    var unicode = inspect(raw).issue();
+    assertEquals("/", unicode.path());
+    assertTrue(unicode.message().contains("context=/capture/a~1b~0/1/broken"), unicode.message());
+    assertTrue(unicode.message().contains("line=2; column=10; charOffset=" + raw.indexOf("}]}")), unicode.message());
+    assertTrue(unicode.message().contains("byteOffset=-1"), unicode.message());
+  }
 
   @Test
   void restoresOnlyTheSchemaDeclaredEnvelopeWithoutChangingValues() throws Exception {

@@ -44,7 +44,9 @@ public record RecoveryCause(
     if (feedback.noProgress()) {
       findings = findings.stream().filter(finding -> !"REPAIR_NO_PROGRESS".equals(finding.code())).toList();
     }
-    if (findings.isEmpty()) findings = List.of(new PlanValidationFinding("CAPTURE_" + feedback.kind(), feedback.summary(), true));
+    if (findings.isEmpty()) findings = List.of(new PlanValidationFinding("CAPTURE_" + feedback.kind(),
+        org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints
+            .stripNativeParserDetails(feedback.summary()), true));
     return new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "", feedback.noProgress(),
         evidence == null ? new CaptureFailureEvidence(feedback, null, feedback.evidenceReference(), List.of()) : evidence);
   }

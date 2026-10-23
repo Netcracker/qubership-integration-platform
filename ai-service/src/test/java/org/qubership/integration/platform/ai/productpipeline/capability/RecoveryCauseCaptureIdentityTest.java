@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -25,6 +26,28 @@ import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 
 class RecoveryCauseCaptureIdentityTest {
+
+  @Test
+  void parserDiagnosticsPreserveTheLegacyOuterDefectAndItsConsumedCredit() {
+    String legacy = "INVALID_JSON /: Send one valid JSON argument object. Resubmit the complete captureGraphPatch argument object.";
+    var ledger = new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 1, 12, 1));
+    var before = new CaptureAttemptFeedback(CaptureFailureKind.CONVERSION, legacy,
+        CaptureFailureClass.CORRECTABLE, true, List.of(), "", false, null, List.of());
+    var original = RecoveryCause.captureFailure(before, List.of(), null);
+    var key = ledger.key("design-execution", original, "accepted-base", List.of());
+    var journal = List.of(new RunTransition(1, 2, RunStatus.RUNNING, RunStatus.RUNNING,
+        "design-execution", Instant.EPOCH, ledger.recordRepair(key, "accepted-base")));
+    for (String diagnostics : List.of("line=1; column=2; reason=first", "line=9; column=90; reason=node 'different' property 'name'")) {
+      var full = legacy + org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints.NATIVE_PARSER_DETAILS + diagnostics;
+      var after = new CaptureAttemptFeedback(before.kind(), full, before.failureClass(), true,
+          List.of(), "", false, null, List.of());
+      var forwarded = RecoveryCause.captureFailure(after, List.of(), null);
+      assertEquals(original.findings(), forwarded.findings());
+      assertEquals(key, ledger.key("design-execution", forwarded, "accepted-base", journal));
+      assertFalse(ledger.mayRepair(journal, key, InputOrigin.TRUSTED));
+      assertEquals(full, forwarded.captureFailure().feedback().summary());
+    }
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})

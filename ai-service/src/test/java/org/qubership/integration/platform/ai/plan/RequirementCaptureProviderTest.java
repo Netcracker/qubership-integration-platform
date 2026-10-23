@@ -173,6 +173,35 @@ class RequirementCaptureProviderTest {
   }
 
   @Test
+  void rootStringSyntaxDetailsRetainTheOriginalLayerAndRawAudit() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var store = new RequirementDraftStore(artifacts, sessions);
+    var provider = new RequirementCaptureToolProvider(
+        new RequirementCaptureTools(store, mock(RequirementDraftTool.class), mapper), mapper).provideTools(null);
+    String decoded = "{\"draft\":{\"facts\":[{\"broken\":}]}}";
+    for (boolean rootString : java.util.List.of(false, true)) {
+      String chat = "syntax-layer-" + UUID.randomUUID();
+      String raw = rootString ? mapper.writeValueAsString(decoded) : decoded;
+      var output = mapper.readTree(provider.toolExecutorByName("captureRequirementDraft").execute(
+          ToolExecutionRequest.builder().id("syntax-call").name("captureRequirementDraft").arguments(raw).build(), chat));
+      var issue = output.path("issues").get(0);
+      assertEquals("INVALID_JSON", issue.path("code").asText());
+      assertEquals("/", issue.path("path").asText());
+      String message = issue.path("message").asText();
+      assertTrue(message.contains("layer=" + (rootString ? "decoded rootString argument /" : "outer")), message);
+      assertTrue(message.contains("context=/draft/facts/0/broken"), message);
+      assertTrue(message.contains("charOffset="), message);
+      var attempt = artifacts.latest(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow().payload();
+      assertEquals(raw, attempt.path("arguments").asText());
+      assertEquals(issue, attempt.path("issues").get(0));
+      assertTrue(store.get(chat).isEmpty());
+    }
+  }
+
+  @Test
   void nullableRequiredFieldsWorkThroughTheProvider() throws Exception {
     ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     RequirementDraftStore store = new RequirementDraftStore();

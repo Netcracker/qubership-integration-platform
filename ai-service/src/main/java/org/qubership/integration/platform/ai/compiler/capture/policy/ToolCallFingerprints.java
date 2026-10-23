@@ -29,6 +29,8 @@ import java.util.regex.Pattern;
  */
 public final class ToolCallFingerprints {
 
+  public static final String NATIVE_PARSER_DETAILS = "\nNative JSON parser details: ";
+
   private static final Set<String> NOISE_KEYS = Set.of("rationale", "explanation", "comment");
   private static final JsonFactory JSON_FACTORY = new JsonFactory();
   private static final ObjectMapper FALLBACK_MAPPER = new ObjectMapper();
@@ -67,7 +69,7 @@ public final class ToolCallFingerprints {
 
   private static String failureOccurrenceSignature(String message) {
     if (message == null || message.isBlank()) { return ""; }
-    message = message.strip();
+    message = stripNativeParserDetails(message).strip();
     String nativeMessage = message.toLowerCase(Locale.ROOT);
     if (!nativeMessage.contains("node '") || !nativeMessage.contains(" property ")) {
       return failureSignature(message);
@@ -114,11 +116,21 @@ public final class ToolCallFingerprints {
     if (message == null || message.isBlank()) {
       return "";
     }
-    String normalized = message.strip().toLowerCase(Locale.ROOT);
+    String normalized = stripNativeParserDetails(message).strip().toLowerCase(Locale.ROOT);
     normalized = UUID_VALUE.matcher(normalized).replaceAll("<id>");
     normalized = QUOTED_VALUE.matcher(normalized).replaceAll("<id>");
     normalized = BRACKETED_VALUE.matcher(normalized).replaceAll("<ids>");
     return WHITESPACE.matcher(normalized).replaceAll(" ").strip();
+  }
+
+  /** Keeps parser coordinates out of the existing native syntax-failure budget identity. */
+  public static String stripNativeParserDetails(String message) {
+    if (message == null || !(message.stripLeading().startsWith("INVALID_JSON /:")
+        || message.stripLeading().startsWith("DUPLICATE_JSON_KEY /:"))) {
+      return message;
+    }
+    int details = message.indexOf(NATIVE_PARSER_DETAILS);
+    return details < 0 ? message : message.substring(0, details);
   }
 
   public static String fingerprint(

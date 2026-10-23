@@ -175,8 +175,7 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
             CaptureFailureKind.VALIDATION,
             CaptureFailureClass.CORRECTABLE,
             method.methodName(), request.arguments(),
-            issue.code() + " " + issue.path() + ": " + issue.message()
-                + " Resubmit the complete " + method.methodName() + " argument object.");
+            structuredFailureMessage(issue, method.methodName()));
           return ToolExecutionResult.builder().result(result).resultText(result).build();
         } finally {
           if (recoveryControl != null && "captureGraphPatch".equals(method.methodName())) {
@@ -187,6 +186,15 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
       return next.apply(inspected.request(), invocationContext);
     }
     return next.apply(normalize(request, executor.getMethodCreateInfo()), invocationContext);
+  }
+
+  private static String structuredFailureMessage(StructuredCaptureArguments.Issue issue, String method) {
+    String message = issue.message();
+    String instruction = " Resubmit the complete " + method + " argument object.";
+    int details = message.indexOf(
+        org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints.NATIVE_PARSER_DETAILS);
+    return issue.code() + " " + issue.path() + ": " + (details < 0 ? message + instruction
+        : message.substring(0, details) + instruction + message.substring(details));
   }
 
   private static boolean isProductBriefCapture(ToolMethodCreateInfo method) {
