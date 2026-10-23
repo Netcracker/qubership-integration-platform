@@ -57,11 +57,10 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
   }, [messageApi, value]);
 
   const updateRecord = useCallback(
-    (index: number, changes: Partial<KeyValuePair>) => {
+    (key: string, changes: Partial<KeyValuePair>) => {
       setTableData((data) => {
         const result =
-          data?.map((r, idx) => (idx === index ? { ...r, ...changes } : r)) ??
-          [];
+          data?.map((r) => (r.key === key ? { ...r, ...changes } : r)) ?? [];
         onChange?.(result);
         return result;
       });
@@ -81,10 +80,9 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
   }, [onChange]);
 
   const deleteRecord = useCallback(
-    (index: number) => {
+    (key: string) => {
       setTableData((data) => {
-        const result =
-          data?.slice(0, index)?.concat(data?.slice(index + 1)) ?? [];
+        const result = data?.filter((r) => r.key !== key) ?? [];
         onChange?.(result);
         return result;
       });
@@ -103,15 +101,8 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
         key: "key",
         title: columnNames?.key ?? "Key",
         dataIndex: "key",
-        sorter: (a, b, sortOrder) => {
-          if (sortOrder === "ascend") {
-            return a.key.localeCompare(b.key);
-          } else if (sortOrder === "descend") {
-            return b.key.localeCompare(a.key);
-          }
-          return 0;
-        },
-        render: (value: string, _record: KeyValuePair, index: number) => {
+        sorter: (a, b) => a.key.localeCompare(b.key),
+        render: (value: string, record: KeyValuePair) => {
           return (
             <InlineEdit<{ value: string }>
               values={{ value }}
@@ -119,10 +110,13 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
               viewer={value}
               initialActive={value === ""}
               onSubmit={({ value }) => {
-                if (tableData?.some((r) => r.key === value)) {
+                if (
+                  tableData?.some((r) => r.key === value) &&
+                  record.key !== value
+                ) {
                   void messageApi.error(`Already exists: ${value}`);
                 } else {
-                  updateRecord(index, { key: value });
+                  updateRecord(record.key, { key: value });
                 }
               }}
             />
@@ -133,22 +127,15 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
         key: "value",
         title: columnNames?.value ?? "Value",
         dataIndex: "value",
-        sorter: (a, b, sortOrder) => {
-          if (sortOrder === "ascend") {
-            return a.value.localeCompare(b.value);
-          } else if (sortOrder === "descend") {
-            return b.value.localeCompare(a.value);
-          }
-          return 0;
-        },
-        render: (value: string, _record: KeyValuePair, index: number) => {
+        sorter: (a, b) => a.value.localeCompare(b.value),
+        render: (value: string, record: KeyValuePair) => {
           return (
             <InlineEdit<{ value: string }>
               values={{ value }}
               editor={<TextValueEdit name="value" rules={[]} />}
               viewer={value}
               onSubmit={({ value }) => {
-                updateRecord(index, { value });
+                updateRecord(record.key, { value });
               }}
             />
           );
@@ -159,12 +146,12 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
         className: "actions-column",
         width: 40,
         align: "right" as const,
-        render: (_: unknown, _record: KeyValuePair, index: number) => {
+        render: (_: unknown, record: KeyValuePair) => {
           return (
             <Button
               type="text"
               icon={<OverridableIcon name="delete" />}
-              onClick={() => deleteRecord(index)}
+              onClick={() => deleteRecord(record.key)}
             />
           );
         },
@@ -180,15 +167,16 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
     ],
   );
 
-  const { columnsWithResize, scrollX, components } = useTableConfiguration(
-    tableColumns,
-    {
-      key: 160,
-      value: 220,
-      actions: 40,
-    },
-    { applyDisableResizeBeforeActions: true },
-  );
+  const { columnsWithResize, scrollX, components, handleTableChange } =
+    useTableConfiguration(
+      tableColumns,
+      {
+        key: 160,
+        value: 220,
+        actions: 40,
+      },
+      { applyDisableResizeBeforeActions: true },
+    );
 
   useImperativeHandle(actionRef, () => {
     return {
@@ -215,6 +203,7 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
           pagination={false}
           rowKey={(record) => record.key}
           components={components}
+          onChange={handleTableChange}
         />
       </Flex>
     </>

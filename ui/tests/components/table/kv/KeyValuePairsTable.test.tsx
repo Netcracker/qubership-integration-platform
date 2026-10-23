@@ -27,6 +27,21 @@ function rowOf(text: string): HTMLElement {
   return screen.getByText(text).closest("tr") as HTMLElement;
 }
 
+function keysInOrder(): string[] {
+  return screen
+    .getAllByRole("row")
+    .filter((row) => row.hasAttribute("data-row-key"))
+    .map((row) => row.getAttribute("data-row-key") ?? "");
+}
+
+function sortByKeyAscending() {
+  fireEvent.click(screen.getByRole("columnheader", { name: "Key" }));
+  const firstRow = screen
+    .getAllByRole("row")
+    .find((row) => row.hasAttribute("data-row-key"));
+  expect(firstRow).toHaveTextContent("a");
+}
+
 function editCell(viewerText: string, newValue: string) {
   fireEvent.click(screen.getByRole("button", { name: viewerText }));
   const input = screen.getByDisplayValue(viewerText);
@@ -200,6 +215,78 @@ describe("KeyValuePairsTable", () => {
 
     expect(await screen.findByText("Already exists: b")).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("should accept the key unchanged when the edit is committed", async () => {
+    render(<KeyValuePairsTable value={[{ key: "a", value: "1" }]} />);
+
+    editCell("a", "a");
+
+    expect(
+      await screen.findByRole("button", { name: "a" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Already exists: a")).not.toBeInTheDocument();
+  });
+
+  it("should update the edited pair when the rows are sorted", async () => {
+    const onChange = jest.fn();
+    render(
+      <KeyValuePairsTable
+        value={[
+          { key: "b", value: "2" },
+          { key: "a", value: "1" },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    sortByKeyAscending();
+
+    editCell("1", "3");
+
+    expect(
+      await screen.findByRole("button", { name: "3" }),
+    ).toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith([
+      { key: "b", value: "2" },
+      { key: "a", value: "3" },
+    ]);
+  });
+
+  it("should delete the clicked pair when the rows are sorted", () => {
+    const onChange = jest.fn();
+    render(
+      <KeyValuePairsTable
+        value={[
+          { key: "b", value: "2" },
+          { key: "a", value: "1" },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    sortByKeyAscending();
+
+    const buttons = within(rowOf("a")).getAllByRole("button");
+    fireEvent.click(buttons[buttons.length - 1]);
+
+    expect(onChange).toHaveBeenCalledWith([{ key: "b", value: "2" }]);
+  });
+
+  it("should show the keys in descending order when the key header is clicked twice", () => {
+    render(
+      <KeyValuePairsTable
+        value={[
+          { key: "b", value: "2" },
+          { key: "a", value: "1" },
+          { key: "c", value: "3" },
+        ]}
+      />,
+    );
+    const header = screen.getByRole("columnheader", { name: "Key" });
+
+    fireEvent.click(header);
+    expect(keysInOrder()).toEqual(["a", "b", "c"]);
+    fireEvent.click(header);
+    expect(keysInOrder()).toEqual(["c", "b", "a"]);
   });
 
   it("should show the new pair in edit mode when value changes to include it", () => {
