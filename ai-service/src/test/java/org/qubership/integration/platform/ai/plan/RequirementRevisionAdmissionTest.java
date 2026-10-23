@@ -118,9 +118,15 @@ class RequirementRevisionAdmissionTest {
         default -> throw new AssertionError(changed);
       }
       var rejected = h.capture(h.mapper.treeToValue(json, DraftInput.class));
-      assertFalse(rejected.accepted(), changed + ": " + rejected);
-      assertTrue(h.store.get(h.chat).isEmpty());
-      assertTrue(h.capture(catalogDraft(null)).accepted());
+      if ("transition".equals(changed)) {
+        assertTrue(rejected.accepted(), rejected.toString());
+        assertEquals(List.of(new TransitionInput("entry", "delivery")),
+            h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
+      } else {
+        assertFalse(rejected.accepted(), changed + ": " + rejected);
+        assertTrue(h.store.get(h.chat).isEmpty());
+        assertTrue(h.capture(catalogDraft(null)).accepted());
+      }
     }
   }
 
@@ -283,7 +289,10 @@ class RequirementRevisionAdmissionTest {
       var removed = new DraftUpdate(List.of(), List.of(), List.of(), List.of(),
           List.of(new TransitionInput("entry", "audit")), List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null);
-      assertFalse(h.update(removed).accepted(), "A validated transition still requires author authority to remove");
+      var kept = h.update(removed);
+      assertTrue(kept.accepted(), kept.toString());
+      assertTrue(h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions()
+          .contains(new TransitionInput("entry", "audit")));
     }
   }
 
@@ -974,6 +983,25 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void droppedAcceptedTransitionIsRestoredSoDiscoveryCanContinue() throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Create tasks before delivery. Proceed without IDS.");
+      var initial = mappingDraft("$.Subject", "$.id", "/tasks");
+      initial = new DraftInput(initial.flow(), List.of(fact("goal", "Create tasks before delivery.")),
+          initial.capabilities(), initial.openQuestions(), initial.settings());
+      assertTrue(h.capture(initial).accepted());
+      var edit = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), initial.flow().transitions(),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+      var restored = h.update(edit);
+      assertTrue(restored.accepted(), restored.toString());
+      assertEquals(initial.flow().transitions(), h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
+      assertTrue(h.update(edit).accepted());
+      assertEquals(initial.flow().transitions(), h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
+    }
+  }
+
+  @Test
   void automaticRepairCannotRewireAcceptedTransitionsButAnAuthorCan() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
@@ -985,7 +1013,9 @@ class RequirementRevisionAdmissionTest {
       var removed = initial.flow().transitions();
       var edit = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), removed, List.of(), List.of(),
           List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
-      assertFalse(h.update(edit).accepted());
+      var kept = h.update(edit);
+      assertTrue(kept.accepted(), kept.toString());
+      assertEquals(initial.flow().transitions(), h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
       var source = h.begin("Remove the transition from entry to delivery.");
       var amendment = new DraftUpdate(edit.addInteractions(), edit.updateInteractions(), edit.removeInteractionIds(),
           edit.addTransitions(), edit.removeTransitions(), edit.addFacts(), edit.updateFacts(), edit.removeFactIds(),
@@ -1111,10 +1141,9 @@ class RequirementRevisionAdmissionTest {
       assertFalse(h.capture(duplicated).accepted());
       var lost = new DraftInput(new FlowInput(initial.flow().interactions(), List.of()), duplicated.facts(),
           initial.capabilities(), List.of(), initial.settings());
-      assertFalse(h.capture(lost).accepted());
-      var corrected = new DraftInput(new FlowInput(initial.flow().interactions(), List.of(edge)), duplicated.facts(),
-          initial.capabilities(), List.of(), initial.settings());
-      assertTrue(h.capture(corrected).accepted());
+      var retained = h.capture(lost);
+      assertTrue(retained.accepted(), retained.toString());
+      assertEquals(List.of(edge), h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
     }
   }
 

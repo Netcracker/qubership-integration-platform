@@ -350,10 +350,12 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
           } catch (RuntimeException ex) {
             if (node.mandatory() && isGraphPatchCapture(node)
                 && (ex instanceof CompilerDagExecutionFailure
-                    || ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException)) {
+                    || ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException
+                    || org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException.find(ex).isPresent())) {
               skillProgress.accept(node.skillId(), "error");
               var nativeFailure = ex instanceof CompilerDagExecutionFailure failed ? failed.nativeFailure()
-                  : ((org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException) ex).evidence();
+                  : ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException stopped
+                      ? stopped.evidence() : null;
               var graph = workspace.get(SkillArtifactType.CHAIN_PLAN_GRAPH)
                   .map(artifact -> ((SkillArtifactPayload.ChainPlanGraphPayload) artifact.payload()).graph()).orElse(null);
               var findings = new ArrayList<>(degradations);

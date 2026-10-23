@@ -19,7 +19,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureProposal;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.*;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -747,8 +749,9 @@ final class RequirementRevisionAdmission {
           path + "/" + field.getKey(), issues));
     } else if (!before.equals(after)) {
       issues.add(new Issue("AUTHOR_AMENDMENT_REQUIRED", path, null,
-          "Preserve this validated value: " + before
-              + ". Restore it during automatic repair; only an amendment citing the exact author source and quote may replace it."));
+          "Retain this requirement value until the change has independent preservation evidence: " + before
+              + ". A saved extraction alone does not prove author intent. Use the native correction contract;"
+              + " otherwise replacement requires an amendment citing the exact fresh author source and quote."));
     }
   }
 
@@ -1005,6 +1008,85 @@ final class RequirementRevisionAdmission {
     values.fields().forEachRemaining(field -> field.getValue().forEach(target ->
         transitions.add(new TransitionInput(field.getKey(), target.asText()))));
     return transitions;
+  }
+
+  /**
+   * Puts back a protected fact or transition the candidate dropped when the snapshot already holds
+   * that value. A fact is restored only when the candidate already applies the named HTTP mode
+   * correction. Other requirement changes stay rejected.
+   */
+  static DraftInput restoreProtectedSnapshot(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
+      JsonNode protectedValues, List<CatalogBindingHint> bindings, List<Issue> issues) {
+    if (candidate == null || candidate.flow() == null || issues == null || issues.isEmpty()) return null;
+    boolean restorable = issues.stream().allMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+        || "AUTHOR_AMENDMENT_REQUIRED".equals(issue.code()) && issue.path() != null
+            && issue.path().startsWith("/transitions/"));
+    if (!restorable) return null;
+    boolean factIssue = issues.stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code()));
+    if (factIssue && !namedModeRepair(base, candidate, protectedFacts, protectedValues, bindings)) return null;
+    var facts = candidate.facts() == null ? List.<FactInput>of() : candidate.facts();
+    if (factIssue) facts = restoredFacts(base, candidate, protectedFacts);
+    var transitions = new LinkedHashMap<TransitionInput, TransitionInput>();
+    if (candidate.flow().transitions() != null) {
+      for (var edge : candidate.flow().transitions()) if (edge != null) transitions.put(edge, edge);
+    }
+    if (issues.stream().anyMatch(issue -> "AUTHOR_AMENDMENT_REQUIRED".equals(issue.code()))) {
+      if (base != null && base.flow() != null && base.flow().transitions() != null) {
+        for (var edge : base.flow().transitions()) if (edge != null) transitions.putIfAbsent(edge, edge);
+      }
+      var retained = protectedValues == null ? null : protectedValues.path("transitions");
+      if (retained != null && retained.isObject()) {
+        for (var edge : transitions(retained)) transitions.putIfAbsent(edge, edge);
+      }
+    }
+    var restored = new DraftInput(new FlowInput(candidate.flow().interactions(), List.copyOf(transitions.values())),
+        facts, candidate.capabilities(), candidate.openQuestions(), candidate.settings());
+    return restored.equals(candidate) ? null : restored;
+  }
+
+  private static List<FactInput> restoredFacts(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts) {
+    var snapshot = new LinkedHashMap<String, FactInput>();
+    if (base != null && base.facts() != null) {
+      for (var fact : base.facts()) if (fact != null && fact.sourceFactId() != null) snapshot.putIfAbsent(fact.sourceFactId(), fact);
+    }
+    if (protectedFacts != null) {
+      for (var fact : protectedFacts) if (fact != null && fact.sourceFactId() != null) snapshot.putIfAbsent(fact.sourceFactId(), fact);
+    }
+    var chosen = new ArrayList<FactInput>();
+    var used = new java.util.HashSet<String>();
+    for (var original : snapshot.values()) {
+      FactInput updated = candidate.facts() == null ? null : candidate.facts().stream()
+          .filter(fact -> original.sourceFactId().equals(fact.sourceFactId())).findFirst().orElse(null);
+      chosen.add(updated == null ? original : updated);
+      used.add(original.sourceFactId());
+    }
+    if (candidate.facts() != null) {
+      for (var fact : candidate.facts()) {
+        if (fact != null && fact.sourceFactId() != null && used.add(fact.sourceFactId())) chosen.add(fact);
+      }
+    }
+    return List.copyOf(chosen);
+  }
+
+  private static boolean namedModeRepair(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
+      JsonNode protectedValues, List<CatalogBindingHint> bindings) {
+    if (candidate.flow() == null || candidate.flow().interactions() == null) return false;
+    var retainedModes = protectedValues == null ? null : protectedValues.path("interactions");
+    var interactions = candidate.flow().interactions().stream().map(value -> {
+      var stored = retainedModes == null ? null : retainedModes.path(value.interactionId()).path("failureMode");
+      boolean named = value.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE
+          && (stored == null || stored.isMissingNode() || stored.isNull()
+              || ServiceCallFailureMode.PROPAGATE.name().equals(stored.asText()));
+      return named ? new InteractionInput(value.interactionId(), value.direction(), value.participant(), value.operation(),
+          value.description(), ServiceCallFailureMode.PROPAGATE, value.retryPolicy()) : value;
+    }).toList();
+    var probe = new DraftInput(new FlowInput(interactions, candidate.flow().transitions()),
+        restoredFacts(base, candidate, protectedFacts), candidate.capabilities(), candidate.openQuestions(),
+        candidate.settings());
+    var findings = RequirementFailureConsistency.issues(probe, bindings == null ? List.of() : bindings);
+    return !findings.isEmpty() && findings.stream().allMatch(finding -> candidate.flow().interactions().stream()
+        .anyMatch(value -> finding.entityId().equals(value.interactionId())
+            && value.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE));
   }
 
   private static void preserveTransitions(JsonNode before, JsonNode after, Set<String> removable,

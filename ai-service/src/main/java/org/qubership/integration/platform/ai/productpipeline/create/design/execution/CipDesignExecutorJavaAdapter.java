@@ -402,6 +402,12 @@ public class CipDesignExecutorJavaAdapter {
           new OrderedGraphPatches(SCHEMA_VERSION, rejected.patchLedger().orderedReferences()), evidenceInputs));
       var findings = new ArrayList<>(rejected.degradationFindings());
       RecoveryCause cause = RecoveryCause.fromFindings(findings, StageOutcomeClass.CONTRACT_FAILURE);
+      var repeatedRead = org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException.find(failed);
+      if (repeatedRead.isPresent()) {
+        var readCause = repeatedRead.get().recoveryCause();
+        findings.addAll(readCause.findings());
+        cause = new RecoveryCause(readCause.causeCode(), findings, "", true);
+      }
       if (failed.nativeFailure() != null) {
         var nativeCause = RecoveryCause.captureFailure(failed.nativeFailure().feedback(), List.of(), failed.nativeFailure());
         findings.addAll(nativeCause.findings());

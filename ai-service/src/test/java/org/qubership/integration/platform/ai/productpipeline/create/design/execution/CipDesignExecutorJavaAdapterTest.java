@@ -526,6 +526,29 @@ class CipDesignExecutorJavaAdapterTest {
   }
 
   @Test
+  void repeatedReadKeepsRejectedGraphAndReachesDiagnosisWithoutImpersonatingCaptureFailure() {
+    var completed = successfulEngineResult(List.of("cip-trigger-generator"));
+    var read = new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException("Retained native schema");
+    var rejected = new CompilerDagExecutionResult(StageOutcomeClass.CONTRACT_FAILURE, read.getMessage(),
+        completed.executedSkillIds(), completed.patchLedger(), completed.graph(), null, null);
+    var failed = mock(org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionFailure.class);
+    when(failed.getMessage()).thenReturn(read.getMessage());
+    when(failed.getCause()).thenReturn(read);
+    when(failed.rejectedProgress()).thenReturn(rejected);
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any())).thenThrow(failed);
+
+    var result = adapter.executeAfterApproval(baseInputs());
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcomeClass());
+    assertTrue(result.recoveryCause().noProgress());
+    assertNull(result.recoveryCause().captureFailure());
+    assertTrue(result.recoveryCause().findings().stream().anyMatch(finding -> "TOOL_READ_NO_PROGRESS".equals(finding.code())));
+    assertEquals(rejected.graph(), result.candidates().stream().filter(candidate -> candidate.kind() == Kind.CHAIN_PLAN_GRAPH)
+        .findFirst().orElseThrow().payload());
+    assertTrue(result.candidates().stream().noneMatch(candidate -> candidate.kind() == Kind.VALIDATED_EXECUTION_BUNDLE));
+  }
+
+  @Test
   void resolvedChainCallConflictKeepsItsBriefFactInRecovery() {
     var graph = new org.qubership.integration.platform.ai.plan.model.ChainPlanGraph("1.0",
         new org.qubership.integration.platform.ai.plan.model.ChainSection("Call", ""), List.of(

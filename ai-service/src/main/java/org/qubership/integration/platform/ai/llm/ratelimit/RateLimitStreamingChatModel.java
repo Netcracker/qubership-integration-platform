@@ -38,6 +38,12 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
   private final RateLimitWaitPolicy policy;
   private final TransientWaitPolicy transientPolicy;
   private LlmRunBudget runBudget;
+  private ToolReadProgress readProgress;
+
+  RateLimitStreamingChatModel withToolReadProgress(ToolReadProgress progress) {
+    this.readProgress = progress;
+    return this;
+  }
 
   RateLimitStreamingChatModel withRunBudget(LlmRunBudget budget) {
     this.runBudget = budget;
@@ -85,6 +91,17 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
 
   @Override
   public void chat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
+    if (readProgress != null) {
+      try {
+        readProgress.check(chatRequest,
+            org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId(),
+            org.jboss.logmanager.MDC.get(org.qubership.integration.platform.ai.compiler.CompilerSkillMdc.CAPABILITY_ID),
+            runBudget == null ? null : runBudget.currentRun());
+      } catch (ReadNoProgressException repeated) {
+        handler.onError(repeated);
+        return;
+      }
+    }
     chatRequest = org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer.repairRejectedArguments(chatRequest);
     chatRequest = firstToolProtocol(chatRequest);
     ChatRequest requestWithDefaults =

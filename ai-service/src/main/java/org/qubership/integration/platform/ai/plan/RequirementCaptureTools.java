@@ -365,15 +365,40 @@ public class RequirementCaptureTools {
     List<CatalogBindingHint> bindings =
         legacyBindingAdapter.canonicalBindings(input, previous, conversationId);
     var consistency = RequirementFailureConsistency.issues(input, bindings);
-    if (!consistency.isEmpty()) return reject(conversationId, input, previous, consistency);
+    if (!consistency.isEmpty()) {
+      store.rememberRejectedCapture(conversationId, input, consistency, bindings);
+      return view(previous, false, false, withPreservedFacts(consistency, previous, store.rejectedCaptureFacts(conversationId)));
+    }
+    DraftInput admitted = input;
     RequirementDraft draft = RequirementCaptureProjection.toDraft(
-        input, previous, bindings,
+        admitted, previous, bindings,
         legacyBindingAdapter.sourceSkillVersion(conversationId),
         legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+    store.revalidateRejectedModeCorrection(conversationId, admitted, bindings);
     var admissionIssues = store.admitCapture(conversationId, expectedBase, draft, changes,
         mappingRepairPaths(conversationId));
     if (!admissionIssues.isEmpty()) {
-      return reject(conversationId, input, previous, admissionIssues);
+      var restored = store.restoreProtectedCandidate(conversationId, admitted, bindings, admissionIssues);
+      if (restored != null) {
+        var preservedValues = store.copyRejectedCaptureValues(conversationId);
+        store.noteNamedModeCorrection(conversationId, restored, bindings);
+        var restoredDraft = RequirementCaptureProjection.toDraft(
+            restored, previous, bindings,
+            legacyBindingAdapter.sourceSkillVersion(conversationId),
+            legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+        var retry = store.admitCapture(conversationId, expectedBase, restoredDraft, changes,
+            mappingRepairPaths(conversationId));
+        if (retry.isEmpty()) {
+          admitted = restored;
+          draft = restoredDraft;
+          admissionIssues = retry;
+        } else {
+          store.replaceRejectedCaptureValues(conversationId, preservedValues);
+        }
+      }
+    }
+    if (!admissionIssues.isEmpty()) {
+      return reject(conversationId, admitted, previous, admissionIssues);
     }
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
@@ -601,7 +626,7 @@ public class RequirementCaptureTools {
         }
         for (int i = 0; i < literals.size(); i++) {
           String literal = literals.get(i);
-          if (literal == null || literal.isBlank() || !authorText.contains(literal)) {
+          if (literal == null || literal.isBlank() || !authorContainsLiteral(authorText, literal)) {
             String field = i < intent.exactValues().size() ? "/exactValues/" + i : "/requestedName";
             issues.add(new Issue("ELEMENT_LITERAL_SOURCE_MISMATCH", path + field, fact.sourceFactId(),
                 literal == null || literal.isBlank()
@@ -627,6 +652,14 @@ public class RequirementCaptureTools {
     }
     }
     return issues;
+  }
+
+  private static boolean authorContainsLiteral(String authorText, String literal) {
+    return authorText.contains(literal) || authorText.contains(jsonEscaped(literal));
+  }
+
+  private static String jsonEscaped(String literal) {
+    return literal.replace("\\", "\\\\").replace("\"", "\\\"");
   }
 
   private RequirementCaptureResult view(

@@ -232,8 +232,9 @@ class CompilerDagExecutionEngineTest {
             validationPipeline);
   }
 
-  @Test
-  void failedMandatoryGraphOwnerCannotInheritAnotherOwnersAcceptedPatch() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void failedMandatoryGraphOwnerCannotInheritAnotherOwnersAcceptedPatch(boolean repeatedRead) {
     String conversation = "mandatory-patch-failure";
     var template = dagWithScriptGenerator();
     var first = new ResolvedCompilerNode("first-owner", "Implementation", "GEN-FIRST",
@@ -261,7 +262,9 @@ class CompilerDagExecutionEngineTest {
     when(skillRegistry.require("first-owner")).thenReturn(firstExecutor);
     var failedExecutor = mock(SkillExecutor.class);
     when(failedExecutor.run(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-        .thenReturn(Uni.createFrom().item(new SkillExecutionResult(
+        .thenReturn(repeatedRead ? Uni.createFrom().failure(
+            new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException("cip-script-generator"))
+            : Uni.createFrom().item(new SkillExecutionResult(
             org.qubership.integration.platform.ai.skill.executor.SkillRunStatus.FAILED, List.of(), "Invalid JSON at /arguments", false)));
     when(skillRegistry.require("cip-script-generator")).thenReturn(failedExecutor);
     stubAssemblyAndValidator(dag);

@@ -97,6 +97,33 @@ class RequirementFailureConsistencyAdmissionTest {
   }
 
   @Test
+  void namedModeRepairRestoresADroppedProtectedFactAndContinues() throws Exception {
+    var h = new Harness();
+    h.begin();
+    try {
+      var refusal = h.call("captureRequirementDraft", Map.of("draft", input()));
+      assertFalse(refusal.path("accepted").asBoolean(), refusal.toString());
+      String token = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token").asText();
+      var modeUpdate = update(mode(ServiceCallFailureMode.INLINE_RESPONSE));
+      var changes = new RequirementCaptureInput.DraftUpdate(modeUpdate.addInteractions(), modeUpdate.updateInteractions(),
+          modeUpdate.removeInteractionIds(), modeUpdate.addTransitions(), modeUpdate.removeTransitions(),
+          modeUpdate.addFacts(), modeUpdate.updateFacts(), List.of("call-options"), modeUpdate.setCapabilities(),
+          modeUpdate.removeCapabilityInteractionIds(), modeUpdate.addQuestions(), modeUpdate.updateQuestions(),
+          modeUpdate.removeQuestionIds(), modeUpdate.settings(), modeUpdate.amendments(), token);
+      var result = h.call("updateRequirementDraft", Map.of("changes", changes));
+      assertTrue(result.path("accepted").asBoolean(), result.toString());
+      var saved = h.store.get(h.chat).orElseThrow().authoredDraft();
+      assertEquals(ServiceCallFailureMode.INLINE_RESPONSE, saved.flow().interactions().get(1).failureMode());
+      assertTrue(saved.facts().stream().anyMatch(fact -> "call-options".equals(fact.sourceFactId())
+          && "Return all HTTP responses to the ordinary response step.".equals(fact.text())
+          && fact.elementIntent() != null && fact.elementIntent().requestedProperties().stream()
+              .anyMatch(property -> "errorThrowing".equals(property.key()) && "false".equals(property.value()))));
+      assertEquals(input().facts().size(), saved.facts().size());
+      assertTrue(h.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE")).path("accepted").asBoolean());
+    } finally { ProductCapabilityCaptureContext.unbind(); }
+  }
+
+  @Test
   void rejectedInitializationRetainsRawModeAndOnlyTheCorrectedModeIsAdmitted() throws Exception {
     var h = new Harness();
     h.begin();
@@ -286,6 +313,49 @@ class RequirementFailureConsistencyAdmissionTest {
   static RequirementCaptureInput.DraftUpdate update(RequirementCaptureInput.InteractionInput interaction) {
     return new RequirementCaptureInput.DraftUpdate(List.of(), List.of(interaction), List.of(), List.of(), List.of(), List.of(),
         List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void laterNativeContradictionMustNotFreezeAnEarlierRejectedMode(boolean reload) throws Exception {
+    var h = new Harness(); h.begin();
+    try {
+      var malformed = (ObjectNode) json.valueToTree(input());
+      ((ObjectNode) malformed.at("/facts/2/elementIntent")).putNull("ownerInteractionId");
+      var first = h.call("captureRequirementDraft", Map.of("draft", malformed));
+      assertFalse(first.path("accepted").asBoolean(), first.toString());
+      assertEquals("PROPAGATE", h.store.repairConstraints(h.chat).values()
+          .at("/interactions/remote/failureMode").asText());
+      var conflict = h.call("captureRequirementDraft", Map.of("draft", input()));
+      assertFalse(conflict.path("accepted").asBoolean());
+      assertEquals("FAILURE_MODE_CONFLICT", conflict.at("/issues/0/code").asText(), conflict.toString());
+      var source = json.valueToTree(h.archive.read(h.chat));
+      var old = h.artifacts.history(h.sessions.active(h.chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION);
+      if (reload) {
+        var latest = old.getLast();
+        var protection = h.artifacts.payload(latest, RequirementDraftStore.CaptureFactProtection.class);
+        var legacy = (ObjectNode) protection.values().deepCopy();
+        ((ObjectNode) legacy.at("/interactions/remote")).put("failureMode", "PROPAGATE");
+        h.artifacts.append(new CompilationArtifacts.AppendCommand(latest.compilationId(),
+            CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
+            new RequirementDraftStore.CaptureFactProtection(protection.sourceGeneration(), protection.sourceTurnId(),
+                protection.authorText(), protection.facts(), legacy, protection.baseIdentity()), List.of(), latest.artifactId()));
+        h.reload(); h.begin();
+      }
+      var forbidden = withMode(input(), ServiceCallFailureMode.ERROR_SCOPE);
+      var refused = h.call("captureRequirementDraft", Map.of("draft", forbidden));
+      assertFalse(refused.path("accepted").asBoolean(), refused.toString());
+      assertTrue(h.store.get(h.chat).isEmpty());
+      var corrected = withMode(input(), ServiceCallFailureMode.INLINE_RESPONSE);
+      var accepted = h.call("captureRequirementDraft", Map.of("draft", corrected));
+      assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
+      assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertTrue(h.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE"))
+          .path("accepted").asBoolean());
+      old.forEach(revision -> assertEquals(revision,
+          h.artifacts.get(revision.compilationId(), revision.reference()).orElseThrow()));
+      assertEquals(source.path("generation"), json.valueToTree(h.archive.read(h.chat)).path("generation"));
+    } finally { ProductCapabilityCaptureContext.unbind(); }
   }
 
   private class Harness {
