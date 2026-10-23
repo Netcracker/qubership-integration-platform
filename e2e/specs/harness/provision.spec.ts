@@ -8,8 +8,11 @@
  * this very project runs on a machine with no Docker to fall back to.
  * `specs/schema/provision.spec.ts` reads the watched paths against the compose file and the checkout.
  */
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { test, expect, type FullConfig } from "@playwright/test";
-import { repoRoot } from "../../env/host.js";
+import { imageTag, repoRoot } from "../../env/host.js";
 import {
   formatReport,
   forgottenRuns,
@@ -18,7 +21,7 @@ import {
   selectedProjects,
   type ProvisionReport,
 } from "../../env/provision.js";
-import { supportStaleness, type ContainerState } from "../../env/provision/compose.js";
+import { imageStale, supportStaleness, type ContainerState } from "../../env/provision/compose.js";
 import type { RunRecord } from "../../support/run.js";
 
 function withProvisionEnv<T>(value: string | undefined, body: () => T): T {
@@ -219,5 +222,53 @@ test.describe("provisioning", { tag: ["@harness"] }, () => {
       );
       expect(found).toEqual({ recreate: [], report: [] });
     });
+  });
+
+  test.describe("service images", () => {
+    const REPOSITORY = "infrastructure-qip-testing-service";
+    const sources = ["module"];
+
+    /** A checkout holding one service, and an image store holding the image its last build tagged. */
+    function built(body: (root: string, inspect: (reference: string) => Promise<string | null>) => Promise<void>) {
+      return async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-compose-image-"));
+        try {
+          fs.mkdirSync(path.join(root, "module"));
+          fs.writeFileSync(path.join(root, "module/main.go"), "package main");
+          const images = new Map([
+            [REPOSITORY, "sha256:built"],
+            [`${REPOSITORY}:${imageTag(root, sources)}`, "sha256:built"],
+          ]);
+          await body(root, async (reference) => images.get(reference) ?? null);
+        } finally {
+          fs.rmSync(root, { recursive: true, force: true });
+        }
+      };
+    }
+
+    test("an image built from the sources as they stand is current", built(async (root, inspect) => {
+      expect(await imageStale(REPOSITORY, imageTag(root, sources), "sha256:built", inspect)).toBe(false);
+      // With no container, the image Compose would start is the one compared.
+      expect(await imageStale(REPOSITORY, imageTag(root, sources), null, inspect)).toBe(false);
+    }));
+
+    test("a changed source makes the image stale", built(async (root, inspect) => {
+      fs.writeFileSync(path.join(root, "module/main.go"), "package main // edited");
+      expect(await imageStale(REPOSITORY, imageTag(root, sources), "sha256:built", inspect)).toBe(true);
+    }));
+
+    test("a touch that changes no content leaves the image current", built(async (root, inspect) => {
+      // A reproducible build keeps the image's creation time, so under the old mtime check a file
+      // rewritten with the same content, such as a regenerated `AGENTS.md`, made the service stale on
+      // every run.
+      const later = new Date(Date.now() + 86_400_000);
+      fs.utimesSync(path.join(root, "module/main.go"), later, later);
+      expect(await imageStale(REPOSITORY, imageTag(root, sources), "sha256:built", inspect)).toBe(false);
+    }));
+
+    test("a container running another image is stale", built(async (root, inspect) => {
+      // An image built outside the suite carries no hash tag, so which sources it holds is unknown.
+      expect(await imageStale(REPOSITORY, imageTag(root, sources), "sha256:other", inspect)).toBe(true);
+    }));
   });
 });

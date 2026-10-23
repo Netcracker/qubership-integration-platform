@@ -75,7 +75,7 @@ and `metaspace` attachments of `specs/env/process-envelope.spec.ts`.
 ### Provisioning
 
 `npx playwright test` brings the stack to this checkout before any project starts. It starts what is
-missing or unhealthy, rebuilds a service whose sources are newer than the image its container runs,
+missing or unhealthy, rebuilds a service whose sources changed since its image was built,
 and never recreates a running container that is already current, because a developer may be
 debugging on the same stack.
 

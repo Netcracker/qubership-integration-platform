@@ -9,8 +9,6 @@
  * Each image is tagged with a hash over its own inputs, so an image whose tag already exists is not
  * rebuilt, and Helm leaves a Deployment whose tag did not change alone.
  */
-import { createHash } from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
 import type { ServiceRole } from "../index.js";
 import { BROKER_PORT, hostPort, OVERLAY_NAMES, proxyPort, proxyUrl, ROLES } from "../containers.js";
@@ -25,7 +23,7 @@ import {
   RELEASE,
   restoreDeclared,
 } from "../k8s.js";
-import { capture, httpStatus, pollUntil, repoRoot, stream } from "../host.js";
+import { capture, httpStatus, imageTag, pollUntil, repoRoot, stream } from "../host.js";
 import { describeOverride, overrideNotice, readOverrides } from "../overrides.js";
 import { apiPath } from "../api-routes.js";
 import type { ProvisionMode, ProvisionReport } from "../provision.js";
@@ -275,44 +273,6 @@ export function suiteImages(): SuiteImage[] {
       sources: ["micro-engine/src", "micro-engine/pom.xml", "micro-engine/Dockerfile"],
     },
   ];
-}
-
-function filesUnder(root: string, relative: string): string[] {
-  const absolute = path.resolve(root, relative);
-  const stat = fs.statSync(absolute, { throwIfNoEntry: false });
-  if (!stat) return [];
-  if (stat.isFile()) return [relative];
-  return fs
-    .readdirSync(absolute, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)));
-}
-
-/**
- * `e2e-` and 12 hex digits of a SHA-256 over the sources' paths and contents, and over the Maven
- * arguments, which change the jar the same sources build.
- *
- * Contents rather than modification times: a checkout of the same commit elsewhere, or a touch that
- * changes nothing, gives the same tag, and `target/` never takes part.
- */
-export function imageTag(
-  root: string,
-  sources: readonly string[],
-  mavenArgs: readonly string[] = [],
-): string {
-  const hash = createHash("sha256");
-  for (const arg of mavenArgs) {
-    hash.update(arg);
-    hash.update("\0");
-  }
-  const files = sources.flatMap((each) => filesUnder(root, each)).sort();
-  for (const file of files) {
-    hash.update(file);
-    hash.update("\0");
-    hash.update(fs.readFileSync(path.resolve(root, file)));
-    hash.update("\0");
-  }
-  return `e2e-${hash.digest("hex").slice(0, 12)}`;
 }
 
 async function imageExists(reference: string): Promise<boolean> {

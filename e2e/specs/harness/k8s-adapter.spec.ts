@@ -21,10 +21,9 @@ import {
   checkPrerequisites,
   clusterChoice,
   helmArguments,
-  imageTag,
   suiteImages,
 } from "../../env/provision/k8s.js";
-import { repoRoot } from "../../env/host.js";
+import { imageTag, repoRoot } from "../../env/host.js";
 import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
 import { targetSetup } from "../../env/target-setup.js";
 import type { Overlay } from "../../env/index.js";

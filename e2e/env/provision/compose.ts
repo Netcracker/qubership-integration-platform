@@ -29,7 +29,7 @@
  * and a Maven build costs minutes, and neither may be charged to a test's timeout.
  */
 import { ComposeEnv, composeFile } from "../compose.js";
-import { capture, newestMtimeMs, pollUntil, repoRoot, stream } from "../host.js";
+import { capture, imageTag, newestMtimeMs, pollUntil, repoRoot, stream } from "../host.js";
 import {
   describeOverride,
   forgetOverride,
@@ -45,9 +45,9 @@ import { emptyProvisionReport, mavenInstall } from "./common.js";
 /**
  * A service the suite provisions, and what makes its image stale.
  *
- * `sources` is anything under `<module>/src` or its `pom.xml`, compared against
- * the creation time of the image the container is actually running. No labels and no state file,
- * so it stays correct on a dirty tree, which is the normal state while developing.
+ * `sources` is anything under `<module>/src` or its `pom.xml`. A build tags the image with a hash
+ * over their contents, so the image is stale when the container runs any other image. The hash
+ * covers a dirty tree, which is the normal state while developing.
  *
  * The rule is "what reaches the jar this image runs", so it holds three kinds of path rather than
  * one. `parent/pom.xml` is the parent of all three Spring services — every one of them declares
@@ -67,7 +67,7 @@ interface Provisionable {
   container: string;
   /** Maven module to install before the image is built, when the jar comes from the host. */
   mavenModule?: string;
-  /** Paths whose mtime decides staleness, relative to the repository root. */
+  /** Paths whose contents decide staleness, relative to the repository root. */
   sources: string[];
   /**
    * The env files this compose service declares, relative to the repository root.
@@ -188,8 +188,8 @@ export function supportConfig(): Array<{ service: string; config: string[] }> {
 /**
  * Each provisioned service's staleness sources, for the spec that pins them against the checkout.
  *
- * Exported for the reason `supportConfig` is: `newestMtimeMs` skips a path that does not exist, so
- * an entry that was renamed reads as a service nothing can make stale, and the run says "nothing to
+ * Exported for the reason `supportConfig` is: `imageTag` skips a path that does not exist, so an
+ * entry that was renamed reads as a service nothing can make stale, and the run says "nothing to
  * do" over a jar built before the change.
  */
 export function provisionedSources(): Array<{
@@ -237,11 +237,30 @@ function isUp(state: ContainerState | null): boolean {
   return !!state && state.running && (state.health === "healthy" || state.health === "none");
 }
 
-async function imageCreatedMs(ref: string): Promise<number | null> {
-  const out = await capture("docker", ["image", "inspect", "-f", "{{.Created}}", ref]).catch(() => null);
-  if (!out) return null;
-  const ms = Date.parse(out.trim());
-  return Number.isNaN(ms) ? null : ms;
+async function imageId(reference: string): Promise<string | null> {
+  const out = await capture("docker", ["image", "inspect", "-f", "{{.Id}}", reference]).catch(() => null);
+  return out ? out.trim() : null;
+}
+
+/**
+ * Whether the image a service runs was built from sources other than the ones in the checkout.
+ *
+ * A build tags its image `<repository>:<tag>`, where `tag` is `imageTag` over the service's sources,
+ * so the image is current when that tag exists and names the image the container runs. `running` is
+ * the container's image, or null when there is no container, in which case the image Compose would
+ * start, `<repository>:latest`, is compared. Contents decide rather than modification times: the
+ * testing service's Go build is reproducible, so its image kept an old creation time, and any newer
+ * file under `testing-service/` made the service stale on every run.
+ * `inspect` is `docker image inspect`, passed in so a spec can run this without Docker.
+ */
+export async function imageStale(
+  repository: string,
+  tag: string,
+  running: string | null,
+  inspect: (reference: string) => Promise<string | null> = imageId,
+): Promise<boolean> {
+  const current = await inspect(`${repository}:${tag}`);
+  return current === null || current !== (running ?? (await inspect(repository)));
 }
 
 /** Whether anything under `paths` was written after the container read its configuration. */
@@ -355,17 +374,18 @@ export async function provisionCompose(mode: ProvisionMode): Promise<ProvisionRe
     return report;
   }
 
-  // Staleness is decided per service, against the image the container is actually running. With no
-  // container, fall back to the image compose would have tagged; with neither, the service is built.
+  // Staleness is decided per service, against the image the container is actually running.
   // Compose tags an image `<project>-<service>`, and the compose file sets the project with `name:`.
   const config = await capture("docker", ["compose", "-f", composeFile(), "config", "--format", "json"]);
   const project = (JSON.parse(config) as { name: string }).name;
+  const repositoryOf = (candidate: Provisionable) => `${project}-${candidate.service}`;
+  // Hashed before the build, so an edit made while it runs leaves the image stale for the next run.
+  const tags = new Map(PROVISIONED.map((each) => [each, imageTag(root, each.sources)]));
   const stale: Provisionable[] = [];
   const reconfigured: Provisionable[] = [];
   for (const candidate of PROVISIONED) {
     const state = before.get(candidate.container) ?? null;
-    const created = await imageCreatedMs(state?.imageId ?? `${project}-${candidate.service}`);
-    if (created === null || (await newestMtimeMs(root, candidate.sources)) > created) {
+    if (await imageStale(repositoryOf(candidate), tags.get(candidate)!, state?.imageId ?? null)) {
       stale.push(candidate);
       continue;
     }
@@ -423,6 +443,10 @@ export async function provisionCompose(mode: ProvisionMode): Promise<ProvisionRe
   if (rebuild.length) {
     console.log(`[provision] docker compose up --build: ${rebuild.join(", ")}`);
     await stream("docker", ["compose", "-f", file, "up", "-d", "--build", ...rebuild], root);
+    for (const candidate of stale) {
+      const repository = repositoryOf(candidate);
+      await capture("docker", ["tag", repository, `${repository}:${tags.get(candidate)}`]);
+    }
     report.rebuilt = rebuild;
   }
   if (recreate.length) {

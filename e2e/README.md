@@ -527,10 +527,12 @@ Before any project starts, the run brings the stack to this checkout and prints 
 [provision]   nginx reloaded
 ```
 
-It starts what is missing or unhealthy and rebuilds a service whose sources are newer than the image
-its container runs. A running container that is already current is never recreated, so a stack you
-are debugging survives a run. A change to `infrastructure/docker/docker-compose.yml` or to an env file a
-service reads recreates the container instead of rebuilding it, which costs seconds:
+It starts what is missing or unhealthy and rebuilds a service whose sources changed since its image
+was built. Each build tags the image with a hash over the contents of the service's sources, as in
+`infrastructure-qip-engine:e2e-<hash>`, so a file whose content did not change rebuilds nothing. A
+running container that is already current is never recreated, so a stack you are debugging survives
+a run. A change to `infrastructure/docker/docker-compose.yml` or to an env file a service reads
+recreates the container instead of rebuilding it, which costs seconds:
 
 ```text
 [provision]   recreated for a configuration change: qip-engine
