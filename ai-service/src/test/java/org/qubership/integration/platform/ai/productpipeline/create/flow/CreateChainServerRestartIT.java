@@ -8,13 +8,18 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/** Kills a complete Quarkus test server while its PostgreSQL and artifact directory stay intact. */
+/**
+ * Kills a complete Quarkus test server while its PostgreSQL and artifact directory stay intact.
+ * Excluded from the default build because it runs for about ten minutes; run it on demand.
+ */
+@Tag("server-restart")
 class CreateChainServerRestartIT {
 
   @TempDir Path directory;
