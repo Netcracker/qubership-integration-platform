@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.engine.persistence.shared.repository;
 
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ContextSystemRecords;
@@ -86,5 +88,28 @@ class ContextStorageRepositoryTest {
         repo.deleteByIds(ids);
 
         verify(repo).delete("id in (?1)", ids);
+    }
+
+    @Test
+    void mergeValueShouldBindEveryParameterOfOneUpsertStatement() {
+        ContextStorageRepository repo = Mockito.spy(new ContextStorageRepository());
+        EntityManager entityManager = mock(EntityManager.class);
+        Query query = mock(Query.class);
+        doReturn(entityManager).when(repo).getEntityManager();
+        when(entityManager.createNativeQuery(anyString())).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        Timestamp now = Timestamp.from(Instant.now());
+        Timestamp expiresAt = Timestamp.from(now.toInstant().plusSeconds(60));
+
+        repo.mergeValue("id-1", "{\"context\":{\"k\":\"v\"}}", "svc", "ctx", now, expiresAt);
+
+        verify(entityManager).createNativeQuery(contains("on conflict (context_service_id, context_id) do update"));
+        verify(query).setParameter("id", "id-1");
+        verify(query).setParameter("value", "{\"context\":{\"k\":\"v\"}}");
+        verify(query).setParameter("contextServiceId", "svc");
+        verify(query).setParameter("contextId", "ctx");
+        verify(query).setParameter("now", now);
+        verify(query).setParameter("expiresAt", expiresAt);
+        verify(query).executeUpdate();
     }
 }
