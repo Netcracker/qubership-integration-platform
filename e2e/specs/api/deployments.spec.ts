@@ -76,8 +76,9 @@ const SAMPLE_PAUSE = 100;
  * The window is tolerated rather than pinned, and a tolerance with no bound on the count is not a
  * measurement: a window that got an order of magnitude wider answers the same document every time,
  * so a filter asking only *which* answers came back stays green through it. This bound keeps the
- * measured number meaningful: 31,890 calls across eight redeploys produced no non-200 at all, and
- * the single live sighting this suite has is one sample.
+ * measured number meaningful: 31,890 calls across eight redeploys produced no non-200 at all. The
+ * suite has seen the window twice since, one sample each time: `500 CIP-0001` in a local full run,
+ * and 500 with the request body echoed back in run 39771885404.
  *
  * Ten is roughly a second of drain at `SAMPLE_PAUSE`, and the switch itself spans between 30 and 45
  * samples on this stack, so the bound is about a quarter of the redeploy. Every full run so far has
@@ -347,8 +348,10 @@ test.describe("deployments", { tag: ["@catalog"] }, () => {
     // rejects. Issue #845 has the mechanism and the reproduction. The second of the two paths
     // it describes is the one that reaches a redeploy: `stopSupersededContext` tears the old context
     // down under whatever is still executing on it, and `CamelServlet.service` answers that request
-    // 500. This suite has seen it once, against 31,890 redeploy calls that produced no non-200: rare,
-    // not impossible, which is why the window is tolerated here rather than pinned with `test.fail()`.
+    // 500. Measured, 31,890 redeploy calls produced no non-200, and the suite has seen the window
+    // twice since, one sample each time: `500 CIP-0001` in a local full run, and the echoed request
+    // in run 39771885404. The window is rare but real, so it is tolerated here rather than pinned
+    // with `test.fail()`.
     //
     // Tolerated is not unread. A sample that is neither a 200 nor one of those answers fails the case,
     // so a redeploy that starts answering 502, or 500 with some other code, is still a regression, and

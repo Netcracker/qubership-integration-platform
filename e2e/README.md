@@ -473,10 +473,11 @@ races, and the cause of the third is not known. Check here before you bisect.
   "values" is null` when a sibling case deletes a row while the listing is mapping it. The endpoint
   reproduces it under concurrent load alone, so if a different spec reading the same listing goes
   red, it is this entry and not a new finding.
-- **`specs/api/deployments.spec.ts`, once in three full runs.** One sample in the redeploy window
-  answered `500 CIP-0001`. The case tolerates up to ten such samples and refuses every other
-  non-200, so a red there means a status the window does not produce, or a window far wider than
-  the one measured.
+- **`specs/api/deployments.spec.ts`, twice.** One sample in the redeploy window answered
+  `500 CIP-0001`, once in three local full runs, and one answered 500 with the request body echoed
+  back, in CI run 39771885404. The case tolerates up to ten samples of either shape and refuses
+  every other non-200, so a red there means a status the window does not produce, or a window far
+  wider than the one measured.
 - **`specs/brokers/files.spec.ts` on `brokers-micro`, twice.** The case `sftp › sftp-trigger-2 › a
   dropped file records a session found by chain id` found no session within 20 s, in CI runs
   39720893673 and 39777664543. It passed on the classic engine in both runs, and on the micro engine
