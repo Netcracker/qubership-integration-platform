@@ -33,6 +33,7 @@ export const KeyValuePairsEditor: React.FC<KeyValuePairsEditorExProps> = ({
   tableHeader,
   tableColumnNames,
   actionRef,
+  style,
   ...rest
 }) => {
   const [activeKey, setActiveKey] = useState<string>("table");
@@ -54,7 +55,7 @@ export const KeyValuePairsEditor: React.FC<KeyValuePairsEditorExProps> = ({
 
   return (
     <Tabs
-      style={{ height: "100%", width: "100%" }}
+      style={{ height: "100%", width: "100%", ...style }}
       className={"flex-tabs"}
       tabPlacement="bottom"
       size="small"

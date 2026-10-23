@@ -82,7 +82,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
 
   useEffect(() => {
     propertiesEditorRef.current?.activateTab(propertiesTab);
-  }, [propertiesTab, showProperties]);
+  }, [propertiesTab]);
 
   const handleSubmit = useCallback(async () => {
     try {
@@ -286,12 +286,11 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
           }
           name="properties"
         >
-          {showProperties && (
-            <KeyValuePairsEditor
-              actionRef={propertiesEditorRef}
-              renderTabBar={() => <></>}
-            />
-          )}
+          <KeyValuePairsEditor
+            actionRef={propertiesEditorRef}
+            renderTabBar={() => <></>}
+            style={showProperties ? undefined : { display: "none" }}
+          />
         </Form.Item>
       </Form>
     </Modal>

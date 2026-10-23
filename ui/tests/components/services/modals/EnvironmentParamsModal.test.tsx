@@ -210,6 +210,17 @@ describe("EnvironmentParamsModal", () => {
     expect(screen.getByText("Edit Environment")).toBeInTheDocument();
   });
 
+  it("should not warn about the properties form item while the properties are collapsed", () => {
+    const consoleError = jest.spyOn(console, "error");
+
+    renderModal("kafka");
+
+    expect(consoleError.mock.calls.flat().join(" ")).not.toContain(
+      "`name` is only used for validate React element",
+    );
+    consoleError.mockRestore();
+  });
+
   it("should show the property count and the properties table when expanded", () => {
     renderModal("kafka");
 
