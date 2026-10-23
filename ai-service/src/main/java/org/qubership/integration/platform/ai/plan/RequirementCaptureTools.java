@@ -102,7 +102,7 @@ public class RequirementCaptureTools {
       A partial draft is valid. Initialize with captureRequirementDraft until a draft is accepted.
       After initialization is accepted, later edits use updateRequirementDraft.
       If initialization is rejected, correct the full rejected candidate and call captureRequirementDraft again,
-      or readRequirementDraft and use updateRequirementDraft with the exact pendingProposal.attempt for focused initial repair.
+      or readRequirementDraft and use updateRequirementDraft with the exact pendingProposal.token for focused initial repair.
       Change only reported fields and preserve unaffected facts.
       For a field adaptation across a direct transition, record one FIELD_MAPPING fact per target
       field. Include both endpoints in interactionIds and exact field paths in fieldMapping.
@@ -142,9 +142,9 @@ public class RequirementCaptureTools {
 
   @Tool("""
       Apply focused requirement changes atomically. If no draft is accepted, first readRequirementDraft and copy
-      the exact current pendingProposal.attempt into changes.pendingAttempt to edit that unaccepted initial proposal.
+      the exact current pendingProposal.token into changes.pendingProposalToken to edit that unaccepted initial proposal.
       This does not approve it or authorize changing protected facts; the full initial validation still applies.
-      Omit pendingAttempt or set it null when editing an accepted draft. Each updated entity is a complete small record.
+      Omit pendingProposalToken or set it null when editing an accepted draft. Each updated entity is a complete small record.
       Empty lists leave their entity family unchanged. Remove references explicitly when deleting an
       interaction. Preserve accepted fact IDs, kind, full text, polarity,
       and mapping values. Reassign fact references when fixing topology; add omitted requirements as
@@ -215,7 +215,7 @@ public class RequirementCaptureTools {
       Read the complete accepted requirements, resolution state, defaults, and remaining work.
       pendingProposal, when present, is the complete rejected candidate with its source/base/attempt and findings.
       It is not accepted and grants no amendment authority. If no accepted draft exists, correct it using
-      captureRequirementDraft, or copy pendingProposal.attempt into changes.pendingAttempt for focused initial repair;
+      captureRequirementDraft, or copy pendingProposal.token into changes.pendingProposalToken for focused initial repair;
       otherwise use updateRequirementDraft against the accepted draft.
       """)
   public String readRequirementDraft() {
@@ -669,9 +669,9 @@ public class RequirementCaptureTools {
   }
 
   private RequirementCaptureResult recordOutcome(String toolName, Object arguments, RequirementCaptureResult result,
-      DraftInput resolvedCandidate) {
+      DraftInput resolvedCandidate, org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference selectedAttempt) {
     String conversationId = ToolSession.resolveConversationId();
-    store.recordCaptureOutcome(conversationId, toolName, arguments, result, resolvedCandidate);
+    store.recordCaptureOutcome(conversationId, toolName, arguments, result, resolvedCandidate, selectedAttempt);
     if ("finishRequirementDiscoveryTurn".equals(toolName) && result.issues().stream()
         .anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code()))) {
       return result;
@@ -719,8 +719,10 @@ public class RequirementCaptureTools {
       RequirementCaptureResult result;
       result = store.withWriteAuthority(conversationId, () -> {
         store.captureMutationScope(conversationId);
-        EditResult pending = arguments instanceof DraftUpdate update && update.pendingAttempt() != null
+        var initial = arguments instanceof DraftUpdate update && update.pendingProposalToken() != null
             ? store.pendingInitialUpdate(conversationId, update) : null;
+        EditResult pending = initial == null ? null : initial.edit();
+        var selectedAttempt = initial == null ? null : initial.attempt();
         DraftInput candidate = pending != null ? pending.candidate()
             : arguments instanceof DraftInput draft ? draft : null;
         DraftInput resolvedCandidate = pending == null ? null : pending.candidate();
@@ -744,10 +746,10 @@ public class RequirementCaptureTools {
           var stopped = new RequirementCaptureResult(false, false, rejected.revision(), rejected.readiness(),
               RequirementCaptureResult.NextAction.STOP, rejected.issues(), rejected.pendingWork(), rejected.draft(),
               rejected.resolutions(), rejected.defaults());
-          store.recordCaptureOutcome(conversationId, toolName, arguments, stopped, resolvedCandidate);
+          store.recordCaptureOutcome(conversationId, toolName, arguments, stopped, resolvedCandidate, selectedAttempt);
           return stopped;
         }
-        return recordOutcome(toolName, arguments, action.apply(pending), resolvedCandidate);
+        return recordOutcome(toolName, arguments, action.apply(pending), resolvedCandidate, selectedAttempt);
       });
       result = result.withRepairConstraints(store.repairConstraints(conversationId));
       if (recoveryControl != null && "captureRequirementDraft".equals(toolName) && arguments instanceof DraftInput draft) {

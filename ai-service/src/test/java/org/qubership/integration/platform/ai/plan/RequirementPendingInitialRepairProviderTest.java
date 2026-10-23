@@ -52,7 +52,7 @@ class RequirementPendingInitialRepairProviderTest {
   @InjectMock RateLimitStreamingChatModel provider;
 
   @Test
-  void actualNextProviderRequestReadsTheNativeReferenceThenFocusesAndContinues() throws Exception {
+  void actualNextProviderRequestReadsTheNativeTokenThenFocusesAndContinues() throws Exception {
     String chat = "pending-initial-provider-" + UUID.randomUUID();
     var initial = RequirementPendingInitialRepairTest.input("missing-owner");
     var corrected = RequirementPendingInitialRepairTest.input("entry");
@@ -90,6 +90,8 @@ class RequirementPendingInitialRepairProviderTest {
           var read = lastTool(request, "readRequirementDraft");
           var pending = read.path("pendingProposal");
           assertEquals(json.valueToTree(originalAttempt.get().reference()), pending.path("attempt"));
+          assertEquals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(originalAttempt.get().reference()),
+              pending.path("token").asText());
           assertEquals(json.valueToTree(initial), pending.path("draft"));
           assertTrue(pending.path("base").isNull());
           assertEquals(input.generation(), pending.path("sourceGeneration").asText());
@@ -98,16 +100,19 @@ class RequirementPendingInitialRepairProviderTest {
           assertEquals(credits.get(), fingerprints.softCreditsUsed(chat));
           var advertised = request.parameters().toolSpecifications().stream()
               .filter(tool -> "updateRequirementDraft".equals(tool.name())).findFirst().orElseThrow();
-          assertTrue(advertised.description().contains("pendingProposal.attempt"));
+          assertTrue(advertised.description().contains("pendingProposal.token"));
           var actualChanges = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class,
               advertised.parameters().properties().get("changes"));
-          assertFalse(actualChanges.required().contains("pendingAttempt"));
-          assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonAnyOfSchema.class,
-              actualChanges.properties().get("pendingAttempt"));
+          assertFalse(actualChanges.required().contains("pendingProposalToken"));
+          var tokenSchema = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonAnyOfSchema.class,
+              actualChanges.properties().get("pendingProposalToken"));
+          assertEquals(1, tokenSchema.anyOf().stream()
+              .filter(dev.langchain4j.model.chat.request.json.JsonStringSchema.class::isInstance).count());
+          assertFalse(actualChanges.properties().containsKey("pendingAttempt"));
           var changes = json.<ObjectNode>valueToTree(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
               List.of(), List.of(corrected.facts().getLast()), List.of(), List.of(), List.of(), List.of(), List.of(),
               List.of(), null, List.of()));
-          changes.set("pendingAttempt", pending.path("attempt"));
+          changes.set("pendingProposalToken", pending.path("token"));
           try { patch.set(json.writeValueAsString(Map.of("changes", changes))); }
           catch (Exception error) { throw new AssertionError(error); }
         }, handler -> handler.onCompleteResponse(ChatResponse.builder().aiMessage(AiMessage.from(
@@ -122,6 +127,8 @@ class RequirementPendingInitialRepairProviderTest {
           catch (Exception error) { throw new AssertionError(error); }
           assertEquals(json.valueToTree(corrected), saved.payload().path("resolvedCandidate"));
           assertTrue(saved.inputs().contains(originalAttempt.get().reference()));
+          assertTrue(saved.payload().path("arguments").path("pendingProposalToken").isTextual());
+          assertFalse(saved.payload().path("arguments").has("pendingAttempt"));
           assertEquals(originalAttempt.get(), artifacts.get(originalAttempt.get().compilationId(), originalAttempt.get().reference()).orElseThrow());
         }, "finishRequirementDiscoveryTurn", "{\"directive\":\"CONTINUE\"}"),
         Turn.text("complete", request -> assertTrue(lastTool(request, "finishRequirementDiscoveryTurn")

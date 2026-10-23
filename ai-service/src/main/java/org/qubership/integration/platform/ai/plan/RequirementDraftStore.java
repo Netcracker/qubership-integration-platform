@@ -1040,6 +1040,11 @@ public class RequirementDraftStore {
 
   void recordCaptureOutcome(String conversationId, String toolName, Object arguments,
       RequirementCaptureResult result, RequirementCaptureInput.DraftInput resolvedCandidate) {
+    recordCaptureOutcome(conversationId, toolName, arguments, result, resolvedCandidate, null);
+  }
+
+  void recordCaptureOutcome(String conversationId, String toolName, Object arguments,
+      RequirementCaptureResult result, RequirementCaptureInput.DraftInput resolvedCandidate, Reference selectedAttempt) {
     if (result.accepted() && !List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
       return;
     }
@@ -1054,7 +1059,7 @@ public class RequirementDraftStore {
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
         arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId),
-        RequirementCaptureToolProvider.argumentBinding(), authorEvidenceHash(conversationId), resolvedCandidate));
+        RequirementCaptureToolProvider.argumentBinding(), authorEvidenceHash(conversationId), resolvedCandidate), selectedAttempt);
     if (!result.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
       revalidateRejectedReferences(conversationId);
     }
@@ -1251,18 +1256,20 @@ public class RequirementDraftStore {
         }).reduce((first, last) -> last);
   }
 
-  RequirementCaptureEditor.EditResult pendingInitialUpdate(String conversationId,
+  record PendingInitialUpdate(RequirementCaptureEditor.EditResult edit, Reference attempt) {}
+
+  PendingInitialUpdate pendingInitialUpdate(String conversationId,
       RequirementCaptureInput.DraftUpdate changes) {
     var pending = pendingProposal(conversationId);
     var session = sessions.current(conversationId);
-    var revision = session.isEmpty() ? Optional.<Revision>empty()
-        : artifacts.get(session.orElseThrow().compilationId(), changes.pendingAttempt())
+    var revision = session.isEmpty() || pending.isEmpty() ? Optional.<Revision>empty()
+        : artifacts.get(session.orElseThrow().compilationId(), pending.orElseThrow().attempt())
             .filter(value -> value.kind() == Kind.REQUIREMENT_CAPTURE_ATTEMPT
                 && "requirement-capture-tools".equals(value.producerId()));
     var source = conversations == null ? null : conversations.archive().read(conversationId);
     var attempt = revision.map(value -> artifacts.payload(value, RequirementCaptureAttempt.class));
     if (!currentSource(conversationId) || latestRevision(conversationId).isPresent()
-        || pending.isEmpty() || !Objects.equals(pending.orElseThrow().attempt(), changes.pendingAttempt())
+        || pending.isEmpty() || !Objects.equals(pending.orElseThrow().token(), changes.pendingProposalToken())
         || revision.isEmpty() || revision.orElseThrow().kind() != Kind.REQUIREMENT_CAPTURE_ATTEMPT
         || !"requirement-capture-tools".equals(revision.orElseThrow().producerId())
         || attempt.orElseThrow().accepted() || attempt.orElseThrow().acceptedDraftReference() != null
@@ -1274,16 +1281,17 @@ public class RequirementDraftStore {
         || !Objects.equals(attempt.orElseThrow().authorEvidenceHash(), authorEvidenceHash(conversationId))
         || !Objects.equals(attempt.orElseThrow().authorEvidenceHash(),
             org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(AuthorSourceEvidence.packet(source)))) {
-      return new RequirementCaptureEditor.EditResult(null, List.of(new RequirementCaptureEditor.Issue(
-          "PENDING_PROPOSAL_NOT_CURRENT", "/changes/pendingAttempt", null,
-          "Use the exact current rejected initial pendingProposal.attempt from readRequirementDraft under the same author source and repair authority.")), false);
+      return new PendingInitialUpdate(new RequirementCaptureEditor.EditResult(null, List.of(new RequirementCaptureEditor.Issue(
+          "PENDING_PROPOSAL_NOT_CURRENT", "/changes/pendingProposalToken", null,
+          "Use the exact current rejected initial pendingProposal.token from readRequirementDraft under the same author source and repair authority.")), false), null);
     }
     var edited = RequirementCaptureEditor.apply(pending.orElseThrow().draft(), changes);
-    if (edited.candidate() == null) return new RequirementCaptureEditor.EditResult(null, edited.issues(), false);
+    if (edited.candidate() == null) return new PendingInitialUpdate(
+        new RequirementCaptureEditor.EditResult(null, edited.issues(), false), revision.orElseThrow().reference());
     var issues = new ArrayList<>(edited.issues());
     issues.addAll(RequirementCaptureEditor.initialize(edited.candidate()).issues());
-    return new RequirementCaptureEditor.EditResult(edited.candidate(), issues.stream().distinct().toList(),
-        edited.changed(), edited.candidate());
+    return new PendingInitialUpdate(new RequirementCaptureEditor.EditResult(edited.candidate(), issues.stream().distinct().toList(),
+        edited.changed(), edited.candidate()), revision.orElseThrow().reference());
   }
 
   RequirementCaptureInput.DraftInput captureCandidate(Revision revision) {
@@ -1327,19 +1335,22 @@ public class RequirementDraftStore {
       if (candidate == null) continue;
       return Optional.of(new RequirementCaptureResult.PendingProposal(
           revision.reference(), attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.acceptedDraftReference(),
-          attempt.toolName(), candidate, attempt.issues()));
+          attempt.toolName(), candidate, attempt.issues(),
+          org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(revision.reference())));
     }
     return Optional.empty();
   }
 
   private void saveCaptureAttempt(String conversationId, RequirementCaptureAttempt attempt) {
+    saveCaptureAttempt(conversationId, attempt, null);
+  }
+
+  private void saveCaptureAttempt(String conversationId, RequirementCaptureAttempt attempt, Reference selectedAttempt) {
     String compilationId = sessions.active(conversationId);
     var previous = artifacts.latest(compilationId, Kind.REQUIREMENT_CAPTURE_ATTEMPT);
     var inputs = new ArrayList<Reference>();
     if (attempt.acceptedDraftReference() != null) inputs.add(attempt.acceptedDraftReference());
-    if (attempt.resolvedCandidate() != null) {
-      inputs.add(new ObjectMapper().convertValue(attempt.arguments(), RequirementCaptureInput.DraftUpdate.class).pendingAttempt());
-    }
+    if (selectedAttempt != null) inputs.add(selectedAttempt);
     artifacts.append(new AppendCommand(compilationId, Kind.REQUIREMENT_CAPTURE_ATTEMPT, "1",
         "requirement-capture-tools", "1", attempt, inputs,
         previous.map(Revision::artifactId).orElse(null)));

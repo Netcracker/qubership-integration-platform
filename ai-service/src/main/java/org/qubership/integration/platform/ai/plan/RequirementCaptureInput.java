@@ -173,9 +173,9 @@ public final class RequirementCaptureInput {
       List<AmendmentInput> amendments,
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       @com.fasterxml.jackson.annotation.JsonProperty(required = false)
-      @NullableCaptureValue(description = "Exact pendingProposal.attempt from readRequirementDraft; only for focused"
+      @NullableCaptureValue(description = "Exact pendingProposal.token from readRequirementDraft; only for focused"
           + " repair of the current rejected initial proposal. Omit or use null for accepted-draft updates.")
-      org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference pendingAttempt) {
+      String pendingProposalToken) {
 
     public DraftUpdate(
         List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
