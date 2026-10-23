@@ -205,6 +205,11 @@ def main():
             "python3",
             str(service / "product-pipeline/recovery_campaign.py"),
             "pilot",
+            "--cases",
+            str(
+                Path(os.environ["QIP_SKILLS_TESTING_ROOT"])
+                / "product-pipeline/fixtures/recovery/cases.json"
+            ),
             "--out",
             str(root / "native"),
             "--image",
