@@ -110,12 +110,25 @@ function renderModal(
   return { onSubmit };
 }
 
+// Role queries compute accessible names from computed styles, and in this
+// dialog each one took over a second, so these tests query by text and label.
+// jsdom never finishes the modal's opening animation, so the modal stays at
+// opacity 0 and toBeVisible() fails for every element in it. isHidden checks
+// only display, which is how the dialog hides the address and the properties.
+function isHidden(element: HTMLElement | null): boolean {
+  return (
+    element !== null &&
+    (getComputedStyle(element).display === "none" ||
+      isHidden(element.parentElement))
+  );
+}
+
 function expandProperties() {
-  fireEvent.click(screen.getByRole("button", { name: "Expand row" }));
+  fireEvent.click(screen.getByLabelText("Expand row"));
 }
 
 function save() {
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.click(screen.getByText("Save"));
 }
 
 describe("EnvironmentParamsModal", () => {
@@ -148,9 +161,7 @@ describe("EnvironmentParamsModal", () => {
     const { onSubmit } = renderModal("kafka");
 
     fireEvent.click(screen.getByText("MAAS"));
-    expect(
-      screen.queryByRole("textbox", { name: "Address" }),
-    ).not.toBeInTheDocument();
+    expect(isHidden(screen.getByLabelText("Address"))).toBe(true);
     save();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -168,10 +179,8 @@ describe("EnvironmentParamsModal", () => {
     async (sourceType) => {
       const { onSubmit } = renderModal("kafka", { sourceType, address: "" });
 
-      expect(screen.getByRole("radio", { name: /MAAS/ })).toBeChecked();
-      expect(
-        screen.queryByRole("textbox", { name: "Address" }),
-      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/MAAS/)).toBeChecked();
+      expect(isHidden(screen.getByLabelText("Address"))).toBe(true);
       save();
 
       await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -184,13 +193,13 @@ describe("EnvironmentParamsModal", () => {
   it("should disable the source type when the protocol is not async", () => {
     renderModal("http");
 
-    expect(screen.getByRole("radio", { name: "Manual" })).toBeDisabled();
+    expect(screen.getByLabelText("Manual")).toBeDisabled();
   });
 
   it("should not submit when name is empty", async () => {
     const { onSubmit } = renderModal("http");
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "" },
     });
     save();
@@ -227,34 +236,30 @@ describe("EnvironmentParamsModal", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
     expandProperties();
 
-    expect(
-      screen.getByRole("button", { name: "authMethod" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "SASL_SSL" }),
-    ).toBeInTheDocument();
+    expect(isHidden(screen.getByText("authMethod"))).toBe(false);
+    expect(isHidden(screen.getByText("SASL_SSL"))).toBe(false);
   });
 
   it("should show the text tab after collapsing and expanding the properties when Text is selected", async () => {
     renderModal("kafka");
 
     expandProperties();
-    fireEvent.click(screen.getByRole("radio", { name: "Text" }));
-    fireEvent.click(screen.getByRole("button", { name: "Collapse row" }));
+    fireEvent.click(screen.getByLabelText("Text"));
+    fireEvent.click(screen.getByLabelText("Collapse row"));
     expandProperties();
 
-    expect(screen.getByRole("radio", { name: "Text" })).toBeChecked();
+    expect(screen.getByLabelText("Text")).toBeChecked();
     expect(
       await screen.findByTestId("key-value-pairs-editor"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add property" })).toBeDisabled();
+    expect(screen.getByLabelText("Add property")).toBeDisabled();
   });
 
   it("should submit properties edited as text", async () => {
     const { onSubmit } = renderModal("kafka");
 
     expandProperties();
-    fireEvent.click(screen.getByRole("radio", { name: "Text" }));
+    fireEvent.click(screen.getByLabelText("Text"));
     fireEvent.change(await screen.findByTestId("key-value-pairs-editor"), {
       target: { value: "bootstrap.servers=broker:9092;\nclient.id=cip;" },
     });
@@ -271,7 +276,7 @@ describe("EnvironmentParamsModal", () => {
     renderModal("kafka", { properties: {} });
 
     expandProperties();
-    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    fireEvent.click(screen.getByLabelText("Add property"));
 
     expect(screen.getByText("1")).toBeInTheDocument();
   });
@@ -279,7 +284,7 @@ describe("EnvironmentParamsModal", () => {
   it("should close without a prompt on Cancel when nothing changed", async () => {
     renderModal("http");
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByText("Cancel"));
 
     await waitFor(() =>
       expect(screen.queryByText("Edit Environment")).not.toBeInTheDocument(),
@@ -292,16 +297,14 @@ describe("EnvironmentParamsModal", () => {
     expandProperties();
 
     for (const text of ["authMethod", "SASL_SSL"]) {
-      fireEvent.click(screen.getByRole("button", { name: text }));
+      fireEvent.click(screen.getByText(text));
       const input = screen.getByDisplayValue(text);
       await act(async () => {
         fireEvent.keyDown(input, { key: "Enter", code: "Enter", keyCode: 13 });
       });
-      expect(
-        await screen.findByRole("button", { name: text }),
-      ).toBeInTheDocument();
+      expect(await screen.findByText(text)).toBeInTheDocument();
     }
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByText("Cancel"));
 
     await waitFor(() =>
       expect(screen.queryByText("Edit Environment")).not.toBeInTheDocument(),
@@ -312,12 +315,12 @@ describe("EnvironmentParamsModal", () => {
   it("should discard the changes when Yes is clicked in the unsaved prompt", async () => {
     const { onSubmit } = renderModal("http");
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByText("Cancel"));
     expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+    fireEvent.click(screen.getByText("Yes"));
 
     await waitFor(() =>
       expect(screen.queryByText("Edit Environment")).not.toBeInTheDocument(),
@@ -328,14 +331,14 @@ describe("EnvironmentParamsModal", () => {
   it("should keep the environment modal open when No is clicked in the unsaved prompt", async () => {
     const { onSubmit } = renderModal("http");
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByText("Cancel"));
     const prompt = (await screen.findByText("Unsaved Changes")).closest(
       '[role="dialog"]',
     ) as HTMLElement;
-    fireEvent.click(within(prompt).getByRole("button", { name: "No" }));
+    fireEvent.click(within(prompt).getByText("No"));
 
     await waitFor(() =>
       expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument(),
