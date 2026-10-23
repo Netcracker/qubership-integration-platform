@@ -21,7 +21,7 @@ import {
   selectedProjects,
   type ProvisionReport,
 } from "../../env/provision.js";
-import { imageStale, supportStaleness, type ContainerState } from "../../env/provision/compose.js";
+import { imageStale, supersededTags, supportStaleness, type ContainerState } from "../../env/provision/compose.js";
 import type { RunRecord } from "../../support/run.js";
 
 function withProvisionEnv<T>(value: string | undefined, body: () => T): T {
@@ -270,5 +270,16 @@ test.describe("provisioning", { tag: ["@harness"] }, () => {
       // An image built outside the suite carries no hash tag, so which sources it holds is unknown.
       expect(await imageStale(REPOSITORY, imageTag(root, sources), "sha256:other", inspect)).toBe(true);
     }));
+
+    // Shown failing: keeping the current tag turned the first case red, and matching any `e2e-`
+    // prefix turned the second.
+    test("a rebuild removes the hash tags of earlier builds", () => {
+      const listed = ["e2e-0123456789ab", "latest", "e2e-fedcba987654", "<none>", ""];
+      expect(supersededTags(REPOSITORY, listed, "e2e-0123456789ab")).toEqual([`${REPOSITORY}:e2e-fedcba987654`]);
+    });
+
+    test("a rebuild keeps the tags it did not write", () => {
+      expect(supersededTags(REPOSITORY, ["latest", "e2e-debug", "dev"], "e2e-0123456789ab")).toEqual([]);
+    });
   });
 });

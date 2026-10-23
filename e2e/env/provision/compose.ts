@@ -263,6 +263,20 @@ export async function imageStale(
   return current === null || current !== (running ?? (await inspect(repository)));
 }
 
+/**
+ * The references of the hash tags in `tags` other than `current`, which earlier builds wrote.
+ *
+ * `tags` is what `docker image ls` lists for the repository. Each build adds a hash tag and none
+ * removes one, so an image that a rebuild replaced keeps its tag and never turns dangling, and
+ * `docker image prune` cannot reclaim it. `latest`, `<none>`, and a tag a developer wrote are kept.
+ */
+export function supersededTags(repository: string, tags: readonly string[], current: string): string[] {
+  return tags
+    .map((each) => each.trim())
+    .filter((each) => /^e2e-[0-9a-f]{12}$/.test(each) && each !== current)
+    .map((each) => `${repository}:${each}`);
+}
+
 /** Whether anything under `paths` was written after the container read its configuration. */
 async function newerThanContainer(
   root: string,
@@ -445,7 +459,16 @@ export async function provisionCompose(mode: ProvisionMode): Promise<ProvisionRe
     await stream("docker", ["compose", "-f", file, "up", "-d", "--build", ...rebuild], root);
     for (const candidate of stale) {
       const repository = repositoryOf(candidate);
-      await capture("docker", ["tag", repository, `${repository}:${tags.get(candidate)}`]);
+      const current = tags.get(candidate)!;
+      await capture("docker", ["tag", repository, `${repository}:${current}`]);
+      const listed = await capture("docker", ["image", "ls", "--format", "{{.Tag}}", repository]);
+      for (const reference of supersededTags(repository, listed.split("\n"), current)) {
+        // Without -f, Docker removes the tag, deletes the image once no tag and no container is
+        // left, and refuses to remove the last tag of an image a container uses.
+        await capture("docker", ["rmi", reference]).catch((cause: unknown) => {
+          console.warn(`[provision] kept ${reference}: ${String(cause)}`);
+        });
+      }
     }
     report.rebuilt = rebuild;
   }

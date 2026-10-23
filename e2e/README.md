@@ -521,10 +521,13 @@ Before any project starts, the run brings the stack to this checkout and prints 
 
 It starts what is missing or unhealthy and rebuilds a service whose sources changed since its image
 was built. Each build tags the image with a hash over the contents of the service's sources, as in
-`infrastructure-qip-engine:e2e-<hash>`, so a file whose content did not change rebuilds nothing. A
-running container that is already current is never recreated, so a stack you are debugging survives
-a run. A change to `infrastructure/docker/docker-compose.yml` or to an env file a service reads
-recreates the container instead of rebuilding it, which costs seconds:
+`infrastructure-qip-engine:e2e-<hash>`, so a file whose content did not change rebuilds nothing. The
+build then removes the hash tags of that service's earlier images, and Docker deletes an image left
+with no tag and no container. A running container that is already current is never recreated, so a
+stack you are debugging survives a run. An image you build by hand with `docker compose up --build`
+carries no hash tag, so the next run rebuilds that service once. A change to
+`infrastructure/docker/docker-compose.yml` or to an env file a service reads recreates the container
+instead of rebuilding it, which costs seconds:
 
 ```text
 [provision]   recreated for a configuration change: qip-engine
