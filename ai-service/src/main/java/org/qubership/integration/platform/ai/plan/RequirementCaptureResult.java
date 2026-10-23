@@ -51,7 +51,12 @@ public record RequirementCaptureResult(
 
   /** A rejected candidate is a repair base, never an admitted draft or amendment authority. */
   public record PendingProposal(Reference attempt, String sourceGeneration, String sourceTurnId, Reference base,
-      String toolName, DraftInput draft, List<CaptureIssue> issues) {
+      String toolName, DraftInput draft, List<CaptureIssue> issues,
+      @JsonInclude(JsonInclude.Include.NON_NULL) String token) {
+    public PendingProposal(Reference attempt, String sourceGeneration, String sourceTurnId, Reference base,
+        String toolName, DraftInput draft, List<CaptureIssue> issues) {
+      this(attempt, sourceGeneration, sourceTurnId, base, toolName, draft, issues, null);
+    }
     public PendingProposal {
       issues = List.copyOf(issues);
     }

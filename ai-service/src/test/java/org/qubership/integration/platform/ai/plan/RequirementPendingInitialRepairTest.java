@@ -22,17 +22,23 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementPendingInitialRepairTest {
   @Test
-  void advertisedRejectedInitialReferenceAllowsOnlyTheFocusedNativeCorrection() throws Exception {
+  void advertisedRejectedInitialTokenAllowsOnlyTheFocusedNativeCorrection() throws Exception {
     var h = new Harness(new InMemoryArtifactBlobStore());
     var original = input("missing-owner");
     var refused = h.call("captureRequirementDraft", Map.of("draft", original));
     assertFalse(refused.path("accepted").asBoolean(), refused.toString());
     var pending = h.call("readRequirementDraft", Map.of()).path("pendingProposal");
     assertEquals(h.json.valueToTree(original), pending.path("draft"));
+    assertEquals(CaptureProposal.digest(h.json.treeToValue(pending.path("attempt"), CompilationArtifacts.Reference.class)),
+        pending.path("token").asText());
     assertTrue(pending.path("base").isNull());
-    var changed = h.changes(input("entry").facts(), pending.path("attempt"));
+    var changed = h.changes(input("entry").facts(), pending.path("token"));
     var accepted = h.call("updateRequirementDraft", Map.of("changes", changed));
     assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
+    var saved = h.artifacts.latest(h.sessions.active(h.chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+    assertTrue(saved.inputs().contains(h.json.treeToValue(pending.path("attempt"), CompilationArtifacts.Reference.class)));
+    assertEquals(changed, saved.payload().path("arguments"));
+    assertFalse(saved.payload().path("arguments").has("pendingAttempt"));
     assertEquals(input("entry"), h.store.get(h.chat).orElseThrow().authoredDraft());
     assertTrue(h.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE"))
         .path("accepted").asBoolean());
@@ -40,18 +46,23 @@ class RequirementPendingInitialRepairTest {
 
   @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(strings = {"hash", "kind", "foreign", "source", "reset", "accepted-base", "authority", "real-wrong-kind", "source-packet"})
-  void staleOrForeignPendingReferencesNeverSupplyAnEditingBase(String variant) throws Exception {
+  void staleOrForeignPendingTokensNeverSupplyAnEditingBase(String variant) throws Exception {
     var h = new Harness(new InMemoryArtifactBlobStore());
     h.call("captureRequirementDraft", Map.of("draft", input("missing-owner")));
-    var reference = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("attempt").deepCopy();
+    var reference = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token").deepCopy();
     switch (variant) {
-      case "hash" -> ((ObjectNode) reference).put("contentHash", "wrong-hash");
-      case "kind" -> ((ObjectNode) reference).put("kind", "REQUIREMENT_DRAFT");
-      case "foreign" -> ((ObjectNode) reference).put("artifactId", "foreign-attempt");
+      case "hash" -> reference = h.json.valueToTree("wrong-token");
+      case "kind" -> reference = h.json.valueToTree(CaptureProposal.digest(
+          new CompilationArtifacts.Reference(CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "foreign", "hash")));
+      case "foreign" -> {
+        var other = new Harness(h.blobs);
+        other.call("captureRequirementDraft", Map.of("draft", input("missing-owner")));
+        reference = other.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token");
+      }
       case "real-wrong-kind" -> {
         var foreign = h.artifacts.append(new CompilationArtifacts.AppendCommand(h.sessions.active(h.chat),
             CompilationArtifacts.Kind.USER_INPUT, "1", "test", "1", Map.of("foreign", "payload"), List.of(), null));
-        ((ObjectNode) reference).setAll(h.json.<ObjectNode>valueToTree(foreign.reference()));
+        reference = h.json.valueToTree(CaptureProposal.digest(foreign.reference()));
       }
       case "source-packet" -> {
         var document = h.archive.read(h.chat);
@@ -87,6 +98,30 @@ class RequirementPendingInitialRepairTest {
   }
 
   @Test
+  void nativeReferenceCannotBeSubmittedAsTheScalarToken() throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    h.call("captureRequirementDraft", Map.of("draft", input("missing-owner")));
+    var pending = h.call("readRequirementDraft", Map.of()).path("pendingProposal");
+    var rejected = h.call("updateRequirementDraft", Map.of("changes", h.changes(input("entry").facts(), pending.path("attempt"))));
+    assertFalse(rejected.path("accepted").asBoolean());
+    assertTrue(rejected.path("issues").findValuesAsText("code").contains("INVALID_TYPE"), rejected.toString());
+    assertTrue(h.store.latestRevision(h.chat).isEmpty());
+  }
+
+  @Test
+  void priorTokenCannotSelectAnOlderInitialAttempt() throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    h.call("captureRequirementDraft", Map.of("draft", input("missing-owner")));
+    var token = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token");
+    h.call("captureRequirementDraft", Map.of("draft", input("other-missing-owner")));
+    assertNotEquals(token, h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token"));
+    var rejected = h.call("updateRequirementDraft", Map.of("changes", h.changes(input("entry").facts(), token)));
+    assertFalse(rejected.path("accepted").asBoolean());
+    assertEquals("PENDING_PROPOSAL_NOT_CURRENT", rejected.path("issues").get(0).path("code").asText());
+    assertTrue(h.store.latestRevision(h.chat).isEmpty());
+  }
+
+  @Test
   void acceptedBaseKeepsLegacyIdempotentCaptureAfterARejectedFocusedUpdate() throws Exception {
     var h = new Harness(new InMemoryArtifactBlobStore());
     var original = input("entry");
@@ -102,16 +137,16 @@ class RequirementPendingInitialRepairTest {
   }
 
   @Test
-  void repeatedResolvedCandidateCannotRenewCreditByChangingToolOrAttemptReference() throws Exception {
+  void repeatedResolvedCandidateCannotRenewCreditByChangingToolOrToken() throws Exception {
     var h = new Harness(new InMemoryArtifactBlobStore());
     var original = input("missing-owner");
     h.call("captureRequirementDraft", Map.of("draft", original));
     int credits = h.fingerprints.softCreditsUsed(h.chat);
     String scope = h.store.captureMutationScope(h.chat);
-    var initial = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("attempt");
+    var initial = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token");
     assertThrows(CaptureNoProgressException.class, () -> h.call("updateRequirementDraft",
         Map.of("changes", h.changes(original.facts(), initial))));
-    var latest = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("attempt");
+    var latest = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token");
     assertNotEquals(initial, latest);
     assertThrows(CaptureNoProgressException.class, () -> h.call("updateRequirementDraft",
         Map.of("changes", h.changes(original.facts(), latest))));
@@ -131,7 +166,7 @@ class RequirementPendingInitialRepairTest {
     var old = facts.getFirst();
     facts.set(0, new FactInput(old.sourceFactId(), old.interactionIds(), old.kind(), old.polarity(),
         old.text() + " Changed.", old.fieldMapping(), old.policyConflict(), old.elementIntent()));
-    var patch = h.changes(facts, pending.path("attempt"));
+    var patch = h.changes(facts, pending.path("token"));
     var rejected = h.call("updateRequirementDraft", Map.of("changes", patch));
     assertFalse(rejected.path("accepted").asBoolean());
     assertTrue(rejected.path("issues").findValuesAsText("code").contains("REPAIR_FACT_LOSS"), rejected.toString());
@@ -142,6 +177,8 @@ class RequirementPendingInitialRepairTest {
     var restored = new Harness(h.blobs, h.chat, false);
     assertEquals(attempt.payload().path("resolvedCandidate"), restored.call("readRequirementDraft", Map.of())
         .path("pendingProposal").path("draft"));
+    assertEquals(h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token"),
+        restored.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token"));
     assertTrue(restored.store.get(h.chat).isEmpty());
     assertEquals(attempt, restored.artifacts.get(attempt.compilationId(), attempt.reference()).orElseThrow());
     assertEquals(h.fingerprints.softCreditsUsed(h.chat), restored.fingerprints.softCreditsUsed(h.chat));
@@ -162,7 +199,7 @@ class RequirementPendingInitialRepairTest {
     var h = new Harness(new InMemoryArtifactBlobStore());
     h.call("captureRequirementDraft", Map.of("draft", input("missing-owner")));
     var pending = h.call("readRequirementDraft", Map.of()).path("pendingProposal");
-    var patch = h.changes(input("entry").facts(), pending.path("attempt"));
+    var patch = h.changes(input("entry").facts(), pending.path("token"));
     var policy = new FactInput("policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
         "Retain the requested access policy.", null,
         new RequirementPolicyConflict("CORPORATE_CIP_STANDARDS:12.4", "accessControlType", "NONE", "RBAC", "choice",
@@ -175,21 +212,21 @@ class RequirementPendingInitialRepairTest {
   }
 
   @Test
-  void schemaKeepsEveryLegacyRequiredFieldAndTheNewReferenceIsOptionalNullable() {
+  void schemaKeepsEveryLegacyRequiredFieldAndTheNewTokenIsOptionalNullable() {
     var h = new Harness(new InMemoryArtifactBlobStore());
     var changes = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class,
         h.provider.toolSpecificationByName("updateRequirementDraft").parameters().properties().get("changes"));
     var expected = new java.util.HashSet<>(changes.properties().keySet());
-    expected.remove("pendingAttempt");
+    expected.remove("pendingProposalToken");
     assertEquals(expected, java.util.Set.copyOf(changes.required()));
     var pending = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonAnyOfSchema.class,
-        changes.properties().get("pendingAttempt"));
+        changes.properties().get("pendingProposalToken"));
     assertTrue(pending.anyOf().stream().anyMatch(dev.langchain4j.model.chat.request.json.JsonNullSchema.class::isInstance));
-    var reference = pending.anyOf().stream().filter(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class::isInstance)
-        .map(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class::cast).findFirst().orElseThrow();
-    assertEquals(java.util.Set.of("kind", "artifactId", "contentHash"), java.util.Set.copyOf(reference.required()));
+    assertEquals(1, pending.anyOf().stream()
+        .filter(dev.langchain4j.model.chat.request.json.JsonStringSchema.class::isInstance).count());
+    assertFalse(changes.properties().containsKey("pendingAttempt"));
     assertFalse(h.json.valueToTree(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null)).has("pendingAttempt"));
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null)).has("pendingProposalToken"));
     assertFalse(changes.properties().containsKey("resolvedCandidate"));
     var legacy = new RequirementDraftStore.RequirementCaptureAttempt(null, null, null, "scope", "captureRequirementDraft",
         input("entry"), false, List.of(), null);
@@ -202,7 +239,7 @@ class RequirementPendingInitialRepairTest {
       boolean update) {
     if (schema instanceof dev.langchain4j.model.chat.request.json.JsonObjectSchema object) {
       var keys = new java.util.HashSet<>(object.properties().keySet());
-      if (update) keys.remove("pendingAttempt");
+      if (update) keys.remove("pendingProposalToken");
       assertEquals(keys, java.util.Set.copyOf(object.required()));
       object.properties().values().forEach(child -> assertRequiredFields(child, update));
     } else if (schema instanceof dev.langchain4j.model.chat.request.json.JsonArraySchema array) {
@@ -265,7 +302,7 @@ class RequirementPendingInitialRepairTest {
     ObjectNode changes(List<FactInput> facts, JsonNode attempt) {
       var changes = json.<ObjectNode>valueToTree(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(), facts, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of()));
-      changes.set("pendingAttempt", attempt);
+      changes.set("pendingProposalToken", attempt);
       return changes;
     }
   }
