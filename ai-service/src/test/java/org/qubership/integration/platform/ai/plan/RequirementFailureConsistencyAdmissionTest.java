@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -118,6 +119,74 @@ class RequirementFailureConsistencyAdmissionTest {
           saved.facts().toString());
       assertTrue(h.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE")).path("accepted").asBoolean());
     } finally { ProductCapabilityCaptureContext.unbind(); }
+  }
+
+  @Test
+  void rejectedErrorScopeNamesTheCandidateMode() {
+    var errorScope = withMode(input(), ServiceCallFailureMode.ERROR_SCOPE);
+    assertTrue(RequirementFailureConsistency.issues(errorScope, bindings()).isEmpty());
+    var refused = RequirementFailureConsistency.continuedResponsesRequireInlineResponse(errorScope, bindings());
+    assertEquals(1, refused.size(), refused.toString());
+    assertModeFinding(refused.getFirst().message(), "ERROR_SCOPE");
+
+    var propagate = RequirementFailureConsistency.continuedResponsesRequireInlineResponse(input(), bindings());
+    assertEquals(1, propagate.size(), propagate.toString());
+    assertModeFinding(propagate.getFirst().message(), "PROPAGATE");
+
+    assertTrue(RequirementFailureConsistency.continuedResponsesRequireInlineResponse(
+        withMode(input(), ServiceCallFailureMode.INLINE_RESPONSE), bindings()).isEmpty());
+  }
+
+  @Test
+  void rejectedErrorScopeAdmissionNamesTheCandidateMode() throws Exception {
+    var h = new Harness();
+    h.begin();
+    try {
+      var malformed = (ObjectNode) json.valueToTree(input());
+      ((ObjectNode) malformed.at("/facts/2/elementIntent")).putNull("ownerInteractionId");
+      var first = h.call("captureRequirementDraft", Map.of("draft", malformed));
+      assertFalse(first.path("accepted").asBoolean(), first.toString());
+      assertEquals("PROPAGATE", h.store.repairConstraints(h.chat).values()
+          .at("/interactions/remote/failureMode").asText());
+
+      var refused = h.call("captureRequirementDraft",
+          Map.of("draft", withMode(input(), ServiceCallFailureMode.ERROR_SCOPE)));
+      assertFalse(refused.path("accepted").asBoolean(), refused.toString());
+      String message = failureModeMessage(refused);
+      assertModeFinding(message, "ERROR_SCOPE");
+      assertTrue(h.store.get(h.chat).isEmpty());
+
+      var corrected = withMode(input(), ServiceCallFailureMode.INLINE_RESPONSE);
+      var accepted = h.call("captureRequirementDraft", Map.of("draft", corrected));
+      assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
+      assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+    } finally {
+      ProductCapabilityCaptureContext.unbind();
+    }
+  }
+
+  private static void assertModeFinding(String message, String mode) {
+    assertTrue(message.contains("The failure mode is " + mode), message);
+    assertTrue(message.contains("INLINE_RESPONSE"), message);
+    assertFalse(message.contains("all facts"), message);
+    assertFalse(message.contains("names, values"), message);
+    assertFalse(message.contains("and order"), message);
+    assertFalse(message.toLowerCase().contains("preserve"), message);
+    if (!"PROPAGATE".equals(mode)) {
+      assertFalse(message.contains("PROPAGATE"), message);
+      assertFalse(message.contains("stop before successors"), message);
+    }
+  }
+
+  private static String failureModeMessage(JsonNode result) {
+    var messages = new ArrayList<String>();
+    result.path("issues").forEach(issue -> {
+      if ("FAILURE_MODE_CONFLICT".equals(issue.path("code").asText())) {
+        messages.add(issue.path("message").asText());
+      }
+    });
+    assertEquals(1, messages.size(), result.toString());
+    return messages.getFirst();
   }
 
   @Test
