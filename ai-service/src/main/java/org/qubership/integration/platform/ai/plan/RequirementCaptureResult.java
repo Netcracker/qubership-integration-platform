@@ -123,7 +123,7 @@ public record RequirementCaptureResult(
     List<CaptureIssue> issues = editorIssues.stream()
         .map(issue -> new CaptureIssue(
             issue.code(), issue.path(), issue.entityId(),
-            new IssueDetails(null, List.of(), List.of()), issue.message()))
+            new IssueDetails(null, List.of(), issue.relatedEntityIds()), issue.message()))
         .toList();
     if (draft == null) {
       return new RequirementCaptureResult(
