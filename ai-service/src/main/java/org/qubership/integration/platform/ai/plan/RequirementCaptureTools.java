@@ -104,6 +104,9 @@ public class RequirementCaptureTools {
       If initialization is rejected, correct the full rejected candidate and call captureRequirementDraft again,
       or readRequirementDraft and use updateRequirementDraft with the exact pendingProposal.token for focused initial repair.
       Change only reported fields and preserve unaffected facts.
+      A new claim requires evidence: sourceTurnId and an exact quote from that user turn.
+      The quote must be an exact substring of the named turn. A fact already in the saved
+      semantic baseline, and a legacy accepted fact, may omit the quote.
       For a field adaptation across a direct transition, record one FIELD_MAPPING fact per target
       field. Include both endpoints in interactionIds and exact field paths in fieldMapping.
       Retain earlier event fields through BEHAVIOR naming their source and save-before-call timing.
@@ -148,8 +151,14 @@ public class RequirementCaptureTools {
       Empty lists leave their entity family unchanged. Remove references explicitly when deleting an
       interaction. Preserve accepted fact IDs, kind, full text, polarity,
       and mapping values. Reassign fact references when fixing topology; add omitted requirements as
-      new facts. A rejected FIELD_MAPPING classification may become BEHAVIOR when no business
+      new facts.       A rejected FIELD_MAPPING classification may become BEHAVIOR when no business
       transition is intended; retain its fact ID, complete author text, polarity, and valid references.
+      A new claim requires evidence: sourceTurnId and an exact quote from that user turn.
+      The quote must be an exact substring of the named turn. A fact already in the saved
+      semantic baseline, and a legacy accepted fact, may omit the quote.
+      Deleting or changing claim text or polarity requires a new source-linked amendment.
+      When the claim is already in the saved semantic baseline, changing kind, interaction IDs,
+      mapping, element placement, or literal binding does not.
       A new author message permits only its explicit amendments. For each changed accepted
       value, supply amendments with path, sourceTurnId, and the exact quote authorizing that change.
       Paths use stable IDs, such as /facts/goal/text, /facts/goal for removal, /capabilities/entry/path,
