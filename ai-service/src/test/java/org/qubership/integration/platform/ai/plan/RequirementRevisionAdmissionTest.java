@@ -1205,10 +1205,17 @@ class RequirementRevisionAdmissionTest {
     var textClaim = new RequirementSemanticClaim("audit", sentence, Polarity.POSITIVE, null);
     var candidate = absentLiteral();
 
-    assertFalse(unboundLiteral(admit(List.of(), candidate, baseline(quoteClaim)), phrase),
-        "A spaced quote is claim evidence, not one literal");
-    assertFalse(unboundLiteral(admit(List.of(), candidate, baseline(textClaim)), sentence),
-        "A spaced claim text is not one literal");
+    var quoted = admit(List.of(), candidate, baseline(quoteClaim));
+    var claimed = admit(List.of(), candidate, baseline(textClaim));
+    assertAll(
+        () -> assertFalse(unboundLiteral(quoted, phrase), "A spaced quote is claim evidence"),
+        () -> assertFalse(unboundLiteral(quoted, "audit-event"), "A spaced quote does not require audit-event"),
+        () -> assertFalse(unboundLiteral(quoted, "log-record")),
+        () -> assertFalse(unboundLiteral(quoted, "http-trigger")),
+        () -> assertFalse(unboundLiteral(claimed, sentence), "A spaced claim text is claim evidence"),
+        () -> assertFalse(unboundLiteral(claimed, "audit-event"), "A sentence does not require audit-event"),
+        () -> assertFalse(unboundLiteral(claimed, "log-record")),
+        () -> assertFalse(unboundLiteral(claimed, "http-trigger")));
   }
 
   @ParameterizedTest
@@ -1242,22 +1249,23 @@ class RequirementRevisionAdmissionTest {
 
   @ParameterizedTest
   @ValueSource(strings = {".", ","})
-  void quotedHttpOperationDropsOneTrailingPunctuation(String mark) {
+  void sentenceAroundAnHttpOperationIsNotALiteral(String mark) {
     String operation = "POST /sobjects/Task";
     String quote = "Call createTask with " + operation + mark + " now";
     var claim = new RequirementSemanticClaim("audit", "Call the operation.",
         Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", quote));
+    var issues = admit(List.of(), absentLiteral(), baseline(claim));
     assertAll(
-        () -> assertEquals(List.of(operation),
-            unboundTokens(admit(List.of(), absentLiteral(), baseline(claim))), "quote"),
-        () -> assertEquals(List.of(),
-            unboundTokens(admit(List.of(), coveredValue("property", operation), baseline(claim))),
-            "property without punctuation"));
+        () -> assertEquals(List.of(), unboundTokens(issues), "quote"),
+        () -> assertFalse(unboundLiteral(issues, operation)),
+        () -> assertFalse(unboundLiteral(issues, quote)),
+        () -> assertFalse(unboundLiteral(issues, "log-record")),
+        () -> assertFalse(unboundLiteral(issues, "http-trigger")));
   }
 
   @ParameterizedTest
   @ValueSource(strings = {"audit-event", "trace-id"})
-  void sentenceQuoteRequiresOnlyTheHyphenatedToken(String token) {
+  void sentenceQuoteIsClaimEvidence(String token) {
     String sentence = "log exactly " + token + " before Friday";
     var quoteClaim = new RequirementSemanticClaim("audit", "Log the audit event.",
         Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", sentence));
@@ -1271,18 +1279,131 @@ class RequirementRevisionAdmissionTest {
     var boundQuote = replaceFact(covered, quoted(covered.facts().getFirst(), "turn-1", sentence));
 
     assertAll(
-        () -> assertEquals(List.of(token),
+        () -> assertEquals(List.of(),
             unboundTokens(admit(List.of(), uncovered, baseline(quoteClaim))), "quote"),
-        () -> assertEquals(List.of(token),
+        () -> assertEquals(List.of(),
             unboundTokens(admit(List.of(), uncovered, baseline(textClaim))), "claim text"),
         () -> assertEquals(List.of(),
             unboundTokens(admit(List.of(), uncovered, baseline(ordinary))), "ordinary words"),
         () -> assertEquals(List.of(),
             unboundTokens(admit(List.of(), covered, baseline(quoteClaim))), "message property"),
-        () -> assertEquals(List.of(token),
+        () -> assertEquals(List.of(),
             unboundTokens(quoteDecision(missingQuote, "turn-1", turn)), "candidate quote"),
         () -> assertEquals(List.of(),
-            unboundTokens(quoteDecision(boundQuote, "turn-1", turn)), "covered candidate quote"));
+            unboundTokens(quoteDecision(boundQuote, "turn-1", turn)), "covered candidate quote"),
+        () -> {
+          var issues = admit(List.of(), uncovered, baseline(quoteClaim));
+          assertFalse(unboundLiteral(issues, token));
+          assertFalse(unboundLiteral(issues, sentence));
+          assertFalse(unboundLiteral(issues, "log-record"));
+          assertFalse(unboundLiteral(issues, "http-trigger"));
+        });
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"audit-event", "log-record", "http-trigger"})
+  void whitespaceFreeQuoteRemainsARequiredLiteral(String literal) {
+    var claim = new RequirementSemanticClaim("audit", "Use the value.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", literal));
+    assertEquals(List.of(literal), unboundTokens(admit(List.of(), absentLiteral(), baseline(claim))), literal);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"POST /sobjects/Task", "GET /health"})
+  void httpOperationIsCoveredByCapabilityOrSeparatePropertyValues(String operation) {
+    String method = operation.substring(0, operation.indexOf(' '));
+    String path = operation.substring(method.length() + 1);
+    var claim = new RequirementSemanticClaim("audit", "Call the operation.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", operation));
+    String turn = "Use " + operation + " now.";
+    var http = HttpMethod.valueOf(method);
+    var byProperties = literalDraft(null, List.of(new PlanProperty("verb", method), new PlanProperty("route", path)),
+        null);
+    var byCapability = withCapabilities(absentLiteral(), List.of(new CapabilityInput(
+        "entry", "http-sender", null, http, path, null, null, null)));
+    var methodOnly = literalDraft(null, List.of(new PlanProperty("verb", method)), null);
+    var otherInteraction = withCapabilities(absentLiteral(), List.of(new CapabilityInput(
+        "other", "http-sender", null, http, path, null, null, null)));
+
+    assertAll(
+        () -> assertEquals(List.of(), unboundTokens(admit(List.of(), byProperties, baseline(claim))),
+            "separate property values"),
+        () -> assertEquals(List.of(), unboundTokens(quoteDecision(
+            replaceFact(byProperties, quoted(byProperties.facts().getFirst(), "turn-1", operation)),
+            "turn-1", turn)), "candidate quote on properties"),
+        () -> assertEquals(List.of(), unboundTokens(admit(List.of(), byCapability, baseline(claim))),
+            "capability method and path"),
+        () -> assertEquals(List.of(), unboundTokens(quoteDecision(
+            replaceFact(byCapability, quoted(byCapability.facts().getFirst(), "turn-1", operation)),
+            "turn-1", turn)), "candidate quote on capability"),
+        () -> assertEquals(List.of(operation), unboundTokens(admit(List.of(), methodOnly, baseline(claim))),
+            "method without path"),
+        () -> assertEquals(List.of(operation),
+            unboundTokens(admit(List.of(), otherInteraction, baseline(claim))),
+            "capability on another interaction"),
+        () -> assertEquals(List.of(operation),
+            unboundTokens(admit(List.of(), absentLiteral(), baseline(claim))),
+            "neither whole string nor split method and path"));
+  }
+
+  @Test
+  void nullIntentHttpQuoteIsCoveredByTheFactInteractionCapability() {
+    String operation = "POST /sobjects/Task";
+    var base = absentLiteral();
+    var capabilities = List.of(new CapabilityInput("entry", "http-sender", null, HttpMethod.POST,
+        "/sobjects/Task", null, null, null));
+    var fact = new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Call the operation.");
+    var draft = new DraftInput(base.flow(), List.of(fact), capabilities, List.of(), base.settings());
+    var claim = new RequirementSemanticClaim("audit", "Call the operation.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", operation));
+    var quotedFact = new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Call the operation.", null, null, null, new ClaimEvidenceInput("turn-1", operation));
+    var quotedDraft = new DraftInput(base.flow(), List.of(quotedFact), capabilities, List.of(), base.settings());
+    assertAll(
+        () -> assertEquals(List.of(), unboundTokens(admit(List.of(), draft, baseline(claim))), "baseline"),
+        () -> assertEquals(List.of(),
+            unboundTokens(quoteDecision(quotedDraft, "turn-1", "Use " + operation + " now.")), "candidate quote"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"source", "target", "expression"})
+  void mappingTextCoversWhitespaceFreeQuoteWhenIntentIsNull(String site) {
+    String literal = "audit-event";
+    var mapping = new FieldMappingInput("entry",
+        "source".equals(site) ? literal : "$.id",
+        "delivery",
+        "target".equals(site) ? literal : "$.Subject",
+        "expression".equals(site) ? literal : null);
+    var fact = new FactInput("audit", List.of("entry", "delivery"), FactKind.FIELD_MAPPING, Polarity.POSITIVE,
+        "Map the audit event.", mapping);
+    var draft = replaceFact(absentLiteral(), fact);
+    var claim = new RequirementSemanticClaim("audit", "Map the audit event.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", literal));
+    var quotedFact = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+        fact.text(), mapping, null, null, new ClaimEvidenceInput("turn-1", literal));
+    assertAll(
+        () -> assertEquals(List.of(), unboundTokens(admit(List.of(), draft, baseline(claim))), site),
+        () -> assertEquals(List.of(), unboundTokens(quoteDecision(replaceFact(absentLiteral(), quotedFact),
+            "turn-1", "Record " + literal + " today.")), site + " candidate quote"));
+  }
+
+  @Test
+  void uncoveredMappingQuoteStaysUnboundWhenIntentIsNull() {
+    String literal = "audit-event";
+    var mapping = new FieldMappingInput("entry", "$.id", "delivery", "$.Subject", "other-value");
+    var fact = new FactInput("audit", List.of("entry", "delivery"), FactKind.FIELD_MAPPING, Polarity.POSITIVE,
+        "Map the audit event.", mapping);
+    var claim = new RequirementSemanticClaim("audit", "Map the audit event.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", literal));
+    var quotedFact = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+        fact.text(), mapping, null, null, new ClaimEvidenceInput("turn-1", literal));
+    assertAll(
+        () -> assertEquals(List.of(literal),
+            unboundTokens(admit(List.of(), replaceFact(absentLiteral(), fact), baseline(claim))), "baseline"),
+        () -> assertEquals(List.of(literal), unboundTokens(quoteDecision(
+            replaceFact(absentLiteral(), quotedFact), "turn-1", "Record " + literal + " today.")),
+            "candidate quote"));
   }
 
   @Test
@@ -1467,6 +1588,10 @@ class RequirementRevisionAdmissionTest {
   private static DraftInput replaceFact(DraftInput draft, FactInput fact) {
     return new DraftInput(draft.flow(), List.of(fact), draft.capabilities(), draft.openQuestions(),
         draft.settings());
+  }
+
+  private static DraftInput withCapabilities(DraftInput draft, List<CapabilityInput> capabilities) {
+    return new DraftInput(draft.flow(), draft.facts(), capabilities, draft.openQuestions(), draft.settings());
   }
 
   private static RequirementSemanticBaseline baseline(RequirementSemanticClaim claim) {

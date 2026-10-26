@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.RequirementElementIntent;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -12,7 +13,29 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 /** Checks destinations in the typed requirement contract, never incidental graph text. */
 public final class RequiredLiteralBindings {
   private static final ObjectMapper JSON = new ObjectMapper();
+  private static final Pattern HTTP_OPERATION = Pattern.compile(
+      "^(GET|POST|PUT|PATCH|DELETE) (/[^\\s.,]+)[.,]?$");
+
   private RequiredLiteralBindings() {}
+
+  /**
+   * Returns {@code METHOD path} when {@code value} is that operation and nothing else.
+   * One trailing period or comma is punctuation. A sentence that mentions an operation is not one.
+   */
+  public static String httpOperation(String value) {
+    if (value == null) {
+      return null;
+    }
+    var matcher = HTTP_OPERATION.matcher(value);
+    if (!matcher.matches()) {
+      return null;
+    }
+    String path = matcher.group(2);
+    if (path.length() <= 1) {
+      return null;
+    }
+    return matcher.group(1) + " " + path;
+  }
 
   public static List<String> unbound(RequirementFact fact, List<RequirementFact> facts) {
     return unbound(fact, facts, List.of());
@@ -58,12 +81,24 @@ public final class RequiredLiteralBindings {
   }
 
   /**
-   * A source-backed literal stays covered when it sits in the requested name, a property, the
-   * element body, a mapping text, or {@code exactValues}. Leaving {@code exactValues} is allowed.
-   * A service-call display name is not an implementation binding for {@link #unbound}.
+   * A source literal is covered by a mapping text, the requested name, a property, the element
+   * body, or {@code exactValues}. An HTTP operation is also covered when one property value is
+   * the method and another is the path. Mapping text still counts when the intent is absent.
+   * Leaving {@code exactValues} is allowed. A service-call display name is not an implementation
+   * binding for {@link #unbound}.
    */
   public static boolean covered(RequirementElementIntent intent, String literal, List<String> mappingTexts) {
-    if (literal == null || literal.isBlank() || intent == null) {
+    if (literal == null || literal.isBlank()) {
+      return false;
+    }
+    if (mappingTexts != null) {
+      for (String text : mappingTexts) {
+        if (literal.equals(text)) {
+          return true;
+        }
+      }
+    }
+    if (intent == null) {
       return false;
     }
     if (literal.equals(intent.requestedName())) {
@@ -72,22 +107,46 @@ public final class RequiredLiteralBindings {
     if (intent.exactValues() != null && intent.exactValues().contains(literal)) {
       return true;
     }
-    if (intent.requestedProperties() != null) {
-      for (var property : intent.requestedProperties()) {
-        if (property != null && boundValue(property.key(), property.value(), literal)) {
-          return true;
-        }
-      }
+    if (propertiesCover(intent, literal)) {
+      return true;
     }
-    if (mappingTexts == null) {
+    return httpOperationCoveredByProperties(intent, literal);
+  }
+
+  private static boolean propertiesCover(RequirementElementIntent intent, String literal) {
+    if (intent.requestedProperties() == null) {
       return false;
     }
-    for (String text : mappingTexts) {
-      if (literal.equals(text)) {
+    for (var property : intent.requestedProperties()) {
+      if (property != null && boundValue(property.key(), property.value(), literal)) {
         return true;
       }
     }
     return false;
+  }
+
+  private static boolean httpOperationCoveredByProperties(RequirementElementIntent intent, String literal) {
+    String operation = httpOperation(literal);
+    if (operation == null || intent.requestedProperties() == null) {
+      return false;
+    }
+    int space = operation.indexOf(' ');
+    String method = operation.substring(0, space);
+    String path = operation.substring(space + 1);
+    boolean methodBound = false;
+    boolean pathBound = false;
+    for (var property : intent.requestedProperties()) {
+      if (property == null) {
+        continue;
+      }
+      if (boundValue(property.key(), property.value(), method)) {
+        methodBound = true;
+      }
+      if (boundValue(property.key(), property.value(), path)) {
+        pathBound = true;
+      }
+    }
+    return methodBound && pathBound;
   }
 
   /** A catalog participant or operation is owned by that interaction, not by a runtime property. */

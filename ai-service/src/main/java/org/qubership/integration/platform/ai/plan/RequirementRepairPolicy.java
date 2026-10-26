@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings;
@@ -15,23 +14,19 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLit
  * <p>A rejected initial projection may change structural representation. Shape, reference, and
  * literal findings on that projection stay focused repair when their path is editable. A source
  * literal is a runtime value taken from a validated quote, or from saved claim text when that
- * claim has no quote. The policy takes an HTTP operation (GET, POST, PUT, PATCH, or DELETE, one
- * space, then a path token starting with /), a hyphenated token, or the whole value when it has
- * no whitespace. One trailing period or comma on that path token is sentence punctuation.
- * Ordinary words and a whole sentence are not literals. While no baseline exists,
+ * claim has no quote. The value is a literal only when it has no whitespace, or when the whole
+ * value is one HTTP operation (GET, POST, PUT, PATCH, or DELETE, one space, then a path).
+ * One trailing period or comma on that path is punctuation. A sentence, a hyphenated element
+ * name inside a sentence, and ordinary words are claim evidence. While no baseline exists,
  * those literals come from the candidate's evidence quote when that quote is an exact substring
- * of the named user turn and the fact has an element intent. A literal equal to the entire claim
+ * of the named user turn. A mapping text or the fact's HTTP capability can cover the literal
+ * when the fact has no element intent. A literal equal to the entire claim
  * text stays claim evidence. On an accepted draft, kind, interaction IDs, mapping, element intent,
  * placement, exact values, text, and
  * polarity stay fixed unless an amendment or a server repair path covers the change. A focused
  * envelope with no repair alternative inside that scope becomes a projection rebuild.
  */
 public final class RequirementRepairPolicy {
-
-  private static final Pattern HTTP_OPERATION = Pattern.compile(
-      "\\b(GET|POST|PUT|PATCH|DELETE) (/\\S+)");
-  private static final Pattern HYPHENATED_TOKEN = Pattern.compile(
-      "(?<![\\w/-])([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)(?![\\w-])");
 
   private RequirementRepairPolicy() {}
 
@@ -123,7 +118,7 @@ public final class RequirementRepairPolicy {
       }
       var fact = fact(candidate, claim.sourceFactId());
       for (String literal : groundedLiterals(claim)) {
-        if (RequiredLiteralBindings.covered(fact == null ? null : fact.elementIntent(), literal, mappingTexts(fact))) {
+        if (literalCovered(candidate, fact, literal)) {
           continue;
         }
         findings.add(literalFinding(claim.sourceFactId(), literal));
@@ -147,44 +142,28 @@ public final class RequirementRepairPolicy {
   }
 
   /**
-   * HTTP operations, hyphenated tokens, and a value with no whitespace. Ordinary words stay prose.
-   * One trailing period or comma on an HTTP path is sentence punctuation.
+   * A value with no whitespace, or a value that is exactly one HTTP operation. Words inside a
+   * sentence stay prose.
    */
   private static List<String> sourceLiterals(String value) {
     if (value == null || value.isBlank()) {
       return List.of();
     }
+    String operation = RequiredLiteralBindings.httpOperation(value);
+    if (operation != null) {
+      return List.of(operation);
+    }
     if (value.chars().noneMatch(Character::isWhitespace)) {
       return List.of(value);
     }
-    var literals = new ArrayList<String>();
-    var http = HTTP_OPERATION.matcher(value);
-    while (http.find()) {
-      String path = http.group(2);
-      if (path.length() > 1 && (path.endsWith(".") || path.endsWith(","))) {
-        path = path.substring(0, path.length() - 1);
-      }
-      if (path.length() > 1) {
-        addLiteral(literals, http.group(1) + " " + path);
-      }
-    }
-    var hyphenated = HYPHENATED_TOKEN.matcher(value);
-    while (hyphenated.find()) {
-      addLiteral(literals, hyphenated.group(1));
-    }
-    return List.copyOf(literals);
-  }
-
-  private static void addLiteral(List<String> literals, String literal) {
-    if (!literals.contains(literal)) {
-      literals.add(literal);
-    }
+    return List.of();
   }
 
   /**
    * While no baseline exists, source literals in a candidate quote are obligations when the quote
-   * is an exact substring of the named user turn and the fact has an element intent. A literal
-   * equal to the whole claim text stays claim evidence.
+   * is an exact substring of the named user turn. A mapping or the fact's HTTP capability can
+   * cover the literal when the fact has no element intent. A literal equal to the whole claim
+   * text stays claim evidence.
    */
   private static List<RequirementFinding> missingCandidateQuoteLiterals(
       AuthorSourceEvidence.Packet source, DraftInput candidate) {
@@ -193,7 +172,7 @@ public final class RequirementRepairPolicy {
     }
     var findings = new ArrayList<RequirementFinding>();
     for (var fact : candidate.facts()) {
-      if (fact == null || fact.evidence() == null || fact.sourceFactId() == null || fact.elementIntent() == null) {
+      if (fact == null || fact.evidence() == null || fact.sourceFactId() == null) {
         continue;
       }
       String quote = fact.evidence().quote();
@@ -202,14 +181,52 @@ public final class RequirementRepairPolicy {
         continue;
       }
       for (String literal : sourceLiterals(quote)) {
-        if (literal.equals(fact.text())
-            || RequiredLiteralBindings.covered(fact.elementIntent(), literal, mappingTexts(fact))) {
+        if (literal.equals(fact.text()) || literalCovered(candidate, fact, literal)) {
           continue;
         }
         findings.add(literalFinding(fact.sourceFactId(), literal));
       }
     }
     return findings;
+  }
+
+  private static boolean literalCovered(DraftInput candidate, FactInput fact, String literal) {
+    if (RequiredLiteralBindings.covered(fact == null ? null : fact.elementIntent(), literal, mappingTexts(fact))) {
+      return true;
+    }
+    return capabilityCovers(candidate, fact, literal);
+  }
+
+  /** Method and path on the capability of an interaction this fact already targets. */
+  private static boolean capabilityCovers(DraftInput candidate, FactInput fact, String literal) {
+    String operation = RequiredLiteralBindings.httpOperation(literal);
+    if (operation == null || candidate == null || candidate.capabilities() == null || fact == null) {
+      return false;
+    }
+    int space = operation.indexOf(' ');
+    String method = operation.substring(0, space);
+    String path = operation.substring(space + 1);
+    for (var capability : candidate.capabilities()) {
+      if (capability == null || capability.httpMethod() == null || capability.path() == null) {
+        continue;
+      }
+      if (capability.httpMethod().name().equals(method) && capability.path().equals(path)
+          && factTargets(fact, capability.interactionId())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean factTargets(FactInput fact, String interactionId) {
+    if (interactionId == null) {
+      return false;
+    }
+    if (fact.interactionIds() != null && fact.interactionIds().contains(interactionId)) {
+      return true;
+    }
+    var intent = fact.elementIntent();
+    return intent != null && interactionId.equals(intent.ownerInteractionId());
   }
 
   private static RequirementFinding literalFinding(String sourceFactId, String literal) {
