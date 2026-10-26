@@ -235,7 +235,6 @@ export const DesignTemplates: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <AdminToolsHeader
         title="Design Templates"
-        iconName="fileText"
         toolbar={
           <TableToolbar
             variant="admin"

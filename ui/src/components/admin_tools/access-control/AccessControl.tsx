@@ -560,7 +560,6 @@ export const AccessControl: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <AdminToolsHeader
         title="Access Control"
-        iconName="accessControl"
         toolbar={accessControlToolbar}
       />
       <Flex

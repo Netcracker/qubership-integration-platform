@@ -644,7 +644,6 @@ export const Sessions: React.FC<SessionsProps> = ({
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader
             title="Sessions"
-            iconName="snippets"
             toolbar={sessionsToolbar}
           />
           {sessionsTable}

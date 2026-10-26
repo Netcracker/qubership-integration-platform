@@ -518,7 +518,6 @@ export const SecuredVariables: React.FC = () => {
       )}
       <AdminToolsHeader
         title="Secured Variables"
-        iconName="lock"
         toolbar={
           <TableToolbar
             refresh={{

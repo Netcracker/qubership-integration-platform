@@ -191,7 +191,6 @@ const DomainsTable: React.FC<Props> = ({
     <Flex vertical className={layoutStyles.tableSection}>
       <AdminToolsHeader
         title="Domains"
-        iconName="domains"
         toolbar={
           <TableToolbar
             refresh={onRefresh ? { onRefresh, loading: isLoading } : undefined}

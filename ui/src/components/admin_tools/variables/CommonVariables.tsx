@@ -95,7 +95,6 @@ export const CommonVariables = () => {
     <Flex vertical className={styles["container"]}>
       <AdminToolsHeader
         title="Common Variables"
-        iconName="table"
         toolbar={
           <TableToolbar
             refresh={{
