@@ -150,16 +150,18 @@ class RequirementSemanticBaselineTest {
     var world = world();
     var source = ready(world, AUTHOR);
     var evidence = new ClaimEvidenceInput(source.turnId(), CLAIM);
-    var original = fact("goal", List.of("submit"), FactKind.GOAL, Polarity.POSITIVE, CLAIM, null, null, evidence);
-    var captured = capture(world, draft(List.of(original)));
-    assertTrue(captured.accepted(), captured.toString());
+    var rejectedFact = fact("goal", List.of("missing"), FactKind.GOAL, Polarity.POSITIVE, CLAIM, null, null, evidence);
+    var rejected = capture(world, draft(List.of(rejectedFact)));
+    assertFalse(rejected.accepted(), rejected.toString());
+    assertEquals(RequirementCaptureResult.NextAction.REPAIR_CAPTURE, rejected.nextAction());
+    assertTrue(world.store().semanticBaseline(world.chat()).isEmpty());
 
     var repairedFact = fact("goal", List.of("entry", "submit"), FactKind.FIELD_MAPPING, Polarity.POSITIVE, CLAIM,
         new FieldMappingInput("entry", "$.Subject", "submit", "$.Task", null),
         new RequirementElementIntent("prepare", "script", RequirementElementIntent.Placement.BEFORE_HOOK,
             "entry", null, null, null, null, List.of(), List.of("task")),
-        null);
-    var repaired = update(world, updateFacts(repairedFact));
+        evidence);
+    var repaired = capture(world, draft(List.of(repairedFact)));
     assertTrue(repaired.accepted(), repaired.toString());
 
     var stored = world.store().get(world.chat()).orElseThrow().authoredDraft().facts().getFirst();
@@ -187,6 +189,29 @@ class RequirementSemanticBaselineTest {
     assertFalse(claim.has("exactValues"));
     assertEquals(FactKind.FIELD_MAPPING, restarted.store().get(restarted.chat()).orElseThrow()
         .authoredDraft().facts().getFirst().kind());
+  }
+
+  @Test
+  void acceptedDraftRejectsStructuralChangeWithoutAmendmentOrServerPath() throws Exception {
+    var world = world();
+    var source = ready(world, AUTHOR);
+    var evidence = new ClaimEvidenceInput(source.turnId(), CLAIM);
+    var original = fact("goal", List.of("submit"), FactKind.GOAL, Polarity.POSITIVE, CLAIM, null, null, evidence);
+    assertTrue(capture(world, draft(List.of(original))).accepted());
+
+    var repaired = update(world, updateFacts(fact("goal", List.of("entry", "submit"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, CLAIM,
+        new FieldMappingInput("entry", "$.Subject", "submit", "$.Task", null),
+        new RequirementElementIntent("prepare", "script", RequirementElementIntent.Placement.BEFORE_HOOK,
+            "entry", null, null, null, null, List.of(), List.of("task")),
+        null)));
+    assertFalse(repaired.accepted(), repaired.toString());
+    assertEquals(RequirementCaptureResult.NextAction.PROJECTION_REBUILD, repaired.nextAction());
+    assertTrue(repaired.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+        && "goal".equals(issue.entityId())), repaired.toString());
+    assertEquals(FactKind.GOAL, world.store().get(world.chat()).orElseThrow().authoredDraft().facts().getFirst().kind());
+    assertEquals(List.of("submit"), world.store().get(world.chat()).orElseThrow().authoredDraft().facts().getFirst()
+        .interactionIds());
   }
 
   @Test

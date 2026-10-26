@@ -157,8 +157,8 @@ public class RequirementCaptureTools {
       The quote must be an exact substring of the named turn. A fact already in the saved
       semantic baseline, and a legacy accepted fact, may omit the quote.
       Deleting or changing claim text or polarity requires a new source-linked amendment.
-      When the claim is already in the saved semantic baseline, changing kind, interaction IDs,
-      mapping, element placement, or literal binding does not.
+      Kind, interaction IDs, mapping, element placement, and exact values stay fixed on an
+      accepted draft unless an amendment or a server repair path covers that change.
       A new author message permits only its explicit amendments. For each changed accepted
       value, supply amendments with path, sourceTurnId, and the exact quote authorizing that change.
       Paths use stable IDs, such as /facts/goal/text, /facts/goal for removal, /capabilities/entry/path,
@@ -384,10 +384,10 @@ public class RequirementCaptureTools {
         legacyBindingAdapter.sourceSkillVersion(conversationId),
         legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
     store.revalidateRejectedModeCorrection(conversationId, admitted, bindings);
-    var admissionIssues = store.admitCapture(conversationId, expectedBase, draft, changes,
+    var admission = store.admitCaptureDecision(conversationId, expectedBase, draft, changes,
         mappingRepairPaths(conversationId));
-    if (!admissionIssues.isEmpty()) {
-      var restored = store.restoreProtectedCandidate(conversationId, admitted, bindings, admissionIssues);
+    if (!admission.issues().isEmpty()) {
+      var restored = store.restoreProtectedCandidate(conversationId, admitted, bindings, admission.issues());
       if (restored != null) {
         var preservedValues = store.copyRejectedCaptureValues(conversationId);
         store.noteNamedModeCorrection(conversationId, restored, bindings);
@@ -395,19 +395,19 @@ public class RequirementCaptureTools {
             restored, previous, bindings,
             legacyBindingAdapter.sourceSkillVersion(conversationId),
             legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
-        var retry = store.admitCapture(conversationId, expectedBase, restoredDraft, changes,
+        var retry = store.admitCaptureDecision(conversationId, expectedBase, restoredDraft, changes,
             mappingRepairPaths(conversationId));
-        if (retry.isEmpty()) {
+        if (retry.issues().isEmpty()) {
           admitted = restored;
           draft = restoredDraft;
-          admissionIssues = retry;
+          admission = retry;
         } else {
           store.replaceRejectedCaptureValues(conversationId, preservedValues);
         }
       }
     }
-    if (!admissionIssues.isEmpty()) {
-      return reject(conversationId, admitted, previous, admissionIssues);
+    if (!admission.issues().isEmpty()) {
+      return reject(conversationId, admitted, previous, admission.issues(), admission.strategy());
     }
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
@@ -419,11 +419,22 @@ public class RequirementCaptureTools {
 
   private RequirementCaptureResult reject(String conversationId, DraftInput input,
       RequirementDraft previous, List<Issue> findings) {
+    return reject(conversationId, input, previous, findings, null);
+  }
+
+  private RequirementCaptureResult reject(String conversationId, DraftInput input,
+      RequirementDraft previous, List<Issue> findings, RequirementRepairPolicy.Strategy strategy) {
     var issues = findings.stream().distinct().toList();
     if (input != null && issues.stream().noneMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
       store.rememberRejectedCapture(conversationId, input, issues);
     }
-    return view(previous, false, false, withPreservedFacts(issues, previous, store.rejectedCaptureFacts(conversationId)));
+    var result = view(previous, false, false,
+        withPreservedFacts(issues, previous, store.rejectedCaptureFacts(conversationId)));
+    if (strategy == RequirementRepairPolicy.Strategy.PROJECTION_REBUILD
+        && result.nextAction() == RequirementCaptureResult.NextAction.REPAIR_CAPTURE) {
+      return result.withNextAction(RequirementCaptureResult.NextAction.PROJECTION_REBUILD);
+    }
+    return result;
   }
 
   private List<Issue> validatePolicyApplicability(DraftInput input, List<Issue> nativeIssues) {
@@ -811,8 +822,11 @@ public class RequirementCaptureTools {
           noticed.add(new RequirementCaptureResult.CaptureIssue("UNCHANGED_PROPOSAL", "/", null, null,
               "This proposal is unchanged. " + open
                   + " Change the rejected field. Sending this same proposal again ends the correction."));
+          var repeatedAction = outcome.nextAction() == RequirementCaptureResult.NextAction.PROJECTION_REBUILD
+              ? RequirementCaptureResult.NextAction.PROJECTION_REBUILD
+              : RequirementCaptureResult.NextAction.REPAIR_CAPTURE;
           outcome = new RequirementCaptureResult(outcome.accepted(), outcome.changed(), outcome.revision(),
-              outcome.readiness(), RequirementCaptureResult.NextAction.REPAIR_CAPTURE, List.copyOf(noticed),
+              outcome.readiness(), repeatedAction, List.copyOf(noticed),
               outcome.pendingWork(), outcome.draft(), outcome.resolutions(), outcome.defaults());
         }
         return outcome;

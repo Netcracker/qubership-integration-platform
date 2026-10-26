@@ -99,14 +99,23 @@ public class RequirementDraftStore {
         org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(current), serialized);
   }
 
+  /** Admission issues and the repair strategy that produced them. */
+  record CaptureAdmission(List<RequirementCaptureEditor.Issue> issues, RequirementRepairPolicy.Strategy strategy) {}
+
   List<RequirementCaptureEditor.Issue> admitCapture(String conversationId, Reference expectedBase,
+      RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
+      java.util.Map<String, java.util.Set<String>> mappingPaths) {
+    return admitCaptureDecision(conversationId, expectedBase, draft, changes, mappingPaths).issues();
+  }
+
+  CaptureAdmission admitCaptureDecision(String conversationId, Reference expectedBase,
       RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
       java.util.Map<String, java.util.Set<String>> mappingPaths) {
     return withWriteAuthority(conversationId,
         () -> admitCaptureLocked(conversationId, expectedBase, draft, changes, mappingPaths));
   }
 
-  private List<RequirementCaptureEditor.Issue> admitCaptureLocked(String conversationId, Reference expectedBase,
+  private CaptureAdmission admitCaptureLocked(String conversationId, Reference expectedBase,
       RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
       java.util.Map<String, java.util.Set<String>> mappingPaths) {
     var issues = new java.util.ArrayList<RequirementCaptureEditor.Issue>();
@@ -149,10 +158,10 @@ public class RequirementDraftStore {
       }
     }
     if (!issues.isEmpty()) {
-      return List.copyOf(issues);
+      return focused(issues);
     }
     issues.addAll(validatePolicySelections(conversationId, current.map(Revision::reference).orElse(null), draft.authoredDraft()));
-    if (!issues.isEmpty()) return List.copyOf(issues);
+    if (!issues.isEmpty()) return focused(issues);
     if (base != null) for (var fact : draft.authoredDraft().facts()) {
       if (fact.policyConflict() == null || fact.policyConflict().decision() == null) continue;
       var old = base.facts().stream().filter(value -> value.sourceFactId().equals(fact.sourceFactId())).findFirst().orElse(null);
@@ -167,15 +176,17 @@ public class RequirementDraftStore {
             "Record the option selected on the current policy card. A free-text reply or amendment does not select an option."));
       }
     }
-    if (!issues.isEmpty()) return List.copyOf(issues);
+    if (!issues.isEmpty()) return focused(issues);
     var repairPaths = activeRepairPaths(conversationId, base, draft);
     var baseline = semanticBaseline(conversationId).orElse(null);
     issues.addAll(RequirementFailureConsistency.unauthorizedModeChanges(base, draft.authoredDraft(),
         current.map(revision -> artifacts.payload(revision, RequirementDraft.class).catalogBindings()).orElse(List.of()),
         authorPaths, repairPaths));
-    issues.addAll(RequirementRevisionAdmission.validate(base, draft.authoredDraft(),
+    var admission = RequirementRevisionAdmission.admissionDecision(base, draft.authoredDraft(),
         rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, repairPaths, mappingPaths,
-        fact -> canResolvePolicyChoice(conversationId, fact), baseline));
+        fact -> canResolvePolicyChoice(conversationId, fact), baseline);
+    issues.addAll(admission.issues());
+    var strategy = admission.strategy();
     var facts = draft.authoredDraft() == null || draft.authoredDraft().facts() == null
         ? List.<RequirementCaptureInput.FactInput>of() : draft.authoredDraft().facts();
     var amendments = changes == null || changes.amendments() == null
@@ -186,14 +197,18 @@ public class RequirementDraftStore {
     var accepted = base == null ? facts : base.facts();
     issues.addAll(RequirementClaimEvidenceValidator.validate(baseline, accepted, facts, packet, amendments));
     if (!issues.isEmpty()) {
-      return List.copyOf(issues);
+      return new CaptureAdmission(List.copyOf(issues), strategy);
     }
     if (current.isEmpty() || !draft.equals(artifacts.payload(current.orElseThrow(), RequirementDraft.class))) {
       appendDraft(conversationId, draft, true);
       recordSemanticBaseline(conversationId, baseline, facts, packet, amendments);
     }
     clearRejectedCaptureFacts(conversationId);
-    return List.of();
+    return new CaptureAdmission(List.of(), strategy);
+  }
+
+  private static CaptureAdmission focused(List<RequirementCaptureEditor.Issue> issues) {
+    return new CaptureAdmission(List.copyOf(issues), RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
   }
 
   public Optional<RequirementSemanticBaseline> semanticBaseline(String conversationId) {

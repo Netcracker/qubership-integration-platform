@@ -1127,12 +1127,70 @@ class RequirementRevisionAdmissionTest {
 
   @Test
   void focusedRepairWithoutAnInScopeAlternativeBecomesProjectionRebuild() {
+    var finding = new RequirementFinding("COMPILER_QUALITY",
+        "/consumers/quality", null, List.of(), List.of(), List.of(),
+        "The native approved-value check failed.");
+    var decision = RequirementRepairPolicy.evaluate(rejectedContext(), null, List.of(finding));
+    assertEquals(RequirementRepairPolicy.Strategy.PROJECTION_REBUILD, decision.strategy());
+    assertEquals(List.of(finding), decision.findings());
+  }
+
+  @Test
+  void editablePathOnARejectedProjectionStaysFocusedRepair() {
+    var finding = new RequirementFinding("UNKNOWN_INTERACTION_REFERENCE",
+        "/draft/facts/0/interactionIds/0", "goal", List.of(), List.of(), List.of(),
+        "Target must name an accepted interaction.");
+    var decision = RequirementRepairPolicy.evaluate(rejectedContext(), null, List.of(finding));
+    assertEquals(RequirementRepairPolicy.Strategy.FOCUSED_REPAIR, decision.strategy());
+    assertEquals(List.of("/draft/facts/0/interactionIds/0"), decision.findings().getFirst().repairAlternatives());
+  }
+
+  @Test
+  void structuralPathOnARejectedProjectionStaysFocusedRepairWithoutASuppliedAlternative() {
     var finding = new RequirementFinding("INVALID_ELEMENT_OWNER",
         "/draft/facts/local/elementIntent/ownerInteractionId", "local", List.of(), List.of(), List.of(),
         "The owner is missing.");
     var decision = RequirementRepairPolicy.evaluate(rejectedContext(), null, List.of(finding));
+    assertEquals(RequirementRepairPolicy.Strategy.FOCUSED_REPAIR, decision.strategy());
+    assertEquals(List.of(finding.path()), decision.findings().getFirst().repairAlternatives());
+  }
+
+  @Test
+  void structuralFactLossStaysWhenClaimTextAndPolarityMatch() {
+    var claim = "Create tasks.";
+    var base = httpDraft(List.of(fact("goal", claim)));
+    var changed = new FactInput("goal", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE, claim);
+    var candidate = httpDraft(List.of(changed));
+    var baseline = new RequirementSemanticBaseline("generation", "hash",
+        List.of(new RequirementSemanticClaim("goal", claim, Polarity.POSITIVE, null)));
+    var finding = new RequirementFinding("REPAIR_FACT_LOSS", "/changes/facts/goal", "goal",
+        List.of(), List.of(), List.of(), "Keep the accepted fact.");
+    var context = new RequirementRepairPolicy.RequirementRepairContext(
+        base, baseline, java.util.Set.of(), java.util.Set.of(), RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
+    var decision = RequirementRepairPolicy.evaluate(context, candidate, List.of(finding));
     assertEquals(RequirementRepairPolicy.Strategy.PROJECTION_REBUILD, decision.strategy());
     assertEquals(List.of(finding), decision.findings());
+  }
+
+  @Test
+  void exactValueChangeOnAnAcceptedDraftStaysAFactLoss() {
+    var text = "Create one task.";
+    var originalIntent = new RequirementElementIntent("entry", "http-trigger",
+        RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null, List.of(), List.of("task"));
+    var changedIntent = new RequirementElementIntent("entry", "http-trigger",
+        RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null, List.of(), List.of("one"));
+    var original = new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, text,
+        null, null, originalIntent);
+    var changed = new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, text,
+        null, null, changedIntent);
+    var baseline = new RequirementSemanticBaseline("generation", "hash",
+        List.of(new RequirementSemanticClaim("goal", text, Polarity.POSITIVE,
+            new ClaimEvidenceInput("turn-1", "task"))));
+    var issues = RequirementRevisionAdmission.validate(httpDraft(List.of(original)), httpDraft(List.of(changed)),
+        List.of(), new ObjectMapper().createObjectNode(), java.util.Set.of(), java.util.Set.of(),
+        java.util.Map.of(), fact -> false, baseline);
+    assertTrue(issues.stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+        && "goal".equals(issue.entityId())), issues.toString());
   }
 
   @Test
