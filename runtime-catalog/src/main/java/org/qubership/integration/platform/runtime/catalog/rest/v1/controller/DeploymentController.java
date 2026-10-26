@@ -173,7 +173,8 @@ public class DeploymentController {
             }
         }
         if (domainProperties.getMicro().isEnabled()) {
-            Optional<MicroDeployment> microDeployment = parseMicroDeployment(chainId, deploymentId);
+            Optional<MicroDeployment> microDeployment = parseMicroDeployment(chainId, deploymentId)
+                    .or(() -> findRuntimeMicroDeployment(chainId, deploymentId));
             if (microDeployment.isPresent()) {
                 bulkDeploymentService.deleteChainSnapshot(microDeployment.get().domain(), microDeployment.get().snapshotId());
                 return ResponseEntity.noContent().build();
@@ -210,6 +211,14 @@ public class DeploymentController {
                 .map(snapshotId -> new MicroDeployment(
                         deploymentId.substring(0, deploymentId.length() - snapshotId.length() - 1),
                         snapshotId));
+    }
+
+    private Optional<MicroDeployment> findRuntimeMicroDeployment(String chainId, String deploymentId) {
+        return runtimeDeploymentService.getMicroEngineDeployments(chainId).stream()
+                .filter(deployment -> deploymentId.equals(deployment.getId()))
+                .filter(deployment -> deployment.getDomain() != null && deployment.getSnapshotId() != null)
+                .findFirst()
+                .map(deployment -> new MicroDeployment(deployment.getDomain(), deployment.getSnapshotId()));
     }
 
     private record MicroDeployment(String domain, String snapshotId) {
