@@ -161,7 +161,9 @@ export const Deployments: React.FC = () => {
                   showModal({
                     component: (
                       <DeleteDeploymentWarningModal
-                        onDelete={() => void deleteDeploymentFromChain(deployment)}
+                        onDelete={() =>
+                          void deleteDeploymentFromChain(deployment)
+                        }
                       />
                     ),
                   })
@@ -201,7 +203,12 @@ export const Deployments: React.FC = () => {
 
   const onDeploymentCreated = useCallback(
     (deployment: Deployment) => {
-      setDeployments((prev) => [...(prev ?? []), deployment]);
+      setDeployments((prev) => {
+        const existing = prev ?? [];
+        return existing.some((d) => d.id === deployment.id)
+          ? existing.map((d) => (d.id === deployment.id ? deployment : d))
+          : [...existing, deployment];
+      });
     },
     [setDeployments],
   );
