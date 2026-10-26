@@ -352,6 +352,19 @@ describe("EnvironmentParamsModal", () => {
     expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
   });
 
+  it("should prompt on Cancel when the properties text does not parse", async () => {
+    renderModal("kafka");
+
+    expandProperties();
+    fireEvent.click(screen.getByLabelText("Text"));
+    fireEvent.change(await screen.findByTestId("key-value-pairs-editor"), {
+      target: { value: "client.id=new" },
+    });
+    fireEvent.click(screen.getByText("Cancel"));
+
+    expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
+  });
+
   it("should discard the changes when Yes is clicked in the unsaved prompt", async () => {
     const { onSubmit } = renderModal("http");
 

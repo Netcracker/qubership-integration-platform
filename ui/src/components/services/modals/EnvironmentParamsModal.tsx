@@ -71,6 +71,10 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   const propertiesTextErrorRef = useRef<string>();
   const setPropertiesTextError = useCallback((error: string | undefined) => {
     propertiesTextErrorRef.current = error;
+    // Text that does not parse changes no form value, so mark it here.
+    if (error) {
+      setHasChanges(true);
+    }
   }, []);
 
   const isAsyncProtocolSupported =
