@@ -183,6 +183,10 @@ public class RequirementDraftStore {
     issues.addAll(RequirementFailureConsistency.unauthorizedModeChanges(base, draft.authoredDraft(),
         current.map(revision -> artifacts.payload(revision, RequirementDraft.class).catalogBindings()).orElse(List.of()),
         authorPaths, repairPaths));
+    if (base == null) {
+      issues.addAll(RequirementFailureConsistency.continuedResponsesRequireInlineResponse(
+          draft.authoredDraft(), draft.catalogBindings()));
+    }
     var admission = RequirementRevisionAdmission.admissionDecision(base, draft.authoredDraft(),
         rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, repairPaths, mappingPaths,
         fact -> canResolvePolicyChoice(conversationId, fact), baseline, packet);
