@@ -154,6 +154,7 @@ h1 {
           /* An empty table stretches so its placeholder fills the body. */
           > .ant-table-body table:has(.ant-table-placeholder) {
             height: 100% !important;
+
             .ant-table-cell {
               border: none !important;
             }
@@ -165,6 +166,7 @@ h1 {
 
           > .ant-table-content table:has(.ant-table-placeholder) {
             height: 100% !important;
+
             .ant-table-cell {
               border: none !important;
             }
