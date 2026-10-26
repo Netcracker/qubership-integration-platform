@@ -48,7 +48,19 @@ public final class RequirementCaptureInput {
           + " requested and recommended property values, persisted question ID, and the user's decision.")
           RequirementPolicyConflict policyConflict,
       @NullableCaptureValue(description = "Explicit requested element, local node, inline hook, or chain name. Copy exact author values; null when unspecified.")
-          RequirementElementIntent elementIntent) {
+          RequirementElementIntent elementIntent,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "Required for a new claim: sourceTurnId and an exact quote from that user turn."
+          + " Omit it when the claim is already in the saved semantic baseline or when replaying a legacy accepted fact.")
+          ClaimEvidenceInput evidence) {
+
+    public FactInput(
+        String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
+        String text, FieldMappingInput fieldMapping, RequirementPolicyConflict policyConflict,
+        RequirementElementIntent elementIntent) {
+      this(sourceFactId, interactionIds, kind, polarity, text, fieldMapping, policyConflict, elementIntent, null);
+    }
 
     public FactInput(
         String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
@@ -68,6 +80,9 @@ public final class RequirementCaptureInput {
       this(sourceFactId, interactionIds, kind, polarity, text, null, null);
     }
   }
+
+  /** Exact quote from one saved user turn. Null on a legacy fact or a claim already in the baseline. */
+  public record ClaimEvidenceInput(String sourceTurnId, String quote) {}
 
   public record FieldMappingInput(
       String sourceInteractionId,

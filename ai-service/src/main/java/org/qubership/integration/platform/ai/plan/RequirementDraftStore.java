@@ -175,14 +175,86 @@ public class RequirementDraftStore {
     issues.addAll(RequirementRevisionAdmission.validate(base, draft.authoredDraft(),
         rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, repairPaths, mappingPaths,
         fact -> canResolvePolicyChoice(conversationId, fact)));
+    var facts = draft.authoredDraft() == null || draft.authoredDraft().facts() == null
+        ? List.<RequirementCaptureInput.FactInput>of() : draft.authoredDraft().facts();
+    var amendments = changes == null || changes.amendments() == null
+        ? List.<RequirementCaptureInput.AmendmentInput>of() : changes.amendments();
+    var baseline = semanticBaseline(conversationId).orElse(null);
+    var packet = sourcePacket(conversationId);
+    // Claim text and polarity stay protected. Representation fields are not part of the claim.
+    if (baseline != null || hasClaimEvidence(facts)) {
+      issues.addAll(RequirementClaimEvidenceValidator.validate(baseline, facts, packet, amendments));
+      dropRepresentationLoss(issues, baseline, base, facts);
+    }
     if (!issues.isEmpty()) {
       return List.copyOf(issues);
     }
     if (current.isEmpty() || !draft.equals(artifacts.payload(current.orElseThrow(), RequirementDraft.class))) {
       appendDraft(conversationId, draft, true);
+      recordSemanticBaseline(conversationId, baseline, facts, packet, amendments);
     }
     clearRejectedCaptureFacts(conversationId);
     return List.of();
+  }
+
+  public Optional<RequirementSemanticBaseline> semanticBaseline(String conversationId) {
+    return sessions.current(conversationId)
+        .flatMap(link -> artifacts.latest(link.compilationId(), Kind.REQUIREMENT_SEMANTIC_BASELINE))
+        .map(revision -> artifacts.payload(revision, RequirementSemanticBaseline.class));
+  }
+
+  private void recordSemanticBaseline(String conversationId, RequirementSemanticBaseline previous,
+      List<RequirementCaptureInput.FactInput> facts, AuthorSourceEvidence.Packet packet,
+      List<RequirementCaptureInput.AmendmentInput> amendments) {
+    if (previous == null && !hasClaimEvidence(facts)) {
+      return;
+    }
+    var baseline = RequirementClaimEvidenceValidator.reconcile(previous, facts, packet, amendments);
+    String compilationId = sessions.active(conversationId);
+    var prior = artifacts.latest(compilationId, Kind.REQUIREMENT_SEMANTIC_BASELINE);
+    artifacts.append(new AppendCommand(compilationId, Kind.REQUIREMENT_SEMANTIC_BASELINE, "1",
+        "requirement-draft-store", "1", baseline, List.of(), prior.map(Revision::artifactId).orElse(null)));
+  }
+
+  private AuthorSourceEvidence.Packet sourcePacket(String conversationId) {
+    if (conversations != null) {
+      return AuthorSourceEvidence.packet(conversations.archive().read(conversationId));
+    }
+    var authority = writeAuthority(conversationId);
+    String text = currentAuthorText.get(conversationId);
+    if (text == null || text.isBlank()) {
+      return new AuthorSourceEvidence.Packet(authority.sourceGeneration(), List.of());
+    }
+    return new AuthorSourceEvidence.Packet(authority.sourceGeneration(),
+        List.of(new AuthorSourceEvidence.Input(authority.sourceTurnId(), text)));
+  }
+
+  private static boolean hasClaimEvidence(List<RequirementCaptureInput.FactInput> facts) {
+    return facts.stream().anyMatch(fact -> fact != null && fact.evidence() != null);
+  }
+
+  private static void dropRepresentationLoss(List<RequirementCaptureEditor.Issue> issues,
+      RequirementSemanticBaseline baseline, RequirementCaptureInput.DraftInput accepted,
+      List<RequirementCaptureInput.FactInput> candidate) {
+    if (baseline == null) {
+      return;
+    }
+    issues.removeIf(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+        && representationOnly(baseline, accepted, candidate, issue.entityId()));
+  }
+
+  private static boolean representationOnly(RequirementSemanticBaseline baseline,
+      RequirementCaptureInput.DraftInput accepted, List<RequirementCaptureInput.FactInput> candidate, String factId) {
+    var claim = baseline.claims().stream().filter(value -> Objects.equals(factId, value.sourceFactId()))
+        .findFirst().orElse(null);
+    var fact = candidate.stream().filter(value -> value != null && Objects.equals(factId, value.sourceFactId()))
+        .findFirst().orElse(null);
+    if (claim == null || fact == null || !Objects.equals(claim.text(), fact.text()) || claim.polarity() != fact.polarity()) {
+      return false;
+    }
+    var prior = accepted == null || accepted.facts() == null ? null : accepted.facts().stream()
+        .filter(value -> Objects.equals(factId, value.sourceFactId())).findFirst().orElse(null);
+    return prior == null || Objects.equals(prior.policyConflict(), fact.policyConflict());
   }
 
   com.fasterxml.jackson.databind.node.ObjectNode copyRejectedCaptureValues(String conversationId) {
