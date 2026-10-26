@@ -206,9 +206,6 @@ public class RequirementDraftStore {
   private void recordSemanticBaseline(String conversationId, RequirementSemanticBaseline previous,
       List<RequirementCaptureInput.FactInput> facts, AuthorSourceEvidence.Packet packet,
       List<RequirementCaptureInput.AmendmentInput> amendments) {
-    if (previous == null && !hasClaimEvidence(facts)) {
-      return;
-    }
     var baseline = RequirementClaimEvidenceValidator.reconcile(previous, facts, packet, amendments);
     String compilationId = sessions.active(conversationId);
     var prior = artifacts.latest(compilationId, Kind.REQUIREMENT_SEMANTIC_BASELINE);
@@ -226,7 +223,8 @@ public class RequirementDraftStore {
       return new AuthorSourceEvidence.Packet(authority.sourceGeneration(), List.of());
     }
     return new AuthorSourceEvidence.Packet(authority.sourceGeneration(),
-        List.of(new AuthorSourceEvidence.Input(authority.sourceTurnId(), text)));
+        List.of(new AuthorSourceEvidence.Input(
+            authority.sourceTurnId() == null ? "current" : authority.sourceTurnId(), text)));
   }
 
   private static boolean hasClaimEvidence(List<RequirementCaptureInput.FactInput> facts) {
@@ -249,7 +247,8 @@ public class RequirementDraftStore {
         .findFirst().orElse(null);
     var fact = candidate.stream().filter(value -> value != null && Objects.equals(factId, value.sourceFactId()))
         .findFirst().orElse(null);
-    if (claim == null || fact == null || !Objects.equals(claim.text(), fact.text()) || claim.polarity() != fact.polarity()) {
+    if (claim == null || claim.evidence() == null || fact == null
+        || !Objects.equals(claim.text(), fact.text()) || claim.polarity() != fact.polarity()) {
       return false;
     }
     var prior = accepted == null || accepted.facts() == null ? null : accepted.facts().stream()

@@ -52,6 +52,7 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogO
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogSystemFinder;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
@@ -473,18 +474,18 @@ class RequirementCaptureToolsTest {
       assertFalse(refused.accepted(), refused.toString());
       assertTrue(refused.issues().stream().anyMatch(issue -> "MISSING_ANCHOR_INTENT".equals(issue.code())),
           refused.toString());
-      var entry = nativeAnchorFact("entry", "http-trigger");
+      var entry = quoted(nativeAnchorFact("entry", "http-trigger"), turn.turnId(), "POST /tasks");
       var intent = entry.elementIntent();
       if (suppliedRole) {
-        entry = new FactInput(entry.sourceFactId(), entry.interactionIds(), entry.kind(), entry.polarity(),
+        entry = quoted(new FactInput(entry.sourceFactId(), entry.interactionIds(), entry.kind(), entry.polarity(),
             "Allow exactly the role task-operator.", null, null,
             new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
                 intent.ownerInteractionId(), null, null, null,
                 List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", "[\"task-operator\"]")),
-                List.of("task-operator")));
+                List.of("task-operator"))), turn.turnId(), "POST /tasks");
       }
       var changes = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-          List.of(entry, nativeAnchorFact("submit", "http-sender")), List.of(), List.of(), List.of(), List.of(),
+          List.of(entry, quoted(nativeAnchorFact("submit", "http-sender"), turn.turnId(), "POST /tasks")), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), suppliedRole ? List.of(question.questionId()) : List.of(), null);
       var corrected = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
       assertTrue(corrected.accepted(), corrected.toString());
@@ -2111,10 +2112,11 @@ class RequirementCaptureToolsTest {
       assertFalse(rejected.accepted());
       assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")
           && issue.message().contains("addFacts")), rejected.toString());
-      var extra = new FactInput("additional-setting", List.of(owner), FactKind.PARAMETER, Polarity.POSITIVE,
+      var extra = quoted(new FactInput("additional-setting", List.of(owner), FactKind.PARAMETER, Polarity.POSITIVE,
           "Retain the supplied setting.", null, null,
           new RequirementElementIntent(owner, type, RequirementElementIntent.Placement.ANCHOR, owner, null, null, null,
-              List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(key, value)), List.of()));
+              List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(key, value)), List.of())),
+          "current", "/tasks");
       var repaired = h.mapper().readValue(h.tools().updateRequirementDraft(new DraftUpdate(List.of(), List.of(),
           List.of(), List.of(), List.of(), List.of(extra), List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), null)), RequirementCaptureResult.class);
@@ -2478,16 +2480,17 @@ class RequirementCaptureToolsTest {
       var source = archive.beginInput(chat, text, null);
       archive.resolveInput(chat, source, text);
       h.store().beginTurn(chat, text);
-      var role = new FactInput("role", List.of("entry"), FactKind.VISIBILITY, Polarity.POSITIVE,
-          "Use RBAC with roles [\"qip-viewer\"].");
-      java.util.function.Function<Boolean, FactInput> context = repaired -> new FactInput("context",
+      var role = quoted(new FactInput("role", List.of("entry"), FactKind.VISIBILITY, Polarity.POSITIVE,
+          "Use RBAC with roles [\"qip-viewer\"]."), source.turnId(), "qip-viewer");
+      java.util.function.Function<Boolean, FactInput> context = repaired -> quoted(new FactInput("context",
           List.of("submit"), FactKind.PARAMETER, Polarity.POSITIVE,
           "Override X-Request-Id with override-request-id.", null, null,
           new RequirementElementIntent("submit", "http-sender", RequirementElementIntent.Placement.ANCHOR,
               !repaired && defect.equals("owner") ? "wrong-submit" : "submit", null, null, null,
               List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(
                   "overrideContextParams", !repaired && defect.equals("property")
-                      ? "X-Request-Id=override-request-id" : "{\"X-Request-Id\":\"override-request-id\"}")), List.of()));
+                      ? "X-Request-Id=override-request-id" : "{\"X-Request-Id\":\"override-request-id\"}")), List.of())),
+          source.turnId(), "override-request-id");
       java.util.function.Function<List<FactInput>, DraftUpdate> add = facts -> new DraftUpdate(
           List.of(), List.of(), List.of(), List.of(), List.of(), facts, List.of(), List.of(),
           List.of(), List.of(), List.of(), List.of(), List.of(), null);
@@ -2738,6 +2741,11 @@ class RequirementCaptureToolsTest {
           .getBytes(java.nio.charset.StandardCharsets.UTF_8);
     });
     return harness(conversations, s3);
+  }
+
+  private static FactInput quoted(FactInput fact, String turnId, String quote) {
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+        fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(), new ClaimEvidenceInput(turnId, quote));
   }
 
   private static Harness harness() {
