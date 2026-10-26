@@ -179,19 +179,19 @@ public class RequirementDraftStore {
     if (!issues.isEmpty()) return focused(issues);
     var repairPaths = activeRepairPaths(conversationId, base, draft);
     var baseline = semanticBaseline(conversationId).orElse(null);
+    var packet = sourcePacket(conversationId);
     issues.addAll(RequirementFailureConsistency.unauthorizedModeChanges(base, draft.authoredDraft(),
         current.map(revision -> artifacts.payload(revision, RequirementDraft.class).catalogBindings()).orElse(List.of()),
         authorPaths, repairPaths));
     var admission = RequirementRevisionAdmission.admissionDecision(base, draft.authoredDraft(),
         rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, repairPaths, mappingPaths,
-        fact -> canResolvePolicyChoice(conversationId, fact), baseline);
+        fact -> canResolvePolicyChoice(conversationId, fact), baseline, packet);
     issues.addAll(admission.issues());
     var strategy = admission.strategy();
     var facts = draft.authoredDraft() == null || draft.authoredDraft().facts() == null
         ? List.<RequirementCaptureInput.FactInput>of() : draft.authoredDraft().facts();
     var amendments = changes == null || changes.amendments() == null
         ? List.<RequirementCaptureInput.AmendmentInput>of() : changes.amendments();
-    var packet = sourcePacket(conversationId);
     // Claim text and polarity stay protected. Representation fields are not part of the claim.
     // Initial capture has no saved draft. Treat the candidate as that draft so a quote-less fact stays unclaimed.
     var accepted = base == null ? facts : base.facts();
@@ -293,7 +293,7 @@ public class RequirementDraftStore {
       List<RequirementCaptureEditor.Issue> issues) {
     var base = latestRevision(conversationId)
         .map(revision -> artifacts.payload(revision, RequirementDraft.class).authoredDraft()).orElse(null);
-    return RequirementRevisionAdmission.restoreProtectedSnapshot(base, candidate, rejectedCaptureFacts(conversationId),
+    return RequirementRevisionAdmission.restoreProtectedSnapshot(base, candidate,
         rejectedCaptureValues.get(conversationId), bindings, issues);
   }
 

@@ -376,7 +376,7 @@ public class RequirementCaptureTools {
     var consistency = RequirementFailureConsistency.issues(input, bindings);
     if (!consistency.isEmpty()) {
       store.rememberRejectedCapture(conversationId, input, consistency, bindings);
-      return view(previous, false, false, withPreservedFacts(consistency, previous, store.rejectedCaptureFacts(conversationId)));
+      return view(previous, false, false, withPreservedFacts(consistency, previous));
     }
     DraftInput admitted = input;
     RequirementDraft draft = RequirementCaptureProjection.toDraft(
@@ -429,7 +429,7 @@ public class RequirementCaptureTools {
       store.rememberRejectedCapture(conversationId, input, issues);
     }
     var result = view(previous, false, false,
-        withPreservedFacts(issues, previous, store.rejectedCaptureFacts(conversationId)));
+        withPreservedFacts(issues, previous));
     if (strategy == RequirementRepairPolicy.Strategy.PROJECTION_REBUILD
         && result.nextAction() == RequirementCaptureResult.NextAction.REPAIR_CAPTURE) {
       return result.withNextAction(RequirementCaptureResult.NextAction.PROJECTION_REBUILD);
@@ -706,20 +706,15 @@ public class RequirementCaptureTools {
         : uploadedSpecs.pendingInteractionIds(ToolSession.resolveConversationId(), draft);
   }
 
-  private List<Issue> withPreservedFacts(List<Issue> issues, RequirementDraft accepted, List<FactInput> facts) {
+  private List<Issue> withPreservedFacts(List<Issue> issues, RequirementDraft accepted) {
     return issues.stream().map(issue -> new Issue(
         issue.code(), issue.path(), issue.entityId(), issue.message()
             + " Accepted fact records: "
             + mapper.valueToTree(accepted == null || accepted.authoredDraft() == null ? List.of()
                 : accepted.authoredDraft().facts().stream()
                     .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
-            + ". Pending preservation constraints copied from rejected inputs: "
-            + mapper.valueToTree(facts.stream()
-                .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
-            + ". These partial constraints do not prove that every native consumer check has run or passed;"
-            + " some checks may be deferred. They are not replacement records."
-            + " Null does not instruct you to clear an accepted value. Retain accepted values and pending"
-            + " constrained fields; correct only reported invalid fields or explicitly authorized amendments."
+            + ". Null does not instruct you to clear an accepted value. Retain accepted values;"
+            + " correct only reported invalid fields or explicitly authorized amendments."
             + " During automatic repair, keep accepted elementIntent unchanged. Add extra source-backed settings through addFacts"
             + " on the same elementRef, rather than updating its accepted fact."))
         .toList();

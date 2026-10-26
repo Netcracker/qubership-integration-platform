@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeed
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
@@ -42,6 +43,8 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
 /** Exercises additive native binding and continuation, without changing an existing literal obligation. */
 class AdditiveLiteralBindingRecoveryTest {
   private static final String LITERAL = "audit-event";
+  /** Present only on a rejected candidate's exactValues, never as a validated quote. */
+  private static final String REJECTED_ONLY = "qip-auditor";
   private static final String SOURCE = """
       Receive POST /work through the HTTP trigger named Receive request on a private route.
       Use RBAC with exactly the role qip-auditor.
@@ -97,11 +100,23 @@ class AdditiveLiteralBindingRecoveryTest {
   @ValueSource(booleans = {false, true})
   void sourceBackedLiteralCanLeaveExactValues(boolean reload) throws Exception {
     var h = new Harness();
-    h.rejectOwnerThenBinding(draft(false, null));
+    var rejectedOnly = h.capture(replaceAudit(draft(true, null),
+        auditIntent(List.of(new PlanProperty("logLevel", "Info")), List.of(REJECTED_ONLY)), null));
+    assertFalse(rejectedOnly.accepted(), rejectedOnly.toString());
+    assertTrue(h.store.latestRevision(h.chat).isEmpty());
     if (reload) {
       h.reload();
     }
-    var moved = clearExactValues(h.mapper, draft(true, LITERAL));
+
+    var uncovered = quoteAudit(clearExactValues(h.mapper, draft(true, null)), h.source.turnId());
+    assertEquals(List.of(), uncovered.facts().get(1).elementIntent().exactValues());
+    assertEquals(LITERAL, uncovered.facts().get(1).evidence().quote());
+    var missing = h.capture(uncovered);
+    assertFalse(missing.accepted(), missing.toString());
+    assertTrue(unbound(missing, LITERAL), missing.toString());
+    assertFalse(unbound(missing, REJECTED_ONLY), missing.toString());
+
+    var moved = quoteAudit(clearExactValues(h.mapper, draft(true, LITERAL)), h.source.turnId());
     var audit = moved.facts().get(1);
     assertEquals(List.of(), audit.elementIntent().exactValues());
     assertTrue(audit.elementIntent().requestedProperties().stream()
@@ -110,6 +125,8 @@ class AdditiveLiteralBindingRecoveryTest {
     var accepted = h.capture(moved);
 
     assertTrue(accepted.accepted(), accepted.toString());
+    assertFalse(unbound(accepted, LITERAL), accepted.toString());
+    assertFalse(unbound(accepted, REJECTED_ONLY), accepted.toString());
     assertFalse(accepted.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())),
         accepted.toString());
     assertEquals(List.of(), h.store.get(h.chat).orElseThrow().authoredDraft().facts().get(1)
@@ -122,6 +139,17 @@ class AdditiveLiteralBindingRecoveryTest {
     var h = new Harness();
     h.rejectOwnerThenBinding(draft(false, null));
     var candidate = mutated(h.mapper, draft(true, LITERAL), mutation);
+    if ("literal-deletion".equals(mutation)) {
+      candidate = quoteAudit(candidate, h.source.turnId());
+      var rejected = h.capture(candidate);
+      assertFalse(rejected.accepted(), rejected.toString());
+      assertTrue(unbound(rejected, LITERAL), rejected.toString());
+      assertEquals("audit", rejected.issues().stream()
+          .filter(issue -> "UNBOUND_REQUIRED_LITERAL".equals(issue.code())).findFirst().orElseThrow().entityId());
+      assertTrue(h.store.get(h.chat).isEmpty());
+      assertTrue(h.store.latestRevision(h.chat).isEmpty());
+      return;
+    }
 
     var accepted = h.capture(candidate);
 
@@ -130,7 +158,6 @@ class AdditiveLiteralBindingRecoveryTest {
         accepted.toString());
     var saved = h.store.get(h.chat).orElseThrow().authoredDraft();
     switch (mutation) {
-      case "literal-deletion" -> assertEquals(List.of(), saved.facts().get(1).elementIntent().exactValues());
       case "property-loss" -> assertTrue(saved.facts().getFirst().elementIntent().requestedProperties().stream()
           .noneMatch(property -> "externalRoute".equals(property.key())));
       case "source-text-loss" -> assertEquals("Preserve the body.", saved.facts().get(3).text());
@@ -203,6 +230,31 @@ class AdditiveLiteralBindingRecoveryTest {
     return new FactInput(id, List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE, text, null, null, intent);
   }
 
+  private static RequirementElementIntent auditIntent(List<PlanProperty> properties, List<String> exactValues) {
+    return new RequirementElementIntent("audit", "log-record", Placement.LOCAL_NODE, "entry",
+        "preserve", "entry", null, "Audit request", properties, exactValues);
+  }
+
+  private static DraftInput replaceAudit(DraftInput draft, RequirementElementIntent intent, ClaimEvidenceInput evidence) {
+    var facts = new java.util.ArrayList<>(draft.facts());
+    var audit = facts.get(1);
+    facts.set(1, new FactInput(audit.sourceFactId(), audit.interactionIds(), audit.kind(), audit.polarity(),
+        audit.text(), audit.fieldMapping(), audit.policyConflict(), intent, evidence));
+    return new DraftInput(draft.flow(), List.copyOf(facts), draft.capabilities(), draft.openQuestions(), draft.settings());
+  }
+
+  /** The obligation is the quote {@code audit-event}, an exact substring of the author turn. */
+  private static DraftInput quoteAudit(DraftInput draft, String turnId) {
+    var audit = draft.facts().get(1);
+    return replaceAudit(draft, audit.elementIntent(), new ClaimEvidenceInput(turnId, LITERAL));
+  }
+
+  private static boolean unbound(RequirementCaptureResult result, String literal) {
+    String token = "[\"" + literal + "\"]";
+    return result.issues().stream().anyMatch(issue -> "UNBOUND_REQUIRED_LITERAL".equals(issue.code())
+        && issue.message() != null && issue.message().contains(token));
+  }
+
   private static void assertOnlyOwnerAndMessageChanged(ObjectMapper mapper, DraftInput before, DraftInput after) {
     var expected = mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(before);
     ((com.fasterxml.jackson.databind.node.ObjectNode) expected.at("/facts/2/elementIntent")).put("ownerInteractionId", "entry");
@@ -222,8 +274,16 @@ class AdditiveLiteralBindingRecoveryTest {
     switch (mutation) {
       case "wrong-value" -> ((com.fasterxml.jackson.databind.node.ObjectNode)
           value.at("/facts/1/elementIntent/requestedProperties/1")).put("value", "different-event");
-      case "literal-deletion" -> ((com.fasterxml.jackson.databind.node.ObjectNode)
-          value.at("/facts/1/elementIntent")).putArray("exactValues");
+      case "literal-deletion" -> {
+        var intent = (com.fasterxml.jackson.databind.node.ObjectNode) value.at("/facts/1/elementIntent");
+        intent.putArray("exactValues");
+        var properties = (com.fasterxml.jackson.databind.node.ArrayNode) intent.get("requestedProperties");
+        for (int i = properties.size() - 1; i >= 0; i--) {
+          if ("message".equals(properties.get(i).path("key").asText())) {
+            properties.remove(i);
+          }
+        }
+      }
       case "property-loss" -> ((com.fasterxml.jackson.databind.node.ArrayNode)
           value.at("/facts/0/elementIntent/requestedProperties")).remove(0);
       case "source-text-loss" -> ((com.fasterxml.jackson.databind.node.ObjectNode)
