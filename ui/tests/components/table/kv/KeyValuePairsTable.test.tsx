@@ -313,6 +313,35 @@ describe("KeyValuePairsTable", () => {
     expect(keysInOrder()).toEqual(["c", "b", "a"]);
   });
 
+  it.each([
+    ["Key", 1],
+    ["Key", 2],
+    ["Value", 1],
+    ["Value", 2],
+  ])(
+    "should show the added pair first when sorted by %s with %i clicks",
+    (column, clicks) => {
+      const ref = createRef<KeyValuePairsTableRef>();
+      render(
+        <KeyValuePairsTable
+          value={[
+            { key: "b", value: "2" },
+            { key: "a", value: "1" },
+          ]}
+          actionRef={ref}
+        />,
+      );
+      const header = screen.getByRole("columnheader", { name: column });
+      for (let i = 0; i < clicks; i++) {
+        fireEvent.click(header);
+      }
+
+      act(() => ref.current?.add());
+
+      expect(keysInOrder()[0]).toBe("");
+    },
+  );
+
   it("should show the new pair in edit mode when value changes to include it", () => {
     const { rerender } = render(<KeyValuePairsTable value={[]} />);
 

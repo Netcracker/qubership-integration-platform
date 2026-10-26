@@ -1,5 +1,6 @@
 import { Button, Flex, message, Table, TableProps } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { SortOrder } from "antd/es/table/interface";
 import React, {
   ReactNode,
   Ref,
@@ -34,6 +35,19 @@ export type KeyValuePairsTableProps = KeyValuePairsEditorProps & {
   columnNames?: KeyValuePair;
   header?: ReactNode;
 };
+
+// Keeps a pair added without a key on top in either sort order. antd negates
+// the result for a descending sort, so the result for that pair is negated
+// first.
+function sortKeepingNewPairFirst(field: keyof KeyValuePair) {
+  return (a: KeyValuePair, b: KeyValuePair, sortOrder?: SortOrder) => {
+    if (a.key === "" || b.key === "") {
+      const result = Number(b.key === "") - Number(a.key === "");
+      return sortOrder === "descend" ? -result : result;
+    }
+    return a[field].localeCompare(b[field]);
+  };
+}
 
 export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
   onChange,
@@ -101,7 +115,7 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
         key: "key",
         title: columnNames?.key ?? "Key",
         dataIndex: "key",
-        sorter: (a, b) => a.key.localeCompare(b.key),
+        sorter: sortKeepingNewPairFirst("key"),
         render: (value: string, record: KeyValuePair) => {
           return (
             <InlineEdit<{ value: string }>
@@ -127,7 +141,7 @@ export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
         key: "value",
         title: columnNames?.value ?? "Value",
         dataIndex: "value",
-        sorter: (a, b) => a.value.localeCompare(b.value),
+        sorter: sortKeepingNewPairFirst("value"),
         render: (value: string, record: KeyValuePair) => {
           return (
             <InlineEdit<{ value: string }>
