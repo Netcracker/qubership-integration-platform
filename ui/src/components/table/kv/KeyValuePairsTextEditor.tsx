@@ -74,9 +74,10 @@ export const KeyValuePairsTextEditor: React.FC<
   KeyValuePairsTextEditorProps
 > = ({ onChange, onErrorChange, value }) => {
   const [text, setText] = useState<string>("");
-  // The text of the pairs last passed to onChange. A value that formats to it
-  // came from typing here, so the typed text stays as it is.
-  const emittedTextRef = useRef<string>();
+  // The text of the pairs last passed to onChange or last taken from value. A
+  // value that formats to it brings no new pairs, so the typed text stays as
+  // it is, including text that does not parse yet.
+  const syncedTextRef = useRef<string>();
 
   const editorRef = useRef<editor.IStandaloneCodeEditor>();
   const monacoRef = useRef<Monaco>();
@@ -126,7 +127,8 @@ export const KeyValuePairsTextEditor: React.FC<
 
   useEffect(() => {
     const formatted = formatPairs(value ?? []);
-    if (formatted !== emittedTextRef.current) {
+    if (formatted !== syncedTextRef.current) {
+      syncedTextRef.current = formatted;
       setText(formatted);
       clearMarkers();
       onErrorChange?.(undefined);
@@ -151,7 +153,7 @@ export const KeyValuePairsTextEditor: React.FC<
         setText(v);
         try {
           const parsed = removeDuplicateKeys(parse(v));
-          emittedTextRef.current = formatPairs(parsed);
+          syncedTextRef.current = formatPairs(parsed);
           clearMarkers();
           onErrorChange?.(undefined);
           onChange?.(parsed);

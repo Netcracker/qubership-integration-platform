@@ -109,6 +109,31 @@ describe("KeyValuePairsTextEditor", () => {
     expect(screen.getByTestId("monaco")).toHaveValue("b=1;");
   });
 
+  it("should show each value that changes from outside after typing", () => {
+    const { rerender } = render(<KeyValuePairsTextEditor value={[]} />);
+    fireEvent.change(screen.getByTestId("monaco"), {
+      target: { value: "a=2;" },
+    });
+
+    rerender(<KeyValuePairsTextEditor value={[{ key: "a", value: "3" }]} />);
+    rerender(<KeyValuePairsTextEditor value={[{ key: "a", value: "2" }]} />);
+
+    expect(screen.getByTestId("monaco")).toHaveValue("a=2;");
+  });
+
+  it("should keep text that does not parse when an equal value comes from outside", () => {
+    const { rerender } = render(
+      <KeyValuePairsTextEditor value={[{ key: "a", value: "1" }]} />,
+    );
+    fireEvent.change(screen.getByTestId("monaco"), {
+      target: { value: "a=1;\nb" },
+    });
+
+    rerender(<KeyValuePairsTextEditor value={[{ key: "a", value: "1" }]} />);
+
+    expect(screen.getByTestId("monaco")).toHaveValue("a=1;\nb");
+  });
+
   it("should call onChange with parsed pairs and clear markers when text is valid", () => {
     const onChange = jest.fn();
     render(<KeyValuePairsTextEditor value={[]} onChange={onChange} />);
