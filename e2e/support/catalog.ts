@@ -607,6 +607,7 @@ export class Catalog {
     chainId: string,
     snapshotId: string,
     domain: string = DEFAULT_DOMAIN,
+    mode: CustomResourceMode = "REWRITE",
   ): Promise<DeploymentView> {
     if (!snapshotId) {
       throw new Error(
@@ -615,7 +616,7 @@ export class Catalog {
           `500 "The given id must not be null".`,
       );
     }
-    return this.call("post", `/v1/catalog/chains/${chainId}/deployments`, { snapshotId, domain });
+    return this.call("post", `/v1/catalog/chains/${chainId}/deployments`, { snapshotId, domain, mode });
   }
 
   /** The chain's deployment rows, each carrying the engine-reported `runtime.states` per host. */
@@ -721,41 +722,16 @@ export class Catalog {
    * chain id is dropped from it with no error: a caller compares the rows with the ids it sent.
    */
   deployChains(chainIds: string[], domains: string[]): Promise<BulkDeploymentRow[]> {
-    return this.call("post", "/v1/cr/deploy-chains", { chainIds, domains });
+    return this.call("post", "/v1/catalog/chains/deployments/bulk", {
+      chainIds,
+      domains,
+      mode: "REWRITE",
+    });
   }
 
   /** Deletes a micro domain: its Integration, Service, ConfigMaps, and HTTPRoutes. */
   async deleteCustomResource(name: string): Promise<void> {
-    await this.call("delete", `/v1/cr/${encodeURIComponent(name)}`);
-  }
-
-  /**
-   * The Kubernetes resources a micro domain `name` would run the snapshots in, as multi-document
-   * YAML. Nothing is written to the cluster. The build takes only the options sent, so the
-   * Integration's image is empty, where a deploy fills it from the catalog's configuration.
-   */
-  async buildCustomResources(name: string, snapshotIds: string[]): Promise<string> {
-    const path = "/v1/cr";
-    const response = await this.send("post", path, { data: { options: { name }, snapshotIds } });
-    if (!response.ok()) await fail(response, "POST", `${this.base}${path}`);
-    return await response.text();
-  }
-
-  /** Deploys the snapshots to micro domain `name`, creating the domain when it does not exist. */
-  async deployCustomResource(
-    name: string,
-    snapshotIds: string[],
-    mode: CustomResourceMode = "REWRITE",
-  ): Promise<void> {
-    await this.call("post", "/v1/cr/deploy", { name, snapshotIds, mode });
-  }
-
-  /** Removes one chain snapshot from micro domain `name`, which keeps running the others. */
-  async deleteSnapshotFromCustomResource(name: string, snapshotId: string): Promise<void> {
-    await this.call(
-      "delete",
-      `/v1/cr/${encodeURIComponent(name)}/${encodeURIComponent(snapshotId)}`,
-    );
+    await this.call("delete", `/v1/catalog/domains/${encodeURIComponent(name)}`);
   }
 
   // -------------------------------------------------------------------------

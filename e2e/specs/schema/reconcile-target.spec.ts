@@ -32,7 +32,7 @@ const brokerRow: RegistryEntry = {
 
 const operations: OperationClaim[] = [
   { key: "catalog GET /v1/chains", status: "covered" },
-  { key: "catalog POST /v1/cr", status: "covered", target: "k8s" },
+  { key: "catalog DELETE /v1/catalog/domains/{domainName}", status: "covered", target: "k8s" },
 ];
 
 /** A whole run on `target`: one passing test making the given declarations and calls. */
@@ -83,7 +83,7 @@ test("the broker projects missing from a k8s run do not narrow it, and from a Co
 });
 
 test("a broker-only row does not fail a k8s run, and fails a Compose run that does not prove it", { tag: ["@infra", "@tier1"] }, () => {
-  const k8sRun = runOn("k8s", ["condition"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+  const k8sRun = runOn("k8s", ["condition"], ["catalog GET /v1/chains", "catalog DELETE /v1/catalog/domains/{domainName}"]);
   expect(reconcile(k8sRun, [bothRow, brokerRow], operations)).toEqual([]);
 
   const composeRun = runOn("compose", ["condition"], ["catalog GET /v1/chains"]);
@@ -96,18 +96,18 @@ test("a broker-only row does not fail a k8s run, and fails a Compose run that do
 test("a k8s-only row does not fail a Compose run, and fails a k8s run that does not reach it", { tag: ["@infra", "@tier1"] }, () => {
   expect(reconcileOperations(runOn("compose", [], ["catalog GET /v1/chains"]), operations)).toEqual([]);
   expect(reconcileOperations(runOn("k8s", [], ["catalog GET /v1/chains"]), operations)).toEqual([
-    "catalog POST /v1/cr: marked covered, but no passing test reached it",
+    "catalog DELETE /v1/catalog/domains/{domainName}: marked covered, but no passing test reached it",
   ]);
 });
 
 test("a row proven on the other target's run is reported, not taken as proof", { tag: ["@infra", "@tier1"] }, () => {
-  const k8sRun = runOn("k8s", ["condition", "kafka-trigger-2"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+  const k8sRun = runOn("k8s", ["condition", "kafka-trigger-2"], ["catalog GET /v1/chains", "catalog DELETE /v1/catalog/domains/{domainName}"]);
   expect(reconcile(k8sRun, [bothRow, brokerRow], operations)).toEqual([
     "specs/runtime/condition.spec.ts › a spec declares kafka-trigger-2, a row of the compose target, in a run on k8s",
   ]);
 
-  const composeRun = runOn("compose", ["condition", "kafka-trigger-2"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+  const composeRun = runOn("compose", ["condition", "kafka-trigger-2"], ["catalog GET /v1/chains", "catalog DELETE /v1/catalog/domains/{domainName}"]);
   expect(reconcileOperations(composeRun, operations)).toEqual([
-    "catalog POST /v1/cr was reached on compose, but its row names the k8s target",
+    "catalog DELETE /v1/catalog/domains/{domainName} was reached on compose, but its row names the k8s target",
   ]);
 });

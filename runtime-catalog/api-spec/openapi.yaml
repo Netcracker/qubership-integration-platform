@@ -34,8 +34,6 @@ tags:
   name: compiled-library-controller
 - description: Context System Controller
   name: context-system-controller
-- description: Custom Resource Build and Deploy Controller
-  name: custom-resource-controller
 - description: Dependency Controller
   name: dependency-controller
 - description: Deployment Controller
@@ -980,6 +978,22 @@ paths:
                   type: array
                   items:
                     type: string
+          description: OK
+      tags:
+      - engine-controller
+  /v1/catalog/domains/{domainName}:
+    delete:
+      description: Delete Camel-K Integration resource of the domain
+      operationId: deleteDomain
+      parameters:
+      - description: Engine domain name
+        in: path
+        name: domainName
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
           description: OK
       tags:
       - engine-controller
@@ -3296,96 +3310,6 @@ paths:
       tags:
       - common-variables-controller
       x-api-kind: bwc
-  /v1/cr:
-    post:
-      description: Build K8s resources for specified chain snapshots
-      operationId: buildResource
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResourceBuildRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            application/yaml:
-              schema:
-                type: string
-          description: OK
-      tags:
-      - custom-resource-controller
-  /v1/cr/deploy:
-    post:
-      description: Deploy as Camel-K Integration resource
-      operationId: deployResource
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResourceDeployRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-      tags:
-      - custom-resource-controller
-  /v1/cr/deploy-chains:
-    post:
-      description: Deploy with creation of snapshots as Camel-K Integration resource
-      operationId: deployChains
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DeployWithSnapshotCreationRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/BulkDeploymentResponse"
-          description: OK
-      tags:
-      - custom-resource-controller
-  /v1/cr/{name}:
-    delete:
-      description: Delete Camel-K Integration resource
-      operationId: deleteResource
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-      tags:
-      - custom-resource-controller
-  /v1/cr/{name}/{snapshotId}:
-    delete:
-      description: Delete integration chain snapshot from Camel-K resource
-      operationId: deleteSnapshotFromResource
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: snapshotId
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-      tags:
-      - custom-resource-controller
   /v1/design-generator/chains/{chainId}:
     get:
       deprecated: true
@@ -6296,6 +6220,12 @@ components:
             type: string
             minLength: 1
             pattern: "^[-._a-zA-Z0-9]+$"
+        mode:
+          type: string
+          description: Deploy mode
+          enum:
+          - REWRITE
+          - APPEND
         snapshotAction:
           type: string
           description: Which snapshot should be taken during bulk deploy
@@ -6320,17 +6250,6 @@ components:
           - FAILED_SNAPSHOT
           - CREATED
           - IGNORED
-    CapabilitiesOptions:
-      type: object
-      properties:
-        add:
-          type: array
-          items:
-            type: string
-        drop:
-          type: array
-          items:
-            type: string
     CatalogItem:
       type: object
       description: Catalog item response object
@@ -7067,45 +6986,6 @@ components:
           $ref: "#/components/schemas/ElementDiagramOperation"
           description: "Other operations, optional parameter. If null - will be used\
             \ primaryOperation for all elements"
-    ContainerOptions:
-      type: object
-      properties:
-        allowPrivilegeEscalation:
-          type: boolean
-        args:
-          type: array
-          items:
-            type: string
-        capabilities:
-          $ref: "#/components/schemas/CapabilitiesOptions"
-        image:
-          type: string
-        imagePullPolicy:
-          type: string
-          enum:
-          - Always
-          - Never
-          - IfNotPresent
-        limit:
-          $ref: "#/components/schemas/Limits"
-        readOnlyRootFilesystem:
-          type: boolean
-        request:
-          $ref: "#/components/schemas/Limits"
-        runAsGroup:
-          type: integer
-          format: int32
-        runAsNonRoot:
-          type: boolean
-        runAsUser:
-          type: integer
-          format: int32
-        seccompProfileType:
-          type: string
-          enum:
-          - RuntimeDefault
-          - Unconfined
-          - Localhost
     ContextSystemRequestDTO:
       type: object
       properties:
@@ -7324,33 +7204,6 @@ components:
         to:
           type: string
           description: Element id which is linked as "To" object (target)
-    DeployWithSnapshotCreationRequest:
-      type: object
-      properties:
-        chainIds:
-          type: array
-          items:
-            type: string
-          minItems: 1
-        domains:
-          type: array
-          items:
-            type: string
-          minItems: 1
-        mode:
-          type: string
-          enum:
-          - REWRITE
-          - APPEND
-        snapshotAction:
-          type: string
-          description: Which snapshot should be taken during bulk deploy
-          enum:
-          - CREATE_NEW
-          - LAST_CREATED
-      required:
-      - chainIds
-      - domains
     Deployment:
       type: object
       properties:
@@ -7473,6 +7326,12 @@ components:
           type: string
           description: "Domain which was used to deploy to, usually \"default\""
           pattern: "^[-._a-zA-Z0-9]+$"
+        mode:
+          type: string
+          description: Deploy mode
+          enum:
+          - REWRITE
+          - APPEND
         name:
           type: string
           description: Name
@@ -8905,15 +8764,6 @@ components:
             enum:
             - FULL
             - SIMPLE
-    HealthOptions:
-      type: object
-      properties:
-        liveness:
-          $ref: "#/components/schemas/ProbeOptions"
-        readiness:
-          $ref: "#/components/schemas/ProbeOptions"
-        startup:
-          $ref: "#/components/schemas/ProbeOptions"
     ImportAsyncAcknowledge:
       type: object
       description: Import accepted status object
@@ -9378,27 +9228,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ImportVariableResult"
-    IntegrationsConfigurationOptions:
-      type: object
-      properties:
-        camelKSourcesUtilized:
-          type: boolean
-        configurationConfigMapNeeded:
-          type: boolean
-        configurationLocation:
-          type: string
-        libraryDefinitionsEnabled:
-          type: boolean
     JsonNode: {}
-    JvmOptions:
-      type: object
-      properties:
-        args:
-          type: array
-          items:
-            type: string
-        jar:
-          type: string
     LibraryElementGroup:
       type: object
       description: Group of libraries elements (descriptors)
@@ -9445,13 +9275,6 @@ components:
           description: Library elements groups (folders)
           items:
             $ref: "#/components/schemas/LibraryElementGroup"
-    Limits:
-      type: object
-      properties:
-        cpu:
-          type: string
-        memory:
-          type: string
     ListFolderRequest:
       type: object
       description: List folder request object
@@ -9659,30 +9482,6 @@ components:
         groupsRemoved:
           type: boolean
           description: Whether groups were removed from the chain
-    MonitoringOptions:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-        interval:
-          type: string
-    MountOptions:
-      type: object
-      properties:
-        emptyDirs:
-          type: array
-          items:
-            type: string
-          uniqueItems: true
-        resources:
-          type: array
-          items:
-            type: string
-          uniqueItems: true
-        serviceAccountTokens:
-          type: array
-          items:
-            $ref: "#/components/schemas/ServiceAccountTokenOptions"
     MoveFolderRequest:
       type: object
       description: Move folder request object
@@ -9790,33 +9589,6 @@ components:
         type:
           type: string
           description: Inner element type
-    ProbeOptions:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-        failureThreshold:
-          type: integer
-          format: int32
-        initialDelay:
-          type: integer
-          format: int32
-        period:
-          type: integer
-          format: int32
-        port:
-          type: integer
-          format: int32
-        probe:
-          type: string
-        schema:
-          type: string
-        successThreshold:
-          type: integer
-          format: int32
-        timeout:
-          type: integer
-          format: int32
     PropertyCondition:
       type: object
       description: Property validation condition
@@ -9852,66 +9624,6 @@ components:
           description: 'List of conditions '
           items:
             $ref: "#/components/schemas/PropertyCondition"
-    ResourceBuildOptions:
-      type: object
-      properties:
-        container:
-          $ref: "#/components/schemas/ContainerOptions"
-        environment:
-          type: object
-          additionalProperties:
-            type: string
-        health:
-          $ref: "#/components/schemas/HealthOptions"
-        integrations:
-          $ref: "#/components/schemas/IntegrationsConfigurationOptions"
-        jvm:
-          $ref: "#/components/schemas/JvmOptions"
-        language:
-          type: string
-        monitoring:
-          $ref: "#/components/schemas/MonitoringOptions"
-        mount:
-          $ref: "#/components/schemas/MountOptions"
-        name:
-          type: string
-        namespace:
-          type: string
-        replicas:
-          type: integer
-          format: int32
-        service:
-          $ref: "#/components/schemas/ServiceOptions"
-        serviceAccount:
-          type: string
-    ResourceBuildRequest:
-      type: object
-      properties:
-        options:
-          $ref: "#/components/schemas/ResourceBuildOptions"
-        snapshotIds:
-          type: array
-          items:
-            type: string
-    ResourceDeployRequest:
-      type: object
-      properties:
-        mode:
-          type: string
-          enum:
-          - REWRITE
-          - APPEND
-        name:
-          type: string
-          minLength: 1
-        snapshotIds:
-          type: array
-          items:
-            type: string
-          minItems: 1
-      required:
-      - name
-      - snapshotIds
     RolloutImportConfigurationItem:
       type: object
       properties:
@@ -10043,23 +9755,6 @@ components:
           additionalProperties:
             type: string
           description: "Set of secured variables <key, value>"
-    ServiceAccountTokenOptions:
-      type: object
-      properties:
-        audience:
-          type: string
-        defaultMode:
-          type: integer
-          format: int32
-        expirationSeconds:
-          type: integer
-          format: int64
-        mountPath:
-          type: string
-        name:
-          type: string
-        path:
-          type: string
     ServiceEnvironment:
       type: object
       properties:
@@ -10091,11 +9786,6 @@ components:
           - MAAS_BY_CLASSIFIER
         systemId:
           type: string
-    ServiceOptions:
-      type: object
-      properties:
-        enabled:
-          type: boolean
     Snapshot:
       type: object
       properties:

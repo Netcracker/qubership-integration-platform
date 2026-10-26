@@ -83,10 +83,10 @@ const DomainsTable: React.FC<Props> = ({
     );
   }, [tableData, searchTerm]);
 
-  const deleteMicroDomain = useCallback(
+  const deleteDomain = useCallback(
     async (name: string) => {
       try {
-        await api.deleteMicroDomain(name);
+        await api.deleteDomain(name);
         setTableData((items) => items.filter((domain) => domain.name !== name));
       } catch (e) {
         notificationsService.requestFailed(
@@ -103,10 +103,10 @@ const DomainsTable: React.FC<Props> = ({
       confirmAndRun({
         title: "Delete domain",
         content: "Are you sure you want to permanently delete this domain?",
-        onOk: () => void deleteMicroDomain(name),
+        onOk: () => void deleteDomain(name),
       });
     },
-    [deleteMicroDomain],
+    [deleteDomain],
   );
 
   const columns: ColumnsTypeWithSettings<EngineDomain> = useMemo(

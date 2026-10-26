@@ -3,7 +3,6 @@ package org.qubership.integration.platform.runtime.catalog.cr;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
@@ -15,6 +14,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
@@ -68,9 +68,12 @@ public class BulkDeploymentService {
     }
 
     @Transactional
-    public void deployChains(DeployWithSnapshotCreationRequest request, Consumer<BulkDeploymentResponse> resultConsumer) {
+    public void deployChains(BulkDeploymentRequest request, Consumer<BulkDeploymentResponse> resultConsumer) {
+        Collection<String> chainIds = request.getChainIds() == null || request.getChainIds().isEmpty()
+            ? chainRepository.findAll().stream().map(Chain::getId).toList()
+            : request.getChainIds();
         forClassicAndMicroDomains(request.getDomains(), (classicDomainNames, microDomainNames) -> {
-            Collection<Snapshot> snapshots = getSnapshots(request.getChainIds(), request.getSnapshotAction(), resultConsumer);
+            Collection<Snapshot> snapshots = getSnapshots(chainIds, request.getSnapshotAction(), resultConsumer);
             List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
                 .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
             deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(),
@@ -226,6 +229,30 @@ public class BulkDeploymentService {
             .stream()
             .collect(Collectors.groupingBy(
                 name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
+    }
+
+    public DomainType resolveDomainType(String domainName) {
+        return engineService.getDomains().stream()
+            .filter(domain -> domain.getName().equals(domainName))
+            .map(EngineDomain::getType)
+            .findFirst()
+            .orElse(DomainType.MICRO);
+    }
+
+    public void deleteChainSnapshot(String domainName, String snapshotId) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                microDomainService.deleteChainSnapshot(domainName, snapshotId);
+                return;
+            } catch (KubeApiConflictException conflict) {
+                if (attempt == MAX_CONFLICT_ATTEMPTS) {
+                    throw conflict;
+                }
+                log.warn("Removal of snapshot '{}' from micro-domain '{}' lost a concurrency race on "
+                        + "attempt {}/{}; re-reading current cluster state and retrying",
+                    snapshotId, domainName, attempt, MAX_CONFLICT_ATTEMPTS);
+            }
+        }
     }
 
     public void forClassicAndMicroDomains(

@@ -19,24 +19,31 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
+import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.DeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
+import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 import javax.validation.Valid;
 
@@ -53,18 +60,24 @@ public class DeploymentController {
     private final DeploymentMapper deploymentMapper;
     private final RuntimeDeploymentService runtimeDeploymentService;
     private final DomainProperties domainProperties;
+    private final BulkDeploymentService bulkDeploymentService;
+    private final SnapshotService snapshotService;
 
     @Autowired
     public DeploymentController(
             DeploymentService deploymentService,
             DeploymentMapper deploymentMapper,
             RuntimeDeploymentService runtimeDeploymentService,
-            DomainProperties domainProperties
+            DomainProperties domainProperties,
+            BulkDeploymentService bulkDeploymentService,
+            SnapshotService snapshotService
     ) {
         this.deploymentService = deploymentService;
         this.deploymentMapper = deploymentMapper;
         this.runtimeDeploymentService = runtimeDeploymentService;
         this.domainProperties = domainProperties;
+        this.bulkDeploymentService = bulkDeploymentService;
+        this.snapshotService = snapshotService;
     }
 
     @GetMapping
@@ -105,6 +118,18 @@ public class DeploymentController {
     public ResponseEntity<DeploymentResponse> create(@PathVariable @Parameter(description = "Chain id") String chainId,
                                                      @RequestBody @Valid @Parameter(description = "Deployment request object") DeploymentRequest request) {
         log.info("Request to create new deployment in chain: {}", chainId);
+        if (DomainType.MICRO.equals(bulkDeploymentService.resolveDomainType(request.getDomain()))) {
+            return verifyMicroDomainEnabled(() -> {
+                Snapshot snapshot = snapshotService.findById(request.getSnapshotId());
+                bulkDeploymentService.deployResource(ResourceDeployRequest.builder()
+                        .name(request.getDomain())
+                        .snapshotIds(List.of(snapshot.getId()))
+                        .mode(request.getMode())
+                        .build());
+                DeploymentResponse response = deploymentMapper.asMicroResponse(chainId, request.getDomain(), snapshot);
+                return ResponseEntity.ok(response);
+            });
+        }
         return verifyClassicDomainEnabled(() -> {
             String snapshotId = request.getSnapshotId();
             Deployment deployment = deploymentMapper.asEntity(request);
@@ -140,11 +165,24 @@ public class DeploymentController {
     public ResponseEntity<Void> deleteById(@PathVariable @Parameter(description = "Chain id") String chainId,
                                         @PathVariable @Parameter(description = "Deployment id") String deploymentId) {
         log.info("Request to delete deployment {} from chain {}", deploymentId, chainId);
-        return verifyClassicDomainEnabled(() -> {
-            deploymentService.deleteById(deploymentId);
-            return ResponseEntity.noContent().build();
-        });
-
+        if (domainProperties.getClassic().isEnabled()) {
+            Optional<Deployment> classicDeployment = deploymentService.tryFindById(deploymentId);
+            if (classicDeployment.isPresent()) {
+                deploymentService.deleteById(deploymentId);
+                return ResponseEntity.noContent().build();
+            }
+        }
+        if (domainProperties.getMicro().isEnabled()) {
+            Optional<MicroDeployment> microDeployment = parseMicroDeployment(chainId, deploymentId);
+            if (microDeployment.isPresent()) {
+                bulkDeploymentService.deleteChainSnapshot(microDeployment.get().domain(), microDeployment.get().snapshotId());
+                return ResponseEntity.noContent().build();
+            }
+        }
+        if (!domainProperties.getClassic().isEnabled()) {
+            throw new DomainTypeDisabledException(DomainType.CLASSIC);
+        }
+        throw new EntityNotFoundException("Deployment with id " + deploymentId + " not found");
     }
 
     private <T> T verifyClassicDomainEnabled(Supplier<T> supplier) {
@@ -153,5 +191,27 @@ public class DeploymentController {
         } else {
             throw new DomainTypeDisabledException(DomainType.CLASSIC);
         }
+    }
+
+    private <T> T verifyMicroDomainEnabled(Supplier<T> supplier) {
+        if (domainProperties.getMicro().isEnabled()) {
+            return supplier.get();
+        } else {
+            throw new DomainTypeDisabledException(DomainType.MICRO);
+        }
+    }
+
+    private Optional<MicroDeployment> parseMicroDeployment(String chainId, String deploymentId) {
+        return snapshotService.findByChainIdLight(chainId).stream()
+                .map(Snapshot::getId)
+                .filter(snapshotId -> deploymentId.length() > snapshotId.length() + 1)
+                .filter(snapshotId -> deploymentId.endsWith("-" + snapshotId))
+                .max(Comparator.comparingInt(String::length))
+                .map(snapshotId -> new MicroDeployment(
+                        deploymentId.substring(0, deploymentId.length() - snapshotId.length() - 1),
+                        snapshotId));
+    }
+
+    private record MicroDeployment(String domain, String snapshotId) {
     }
 }

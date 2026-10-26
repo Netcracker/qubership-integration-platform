@@ -12,7 +12,6 @@ import org.qubership.integration.platform.camelk.model.options.ResourceBuildOpti
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
@@ -24,6 +23,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
@@ -129,8 +129,8 @@ class BulkDeploymentServiceTest {
                 .build();
     }
 
-    private static DeployWithSnapshotCreationRequest bulkDeployRequest(List<String> chainIds, String... domains) {
-        return DeployWithSnapshotCreationRequest.builder()
+    private static BulkDeploymentRequest bulkDeployRequest(List<String> chainIds, String... domains) {
+        return BulkDeploymentRequest.builder()
                 .domains(List.of(domains))
                 .chainIds(chainIds)
                 .build();
@@ -142,7 +142,7 @@ class BulkDeploymentServiceTest {
         return deployment;
     }
 
-    private List<BulkDeploymentResponse> deployChains(DeployWithSnapshotCreationRequest request) {
+    private List<BulkDeploymentResponse> deployChains(BulkDeploymentRequest request) {
         List<BulkDeploymentResponse> result = new ArrayList<>();
         service.deployChains(request, result::add);
         return result;
@@ -474,5 +474,39 @@ class BulkDeploymentServiceTest {
         service.deployResource(request);
 
         verify(microDomainService, never()).deleteHttpRoutesOfOtherSnapshots(any(), any());
+    }
+
+    @DisplayName("Retries a snapshot removal that loses a concurrency race")
+    @Test
+    void deleteChainSnapshotRetriesOnConflict() {
+        doThrow(new KubeApiConflictException("conflict", null))
+                .doNothing()
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        service.deleteChainSnapshot("orders", "s1");
+
+        verify(microDomainService, times(2)).deleteChainSnapshot("orders", "s1");
+    }
+
+    @DisplayName("Gives up on a snapshot removal after the retry budget is exhausted")
+    @Test
+    void deleteChainSnapshotStopsRetryingAfterTheBudgetIsExhausted() {
+        doThrow(new KubeApiConflictException("conflict", null))
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        assertThrows(KubeApiConflictException.class, () -> service.deleteChainSnapshot("orders", "s1"));
+
+        verify(microDomainService, times(3)).deleteChainSnapshot("orders", "s1");
+    }
+
+    @DisplayName("Does not retry a snapshot removal that failed for a reason other than a conflict")
+    @Test
+    void deleteChainSnapshotDoesNotRetryANonConflictFailure() {
+        doThrow(new MicroDomainDeployError("boom", null))
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        assertThrows(MicroDomainDeployError.class, () -> service.deleteChainSnapshot("orders", "s1"));
+
+        verify(microDomainService, times(1)).deleteChainSnapshot("orders", "s1");
     }
 }

@@ -151,7 +151,6 @@ jest.mock("../../src/components/LongActionButton.tsx", () => ({
 jest.mock("../../src/api/api.ts", () => ({
   api: {
     deleteDeployment: jest.fn(),
-    deleteSnapshotFromMicroDomain: jest.fn(),
     createDeployment: jest.fn(),
   },
 }));
@@ -235,7 +234,7 @@ describe("Deployments chain header toolbar", () => {
     modal.props.onDelete();
 
     await waitFor(() => {
-      expect(api.deleteDeployment).toHaveBeenCalledWith("dep-1");
+      expect(api.deleteDeployment).toHaveBeenCalledWith("chain-1", "dep-1");
       expect(mockRemoveDeployment).toHaveBeenCalledWith(mockDeployments[0]);
     });
   });
