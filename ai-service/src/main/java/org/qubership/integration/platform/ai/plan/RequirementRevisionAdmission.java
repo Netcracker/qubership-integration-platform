@@ -588,7 +588,7 @@ final class RequirementRevisionAdmission {
       JsonNode protectedValues, Set<String> authorPaths, Set<String> repairPaths, Map<String, Set<String>> mappingPaths,
       Predicate<FactInput> canAnswer, RequirementSemanticBaseline baseline) {
     return admissionDecision(base, candidate, protectedFacts, protectedValues, authorPaths, repairPaths, mappingPaths,
-        canAnswer, baseline).issues();
+        canAnswer, baseline, null).issues();
   }
 
   /** Issues that still block admission, plus the repair strategy for that issue list. */
@@ -597,10 +597,17 @@ final class RequirementRevisionAdmission {
   static AdmissionDecision admissionDecision(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
       JsonNode protectedValues, Set<String> authorPaths, Set<String> repairPaths, Map<String, Set<String>> mappingPaths,
       Predicate<FactInput> canAnswer, RequirementSemanticBaseline baseline) {
+    return admissionDecision(base, candidate, protectedFacts, protectedValues, authorPaths, repairPaths, mappingPaths,
+        canAnswer, baseline, null);
+  }
+
+  static AdmissionDecision admissionDecision(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
+      JsonNode protectedValues, Set<String> authorPaths, Set<String> repairPaths, Map<String, Set<String>> mappingPaths,
+      Predicate<FactInput> canAnswer, RequirementSemanticBaseline baseline, AuthorSourceEvidence.Packet authorSource) {
     var issues = new ArrayList<>(base == null ? RequirementCaptureEditor.initialize(candidate).issues()
         : RequirementCaptureEditor.validate(candidate));
     if (!issues.isEmpty()) {
-      return decide(base, candidate, authorPaths, repairPaths, baseline, issues);
+      return decide(base, candidate, authorPaths, repairPaths, baseline, authorSource, issues);
     }
     if (base != null) {
       var allowed = new java.util.LinkedHashSet<>(authorPaths);
@@ -651,13 +658,14 @@ final class RequirementRevisionAdmission {
           partial, candidate, issues);
     }
     if (!issues.isEmpty() && base != null) issues.addAll(RequirementCaptureEditor.capabilityAnchorConflicts(base));
-    return decide(base, candidate, authorPaths, repairPaths, baseline, issues);
+    return decide(base, candidate, authorPaths, repairPaths, baseline, authorSource, issues);
   }
 
   private static AdmissionDecision decide(DraftInput base, DraftInput candidate, Set<String> authorPaths,
-      Set<String> repairPaths, RequirementSemanticBaseline baseline, List<Issue> issues) {
+      Set<String> repairPaths, RequirementSemanticBaseline baseline, AuthorSourceEvidence.Packet authorSource,
+      List<Issue> issues) {
     var context = new RequirementRepairPolicy.RequirementRepairContext(
-        base, baseline, authorPaths, repairPaths, RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
+        base, baseline, authorPaths, repairPaths, RequirementRepairPolicy.Strategy.FOCUSED_REPAIR, authorSource);
     var decision = RequirementRepairPolicy.evaluate(context, candidate, findings(issues));
     var remaining = new ArrayList<>(issues);
     var selected = new ArrayList<Issue>();
@@ -1034,11 +1042,11 @@ final class RequirementRevisionAdmission {
   }
 
   /**
-   * Puts back a protected fact or transition the candidate dropped when the snapshot already holds
-   * that value. A fact is restored only when the candidate already applies the named HTTP mode
+   * Puts back an accepted fact or transition the candidate dropped when the accepted draft already
+   * holds that value. A fact is restored only when the candidate already applies the named HTTP mode
    * correction. Other requirement changes stay rejected.
    */
-  static DraftInput restoreProtectedSnapshot(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
+  static DraftInput restoreProtectedSnapshot(DraftInput base, DraftInput candidate,
       JsonNode protectedValues, List<CatalogBindingHint> bindings, List<Issue> issues) {
     if (candidate == null || candidate.flow() == null || issues == null || issues.isEmpty()) return null;
     boolean restorable = issues.stream().allMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
@@ -1046,9 +1054,9 @@ final class RequirementRevisionAdmission {
             && issue.path().startsWith("/transitions/"));
     if (!restorable) return null;
     boolean factIssue = issues.stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code()));
-    if (factIssue && !namedModeRepair(base, candidate, protectedFacts, protectedValues, bindings)) return null;
+    if (factIssue && !namedModeRepair(base, candidate, protectedValues, bindings)) return null;
     var facts = candidate.facts() == null ? List.<FactInput>of() : candidate.facts();
-    if (factIssue) facts = restoredFacts(base, candidate, protectedFacts);
+    if (factIssue) facts = restoredFacts(base, candidate);
     var transitions = new LinkedHashMap<TransitionInput, TransitionInput>();
     if (candidate.flow().transitions() != null) {
       for (var edge : candidate.flow().transitions()) if (edge != null) transitions.put(edge, edge);
@@ -1067,13 +1075,10 @@ final class RequirementRevisionAdmission {
     return restored.equals(candidate) ? null : restored;
   }
 
-  private static List<FactInput> restoredFacts(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts) {
+  private static List<FactInput> restoredFacts(DraftInput base, DraftInput candidate) {
     var snapshot = new LinkedHashMap<String, FactInput>();
     if (base != null && base.facts() != null) {
       for (var fact : base.facts()) if (fact != null && fact.sourceFactId() != null) snapshot.putIfAbsent(fact.sourceFactId(), fact);
-    }
-    if (protectedFacts != null) {
-      for (var fact : protectedFacts) if (fact != null && fact.sourceFactId() != null) snapshot.putIfAbsent(fact.sourceFactId(), fact);
     }
     var chosen = new ArrayList<FactInput>();
     var used = new java.util.HashSet<String>();
@@ -1091,7 +1096,7 @@ final class RequirementRevisionAdmission {
     return List.copyOf(chosen);
   }
 
-  private static boolean namedModeRepair(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
+  private static boolean namedModeRepair(DraftInput base, DraftInput candidate,
       JsonNode protectedValues, List<CatalogBindingHint> bindings) {
     if (candidate.flow() == null || candidate.flow().interactions() == null) return false;
     var retainedModes = protectedValues == null ? null : protectedValues.path("interactions");
@@ -1104,7 +1109,7 @@ final class RequirementRevisionAdmission {
           value.description(), ServiceCallFailureMode.PROPAGATE, value.retryPolicy()) : value;
     }).toList();
     var probe = new DraftInput(new FlowInput(interactions, candidate.flow().transitions()),
-        restoredFacts(base, candidate, protectedFacts), candidate.capabilities(), candidate.openQuestions(),
+        restoredFacts(base, candidate), candidate.capabilities(), candidate.openQuestions(),
         candidate.settings());
     var findings = RequirementFailureConsistency.issues(probe, bindings == null ? List.of() : bindings);
     return !findings.isEmpty() && findings.stream().allMatch(finding -> candidate.flow().interactions().stream()

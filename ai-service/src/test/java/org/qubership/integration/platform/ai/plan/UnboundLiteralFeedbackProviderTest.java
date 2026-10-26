@@ -122,7 +122,9 @@ class UnboundLiteralFeedbackProviderTest {
           assertEquals("/draft/facts/pending-log/elementIntent/requestedProperties", issue.path("path").asText());
           assertTrue(issue.path("message").asText().contains("/draft/facts/pending-log/elementIntent/exactValues"));
           assertTrue(issue.path("message").asText().contains(json.valueToTree(UNBOUND).toString()));
-          assertTrue(issue.path("message").asText().contains("some checks may be deferred"));
+          assertTrue(issue.path("message").asText().contains("Accepted fact records"));
+          assertFalse(issue.path("message").asText().contains(
+              "Pending preservation constraints copied from rejected inputs"));
           var attempt = artifacts.latest(sessions.active(chat), Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow().payload();
           assertEquals(attempt.path("issues"), result.path("issues"), "The first next provider request retains the complete native refusal.");
           assertEquals("/facts/pending-log/elementIntent/requestedProperties", RequirementDraftStore.requirementRepairPath(
@@ -145,8 +147,9 @@ class UnboundLiteralFeedbackProviderTest {
     var nextTurn = new ScriptedStreamingChatModel(Turn.text("pending", request -> {
       String text = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
           .map(UserMessage::singleText).reduce("", String::concat);
-      assertTrue(text.contains("Pending preservation constraints copied from rejected proposals"), text);
-      assertTrue(text.contains("some checks may be deferred"), text);
+      assertFalse(text.contains("Pending preservation constraints copied from rejected proposals"), text);
+      assertFalse(text.contains("retain every validated fact ID, text, and elementIntent"), text);
+      assertFalse(text.contains("Preserve the listed IDs and constrained fields"), text);
       assertTrue(text.contains(UNBOUND.getLast()), text);
       assertFalse(text.contains("Validated fields from rejected proposals"), text);
     }, "No requirements were removed."));

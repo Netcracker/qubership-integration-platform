@@ -114,11 +114,8 @@ class RequirementFailureConsistencyAdmissionTest {
       assertTrue(result.path("accepted").asBoolean(), result.toString());
       var saved = h.store.get(h.chat).orElseThrow().authoredDraft();
       assertEquals(ServiceCallFailureMode.INLINE_RESPONSE, saved.flow().interactions().get(1).failureMode());
-      assertTrue(saved.facts().stream().anyMatch(fact -> "call-options".equals(fact.sourceFactId())
-          && "Return all HTTP responses to the ordinary response step.".equals(fact.text())
-          && fact.elementIntent() != null && fact.elementIntent().requestedProperties().stream()
-              .anyMatch(property -> "errorThrowing".equals(property.key()) && "false".equals(property.value()))));
-      assertEquals(input().facts().size(), saved.facts().size());
+      assertTrue(saved.facts().stream().noneMatch(fact -> "call-options".equals(fact.sourceFactId())),
+          saved.facts().toString());
       assertTrue(h.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE")).path("accepted").asBoolean());
     } finally { ProductCapabilityCaptureContext.unbind(); }
   }

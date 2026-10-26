@@ -12,12 +12,14 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLit
  * Decides whether a requirement candidate may replace the current projection.
  *
  * <p>A rejected initial projection may change structural representation. Shape, reference, and
- * literal findings on that projection stay focused repair when their path is editable. Literal
- * obligations on that projection come from the semantic baseline: a literal is required when it
- * is an exact substring of a saved claim's text or quote. On an accepted draft, kind, interaction
- * IDs, mapping, element intent, placement, exact values, text, and polarity stay fixed unless an
- * amendment or a server repair path covers the change. A focused envelope with no repair
- * alternative inside that scope becomes a projection rebuild.
+ * literal findings on that projection stay focused repair when their path is editable. A literal
+ * obligation there is a short source span: the saved claim quote, or the claim text when that
+ * claim has no quote. While no baseline exists, the obligation is the current candidate's
+ * evidence quote when that quote is an exact substring of the named user turn, the fact has an
+ * element intent, and the quote is a shorter span than the claim text. On an accepted
+ * draft, kind, interaction IDs, mapping, element intent, placement, exact values, text, and
+ * polarity stay fixed unless an amendment or a server repair path covers the change. A focused
+ * envelope with no repair alternative inside that scope becomes a projection rebuild.
  */
 public final class RequirementRepairPolicy {
 
@@ -39,13 +41,20 @@ public final class RequirementRepairPolicy {
    * @param authorPaths paths granted by a valid {@code AmendmentInput}
    * @param serverRepairPaths paths issued by the server for this repair
    * @param recoveryStrategy step the caller intended before the feasibility check
+   * @param authorSource named user turns, used when no semantic baseline exists yet
    */
   public record RequirementRepairContext(
       DraftInput acceptedRevision,
       RequirementSemanticBaseline semanticBaseline,
       Set<String> authorPaths,
       Set<String> serverRepairPaths,
-      Strategy recoveryStrategy) {
+      Strategy recoveryStrategy,
+      AuthorSourceEvidence.Packet authorSource) {
+
+    public RequirementRepairContext(DraftInput acceptedRevision, RequirementSemanticBaseline semanticBaseline,
+        Set<String> authorPaths, Set<String> serverRepairPaths, Strategy recoveryStrategy) {
+      this(acceptedRevision, semanticBaseline, authorPaths, serverRepairPaths, recoveryStrategy, null);
+    }
 
     public RequirementRepairContext {
       authorPaths = authorPaths == null ? Set.of() : Set.copyOf(authorPaths);
@@ -72,13 +81,20 @@ public final class RequirementRepairPolicy {
       }
     }
     if (context.acceptedRevision() == null) {
-      for (var finding : missingGroundedLiterals(context.semanticBaseline(), candidate)) {
+      var grounded = hasClaims(context.semanticBaseline())
+          ? missingGroundedLiterals(context.semanticBaseline(), candidate)
+          : missingCandidateQuoteLiterals(context.authorSource(), candidate);
+      for (var finding : grounded) {
         if (kept.stream().noneMatch(existing -> sameFinding(existing, finding))) {
           kept.add(withEditableAlternative(context, finding));
         }
       }
     }
     return new RequirementRepairDecision(feasibleStrategy(context, kept), List.copyOf(kept));
+  }
+
+  private static boolean hasClaims(RequirementSemanticBaseline baseline) {
+    return baseline != null && baseline.claims() != null && !baseline.claims().isEmpty();
   }
 
   /**
@@ -100,36 +116,66 @@ public final class RequirementRepairPolicy {
         if (RequiredLiteralBindings.covered(fact == null ? null : fact.elementIntent(), literal, mappingTexts(fact))) {
           continue;
         }
-        findings.add(new RequirementFinding("UNBOUND_REQUIRED_LITERAL",
-            "/draft/facts/" + claim.sourceFactId() + "/elementIntent", claim.sourceFactId(), List.of(), List.of(),
-            List.of(), "Keep source-backed literal [\"" + literal
-                + "\"] in the requested name, a property, the body, or a mapping."));
+        findings.add(literalFinding(claim.sourceFactId(), literal));
       }
     }
     return findings;
   }
 
+  /** The saved quote is the span. Claim text is the span only when the claim has no quote. */
   private static List<String> groundedLiterals(RequirementSemanticClaim claim) {
+    if (claim == null) {
+      return List.of();
+    }
     String quote = claim.evidence() == null ? null : claim.evidence().quote();
-    if (grounded(claim, quote)) {
+    if (quote != null && !quote.isBlank()) {
       return List.of(quote);
     }
-    if (grounded(claim, claim.text())) {
+    if (claim.text() != null && !claim.text().isBlank()) {
       return List.of(claim.text());
     }
     return List.of();
   }
 
-  /** A literal is grounded when a saved claim's text or quote contains it exactly. */
-  private static boolean grounded(RequirementSemanticClaim claim, String literal) {
-    if (claim == null || literal == null || literal.isBlank()) {
+  /**
+   * While no baseline exists, a candidate evidence quote is a literal obligation when it is an
+   * exact substring of the named user turn, the fact has an element intent, and the quote is a
+   * shorter span than the claim text.
+   */
+  private static List<RequirementFinding> missingCandidateQuoteLiterals(
+      AuthorSourceEvidence.Packet source, DraftInput candidate) {
+    if (source == null || source.inputs() == null || candidate == null || candidate.facts() == null) {
+      return List.of();
+    }
+    var findings = new ArrayList<RequirementFinding>();
+    for (var fact : candidate.facts()) {
+      if (fact == null || fact.evidence() == null || fact.sourceFactId() == null || fact.elementIntent() == null) {
+        continue;
+      }
+      String quote = fact.evidence().quote();
+      if (quote == null || quote.equals(fact.text())
+          || !exactUserTurnQuote(source, fact.evidence().sourceTurnId(), quote)
+          || RequiredLiteralBindings.covered(fact.elementIntent(), quote, mappingTexts(fact))) {
+        continue;
+      }
+      findings.add(literalFinding(fact.sourceFactId(), quote));
+    }
+    return findings;
+  }
+
+  private static RequirementFinding literalFinding(String sourceFactId, String literal) {
+    return new RequirementFinding("UNBOUND_REQUIRED_LITERAL",
+        "/draft/facts/" + sourceFactId + "/elementIntent", sourceFactId, List.of(), List.of(),
+        List.of(), "Keep source-backed literal [\"" + literal
+            + "\"] in the requested name, a property, the body, or a mapping.");
+  }
+
+  private static boolean exactUserTurnQuote(AuthorSourceEvidence.Packet source, String turnId, String quote) {
+    if (turnId == null || turnId.isBlank() || quote == null || quote.isBlank()) {
       return false;
     }
-    if (claim.text() != null && claim.text().contains(literal)) {
-      return true;
-    }
-    return claim.evidence() != null && claim.evidence().quote() != null
-        && claim.evidence().quote().contains(literal);
+    return source.inputs().stream().anyMatch(input -> turnId.equals(input.sourceTurnId())
+        && input.text() != null && input.text().contains(quote));
   }
 
   private static FactInput fact(DraftInput candidate, String sourceFactId) {

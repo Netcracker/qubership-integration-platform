@@ -69,7 +69,7 @@ public class GatherRequirementsPromptBuilder {
     Set<String> uploadedInteractions = uploadedSpecs == null ? Set.of()
         : uploadedSpecs.pendingInteractionIds(conversationId, draft.orElse(null));
     boolean standalone = addonRepository != null && addonRepository.hasStandaloneSkills();
-    String mandatory = currentDraftBlock(draft) + repairConstraintsBlock(conversationId)
+    String mandatory = currentDraftBlock(draft)
         + nativeRepairScopeBlock(conversationId)
         + incompleteDraftBlock(draft, uploadedInteractions)
         + lastCaptureRejectionBlock(conversationId, draft)
@@ -138,8 +138,6 @@ public class GatherRequirementsPromptBuilder {
           Use existing element schema keys for requestedProperties; omit guessed defaults.
           AsyncAPI Trigger topic and classifier come from the selected catalog operation. Keep
           their requested literals in fact text and exactValues, not standalone runtime properties.
-          After a rejected capture, retain every validated fact ID, text, and elementIntent field;
-          repair only the reported property. Do not remove the fact or clear its elementIntent.
           Capture known requirements before catalog lookup or a clarifying question. When a
           business choice is unresolved, save the known interactions and facts as a partial
           draft with an open question. Do not end a create or design request without saving
@@ -413,19 +411,6 @@ public class GatherRequirementsPromptBuilder {
                 </last-capture-rejection>
                 """.formatted(message))
         .orElse("");
-  }
-
-  private String repairConstraintsBlock(String conversationId) {
-    var constraints = draftStore == null ? null : draftStore.repairConstraints(conversationId);
-    if (constraints == null) return "";
-    return "\n<requirement-repair-constraints>\n"
-        + "Pending preservation constraints copied from rejected proposals, not an accepted draft. "
-        + "They do not prove that every native consumer check has run or passed; some checks may be deferred. "
-        + "Preserve the listed IDs and constrained fields. "
-        + "Correct reported invalid fields from the saved author source and current schemas. Missing or null fields "
-        + "are not instructions to clear accepted content. Use readRequirementDraft for the complete current view.\n"
-        + DRAFT_MAPPER.valueToTree(constraints)
-        + "\n</requirement-repair-constraints>\n";
   }
 
   private static String currentDraftBlock(Optional<RequirementDraft> draft) {

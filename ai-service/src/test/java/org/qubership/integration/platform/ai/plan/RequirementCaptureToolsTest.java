@@ -1861,8 +1861,10 @@ class RequirementCaptureToolsTest {
           .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
               .MustacheTemplateVariableStyleParserHook()).build();
       String prompt = renderer.parse(builder.wrap(chat, "Repair the generated draft.", "en")).render();
-      assertTrue(prompt.contains("<requirement-repair-constraints>"), prompt);
-      assertTrue(prompt.contains(mapper.writeValueAsString(h.store().rejectedCaptureFacts(chat))), prompt);
+      assertFalse(prompt.contains("Pending preservation constraints copied from rejected proposals"), prompt);
+      assertFalse(prompt.contains("retain every validated fact ID, text, and elementIntent"), prompt);
+      assertFalse(prompt.contains("Preserve the listed IDs and constrained fields"), prompt);
+      assertFalse(prompt.contains(mapper.writeValueAsString(h.store().rejectedCaptureFacts(chat))), prompt);
       assertTrue(h.store().get(chat).isEmpty(), "Reading constraints must not admit a draft");
     }
   }
