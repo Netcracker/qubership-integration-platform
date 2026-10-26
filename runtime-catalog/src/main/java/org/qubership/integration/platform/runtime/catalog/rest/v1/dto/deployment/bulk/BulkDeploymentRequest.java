@@ -42,5 +42,5 @@ public class BulkDeploymentRequest {
     private List<@NotBlank @Pattern(regexp = "^[-._a-zA-Z0-9]+$") String> chainIds = new ArrayList<>();
     @Builder.Default
     @Schema(description = "Deploy mode")
-    private DeployMode mode = DeployMode.REWRITE;
+    private DeployMode mode = DeployMode.APPEND;
 }

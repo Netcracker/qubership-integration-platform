@@ -34,6 +34,8 @@ public interface DeploymentRepository extends JpaRepository<Deployment, String> 
 
     List<Deployment> findAllByDomain(String domain);
 
+    boolean existsByDomainAndChainIdIn(String domain, Collection<String> chainIds);
+
     void deleteAllByChainId(String chainId);
 
     void deleteAllBySnapshotId(String snapshotId);

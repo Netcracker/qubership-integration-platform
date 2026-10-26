@@ -40,6 +40,9 @@ public class BulkDeploymentService {
      */
     private static final int MAX_CONFLICT_ATTEMPTS = 3;
 
+    private static final String MULTIPLE_DOMAINS_TRIGGERS_MESSAGE =
+        "Found external or private triggers while deploying to multiple domains";
+
     private final MicroDomainResourceBuildService microDomainResourceBuildService;
     private final MicroDomainService microDomainService;
     private final ResourceBuildOptionsProvider resourceBuildOptionsProvider;
@@ -72,7 +75,7 @@ public class BulkDeploymentService {
         Collection<String> chainIds = request.getChainIds() == null || request.getChainIds().isEmpty()
             ? chainRepository.findAll().stream().map(Chain::getId).toList()
             : request.getChainIds();
-        forClassicAndMicroDomains(request.getDomains(), (classicDomainNames, microDomainNames) -> {
+        forClassicAndMicroDomains(chainIds, request.getDomains(), (classicDomainNames, microDomainNames) -> {
             Collection<Snapshot> snapshots = getSnapshots(chainIds, request.getSnapshotAction(), resultConsumer);
             List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
                 .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
@@ -145,7 +148,24 @@ public class BulkDeploymentService {
         List<Deployment> excludeDeployments,
         Consumer<BulkDeploymentResponse> resultConsumer
     ) {
-        snapshots.stream()
+        Collection<Snapshot> deployable;
+        if (classicDomainNames.size() + microDomainNames.size() > 1) {
+            Map<Boolean, List<Snapshot>> byTriggerCheck = snapshots.stream()
+                .collect(Collectors.partitioningBy(deploymentService::checkTriggersInBulkDeploy));
+            deployable = byTriggerCheck.get(true);
+            byTriggerCheck.get(false).forEach(snapshot -> {
+                classicDomainNames.forEach(name -> buildResponseForSnapshots(List.of(snapshot), name,
+                        DomainType.CLASSIC, BulkDeploymentStatus.FAILED_DEPLOY, MULTIPLE_DOMAINS_TRIGGERS_MESSAGE)
+                    .forEach(resultConsumer));
+                microDomainNames.forEach(name -> buildResponseForSnapshots(List.of(snapshot), name,
+                        DomainType.MICRO, BulkDeploymentStatus.FAILED_DEPLOY, MULTIPLE_DOMAINS_TRIGGERS_MESSAGE)
+                    .forEach(resultConsumer));
+            });
+        } else {
+            deployable = snapshots;
+        }
+
+        deployable.stream()
             .map(snapshot -> deploymentService.deploySnapshot(
                 snapshot, classicDomainNames, excludeDeployments))
             .flatMap(Collection::stream)
@@ -157,12 +177,12 @@ public class BulkDeploymentService {
                     deployResource(ResourceDeployRequest.builder()
                         .name(name)
                         .mode(mode)
-                        .snapshotIds(snapshots.stream().map(Snapshot::getId).toList())
+                        .snapshotIds(deployable.stream().map(Snapshot::getId).toList())
                         .build());
-                    return buildResponseForSnapshots(snapshots, name, DomainType.MICRO,
+                    return buildResponseForSnapshots(deployable, name, DomainType.MICRO,
                         BulkDeploymentStatus.CREATED, null);
                 } catch (Exception e) {
-                    return buildResponseForSnapshots(snapshots, name, DomainType.MICRO,
+                    return buildResponseForSnapshots(deployable, name, DomainType.MICRO,
                         BulkDeploymentStatus.FAILED_DEPLOY, e.getMessage());
                 }
             })
@@ -177,8 +197,12 @@ public class BulkDeploymentService {
         List<Deployment> excludeDeployments,
         Consumer<BulkDeploymentResponse> resultConsumer
     ) {
-        forClassicAndMicroDomains(domains, (classicDomainNames, microDomainNames) ->
+        forClassicAndMicroDomains(chainIds(snapshots), domains, (classicDomainNames, microDomainNames) ->
             deploySnapshots(snapshots, classicDomainNames, microDomainNames, mode, excludeDeployments, resultConsumer));
+    }
+
+    private static Collection<String> chainIds(Collection<Snapshot> snapshots) {
+        return snapshots.stream().map(snapshot -> snapshot.getChain().getId()).collect(Collectors.toSet());
     }
 
     /**
@@ -219,24 +243,40 @@ public class BulkDeploymentService {
         }
     }
 
-    public Map<DomainType, List<String>> groupDomainsByType(Collection<String> domainNames) {
-        Map<String, DomainType> domainTypeMap = engineService.getDomains().stream()
+    public Map<DomainType, List<String>> groupDomainsByType(Collection<String> chainIds, Collection<String> domainNames) {
+        Map<String, DomainType> discovered = discoveredDomainTypes();
+        return domainNames
+            .stream()
+            .collect(Collectors.groupingBy(name -> resolveDomainType(chainIds, name, discovered)));
+    }
+
+    public DomainType resolveDomainType(Collection<String> chainIds, String domainName) {
+        return resolveDomainType(chainIds, domainName, discoveredDomainTypes());
+    }
+
+    private DomainType resolveDomainType(Collection<String> chainIds, String domainName, Map<String, DomainType> discovered) {
+        DomainType discoveredType = discovered.get(domainName);
+        if (discoveredType != null) {
+            return discoveredType;
+        }
+        boolean classicEnabled = domainProperties.getClassic().isEnabled();
+        if (classicEnabled != domainProperties.getMicro().isEnabled()) {
+            return classicEnabled ? DomainType.CLASSIC : DomainType.MICRO;
+        }
+        if (!classicEnabled) {
+            return DomainType.MICRO;
+        }
+        return deploymentService.existsByDomainAndChainIdIn(domainName, chainIds)
+            ? DomainType.CLASSIC
+            : DomainType.MICRO;
+    }
+
+    private Map<String, DomainType> discoveredDomainTypes() {
+        return engineService.getDomains().stream()
             .collect(Collectors.toMap(
                 EngineDomain::getName,
                 EngineDomain::getType,
-                (first, second) -> first
-            ));
-        return domainNames
-            .stream()
-            .collect(Collectors.groupingBy(
-                name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
-    }
-
-    public Optional<DomainType> findDiscoveredDomainType(String domainName) {
-        return engineService.getDomains().stream()
-            .filter(domain -> domain.getName().equals(domainName))
-            .map(EngineDomain::getType)
-            .findFirst();
+                (first, second) -> first));
     }
 
     public Optional<String> findMicroDomainOfDeployment(String deploymentId) {
@@ -265,10 +305,11 @@ public class BulkDeploymentService {
     }
 
     public void forClassicAndMicroDomains(
+        Collection<String> chainIds,
         Collection<String> domainNames,
         BiConsumer<Collection<String>, Collection<String>> consumer
     ) {
-        Map<DomainType, List<String>> domainByType = groupDomainsByType(domainNames);
+        Map<DomainType, List<String>> domainByType = groupDomainsByType(chainIds, domainNames);
 
         Collection<String> classicDomainNames = domainByType.getOrDefault(DomainType.CLASSIC, Collections.emptyList());
         if (!domainProperties.getClassic().isEnabled() && !classicDomainNames.isEmpty()) {

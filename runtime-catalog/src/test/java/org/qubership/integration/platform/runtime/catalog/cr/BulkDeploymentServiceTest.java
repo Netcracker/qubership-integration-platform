@@ -162,9 +162,12 @@ class BulkDeploymentServiceTest {
 
     @Test
     void groupDomainsByTypeTreatsADomainNoSourceListsAsMicro() {
+        classicDomainEnabled(true);
+        microDomainEnabled(true);
         domainsExist(engineDomain("classic-domain", DomainType.CLASSIC));
 
-        Map<DomainType, List<String>> grouped = service.groupDomainsByType(List.of("classic-domain", "new-domain"));
+        Map<DomainType, List<String>> grouped =
+                service.groupDomainsByType(List.of("chain-1"), List.of("classic-domain", "new-domain"));
 
         assertThat(grouped).containsOnly(
                 Map.entry(DomainType.CLASSIC, List.of("classic-domain")),
@@ -260,6 +263,7 @@ class BulkDeploymentServiceTest {
     void deploySnapshotsSendsClassicDomainsToDeploymentServiceAndMicroDomainsToOneResourceDeploy() {
         classicDomainEnabled(true);
         microDomainEnabled(true);
+        when(deploymentService.checkTriggersInBulkDeploy(any())).thenReturn(true);
         domainsExist(engineDomain("classic-domain", DomainType.CLASSIC), engineDomain("micro-domain", DomainType.MICRO));
         resourceBuildSucceeds();
         Snapshot first = snapshot("s1", chain("chain-1"));
@@ -285,6 +289,7 @@ class BulkDeploymentServiceTest {
     void deploySnapshotsReportsAFailedMicroDomainForEverySnapshotAndDeploysTheNextDomain() {
         classicDomainEnabled(true);
         microDomainEnabled(true);
+        when(deploymentService.checkTriggersInBulkDeploy(any())).thenReturn(true);
         domainsExist();
         resourceBuildSucceeds();
         doThrow(new MicroDomainDeployError("boom", null))

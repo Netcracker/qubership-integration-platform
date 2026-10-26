@@ -166,6 +166,11 @@ public class DeploymentService {
     }
 
     @Transactional
+    public boolean existsByDomainAndChainIdIn(String domainName, Collection<String> chainIds) {
+        return deploymentRepository.existsByDomainAndChainIdIn(domainName, chainIds);
+    }
+
+    @Transactional
     public long getDeploymentsCountByDomain(String domainName) {
         return deploymentRepository.countByDomain(domainName);
     }
@@ -475,7 +480,7 @@ public class DeploymentService {
         return deployments.size() < 2 || checkTriggersInBulkDeploy(deployments.get(0).getSnapshot());
     }
 
-    private boolean checkTriggersInBulkDeploy(Snapshot snapshot) {
+    public boolean checkTriggersInBulkDeploy(Snapshot snapshot) {
         String snapshotId = snapshot.getId();
         List<ChainElement> triggers =
                 elementRepository.findAllBySnapshotIdAndType(snapshotId, getHttpTriggerTypeName());

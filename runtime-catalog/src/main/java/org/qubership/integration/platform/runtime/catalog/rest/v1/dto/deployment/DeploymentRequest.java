@@ -40,7 +40,7 @@ public class DeploymentRequest extends BaseRequest {
     private String snapshotId;
     @Builder.Default
     @Schema(description = "Deploy mode")
-    private DeployMode mode = DeployMode.REWRITE;
+    private DeployMode mode = DeployMode.APPEND;
     @Deprecated
     @Schema(description = "Not used")
     private Boolean suspended;

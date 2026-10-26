@@ -204,18 +204,11 @@ public class DeploymentController {
     }
 
     private DomainType resolveDomainType(String chainId, String domain) {
-        Optional<DomainType> discovered = bulkDeploymentService.findDiscoveredDomainType(domain);
-        if (discovered.isPresent()) {
-            return discovered.get();
-        }
         boolean classicEnabled = domainProperties.getClassic().isEnabled();
         if (classicEnabled != domainProperties.getMicro().isEnabled()) {
             return classicEnabled ? DomainType.CLASSIC : DomainType.MICRO;
         }
-        return deploymentService.findAllByChainId(chainId).stream()
-                .anyMatch(deployment -> domain.equals(deployment.getDomain()))
-                ? DomainType.CLASSIC
-                : DomainType.MICRO;
+        return bulkDeploymentService.resolveDomainType(List.of(chainId), domain);
     }
 
     private Optional<MicroDeployment> parseMicroDeployment(String chainId, String deploymentId) {
