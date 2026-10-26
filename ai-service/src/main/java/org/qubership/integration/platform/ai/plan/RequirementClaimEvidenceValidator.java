@@ -16,26 +16,36 @@ public final class RequirementClaimEvidenceValidator {
 
   public static List<Issue> validate(RequirementSemanticBaseline baseline, List<FactInput> facts,
       AuthorSourceEvidence.Packet source, List<AmendmentInput> amendments) {
+    return validate(baseline, null, facts, source, amendments);
+  }
+
+  /**
+   * Facts in {@code accepted} are already on the saved draft and may omit a quote when text and
+   * polarity are unchanged. Null applies the quote check to every fact that is not already a
+   * baseline claim.
+   */
+  public static List<Issue> validate(RequirementSemanticBaseline baseline, List<FactInput> accepted,
+      List<FactInput> facts, AuthorSourceEvidence.Packet source, List<AmendmentInput> amendments) {
     var issues = new ArrayList<Issue>();
     var present = facts == null ? List.<FactInput>of() : facts.stream().filter(Objects::nonNull).toList();
     for (var fact : present) {
       var prior = claim(baseline, fact.sourceFactId());
       if (prior == null) {
-        requireEvidence(issues, fact, source);
+        requireNewFact(issues, accepted, fact, source);
       } else if (sameClaim(prior, fact)) {
         if (fact.evidence() != null && !validEvidence(fact.evidence(), source)) {
           issues.add(invalidQuote(fact.sourceFactId()));
         }
-      } else if (prior.evidence() != null && !changeCovered(amendments, fact.sourceFactId(),
+      } else if (!changeCovered(amendments, fact.sourceFactId(),
           !Objects.equals(prior.text(), fact.text()), prior.polarity() != fact.polarity(), source)) {
         issues.add(amendmentRequired(fact.sourceFactId()));
       }
     }
     if (baseline != null) {
-      for (var claim : baseline.claims()) {
-        boolean kept = present.stream().anyMatch(fact -> Objects.equals(claim.sourceFactId(), fact.sourceFactId()));
-        if (!kept && claim.evidence() != null && !deletionCovered(amendments, claim.sourceFactId(), source)) {
-          issues.add(amendmentRequired(claim.sourceFactId()));
+      for (var saved : baseline.claims()) {
+        boolean kept = present.stream().anyMatch(fact -> Objects.equals(saved.sourceFactId(), fact.sourceFactId()));
+        if (!kept && !deletionCovered(amendments, saved.sourceFactId(), source)) {
+          issues.add(amendmentRequired(saved.sourceFactId()));
         }
       }
     }
@@ -52,6 +62,9 @@ public final class RequirementClaimEvidenceValidator {
           continue;
         }
         var prior = claim(previous, fact.sourceFactId());
+        if (prior == null && !validEvidence(fact.evidence(), source)) {
+          continue;
+        }
         claims.add(new RequirementSemanticClaim(fact.sourceFactId(), fact.text(), fact.polarity(),
             evidenceFor(prior, fact, amendments, source)));
       }
@@ -72,6 +85,22 @@ public final class RequirementClaimEvidenceValidator {
       }
     }
     return fact.evidence();
+  }
+
+  private static void requireNewFact(List<Issue> issues, List<FactInput> accepted, FactInput fact,
+      AuthorSourceEvidence.Packet source) {
+    var acceptedFact = matchingAcceptedFact(accepted, fact.sourceFactId());
+    if (acceptedFact == null) {
+      requireEvidence(issues, fact, source);
+      return;
+    }
+    // Text or polarity edits of a draft fact that is not a claim stay on the preservation path.
+    if (!sameTextAndPolarity(acceptedFact, fact)) {
+      return;
+    }
+    if (fact.evidence() != null && !validEvidence(fact.evidence(), source)) {
+      issues.add(invalidQuote(fact.sourceFactId()));
+    }
   }
 
   private static void requireEvidence(List<Issue> issues, FactInput fact, AuthorSourceEvidence.Packet source) {
@@ -155,6 +184,18 @@ public final class RequirementClaimEvidenceValidator {
     }
     return amendments.stream().filter(amendment -> amendment != null
         && validEvidence(new ClaimEvidenceInput(amendment.sourceTurnId(), amendment.quote()), source)).toList();
+  }
+
+  private static FactInput matchingAcceptedFact(List<FactInput> accepted, String sourceFactId) {
+    if (accepted == null || sourceFactId == null) {
+      return null;
+    }
+    return accepted.stream().filter(fact -> fact != null && sourceFactId.equals(fact.sourceFactId()))
+        .findFirst().orElse(null);
+  }
+
+  private static boolean sameTextAndPolarity(FactInput accepted, FactInput fact) {
+    return Objects.equals(accepted.text(), fact.text()) && accepted.polarity() == fact.polarity();
   }
 
   private static RequirementSemanticClaim claim(RequirementSemanticBaseline baseline, String sourceFactId) {
