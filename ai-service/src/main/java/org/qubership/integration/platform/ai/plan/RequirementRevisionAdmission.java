@@ -28,7 +28,6 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues;
-import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
@@ -650,59 +649,9 @@ final class RequirementRevisionAdmission {
       preserveTransitions(tree(new DraftInput(expected.flow(), expected.facts(), expected.capabilities(),
           expected.openQuestions(), expected.settings())).get("transitions"), tree(candidate).get("transitions"),
           partial, candidate, issues);
-    } else {
-      issues.addAll(uncoveredLiterals(protectedFacts, candidate));
     }
     if (!issues.isEmpty() && base != null) issues.addAll(RequirementCaptureEditor.capabilityAnchorConflicts(base));
     return decide(base, candidate, authorPaths, repairPaths, baseline, issues);
-  }
-
-  /**
-   * Rejected values are not repair authority. Literals previously declared in {@code exactValues}
-   * must still be covered somewhere on the candidate.
-   */
-  private static List<Issue> uncoveredLiterals(List<FactInput> protectedFacts, DraftInput candidate) {
-    if (protectedFacts == null || candidate == null || candidate.facts() == null) {
-      return List.of();
-    }
-    var issues = new ArrayList<Issue>();
-    for (var original : protectedFacts) {
-      if (original == null || original.elementIntent() == null || original.elementIntent().exactValues() == null) {
-        continue;
-      }
-      var updated = candidate.facts().stream()
-          .filter(fact -> fact != null && Objects.equals(original.sourceFactId(), fact.sourceFactId()))
-          .findFirst().orElse(null);
-      var intent = updated == null ? null : updated.elementIntent();
-      for (String literal : original.elementIntent().exactValues()) {
-        if (literal == null || literal.isBlank()
-            || RequiredLiteralBindings.covered(intent, literal, mappingTexts(updated))) {
-          continue;
-        }
-        issues.add(new Issue("UNBOUND_REQUIRED_LITERAL",
-            "/draft/facts/" + original.sourceFactId() + "/elementIntent", original.sourceFactId(),
-            "Keep source-backed literal [\"" + literal + "\"] in the requested name, a property, the body, or a mapping."));
-      }
-    }
-    return issues;
-  }
-
-  private static List<String> mappingTexts(FactInput fact) {
-    if (fact == null || fact.fieldMapping() == null) {
-      return List.of();
-    }
-    var mapping = fact.fieldMapping();
-    var texts = new ArrayList<String>();
-    if (mapping.sourcePath() != null) {
-      texts.add(mapping.sourcePath());
-    }
-    if (mapping.targetPath() != null) {
-      texts.add(mapping.targetPath());
-    }
-    if (mapping.expression() != null) {
-      texts.add(mapping.expression());
-    }
-    return texts;
   }
 
   private static AdmissionDecision decide(DraftInput base, DraftInput candidate, Set<String> authorPaths,
@@ -719,6 +668,9 @@ final class RequirementRevisionAdmission {
       if (match != null) {
         remaining.remove(match);
         selected.add(match);
+      } else {
+        selected.add(new Issue(finding.code(), finding.path(), finding.entityId(), finding.message(),
+            finding.relatedEntityIds()));
       }
     }
     return new AdmissionDecision(List.copyOf(selected), decision.strategy());

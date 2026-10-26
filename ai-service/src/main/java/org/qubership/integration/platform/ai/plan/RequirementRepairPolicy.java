@@ -2,17 +2,22 @@ package org.qubership.integration.platform.ai.plan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
+import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings;
 
 /**
  * Decides whether a requirement candidate may replace the current projection.
  *
  * <p>A rejected initial projection may change structural representation. Shape, reference, and
- * literal findings on that projection stay focused repair when their path is editable. On an
- * accepted draft, kind, interaction IDs, mapping, element intent, placement, exact values, text,
- * and polarity stay fixed unless an amendment or a server repair path covers the change. A
- * focused envelope with no repair alternative inside that scope becomes a projection rebuild.
+ * literal findings on that projection stay focused repair when their path is editable. Literal
+ * obligations on that projection come from the semantic baseline: a literal is required when it
+ * is an exact substring of a saved claim's text or quote. On an accepted draft, kind, interaction
+ * IDs, mapping, element intent, placement, exact values, text, and polarity stay fixed unless an
+ * amendment or a server repair path covers the change. A focused envelope with no repair
+ * alternative inside that scope becomes a projection rebuild.
  */
 public final class RequirementRepairPolicy {
 
@@ -66,7 +71,97 @@ public final class RequirementRepairPolicy {
         }
       }
     }
+    if (context.acceptedRevision() == null) {
+      for (var finding : missingGroundedLiterals(context.semanticBaseline(), candidate)) {
+        if (kept.stream().noneMatch(existing -> sameFinding(existing, finding))) {
+          kept.add(withEditableAlternative(context, finding));
+        }
+      }
+    }
     return new RequirementRepairDecision(feasibleStrategy(context, kept), List.copyOf(kept));
+  }
+
+  /**
+   * A rejected candidate does not create a literal obligation. The saved quote is the required
+   * span, and the claim text is that span when the claim has no quote.
+   */
+  private static List<RequirementFinding> missingGroundedLiterals(
+      RequirementSemanticBaseline baseline, DraftInput candidate) {
+    if (baseline == null || baseline.claims() == null || candidate == null) {
+      return List.of();
+    }
+    var findings = new ArrayList<RequirementFinding>();
+    for (var claim : baseline.claims()) {
+      if (claim == null) {
+        continue;
+      }
+      var fact = fact(candidate, claim.sourceFactId());
+      for (String literal : groundedLiterals(claim)) {
+        if (RequiredLiteralBindings.covered(fact == null ? null : fact.elementIntent(), literal, mappingTexts(fact))) {
+          continue;
+        }
+        findings.add(new RequirementFinding("UNBOUND_REQUIRED_LITERAL",
+            "/draft/facts/" + claim.sourceFactId() + "/elementIntent", claim.sourceFactId(), List.of(), List.of(),
+            List.of(), "Keep source-backed literal [\"" + literal
+                + "\"] in the requested name, a property, the body, or a mapping."));
+      }
+    }
+    return findings;
+  }
+
+  private static List<String> groundedLiterals(RequirementSemanticClaim claim) {
+    String quote = claim.evidence() == null ? null : claim.evidence().quote();
+    if (grounded(claim, quote)) {
+      return List.of(quote);
+    }
+    if (grounded(claim, claim.text())) {
+      return List.of(claim.text());
+    }
+    return List.of();
+  }
+
+  /** A literal is grounded when a saved claim's text or quote contains it exactly. */
+  private static boolean grounded(RequirementSemanticClaim claim, String literal) {
+    if (claim == null || literal == null || literal.isBlank()) {
+      return false;
+    }
+    if (claim.text() != null && claim.text().contains(literal)) {
+      return true;
+    }
+    return claim.evidence() != null && claim.evidence().quote() != null
+        && claim.evidence().quote().contains(literal);
+  }
+
+  private static FactInput fact(DraftInput candidate, String sourceFactId) {
+    if (candidate.facts() == null || sourceFactId == null) {
+      return null;
+    }
+    return candidate.facts().stream()
+        .filter(fact -> fact != null && sourceFactId.equals(fact.sourceFactId()))
+        .findFirst().orElse(null);
+  }
+
+  private static List<String> mappingTexts(FactInput fact) {
+    if (fact == null || fact.fieldMapping() == null) {
+      return List.of();
+    }
+    var mapping = fact.fieldMapping();
+    var texts = new ArrayList<String>();
+    if (mapping.sourcePath() != null) {
+      texts.add(mapping.sourcePath());
+    }
+    if (mapping.targetPath() != null) {
+      texts.add(mapping.targetPath());
+    }
+    if (mapping.expression() != null) {
+      texts.add(mapping.expression());
+    }
+    return texts;
+  }
+
+  private static boolean sameFinding(RequirementFinding left, RequirementFinding right) {
+    return Objects.equals(left.code(), right.code()) && Objects.equals(left.path(), right.path())
+        && Objects.equals(left.entityId(), right.entityId()) && Objects.equals(left.message(), right.message());
   }
 
   private static boolean suppressed(RequirementRepairContext context, RequirementFinding finding) {

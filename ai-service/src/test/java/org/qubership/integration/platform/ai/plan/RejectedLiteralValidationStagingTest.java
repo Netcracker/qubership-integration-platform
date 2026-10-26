@@ -95,7 +95,7 @@ class RejectedLiteralValidationStagingTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void freshAdmissibilityCannotAuthorizeChangingRejectedLiteralsWithoutSemanticProof(boolean reload) throws Exception {
+  void quoteLessRejectionDoesNotObligateRejectedExactValues(boolean reload) throws Exception {
     var corrected = input(true, true);
     assertSelectiveCorrection(input(true, false), corrected);
     // This establishes native capture admissibility only, not semantic equivalence or catalog resolution.
@@ -110,50 +110,29 @@ class RejectedLiteralValidationStagingTest {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
       assertFalse(h.capture(input(false, false)).accepted());
+      // The candidate still declares exact values that its properties do not bind.
       var refusal = h.capture(input(true, false));
       assertTrue(refusal.issues().stream().allMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")));
       var immutable = h.immutableArtifacts();
-      var source = h.mapper.valueToTree(h.archive.read(h.chat));
-      var authority = h.store.writeAuthority(h.chat);
       if (reload) h.reload();
-      assertEquals(source, h.mapper.valueToTree(h.archive.read(h.chat)));
       var result = h.capture(corrected);
       h.assertUnchanged(immutable);
-      // Method and path properties do not cover the combined source literal.
-      assertFalse(result.accepted(), result.toString());
-      assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")
-          && issue.entityId().equals("create-anchor") && issue.message().contains("POST /sobjects/Task")),
-          result.toString());
-      assertFalse(result.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")),
-          result.toString());
-      assertEquals(authority, h.store.writeAuthority(h.chat));
-      assertEquals(source, h.mapper.valueToTree(h.archive.read(h.chat)));
-      assertTrue(h.store.get(h.chat).isEmpty());
-      assertTrue(h.store.latestRevision(h.chat).isEmpty());
-
-      var attempt = h.artifacts.latest(h.sessions.active(h.chat),
-          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
-      var retained = h.artifacts.payload(attempt, RequirementDraftStore.RequirementCaptureAttempt.class);
-      assertFalse(retained.accepted());
-      assertEquals(h.mapper.valueToTree(corrected), h.mapper.valueToTree(retained.arguments()));
-      assertEquals(authority.sourceGeneration(), retained.sourceGeneration());
-      assertEquals(authority.sourceTurnId(), retained.sourceTurnId());
-      assertEquals(authority.base(), retained.acceptedDraftReference());
-      var candidateBytes = h.mapper.writeValueAsBytes(attempt.payload().path("arguments"));
-      var allAttempts = h.immutableArtifacts();
+      // The rejected combined exact value is not an obligation. Method and path properties cover the call.
+      assertTrue(result.accepted(), result.toString());
+      assertTrue(result.issues().isEmpty(), result.toString());
+      assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertNotNull(result.revision());
+      var saved = h.immutableArtifacts();
       h.reload();
-      var reloaded = h.artifacts.get(h.sessions.active(h.chat), attempt.reference()).orElseThrow();
-      assertArrayEquals(candidateBytes, h.mapper.writeValueAsBytes(reloaded.payload().path("arguments")));
-      assertEquals(authority, h.store.writeAuthority(h.chat));
-      assertEquals(source, h.mapper.valueToTree(h.archive.read(h.chat)));
-      assertTrue(h.store.latestRevision(h.chat).isEmpty());
-      h.assertUnchanged(allAttempts);
+      assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertEquals(result.revision(), h.store.latestRevision(h.chat).orElseThrow().reference());
+      h.assertUnchanged(saved);
     }
   }
 
   @ParameterizedTest
   @ValueSource(strings = {"false", "text", "literal"})
-  void representationRepairRejectsUncoveredLiteralsAndAcceptedSettingLoss(String removed) throws Exception {
+  void acceptedSettingLossStaysRejectedWhileQuoteLessLiteralDropsAreAdmitted(String removed) throws Exception {
     for (boolean reload : List.of(false, true)) {
       var h = new Harness();
       try (var ignored = ToolSession.open(h.chat)) {
@@ -191,25 +170,20 @@ class RejectedLiteralValidationStagingTest {
         var result = removed.equals("false") ? h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(),
             List.of(), List.of(), facts, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null))
             : h.capture(candidate);
-        assertFalse(result.accepted(), result.toString());
         if (removed.equals("false")) {
+          assertFalse(result.accepted(), result.toString());
           assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")
               && issue.path().equals("/changes/facts/create-anchor") && issue.entityId().equals("create-anchor")),
               result.toString());
-        } else if (removed.equals("text")) {
-          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")
-              && issue.entityId().equals("create-anchor") && issue.message().contains("POST /sobjects/Task")),
-              result.toString());
-          assertFalse(result.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")
-              && issue.entityId().equals("result-context")), result.toString());
+          assertEquals(accepted, h.store.latestRevision(h.chat).map(CompilationArtifacts.Revision::reference));
+          assertEquals(original, h.store.get(h.chat).orElseThrow().authoredDraft());
         } else {
-          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")
-              && issue.path().equals("/draft/facts/build-script/elementIntent")
-              && issue.entityId().equals("build-script") && issue.message().contains("completeTask")),
-              result.toString());
+          // No saved claim grounds these strings, so dropping them is not a literal obligation.
+          assertTrue(result.accepted(), result.toString());
+          assertTrue(result.issues().stream().noneMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")
+              || issue.code().equals("REPAIR_FACT_LOSS")), result.toString());
+          assertEquals(candidate, h.store.get(h.chat).orElseThrow().authoredDraft());
         }
-        assertEquals(accepted, h.store.latestRevision(h.chat).map(CompilationArtifacts.Revision::reference));
-        if (removed.equals("false")) assertEquals(original, h.store.get(h.chat).orElseThrow().authoredDraft());
         h.assertUnchanged(immutable);
       }
     }
