@@ -3,14 +3,7 @@
  */
 import { describe, it, expect, jest } from "@jest/globals";
 import "@testing-library/jest-dom";
-import {
-  render,
-  screen,
-  waitFor,
-  fireEvent,
-  within,
-  act,
-} from "@testing-library/react";
+import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import type { XmlNamespace } from "../../../src/mapper/model/metadata";
 
 // --- containing-modal close callback (used by Cancel/Save) ---
@@ -18,10 +11,6 @@ const mockCloseContainingModal = jest.fn<() => void>();
 jest.mock("../../../src/ModalContextProvider", () => ({
   useModalContext: () => ({ closeContainingModal: mockCloseContainingModal }),
 }));
-
-// --- context-aware message wrapper (duplicate-alias error) ---
-const mockMessage = { error: jest.fn<(content: string) => void>() };
-jest.mock("../../../src/misc/antd-app", () => ({ message: mockMessage }));
 
 // --- overridable icons -> stable, queryable test ids ---
 jest.mock("../../../src/icons/IconProvider", () => ({
@@ -74,7 +63,7 @@ describe("NamespacesEditDialog", () => {
     fireEvent.click(addButton);
     expect(dataRowCount()).toBe(3);
 
-    // data.some((r) => r.alias === "") dedup: no extra empty row is appended.
+    // An empty row already exists, so no second one is added.
     fireEvent.click(addButton);
     expect(dataRowCount()).toBe(3);
   });
@@ -144,12 +133,9 @@ describe("NamespacesEditDialog", () => {
     fireEvent.change(input, { target: { value: "a" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
-    await waitFor(() =>
-      expect(mockMessage.error).toHaveBeenCalledWith("Already exists: a"),
-    );
+    expect(await screen.findByText("Already exists: a")).toBeInTheDocument();
 
-    // The duplicate was rejected: Save still submits the original aliases,
-    // proving updateRecord did not run for row "b".
+    // The duplicate was rejected, so Save still submits the original aliases.
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSubmit).toHaveBeenCalledWith([
       { alias: "a", uri: "u1" },
@@ -166,7 +152,7 @@ describe("NamespacesEditDialog", () => {
     fireEvent.change(input, { target: { value: "newuri" } });
 
     // The Enter submit validates and runs onFinish asynchronously; flush that
-    // whole chain inside act() so updateRecord's setState lands before Save
+    // whole chain inside act() so the edited row reaches the dialog's state before Save
     // reads the current rows.
     await act(async () => {
       fireEvent.keyDown(input, { key: "Enter" });
@@ -177,7 +163,7 @@ describe("NamespacesEditDialog", () => {
       { alias: "a", uri: "newuri" },
       { alias: "b", uri: "u2" },
     ]);
-    expect(mockMessage.error).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Already exists/)).not.toBeInTheDocument();
   });
 
   it("should update the Prefix when it is edited to a new unique alias", async () => {
@@ -191,8 +177,8 @@ describe("NamespacesEditDialog", () => {
       fireEvent.keyDown(input, { key: "Enter" });
     });
 
-    // Unique alias -> no error, updateRecord rewrites the row's alias.
-    expect(mockMessage.error).not.toHaveBeenCalled();
+    // Unique alias: no error, and the row's alias is rewritten.
+    expect(screen.queryByText(/Already exists/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSubmit).toHaveBeenCalledWith([
       { alias: "c", uri: "u1" },

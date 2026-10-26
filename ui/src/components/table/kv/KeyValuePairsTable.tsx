@@ -1,0 +1,227 @@
+import { Button, Flex, message, Table, TableProps } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import type { SortOrder } from "antd/es/table/interface";
+import React, {
+  ReactNode,
+  Ref,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from "react";
+import {
+  KeyValuePair,
+  removeDuplicateKeys,
+} from "../../../misc/key-value-text-util.ts";
+import { InlineEdit } from "../../InlineEdit.tsx";
+import { TextValueEdit } from "../TextValueEdit.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { useTableConfiguration } from "../useTableConfiguration.tsx";
+import { tableScroll } from "../tableScroll.ts";
+
+export type KeyValuePairsEditorProps = {
+  value?: KeyValuePair[];
+  onChange?: (value: KeyValuePair[]) => void;
+};
+
+export type KeyValuePairsTableRef = {
+  add: () => void;
+  clear: () => void;
+};
+
+export type KeyValuePairsTableProps = KeyValuePairsEditorProps & {
+  actionRef?: Ref<KeyValuePairsTableRef>;
+  columnNames?: KeyValuePair;
+  header?: ReactNode;
+};
+
+// Keeps a pair added without a key on top in either sort order. antd negates
+// the result for a descending sort, so the result for that pair is negated
+// first.
+function sortKeepingNewPairFirst(field: keyof KeyValuePair) {
+  return (a: KeyValuePair, b: KeyValuePair, sortOrder?: SortOrder) => {
+    if (a.key === "" || b.key === "") {
+      const result = Number(b.key === "") - Number(a.key === "");
+      return sortOrder === "descend" ? -result : result;
+    }
+    return a[field].localeCompare(b[field]);
+  };
+}
+
+export const KeyValuePairsTable: React.FC<KeyValuePairsTableProps> = ({
+  onChange,
+  value,
+  columnNames,
+  actionRef,
+  header,
+}) => {
+  const [messageApi, contextHolder] = message.useMessage();
+  const [tableData, setTableData] = useState<
+    TableProps<KeyValuePair>["dataSource"]
+  >([]);
+
+  useEffect(() => {
+    try {
+      setTableData(removeDuplicateKeys(value ?? []));
+    } catch (error) {
+      void messageApi.error(`Invalid dictionary: ${String(error)}`);
+      setTableData([]);
+    }
+  }, [messageApi, value]);
+
+  const updateRecord = useCallback(
+    (key: string, changes: Partial<KeyValuePair>) => {
+      setTableData((data) => {
+        const result =
+          data?.map((r) => (r.key === key ? { ...r, ...changes } : r)) ?? [];
+        onChange?.(result);
+        return result;
+      });
+    },
+    [onChange],
+  );
+
+  const addRecord = useCallback(() => {
+    setTableData((data) => {
+      if (data?.some((r) => r.key === "")) {
+        return data;
+      }
+      const result = [{ key: "", value: "" }, ...(data ?? [])];
+      onChange?.(result);
+      return result;
+    });
+  }, [onChange]);
+
+  const deleteRecord = useCallback(
+    (key: string) => {
+      setTableData((data) => {
+        const result = data?.filter((r) => r.key !== key) ?? [];
+        onChange?.(result);
+        return result;
+      });
+    },
+    [onChange],
+  );
+
+  const clearRecords = useCallback(() => {
+    setTableData([]);
+    onChange?.([]);
+  }, [onChange]);
+
+  const tableColumns = useMemo<ColumnsType<KeyValuePair>>(
+    () => [
+      {
+        key: "key",
+        title: columnNames?.key ?? "Key",
+        dataIndex: "key",
+        sorter: sortKeepingNewPairFirst("key"),
+        render: (value: string, record: KeyValuePair) => {
+          return (
+            <InlineEdit<{ value: string }>
+              values={{ value }}
+              editor={<TextValueEdit name="value" />}
+              viewer={value}
+              initialActive={value === ""}
+              onSubmit={({ value }) => {
+                if (record.key === value) {
+                  return;
+                }
+                if (tableData?.some((r) => r.key === value)) {
+                  void messageApi.error(`Already exists: ${value}`);
+                } else {
+                  updateRecord(record.key, { key: value });
+                }
+              }}
+            />
+          );
+        },
+      },
+      {
+        key: "value",
+        title: columnNames?.value ?? "Value",
+        dataIndex: "value",
+        sorter: sortKeepingNewPairFirst("value"),
+        render: (value: string, record: KeyValuePair) => {
+          return (
+            <InlineEdit<{ value: string }>
+              values={{ value }}
+              editor={<TextValueEdit name="value" rules={[]} />}
+              viewer={value}
+              onSubmit={({ value }) => {
+                if (record.value !== value) {
+                  updateRecord(record.key, { value });
+                }
+              }}
+            />
+          );
+        },
+      },
+      {
+        key: "actions",
+        className: "actions-column",
+        width: 40,
+        align: "right" as const,
+        render: (_: unknown, record: KeyValuePair) => {
+          return (
+            <Button
+              type="text"
+              icon={<OverridableIcon name="delete" />}
+              onClick={() => deleteRecord(record.key)}
+            />
+          );
+        },
+      },
+    ],
+    [
+      columnNames?.key,
+      columnNames?.value,
+      tableData,
+      messageApi,
+      updateRecord,
+      deleteRecord,
+    ],
+  );
+
+  const { columnsWithResize, scrollX, components, handleTableChange } =
+    useTableConfiguration(
+      tableColumns,
+      {
+        key: 160,
+        value: 220,
+        actions: 40,
+      },
+      { applyDisableResizeBeforeActions: true },
+    );
+
+  useImperativeHandle(actionRef, () => {
+    return {
+      add() {
+        addRecord();
+      },
+      clear() {
+        clearRecords();
+      },
+    };
+  }, [addRecord, clearRecords]);
+
+  return (
+    <>
+      {contextHolder}
+      <Flex style={{ height: "100%" }} vertical gap={8}>
+        {header}
+        <Table
+          className="flex-table"
+          size="small"
+          scroll={tableScroll(scrollX, tableData?.length ?? 0)}
+          columns={columnsWithResize}
+          dataSource={tableData}
+          pagination={false}
+          rowKey={(record) => record.key}
+          components={components}
+          onChange={handleTableChange}
+        />
+      </Flex>
+    </>
+  );
+};
