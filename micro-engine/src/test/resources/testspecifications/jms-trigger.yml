@@ -141,6 +141,138 @@ fixtures:
   deployment: topic-redelivery
   sourceElementId: 595822bb-8aeb-51a6-9a80-fc09d9a6bd9a
 scenarios:
+- id: restores-scenario-message-type-and-headers-after-invocation-override
+  scope: Short
+  deployment: jms-trigger
+  driver:
+    provider: jms-trigger
+    sourceElementId: 5d543929-f2af-47a6-8db1-306df85ae0d4
+    parameters:
+      messageType: Text
+      jmsHeaders:
+        correlationId: scenario-default
+        type: scenario.text
+        priority: 3
+        deliveryMode: PERSISTENT
+  invocations:
+  - id: bytes-override-first
+    driver:
+      provider: jms-trigger
+      sourceElementId: 5d543929-f2af-47a6-8db1-306df85ae0d4
+      parameters:
+        messageType: Bytes
+        jmsHeaders:
+          correlationId: invocation-override
+          type: invocation.bytes
+          priority: 8
+          deliveryMode: NON_PERSISTENT
+    body: shared-payload
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSPriority: 8
+      JMSDeliveryMode: 1
+      JMSCorrelationID: invocation-override
+      JMSType: invocation.bytes
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/trigger
+        body: shared-payload
+        headers:
+          JMSPriority: 8
+          JMSDeliveryMode: 1
+          JMSCorrelationID: invocation-override
+          JMSType: invocation.bytes
+      response:
+        properties:
+          expectedBodyType: '[B'
+  - id: inherits-scenario-text-and-headers
+    body: shared-payload
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSPriority: 3
+      JMSDeliveryMode: 2
+      JMSCorrelationID: scenario-default
+      JMSType: scenario.text
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/trigger
+        body: shared-payload
+        headers:
+          JMSPriority: 3
+          JMSDeliveryMode: 2
+          JMSCorrelationID: scenario-default
+          JMSType: scenario.text
+      response:
+        properties:
+          expectedBodyType: java.lang.String
+- id: restores-scenario-publication-after-batch-override
+  scope: Short
+  deployment: jms-trigger
+  driver:
+    provider: jms-trigger
+    sourceElementId: 5d543929-f2af-47a6-8db1-306df85ae0d4
+    parameters:
+      messageType: Text
+      jmsHeaders:
+        correlationId: scalar-default
+        priority: 2
+  invocations:
+  - id: bytes-batch-override-first
+    driver:
+      provider: jms-trigger
+      sourceElementId: 5d543929-f2af-47a6-8db1-306df85ae0d4
+      parameters:
+        messages:
+        - messageType: Bytes
+          body: batch-payload
+          jmsHeaders:
+            correlationId: batch-override
+            priority: 7
+        - messageType: Bytes
+          body: batch-payload
+          jmsHeaders:
+            correlationId: batch-override
+            priority: 7
+    expectedBody:
+    - Triggered
+    - Triggered
+    expectedHeaders:
+      JMSPriority: 7
+      JMSCorrelationID: batch-override
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 2
+        destination: jms/snapshot/trigger
+        body: batch-payload
+        headers:
+          JMSPriority: 7
+          JMSCorrelationID: batch-override
+      response:
+        properties:
+          expectedBodyType: '[B'
+  - id: inherits-scenario-scalar-publication
+    body: scalar-payload
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSPriority: 2
+      JMSCorrelationID: scalar-default
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/trigger
+        body: scalar-payload
+        headers:
+          JMSPriority: 2
+          JMSCorrelationID: scalar-default
+      response:
+        properties:
+          expectedBodyType: java.lang.String
 - id: consumes-message-types-and-resumes-backlog-after-restart
   scope: Short
   deployment: jms-trigger

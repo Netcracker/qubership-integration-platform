@@ -75,7 +75,7 @@ trials. More workers increased Docker VM CPU pressure and broker startup times;
 GC pauses, memory pressure, and IO pressure remained small. Set `snapshot.workers`
 explicitly when comparing a different Docker or CI environment.
 
-Compatible JMS cases share broker startup while retaining all 114 trigger
+Compatible JMS cases share broker startup while retaining all 118 trigger
 invocations and 55 sender calls.
 
 To execute Kafka scenarios from an existing bundle with two workers:
@@ -186,10 +186,10 @@ the production destination resolver uses controlled JNDI bindings or creates des
 through that factory's session.
 
 The `jms-trigger.yml` manifest uses `artemis-jms-trigger` with the `jms-trigger`
-driver. Twelve scenarios contain 114 invocations across seven exports: the original
+driver. Fourteen scenarios contain 118 invocations across seven exports: the original
 queue, three acknowledgment modes, two topic subscribers, three idempotency actions,
 a separate transacted queue, and two exports combining redelivery with idempotency
-or topic subscriptions. Eight scenarios are Short; broker restart and the three
+or topic subscriptions. Ten scenarios are Short; broker restart and the three
 transacted scenarios are Long. Each scenario shares one Artemis broker across its
 invocations and generated consumers. Idempotency scenarios also share one PostgreSQL
 store across their trigger branches.
@@ -223,6 +223,12 @@ application properties. Optional `jmsHeaders` sets `correlationId`, `type`,
 `priority` (0 to 9), `deliveryMode` (`PERSISTENT` or `NON_PERSISTENT`), `replyTo`
 (a queue name), and `timeToLiveMillis`. These are producer inputs, not trigger settings.
 External producers cannot supply Camel exchange properties.
+
+Declare the default publication parameters in the scenario's `driver`. An invocation's
+own `driver` replaces those parameters for that invocation. Later invocations without
+a `driver` use the scenario's settings, including `messageType`, `jmsHeaders`, and
+`messages`. The two inheritance regressions begin with a scalar Bytes or batch override,
+then check a scalar Text publication with the scenario's metadata and payload.
 
 For a burst, set `driver.parameters.messages` to a list of objects with `body`,
 `headers`, `messageType`, and `jmsHeaders`. The driver publishes all messages before

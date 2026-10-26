@@ -34,7 +34,7 @@ class JmsTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDriver
                 throw new IllegalArgumentException("JMS trigger invocation '" + invocation.getId()
                         + "' cannot define Camel exchange properties.");
             }
-            Map<String, Object> options = (invocation.getDriver() == null ? definition : invocation.getDriver()).getParameters();
+            Map<String, Object> options = (invocation.getDriver() == null ? scenario.getDriver() : invocation.getDriver()).getParameters();
             validateParameters(options);
             parameters.put(invocation.getId(), options);
         }
