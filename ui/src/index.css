@@ -81,8 +81,8 @@ h1 {
 }
 
 .fixed-textarea {
-  height: 120px;
-  resize: none;
+  height: 120px !important;
+  resize: none !important;
 }
 
 .flex-tabs {
