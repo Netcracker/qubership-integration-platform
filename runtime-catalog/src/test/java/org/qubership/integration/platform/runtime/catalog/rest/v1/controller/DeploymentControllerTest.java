@@ -23,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -88,7 +89,7 @@ class DeploymentControllerTest {
         Snapshot snapshot = Snapshot.builder().id("s1").build();
         DeploymentResponse expected = mock(DeploymentResponse.class);
         microDomainEnabled(true);
-        when(bulkDeploymentService.resolveDomainType("orders")).thenReturn(DomainType.MICRO);
+        when(bulkDeploymentService.findDiscoveredDomainType("orders")).thenReturn(Optional.of(DomainType.MICRO));
         when(snapshotService.findById("s1")).thenReturn(snapshot);
         when(deploymentMapper.asMicroResponse("chain-1", "orders", snapshot)).thenReturn(expected);
 
@@ -106,7 +107,7 @@ class DeploymentControllerTest {
     @Test
     void createOnMicroDomainIsRejectedWhenMicroDomainDisabled() {
         microDomainEnabled(false);
-        when(bulkDeploymentService.resolveDomainType("orders")).thenReturn(DomainType.MICRO);
+        when(bulkDeploymentService.findDiscoveredDomainType("orders")).thenReturn(Optional.of(DomainType.MICRO));
 
         assertThatThrownBy(() -> controller.create("chain-1", microDeployRequest()))
                 .isInstanceOf(DomainTypeDisabledException.class);

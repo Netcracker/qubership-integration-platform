@@ -232,12 +232,20 @@ public class BulkDeploymentService {
                 name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
     }
 
-    public DomainType resolveDomainType(String domainName) {
+    public Optional<DomainType> findDiscoveredDomainType(String domainName) {
         return engineService.getDomains().stream()
             .filter(domain -> domain.getName().equals(domainName))
             .map(EngineDomain::getType)
-            .findFirst()
-            .orElse(DomainType.MICRO);
+            .findFirst();
+    }
+
+    public Optional<String> findMicroDomainOfDeployment(String deploymentId) {
+        return engineService.getDomains().stream()
+            .filter(domain -> DomainType.MICRO.equals(domain.getType()))
+            .map(EngineDomain::getName)
+            .filter(name -> deploymentId.length() > name.length() + 1)
+            .filter(name -> deploymentId.startsWith(name + "-"))
+            .max(Comparator.comparingInt(String::length));
     }
 
     public void deleteChainSnapshot(String domainName, String snapshotId) {

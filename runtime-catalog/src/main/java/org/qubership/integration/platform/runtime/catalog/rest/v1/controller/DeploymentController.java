@@ -118,7 +118,7 @@ public class DeploymentController {
     public ResponseEntity<DeploymentResponse> create(@PathVariable @Parameter(description = "Chain id") String chainId,
                                                      @RequestBody @Valid @Parameter(description = "Deployment request object") DeploymentRequest request) {
         log.info("Request to create new deployment in chain: {}", chainId);
-        if (DomainType.MICRO.equals(bulkDeploymentService.resolveDomainType(request.getDomain()))) {
+        if (DomainType.MICRO.equals(resolveDomainType(chainId, request.getDomain()))) {
             return verifyMicroDomainEnabled(() -> {
                 Snapshot snapshot = snapshotService.findById(request.getSnapshotId());
                 bulkDeploymentService.deployResource(ResourceDeployRequest.builder()
@@ -174,7 +174,8 @@ public class DeploymentController {
         }
         if (domainProperties.getMicro().isEnabled()) {
             Optional<MicroDeployment> microDeployment = parseMicroDeployment(chainId, deploymentId)
-                    .or(() -> findRuntimeMicroDeployment(chainId, deploymentId));
+                    .or(() -> findRuntimeMicroDeployment(chainId, deploymentId))
+                    .or(() -> parseMicroDeploymentFromDomain(deploymentId));
             if (microDeployment.isPresent()) {
                 bulkDeploymentService.deleteChainSnapshot(microDeployment.get().domain(), microDeployment.get().snapshotId());
                 return ResponseEntity.noContent().build();
@@ -202,6 +203,21 @@ public class DeploymentController {
         }
     }
 
+    private DomainType resolveDomainType(String chainId, String domain) {
+        Optional<DomainType> discovered = bulkDeploymentService.findDiscoveredDomainType(domain);
+        if (discovered.isPresent()) {
+            return discovered.get();
+        }
+        boolean classicEnabled = domainProperties.getClassic().isEnabled();
+        if (classicEnabled != domainProperties.getMicro().isEnabled()) {
+            return classicEnabled ? DomainType.CLASSIC : DomainType.MICRO;
+        }
+        return deploymentService.findAllByChainId(chainId).stream()
+                .anyMatch(deployment -> domain.equals(deployment.getDomain()))
+                ? DomainType.CLASSIC
+                : DomainType.MICRO;
+    }
+
     private Optional<MicroDeployment> parseMicroDeployment(String chainId, String deploymentId) {
         return snapshotService.findByChainIdLight(chainId).stream()
                 .map(Snapshot::getId)
@@ -219,6 +235,11 @@ public class DeploymentController {
                 .filter(deployment -> deployment.getDomain() != null && deployment.getSnapshotId() != null)
                 .findFirst()
                 .map(deployment -> new MicroDeployment(deployment.getDomain(), deployment.getSnapshotId()));
+    }
+
+    private Optional<MicroDeployment> parseMicroDeploymentFromDomain(String deploymentId) {
+        return bulkDeploymentService.findMicroDomainOfDeployment(deploymentId)
+                .map(domain -> new MicroDeployment(domain, deploymentId.substring(domain.length() + 1)));
     }
 
     private record MicroDeployment(String domain, String snapshotId) {
