@@ -299,6 +299,19 @@ describe("EnvironmentParamsModal", () => {
     });
   });
 
+  it("should not submit a property added without a key", async () => {
+    const { onSubmit } = renderModal("kafka");
+
+    expandProperties();
+    fireEvent.click(screen.getByLabelText("Add property"));
+    save();
+
+    expect(
+      await screen.findByText("Property key is required"),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("should add an empty property row when the add button is clicked", () => {
     renderModal("kafka", { properties: {} });
 

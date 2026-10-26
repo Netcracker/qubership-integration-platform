@@ -300,6 +300,14 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
                     )
                   : Promise.resolve(),
             },
+            {
+              // The key cell validates in a form of its own, so a row added and
+              // left without a key reaches this form's value.
+              validator: (_, pairs: KeyValuePair[] | undefined) =>
+                pairs?.some((pair) => pair.key === "")
+                  ? Promise.reject(new Error("Property key is required"))
+                  : Promise.resolve(),
+            },
           ]}
         >
           <KeyValuePairsEditor
