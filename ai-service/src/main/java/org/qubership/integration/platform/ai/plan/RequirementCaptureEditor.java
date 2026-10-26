@@ -334,7 +334,7 @@ public final class RequirementCaptureEditor {
             factIssues.stream().anyMatch(issue -> issue.path().endsWith("/text")) ? null : fact.text(),
             mappingToPreserve(fact.fieldMapping(), factIssues),
             factIssues.stream().anyMatch(issue -> issue.path().contains("/policyConflict")) ? null : fact.policyConflict(),
-            intentToPreserve(fact.elementIntent(), factIssues)));
+            intentToPreserve(fact.elementIntent(), factIssues), fact.evidence()));
       }
     }
     return List.copyOf(facts);

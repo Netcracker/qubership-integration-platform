@@ -799,7 +799,8 @@ final class RequirementRevisionAdmission {
           accumulated.set(index, new FactInput(RequirementCaptureEditor.validFactId(old.sourceFactId())
               ? old.sourceFactId() : fact.sourceFactId(), List.copyOf(interactions), old.kind() == null ? fact.kind() : old.kind(),
               old.polarity() == null ? fact.polarity() : old.polarity(), first(old.text(), fact.text()), mergeMapping(old.fieldMapping(), fact.fieldMapping()),
-              old.policyConflict() == null ? fact.policyConflict() : old.policyConflict(), intent));
+              old.policyConflict() == null ? fact.policyConflict() : old.policyConflict(), intent,
+              old.evidence() != null ? old.evidence() : fact.evidence()));
         }
       }
     }

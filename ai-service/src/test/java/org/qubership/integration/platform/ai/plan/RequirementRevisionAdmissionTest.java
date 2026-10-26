@@ -60,7 +60,7 @@ class RequirementRevisionAdmissionTest {
   void oldPendingConstraintsAreProjectedBeforeFeedbackAndAdmission(boolean acceptedBase) throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
-      h.begin("Receive POST /tasks and call Delivery API. Proceed without IDS.");
+      var opened = h.begin("Receive POST /tasks and call Delivery API. Proceed without IDS.");
       if (acceptedBase) {
         assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
         h.begin("Also call Delivery API after receiving a task.");
@@ -92,8 +92,8 @@ class RequirementRevisionAdmissionTest {
       assertEquals(2, h.store.get(h.chat).orElseThrow().authoredDraft().flow().interactions().size());
       if (acceptedBase) {
         assertTrue(h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact(
-                "entry", "http-trigger")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null)).accepted());
+            List.of(quoted(org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact(
+                "entry", "http-trigger"), opened.turnId(), "POST /tasks")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null)).accepted());
       }
       h.resolveDelivery();
       var continued = h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE));
@@ -853,7 +853,7 @@ class RequirementRevisionAdmissionTest {
       assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
       var source = h.begin("Preserve request IDs and change the endpoint URL to /new-tasks.");
       var additive = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-          List.of(fact("retain-id", "Preserve request IDs.")), List.of(), List.of(), List.of(), List.of(),
+          List.of(fact("retain-id", "Preserve request IDs.", source.turnId(), "Preserve request IDs")), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null);
       assertTrue(h.update(additive).accepted());
       h.store.beginTurn(h.chat, "Automatic correction.");
@@ -876,7 +876,7 @@ class RequirementRevisionAdmissionTest {
   void nativeSourceOwnerRepairChangesOnlyTheReportedFieldAndRetainsNewFacts() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
-      h.begin("Create one task and preserve request IDs. Proceed without IDS.");
+      var source = h.begin("Create one task and preserve request IDs. Proceed without IDS.");
       assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create two tasks."), fact("sibling", "Preserve inputs.")))).accepted());
       var selected = h.store.get(h.chat).orElseThrow();
       var capability = new org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability(
@@ -890,7 +890,7 @@ class RequirementRevisionAdmissionTest {
               assertTrue(prompt.contains("Writable stable paths: [/facts/goal/text]"), prompt);
               assertTrue(prompt.contains("Use amendments: []"), prompt);
               var bad = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-                  List.of(fact("retain-id", "Preserve request IDs.")),
+                  List.of(fact("retain-id", "Preserve request IDs.", source.turnId(), "request IDs")),
                   List.of(fact("goal", "Create one task."), fact("sibling", "Drop inputs.")), List.of(), List.of(),
                   List.of(), List.of(), List.of(), List.of(), null);
               assertFalse(h.update(bad).accepted());
@@ -898,7 +898,7 @@ class RequirementRevisionAdmissionTest {
                   List.of(fact("goal", "Create one task.")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
               assertFalse(h.update(lost).accepted());
               var repaired = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-                  List.of(fact("retain-id", "Preserve request IDs.")), List.of(fact("goal", "Create one task.")),
+                  List.of(fact("retain-id", "Preserve request IDs.", source.turnId(), "request IDs")), List.of(fact("goal", "Create one task.")),
                   List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
               var result = h.update(repaired);
               assertTrue(result.accepted(), result.toString());
@@ -937,9 +937,9 @@ class RequirementRevisionAdmissionTest {
       h.begin("Create tasks. Proceed without IDS.");
       assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
       var oldAuthority = h.store.writeAuthority(h.chat);
-      h.begin("Preserve request IDs.");
+      var added = h.begin("Preserve request IDs.");
       assertTrue(h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-          List.of(fact("retain-id", "Preserve request IDs.")), List.of(), List.of(), List.of(), List.of(),
+          List.of(fact("retain-id", "Preserve request IDs.", added.turnId(), "Preserve request IDs.")), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null)).accepted());
       var current = h.store.latestRevision(h.chat).orElseThrow();
       assertFalse(h.store.applyImportResult(h.chat, oldAuthority, "entry",
@@ -1045,8 +1045,9 @@ class RequirementRevisionAdmissionTest {
       h.begin("Create tasks. Proceed without IDS.");
       assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
       var source = h.begin("Also preserve the request ID.");
+      var retained = fact("retain-id", "Preserve request IDs.", source.turnId(), "request ID");
       var rejected = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-          List.of(fact("retain-id", "Preserve request IDs.")), List.of(fact("goal", "Drop tasks.")),
+          List.of(retained), List.of(fact("goal", "Drop tasks.")),
           List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
       assertFalse(h.update(rejected).accepted());
       h.store.put(h.chat, h.store.get(h.chat).orElseThrow().withImportIntent(true));
@@ -1069,7 +1070,7 @@ class RequirementRevisionAdmissionTest {
       h.store.beginTurn(h.chat, "Automatic correction.");
       assertFalse(h.store.validateCurrent(h.chat).isEmpty(), "Binding refresh must retain verified pending additions");
       assertTrue(h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-          List.of(fact("retain-id", "Preserve request IDs.")), List.of(), List.of(), List.of(), List.of(),
+          List.of(retained), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null)).accepted());
       assertTrue(h.archive.pendingInputs(h.chat).isEmpty());
     }
@@ -1096,10 +1097,11 @@ class RequirementRevisionAdmissionTest {
   void unchangedUpdatesAndContinuationCannotDropRejectedValidContent() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
-      h.begin("Create tasks and retain request IDs. Proceed without IDS.");
+      var opened = h.begin("Create tasks and retain request IDs. Proceed without IDS.");
       assertTrue(h.capture(withNativeAnchors(httpDraft(List.of(fact("goal", "Create tasks."))))).accepted());
+      var retained = fact("retain-id", "Preserve request IDs.", opened.turnId(), "request IDs");
       var damaged = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-          List.of(fact("retain-id", "Preserve request IDs.")), List.of(fact("goal", "Drop tasks.")),
+          List.of(retained), List.of(fact("goal", "Drop tasks.")),
           List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
       assertFalse(h.update(damaged).accepted());
       var noop = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
@@ -1108,7 +1110,7 @@ class RequirementRevisionAdmissionTest {
       assertFalse(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
       assertFalse(h.store.validateCurrent(h.chat).isEmpty());
       var correction = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-          List.of(fact("retain-id", "Preserve request IDs.")), List.of(), List.of(), List.of(), List.of(),
+          List.of(retained), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null);
       assertTrue(h.update(correction).accepted());
       assertTrue(h.store.validateCurrent(h.chat).isEmpty());
@@ -1151,6 +1153,16 @@ class RequirementRevisionAdmissionTest {
 
   private static FactInput fact(String id, String text) {
     return new FactInput(id, List.of(), FactKind.GOAL, Polarity.POSITIVE, text);
+  }
+
+  private static FactInput fact(String id, String text, String turnId, String quote) {
+    return new FactInput(id, List.of(), FactKind.GOAL, Polarity.POSITIVE, text, null, null, null,
+        new ClaimEvidenceInput(turnId, quote));
+  }
+
+  private static FactInput quoted(FactInput fact, String turnId, String quote) {
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+        fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(), new ClaimEvidenceInput(turnId, quote));
   }
 
   private static DraftInput httpDraft(List<FactInput> facts) {

@@ -26,7 +26,7 @@ public final class RequirementClaimEvidenceValidator {
         if (fact.evidence() != null && !validEvidence(fact.evidence(), source)) {
           issues.add(invalidQuote(fact.sourceFactId()));
         }
-      } else if (!changeCovered(amendments, fact.sourceFactId(),
+      } else if (prior.evidence() != null && !changeCovered(amendments, fact.sourceFactId(),
           !Objects.equals(prior.text(), fact.text()), prior.polarity() != fact.polarity(), source)) {
         issues.add(amendmentRequired(fact.sourceFactId()));
       }
@@ -34,7 +34,7 @@ public final class RequirementClaimEvidenceValidator {
     if (baseline != null) {
       for (var claim : baseline.claims()) {
         boolean kept = present.stream().anyMatch(fact -> Objects.equals(claim.sourceFactId(), fact.sourceFactId()));
-        if (!kept && !deletionCovered(amendments, claim.sourceFactId(), source)) {
+        if (!kept && claim.evidence() != null && !deletionCovered(amendments, claim.sourceFactId(), source)) {
           issues.add(amendmentRequired(claim.sourceFactId()));
         }
       }
