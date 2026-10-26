@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
@@ -131,6 +132,30 @@ class AdditiveLiteralBindingRecoveryTest {
         accepted.toString());
     assertEquals(List.of(), h.store.get(h.chat).orElseThrow().authoredDraft().facts().get(1)
         .elementIntent().exactValues());
+  }
+
+  @Test
+  void spacedQuoteIsAcceptedWhenMessageHoldsTheToken() throws Exception {
+    var h = new Harness();
+    String phrase = "exactly audit-event";
+    var draft = clearExactValues(h.mapper, draft(true, LITERAL));
+    String sentence = draft.facts().get(1).text();
+    assertTrue(sentence.contains(" "));
+    assertTrue(phrase.contains(" ") && phrase.contains(LITERAL) && phrase.length() < sentence.length());
+    assertTrue(SOURCE.contains(phrase));
+    var candidate = replaceAudit(draft, draft.facts().get(1).elementIntent(),
+        new ClaimEvidenceInput(h.source.turnId(), phrase));
+    var audit = candidate.facts().get(1);
+    assertEquals(phrase, audit.evidence().quote());
+    assertEquals(List.of(), audit.elementIntent().exactValues());
+    assertTrue(audit.elementIntent().requestedProperties().stream()
+        .anyMatch(property -> "message".equals(property.key()) && LITERAL.equals(property.value())));
+
+    var accepted = h.capture(candidate);
+
+    assertTrue(accepted.accepted(), accepted.toString());
+    assertFalse(unbound(accepted, phrase), accepted.toString());
+    assertFalse(unbound(accepted, LITERAL), accepted.toString());
   }
 
   @ParameterizedTest

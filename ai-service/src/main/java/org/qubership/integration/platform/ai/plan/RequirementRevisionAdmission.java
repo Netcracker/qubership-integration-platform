@@ -1042,9 +1042,9 @@ final class RequirementRevisionAdmission {
   }
 
   /**
-   * Puts back an accepted fact or transition the candidate dropped when the accepted draft already
-   * holds that value. A fact is restored only when the candidate already applies the named HTTP mode
-   * correction. Other requirement changes stay rejected.
+   * Puts back a fact or transition the candidate dropped when the accepted draft already holds that
+   * value. Facts and transitions come only from that draft. A fact is restored only when the
+   * candidate already applies the named HTTP mode correction. Other requirement changes stay rejected.
    */
   static DraftInput restoreProtectedSnapshot(DraftInput base, DraftInput candidate,
       JsonNode protectedValues, List<CatalogBindingHint> bindings, List<Issue> issues) {
@@ -1064,10 +1064,6 @@ final class RequirementRevisionAdmission {
     if (issues.stream().anyMatch(issue -> "AUTHOR_AMENDMENT_REQUIRED".equals(issue.code()))) {
       if (base != null && base.flow() != null && base.flow().transitions() != null) {
         for (var edge : base.flow().transitions()) if (edge != null) transitions.putIfAbsent(edge, edge);
-      }
-      var retained = protectedValues == null ? null : protectedValues.path("transitions");
-      if (retained != null && retained.isObject()) {
-        for (var edge : transitions(retained)) transitions.putIfAbsent(edge, edge);
       }
     }
     var restored = new DraftInput(new FlowInput(candidate.flow().interactions(), List.copyOf(transitions.values())),
