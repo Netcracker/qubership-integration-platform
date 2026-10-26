@@ -44,8 +44,15 @@ public final class RequirementCaptureEditor {
     }
 
     public Issue {
-      relatedEntityIds = relatedEntityIds == null ? List.of() : List.copyOf(relatedEntityIds);
+      relatedEntityIds = copyIds(relatedEntityIds);
     }
+  }
+
+  private static List<String> copyIds(List<String> ids) {
+    if (ids == null) {
+      return List.of();
+    }
+    return List.copyOf(ids.stream().filter(Objects::nonNull).toList());
   }
 
   public record EditResult(DraftInput draft, List<Issue> issues, boolean changed, DraftInput candidate) {
@@ -995,7 +1002,8 @@ public final class RequirementCaptureEditor {
       }
       var relatedEntityIds = component.stream()
           .map(index -> group.get(index).fact().sourceFactId())
-          .sorted(Comparator.nullsFirst(Comparator.naturalOrder()))
+          .filter(Objects::nonNull)
+          .sorted()
           .toList();
       var relatedPaths = component.stream().map(index -> group.get(index).path()).sorted().toList();
       String message = conflictMessage(group, component);
