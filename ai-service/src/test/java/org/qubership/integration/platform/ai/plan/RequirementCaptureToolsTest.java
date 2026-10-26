@@ -2115,6 +2115,9 @@ class RequirementCaptureToolsTest {
           List.of(), List.of(), null)), RequirementCaptureResult.class);
       assertFalse(rejected.accepted());
       assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")
+          && issue.message().contains("Accepted fact records")
+          && issue.message().contains("Retain accepted values")
+          && issue.message().contains("keep accepted elementIntent unchanged")
           && issue.message().contains("addFacts")), rejected.toString());
       var extra = quoted(new FactInput("additional-setting", List.of(owner), FactKind.PARAMETER, Polarity.POSITIVE,
           "Retain the supplied setting.", null, null,

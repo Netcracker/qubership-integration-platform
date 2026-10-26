@@ -116,6 +116,8 @@ class AdditiveLiteralBindingRecoveryTest {
     assertFalse(missing.accepted(), missing.toString());
     assertTrue(unbound(missing, LITERAL), missing.toString());
     assertFalse(unbound(missing, REJECTED_ONLY), missing.toString());
+    assertTrue(missing.issues().stream().noneMatch(issue -> issue.message() != null
+        && issue.message().contains("keep accepted elementIntent unchanged")), missing.toString());
 
     var moved = quoteAudit(clearExactValues(h.mapper, draft(true, LITERAL)), h.source.turnId());
     var audit = moved.facts().get(1);

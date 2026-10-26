@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -138,6 +139,29 @@ class RequirementFailureConsistencyAdmissionTest {
   }
 
   @Test
+  void rejectedCaptureOmitsAcceptedIntentFreezeWhenNoAuthoredDraftExists() throws Exception {
+    var h = new Harness();
+    h.begin();
+    try {
+      var draft = RequirementCaptureProjection.toDraft(
+          withMode(input(), ServiceCallFailureMode.INLINE_RESPONSE), null, bindings(), "1", "hash");
+      var legacyTree = (ObjectNode) json.valueToTree(draft);
+      legacyTree.putNull("authoredDraft");
+      h.store.put(h.chat, json.convertValue(legacyTree, RequirementDraft.class));
+      assertTrue(h.store.get(h.chat).isPresent());
+      assertNull(h.store.get(h.chat).orElseThrow().authoredDraft());
+
+      var refusal = h.call("captureRequirementDraft", Map.of("draft", input()));
+      assertFalse(refusal.path("accepted").asBoolean(), refusal.toString());
+      refusal.path("issues").forEach(issue -> assertFalse(
+          issue.path("message").asText().contains("keep accepted elementIntent unchanged"),
+          refusal.toString()));
+    } finally {
+      ProductCapabilityCaptureContext.unbind();
+    }
+  }
+
+  @Test
   void propagateConflictRequiresInlineResponseWithoutPreservingFacts() {
     var findings = RequirementFailureConsistency.issues(input(), bindings());
     assertEquals(1, findings.size(), findings.toString());
@@ -212,6 +236,13 @@ class RequirementFailureConsistencyAdmissionTest {
       var refusal = h.call("captureRequirementDraft", Map.of("draft", input()));
       assertFalse(refusal.path("accepted").asBoolean(), refusal.toString());
       assertEquals("/draft/flow/interactions/remote/failureMode", refusal.at("/issues/0/path").asText());
+      var expected = RequirementFailureConsistency.issues(input(), bindings());
+      assertEquals(expected.size(), refusal.path("issues").size(), refusal.toString());
+      for (int i = 0; i < expected.size(); i++) {
+        String message = refusal.at("/issues/" + i + "/message").asText();
+        assertEquals(expected.get(i).message(), message);
+        assertFalse(message.contains("keep accepted elementIntent unchanged"), message);
+      }
       var attempt = h.artifacts.latest(h.sessions.active(h.chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
       assertEquals("PROPAGATE", attempt.payload().at("/arguments/flow/interactions/1/failureMode").asText());
       assertEquals(refusal.path("issues"), attempt.payload().path("issues"));

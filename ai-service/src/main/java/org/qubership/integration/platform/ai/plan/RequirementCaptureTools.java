@@ -707,12 +707,14 @@ public class RequirementCaptureTools {
   }
 
   private List<Issue> withPreservedFacts(List<Issue> issues, RequirementDraft accepted) {
+    if (accepted == null || accepted.authoredDraft() == null) {
+      return issues;
+    }
     return issues.stream().map(issue -> new Issue(
         issue.code(), issue.path(), issue.entityId(), issue.message()
             + " Accepted fact records: "
-            + mapper.valueToTree(accepted == null || accepted.authoredDraft() == null ? List.of()
-                : accepted.authoredDraft().facts().stream()
-                    .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
+            + mapper.valueToTree(accepted.authoredDraft().facts().stream()
+                .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
             + ". Null does not instruct you to clear an accepted value. Retain accepted values;"
             + " correct only reported invalid fields or explicitly authorized amendments."
             + " During automatic repair, keep accepted elementIntent unchanged. Add extra source-backed settings through addFacts"
