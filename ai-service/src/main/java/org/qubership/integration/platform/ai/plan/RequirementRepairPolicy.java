@@ -17,7 +17,8 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLit
  * literal is a runtime value taken from a validated quote, or from saved claim text when that
  * claim has no quote. The policy takes an HTTP operation (GET, POST, PUT, PATCH, or DELETE, one
  * space, then a path token starting with /), a hyphenated token, or the whole value when it has
- * no whitespace. Ordinary words and a whole sentence are not literals. While no baseline exists,
+ * no whitespace. One trailing period or comma on that path token is sentence punctuation.
+ * Ordinary words and a whole sentence are not literals. While no baseline exists,
  * those literals come from the candidate's evidence quote when that quote is an exact substring
  * of the named user turn and the fact has an element intent. A literal equal to the entire claim
  * text stays claim evidence. On an accepted draft, kind, interaction IDs, mapping, element intent,
@@ -147,6 +148,7 @@ public final class RequirementRepairPolicy {
 
   /**
    * HTTP operations, hyphenated tokens, and a value with no whitespace. Ordinary words stay prose.
+   * One trailing period or comma on an HTTP path is sentence punctuation.
    */
   private static List<String> sourceLiterals(String value) {
     if (value == null || value.isBlank()) {
@@ -159,6 +161,9 @@ public final class RequirementRepairPolicy {
     var http = HTTP_OPERATION.matcher(value);
     while (http.find()) {
       String path = http.group(2);
+      if (path.length() > 1 && (path.endsWith(".") || path.endsWith(","))) {
+        path = path.substring(0, path.length() - 1);
+      }
       if (path.length() > 1) {
         addLiteral(literals, http.group(1) + " " + path);
       }

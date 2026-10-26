@@ -1241,6 +1241,21 @@ class RequirementRevisionAdmissionTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {".", ","})
+  void quotedHttpOperationDropsOneTrailingPunctuation(String mark) {
+    String operation = "POST /sobjects/Task";
+    String quote = "Call createTask with " + operation + mark + " now";
+    var claim = new RequirementSemanticClaim("audit", "Call the operation.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", quote));
+    assertAll(
+        () -> assertEquals(List.of(operation),
+            unboundTokens(admit(List.of(), absentLiteral(), baseline(claim))), "quote"),
+        () -> assertEquals(List.of(),
+            unboundTokens(admit(List.of(), coveredValue("property", operation), baseline(claim))),
+            "property without punctuation"));
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"audit-event", "trace-id"})
   void sentenceQuoteRequiresOnlyTheHyphenatedToken(String token) {
     String sentence = "log exactly " + token + " before Friday";

@@ -138,6 +138,21 @@ class RequirementFailureConsistencyAdmissionTest {
   }
 
   @Test
+  void propagateConflictRequiresInlineResponseWithoutPreservingFacts() {
+    var findings = RequirementFailureConsistency.issues(input(), bindings());
+    assertEquals(1, findings.size(), findings.toString());
+    var finding = findings.getFirst();
+    assertEquals("FAILURE_MODE_CONFLICT", finding.code());
+    String message = finding.message();
+    assertTrue(message.contains("errorThrowing=false"), message);
+    assertTrue(message.contains("INLINE_RESPONSE"), message);
+    assertFalse(message.toLowerCase().contains("preserve"), message);
+    assertFalse(message.contains("all facts"), message);
+    assertFalse(message.contains("names, values"), message);
+    assertFalse(message.contains("and order"), message);
+  }
+
+  @Test
   void rejectedErrorScopeAdmissionNamesTheCandidateMode() throws Exception {
     var h = new Harness();
     h.begin();
