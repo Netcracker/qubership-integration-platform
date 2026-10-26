@@ -134,9 +134,8 @@ public final class RequirementFailureConsistency {
       if (facts.stream().anyMatch(response -> normalResponse(flow, facts, id, anchor, response))) {
         findings.add(new Issue("FAILURE_MODE_CONFLICT", "/draft/flow/interactions/" + id + "/failureMode", id,
             "HTTP error responses continue from '" + id + "' to its requested normal response step because"
-                + " errorThrowing=false. PROPAGATE says those responses stop before successors. Correct only"
-                + " failureMode to INLINE_RESPONSE; preserve errorThrowing=false, all facts, names, values,"
-                + " and order. Transport exceptions still propagate; this finding concerns HTTP responses."));
+                + " errorThrowing=false. Set failureMode to INLINE_RESPONSE."
+                + " Transport exceptions still propagate; this finding concerns HTTP responses."));
       }
     }
     return List.copyOf(findings);
