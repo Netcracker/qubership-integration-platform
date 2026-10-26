@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessio
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.*;
 import org.qubership.integration.platform.ai.plan.RequirementPolicyConflict.Decision;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementRevisionAdmissionTest {
@@ -1194,6 +1195,34 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void rejectedExactValueIsRequiredOnlyWhenTheBaselineGroundsIt() {
+    var invented = "model-only-token";
+    var fromQuote = "audit-event";
+    var fromText = "route-key";
+    var rejected = List.of(literalIntent(List.of(invented)));
+    var quoteClaim = new RequirementSemanticClaim("audit", "Log exactly audit-event",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", fromQuote));
+    var textClaim = new RequirementSemanticClaim("route", fromText, Polarity.POSITIVE, null);
+    var separateQuote = new RequirementSemanticClaim("batch", "Record the batch",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", fromQuote));
+
+    assertAll(
+        () -> assertFalse(unboundLiteral(admit(rejected, absentLiteral(), null), invented),
+            "A rejected exactValues entry is not an obligation"),
+        () -> assertTrue(unboundLiteral(admit(rejected, absentLiteral(), baseline(quoteClaim)), fromQuote)),
+        () -> assertFalse(unboundLiteral(admit(rejected, absentLiteral(), baseline(quoteClaim)),
+            "Log exactly audit-event")),
+        () -> assertTrue(unboundLiteral(admit(List.of(), absentRoute(), baseline(textClaim)), fromText)),
+        () -> assertTrue(unboundLiteral(admit(rejected, absentLiteral(), baseline(separateQuote)), fromQuote)),
+        () -> {
+          for (String site : List.of("name", "property", "body", "mapping")) {
+            assertFalse(unboundLiteral(admit(rejected, coveredLiteral(site), baseline(quoteClaim)), fromQuote), site);
+            assertFalse(unboundLiteral(admit(rejected, coveredLiteral(site), baseline(quoteClaim)), invented), site);
+          }
+        });
+  }
+
+  @Test
   void structuralAlternativeOnARejectedProjectionStaysFocusedRepair() {
     var finding = new RequirementFinding("INVALID_ELEMENT_OWNER",
         "/draft/facts/local/elementIntent/ownerInteractionId", "local", List.of(), List.of(),
@@ -1276,6 +1305,66 @@ class RequirementRevisionAdmissionTest {
       assertTrue(retained.accepted(), retained.toString());
       assertEquals(List.of(), h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
     }
+  }
+
+  private static List<RequirementCaptureEditor.Issue> admit(List<FactInput> protectedFacts, DraftInput candidate,
+      RequirementSemanticBaseline baseline) {
+    return RequirementRevisionAdmission.validate(null, candidate, protectedFacts,
+        new ObjectMapper().createObjectNode(), java.util.Set.of(), java.util.Set.of(),
+        java.util.Map.of(), fact -> false, baseline);
+  }
+
+  private static boolean unboundLiteral(List<RequirementCaptureEditor.Issue> issues, String literal) {
+    String token = "[\"" + literal + "\"]";
+    return issues.stream().anyMatch(issue -> "UNBOUND_REQUIRED_LITERAL".equals(issue.code())
+        && issue.message() != null && issue.message().contains(token));
+  }
+
+  private static RequirementSemanticBaseline baseline(RequirementSemanticClaim claim) {
+    return new RequirementSemanticBaseline("generation", "hash", List.of(claim));
+  }
+
+  private static FactInput literalIntent(List<String> exactValues) {
+    return new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE, "Log exactly audit-event",
+        null, null, new RequirementElementIntent("audit", "log-record",
+            RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null, null, null, List.of(), exactValues));
+  }
+
+  private static DraftInput absentLiteral() {
+    return literalDraft(null, List.of(), null);
+  }
+
+  private static DraftInput absentRoute() {
+    return new DraftInput(absentLiteral().flow(), List.of(new FactInput("route", List.of("entry"), FactKind.BEHAVIOR,
+        Polarity.POSITIVE, "route-key", null, null, new RequirementElementIntent("route", "log-record",
+            RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null, null, null, List.of(), List.of()))),
+        absentLiteral().capabilities(), List.of(), absentLiteral().settings());
+  }
+
+  private static DraftInput coveredLiteral(String site) {
+    String literal = "audit-event";
+    String requestedName = "name".equals(site) ? literal : null;
+    List<PlanProperty> properties = switch (site) {
+      case "property" -> List.of(new PlanProperty("message", literal));
+      case "body" -> List.of(new PlanProperty("script", "def saved = \"audit-event\"\n"));
+      default -> List.of();
+    };
+    String expression = "mapping".equals(site) ? literal : null;
+    return literalDraft(requestedName, properties, expression);
+  }
+
+  private static DraftInput literalDraft(String requestedName, List<PlanProperty> properties, String expression) {
+    var flow = new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks", "Task endpoint", null, null),
+        new InteractionInput("delivery", Direction.OUTBOUND, "Receiver", "Create task", null, null, null)),
+        List.of(new TransitionInput("entry", "delivery")));
+    var intent = new RequirementElementIntent("audit", "log-record",
+        RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null, null, requestedName, properties, List.of());
+    var fact = new FactInput("audit", List.of("entry", "delivery"), FactKind.FIELD_MAPPING, Polarity.POSITIVE,
+        "Log exactly audit-event", new FieldMappingInput("entry", "$.id", "delivery", "$.Subject", expression),
+        null, intent);
+    return new DraftInput(flow, List.of(fact), List.of(new CapabilityInput("entry", "http-trigger",
+        HttpMode.CUSTOM, HttpMethod.POST, "/tasks", null, null, null)), List.of(), new DraftSettings(false, null));
   }
 
   private static FactInput fact(String id, String text) {

@@ -262,7 +262,7 @@ class RequirementCaptureToolsTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"literal", "name", "property", "text", "target", "order", "fact"})
-  void correctingFreshInvalidPolicyCannotDiscardOtherProtectedRequirements(String loss) throws Exception {
+  void correctingFreshInvalidPolicyRejectsAMissingTargetAndAllowsAnUngroundedFactDrop(String loss) throws Exception {
     var h = harness();
     h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
         .createForUnitTests(h.mapper());
@@ -285,7 +285,9 @@ class RequirementCaptureToolsTest {
       if (loss.equals("fact")) facts.remove(4);
       var input = new DraftInput(corrected.flow(), facts, corrected.capabilities(), corrected.openQuestions(), corrected.settings());
       var refused = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
-      if (loss.equals("target") || loss.equals("fact")) {
+      // A missing interaction target is still invalid. Dropping the audit fact is allowed: its exact value
+      // lived only on the rejected capture, and that capture saved no claim.
+      if (loss.equals("target")) {
         assertFalse(refused.accepted(), refused.toString());
         assertTrue(refused.issues().stream().anyMatch(issue -> "audit".equals(issue.entityId())), refused.toString());
         assertEquals(audit, h.store().rejectedCaptureFacts(h.conversationId()).stream()
