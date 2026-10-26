@@ -182,10 +182,10 @@ public class RequirementDraftStore {
     var baseline = semanticBaseline(conversationId).orElse(null);
     var packet = sourcePacket(conversationId);
     // Claim text and polarity stay protected. Representation fields are not part of the claim.
-    if (baseline != null || hasClaimEvidence(facts)) {
-      issues.addAll(RequirementClaimEvidenceValidator.validate(baseline, facts, packet, amendments));
-      dropRepresentationLoss(issues, baseline, base, facts);
-    }
+    // Initial capture has no saved draft. Treat the candidate as that draft so a quote-less fact stays unclaimed.
+    var accepted = base == null ? facts : base.facts();
+    issues.addAll(RequirementClaimEvidenceValidator.validate(baseline, accepted, facts, packet, amendments));
+    dropRepresentationLoss(issues, baseline, base, facts);
     if (!issues.isEmpty()) {
       return List.copyOf(issues);
     }
@@ -207,6 +207,9 @@ public class RequirementDraftStore {
       List<RequirementCaptureInput.FactInput> facts, AuthorSourceEvidence.Packet packet,
       List<RequirementCaptureInput.AmendmentInput> amendments) {
     var baseline = RequirementClaimEvidenceValidator.reconcile(previous, facts, packet, amendments);
+    if (previous == null && baseline.claims().isEmpty()) {
+      return;
+    }
     String compilationId = sessions.active(conversationId);
     var prior = artifacts.latest(compilationId, Kind.REQUIREMENT_SEMANTIC_BASELINE);
     artifacts.append(new AppendCommand(compilationId, Kind.REQUIREMENT_SEMANTIC_BASELINE, "1",
@@ -227,10 +230,6 @@ public class RequirementDraftStore {
             authority.sourceTurnId() == null ? "current" : authority.sourceTurnId(), text)));
   }
 
-  private static boolean hasClaimEvidence(List<RequirementCaptureInput.FactInput> facts) {
-    return facts.stream().anyMatch(fact -> fact != null && fact.evidence() != null);
-  }
-
   private static void dropRepresentationLoss(List<RequirementCaptureEditor.Issue> issues,
       RequirementSemanticBaseline baseline, RequirementCaptureInput.DraftInput accepted,
       List<RequirementCaptureInput.FactInput> candidate) {
@@ -247,7 +246,7 @@ public class RequirementDraftStore {
         .findFirst().orElse(null);
     var fact = candidate.stream().filter(value -> value != null && Objects.equals(factId, value.sourceFactId()))
         .findFirst().orElse(null);
-    if (claim == null || claim.evidence() == null || fact == null
+    if (claim == null || fact == null
         || !Objects.equals(claim.text(), fact.text()) || claim.polarity() != fact.polarity()) {
       return false;
     }

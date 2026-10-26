@@ -248,8 +248,8 @@ class RequirementSemanticBaselineTest {
     var accepted = capture(world, input);
     assertTrue(accepted.accepted(), accepted.toString());
     assertNull(world.store().get(world.chat()).orElseThrow().authoredDraft().facts().getFirst().evidence());
-    assertEquals(List.of(new RequirementSemanticClaim("goal", "Submit one task.", Polarity.POSITIVE, null)),
-        world.store().semanticBaseline(world.chat()).orElseThrow().claims());
+    assertTrue(world.store().semanticBaseline(world.chat()).isEmpty(),
+        "A quote-less initial capture is an accepted draft, not a claim");
     var attempt = world.artifacts().latest(
         world.sessions().current(world.chat()).orElseThrow().compilationId(),
         Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
@@ -264,33 +264,80 @@ class RequirementSemanticBaselineTest {
     var source = ready(world, AUTHOR);
     var acceptedFact = new FactInput("goal", List.of("submit"), FactKind.GOAL, Polarity.POSITIVE, CLAIM);
     assertTrue(capture(world, draft(List.of(acceptedFact))).accepted());
-    var saved = world.store().semanticBaseline(world.chat()).orElseThrow();
-    assertEquals(List.of(new RequirementSemanticClaim("goal", CLAIM, Polarity.POSITIVE, null)), saved.claims());
+    assertTrue(world.store().semanticBaseline(world.chat()).isEmpty());
 
     var replay = update(world, updateFacts(acceptedFact));
     assertTrue(replay.accepted(), replay.toString());
-    assertEquals(saved.claims(), world.store().semanticBaseline(world.chat()).orElseThrow().claims());
+    assertTrue(world.store().semanticBaseline(world.chat()).isEmpty(),
+        "Replaying an accepted fact does not copy it into the baseline");
 
     var missing = fact("deadline", List.of("submit"), FactKind.CONSTRAINT, Polarity.POSITIVE, "before Friday",
         null, null, null);
     var rejected = update(world, addFact(missing));
     assertFalse(rejected.accepted(), rejected.toString());
     assertIssue(rejected, "SOURCE_EVIDENCE_REQUIRED", "deadline");
-    assertEquals(saved.claims(), world.store().semanticBaseline(world.chat()).orElseThrow().claims());
+    assertTrue(world.store().semanticBaseline(world.chat()).isEmpty());
 
     var forged = fact("deadline", List.of("submit"), FactKind.CONSTRAINT, Polarity.POSITIVE, "before Friday",
         null, null, new ClaimEvidenceInput(source.turnId(), "next Monday"));
-    assertIssue(update(world, addFact(forged)), "SOURCE_EVIDENCE_REQUIRED", "exact substring");
+    var forgedUpdate = update(world, addFact(forged));
+    assertFalse(forgedUpdate.accepted(), forgedUpdate.toString());
+    assertIssue(forgedUpdate, "SOURCE_EVIDENCE_REQUIRED", "exact substring");
+    assertTrue(world.store().semanticBaseline(world.chat()).isEmpty());
 
     var proven = fact("deadline", List.of("submit"), FactKind.CONSTRAINT, Polarity.POSITIVE, "before Friday",
         null, null, new ClaimEvidenceInput(source.turnId(), "before Friday"));
     var added = update(world, addFact(proven));
     assertTrue(added.accepted(), added.toString());
-    assertEquals(List.of(
-        new RequirementSemanticClaim("goal", CLAIM, Polarity.POSITIVE, null),
-        new RequirementSemanticClaim("deadline", "before Friday", Polarity.POSITIVE,
-            new ClaimEvidenceInput(source.turnId(), "before Friday"))),
+    assertEquals(List.of(new RequirementSemanticClaim("deadline", "before Friday", Polarity.POSITIVE,
+        new ClaimEvidenceInput(source.turnId(), "before Friday"))),
         world.store().semanticBaseline(world.chat()).orElseThrow().claims());
+    var goal = world.store().get(world.chat()).orElseThrow().authoredDraft().facts().stream()
+        .filter(fact -> "goal".equals(fact.sourceFactId())).findFirst().orElseThrow();
+    assertEquals(CLAIM, goal.text());
+    assertEquals(Polarity.POSITIVE, goal.polarity());
+    assertNull(goal.evidence());
+  }
+
+  @Test
+  void nullEvidenceBaselineClaimRequiresASourceLinkedAmendment() throws Exception {
+    var world = world();
+    ready(world, AUTHOR);
+    var acceptedFact = new FactInput("goal", List.of("submit"), FactKind.GOAL, Polarity.POSITIVE, CLAIM);
+    assertTrue(capture(world, draft(List.of(acceptedFact))).accepted());
+    var seeded = new RequirementSemanticBaseline("seeded-generation", "seeded-hash",
+        List.of(new RequirementSemanticClaim("goal", CLAIM, Polarity.POSITIVE, null)));
+    appendBaseline(world, seeded);
+    var saved = world.store().semanticBaseline(world.chat()).orElseThrow();
+    assertEquals(seeded, saved);
+    assertNull(saved.claims().getFirst().evidence());
+
+    var changedText = update(world, updateFacts(
+        fact("goal", List.of("submit"), FactKind.GOAL, Polarity.POSITIVE, "Submit two tasks", null, null, null)));
+    assertFalse(changedText.accepted(), changedText.toString());
+    assertIssue(changedText, "AUTHOR_AMENDMENT_REQUIRED", "source-linked amendment");
+    assertEquals(saved, world.store().semanticBaseline(world.chat()).orElseThrow());
+
+    var changedPolarity = update(world, updateFacts(
+        fact("goal", List.of("submit"), FactKind.GOAL, Polarity.NEGATIVE, CLAIM, null, null, null)));
+    assertFalse(changedPolarity.accepted(), changedPolarity.toString());
+    assertIssue(changedPolarity, "AUTHOR_AMENDMENT_REQUIRED", "source-linked amendment");
+    assertEquals(saved, world.store().semanticBaseline(world.chat()).orElseThrow());
+
+    var deleted = update(world, removeFact("goal"));
+    assertFalse(deleted.accepted(), deleted.toString());
+    assertIssue(deleted, "AUTHOR_AMENDMENT_REQUIRED", "source-linked amendment");
+    assertEquals(saved, world.store().semanticBaseline(world.chat()).orElseThrow());
+
+    var revision = ready(world, "Submit two tasks.");
+    var amended = update(world, new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(fact("goal", List.of("submit"), FactKind.GOAL, Polarity.POSITIVE, "Submit two tasks", null, null, null)),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null,
+        List.of(new AmendmentInput("/facts/goal/text", revision.turnId(), "Submit two tasks"))));
+    assertTrue(amended.accepted(), amended.toString());
+    var claim = world.store().semanticBaseline(world.chat()).orElseThrow().claims().getFirst();
+    assertEquals("Submit two tasks", claim.text());
+    assertEquals(new ClaimEvidenceInput(revision.turnId(), "Submit two tasks"), claim.evidence());
   }
 
   @Test
@@ -360,6 +407,12 @@ class RequirementSemanticBaselineTest {
   private static DraftUpdate removeFact(String id) {
     return new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
         List.of(id), List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of());
+  }
+
+  private static void appendBaseline(World world, RequirementSemanticBaseline baseline) {
+    String compilationId = world.sessions().current(world.chat()).orElseThrow().compilationId();
+    world.artifacts().append(new CompilationArtifacts.AppendCommand(compilationId,
+        Kind.REQUIREMENT_SEMANTIC_BASELINE, "1", "requirement-draft-store", "1", baseline, List.of(), null));
   }
 
   private static RequirementCaptureResult capture(World world, DraftInput draft) throws Exception {
