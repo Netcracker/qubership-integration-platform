@@ -81,6 +81,9 @@ class ChainSemanticCaptureToolTest {
         capture.sequenceRegions(), capture.conditionRegions(), capture.splitRegions(), capture.loopRegions(),
         capture.retryRegions(), capture.errorScopeRegions(), capture.edges(), capture.containment());
     assertTrue(tool.captureChainSemanticRevision(invalid).contains("DESIGN_CONTRACT_VIOLATION"));
+    String noticed = tool.captureChainSemanticRevision(invalid);
+    assertTrue(noticed.contains("UNCHANGED_PROPOSAL"), noticed);
+    assertTrue(noticed.contains("REPAIR_CAPTURE"), noticed);
     assertTrue(tool.captureChainSemanticRevision(invalid).contains("REPAIR_NO_PROGRESS"));
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
     assertTrue(tool.captureChainSemanticRevision(capture).contains("HANDOFF"));

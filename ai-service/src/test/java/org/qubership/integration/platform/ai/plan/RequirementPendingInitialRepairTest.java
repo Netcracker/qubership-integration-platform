@@ -144,8 +144,10 @@ class RequirementPendingInitialRepairTest {
     int credits = h.fingerprints.softCreditsUsed(h.chat);
     String scope = h.store.captureMutationScope(h.chat);
     var initial = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token");
-    assertThrows(CaptureNoProgressException.class, () -> h.call("updateRequirementDraft",
-        Map.of("changes", h.changes(original.facts(), initial))));
+    var noticed = h.call("updateRequirementDraft", Map.of("changes", h.changes(original.facts(), initial)));
+    assertFalse(noticed.path("accepted").asBoolean());
+    assertEquals("REPAIR_CAPTURE", noticed.path("nextAction").asText());
+    assertTrue(noticed.path("issues").toString().contains("UNCHANGED_PROPOSAL"));
     var latest = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token");
     assertNotEquals(initial, latest);
     assertThrows(CaptureNoProgressException.class, () -> h.call("updateRequirementDraft",

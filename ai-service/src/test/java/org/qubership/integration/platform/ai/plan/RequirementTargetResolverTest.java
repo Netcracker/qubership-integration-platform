@@ -63,6 +63,24 @@ class RequirementTargetResolverTest {
         .anyMatch(issue -> "INVALID_TARGET_SELECTION".equals(issue.code())));
   }
 
+  @Test
+  void aNamedChainWithNoTriggerAsksTheUserInsteadOfInventingAnId() {
+    RequirementTargetResolver resolver = new RequirementTargetResolver(
+        mock(CompositionCatalogBinder.class), mock(McpSystemCatalogBinder.class));
+
+    var missing = resolver.resolve(draft(null));
+    assertTrue(missing.targetIds().isEmpty());
+    var issue = missing.issues().getFirst();
+    assertEquals("INVALID_TARGET_SELECTION", issue.code());
+    assertTrue(issue.message().contains("Target Chain"), issue.message());
+    assertTrue(issue.message().contains("Ask which catalog chain to call"), issue.message());
+    assertTrue(!issue.message().contains("Set targetReference"), issue.message());
+    var invented = resolver.resolve(draft("invented-trigger")).issues().getFirst();
+    assertEquals("INVALID_TARGET_SELECTION", invented.code());
+    assertTrue(invented.message().contains("Do not invent a trigger id."), invented.message());
+    assertTrue(!invented.message().contains("Set targetReference"), invented.message());
+  }
+
   private static DraftInput draft(String reference) {
     return new DraftInput(new FlowInput(List.of(
         new InteractionInput("call", Direction.OUTBOUND, "Target Chain", "Invoke",

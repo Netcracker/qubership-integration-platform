@@ -639,19 +639,29 @@ public class RequirementCaptureTools {
     }
     if (RequirementCaptureEditor.validate(input).isEmpty()) {
     for (var fact : RequirementCaptureProjection.facts(input)) {
-      var unbound = org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings.unbound(fact, RequirementCaptureProjection.facts(input));
+      var unbound = org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings.unbound(
+          fact, RequirementCaptureProjection.facts(input), RequirementCaptureProjection.flow(input).interactions());
       if (!unbound.isEmpty()) issues.add(new Issue("UNBOUND_REQUIRED_LITERAL",
           "/draft/facts/" + fact.sourceFactId() + "/elementIntent/requestedProperties", fact.sourceFactId(),
           "Required literals at /draft/facts/" + fact.sourceFactId() + "/elementIntent/exactValues lack an implementation binding: "
-              + mapper.valueToTree(unbound) + ". Bind each unchanged literal to supported properties or an owned executable artifact."
-              + (elementSchemas == null ? "" : " Current runtime property keys for " + fact.elementIntent().elementType()
-                  + ": " + new java.util.TreeSet<>(elementSchemas.allowedPatchPropertyKeys(fact.elementIntent().elementType()))
+              + mapper.valueToTree(unbound) + ". Bind each runtime literal to a writable property or an owned executable artifact."
+              + " A catalog system or operation name belongs on the interaction participant or operation."
+              + " Do not copy it into an integration id property."
+              + (elementSchemas == null ? "" : " Current writable property keys for " + fact.elementIntent().elementType()
+                  + ": " + writablePropertyKeys(fact.elementIntent().elementType())
                   + ". Use describeElementProperty for the selected property's current value schema.")
               + " Use the saved author source; preserve the fact, exactValues, and existing values."
               + " Names, descriptions, unrelated nodes, and comments cannot implement runtime values."));
     }
     }
     return issues;
+  }
+
+  private java.util.SortedSet<String> writablePropertyKeys(String elementType) {
+    var keys = new java.util.TreeSet<>(elementSchemas.allowedPatchPropertyKeys(elementType));
+    keys.removeIf(key -> key.endsWith("Id") && key.startsWith("integration")
+        || "chain-call-2".equals(elementType) && "elementId".equals(key));
+    return keys;
   }
 
   private static boolean authorContainsLiteral(String authorText, String literal) {
@@ -759,13 +769,14 @@ public class RequirementCaptureTools {
         DraftInput candidate = pending != null ? pending.candidate()
             : arguments instanceof DraftInput draft ? draft : null;
         DraftInput resolvedCandidate = pending == null ? null : pending.candidate();
-        var repeated = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)
+        var captureTool = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName);
+        var identical = captureTool
             && (feedbackStore.lastRequirementRejection(conversationId).isPresent()
                 || feedbackStore.fingerprintStore().softCreditsUsed(conversationId) > 0)
-            ? store.rejectedProposal(conversationId, toolName, arguments, candidate) : java.util.Optional.<RequirementDraftStore.RequirementCaptureAttempt>empty();
-        if (repeated.isPresent()) {
+            ? store.identicalRejections(conversationId, toolName, arguments, candidate) : List.<RequirementDraftStore.RequirementCaptureAttempt>of();
+        if (identical.size() >= 2) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
-          var issues = new ArrayList<>(repeated.orElseThrow().issues());
+          var issues = new ArrayList<>(identical.getFirst().issues());
           issues.add(new RequirementCaptureResult.CaptureIssue("REPAIR_NO_PROGRESS", "/", null, null,
               "The same proposal was rejected under the current source, base, and repair authority. Submit a different correction."));
           var rejected = view(store.get(conversationId).orElse(null), false, false,
@@ -782,7 +793,20 @@ public class RequirementCaptureTools {
           store.recordCaptureOutcome(conversationId, toolName, arguments, stopped, resolvedCandidate, selectedAttempt);
           return stopped;
         }
-        return recordOutcome(toolName, arguments, action.apply(pending), resolvedCandidate, selectedAttempt);
+        var outcome = recordOutcome(toolName, arguments, action.apply(pending), resolvedCandidate, selectedAttempt);
+        if (identical.size() == 1 && !outcome.accepted()) {
+          var noticed = new ArrayList<>(outcome.issues());
+          String open = outcome.issues().stream().map(RequirementCaptureResult.CaptureIssue::message)
+              .filter(message -> message != null && !message.isBlank()).findFirst()
+              .orElse("The previous rejection still applies.");
+          noticed.add(new RequirementCaptureResult.CaptureIssue("UNCHANGED_PROPOSAL", "/", null, null,
+              "This proposal is unchanged. " + open
+                  + " Change the rejected field. Sending this same proposal again ends the correction."));
+          outcome = new RequirementCaptureResult(outcome.accepted(), outcome.changed(), outcome.revision(),
+              outcome.readiness(), RequirementCaptureResult.NextAction.REPAIR_CAPTURE, List.copyOf(noticed),
+              outcome.pendingWork(), outcome.draft(), outcome.resolutions(), outcome.defaults());
+        }
+        return outcome;
       });
       result = result.withRepairConstraints(store.repairConstraints(conversationId));
       if (recoveryControl != null && "captureRequirementDraft".equals(toolName) && arguments instanceof DraftInput draft) {

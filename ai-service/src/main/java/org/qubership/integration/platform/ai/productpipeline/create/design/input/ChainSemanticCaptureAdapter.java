@@ -418,8 +418,9 @@ public class ChainSemanticCaptureAdapter {
             || !reachableWithinTransition(intent.parentElementRef(), nodeId, children, Set.of())) {
           errors.add("ELEMENT_INTENT_PARENT: elementRef=" + intent.elementRef()
               + " parent=" + intent.parentElementRef()
-              + ". Place the element inside its approved container using containment or the container region."
-              + " Preserve execution order separately; a parent reference does not require an execution edge.");
+              + ". Place the child inside the container. Add a containment entry whose parentNodeId is the container,"
+              + " whose childNodeId is this element, and whose role is body, or add the child to that container's region."
+              + " A parent reference does not place the element inside the container.");
         }
       }
       if (intent.successorElementRef() != null

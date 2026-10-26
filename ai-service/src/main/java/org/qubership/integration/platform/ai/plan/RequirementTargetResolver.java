@@ -57,16 +57,24 @@ public class RequirementTargetResolver {
                 || capability.targetReference() == null
                     && same(owner.participant(), trigger.chainName))
             .toList();
+        List<String> verified = triggers.stream()
+            .filter(trigger -> trigger != null && trigger.id != null
+                && same(owner.participant(), trigger.chainName))
+            .map(trigger -> trigger.id).toList();
+        boolean named = owner.participant() != null && !owner.participant().isBlank();
         if (matches.size() == 1 && (owner.participant() == null
             || same(owner.participant(), matches.getFirst().chainName))) {
           resolved.put(capability.interactionId(), matches.getFirst().id);
+        } else if (verified.isEmpty() && (named || capability.targetReference() != null)) {
+          issues.add(new Issue("INVALID_TARGET_SELECTION", path, capability.interactionId(),
+              named
+                  ? "The catalog has no chain trigger for \"" + owner.participant()
+                      + "\". Ask which catalog chain to call. Do not invent a trigger id."
+                  : "The catalog chain is not named. Ask which catalog chain to call. Do not invent a trigger id."));
         } else if (capability.targetReference() != null) {
           issues.add(new Issue("INVALID_TARGET_SELECTION", path, capability.interactionId(),
               "Set targetReference to the chain-trigger element ID only, without a chain ID or separator."
-                  + " Verified trigger IDs for this target chain: " + triggers.stream()
-                      .filter(trigger -> trigger != null && trigger.id != null
-                          && same(owner.participant(), trigger.chainName))
-                      .map(trigger -> trigger.id).toList() + "."));
+                  + " Verified trigger IDs for this target chain: " + verified + "."));
         }
       } else if ("mcp-trigger".equals(capability.capabilityKey())) {
         if (systems == null) {

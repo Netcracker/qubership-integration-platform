@@ -233,6 +233,7 @@ class RequirementRevisionAdmissionTest {
         var stillInvalid = h.mapper.treeToValue(changed, DraftInput.class);
         assertFalse(h.capture(stillInvalid).accepted());
         spent = fingerprints.softCreditsUsed(h.chat);
+        assertFalse(h.capture(stillInvalid).accepted());
         assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
             () -> h.capture(stillInvalid), "A new rejection must bind its effective normalized contract");
         assertEquals(spent, fingerprints.softCreditsUsed(h.chat));
@@ -1052,6 +1053,7 @@ class RequirementRevisionAdmissionTest {
       assertEquals(source.turnId(), h.archive.pendingInputs(h.chat).getFirst().id());
       assertTrue(h.store.latestRevision(h.chat).orElseThrow().inputs().isEmpty());
       var protection = h.store.repairConstraints(h.chat);
+      assertFalse(h.update(rejected).accepted());
       var stopped = assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
           () -> h.update(rejected), "A binding-only refresh must not grant another identical proposal");
       assertNotNull(stopped.evidence());

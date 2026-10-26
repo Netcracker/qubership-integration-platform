@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.qipknowledge.validation;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -25,6 +26,24 @@ class CompilerQualityValidatorTest {
         named.withNodeProperty("script", "script", "exchange.in.body = 'other'"), brief);
     assertTrue(findings.stream().anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())),
         findings.toString());
+  }
+
+  @Test
+  void onlyAMissingScriptLiteralKeepsTheRejectedGraph() {
+    var brief = requiredScriptLiteral("receipt-total");
+    var named = RequestedElementValues.apply(graph(), brief.facts());
+    var findings = CompilerQualityValidator.validateApprovedValues(
+        named.withNodeProperty("script", "script", "exchange.in.body = 'other'"), brief);
+
+    assertEquals(List.of("MISSING_REQUIRED_SCRIPT_LITERAL"),
+        findings.stream().map(ValidationIssue::findingCode).toList());
+    assertTrue(CompilerQualityValidator.onlyMissingScriptLiterals(findings));
+    assertFalse(CompilerQualityValidator.onlyMissingScriptLiterals(List.of()));
+    assertFalse(CompilerQualityValidator.onlyMissingScriptLiterals(List.of(
+        findings.getFirst(),
+        new ValidationIssue("other", ValidationSeverity.BLOCKER, "Name differs.",
+            "cip-naming-generator", List.of("script"), List.of(), "Restore the approved name.",
+            "NAME_MISMATCH", "script", "/requestedName"))));
   }
 
   @Test

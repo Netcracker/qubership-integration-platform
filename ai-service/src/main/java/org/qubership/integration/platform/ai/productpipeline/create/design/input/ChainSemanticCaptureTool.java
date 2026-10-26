@@ -211,7 +211,14 @@ public class ChainSemanticCaptureTool {
       validator.validate(revision, contract, brief);
     } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException repeated) {
       String summary = feedbackStore.lastPlanFailure(conversationId).orElseThrow().summary();
-      ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary);
+      boolean terminal = feedbackStore.identicalFailureCount(conversationId, "design-input") >= 2;
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary, terminal);
+      if (!terminal) {
+        return rejected("UNCHANGED_PROPOSAL", "/capture",
+            "This proposal is unchanged. " + summary
+                + " Change the capture. Sending this same proposal again ends the correction.",
+            false);
+      }
       return rejected("REPAIR_NO_PROGRESS", "/capture", summary, true);
     } catch (IllegalArgumentException ex) {
       feedbackStore.recordClassifiedPlanFailure(conversationId,

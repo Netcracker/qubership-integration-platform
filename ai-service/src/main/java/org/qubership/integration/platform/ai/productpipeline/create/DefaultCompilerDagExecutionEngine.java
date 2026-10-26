@@ -279,6 +279,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       llmBudget.linkConversation(engineRequest.runId(), workspaceId);
     }
     applySeed(seed);
+    installAttributedRepairGraph(engineRequest);
     PinnedRunContext pinned = resolvePinnedRun(engineRequest);
     List<Reference> consumedArtifacts =
         consumedArtifactsForRun(pinned, engineRequest.preSatisfiedArtifactRefs());
@@ -310,6 +311,11 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
           LOG.infof(
               "Skipping generator skillId=%s reason=manifest SKIPPED",
               node.skillId());
+          state = applyCompletion(state, node, List.of());
+          executed.add(node.skillId());
+        } else if (defersToAttributedOwner(node, engineRequest.repairEvidence())) {
+          LOG.infof("Skipping generator skillId=%s reason=repair is owned by %s",
+              node.skillId(), engineRequest.repairEvidence().failedSkillId());
           state = applyCompletion(state, node, List.of());
           executed.add(node.skillId());
         } else {
@@ -486,6 +492,21 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     }
     String generatorId = node.generatorId();
     return generatorId != null && !generatorId.isBlank() && generatorId.startsWith("GEN-");
+  }
+
+  private void installAttributedRepairGraph(CompilerDagExecutionRequest engineRequest) {
+    var repair = engineRequest.repairEvidence();
+    if (repair == null || !repair.keepsRejectedGraph()) {
+      return;
+    }
+    repair.rejectedGraph().ifPresent(graph -> workspaceStore.putArtifact(
+        engineRequest.effectiveSeed().workspaceId(),
+        SkillArtifact.of(SkillArtifactType.CHAIN_PLAN_GRAPH, repair.failedSkillId(),
+            new SkillArtifactPayload.ChainPlanGraphPayload(graph))));
+  }
+
+  private static boolean defersToAttributedOwner(ResolvedCompilerNode node, StageRepairEvidence repair) {
+    return isGeneratorNode(node) && repair != null && repair.defersGenerator(node.skillId());
   }
 
   private boolean shouldSkipGenerator(ResolvedCompilerNode node, SkillWorkspace workspace) {
