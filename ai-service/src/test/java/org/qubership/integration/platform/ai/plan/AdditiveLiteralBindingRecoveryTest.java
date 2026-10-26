@@ -94,7 +94,52 @@ class AdditiveLiteralBindingRecoveryTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"wrong-value", "literal-deletion", "property-loss", "source-text-loss"})
+  @ValueSource(booleans = {false, true})
+  void sourceBackedLiteralCanLeaveExactValues(boolean reload) throws Exception {
+    var h = new Harness();
+    h.rejectOwnerThenBinding(draft(false, null));
+    if (reload) {
+      h.reload();
+    }
+    var moved = clearExactValues(h.mapper, draft(true, LITERAL));
+    var audit = moved.facts().get(1);
+    assertEquals(List.of(), audit.elementIntent().exactValues());
+    assertTrue(audit.elementIntent().requestedProperties().stream()
+        .anyMatch(property -> "message".equals(property.key()) && LITERAL.equals(property.value())));
+
+    var accepted = h.capture(moved);
+
+    assertTrue(accepted.accepted(), accepted.toString());
+    assertFalse(accepted.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())),
+        accepted.toString());
+    assertEquals(List.of(), h.store.get(h.chat).orElseThrow().authoredDraft().facts().get(1)
+        .elementIntent().exactValues());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"literal-deletion", "property-loss", "source-text-loss"})
+  void rejectedProjectionAllowsCoveredLiteralPropertyAndUnclaimedTextChanges(String mutation) throws Exception {
+    var h = new Harness();
+    h.rejectOwnerThenBinding(draft(false, null));
+    var candidate = mutated(h.mapper, draft(true, LITERAL), mutation);
+
+    var accepted = h.capture(candidate);
+
+    assertTrue(accepted.accepted(), accepted.toString());
+    assertFalse(accepted.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())),
+        accepted.toString());
+    var saved = h.store.get(h.chat).orElseThrow().authoredDraft();
+    switch (mutation) {
+      case "literal-deletion" -> assertEquals(List.of(), saved.facts().get(1).elementIntent().exactValues());
+      case "property-loss" -> assertTrue(saved.facts().getFirst().elementIntent().requestedProperties().stream()
+          .noneMatch(property -> "externalRoute".equals(property.key())));
+      case "source-text-loss" -> assertEquals("Preserve the body.", saved.facts().get(3).text());
+      default -> throw new IllegalArgumentException(mutation);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"wrong-value"})
   void bindingRepairRefusesWrongValuesAndIndependentRequirementLoss(String mutation) throws Exception {
     for (boolean reload : List.of(false, true)) {
       var h = new Harness();
@@ -164,6 +209,12 @@ class AdditiveLiteralBindingRecoveryTest {
     ((com.fasterxml.jackson.databind.node.ArrayNode) expected.at("/facts/1/elementIntent/requestedProperties"))
         .add(mapper.valueToTree(new PlanProperty("message", LITERAL)));
     assertEquals(expected, mapper.valueToTree(after), "All original facts, literals, names, properties, and settings remain exact");
+  }
+
+  private static DraftInput clearExactValues(ObjectMapper mapper, DraftInput draft) throws Exception {
+    var value = mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(draft);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) value.at("/facts/1/elementIntent")).putArray("exactValues");
+    return mapper.treeToValue(value, DraftInput.class);
   }
 
   private static DraftInput mutated(ObjectMapper mapper, DraftInput draft, String mutation) throws Exception {

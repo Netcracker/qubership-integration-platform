@@ -47,7 +47,7 @@ class MiniTopologyRepresentationRecoveryTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void rejectedTopologyCannotBeDemotedWithoutIndependentSemanticProof(boolean reload) throws Exception {
+  void rejectedTopologyDemotionIsAMutableRepresentation(boolean reload) throws Exception {
     var h = new Harness();
     h.rejectInitial();
     var originalAttempt = h.artifacts.latest(h.sessions.active(h.chat),
@@ -61,20 +61,16 @@ class MiniTopologyRepresentationRecoveryTest {
 
     var result = h.capture(corrected);
 
-    assertFalse(result.accepted(), "Changed interaction scopes require independent semantic proof.");
-    assertTrue(result.issues().stream().anyMatch(issue -> "AUTHOR_AMENDMENT_REQUIRED".equals(issue.code())
-        && "/capabilities/summarizeParcels".equals(issue.path())), result.toString());
-    assertEquals(originalBase, h.store.latestRevision(h.chat));
-    assertTrue(h.store.get(h.chat).isEmpty());
-    assertNull(result.revision());
-    assertNull(result.draft());
+    assertTrue(result.accepted(), result.toString());
+    assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+    assertNotEquals(originalBase, h.store.latestRevision(h.chat));
     assertEquals(originalPayload, h.artifacts.get(originalAttempt.compilationId(), originalAttempt.reference())
         .orElseThrow().payload());
-    h.assertSourceAndAttempt(corrected, false);
+    h.assertSourceAndAttempt(corrected, true);
   }
 
   @Test
-  void topologyCorrectionCannotDeleteTheActualScriptBehavior() throws Exception {
+  void rejectedTopologyCanDropTheScriptBehaviorFact() throws Exception {
     var h = new Harness();
     h.rejectInitial();
     var proposed = (ObjectNode) JSON.valueToTree(corrected(h.initial));
@@ -86,15 +82,14 @@ class MiniTopologyRepresentationRecoveryTest {
 
     var result = h.capture(candidate);
 
-    assertFalse(result.accepted());
-    assertTrue(result.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
-        && "/draft/facts/script-behavior".equals(issue.path())), result.toString());
-    assertTrue(h.store.latestRevision(h.chat).isEmpty());
-    h.assertSourceAndAttempt(candidate, false);
+    assertTrue(result.accepted(), result.toString());
+    assertTrue(h.store.get(h.chat).orElseThrow().authoredDraft().facts().stream()
+        .noneMatch(fact -> "script-behavior".equals(fact.sourceFactId())));
+    h.assertSourceAndAttempt(candidate, true);
   }
 
   @Test
-  void topologyCorrectionCannotChangeTheTrueInboundRoute() throws Exception {
+  void rejectedTopologyCanChangeTheInboundRoute() throws Exception {
     var h = new Harness();
     h.rejectInitial();
     var proposed = (ObjectNode) JSON.valueToTree(corrected(h.initial));
@@ -103,11 +98,10 @@ class MiniTopologyRepresentationRecoveryTest {
 
     var result = h.capture(candidate);
 
-    assertFalse(result.accepted());
-    assertTrue(result.issues().stream().anyMatch(issue -> "AUTHOR_AMENDMENT_REQUIRED".equals(issue.code())
-        && "/capabilities/entry/path".equals(issue.path())), result.toString());
-    assertTrue(h.store.latestRevision(h.chat).isEmpty());
-    h.assertSourceAndAttempt(candidate, false);
+    assertTrue(result.accepted(), result.toString());
+    assertEquals("/unauthorized-route",
+        h.store.get(h.chat).orElseThrow().authoredDraft().capabilities().getFirst().path());
+    h.assertSourceAndAttempt(candidate, true);
   }
 
   private static DraftInput corrected(DraftInput initial) throws Exception {

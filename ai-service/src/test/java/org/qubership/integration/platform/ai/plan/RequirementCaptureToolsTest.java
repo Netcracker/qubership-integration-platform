@@ -285,17 +285,22 @@ class RequirementCaptureToolsTest {
       if (loss.equals("fact")) facts.remove(4);
       var input = new DraftInput(corrected.flow(), facts, corrected.capabilities(), corrected.openQuestions(), corrected.settings());
       var refused = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
-      assertFalse(refused.accepted(), refused.toString());
-      assertTrue(refused.issues().stream().anyMatch(issue -> "audit".equals(issue.entityId())), refused.toString());
-      assertEquals(audit, h.store().rejectedCaptureFacts(h.conversationId()).stream()
-          .filter(fact -> fact.sourceFactId().equals("audit")).findFirst().orElseThrow());
-      assertTrue(h.store().get(h.conversationId()).isEmpty());
+      if (loss.equals("target") || loss.equals("fact")) {
+        assertFalse(refused.accepted(), refused.toString());
+        assertTrue(refused.issues().stream().anyMatch(issue -> "audit".equals(issue.entityId())), refused.toString());
+        assertEquals(audit, h.store().rejectedCaptureFacts(h.conversationId()).stream()
+            .filter(fact -> fact.sourceFactId().equals("audit")).findFirst().orElseThrow());
+        assertTrue(h.store().get(h.conversationId()).isEmpty());
+      } else {
+        assertTrue(refused.accepted(), refused.toString());
+        assertEquals(input, h.store().get(h.conversationId()).orElseThrow().authoredDraft());
+      }
     }
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void historicalProtectedPolicyMetadataIsNotReleasedByFreshApplicabilityDiagnostics(boolean reload) throws Exception {
+  void rejectedPolicyMetadataCanBeReplacedByAFreshShapeValidDraft(boolean reload) throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();
     var archive = new ConversationArchive(blobs, mapper);
@@ -309,16 +314,12 @@ class RequirementCaptureToolsTest {
     var legacy = policyApplicabilityDraft("false", false, true, source.turnId());
     // This negative starts with metadata persisted by the earlier metadata-only validation contract.
     h.store().rememberRejectedCaptureFacts(chat, legacy.facts());
-    var protectedBefore = mapper.valueToTree(h.store().rejectedCaptureFacts(chat));
     if (reload) h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
     try (var ignored = ToolSession.open(chat)) {
       var removal = policyApplicabilityDraft("false", false, false, source.turnId());
       var refused = mapper.readValue(h.tools().captureRequirementDraft(removal), RequirementCaptureResult.class);
-      assertFalse(refused.accepted(), refused.toString());
-      assertTrue(refused.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
-          && "access-policy".equals(issue.entityId())), refused.toString());
-      assertEquals(protectedBefore, mapper.valueToTree(h.store().rejectedCaptureFacts(chat)));
-      assertTrue(h.store().get(chat).isEmpty());
+      assertTrue(refused.accepted(), refused.toString());
+      assertEquals(removal, h.store().get(chat).orElseThrow().authoredDraft());
       assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
     }
   }
@@ -654,19 +655,19 @@ class RequirementCaptureToolsTest {
       assertTrue(result.issues().stream().anyMatch(i -> "UNBOUND_REQUIRED_LITERAL".equals(i.code())), result.toString());
       assertTrue(result.issues().stream().anyMatch(i -> i.message().contains("message")
           && i.message().contains("describeElementProperty")), result.toString());
-      for (boolean keepLevel : List.of(false, true)) {
-        var props = new ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
-        props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", literal));
-        if (keepLevel) props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("logLevel", "Info"));
-        var corrected = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
-            intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(), null, props, intent.exactValues());
-        var candidate = new DraftInput(base.flow(), List.of(base.facts().getFirst(), new FactInput(fact.sourceFactId(),
-            fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(), null, null, corrected)),
-            base.capabilities(), base.openQuestions(), base.settings());
-        var outcome = h.mapper().readValue(h.tools().captureRequirementDraft(candidate), RequirementCaptureResult.class);
-        assertEquals(keepLevel, outcome.accepted(), outcome.toString());
-        if (!keepLevel) assertTrue(outcome.issues().stream().anyMatch(i -> "REPAIR_FACT_LOSS".equals(i.code())));
-      }
+      var props = new ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
+      props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", literal));
+      var corrected = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+          intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(), null, props, intent.exactValues());
+      var candidate = new DraftInput(base.flow(), List.of(base.facts().getFirst(), new FactInput(fact.sourceFactId(),
+          fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(), null, null, corrected)),
+          base.capabilities(), base.openQuestions(), base.settings());
+      var outcome = h.mapper().readValue(h.tools().captureRequirementDraft(candidate), RequirementCaptureResult.class);
+      assertTrue(outcome.accepted(), outcome.toString());
+      assertTrue(outcome.draft().facts().get(1).elementIntent().requestedProperties().stream()
+          .anyMatch(property -> "message".equals(property.key()) && literal.equals(property.value())));
+      assertTrue(outcome.draft().facts().get(1).elementIntent().requestedProperties().stream()
+          .noneMatch(property -> "logLevel".equals(property.key())));
     }
   }
 
@@ -848,14 +849,6 @@ class RequirementCaptureToolsTest {
       assertTrue(issue.message().contains("catalog operation"), issue.message());
       assertTrue(issue.message().contains("exactValues"), issue.message());
       assertTrue(issue.message().contains("elementIntent"), issue.message());
-
-      var lost = new DraftInput(original.flow(), original.facts().stream()
-          .filter(fact -> !"async-trigger-anchor".equals(fact.sourceFactId())).toList(),
-          original.capabilities(), original.openQuestions(), original.settings());
-      var loss = h.mapper().readValue(h.tools().captureRequirementDraft(lost), RequirementCaptureResult.class);
-      assertFalse(loss.accepted());
-      assertTrue(loss.issues().stream().anyMatch(finding -> "REPAIR_FACT_LOSS".equals(finding.code())
-          && "async-trigger-anchor".equals(finding.entityId())));
 
       var facts = original.facts().stream().map(fact -> {
         if (!"async-trigger-anchor".equals(fact.sourceFactId())) return fact;
@@ -1739,7 +1732,7 @@ class RequirementCaptureToolsTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void rejectedInitializationProtectsFactsAfterStoreReconstruction(boolean clearPriorAttempt) throws Exception {
+  void rejectedInitializationCanNarrowAfterRestart(boolean clearPriorAttempt) throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();
     var archive = new ConversationArchive(blobs, mapper);
@@ -1770,12 +1763,13 @@ class RequirementCaptureToolsTest {
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
       var loss = mapper.readValue(restored.tools().captureRequirementDraft(ready), RequirementCaptureResult.class);
-      assertFalse(loss.accepted(), loss.toString());
-      assertEquals("REPAIR_FACT_LOSS", loss.issues().getFirst().code());
+      assertTrue(loss.accepted(), loss.toString());
+      assertEquals(ready, restored.store().get(chat).orElseThrow().authoredDraft());
       var corrected = new DraftInput(ready.flow(), List.of(goal, visibility), ready.capabilities(),
           ready.openQuestions(), ready.settings());
-      assertTrue(mapper.readValue(restored.tools().captureRequirementDraft(corrected),
-          RequirementCaptureResult.class).accepted());
+      var again = mapper.readValue(restored.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
+      assertFalse(again.accepted(), again.toString());
+      assertTrue(again.issues().stream().anyMatch(issue -> "DRAFT_ALREADY_EXISTS".equals(issue.code())), again.toString());
     }
   }
 
@@ -1806,7 +1800,13 @@ class RequirementCaptureToolsTest {
           new FactInput("renamed-visibility", visibility.interactionIds(),
           visibility.kind(), visibility.polarity(), visibility.text())));
       var changed = new DraftInput(ready.flow(), facts, ready.capabilities(), ready.openQuestions(), ready.settings());
-      assertFalse(mapper.readValue(h.tools().captureRequirementDraft(changed), RequirementCaptureResult.class).accepted());
+      var renamed = mapper.readValue(h.tools().captureRequirementDraft(changed), RequirementCaptureResult.class);
+      if (!structuralFailure) {
+        assertTrue(renamed.accepted(), renamed.toString());
+        assertEquals(changed, h.store().get(chat).orElseThrow().authoredDraft());
+        return;
+      }
+      assertFalse(renamed.accepted(), renamed.toString());
       assertEquals(2, h.store().rejectedCaptureFacts(chat).size());
       assertTrue(h.store().rejectedCaptureFacts(chat).contains(visibility));
       assertFalse(h.store().rejectedCaptureFacts(chat).stream()
@@ -2510,11 +2510,11 @@ class RequirementCaptureToolsTest {
       var repairedContext = context.apply(true);
       var lost = h.mapper().readValue(h.tools().updateRequirementDraft(add.apply(List.of(repairedContext))),
           RequirementCaptureResult.class);
-      assertFalse(lost.accepted(), "Repair must not silently lose the newly supplied role");
-      assertTrue(lost.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
-          && "role".equals(issue.entityId())));
-      var repaired = h.mapper().readValue(h.tools().updateRequirementDraft(
-          add.apply(List.of(role, repairedContext))), RequirementCaptureResult.class);
+      assertTrue(lost.accepted(), lost.toString());
+      assertFalse(lost.draft().facts().stream().anyMatch(fact -> "role".equals(fact.sourceFactId())));
+      assertTrue(lost.draft().facts().stream().anyMatch(fact -> "context".equals(fact.sourceFactId())));
+      var repaired = h.mapper().readValue(h.tools().updateRequirementDraft(add.apply(List.of(role))),
+          RequirementCaptureResult.class);
       assertTrue(repaired.accepted(), repaired.toString());
       assertTrue(repaired.draft().facts().contains(role));
     }
@@ -2624,16 +2624,17 @@ class RequirementCaptureToolsTest {
 
       RequirementCaptureResult lost = harness.mapper().readValue(
           harness.tools().captureRequirementDraft(ready), RequirementCaptureResult.class);
-      assertFalse(lost.accepted(), lost.toString());
-      assertEquals("REPAIR_FACT_LOSS", lost.issues().getFirst().code());
-      assertTrue(harness.store().get(harness.conversationId()).isEmpty());
+      assertTrue(lost.accepted(), lost.toString());
+      assertEquals(ready.facts(), harness.store().get(harness.conversationId()).orElseThrow()
+          .authoredDraft().facts());
 
       DraftInput corrected = new DraftInput(ready.flow(), List.of(goal, visibility),
           ready.capabilities(), ready.openQuestions(), ready.settings());
       RequirementCaptureResult repaired = harness.mapper().readValue(
           harness.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
-      assertTrue(repaired.accepted(), repaired.toString());
-      assertEquals(corrected.facts(), repaired.draft().facts());
+      assertFalse(repaired.accepted(), repaired.toString());
+      assertTrue(repaired.issues().stream().anyMatch(issue -> "DRAFT_ALREADY_EXISTS".equals(issue.code())),
+          repaired.toString());
     }
   }
 

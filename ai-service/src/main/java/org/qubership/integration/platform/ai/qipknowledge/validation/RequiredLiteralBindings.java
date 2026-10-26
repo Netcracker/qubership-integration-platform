@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -54,6 +55,39 @@ public final class RequiredLiteralBindings {
       if (!bound) unbound.add(literal);
     }
     return List.copyOf(unbound);
+  }
+
+  /**
+   * A source-backed literal stays covered when it sits in the requested name, a property, the
+   * element body, a mapping text, or {@code exactValues}. Leaving {@code exactValues} is allowed.
+   * A service-call display name is not an implementation binding for {@link #unbound}.
+   */
+  public static boolean covered(RequirementElementIntent intent, String literal, List<String> mappingTexts) {
+    if (literal == null || literal.isBlank() || intent == null) {
+      return false;
+    }
+    if (literal.equals(intent.requestedName())) {
+      return true;
+    }
+    if (intent.exactValues() != null && intent.exactValues().contains(literal)) {
+      return true;
+    }
+    if (intent.requestedProperties() != null) {
+      for (var property : intent.requestedProperties()) {
+        if (property != null && boundValue(property.key(), property.value(), literal)) {
+          return true;
+        }
+      }
+    }
+    if (mappingTexts == null) {
+      return false;
+    }
+    for (String text : mappingTexts) {
+      if (literal.equals(text)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** A catalog participant or operation is owned by that interaction, not by a runtime property. */

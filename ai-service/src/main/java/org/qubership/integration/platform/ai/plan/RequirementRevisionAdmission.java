@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues;
+import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
@@ -580,13 +581,20 @@ final class RequirementRevisionAdmission {
   static List<Issue> validate(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
       JsonNode protectedValues, Set<String> authorPaths, Set<String> repairPaths, Map<String, Set<String>> mappingPaths,
       Predicate<FactInput> canAnswer) {
+    return validate(base, candidate, protectedFacts, protectedValues, authorPaths, repairPaths, mappingPaths,
+        canAnswer, null);
+  }
+
+  static List<Issue> validate(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
+      JsonNode protectedValues, Set<String> authorPaths, Set<String> repairPaths, Map<String, Set<String>> mappingPaths,
+      Predicate<FactInput> canAnswer, RequirementSemanticBaseline baseline) {
     var issues = new ArrayList<>(base == null ? RequirementCaptureEditor.initialize(candidate).issues()
         : RequirementCaptureEditor.validate(candidate));
     if (!issues.isEmpty()) {
-      return List.copyOf(issues);
+      return decide(base, candidate, authorPaths, repairPaths, baseline, issues);
     }
-    var allowed = new java.util.LinkedHashSet<>(authorPaths);
     if (base != null) {
+      var allowed = new java.util.LinkedHashSet<>(authorPaths);
       if (base.settings().idsRequested() != null && candidate.openQuestions().stream()
           .anyMatch(question -> PipelineGates.IDS_PATH_CHOICE
               .equals(question.questionId()))) {
@@ -632,32 +640,84 @@ final class RequirementRevisionAdmission {
       preserveTransitions(tree(new DraftInput(expected.flow(), expected.facts(), expected.capabilities(),
           expected.openQuestions(), expected.settings())).get("transitions"), tree(candidate).get("transitions"),
           partial, candidate, issues);
+    } else {
+      issues.addAll(uncoveredLiterals(protectedFacts, candidate));
     }
-    var protection = new DraftInput(candidate.flow(), protectedFacts, candidate.capabilities(),
-        candidate.openQuestions(), candidate.settings());
-    issues.addAll(RequirementCaptureEditor.validateFactPreservation(amended(protection, candidate, allowed).facts(),
-        candidate, false, mappingPaths));
-    var retained = protectedValues == null || !protectedValues.isObject() ? MAPPER.createObjectNode() : protectedValues.deepCopy();
-    discardInvalidInteractionReferences((ObjectNode) retained);
-    replacePaths((ObjectNode) retained, tree(candidate), allowed);
-    preserveValues(retained.path("capabilities"), tree(candidate).get("capabilities"), "/capabilities", issues);
-    preserveValues(retained.path("settings"), tree(candidate).get("settings"), "/settings", issues);
-    var removable = new java.util.LinkedHashSet<String>();
-    var retainedInteractions = retained.path("interactions");
-    if (retainedInteractions.isObject()) {
-      var ids = candidate.flow().interactions().stream().map(InteractionInput::interactionId).collect(java.util.stream.Collectors.toSet());
-      retainedInteractions.fields().forEachRemaining(field -> {
-        if (!ids.contains(field.getKey()) && (field.getValue().path("direction").isNull()
-            || field.getValue().path("participant").isNull() || field.getValue().path("operation").isNull())) {
-          removable.add(field.getKey());
-        }
-      });
-      removable.forEach(id -> ((ObjectNode) retainedInteractions).remove(id));
-    }
-    preserveValues(retainedInteractions, tree(candidate).get("interactions"), "/interactions", issues);
-    preserveTransitions(retained.path("transitions"), tree(candidate).get("transitions"), removable, candidate, issues);
     if (!issues.isEmpty() && base != null) issues.addAll(RequirementCaptureEditor.capabilityAnchorConflicts(base));
-    return List.copyOf(issues);
+    return decide(base, candidate, authorPaths, repairPaths, baseline, issues);
+  }
+
+  /**
+   * Rejected values are not repair authority. Literals previously declared in {@code exactValues}
+   * must still be covered somewhere on the candidate.
+   */
+  private static List<Issue> uncoveredLiterals(List<FactInput> protectedFacts, DraftInput candidate) {
+    if (protectedFacts == null || candidate == null || candidate.facts() == null) {
+      return List.of();
+    }
+    var issues = new ArrayList<Issue>();
+    for (var original : protectedFacts) {
+      if (original == null || original.elementIntent() == null || original.elementIntent().exactValues() == null) {
+        continue;
+      }
+      var updated = candidate.facts().stream()
+          .filter(fact -> fact != null && Objects.equals(original.sourceFactId(), fact.sourceFactId()))
+          .findFirst().orElse(null);
+      var intent = updated == null ? null : updated.elementIntent();
+      for (String literal : original.elementIntent().exactValues()) {
+        if (literal == null || literal.isBlank()
+            || RequiredLiteralBindings.covered(intent, literal, mappingTexts(updated))) {
+          continue;
+        }
+        issues.add(new Issue("UNBOUND_REQUIRED_LITERAL",
+            "/draft/facts/" + original.sourceFactId() + "/elementIntent", original.sourceFactId(),
+            "Keep source-backed literal [\"" + literal + "\"] in the requested name, a property, the body, or a mapping."));
+      }
+    }
+    return issues;
+  }
+
+  private static List<String> mappingTexts(FactInput fact) {
+    if (fact == null || fact.fieldMapping() == null) {
+      return List.of();
+    }
+    var mapping = fact.fieldMapping();
+    var texts = new ArrayList<String>();
+    if (mapping.sourcePath() != null) {
+      texts.add(mapping.sourcePath());
+    }
+    if (mapping.targetPath() != null) {
+      texts.add(mapping.targetPath());
+    }
+    if (mapping.expression() != null) {
+      texts.add(mapping.expression());
+    }
+    return texts;
+  }
+
+  private static List<Issue> decide(DraftInput base, DraftInput candidate, Set<String> authorPaths,
+      Set<String> repairPaths, RequirementSemanticBaseline baseline, List<Issue> issues) {
+    var context = new RequirementRepairPolicy.RequirementRepairContext(
+        base, baseline, authorPaths, repairPaths, RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
+    var decision = RequirementRepairPolicy.evaluate(context, candidate, findings(issues));
+    var remaining = new ArrayList<>(issues);
+    var selected = new ArrayList<Issue>();
+    for (var finding : decision.findings()) {
+      var match = remaining.stream().filter(issue -> Objects.equals(issue.code(), finding.code())
+          && Objects.equals(issue.path(), finding.path())
+          && Objects.equals(issue.entityId(), finding.entityId())).findFirst().orElse(null);
+      if (match != null) {
+        remaining.remove(match);
+        selected.add(match);
+      }
+    }
+    return List.copyOf(selected);
+  }
+
+  private static List<RequirementFinding> findings(List<Issue> issues) {
+    return issues.stream().map(issue -> new RequirementFinding(
+        issue.code(), issue.path(), issue.entityId(), List.of(), issue.relatedEntityIds(), List.of(),
+        issue.message())).toList();
   }
 
   private static boolean supersedesAnswer(DraftInput base, DraftInput candidate, Set<String> paths, String factId) {
