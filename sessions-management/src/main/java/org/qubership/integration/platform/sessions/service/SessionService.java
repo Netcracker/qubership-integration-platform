@@ -226,13 +226,21 @@ public class SessionService {
     }
 
     private void configureSessionElementsCollapseBy(SearchRequest.Builder builder, String field) {
+        configureSessionElementsCollapseBy(builder, field, false);
+    }
+
+    private void configureSessionElementsCollapseBy(SearchRequest.Builder builder, String field, boolean applyExcludes) {
+        InnerHits.Builder innerHits = new InnerHits.Builder()
+                .name(INNER_HIT_NAME)
+                .sort(new SortOptions.Builder().field(new FieldSort.Builder().field(SESSION_DURATION_KEY).order(SortOrder.Desc).build()).build())
+                .size(1);
+        // getSearchResponse reads the inner hits, and the request's _source filter does not apply to them.
+        if (applyExcludes) {
+            innerHits.source(source -> source.filter(filter -> filter.excludes(Arrays.asList(EXCLUDE_FIELD_IN_SESSIONS))));
+        }
         FieldCollapse collapse = new FieldCollapse.Builder()
                 .field(field)
-                .innerHits(new InnerHits.Builder()
-                        .name(INNER_HIT_NAME)
-                        .sort(new SortOptions.Builder().field(new FieldSort.Builder().field(SESSION_DURATION_KEY).order(SortOrder.Desc).build()).build())
-                        .size(1)
-                        .build())
+                .innerHits(innerHits.build())
                 .build();
         builder.collapse(collapse);
     }
@@ -299,7 +307,7 @@ public class SessionService {
                 .size(count)
                 .sort(new SortOptions.Builder().field(new FieldSort.Builder().field(STARTED_KEY).order(SortOrder.Asc).build()).build())
                 .source(builder -> builder.filter(builder1 -> builder1.excludes(Arrays.asList(EXCLUDE_FIELD_IN_SESSIONS))));
-        configureSessionElementsCollapseBy(requestBuilder, SESSION_ID_KEY);
+        configureSessionElementsCollapseBy(requestBuilder, SESSION_ID_KEY, true);
 
         return getSearchResponse(requestBuilder.build());
     }
