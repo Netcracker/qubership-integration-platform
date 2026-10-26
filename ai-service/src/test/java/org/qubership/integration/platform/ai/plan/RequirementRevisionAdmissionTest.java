@@ -118,14 +118,17 @@ class RequirementRevisionAdmissionTest {
         default -> throw new AssertionError(changed);
       }
       var rejected = h.capture(h.mapper.treeToValue(json, DraftInput.class));
-      if ("transition".equals(changed)) {
-        assertTrue(rejected.accepted(), rejected.toString());
-        assertEquals(List.of(new TransitionInput("entry", "delivery")),
-            h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
-      } else {
+      if ("native".equals(changed)) {
         assertFalse(rejected.accepted(), changed + ": " + rejected);
         assertTrue(h.store.get(h.chat).isEmpty());
         assertTrue(h.capture(catalogDraft(null)).accepted());
+      } else if ("transition".equals(changed)) {
+        assertTrue(rejected.accepted(), rejected.toString());
+        assertEquals(List.of(), h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
+      } else {
+        assertTrue(rejected.accepted(), changed + ": " + rejected);
+        assertEquals(h.mapper.treeToValue(json, DraftInput.class),
+            h.store.get(h.chat).orElseThrow().authoredDraft());
       }
     }
   }
@@ -147,10 +150,12 @@ class RequirementRevisionAdmissionTest {
         var changed = invalid.deepCopy();
         ((com.fasterxml.jackson.databind.node.ObjectNode) changed.at("/flow/interactions/1/retryPolicy"))
             .put("retryCount", 2).put("retryDelayMs", 6000);
-        assertFalse(h.capture(h.mapper.treeToValue(changed, DraftInput.class)).accepted());
-        ((com.fasterxml.jackson.databind.node.ObjectNode) invalid.at("/flow/interactions/1/retryPolicy"))
-            .put("retryCount", 2);
-        base = h.mapper.treeToValue(invalid, DraftInput.class);
+        var admitted = h.capture(h.mapper.treeToValue(changed, DraftInput.class));
+        assertTrue(admitted.accepted(), admitted.toString());
+        var retry = h.store.get(h.chat).orElseThrow().authoredDraft().flow().interactions().get(1).retryPolicy();
+        assertEquals(2, retry.retryCount());
+        assertEquals(6000, retry.retryDelayMs());
+        return;
       }
       var corrected = h.capture(base);
       assertTrue(corrected.accepted(), corrected.toString());
@@ -230,18 +235,11 @@ class RequirementRevisionAdmissionTest {
       if (projectionChanged) {
         var changed = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(proposed);
         ((com.fasterxml.jackson.databind.node.ObjectNode) changed.at("/capabilities/0")).put("httpMethod", "GET");
-        var stillInvalid = h.mapper.treeToValue(changed, DraftInput.class);
-        assertFalse(h.capture(stillInvalid).accepted());
+        var methodChange = h.mapper.treeToValue(changed, DraftInput.class);
+        var admitted = h.capture(methodChange);
+        assertTrue(admitted.accepted(), admitted.toString());
+        assertEquals(HttpMethod.GET, h.store.get(h.chat).orElseThrow().authoredDraft().capabilities().getFirst().httpMethod());
         spent = fingerprints.softCreditsUsed(h.chat);
-        assertFalse(h.capture(stillInvalid).accepted());
-        assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
-            () -> h.capture(stillInvalid), "A new rejection must bind its effective normalized contract");
-        assertEquals(spent, fingerprints.softCreditsUsed(h.chat));
-        var result = h.capture(proposed);
-        assertTrue(result.accepted(), result.toString());
-        h.resolveDelivery();
-        var continued = h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE));
-        assertTrue(continued.accepted(), continued.toString());
       } else {
         assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
             () -> h.capture(proposed));
@@ -598,7 +596,7 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
-  void allRejectedCandidatesContributeProtectionAcrossGatherInvocations() throws Exception {
+  void rejectedProjectionCanNarrowAfterRestart() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
       h.begin("Create tasks, preserve request IDs, and keep inputs. Proceed without IDS.");
@@ -608,13 +606,15 @@ class RequirementRevisionAdmissionTest {
       assertFalse(h.capture(second).accepted());
       h.restartStore();
       h.store.beginTurn(h.chat, "Automatic correction.");
-      assertFalse(h.capture(httpDraft(List.of(fact("goal", "Create tasks.")))).accepted());
-      assertTrue(h.store.get(h.chat).isEmpty());
-      assertTrue(h.capture(withNativeAnchors(httpDraft(List.of(second.facts().get(0), second.facts().get(1),
-          fact("invalid-ref", "Keep inputs."))))).accepted());
-      assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
-      assertEquals(List.of("goal", "retain-id", "invalid-ref", "native-entry"), h.store.get(h.chat).orElseThrow()
-          .authoredDraft().facts().stream().map(f -> f.sourceFactId()).toList());
+      var narrowed = h.capture(httpDraft(List.of(fact("goal", "Create tasks."))));
+      assertTrue(narrowed.accepted(), narrowed.toString());
+      assertEquals(List.of("goal"), h.store.get(h.chat).orElseThrow().authoredDraft().facts().stream()
+          .map(FactInput::sourceFactId).toList());
+      var replaced = h.capture(withNativeAnchors(httpDraft(List.of(second.facts().get(0), second.facts().get(1),
+          fact("invalid-ref", "Keep inputs.")))));
+      assertFalse(replaced.accepted(), replaced.toString());
+      assertTrue(replaced.issues().stream().anyMatch(issue -> "DRAFT_ALREADY_EXISTS".equals(issue.code())),
+          replaced.toString());
     }
   }
 
@@ -894,14 +894,13 @@ class RequirementRevisionAdmissionTest {
                   List.of(fact("goal", "Create one task."), fact("sibling", "Drop inputs.")), List.of(), List.of(),
                   List.of(), List.of(), List.of(), List.of(), null);
               assertFalse(h.update(bad).accepted());
-              var lost = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                  List.of(fact("goal", "Create one task.")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
-              assertFalse(h.update(lost).accepted());
               var repaired = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
                   List.of(fact("retain-id", "Preserve request IDs.", source.turnId(), "request IDs")), List.of(fact("goal", "Create one task.")),
                   List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
               var result = h.update(repaired);
               assertTrue(result.accepted(), result.toString());
+              assertEquals(List.of("Create one task.", "Preserve inputs.", "Preserve request IDs."),
+                  result.draft().facts().stream().map(FactInput::text).toList(), result.toString());
               h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE);
             } catch (Exception failure) {
               throw new IllegalStateException(failure);
@@ -975,11 +974,13 @@ class RequirementRevisionAdmissionTest {
         h.restartStore();
         h.store.beginTurn(h.chat, "Automatic correction.");
       }
-      assertFalse(h.capture(mappingDraft("$.Subject", "$.wrong", "/tasks")).accepted());
-      assertFalse(h.capture(mappingDraft("$.Subject", "$.id", "/wrong-tasks")).accepted());
-      var repaired = h.capture(mappingDraft("$.Subject", "$.id", "/tasks"));
-      assertTrue(repaired.accepted(), repaired.toString());
-      assertEquals("$.id", h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().fieldMapping().sourcePath());
+      var moved = h.capture(mappingDraft("$.Subject", "$.wrong", "/tasks"));
+      assertTrue(moved.accepted(), moved.toString());
+      assertEquals("$.wrong", h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().fieldMapping().sourcePath());
+      var endpoint = h.capture(mappingDraft("$.Subject", "$.id", "/wrong-tasks"));
+      assertFalse(endpoint.accepted(), endpoint.toString());
+      assertEquals("$.wrong", h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().fieldMapping().sourcePath());
+      assertEquals("/tasks", h.store.get(h.chat).orElseThrow().authoredDraft().capabilities().getFirst().path());
     }
   }
 
@@ -1068,7 +1069,8 @@ class RequirementRevisionAdmissionTest {
       assertEquals(protection, h.store.repairConstraints(h.chat));
       h.restartStore();
       h.store.beginTurn(h.chat, "Automatic correction.");
-      assertFalse(h.store.validateCurrent(h.chat).isEmpty(), "Binding refresh must retain verified pending additions");
+      assertTrue(h.store.validateCurrent(h.chat).isEmpty(),
+          "A rejected addition is not part of the accepted draft");
       assertTrue(h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(retained), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null)).accepted());
@@ -1094,6 +1096,73 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void acceptedBaselineCannotChangeWithoutAmendmentInput() throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Create tasks. Proceed without IDS.");
+      var original = fact("goal", "Create tasks.");
+      assertTrue(h.capture(httpDraft(List.of(original))).accepted());
+      assertTrue(h.store.semanticBaseline(h.chat).isEmpty(),
+          "A quote-less capture does not write a semantic baseline");
+      var changed = new FactInput(original.sourceFactId(), original.interactionIds(), original.kind(),
+          Polarity.NEGATIVE, "Create two tasks.");
+      var refused = h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(changed), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null));
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+          && "goal".equals(issue.entityId())), refused.toString());
+      assertEquals(original, h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst());
+      assertTrue(h.store.semanticBaseline(h.chat).isEmpty());
+
+      var source = h.begin("Create two tasks.");
+      var amended = h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(new FactInput(original.sourceFactId(), original.interactionIds(), original.kind(),
+              original.polarity(), "Create two tasks.")),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null,
+          List.of(new AmendmentInput("/facts/goal/text", source.turnId(), "Create two tasks"))));
+      assertTrue(amended.accepted(), amended.toString());
+      assertEquals("Create two tasks.", h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().text());
+    }
+  }
+
+  @Test
+  void focusedRepairWithoutAnInScopeAlternativeBecomesProjectionRebuild() {
+    var finding = new RequirementFinding("INVALID_ELEMENT_OWNER",
+        "/draft/facts/local/elementIntent/ownerInteractionId", "local", List.of(), List.of(), List.of(),
+        "The owner is missing.");
+    var decision = RequirementRepairPolicy.evaluate(rejectedContext(), null, List.of(finding));
+    assertEquals(RequirementRepairPolicy.Strategy.PROJECTION_REBUILD, decision.strategy());
+    assertEquals(List.of(finding), decision.findings());
+  }
+
+  @Test
+  void structuralAlternativeOnARejectedProjectionStaysFocusedRepair() {
+    var finding = new RequirementFinding("INVALID_ELEMENT_OWNER",
+        "/draft/facts/local/elementIntent/ownerInteractionId", "local", List.of(), List.of(),
+        List.of("/draft/facts/local/elementIntent/ownerInteractionId"), "The owner is missing.");
+    var decision = RequirementRepairPolicy.evaluate(rejectedContext(), null, List.of(finding));
+    assertEquals(RequirementRepairPolicy.Strategy.FOCUSED_REPAIR, decision.strategy());
+  }
+
+  @Test
+  void acceptedDraftIgnoresAStructuralAlternativeOutsideAuthorAndServerPaths() {
+    var finding = new RequirementFinding("REPAIR_FACT_LOSS", "/changes/facts/goal/elementIntent/elementRef",
+        "goal", List.of(), List.of(), List.of("/changes/facts/goal/elementIntent/elementRef"),
+        "Keep the accepted fact.");
+    var accepted = httpDraft(List.of(fact("goal", "Create tasks.")));
+    var context = new RequirementRepairPolicy.RequirementRepairContext(
+        accepted, null, java.util.Set.of(), java.util.Set.of(), RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
+    var decision = RequirementRepairPolicy.evaluate(context, accepted, List.of(finding));
+    assertEquals(RequirementRepairPolicy.Strategy.PROJECTION_REBUILD, decision.strategy());
+    assertEquals(List.of(finding), decision.findings());
+  }
+
+  private static RequirementRepairPolicy.RequirementRepairContext rejectedContext() {
+    return new RequirementRepairPolicy.RequirementRepairContext(
+        null, null, java.util.Set.of(), java.util.Set.of(), RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
+  }
+
+  @Test
   void unchangedUpdatesAndContinuationCannotDropRejectedValidContent() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
@@ -1106,9 +1175,9 @@ class RequirementRevisionAdmissionTest {
       assertFalse(h.update(damaged).accepted());
       var noop = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
-      assertFalse(h.update(noop).accepted());
-      assertFalse(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
-      assertFalse(h.store.validateCurrent(h.chat).isEmpty());
+      assertTrue(h.update(noop).accepted(), "A rejected addition is not an obligation of the accepted draft");
+      assertTrue(h.store.validateCurrent(h.chat).isEmpty());
+      assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
       var correction = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(retained), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null);
@@ -1126,10 +1195,10 @@ class RequirementRevisionAdmissionTest {
       var damaged = new FactInput("retain-id", List.of("missing"), FactKind.GOAL, Polarity.POSITIVE,
           "Preserve request IDs.");
       assertFalse(h.capture(httpDraft(List.of(damaged))).accepted());
-      assertFalse(h.capture(httpDraft(List.of(new FactInput("retain-id", List.of("entry"), FactKind.GOAL,
-          Polarity.POSITIVE, "Drop request IDs.")))).accepted());
-      assertTrue(h.capture(httpDraft(List.of(new FactInput("retain-id", List.of("entry"), FactKind.GOAL,
-          Polarity.POSITIVE, damaged.text())))).accepted());
+      var changed = h.capture(httpDraft(List.of(new FactInput("retain-id", List.of("entry"), FactKind.GOAL,
+          Polarity.POSITIVE, "Drop request IDs."))));
+      assertTrue(changed.accepted(), changed.toString());
+      assertEquals("Drop request IDs.", h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().text());
     }
   }
 
@@ -1147,7 +1216,7 @@ class RequirementRevisionAdmissionTest {
           initial.capabilities(), List.of(), initial.settings());
       var retained = h.capture(lost);
       assertTrue(retained.accepted(), retained.toString());
-      assertEquals(List.of(edge), h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
+      assertEquals(List.of(), h.store.get(h.chat).orElseThrow().authoredDraft().flow().transitions());
     }
   }
 

@@ -30,6 +30,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Transi
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /** Validates an authored requirement snapshot and applies focused edits without partial writes. */
@@ -429,7 +430,7 @@ public final class RequirementCaptureEditor {
     if (saved) {
       return Objects.equals(original, updated);
     }
-    // Rejected captures protect validated values while their invalid representation remains repairable.
+    // A direct unsaved check keeps validated fields. A literal may leave exactValues when another site covers it.
     return original == null || updated != null
         && Objects.equals(original.elementRef(), updated.elementRef())
         && Objects.equals(original.elementType(), updated.elementType())
@@ -440,7 +441,15 @@ public final class RequirementCaptureEditor {
         && preservesValue(original.parentElementRef(), updated.parentElementRef())
         && preservesValue(original.requestedName(), updated.requestedName())
         && updated.requestedProperties().containsAll(original.requestedProperties())
-        && updated.exactValues().containsAll(original.exactValues());
+        && literalsCovered(original, updated);
+  }
+
+  private static boolean literalsCovered(RequirementElementIntent original, RequirementElementIntent updated) {
+    if (original.exactValues() == null || original.exactValues().isEmpty()) {
+      return true;
+    }
+    return original.exactValues().stream().allMatch(literal -> literal == null || literal.isBlank()
+        || RequiredLiteralBindings.covered(updated, literal, List.of()));
   }
 
   private static boolean preservesValue(String original, String updated) {

@@ -169,23 +169,22 @@ public class RequirementDraftStore {
     }
     if (!issues.isEmpty()) return List.copyOf(issues);
     var repairPaths = activeRepairPaths(conversationId, base, draft);
+    var baseline = semanticBaseline(conversationId).orElse(null);
     issues.addAll(RequirementFailureConsistency.unauthorizedModeChanges(base, draft.authoredDraft(),
         current.map(revision -> artifacts.payload(revision, RequirementDraft.class).catalogBindings()).orElse(List.of()),
         authorPaths, repairPaths));
     issues.addAll(RequirementRevisionAdmission.validate(base, draft.authoredDraft(),
         rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, repairPaths, mappingPaths,
-        fact -> canResolvePolicyChoice(conversationId, fact)));
+        fact -> canResolvePolicyChoice(conversationId, fact), baseline));
     var facts = draft.authoredDraft() == null || draft.authoredDraft().facts() == null
         ? List.<RequirementCaptureInput.FactInput>of() : draft.authoredDraft().facts();
     var amendments = changes == null || changes.amendments() == null
         ? List.<RequirementCaptureInput.AmendmentInput>of() : changes.amendments();
-    var baseline = semanticBaseline(conversationId).orElse(null);
     var packet = sourcePacket(conversationId);
     // Claim text and polarity stay protected. Representation fields are not part of the claim.
     // Initial capture has no saved draft. Treat the candidate as that draft so a quote-less fact stays unclaimed.
     var accepted = base == null ? facts : base.facts();
     issues.addAll(RequirementClaimEvidenceValidator.validate(baseline, accepted, facts, packet, amendments));
-    dropRepresentationLoss(issues, baseline, base, facts);
     if (!issues.isEmpty()) {
       return List.copyOf(issues);
     }
@@ -228,31 +227,6 @@ public class RequirementDraftStore {
     return new AuthorSourceEvidence.Packet(authority.sourceGeneration(),
         List.of(new AuthorSourceEvidence.Input(
             authority.sourceTurnId() == null ? "current" : authority.sourceTurnId(), text)));
-  }
-
-  private static void dropRepresentationLoss(List<RequirementCaptureEditor.Issue> issues,
-      RequirementSemanticBaseline baseline, RequirementCaptureInput.DraftInput accepted,
-      List<RequirementCaptureInput.FactInput> candidate) {
-    if (baseline == null) {
-      return;
-    }
-    issues.removeIf(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
-        && representationOnly(baseline, accepted, candidate, issue.entityId()));
-  }
-
-  private static boolean representationOnly(RequirementSemanticBaseline baseline,
-      RequirementCaptureInput.DraftInput accepted, List<RequirementCaptureInput.FactInput> candidate, String factId) {
-    var claim = baseline.claims().stream().filter(value -> Objects.equals(factId, value.sourceFactId()))
-        .findFirst().orElse(null);
-    var fact = candidate.stream().filter(value -> value != null && Objects.equals(factId, value.sourceFactId()))
-        .findFirst().orElse(null);
-    if (claim == null || fact == null
-        || !Objects.equals(claim.text(), fact.text()) || claim.polarity() != fact.polarity()) {
-      return false;
-    }
-    var prior = accepted == null || accepted.facts() == null ? null : accepted.facts().stream()
-        .filter(value -> Objects.equals(factId, value.sourceFactId())).findFirst().orElse(null);
-    return prior == null || Objects.equals(prior.policyConflict(), fact.policyConflict());
   }
 
   com.fasterxml.jackson.databind.node.ObjectNode copyRejectedCaptureValues(String conversationId) {

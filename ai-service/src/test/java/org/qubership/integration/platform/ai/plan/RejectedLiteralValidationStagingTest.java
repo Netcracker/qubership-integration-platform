@@ -82,11 +82,11 @@ class RejectedLiteralValidationStagingTest {
 
       var bindingRefusal = h.capture(input(true, false));
       assertFalse(bindingRefusal.accepted(), bindingRefusal.toString());
-      assertEquals(List.of("UNBOUND_REQUIRED_LITERAL", "UNBOUND_REQUIRED_LITERAL"), bindingRefusal.issues().stream()
+      assertEquals(List.of("UNBOUND_REQUIRED_LITERAL"), bindingRefusal.issues().stream()
           .map(RequirementCaptureResult.CaptureIssue::code).toList(), bindingRefusal.toString());
       assertTrue(bindingRefusal.issues().stream().anyMatch(issue -> issue.entityId().equals("create-anchor")
           && issue.path().equals("/draft/facts/create-anchor/elementIntent/requestedProperties")
-          && issue.message().contains("[\"createTask\",\"POST /sobjects/Task\"]")), bindingRefusal.toString());
+          && issue.message().contains("[\"POST /sobjects/Task\"]")), bindingRefusal.toString());
       assertTrue(bindingRefusal.issues().stream().allMatch(issue -> issue.message().contains("preserve the fact, exactValues")));
       assertTrue(h.store.latestRevision(h.chat).isEmpty());
       h.assertUnchanged(immutable);
@@ -119,11 +119,13 @@ class RejectedLiteralValidationStagingTest {
       assertEquals(source, h.mapper.valueToTree(h.archive.read(h.chat)));
       var result = h.capture(corrected);
       h.assertUnchanged(immutable);
-      // Native admissibility supplies no independent semantic baseline for removing the literal obligations.
-      assertFalse(result.accepted(), "Missing semantic-preservation proof must prevent replacement: " + result);
-      assertEquals(List.of("create-anchor", "result-anchor"), result.issues().stream()
-          .filter(issue -> issue.code().equals("REPAIR_FACT_LOSS"))
-          .map(RequirementCaptureResult.CaptureIssue::entityId).toList(), result.toString());
+      // Method and path properties do not cover the combined source literal.
+      assertFalse(result.accepted(), result.toString());
+      assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")
+          && issue.entityId().equals("create-anchor") && issue.message().contains("POST /sobjects/Task")),
+          result.toString());
+      assertFalse(result.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")),
+          result.toString());
       assertEquals(authority, h.store.writeAuthority(h.chat));
       assertEquals(source, h.mapper.valueToTree(h.archive.read(h.chat)));
       assertTrue(h.store.get(h.chat).isEmpty());
@@ -151,7 +153,7 @@ class RejectedLiteralValidationStagingTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"false", "text", "literal"})
-  void representationRepairCannotDiscardAnActualSettingTextOrScriptLiteral(String removed) throws Exception {
+  void representationRepairRejectsUncoveredLiteralsAndAcceptedSettingLoss(String removed) throws Exception {
     for (boolean reload : List.of(false, true)) {
       var h = new Harness();
       try (var ignored = ToolSession.open(h.chat)) {
@@ -190,14 +192,22 @@ class RejectedLiteralValidationStagingTest {
             List.of(), List.of(), facts, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null))
             : h.capture(candidate);
         assertFalse(result.accepted(), result.toString());
-        String factId = switch (removed) {
-          case "false" -> "create-anchor";
-          case "text" -> "result-context";
-          default -> "build-script";
-        };
-        String prefix = removed.equals("false") ? "/changes/facts/" : "/draft/facts/";
-        assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")
-            && issue.path().equals(prefix + factId) && issue.entityId().equals(factId)), result.toString());
+        if (removed.equals("false")) {
+          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")
+              && issue.path().equals("/changes/facts/create-anchor") && issue.entityId().equals("create-anchor")),
+              result.toString());
+        } else if (removed.equals("text")) {
+          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")
+              && issue.entityId().equals("create-anchor") && issue.message().contains("POST /sobjects/Task")),
+              result.toString());
+          assertFalse(result.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")
+              && issue.entityId().equals("result-context")), result.toString());
+        } else {
+          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")
+              && issue.path().equals("/draft/facts/build-script/elementIntent")
+              && issue.entityId().equals("build-script") && issue.message().contains("completeTask")),
+              result.toString());
+        }
         assertEquals(accepted, h.store.latestRevision(h.chat).map(CompilationArtifacts.Revision::reference));
         if (removed.equals("false")) assertEquals(original, h.store.get(h.chat).orElseThrow().authoredDraft());
         h.assertUnchanged(immutable);

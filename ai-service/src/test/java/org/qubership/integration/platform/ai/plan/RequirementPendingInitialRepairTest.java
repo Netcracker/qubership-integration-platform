@@ -164,14 +164,15 @@ class RequirementPendingInitialRepairTest {
     var h = new Harness(new InMemoryArtifactBlobStore());
     h.call("captureRequirementDraft", Map.of("draft", input("missing-owner")));
     var pending = h.call("readRequirementDraft", Map.of()).path("pendingProposal");
-    var facts = new java.util.ArrayList<>(input("entry").facts());
+    var facts = new java.util.ArrayList<>(input("missing-owner").facts());
     var old = facts.getFirst();
     facts.set(0, new FactInput(old.sourceFactId(), old.interactionIds(), old.kind(), old.polarity(),
         old.text() + " Changed.", old.fieldMapping(), old.policyConflict(), old.elementIntent()));
     var patch = h.changes(facts, pending.path("token"));
     var rejected = h.call("updateRequirementDraft", Map.of("changes", patch));
-    assertFalse(rejected.path("accepted").asBoolean());
-    assertTrue(rejected.path("issues").findValuesAsText("code").contains("REPAIR_FACT_LOSS"), rejected.toString());
+    assertFalse(rejected.path("accepted").asBoolean(), rejected.toString());
+    assertTrue(rejected.path("issues").findValuesAsText("code").contains("INVALID_ELEMENT_OWNER"), rejected.toString());
+    assertFalse(rejected.path("issues").findValuesAsText("code").contains("REPAIR_FACT_LOSS"), rejected.toString());
     var attempt = h.artifacts.latest(h.sessions.active(h.chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
     assertEquals(patch, attempt.payload().path("arguments"));
     assertEquals(h.json.valueToTree(facts), attempt.payload().path("resolvedCandidate").path("facts"));
@@ -242,13 +243,68 @@ class RequirementPendingInitialRepairTest {
     if (schema instanceof dev.langchain4j.model.chat.request.json.JsonObjectSchema object) {
       var keys = new java.util.HashSet<>(object.properties().keySet());
       if (update) keys.remove("pendingProposalToken");
-      assertEquals(keys, java.util.Set.copyOf(object.required()));
+      var required = java.util.Set.copyOf(object.required());
+      if (!required.contains("evidence")) keys.remove("evidence");
+      assertEquals(keys, required);
       object.properties().values().forEach(child -> assertRequiredFields(child, update));
     } else if (schema instanceof dev.langchain4j.model.chat.request.json.JsonArraySchema array) {
       assertRequiredFields(array.items(), update);
     } else if (schema instanceof dev.langchain4j.model.chat.request.json.JsonAnyOfSchema any) {
       any.anyOf().forEach(child -> assertRequiredFields(child, update));
     }
+  }
+
+  @Test
+  void chainIntentCanLeaveEntryWithoutRepairFactLoss() throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    var rejected = h.call("captureRequirementDraft", Map.of("draft", chainDraft("entry", "missing-owner")));
+    assertFalse(rejected.path("accepted").asBoolean(), rejected.toString());
+    assertTrue(rejected.path("issues").findValuesAsText("code").contains("INVALID_ELEMENT_OWNER"), rejected.toString());
+    var repaired = h.call("captureRequirementDraft", Map.of("draft", chainDraft("chain", "entry")));
+    assertTrue(repaired.path("accepted").asBoolean(), repaired.toString());
+    assertFalse(repaired.path("issues").findValuesAsText("code").contains("REPAIR_FACT_LOSS"), repaired.toString());
+    assertEquals("chain", h.store.get(h.chat).orElseThrow().authoredDraft().facts().stream()
+        .filter(fact -> "chain-name".equals(fact.sourceFactId())).findFirst().orElseThrow()
+        .elementIntent().elementRef());
+  }
+
+  @Test
+  void rejectedLogRecordPredecessorCanChangeWithoutRepairFactLoss() throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    var original = logDraft("entry", "missing-owner");
+    assertFalse(h.json.writeValueAsString(original).contains("chain-call"), original.toString());
+    assertFalse(h.json.writeValueAsString(original).contains("service-call"), original.toString());
+    var rejected = h.call("captureRequirementDraft", Map.of("draft", original));
+    assertFalse(rejected.path("accepted").asBoolean(), rejected.toString());
+    assertTrue(rejected.path("issues").findValuesAsText("code").contains("INVALID_ELEMENT_OWNER"), rejected.toString());
+    var repaired = h.call("captureRequirementDraft", Map.of("draft", logDraft(null, "entry")));
+    assertTrue(repaired.path("accepted").asBoolean(), repaired.toString());
+    assertFalse(repaired.path("issues").findValuesAsText("code").contains("REPAIR_FACT_LOSS"), repaired.toString());
+  }
+
+  static DraftInput chainDraft(String chainRef, String localOwner) {
+    var chain = new FactInput("chain-name", List.of(), FactKind.PARAMETER, Polarity.POSITIVE,
+        "The chain name is entry.", null, null,
+        new RequirementElementIntent(chainRef, "chain", RequirementElementIntent.Placement.CHAIN,
+            null, null, null, null, "entry", List.of(), List.of()));
+    var facts = new java.util.ArrayList<>(input(localOwner).facts());
+    facts.add(chain);
+    var base = input(localOwner);
+    return new DraftInput(base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings());
+  }
+
+  static DraftInput logDraft(String predecessor, String brokenOwner) {
+    var audit = new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "After entry, log the result without changing the body.", null, null,
+        new RequirementElementIntent("audit", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+            "entry", null, predecessor, null, null, List.of(), List.of()));
+    var broken = new FactInput("local", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "After entry, log the result without changing the body.", null, null,
+        new RequirementElementIntent("local", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+            brokenOwner, null, "entry", null, null, List.of(), List.of()));
+    var base = input("entry");
+    return new DraftInput(base.flow(), List.of(base.facts().getFirst(), audit, broken),
+        base.capabilities(), base.openQuestions(), base.settings());
   }
 
   static DraftInput input(String owner) {
