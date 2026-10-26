@@ -456,7 +456,7 @@ export const ActionsLog: React.FC = () => {
 
   return (
     <Flex vertical className={commonStyles["container"]}>
-      <AdminToolsHeader title="Audit" iconName="audit" toolbar={auditToolbar} />
+      <AdminToolsHeader title="Audit" toolbar={auditToolbar} />
       <Flex
         style={{
           flex: "1 1 auto",

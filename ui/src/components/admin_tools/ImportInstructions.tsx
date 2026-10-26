@@ -774,7 +774,6 @@ export const ImportInstructions: React.FC = () => {
     <Flex vertical className={commonStyles.container}>
       <AdminToolsHeader
         title="Import Instructions"
-        iconName="importInstructions"
         toolbar={importInstructionsToolbar}
       />
 

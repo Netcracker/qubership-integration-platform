@@ -467,7 +467,6 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader
             title="Test Case Runs"
-            iconName="carryOut"
             toolbar={toolbar}
           />
           {table}

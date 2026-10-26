@@ -1553,7 +1553,7 @@ describe("Sessions", () => {
       expect(within(slot).getByTestId("sessions-refresh")).toBeInTheDocument();
     });
 
-    test("admin-page shows Sessions title with snippets icon and toolbar outside chain header slot", async () => {
+    test("admin-page shows Sessions title and toolbar outside chain header slot", async () => {
       mockUseParams.mockReturnValue({});
       mockGetSessions.mockResolvedValue({ sessions: [], offset: 0 });
 
@@ -1564,7 +1564,6 @@ describe("Sessions", () => {
       });
 
       expect(screen.getByText("Sessions")).toBeInTheDocument();
-      expect(screen.getByTestId("icon-snippets")).toBeInTheDocument();
 
       const slot = screen.getByTestId("chain-header-slot");
       expect(

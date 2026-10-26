@@ -150,6 +150,27 @@ h1 {
           > .ant-table-body table {
             height: auto !important;
           }
+
+          /* An empty table stretches so its placeholder fills the body. */
+          > .ant-table-body table:has(.ant-table-placeholder) {
+            height: 100% !important;
+
+            .ant-table-cell {
+              border: none !important;
+            }
+          }
+
+          > .ant-table-content {
+            height: 100%;
+          }
+
+          > .ant-table-content table:has(.ant-table-placeholder) {
+            height: 100% !important;
+
+            .ant-table-cell {
+              border: none !important;
+            }
+          }
         }
       }
     }
