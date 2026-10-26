@@ -1,0 +1,194 @@
+---
+id: 8d1fec89-cfd2-52ec-9003-45792d648e88
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-idempotency-redelivery
+content:
+  labels: []
+  elements:
+  - id: add2e3a6-00fb-523b-afbd-f4921941ada9
+    name: JMS Trigger client-ignore
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: CLIENT_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency-redelivery/client-ignore
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: d751247d-80d0-507b-9710-1224f77d3007
+    name: Process client-ignore-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: d751247d-80d0-507b-9710-1224f77d3007.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: a5b54dfc-2d92-553a-9433-08678fe50007
+    name: JMS Trigger client-throw
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: CLIENT_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency-redelivery/client-throw
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: throw-exception
+  - id: ee5c4c34-1989-5e49-b36c-9f6e27edbcbf
+    name: Process client-throw-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ee5c4c34-1989-5e49-b36c-9f6e27edbcbf.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 341c0c22-710c-5877-aacc-2a282a7e46d9
+    name: JMS Trigger client-subchain
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: CLIENT_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency-redelivery/client-subchain
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 38224e92-d719-5e97-9576-24e72df11b72
+          chainCallTimeout: 30000
+  - id: 9c141851-a90a-5475-a0b8-ed6efbfc5b44
+    name: Process client-subchain-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 9c141851-a90a-5475-a0b8-ed6efbfc5b44.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 5f435cfb-5952-572e-a574-41b45f6c9134
+    name: JMS Trigger transacted-ignore
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: SESSION_TRANSACTED
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency-redelivery/transacted-ignore
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: 332a8957-f38f-517a-87b8-99653bc953b8
+    name: Process transacted-ignore-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 332a8957-f38f-517a-87b8-99653bc953b8.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 3f987174-3450-55e7-9f4f-cb301a783730
+    name: JMS Trigger transacted-throw
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: SESSION_TRANSACTED
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency-redelivery/transacted-throw
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: throw-exception
+  - id: 60e4bae6-d2dc-5f62-9def-28ca95034100
+    name: Process transacted-throw-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 60e4bae6-d2dc-5f62-9def-28ca95034100.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: a605f9cf-10fa-5c4e-ae2b-4b2c583d248e
+    name: JMS Trigger transacted-subchain
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: SESSION_TRANSACTED
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/idempotency-redelivery/transacted-subchain
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 38224e92-d719-5e97-9576-24e72df11b72
+          chainCallTimeout: 30000
+  - id: 46ae8731-7b58-5b40-ba00-45b60225ad4a
+    name: Process transacted-subchain-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 46ae8731-7b58-5b40-ba00-45b60225ad4a.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 38224e92-d719-5e97-9576-24e72df11b72
+    name: Handle duplicate
+    type: chain-trigger-2
+    properties:
+      elementId: 38224e92-d719-5e97-9576-24e72df11b72
+  - id: ef1ac197-4788-54bc-841d-42d627e03e4f
+    name: Process duplicate-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ef1ac197-4788-54bc-841d-42d627e03e4f.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: add2e3a6-00fb-523b-afbd-f4921941ada9
+    to: d751247d-80d0-507b-9710-1224f77d3007
+  - from: a5b54dfc-2d92-553a-9433-08678fe50007
+    to: ee5c4c34-1989-5e49-b36c-9f6e27edbcbf
+  - from: 341c0c22-710c-5877-aacc-2a282a7e46d9
+    to: 9c141851-a90a-5475-a0b8-ed6efbfc5b44
+  - from: 5f435cfb-5952-572e-a574-41b45f6c9134
+    to: 332a8957-f38f-517a-87b8-99653bc953b8
+  - from: 3f987174-3450-55e7-9f4f-cb301a783730
+    to: 60e4bae6-d2dc-5f62-9def-28ca95034100
+  - from: a605f9cf-10fa-5c4e-ae2b-4b2c583d248e
+    to: 46ae8731-7b58-5b40-ba00-45b60225ad4a
+  - from: 38224e92-d719-5e97-9576-24e72df11b72
+    to: ef1ac197-4788-54bc-841d-42d627e03e4f
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

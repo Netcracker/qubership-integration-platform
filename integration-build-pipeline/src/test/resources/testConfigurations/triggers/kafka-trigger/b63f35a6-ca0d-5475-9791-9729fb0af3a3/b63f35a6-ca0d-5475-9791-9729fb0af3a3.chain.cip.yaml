@@ -1,0 +1,39 @@
+---
+id: "b63f35a6-ca0d-5475-9791-9729fb0af3a3"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "kafka-trigger-sasl-plaintext"
+content:
+  labels: []
+  elements:
+  - id: "961f1762-a201-59f3-b4b0-85b80652916d"
+    name: "Kafka Trigger"
+    type: "kafka-trigger-2"
+    properties:
+      autoOffsetReset: "earliest"
+      brokers: "localhost:9092"
+      connectionSourceType: "manual"
+      consumersCount: 1
+      groupId: "snapshot-kafka-trigger-sasl-plaintext"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 1000
+      saslJaasConfig: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="reader" password="reader-password";'
+      saslMechanism: "PLAIN"
+      securityProtocol: "SASL_PLAINTEXT"
+      sslEndpointAlgorithm: "https"
+      sslProtocol: "TLS"
+      topics: "snapshot.kafka.trigger.sasl-plaintext"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+  - id: "7c5745fc-44f1-5084-a621-ef9c5b303ed3"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "7c5745fc-44f1-5084-a621-ef9c5b303ed3.element.script.cip.groovy"
+      propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "961f1762-a201-59f3-b4b0-85b80652916d"
+    to: "7c5745fc-44f1-5084-a621-ef9c5b303ed3"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

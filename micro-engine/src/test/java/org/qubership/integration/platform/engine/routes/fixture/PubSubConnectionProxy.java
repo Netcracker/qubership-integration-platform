@@ -29,6 +29,9 @@ final class PubSubConnectionProxy implements AutoCloseable {
     private ServerSocket listener;
     private InetSocketAddress upstreamAddress;
     private Outage outage;
+    private boolean unavailable;
+    private long acceptedConnections;
+    private long rejectedConnections;
 
     void start(String upstreamHost, int upstreamPort) throws IOException {
         upstreamAddress = new InetSocketAddress(upstreamHost, upstreamPort);
@@ -39,6 +42,28 @@ final class PubSubConnectionProxy implements AutoCloseable {
 
     int port() {
         return listener.getLocalPort();
+    }
+
+    void disconnect() {
+        List<Connection> openConnections;
+        synchronized (lock) {
+            unavailable = true;
+            openConnections = List.copyOf(connections);
+        }
+        openConnections.forEach(connection -> connection.close(true));
+    }
+
+    void restore() {
+        synchronized (lock) {
+            unavailable = false;
+        }
+    }
+
+    Statistics statistics() {
+        synchronized (lock) {
+            assertTrue(listenerFailures.isEmpty(), () -> String.join("\n", listenerFailures));
+            return new Statistics(acceptedConnections, rejectedConnections, connections.size());
+        }
     }
 
     void disconnectOnNextClientWrite() {
@@ -96,6 +121,14 @@ final class PubSubConnectionProxy implements AutoCloseable {
                 }
                 return;
             }
+            synchronized (lock) {
+                acceptedConnections++;
+                if (unavailable) {
+                    rejectedConnections++;
+                    closeSocket(client, true);
+                    continue;
+                }
+            }
             Socket upstream = new Socket();
             try {
                 upstream.connect(upstreamAddress, 5000);
@@ -106,7 +139,13 @@ final class PubSubConnectionProxy implements AutoCloseable {
                         closeSocket(upstream, false);
                         return;
                     }
-                    if (outage != null && !outage.armed && outage.rejectedConnections == 0) {
+                    if (unavailable || (outage != null && !outage.armed && outage.rejectedConnections == 0)) {
+                        rejectedConnections++;
+                        if (unavailable) {
+                            closeSocket(client, true);
+                            closeSocket(upstream, false);
+                            continue;
+                        }
                         outage.rejectedConnections++;
                         closeSocket(client, true);
                         closeSocket(upstream, false);
@@ -226,5 +265,8 @@ final class PubSubConnectionProxy implements AutoCloseable {
         private Outage(Set<Connection> establishedConnections) {
             this.establishedConnections = establishedConnections;
         }
+    }
+
+    record Statistics(long acceptedConnections, long rejectedConnections, int activeConnections) {
     }
 }

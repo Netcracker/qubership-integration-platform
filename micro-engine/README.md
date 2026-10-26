@@ -14,7 +14,7 @@ Engine service uses **Apache Camel** for defining and execution of integration l
 Engine service publishes integration chains deployment state to Consul.
 
 To store recorded sessions of integrated chains execution, the service uses OpenSearch.
-It creates if not exists index in OpenSearch and sets up index rotation policy via [ISM](https://docs.opensearch.org/docs/latest/im-plugin/ism/index/).
+It creates if not exists index in OpenSearch and sets up index rotation policy via [ISM](https://docs.opensearch.org/latest/im-plugin/ism/index/).
 
 ## Installation
 

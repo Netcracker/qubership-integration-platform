@@ -4,6 +4,7 @@ import com.netcracker.cloud.maas.bluegreen.kafka.ConsumerConsistencyMode;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.common.errors.SslAuthenticationException;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.qubership.integration.platform.engine.camel.components.kafka.cloudcore.BGKafkaConsumerExtended;
 import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 import org.qubership.integration.platform.engine.camel.components.kafka.factory.KafkaBGClientFactory;
@@ -51,9 +52,9 @@ final class KafkaSnapshotClientFactory implements KafkaBGClientFactory {
                     // Reading metadata consumes TLS errors cached before the fixture restored the certificate.
                     producer.partitionsFor(topic);
                     break;
-                } catch (SslAuthenticationException error) {
+                } catch (SslAuthenticationException | TimeoutException error) {
                     if (System.nanoTime() >= deadline) {
-                        throw new AssertionError("Kafka producer did not recover TLS for topic '" + topic + "'.", error);
+                        throw new AssertionError("Kafka producer did not recover metadata for topic '" + topic + "'.", error);
                     }
                 }
             }

@@ -1,9 +1,25 @@
 id: bfb0fcdc-f5d7-55dd-837c-8af720a687ae
 $schema: http://qubership.org/schemas/product/qip/chain
-name: http-sender-post
+name: http-sender-methods
 content:
   labels: []
   elements:
+  - id: 19b6125f-bf3b-5979-9070-ba33b59aa7a3
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 19b6125f-bf3b-5979-9070-ba33b59aa7a3
+  - id: b8c02644-7b47-5981-9232-dd89ce95ffc4
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: GET
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=get
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
   - id: 7c3851ad-4163-5aa2-aa0d-d8029dcb0e8a
     name: Chain trigger
     type: chain-trigger-2
@@ -20,9 +36,83 @@ content:
       m2m: false
       propagateContext: true
       reuseEstablishedConnection: true
+  - id: 3cd590fa-8f70-5302-886f-cb0c081a0bf5
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 3cd590fa-8f70-5302-886f-cb0c081a0bf5
+  - id: 69215c24-68f2-57ea-82ff-ae5daf149a83
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: PUT
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=put
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+  - id: 77417e82-2dd7-5721-8851-5b01b0a5947c
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 77417e82-2dd7-5721-8851-5b01b0a5947c
+  - id: 09b18c46-b173-5800-954c-993c9a0e0111
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: PATCH
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=patch
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+  - id: 6cdb303b-bc48-5eea-824d-8638acba9677
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 6cdb303b-bc48-5eea-824d-8638acba9677
+  - id: 5046de11-6662-5be8-b178-5b60b61fdbae
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: DELETE
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=delete
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+  - id: 5d48c72f-5819-57fa-935b-94d264300604
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 5d48c72f-5819-57fa-935b-94d264300604
+  - id: 1c6dacdf-0e5b-5c48-aebb-2f0c8a71e2e2
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: HEAD
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=head
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
   dependencies:
+  - from: 19b6125f-bf3b-5979-9070-ba33b59aa7a3
+    to: b8c02644-7b47-5981-9232-dd89ce95ffc4
   - from: 7c3851ad-4163-5aa2-aa0d-d8029dcb0e8a
     to: 7ba80dfb-43d5-5d80-b5dc-e30c6f78a907
+  - from: 3cd590fa-8f70-5302-886f-cb0c081a0bf5
+    to: 69215c24-68f2-57ea-82ff-ae5daf149a83
+  - from: 77417e82-2dd7-5721-8851-5b01b0a5947c
+    to: 09b18c46-b173-5800-954c-993c9a0e0111
+  - from: 6cdb303b-bc48-5eea-824d-8638acba9677
+    to: 5046de11-6662-5be8-b178-5b60b61fdbae
+  - from: 5d48c72f-5819-57fa-935b-94d264300604
+    to: 1c6dacdf-0e5b-5c48-aebb-2f0c8a71e2e2
   deployments:
   - domain: default
   deployAction: DEPLOY
