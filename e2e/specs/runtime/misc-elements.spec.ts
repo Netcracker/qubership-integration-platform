@@ -170,8 +170,15 @@ test.describe("context-storage", () => {
   const CONTEXT_VALUE = "e2e-context-value";
   const CORRELATION = "e2e-correlation";
   const KEY = "e2eKey";
+  const KEY_A = "e2eKeyA";
+  const KEY_B = "e2eKeyB";
   const TARGET = "e2e-context";
   const GET_STEP = "Get Context";
+  const SPLIT_STEP = "Split";
+  /** Thirty SETs overlap on the engine: before #1195, 65 to 84 of 300 calls (10 rounds of 30) answered 500. */
+  const PARALLEL_SETS = 30;
+  /** One burst can run with no two SETs overlapping (on the old code 1 to 3 of 10 did), so the two parallel cases repeat their burst. */
+  const BURST_ROUNDS = 5;
 
   const built: Built = { chains: [], services: [] };
   const chains: Record<string, SeedChain> = {};
@@ -195,6 +202,9 @@ test.describe("context-storage", () => {
         { name: "Read Property", type: "script", properties: { script: `exchange.getMessage().setBody(String.valueOf(exchange.getProperty('${TARGET}')))` } },
       ],
       delete: [{ name: "Delete Context", type: "context-storage", properties: { ...byHeader, operation: "DELETE" } }],
+      // Two SETs of different keys run at the same time: the split's branches, filled in below.
+      pair: [{ name: SPLIT_STEP, type: "split-2", properties: { aggregationStrategy: "chainsAggregationStrategy", stopOnException: true, timeout: 0 } }],
+      getAll: [{ name: GET_STEP, type: "context-storage", properties: { ...byHeader, operation: "GET", keys: `${KEY},${KEY_A},${KEY_B}` } }],
       // A script sets the correlation id from a header, standing in for a trigger that receives one.
       correlation: [
         { name: "Set Correlation Id", type: "script", properties: { script: `exchange.setProperty('correlationId', exchange.getMessage().getHeader('${CORRELATION}'))` } },
@@ -203,6 +213,15 @@ test.describe("context-storage", () => {
     };
     for (const [what, steps] of Object.entries(definitions)) {
       chains[what] = await createStepsChain(catalog, run, { what: `${prefix}-${what}`, parentId: folder.id, steps, logging: SEED_LOGGING }, built.chains);
+    }
+    // A split-2 is created with its main branch and one secondary branch; each gets a SET of its own key.
+    const split = await catalog.getElement(chains.pair.id, chains.pair.elements[SPLIT_STEP]);
+    for (const [branchType, key] of [["main-split-element-2", KEY_A], ["split-element-2", KEY_B]] as const) {
+      const branch = split.children?.find((child) => child.type === branchType);
+      if (!branch) throw new Error(`the split has no ${branchType} branch`);
+      await catalog.patchElementProperties(chains.pair.id, branch.id, { splitName: key });
+      const created = await catalog.createElement(chains.pair.id, "context-storage", { parentElementId: branch.id });
+      await catalog.patchElementProperties(chains.pair.id, created.id, { ...byHeader, operation: "SET", key, value: `\${header.${CONTEXT_VALUE}}-${key}`, ttl: 600 });
     }
     const all = Object.values(chains);
     for (const chain of all) await catalog.deploy(chain.id, (await catalog.createSnapshot(chain.id)).id);
@@ -227,8 +246,8 @@ test.describe("context-storage", () => {
   }
 
   /** What a `GET` into the body read for the context id, off its step. */
-  async function readBack(request: APIRequestContext, env: Env, sessions: Sessions, contextId: string): Promise<unknown> {
-    const call = await callChain(request, env.chainUrl(chains.get.contextPath), { data: {}, headers: { [CONTEXT_ID]: contextId } });
+  async function readBack(request: APIRequestContext, env: Env, sessions: Sessions, contextId: string, chain: SeedChain = chains.get): Promise<unknown> {
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {}, headers: { [CONTEXT_ID]: contextId } });
     expect(call.response.status()).toBe(200);
     const session = await sessions.byExternalId(call.token, { elements: 3 });
     expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, GET_STEP]);
@@ -257,6 +276,42 @@ test.describe("context-storage", () => {
     const second = callToken("value");
     await store(request, env, chains.set, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: second });
     expect(await readBack(request, env, sessions, contextId)).toEqual({ [KEY]: second });
+  });
+
+  test("parallel SETs into a context id with no record yet all succeed and one of them is stored", { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+    // Each SET used to insert a record of its own, and every one after the first failed on the unique constraint (#1195).
+    covers("context-storage", "operation", "SET");
+    for (let round = 0; round < BURST_ROUNDS; round++) {
+      const contextId = callToken("context");
+      const values = Array.from({ length: PARALLEL_SETS }, () => callToken("value"));
+      const calls = await Promise.all(values.map((value) => callChain(request, env.chainUrl(chains.set.contextPath), { data: {}, headers: { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: value } })));
+      expect(calls.map((call) => call.response.status()), `round ${round}`).toEqual(values.map(() => 200));
+      const stored = (await readBack(request, env, sessions, contextId)) as Record<string, string>;
+      expect(Object.keys(stored)).toEqual([KEY]);
+      expect(values).toContain(stored[KEY]);
+    }
+  });
+
+  test("parallel SETs of two keys into an existing context keep both keys", { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+    // Each SET used to read the map, add its key, and write the whole map back, so the later write dropped the other key (#1195).
+    covers("context-storage", "operation", "SET");
+    for (let round = 0; round < BURST_ROUNDS; round++) {
+      const contextId = callToken("context");
+      const first = callToken("value");
+      await store(request, env, chains.set, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: first });
+      const value = callToken("value");
+      await store(request, env, chains.pair, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: value });
+      expect(await readBack(request, env, sessions, contextId, chains.getAll), `round ${round}`).toEqual({ [KEY]: first, [KEY_A]: `${value}-${KEY_A}`, [KEY_B]: `${value}-${KEY_B}` });
+    }
+  });
+
+  test("a SET whose value resolves to null removes the key", { tag: ["@engine", "@catalog", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
+    // The engine's mapper drops a null map value, so before #1195 the map written back lacked the key; the upsert strips the JSON null instead.
+    covers("context-storage", "operation", "SET");
+    const contextId = callToken("context");
+    await store(request, env, chains.set, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: callToken("value") });
+    await store(request, env, chains.set, { [CONTEXT_ID]: contextId });
+    expect(await readBack(request, env, sessions, contextId)).toEqual({});
   });
 
   for (const target of ["HEADER", "PROPERTY"] as const) {
