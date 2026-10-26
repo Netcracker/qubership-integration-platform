@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -378,6 +379,26 @@ class RequirementCaptureEditorTest {
     assertEquals(conflictEntityIds(forward), conflictEntityIds(reversed));
     assertConflictParticipants(RequirementCaptureEditor.initialize(forward), participants);
     assertConflictParticipants(RequirementCaptureEditor.initialize(reversed), participants);
+  }
+
+  @Test
+  void conflictingIntentsWithANullFactIdReturnIssues() {
+    var base = initial();
+    var facts = new java.util.ArrayList<>(base.facts());
+    facts.add(scriptFact(null, "Prepare request"));
+    facts.add(scriptFact("script-named", "Prepare response"));
+    var draft = new DraftInput(base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings());
+    var result = assertDoesNotThrow(() -> RequirementCaptureEditor.initialize(draft));
+    var conflicts = result.issues().stream()
+        .filter(issue -> "CONFLICTING_ELEMENT_INTENT".equals(issue.code()))
+        .toList();
+    assertEquals(2, conflicts.size(), result.issues().toString());
+    assertTrue(conflicts.stream().anyMatch(issue -> issue.entityId() == null), result.issues().toString());
+    assertTrue(conflicts.stream().anyMatch(issue -> "script-named".equals(issue.entityId())),
+        result.issues().toString());
+    for (var issue : conflicts) {
+      assertEquals(List.of("script-named"), issue.relatedEntityIds(), issue.toString());
+    }
   }
 
   @Test

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * One capture diagnostic. A conflict finding names every participant in that conflict group.
@@ -17,7 +18,14 @@ public record RequirementFinding(
 
   public RequirementFinding {
     relatedPaths = relatedPaths == null ? List.of() : List.copyOf(relatedPaths);
-    relatedEntityIds = relatedEntityIds == null ? List.of() : List.copyOf(relatedEntityIds);
+    relatedEntityIds = copyIds(relatedEntityIds);
     repairAlternatives = repairAlternatives == null ? List.of() : List.copyOf(repairAlternatives);
+  }
+
+  private static List<String> copyIds(List<String> ids) {
+    if (ids == null) {
+      return List.of();
+    }
+    return List.copyOf(ids.stream().filter(Objects::nonNull).toList());
   }
 }
