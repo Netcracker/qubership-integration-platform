@@ -1195,6 +1195,37 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void savedBaselinePhraseIsNotOneLiteral() {
+    String phrase = "exactly audit-event";
+    String sentence = "Log exactly audit-event with log level Info.";
+    var quoteClaim = new RequirementSemanticClaim("audit", sentence, Polarity.POSITIVE,
+        new ClaimEvidenceInput("turn-1", phrase));
+    var textClaim = new RequirementSemanticClaim("audit", sentence, Polarity.POSITIVE, null);
+    var candidate = absentLiteral();
+
+    assertFalse(unboundLiteral(admit(List.of(), candidate, baseline(quoteClaim)), phrase),
+        "A spaced quote is claim evidence, not one literal");
+    assertFalse(unboundLiteral(admit(List.of(), candidate, baseline(textClaim)), sentence),
+        "A spaced claim text is not one literal");
+  }
+
+  @Test
+  void rejectedSnapshotTransitionsAreNotRestored() {
+    var accepted = new TransitionInput("entry", "delivery");
+    var base = withTransitions(httpDraft(List.of(fact("goal", "Create tasks."))), List.of(accepted));
+    var candidate = withTransitions(base, List.of());
+    var rejected = new ObjectMapper().createObjectNode();
+    rejected.putObject("transitions").putArray("delivery").add("audit");
+    var issues = List.of(new RequirementCaptureEditor.Issue("AUTHOR_AMENDMENT_REQUIRED", "/transitions/entry",
+        "entry", "Preserve this accepted transition or cite a source-linked amendment for its outgoing transitions."));
+
+    var restored = RequirementRevisionAdmission.restoreProtectedSnapshot(base, candidate, rejected, List.of(), issues);
+
+    assertNotNull(restored);
+    assertEquals(List.of(accepted), restored.flow().transitions());
+  }
+
+  @Test
   void rejectedExactValueIsRequiredOnlyWhenTheBaselineGroundsIt() {
     var invented = "model-only-token";
     var fromQuote = "audit-event";
@@ -1379,6 +1410,11 @@ class RequirementRevisionAdmissionTest {
   private static FactInput quoted(FactInput fact, String turnId, String quote) {
     return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
         fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(), new ClaimEvidenceInput(turnId, quote));
+  }
+
+  private static DraftInput withTransitions(DraftInput draft, List<TransitionInput> transitions) {
+    return new DraftInput(new FlowInput(draft.flow().interactions(), transitions), draft.facts(),
+        draft.capabilities(), draft.openQuestions(), draft.settings());
   }
 
   private static DraftInput httpDraft(List<FactInput> facts) {

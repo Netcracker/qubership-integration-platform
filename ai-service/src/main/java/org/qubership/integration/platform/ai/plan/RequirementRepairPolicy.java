@@ -13,10 +13,11 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLit
  *
  * <p>A rejected initial projection may change structural representation. Shape, reference, and
  * literal findings on that projection stay focused repair when their path is editable. A literal
- * obligation there is a short source span: the saved claim quote, or the claim text when that
- * claim has no quote. While no baseline exists, the obligation is the current candidate's
- * evidence quote when that quote is an exact substring of the named user turn, the fact has an
- * element intent, and the quote is a shorter span than the claim text. On an accepted
+ * obligation is one token: a quote with no whitespace, or the claim text when that claim has no
+ * quote and the text itself has no whitespace. A quote or text that contains whitespace is claim
+ * evidence only. While no baseline exists, the token is the current candidate's evidence quote
+ * when that quote is an exact substring of the named user turn, the fact has an element intent,
+ * and the quote is a shorter span than the claim text. On an accepted
  * draft, kind, interaction IDs, mapping, element intent, placement, exact values, text, and
  * polarity stay fixed unless an amendment or a server repair path covers the change. A focused
  * envelope with no repair alternative inside that scope becomes a projection rebuild.
@@ -98,8 +99,8 @@ public final class RequirementRepairPolicy {
   }
 
   /**
-   * A rejected candidate does not create a literal obligation. The saved quote is the required
-   * span, and the claim text is that span when the claim has no quote.
+   * A rejected candidate does not create a literal obligation. The saved quote is one literal
+   * only when it is a single token, and the claim text is that token when the claim has no quote.
    */
   private static List<RequirementFinding> missingGroundedLiterals(
       RequirementSemanticBaseline baseline, DraftInput candidate) {
@@ -122,25 +123,30 @@ public final class RequirementRepairPolicy {
     return findings;
   }
 
-  /** The saved quote is the span. Claim text is the span only when the claim has no quote. */
+  /**
+   * A saved quote is one literal only when it is a single token. Claim text is that token when
+   * the claim has no quote.
+   */
   private static List<String> groundedLiterals(RequirementSemanticClaim claim) {
     if (claim == null) {
       return List.of();
     }
     String quote = claim.evidence() == null ? null : claim.evidence().quote();
     if (quote != null && !quote.isBlank()) {
-      return List.of(quote);
+      return bindingToken(quote) ? List.of(quote) : List.of();
     }
-    if (claim.text() != null && !claim.text().isBlank()) {
-      return List.of(claim.text());
-    }
-    return List.of();
+    return bindingToken(claim.text()) ? List.of(claim.text()) : List.of();
+  }
+
+  /** One binding token has no whitespace. A phrase is claim evidence only. */
+  private static boolean bindingToken(String value) {
+    return value != null && !value.isBlank() && value.chars().noneMatch(Character::isWhitespace);
   }
 
   /**
-   * While no baseline exists, a candidate evidence quote is a literal obligation when it is an
-   * exact substring of the named user turn, the fact has an element intent, and the quote is a
-   * shorter span than the claim text.
+   * While no baseline exists, a candidate evidence quote is a literal obligation when it is one
+   * token, an exact substring of the named user turn, the fact has an element intent, and the
+   * quote is a shorter span than the claim text.
    */
   private static List<RequirementFinding> missingCandidateQuoteLiterals(
       AuthorSourceEvidence.Packet source, DraftInput candidate) {
@@ -153,7 +159,7 @@ public final class RequirementRepairPolicy {
         continue;
       }
       String quote = fact.evidence().quote();
-      if (quote == null || quote.equals(fact.text())
+      if (!bindingToken(quote) || quote.equals(fact.text())
           || !exactUserTurnQuote(source, fact.evidence().sourceTurnId(), quote)
           || RequiredLiteralBindings.covered(fact.elementIntent(), quote, mappingTexts(fact))) {
         continue;
