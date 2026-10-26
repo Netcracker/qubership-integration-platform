@@ -2,18 +2,17 @@ package org.qubership.integration.platform.ai.plan;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
-import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 
 /**
  * Decides whether a requirement candidate may replace the current projection.
  *
- * <p>A rejected initial projection may change structural representation. Text and polarity of an
- * accepted revision stay fixed unless an amendment or a server repair path proves the change. A
- * focused envelope with no repair alternative inside the editable scope becomes a projection
- * rebuild and is not focused repair.
+ * <p>A rejected initial projection may change structural representation. Shape, reference, and
+ * literal findings on that projection stay focused repair when their path is editable. On an
+ * accepted draft, kind, interaction IDs, mapping, element intent, placement, exact values, text,
+ * and polarity stay fixed unless an amendment or a server repair path covers the change. A
+ * focused envelope with no repair alternative inside that scope becomes a projection rebuild.
  */
 public final class RequirementRepairPolicy {
 
@@ -62,43 +61,29 @@ public final class RequirementRepairPolicy {
     var kept = new ArrayList<RequirementFinding>();
     if (findings != null) {
       for (var finding : findings) {
-        if (finding != null && !suppressed(context, candidate, finding)) {
-          kept.add(finding);
+        if (finding != null && !suppressed(context, finding)) {
+          kept.add(withEditableAlternative(context, finding));
         }
       }
     }
     return new RequirementRepairDecision(feasibleStrategy(context, kept), List.copyOf(kept));
   }
 
-  private static boolean suppressed(
-      RequirementRepairContext context, DraftInput candidate, RequirementFinding finding) {
-    return representationOnly(context, candidate, finding) || rejectedProjectionLoss(context, finding);
+  private static boolean suppressed(RequirementRepairContext context, RequirementFinding finding) {
+    return rejectedProjectionLoss(context, finding);
   }
 
-  /**
-   * A baseline claim may change representation while its text, polarity, and policy conflict stay
-   * put. That filter lives here so the draft store does not apply a second repair rule.
-   */
-  private static boolean representationOnly(
-      RequirementRepairContext context, DraftInput candidate, RequirementFinding finding) {
-    var baseline = context.semanticBaseline();
-    if (baseline == null || !"REPAIR_FACT_LOSS".equals(finding.code())) {
-      return false;
+  /** A model can repair a finding only by editing a path that is already in scope. */
+  private static RequirementFinding withEditableAlternative(
+      RequirementRepairContext context, RequirementFinding finding) {
+    if (finding.repairAlternatives().stream().anyMatch(alternative -> inScope(context, alternative))
+        || !inScope(context, finding.path())) {
+      return finding;
     }
-    String factId = finding.entityId();
-    var claim = baseline.claims().stream().filter(value -> Objects.equals(factId, value.sourceFactId()))
-        .findFirst().orElse(null);
-    var facts = candidate == null || candidate.facts() == null ? List.<FactInput>of() : candidate.facts();
-    var fact = facts.stream().filter(value -> value != null && Objects.equals(factId, value.sourceFactId()))
-        .findFirst().orElse(null);
-    if (claim == null || fact == null
-        || !Objects.equals(claim.text(), fact.text()) || claim.polarity() != fact.polarity()) {
-      return false;
-    }
-    var accepted = context.acceptedRevision();
-    var prior = accepted == null || accepted.facts() == null ? null : accepted.facts().stream()
-        .filter(value -> Objects.equals(factId, value.sourceFactId())).findFirst().orElse(null);
-    return prior == null || Objects.equals(prior.policyConflict(), fact.policyConflict());
+    var alternatives = new ArrayList<String>(finding.repairAlternatives());
+    alternatives.add(finding.path());
+    return new RequirementFinding(finding.code(), finding.path(), finding.entityId(), finding.relatedPaths(),
+        finding.relatedEntityIds(), alternatives, finding.message());
   }
 
   /**
@@ -136,7 +121,12 @@ public final class RequirementRepairPolicy {
     if (matches(context.authorPaths(), alternative) || matches(context.serverRepairPaths(), alternative)) {
       return true;
     }
-    return context.acceptedRevision() == null && structural(alternative);
+    return context.acceptedRevision() == null && (structural(alternative) || shape(alternative));
+  }
+
+  private static boolean shape(String path) {
+    return "/draft".equals(path) || "/changes".equals(path)
+        || path.startsWith("/draft/") || path.startsWith("/changes/");
   }
 
   private static boolean matches(Set<String> paths, String alternative) {

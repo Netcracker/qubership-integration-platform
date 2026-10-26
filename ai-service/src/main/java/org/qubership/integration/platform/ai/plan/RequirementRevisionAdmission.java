@@ -588,6 +588,16 @@ final class RequirementRevisionAdmission {
   static List<Issue> validate(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
       JsonNode protectedValues, Set<String> authorPaths, Set<String> repairPaths, Map<String, Set<String>> mappingPaths,
       Predicate<FactInput> canAnswer, RequirementSemanticBaseline baseline) {
+    return admissionDecision(base, candidate, protectedFacts, protectedValues, authorPaths, repairPaths, mappingPaths,
+        canAnswer, baseline).issues();
+  }
+
+  /** Issues that still block admission, plus the repair strategy for that issue list. */
+  record AdmissionDecision(List<Issue> issues, RequirementRepairPolicy.Strategy strategy) {}
+
+  static AdmissionDecision admissionDecision(DraftInput base, DraftInput candidate, List<FactInput> protectedFacts,
+      JsonNode protectedValues, Set<String> authorPaths, Set<String> repairPaths, Map<String, Set<String>> mappingPaths,
+      Predicate<FactInput> canAnswer, RequirementSemanticBaseline baseline) {
     var issues = new ArrayList<>(base == null ? RequirementCaptureEditor.initialize(candidate).issues()
         : RequirementCaptureEditor.validate(candidate));
     if (!issues.isEmpty()) {
@@ -695,7 +705,7 @@ final class RequirementRevisionAdmission {
     return texts;
   }
 
-  private static List<Issue> decide(DraftInput base, DraftInput candidate, Set<String> authorPaths,
+  private static AdmissionDecision decide(DraftInput base, DraftInput candidate, Set<String> authorPaths,
       Set<String> repairPaths, RequirementSemanticBaseline baseline, List<Issue> issues) {
     var context = new RequirementRepairPolicy.RequirementRepairContext(
         base, baseline, authorPaths, repairPaths, RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
@@ -711,7 +721,7 @@ final class RequirementRevisionAdmission {
         selected.add(match);
       }
     }
-    return List.copyOf(selected);
+    return new AdmissionDecision(List.copyOf(selected), decision.strategy());
   }
 
   private static List<RequirementFinding> findings(List<Issue> issues) {

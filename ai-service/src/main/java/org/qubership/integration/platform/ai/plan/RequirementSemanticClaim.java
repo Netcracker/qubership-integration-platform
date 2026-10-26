@@ -5,7 +5,8 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polari
 
 /**
  * Source-backed claim. Kind, interaction IDs, mapping, element intent, and exact values stay on
- * the requirement projection and may change during repair.
+ * the requirement projection. An accepted draft keeps those fields unless an amendment or a server
+ * repair path covers the change.
  */
 public record RequirementSemanticClaim(
     String sourceFactId,

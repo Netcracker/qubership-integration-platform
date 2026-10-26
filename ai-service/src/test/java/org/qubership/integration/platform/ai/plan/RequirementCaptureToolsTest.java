@@ -1905,7 +1905,7 @@ class RequirementCaptureToolsTest {
       restored.store().beginTurn(chat, "Repair the generated draft.");
       if (sourceAcknowledgmentFails) {
         var noticed = mapper.readValue(restored.tools().updateRequirementDraft(removal), RequirementCaptureResult.class);
-        assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+        assertEquals(NextAction.PROJECTION_REBUILD, noticed.nextAction());
         var repeated = assertThrows(CaptureNoProgressException.class, () -> restored.tools().updateRequirementDraft(removal));
         assertEquals("REPAIR_FACT_LOSS", repeated.evidence().feedback().issues().getFirst().code());
       } else {

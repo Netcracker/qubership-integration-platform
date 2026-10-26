@@ -67,6 +67,14 @@ public record RequirementCaptureResult(
         draft, resolutions, defaults, repairConstraints, proposal);
   }
 
+  public RequirementCaptureResult withNextAction(NextAction action) {
+    if (action == nextAction) {
+      return this;
+    }
+    return new RequirementCaptureResult(accepted, changed, revision, readiness, action, issues, pendingWork,
+        draft, resolutions, defaults, repairConstraints, pendingProposal);
+  }
+
   public RequirementCaptureResult withRepairConstraints(RepairConstraints constraints) {
     if (constraints == null) return this;
     NextAction action = readiness == Readiness.EMPTY && nextAction == NextAction.DISCUSS
@@ -93,6 +101,7 @@ public record RequirementCaptureResult(
     HANDOFF,
     REFRESH_DRAFT,
     REPAIR_CAPTURE,
+    PROJECTION_REBUILD,
     STOP
   }
 
