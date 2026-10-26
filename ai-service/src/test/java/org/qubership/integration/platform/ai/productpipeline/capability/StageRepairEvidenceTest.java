@@ -5,9 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 
 class StageRepairEvidenceTest {
@@ -166,6 +169,34 @@ class StageRepairEvidenceTest {
     assertTrue(repair.contains("Tool arguments could not be decoded"));
     assertTrue(repair.contains("active capture tool schema"));
     assertFalse(repair.contains("broken JSON"));
+  }
+
+  @Test
+  void aRejectedGraphRepairCallsOnlyTheOwningGenerator() throws Exception {
+    String graph = new ObjectMapper().writeValueAsString(new ChainPlanGraph(
+        "1.0", new ChainSection("parcel", "Parcel"), List.of(), List.of()));
+    StageRepairEvidence evidence = new StageRepairEvidence(
+        "VALIDATION_FAILURE", "design-execution",
+        "MISSING_REQUIRED_SCRIPT_LITERAL: restore the author literal",
+        "quality validation failed", "", "evidence-script", List.of(),
+        "cip-script-generator", "MISSING_REQUIRED_PROPERTY", "", graph);
+
+    assertTrue(evidence.keepsRejectedGraph());
+    assertFalse(evidence.defersGenerator("cip-script-generator"));
+    assertTrue(evidence.defersGenerator("cip-http-trigger-endpoint-generator"));
+    assertTrue(evidence.repairTextForSkill("cip-script-generator").contains("author literal"));
+    assertEquals("", evidence.repairTextForSkill("cip-naming-generator"));
+  }
+
+  @Test
+  void anUnscopedRepairStillCallsEveryGenerator() {
+    StageRepairEvidence evidence = new StageRepairEvidence(
+        "VALIDATION_FAILURE", "design-execution", "quality validation failed",
+        "quality validation failed", "", "evidence-open", List.of(),
+        "", "MISSING_REQUIRED_PROPERTY");
+
+    assertFalse(evidence.keepsRejectedGraph());
+    assertFalse(evidence.defersGenerator("cip-naming-generator"));
   }
 
   @Test

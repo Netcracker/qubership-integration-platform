@@ -214,6 +214,30 @@ public record StageRepairEvidence(
     return bounded(text.toString());
   }
 
+  /**
+   * A design-execution repair that names one owner and still has the rejected graph. Other
+   * generators keep that graph instead of calling the model again.
+   */
+  public boolean keepsRejectedGraph() {
+    return "design-execution".equals(failedStageId) && !failedSkillId.isBlank() && rejectedGraph().isPresent();
+  }
+
+  /** True when {@code skillId} is not the owner of a rejected-graph repair. */
+  public boolean defersGenerator(String skillId) {
+    return keepsRejectedGraph() && skillId != null && !failedSkillId.equals(skillId);
+  }
+
+  public Optional<ChainPlanGraph> rejectedGraph() {
+    if (rejectedCandidateJson.isBlank()) {
+      return Optional.empty();
+    }
+    try {
+      return Optional.of(JSON.readValue(rejectedCandidateJson, ChainPlanGraph.class));
+    } catch (JsonProcessingException ignored) {
+      return Optional.empty();
+    }
+  }
+
   /** An attributed failure reaches its owner; unscoped final validation reaches the approved stage producers. */
   public String repairTextForSkill(String skillId) {
     if (!"design-execution".equals(failedStageId) || !hasEvidence()

@@ -73,6 +73,13 @@ public class CompilerQualityValidator {
                 + " blocker(s)");
   }
 
+  /** True when every issue is a missing author literal in an owned script. */
+  public static boolean onlyMissingScriptLiterals(List<ValidationIssue> issues) {
+    return issues != null && !issues.isEmpty()
+        && issues.stream().allMatch(issue -> issue != null
+            && "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode()));
+  }
+
   /** Checks protected author values without requiring unrelated generated properties to be valid. */
   public static List<ValidationIssue> validateApprovedValues(ChainPlanGraph graph,
       org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief brief) {
@@ -87,7 +94,9 @@ public class CompilerQualityValidator {
             "cip-script-generator", List.of(fact.elementIntent().elementRef()), List.of(),
             "Restore the required values in this script using the approved behavior and saved author source.",
             "MISSING_REQUIRED_SCRIPT_LITERAL", fact.sourceFactId(), "/elementIntent/exactValues"));
-        var unbound = RequiredLiteralBindings.unbound(fact, brief.facts());
+        var interactions = brief.flow() == null ? List.<org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction>of()
+            : brief.flow().interactions();
+        var unbound = RequiredLiteralBindings.unbound(fact, brief.facts(), interactions);
         if (!unbound.isEmpty()) issues.add(new ValidationIssue(
             "unbound-required-literal", ValidationSeverity.BLOCKER,
             "Required literals at /elementIntent/exactValues lack an implementation binding: "

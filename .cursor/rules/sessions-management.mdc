@@ -1,6 +1,6 @@
 ---
-description: 'Sessions management service: architecture over OpenSearch, build, and configuration.'
-globs: sessions-management/**
+description: Sessions management service: architecture over OpenSearch, build, and configuration.
+globs: "sessions-management/**"
 ---
 
 ### Project Overview

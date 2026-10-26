@@ -1247,9 +1247,14 @@ public class RequirementDraftStore {
 
   Optional<RequirementCaptureAttempt> rejectedProposal(String conversationId, String toolName, Object arguments,
       RequirementCaptureInput.DraftInput candidate) {
+    return identicalRejections(conversationId, toolName, arguments, candidate).stream().findFirst();
+  }
+
+  List<RequirementCaptureAttempt> identicalRejections(String conversationId, String toolName, Object arguments,
+      RequirementCaptureInput.DraftInput candidate) {
     if (!currentSource(conversationId) || arguments == null
         || latestCaptureAttempt(conversationId).filter(attempt -> "reset".equals(attempt.toolName())).isPresent()) {
-      return Optional.empty();
+      return List.of();
     }
     var source = factProtection(conversationId, List.of());
     String digest = org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(arguments);
@@ -1268,7 +1273,7 @@ public class RequirementDraftStore {
               && samePendingProtection(conversationId, revision);
         })
         .map(revision -> artifacts.payload(revision, RequirementCaptureAttempt.class))
-        .findFirst();
+        .toList();
   }
 
   private boolean sameCandidate(RequirementCaptureInput.DraftInput candidate, Revision revision) {

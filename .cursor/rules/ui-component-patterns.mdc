@@ -1,6 +1,6 @@
 ---
 description: Component-level patterns for tables, modals, forms, notifications, and icons.
-globs: ui/src/components/**/*.{ts,tsx}
+globs: "ui/src/components/**/*.{ts,tsx}"
 ---
 
 When editing React components under `ui/src/components/`, especially tables,

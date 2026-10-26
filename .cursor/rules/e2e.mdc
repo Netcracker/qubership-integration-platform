@@ -1,6 +1,6 @@
 ---
-description: 'End-to-end suite: what it is for, how a run provisions its stack, how data is isolated, and when to load the e2e-spec-authoring skill.'
-globs: e2e/**
+description: End-to-end suite: what it is for, how a run provisions its stack, how data is isolated, and when to load the e2e-spec-authoring skill.
+globs: "e2e/**"
 ---
 
 ### Project overview

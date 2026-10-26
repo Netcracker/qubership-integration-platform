@@ -11,11 +11,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.model.chat.request.json.JsonAnyOfSchema;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonNullSchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 import dev.langchain4j.service.tool.ToolProviderResult;
 import java.util.List;
 import java.util.Map;
@@ -286,5 +288,69 @@ class RequirementCaptureProviderTest {
     assertEquals("DUPLICATE_JSON_KEY", mapper.readTree(repeated).get("issues").get(0)
         .get("code").asText());
     assertTrue(store.get(conversationId).isEmpty());
+  }
+
+  @Test
+  void missingFieldInsideANullableObjectNamesThatField() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    var object = JsonObjectSchema.builder().addStringProperty("elementRef").required("elementRef").build();
+    var schema = JsonAnyOfSchema.builder().anyOf(object, new JsonNullSchema()).build();
+
+    var issue = RequirementCaptureToolProvider.check(
+        mapper.readTree("{\"elementType\":\"mapper\"}"), schema, "/draft/facts/0/elementIntent");
+
+    assertEquals("MISSING_FIELD", issue.code());
+    assertEquals("/draft/facts/0/elementIntent/elementRef", issue.path());
+  }
+
+  @Test
+  void aNullableStringReportsItsOwnType() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    var schema = JsonAnyOfSchema.builder().anyOf(new JsonStringSchema(), new JsonNullSchema()).build();
+
+    var issue = RequirementCaptureToolProvider.check(mapper.readTree("1"), schema, "/requestedName");
+
+    assertEquals("INVALID_TYPE", issue.code());
+    assertEquals("/requestedName", issue.path());
+    assertEquals("This field must be a string.", issue.message());
+  }
+
+  @Test
+  void twoObjectAlternativesStayATypeMismatch() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    var left = JsonObjectSchema.builder().addStringProperty("left").required("left").build();
+    var right = JsonObjectSchema.builder().addStringProperty("right").required("right").build();
+    var schema = JsonAnyOfSchema.builder().anyOf(left, right).build();
+
+    var issue = RequirementCaptureToolProvider.check(mapper.readTree("{\"left\":1}"), schema, "/choice");
+
+    assertEquals("INVALID_TYPE", issue.code());
+    assertEquals("/choice", issue.path());
+    assertEquals("Use a value allowed by this field.", issue.message());
+  }
+
+  @Test
+  void anchorElementRefCopiesTheOwnerWhenItIsTheOnlyLegalValue() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    ObjectNode draft = (ObjectNode) mapper.readTree("""
+        {"facts":[{"elementIntent":{"elementType":"http-sender","placement":"ANCHOR",
+        "ownerInteractionId":"notify","requestedProperties":[],"exactValues":[]}}]}""");
+
+    RequirementCaptureToolProvider.supplyAnchorElementRefs(mapper.createObjectNode().set("draft", draft));
+
+    assertEquals("notify", draft.at("/facts/0/elementIntent/elementRef").asText());
+  }
+
+  @Test
+  void localNodeWithoutElementRefStaysMissing() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    ObjectNode draft = (ObjectNode) mapper.readTree("""
+        {"facts":[{"elementIntent":{"elementType":"script","placement":"LOCAL_NODE",
+        "ownerInteractionId":"receive","requestedProperties":[],"exactValues":[]}}]}""");
+    var input = mapper.createObjectNode().set("draft", draft);
+
+    RequirementCaptureToolProvider.supplyAnchorElementRefs(input);
+
+    assertTrue(draft.at("/facts/0/elementIntent/elementRef").isMissingNode());
   }
 }

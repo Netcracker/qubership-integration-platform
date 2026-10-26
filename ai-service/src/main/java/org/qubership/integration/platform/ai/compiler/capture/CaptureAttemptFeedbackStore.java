@@ -102,6 +102,14 @@ public class CaptureAttemptFeedbackStore {
     pending.remove(conversationId);
   }
 
+  public int identicalFailureCount(String conversationId, String capabilityId) {
+    return (int) history(conversationId).stream()
+        .filter(observation -> capabilityId.equals(observation.capabilityId()))
+        .filter(observation -> observation.feedback() != null
+            && observation.feedback().failureClass() == CaptureFailureClass.IDENTICAL_SPAM)
+        .count();
+  }
+
   public boolean hasScope(String conversationId, String capabilityId) {
     return scopes.containsKey(scopeKey(conversationId, capabilityId));
   }

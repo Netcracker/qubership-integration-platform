@@ -1261,6 +1261,9 @@ class RequirementCaptureToolsTest {
     try (var ignored = ToolSession.open(h.conversationId())) {
       h.store().beginTurn(h.conversationId(), "Submit one task.");
       h.tools().captureRequirementDraft(invalid);
+      var noticed = h.mapper().readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
       var rejected = assertThrows(CaptureNoProgressException.class, () -> h.tools().captureRequirementDraft(invalid));
       String original = rejected.evidence().feedback().issues().stream()
           .findFirst().orElseThrow().code();
@@ -1433,8 +1436,15 @@ class RequirementCaptureToolsTest {
       var again = persistentHarness(blobs, mapper, conversations, chat);
       again.tools().elementSchemas = first.tools().elementSchemas;
       again.store().beginTurn(chat, "Repair the generated property.");
+      var noticed = mapper.readValue(again.tools().captureRequirementDraft(candidate.apply(propertyKey)),
+          RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
+      var stopped = persistentHarness(blobs, mapper, conversations, chat);
+      stopped.tools().elementSchemas = first.tools().elementSchemas;
+      stopped.store().beginTurn(chat, "Repair the generated property.");
       assertThrows(CaptureNoProgressException.class,
-          () -> again.tools().captureRequirementDraft(candidate.apply(propertyKey)));
+          () -> stopped.tools().captureRequirementDraft(candidate.apply(propertyKey)));
     }
   }
 
@@ -1462,6 +1472,10 @@ class RequirementCaptureToolsTest {
           RequirementCaptureResult.class);
       assertFalse(unfinished.issues().stream().anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code())));
       assertFalse(unfinished.nextAction() == NextAction.STOP);
+      var noticed = h.mapper().readValue(h.tools().captureRequirementDraft(partial), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "factB".equals(issue.entityId())));
       assertThrows(CaptureNoProgressException.class, () -> h.tools().captureRequirementDraft(partial));
     }
   }
@@ -1489,6 +1503,9 @@ class RequirementCaptureToolsTest {
       var accepted = h.store().latestRevision(chat).orElseThrow().reference();
       var first = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
       assertEquals(NextAction.REPAIR_CAPTURE, first.nextAction());
+      var noticed = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
       var beforeSource = archive.read(chat);
       var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
       var credits = new ToolCallFingerprintStore(mapper, artifacts, new CompilationSessions(blobs, mapper, Clock.systemUTC()));
@@ -1604,6 +1621,9 @@ class RequirementCaptureToolsTest {
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
       assertTrue(restored.store().lastCaptureRejection(chat).orElseThrow().contains("INVALID_VALUE"));
+      var noticed = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
       assertThrows(CaptureNoProgressException.class, () -> restored.tools().captureRequirementDraft(invalid));
       restored.store().recordCaptureRejection(chat, "Repeated invalid sourceFactId.");
 
@@ -1615,7 +1635,7 @@ class RequirementCaptureToolsTest {
           mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).nextAction());
       assertTrue(mapper.readValue(restored.tools().captureRequirementDraft(ready), RequirementCaptureResult.class).accepted());
       var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
-      assertEquals(4, artifacts.history(first.store().activeCompilationId(chat),
+      assertEquals(5, artifacts.history(first.store().activeCompilationId(chat),
           CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).size());
     }
   }
@@ -1660,6 +1680,8 @@ class RequirementCaptureToolsTest {
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
       if (commitBeforeFailure) {
+        var noticed = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+        assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
         assertThrows(CaptureNoProgressException.class, () -> restored.tools().captureRequirementDraft(invalid));
       } else {
         var repeated = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
@@ -1881,6 +1903,8 @@ class RequirementCaptureToolsTest {
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
       if (sourceAcknowledgmentFails) {
+        var noticed = mapper.readValue(restored.tools().updateRequirementDraft(removal), RequirementCaptureResult.class);
+        assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
         var repeated = assertThrows(CaptureNoProgressException.class, () -> restored.tools().updateRequirementDraft(removal));
         assertEquals("REPAIR_FACT_LOSS", repeated.evidence().feedback().issues().getFirst().code());
       } else {
@@ -2767,6 +2791,46 @@ class RequirementCaptureToolsTest {
                 "cip-auto-tests-topic1", null, null)),
         List.of(),
         new DraftSettings(null, null));
+  }
+
+  @Test
+  void catalogParticipantAndOperationNeedNoRuntimeProperty() throws Exception {
+    var base = readyHttpDraft();
+    var interactions = new ArrayList<>(base.flow().interactions());
+    interactions.add(new InteractionInput("billing", Direction.OUTBOUND, "billing-system", "list-accounts",
+        null, null, null));
+    var flow = new FlowInput(interactions, base.flow().transitions());
+    assertFalse(unbound(literalDraft(flow, base, "billing", "billing-system")));
+    assertFalse(unbound(literalDraft(flow, base, "billing", "list-accounts")));
+    assertFalse(unbound(literalDraft(flow, base, "submit", "Task API")));
+    assertTrue(unbound(literalDraft(flow, base, "billing", "Client")));
+    var longerName = literalDraft(flow, base, "billing", "billing-system-west");
+    assertTrue(unbound(longerName), longerName.toString());
+    assertTrue(longerName.issues().stream().anyMatch(issue -> issue.message().contains("interaction participant")
+        && !issue.message().contains("integrationSystemId")), longerName.toString());
+  }
+
+  private static RequirementCaptureResult literalDraft(FlowInput flow, DraftInput base,
+      String interactionId, String literal) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(),
+        "Call billing-system operation list-accounts. Log Task API, Client, and billing-system-west.");
+    var intent = new RequirementElementIntent("audit", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+        interactionId, null, null, null,
+        List.of(new PlanProperty("logLevel", "Info")), List.of(literal));
+    var fact = new FactInput("audit", List.of(interactionId), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Log exactly " + literal + ".", null, null, intent);
+    var input = new DraftInput(flow, List.of(base.facts().getFirst(), fact),
+        base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      return h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+    }
+  }
+
+  private static boolean unbound(RequirementCaptureResult result) {
+    return result.issues().stream().anyMatch(issue -> "UNBOUND_REQUIRED_LITERAL".equals(issue.code()));
   }
 
   private static DraftInput readyHttpDraft() {

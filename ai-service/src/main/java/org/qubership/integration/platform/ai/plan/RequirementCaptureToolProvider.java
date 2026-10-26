@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.plan;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
@@ -144,6 +145,7 @@ public class RequirementCaptureToolProvider {
       if (!nesting.relocations().isEmpty()) {
         ARGUMENT_BINDING.set(new ArgumentBinding(call.id(), arguments, input.deepCopy(), nesting.relocations()));
       }
+      supplyAnchorElementRefs(input);
       Issue issue = check(input, parameters, "");
       if (issue != null) {
         return tools.rejectArguments(toolName, arguments, issue);
@@ -179,9 +181,43 @@ public class RequirementCaptureToolProvider {
     return input;
   }
 
-  private static Issue check(JsonNode value, JsonSchemaElement schema, String path) {
+  /** An ANCHOR element has one legal elementRef: its owner interaction. */
+  static void supplyAnchorElementRefs(JsonNode input) {
+    JsonNode facts = input == null ? null : input.at("/draft/facts");
+    if (facts == null || !facts.isArray()) {
+      return;
+    }
+    for (JsonNode fact : facts) {
+      if (!(fact.get("elementIntent") instanceof ObjectNode intent)) {
+        continue;
+      }
+      if (!"ANCHOR".equals(intent.path("placement").asText())) {
+        continue;
+      }
+      JsonNode ref = intent.get("elementRef");
+      if (ref != null && ref.isTextual() && !ref.asText().isBlank()) {
+        continue;
+      }
+      JsonNode owner = intent.get("ownerInteractionId");
+      if (owner != null && owner.isTextual() && !owner.asText().isBlank()) {
+        intent.put("elementRef", owner.asText());
+      }
+    }
+  }
+
+  static Issue check(JsonNode value, JsonSchemaElement schema, String path) {
     if (schema instanceof JsonAnyOfSchema anyOf) {
-      for (JsonSchemaElement alternative : anyOf.anyOf()) {
+      List<JsonSchemaElement> alternatives = anyOf.anyOf();
+      boolean nullable = alternatives.stream().anyMatch(JsonNullSchema.class::isInstance);
+      long structural = alternatives.stream().filter(alternative -> !(alternative instanceof JsonNullSchema)).count();
+      if (nullable && structural == 1 && value != null && !value.isNull()) {
+        for (JsonSchemaElement alternative : alternatives) {
+          if (!(alternative instanceof JsonNullSchema)) {
+            return check(value, alternative, path);
+          }
+        }
+      }
+      for (JsonSchemaElement alternative : alternatives) {
         if (check(value, alternative, path) == null) {
           return null;
         }

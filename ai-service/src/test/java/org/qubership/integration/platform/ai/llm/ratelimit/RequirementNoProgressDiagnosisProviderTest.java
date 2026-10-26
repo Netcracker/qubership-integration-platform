@@ -95,6 +95,9 @@ class RequirementNoProgressDiagnosisProviderTest {
       var initial = json.readValue(tools.captureRequirementDraft(base), RequirementCaptureResult.class);
       assertTrue(initial.accepted(), initial.toString());
       assertFalse(json.readValue(tools.updateRequirementDraft(changes), RequirementCaptureResult.class).accepted());
+      var noticed = json.readValue(tools.updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertEquals(RequirementCaptureResult.NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
       stopped = assertThrows(CaptureNoProgressException.class, () -> tools.updateRequirementDraft(changes));
     }
     var accepted = drafts.latestRevision(chat).orElseThrow();

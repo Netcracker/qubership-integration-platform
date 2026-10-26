@@ -1,0 +1,236 @@
+---
+description: Mandatory Superpowers + CIP diagnosis-first gate for bugfix/incident/ticket requests
+globs:
+  - "**/*.cip.yaml"
+  - "**/*.yaml"
+  - "**/*.groovy"
+  - "**/*.md"
+---
+
+# CIP bugfix gate
+
+
+
+When the user asks to **fix, debug, investigate, troubleshoot, or root-cause** a bug, error,
+
+incident, failing chain, broken integration, or references a **Jira ticket** for a defect in an
+
+**existing** CIP chain — treat it as **diagnosis-first work**.
+
+
+
+> **Iron Law (from `systematic-debugging`):** NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST.
+
+> This is the reverse of design work: you must find the trouble *before* designing the fix. No
+
+> fix is proposed, planned, or applied before a proven root cause.
+
+
+
+## Chain repository gate (ERR-BF-020 — hard stop)
+
+
+
+After BF01 identifies a **suspected chain id**, check whether that chain exists in **this**
+
+repository under any standard chains root:
+
+- `chains/{chainId}/`
+- `satellite/chains/{chainId}/`
+- `technical/chains/{chainId}/`
+
+(at minimum a `chain-{chainId}.yaml` or equivalent chain artifact must be present).
+
+
+
+**If the chain is NOT in the repo:** STOP the bugfix pipeline immediately. Tell the user the
+
+chain id/name is missing from the repository and ask them to add it (their normal export/import
+
+or commit workflow). Do **not** proceed to BF02 planning or execution.
+
+
+
+**NEVER download, fetch, export, or retrieve chain source from CIP** when it is absent from the
+
+repo — including CIP catalog/UI/API calls, Playwright/browser automation, `curl`, or ad-hoc
+
+export scripts. Jira **evidence** attachments (session logs, screenshots) may still be downloaded
+
+via `jira_download_attachment`; that is not chain source.
+
+
+
+## Required flow (do not skip)
+
+
+
+1. Read and follow **`using-superpowers`** (skill precedence + bootstrap).
+
+2. **`cip-defect-analyzer`** (BF01) → `defect-report.md` (ticket/logs/screenshots → symptom +
+
+   error signature + suspected chain/element + `language-version`). No fix proposed here.
+
+   Then apply the **chain repository gate (ERR-BF-020)** before BF02.
+
+3. **`cip-root-cause-analyzer`** (BF02, wraps `systematic-debugging`) → `root-cause-report.md`.
+
+   Phase 1 (root-cause investigation) runs first; converge to ONE proven root cause with an
+
+   evidence trail. Stops at diagnosis.
+
+4. **User approves the diagnosis** (root cause is accepted).
+
+5. **`cip-fix-planner`** (BF03) → `fix-plan.md` — a single surgical change, owning skill named
+
+   per step, preserves `language-version`, includes rollback + verification method.
+
+   The plan must list **only the mandatory minimal change** (see below) — no optional hardening.
+
+6. **User explicitly approves the plan** (`Agree` / `Execute fix`).
+
+7. **`cip-fix-executor`** (BF04) → patched artifact + `target/<ticket>/fix-trace.md`. Patches only the
+
+   offending element by delegating to the matching generator skill; never regenerates the chain.
+
+   Apply **only** what the approved plan names — the smallest edit that fixes the proven root
+
+   cause. Reject scope creep at execution time.
+
+8. **`cip-fix-verifier`** (BF05, STUB) + **`cip-chain-validator`** + **`cip-validation-gate`**
+
+   → `verification-report.md`. Pre-fix `REPRODUCED` / post-fix `RESOLVED` (both `stubbed: true`);
+
+   the validator provides the real gate. Fail closed if the validator or schema linter finds
+
+   violations. Use the completion template from `cip-validation-gate`.
+
+9. **Deploy** via `cip-folder-organizer` + `cip-deployment-packager`.
+
+10. **Ask the user** how to close the Jira loop (comment / comment+transition / nothing) before
+
+    writing anything to the ticket. Transitions come from `jira_get_transitions`.
+
+
+
+## Forbidden before plan approval
+
+
+
+- **Downloading or fetching chain artifacts from CIP** when the chain is not already in the repo
+
+  (ERR-BF-020) — ask the user to add the chain instead.
+
+- Editing chain `*.yaml`/Groovy/config "to try something" or to reproduce by guessing.
+
+- Proposing or applying a fix before the `root-cause-report.md` exists and is approved.
+
+- **Upgrading the chain's `language-version` while fixing it** (fixes are version-aware; keep
+
+  the existing version).
+
+- Regenerating the whole chain instead of patching the single offending element.
+
+- **Optional or defensive changes not required by the proven root cause** — see *Mandatory
+
+  minimal surgical change* below.
+
+- Mutating the Jira ticket (comment/transition/field) without asking the user first.
+
+
+
+## Mandatory minimal surgical change (BF03 / BF04 — hard rule)
+
+
+
+A bugfix changes **only** what is **strictly required** to resolve the **one proven root cause**.
+
+Nothing else — even if it looks helpful.
+
+
+
+| Include (mandatory) | Exclude (optional — do NOT add unless the ticket explicitly asks) |
+
+|---------------------|---------------------------------------------------------------------|
+
+| The single line/block that corrects the proven fault (wrong path, wrong value, missing guard **when the null/absence IS the cause**) | Extra null checks around unrelated code |
+
+| The smallest data-shape correction (e.g. unwrap `attribute` when the API nests fields there) | Date-format normalization, alias fallbacks, dual-format parsers "for robustness" |
+
+| What the approved `fix-plan.md` names — nothing more | Refactors, renames, style cleanup, "while I'm here" improvements |
+
+| | Hardening for hypothetical future failures not shown in evidence |
+
+
+
+**Litmus test:** If removing a proposed line would still fix the reported failure given the
+
+evidence, that line is **optional** — leave it out.
+
+
+
+**Example A (attribute unwrap):** API returns fields under `attribute`; script read top-level
+
+`request_timestamp` → null → NPE in `SimpleDateFormat.parse`. **Mandatory:** unwrap
+
+`attribute` before reading fields. **Optional (reject):** ISO timestamp normalization,
+
+`fcsessionid` alias, string-vs-`{value}` request parsing, blanket null-guards.
+
+
+
+**Example B (EES response shape):** `listExtendedEntity` returns `attribute.order_body_data` (string);
+
+script read `orderData.orderBody.value` → NPE. **Mandatory:** `orderDataArray[0].attribute`;
+
+snake_case paths; `order_body_data` for `storedOrderBody`. **Optional (reject):** rename to
+
+`attrs`/`entity`, `?:` camelCase fallbacks, `orderBodyRaw` dual-shape helper.
+
+
+
+Plans and patches that bundle mandatory + optional changes **fail** BF03/BF04 validation until
+
+trimmed to mandatory-only.
+
+
+
+## Escape hatch (user must say explicitly)
+
+
+
+Skip triage/diagnosis only if the user says something like:
+
+- "skip triage", or
+
+- "root cause is known: …" (they state the confirmed root cause), or
+
+- they attach an **already-approved** fix plan file.
+
+
+
+Even with an escape hatch, the fix stays surgical and version-aware, and the Jira close-loop
+
+stays interactive. **Escape hatch does not permit optional improvements** — still mandatory-only.
+
+
+
+## CIP mapping (Superpowers ↔ CIP)
+
+
+
+| Superpowers | CIP equivalent |
+
+|-------------|----------------|
+
+| requirement-analyzer | `cip-defect-analyzer` (BF01) |
+
+| systematic-debugging | `cip-root-cause-analyzer` (BF02) |
+
+| writing-plans | `cip-fix-planner` (BF03) |
+
+| executing-plans | `cip-fix-executor` (BF04) |
+
+| test-driven-development + verification-before-completion | `cip-fix-verifier` (STUB) + `cip-chain-validator` (BF05) |
+
+| finishing-a-development-branch | `cip-folder-organizer` + `cip-deployment-packager` (BF06) |

@@ -1,6 +1,6 @@
 ---
-description: 'Testing service, the Go module: layout, public surface, migrations, and the invariants that are easy to break while changing it.'
-globs: testing-service/**
+description: Testing service, the Go module: layout, public surface, migrations, and the invariants that are easy to break while changing it.
+globs: "testing-service/**"
 ---
 
 The one Go module in the repository. `testing-service/README.md` covers running and embedding the service; this

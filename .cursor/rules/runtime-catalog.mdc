@@ -1,6 +1,6 @@
 ---
-description: 'Runtime catalog service: layers, mapper DSL, build and test commands, conventions.'
-globs: runtime-catalog/**
+description: Runtime catalog service: layers, mapper DSL, build and test commands, conventions.
+globs: "runtime-catalog/**"
 ---
 
 ### Build & Test Commands

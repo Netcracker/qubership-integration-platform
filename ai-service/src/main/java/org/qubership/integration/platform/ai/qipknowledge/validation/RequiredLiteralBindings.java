@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /** Checks destinations in the typed requirement contract, never incidental graph text. */
 public final class RequiredLiteralBindings {
@@ -13,6 +14,11 @@ public final class RequiredLiteralBindings {
   private RequiredLiteralBindings() {}
 
   public static List<String> unbound(RequirementFact fact, List<RequirementFact> facts) {
+    return unbound(fact, facts, List.of());
+  }
+
+  public static List<String> unbound(RequirementFact fact, List<RequirementFact> facts,
+      List<RequirementFlow.Interaction> interactions) {
     var intent = fact.elementIntent();
     if (intent == null || fact.polarity() != RequirementFactPolarity.POSITIVE) return List.of();
     if (ownedScript(fact)) return List.of(); // Its owned body is generated later and checked on the assembled graph.
@@ -22,6 +28,7 @@ public final class RequiredLiteralBindings {
     var unbound = new ArrayList<String>();
     for (String literal : intent.exactValues()) {
       if (literal == null || literal.isBlank()) continue;
+      if (catalogIdentity(fact, interactions, literal)) continue;
       boolean bound = intent.placement()
           == org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.ANCHOR
           && facts.stream().filter(candidate -> candidate.polarity() == RequirementFactPolarity.POSITIVE)
@@ -47,6 +54,16 @@ public final class RequiredLiteralBindings {
       if (!bound) unbound.add(literal);
     }
     return List.copyOf(unbound);
+  }
+
+  /** A catalog participant or operation is owned by that interaction, not by a runtime property. */
+  private static boolean catalogIdentity(RequirementFact fact, List<RequirementFlow.Interaction> interactions,
+      String literal) {
+    if (interactions == null) return false;
+    return interactions.stream().filter(interaction -> interaction != null
+        && fact.targetsInteraction(interaction.interactionId()))
+        .anyMatch(interaction -> literal.equals(interaction.participant())
+            || literal.equals(interaction.operation()));
   }
 
   public static List<String> missingScriptLiterals(RequirementFact fact,

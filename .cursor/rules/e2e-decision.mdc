@@ -1,6 +1,6 @@
 ---
 description: When a fix or a feature needs an end-to-end case, and where the decision is recorded.
-globs: **
+globs: "**"
 ---
 
 A change that fixes a defect or adds behavior ends with an end-to-end decision: a case under
