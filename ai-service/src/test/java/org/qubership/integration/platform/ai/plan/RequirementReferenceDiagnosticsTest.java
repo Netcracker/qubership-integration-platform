@@ -55,7 +55,17 @@ class RequirementReferenceDiagnosticsTest {
     tree.withArray("facts").set(3, duplicate);
     var conflicting = RequirementCaptureEditor.initialize(json.convertValue(tree, RequirementCaptureInput.DraftInput.class));
     assertFalse(conflicting.accepted());
-    assertTrue(conflicting.issues().stream().anyMatch(issue -> "CONFLICTING_ELEMENT_INTENT".equals(issue.code())));
+    var participants = java.util.List.of("other-step", "step");
+    assertEquals(participants, conflicting.issues().stream()
+        .filter(issue -> "CONFLICTING_ELEMENT_INTENT".equals(issue.code()))
+        .map(RequirementCaptureEditor.Issue::entityId)
+        .sorted()
+        .toList(), conflicting.issues().toString());
+    var viewed = RequirementCaptureResult.view(null, null, false, false, conflicting.issues(),
+        RequirementDiscoveryDirective.NONE);
+    viewed.issues().stream()
+        .filter(issue -> "CONFLICTING_ELEMENT_INTENT".equals(issue.code()))
+        .forEach(issue -> assertEquals(participants, issue.details().relatedEntityIds(), issue.toString()));
   }
 
   @Test

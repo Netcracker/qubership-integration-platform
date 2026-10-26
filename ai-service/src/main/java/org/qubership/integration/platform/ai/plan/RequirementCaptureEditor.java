@@ -37,7 +37,16 @@ public final class RequirementCaptureEditor {
 
   private static final Pattern LOCAL_ID = Pattern.compile("[A-Za-z][A-Za-z0-9_-]{0,63}");
 
-  public record Issue(String code, String path, String entityId, String message) {}
+  public record Issue(
+      String code, String path, String entityId, String message, List<String> relatedEntityIds) {
+    public Issue(String code, String path, String entityId, String message) {
+      this(code, path, entityId, message, List.of());
+    }
+
+    public Issue {
+      relatedEntityIds = relatedEntityIds == null ? List.of() : List.copyOf(relatedEntityIds);
+    }
+  }
 
   public record EditResult(DraftInput draft, List<Issue> issues, boolean changed, DraftInput candidate) {
     public EditResult(DraftInput draft, List<Issue> issues, boolean changed) {
@@ -855,7 +864,7 @@ public final class RequirementCaptureEditor {
   private static void validateElementIntents(DraftInput draft, Set<String> interactions,
       Map<String, List<String>> successors, List<Issue> issues) {
     Map<String, List<RequirementElementIntent>> intents = new HashMap<>();
-    String chainName = null;
+    Map<ElementIdentity, List<IndexedIntent>> byIdentity = new HashMap<>();
     for (FactInput fact : draft.facts()) {
       if (fact == null || fact.elementIntent() == null) {
         continue;
@@ -907,29 +916,11 @@ public final class RequirementCaptureEditor {
         add(issues, "INVALID_ELEMENT_PARENT", path + "/parentElementRef", fact.sourceFactId(),
             "Only a local element may request a containing element; anchors and inline hooks keep their existing owner.");
       }
-      if (chain && conflictingValue(chainName, intent.requestedName())) {
-        add(issues, "CONFLICTING_ELEMENT_INTENT", path, fact.sourceFactId(),
-            "Facts about the chain must agree on its requested name.");
-      }
-      if (chain && intent.requestedName() != null) {
-        chainName = intent.requestedName();
-      }
-      var priors = intents.computeIfAbsent(intent.elementRef(), ignored -> new ArrayList<>());
-      if (priors.stream().anyMatch(prior -> prior.placement() != intent.placement()
-          || !Objects.equals(prior.elementType(), intent.elementType())
-          || !Objects.equals(prior.ownerInteractionId(), intent.ownerInteractionId())
-          || conflictingValue(prior.requestedName(), intent.requestedName())
-          || conflictingValue(prior.successorElementRef(), intent.successorElementRef())
-          || conflictingValue(prior.predecessorElementRef(), intent.predecessorElementRef())
-          || conflictingValue(prior.parentElementRef(), intent.parentElementRef())
-          || prior.requestedProperties().stream().anyMatch(property -> intent.requestedProperties().stream()
-              .anyMatch(other -> property != null && other != null && property.key().equals(other.key())
-                  && !Objects.equals(property.value(), other.value()))))) {
-        add(issues, "CONFLICTING_ELEMENT_INTENT", path, fact.sourceFactId(),
-            "Facts about the same elementRef must agree on type, owner, placement, names, and supplied property values.");
-      }
-      priors.add(intent);
+      byIdentity.computeIfAbsent(ElementIdentity.of(intent), ignored -> new ArrayList<>())
+          .add(new IndexedIntent(fact, path));
+      intents.computeIfAbsent(intent.elementRef(), ignored -> new ArrayList<>()).add(intent);
     }
+    byIdentity.values().forEach(group -> addIdentityConflicts(issues, group));
     for (FactInput fact : draft.facts()) {
       var intent = fact == null ? null : fact.elementIntent();
       if (intent == null) {
@@ -973,6 +964,102 @@ public final class RequirementCaptureEditor {
         + ". Candidate element declarations: " + declarations
         + ". requestedName is display text, not a reference alias. Use canonical IDs in reference fields."
         + " These declarations are diagnostic context; other owner and order checks still apply.";
+  }
+
+  private record IndexedIntent(FactInput fact, String path) {}
+
+  private static void addIdentityConflicts(List<Issue> issues, List<IndexedIntent> group) {
+    int count = group.size();
+    var parent = new int[count];
+    for (int index = 0; index < count; index++) {
+      parent[index] = index;
+    }
+    for (int left = 0; left < count; left++) {
+      for (int right = left + 1; right < count; right++) {
+        if (elementIntentConflicts(group.get(left).fact().elementIntent(), group.get(right).fact().elementIntent())) {
+          int leftRoot = find(parent, left);
+          int rightRoot = find(parent, right);
+          if (leftRoot != rightRoot) {
+            parent[rightRoot] = leftRoot;
+          }
+        }
+      }
+    }
+    var components = new HashMap<Integer, List<Integer>>();
+    for (int index = 0; index < count; index++) {
+      components.computeIfAbsent(find(parent, index), ignored -> new ArrayList<>()).add(index);
+    }
+    for (var component : components.values()) {
+      if (component.size() < 2) {
+        continue;
+      }
+      var relatedEntityIds = component.stream()
+          .map(index -> group.get(index).fact().sourceFactId())
+          .sorted(Comparator.nullsFirst(Comparator.naturalOrder()))
+          .toList();
+      var relatedPaths = component.stream().map(index -> group.get(index).path()).sorted().toList();
+      String message = conflictMessage(group, component);
+      for (int index : component) {
+        IndexedIntent item = group.get(index);
+        var finding = new RequirementFinding(
+            "CONFLICTING_ELEMENT_INTENT", item.path(), item.fact().sourceFactId(),
+            relatedPaths, relatedEntityIds, List.of(), message);
+        issues.add(new Issue(
+            finding.code(), finding.path(), finding.entityId(), finding.message(), finding.relatedEntityIds()));
+      }
+    }
+  }
+
+  private static int find(int[] parent, int index) {
+    while (parent[index] != index) {
+      index = parent[index];
+    }
+    return index;
+  }
+
+  private static String conflictMessage(List<IndexedIntent> group, List<Integer> component) {
+    boolean chain = group.get(component.getFirst()).fact().elementIntent().placement()
+        == RequirementElementIntent.Placement.CHAIN;
+    boolean nameConflict = false;
+    boolean otherConflict = false;
+    for (int left = 0; left < component.size(); left++) {
+      for (int right = left + 1; right < component.size(); right++) {
+        var prior = group.get(component.get(left)).fact().elementIntent();
+        var intent = group.get(component.get(right)).fact().elementIntent();
+        if (conflictingValue(prior.requestedName(), intent.requestedName())) {
+          nameConflict = true;
+        }
+        if (elementIntentConflictsExceptName(prior, intent)) {
+          otherConflict = true;
+        }
+      }
+    }
+    if (chain && nameConflict && !otherConflict) {
+      return "Facts about the chain must agree on its requested name.";
+    }
+    return "Facts about the same elementRef must agree on type, owner, placement, names, and supplied property values.";
+  }
+
+  private static boolean elementIntentConflicts(RequirementElementIntent prior, RequirementElementIntent intent) {
+    return elementIntentConflictsExceptName(prior, intent)
+        || conflictingValue(prior.requestedName(), intent.requestedName());
+  }
+
+  private static boolean elementIntentConflictsExceptName(
+      RequirementElementIntent prior, RequirementElementIntent intent) {
+    return prior.placement() != intent.placement()
+        || !Objects.equals(prior.elementType(), intent.elementType())
+        || !Objects.equals(prior.ownerInteractionId(), intent.ownerInteractionId())
+        || conflictingValue(prior.successorElementRef(), intent.successorElementRef())
+        || conflictingValue(prior.predecessorElementRef(), intent.predecessorElementRef())
+        || conflictingValue(prior.parentElementRef(), intent.parentElementRef())
+        || propertyValuesConflict(prior, intent);
+  }
+
+  private static boolean propertyValuesConflict(RequirementElementIntent prior, RequirementElementIntent intent) {
+    return prior.requestedProperties().stream().anyMatch(property -> intent.requestedProperties().stream()
+        .anyMatch(other -> property != null && other != null && property.key().equals(other.key())
+            && !Objects.equals(property.value(), other.value())));
   }
 
   private static boolean conflictingValue(String left, String right) {

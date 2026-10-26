@@ -17,6 +17,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Intera
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.SystemType;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.CaptureIssue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureEditorTest {
@@ -313,7 +314,7 @@ class RequirementCaptureEditorTest {
 
     assertFalse(result.accepted());
     assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNKNOWN_ELEMENT_REFERENCE")));
-    assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("CONFLICTING_ELEMENT_INTENT")));
+    assertConflictParticipants(result, List.of("nested-missing", "nested-nested-work", "nested-start"));
   }
 
   @Test
@@ -350,11 +351,53 @@ class RequirementCaptureEditorTest {
     var result = RequirementCaptureEditor.initialize(new DraftInput(base.flow(), facts,
         base.capabilities(), base.openQuestions(), base.settings()));
     assertFalse(result.accepted());
-    assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("CONFLICTING_ELEMENT_INTENT")));
+    assertConflictParticipants(result, List.of("checkpoint-1", "checkpoint-2"));
     assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNKNOWN_ELEMENT_REFERENCE")));
     var valid = RequirementCaptureEditor.initialize(new DraftInput(base.flow(), facts.subList(0, 4),
         base.capabilities(), base.openQuestions(), base.settings()));
     assertTrue(valid.accepted(), valid.issues().toString());
+  }
+
+  @Test
+  void conflictingChainNamesReportEveryParticipantIndependentOfFactOrder() {
+    var forward = chainNameConflict("chain-alpha", "Alpha flow", "chain-beta", "Beta flow");
+    var reversed = chainNameConflict("chain-beta", "Beta flow", "chain-alpha", "Alpha flow");
+    List<String> participants = List.of("chain-alpha", "chain-beta");
+    assertEquals(participants, conflictEntityIds(forward));
+    assertEquals(conflictEntityIds(forward), conflictEntityIds(reversed));
+    assertConflictParticipants(RequirementCaptureEditor.initialize(forward), participants);
+    assertConflictParticipants(RequirementCaptureEditor.initialize(reversed), participants);
+  }
+
+  @Test
+  void conflictingLocalScriptNamesReportEveryParticipantIndependentOfFactOrder() {
+    var forward = localScriptNameConflict("script-first", "Prepare request", "script-second", "Prepare response");
+    var reversed = localScriptNameConflict("script-second", "Prepare response", "script-first", "Prepare request");
+    List<String> participants = List.of("script-first", "script-second");
+    assertEquals(participants, conflictEntityIds(forward));
+    assertEquals(conflictEntityIds(forward), conflictEntityIds(reversed));
+    assertConflictParticipants(RequirementCaptureEditor.initialize(forward), participants);
+    assertConflictParticipants(RequirementCaptureEditor.initialize(reversed), participants);
+  }
+
+  @Test
+  void chainAndAnchorIdentitiesThatShareTheEntryStringDoNotConflict() {
+    var chain = chainFact("chain-entry", "entry", "Entry flow");
+    var anchor = new FactInput("entry-anchor", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+        "Name the entry trigger.", null, null,
+        new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+            "entry", null, null, "Entry trigger", List.of(), List.of()));
+    var flow = new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND, "Caller", "start",
+        null, null, null)), List.of());
+    var capabilities = List.of(new CapabilityInput("entry", "http-trigger",
+        RequirementCaptureInput.HttpMode.CUSTOM, RequirementCaptureInput.HttpMethod.POST, "/tasks",
+        null, null, null));
+    var settings = new DraftSettings(false, null);
+    for (var facts : List.of(List.of(chain, anchor), List.of(anchor, chain))) {
+      var result = RequirementCaptureEditor.initialize(new DraftInput(flow, facts, capabilities, List.of(), settings));
+      assertTrue(result.accepted(), result.issues().toString());
+      assertTrue(result.issues().stream().noneMatch(issue -> "CONFLICTING_ELEMENT_INTENT".equals(issue.code())));
+    }
   }
 
   @Test
@@ -564,6 +607,67 @@ class RequirementCaptureEditorTest {
     assertEquals(updated.draft(), rejected.draft());
     assertTrue(rejected.issues().stream().anyMatch(issue ->
         "MAPPING_TARGETS_REQUIRED".equals(issue.code())));
+  }
+
+  private static void assertConflictParticipants(
+      RequirementCaptureEditor.EditResult result, List<String> participants) {
+    assertEquals(participants, result.issues().stream()
+        .filter(issue -> "CONFLICTING_ELEMENT_INTENT".equals(issue.code()))
+        .map(RequirementCaptureEditor.Issue::entityId)
+        .sorted()
+        .toList(), result.issues().toString());
+    var viewed = RequirementCaptureResult.view(null, null, false, false, result.issues(),
+        RequirementDiscoveryDirective.NONE);
+    var conflicts = viewed.issues().stream()
+        .filter(issue -> "CONFLICTING_ELEMENT_INTENT".equals(issue.code()))
+        .toList();
+    assertEquals(participants.size(), conflicts.size());
+    for (CaptureIssue issue : conflicts) {
+      assertEquals(participants, issue.details().relatedEntityIds(), issue.toString());
+    }
+    viewed.issues().stream()
+        .filter(issue -> !"CONFLICTING_ELEMENT_INTENT".equals(issue.code()))
+        .forEach(issue -> assertEquals(List.of(), issue.details().relatedEntityIds()));
+  }
+
+  private static List<String> conflictEntityIds(DraftInput draft) {
+    return RequirementCaptureEditor.initialize(draft).issues().stream()
+        .filter(issue -> "CONFLICTING_ELEMENT_INTENT".equals(issue.code()))
+        .map(RequirementCaptureEditor.Issue::entityId)
+        .sorted()
+        .toList();
+  }
+
+  private static DraftInput chainNameConflict(
+      String firstId, String firstName, String secondId, String secondName) {
+    var base = initial();
+    var facts = new java.util.ArrayList<>(base.facts());
+    facts.add(chainFact(firstId, "chain", firstName));
+    facts.add(chainFact(secondId, "chain", secondName));
+    return new DraftInput(base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings());
+  }
+
+  private static DraftInput localScriptNameConflict(
+      String firstId, String firstName, String secondId, String secondName) {
+    var base = initial();
+    var facts = new java.util.ArrayList<>(base.facts());
+    facts.add(scriptFact(firstId, firstName));
+    facts.add(scriptFact(secondId, secondName));
+    return new DraftInput(base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings());
+  }
+
+  private static FactInput chainFact(String id, String elementRef, String name) {
+    return new FactInput(id, List.of(), FactKind.PARAMETER, Polarity.POSITIVE,
+        "The chain name is " + name + ".", null, null,
+        new RequirementElementIntent(elementRef, "chain", RequirementElementIntent.Placement.CHAIN,
+            null, null, null, name, List.of(), List.of()));
+  }
+
+  private static FactInput scriptFact(String id, String name) {
+    return new FactInput(id, List.of("start"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Run the local script.", null, null,
+        new RequirementElementIntent("prepare", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+            "start", null, null, null, name, List.of(), List.of()));
   }
 
   private static DraftInput initial() {
