@@ -57,6 +57,46 @@ public final class RequirementFailureConsistency {
         .toList();
   }
 
+  /**
+   * Returns FAILURE_MODE_CONFLICT when an outbound call's facts keep HTTP responses on the normal
+   * successor and its mode is not INLINE_RESPONSE. The check substitutes PROPAGATE and uses the
+   * candidate's facts and topology.
+   */
+  static List<Issue> continuedResponsesRequireInlineResponse(
+      DraftInput candidate, List<CatalogBindingHint> bindings) {
+    if (candidate == null || candidate.flow() == null || candidate.flow().interactions() == null) {
+      return List.of();
+    }
+    var interactions = candidate.flow().interactions();
+    var findings = new ArrayList<Issue>();
+    for (int index = 0; index < interactions.size(); index++) {
+      var interaction = interactions.get(index);
+      if (interaction == null || interaction.direction() != Direction.OUTBOUND
+          || interaction.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE) {
+        continue;
+      }
+      var probed = new ArrayList<>(interactions);
+      if (interaction.failureMode() != ServiceCallFailureMode.PROPAGATE) {
+        probed.set(index, withPropagate(interaction));
+      }
+      var probe = new DraftInput(new RequirementCaptureInput.FlowInput(probed, candidate.flow().transitions()),
+          candidate.facts(), candidate.capabilities(), candidate.openQuestions(), candidate.settings());
+      for (var finding : issues(probe, bindings == null ? List.of() : bindings)) {
+        if (interaction.interactionId().equals(finding.entityId())) {
+          findings.add(finding);
+        }
+      }
+    }
+    return List.copyOf(findings);
+  }
+
+  private static RequirementCaptureInput.InteractionInput withPropagate(
+      RequirementCaptureInput.InteractionInput value) {
+    return new RequirementCaptureInput.InteractionInput(value.interactionId(), value.direction(),
+        value.participant(), value.operation(), value.description(), ServiceCallFailureMode.PROPAGATE,
+        value.retryPolicy());
+  }
+
   private static List<Issue> issues(
       RequirementFlow flow, List<RequirementFact> facts, List<CatalogBindingHint> bindings) {
     if (flow == null || facts == null || bindings == null) return List.of();
