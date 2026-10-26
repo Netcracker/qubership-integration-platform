@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings;
@@ -12,17 +13,24 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLit
  * Decides whether a requirement candidate may replace the current projection.
  *
  * <p>A rejected initial projection may change structural representation. Shape, reference, and
- * literal findings on that projection stay focused repair when their path is editable. A literal
- * obligation is one token: a quote with no whitespace, or the claim text when that claim has no
- * quote and the text itself has no whitespace. A quote or text that contains whitespace is claim
- * evidence only. While no baseline exists, the token is the current candidate's evidence quote
- * when that quote is an exact substring of the named user turn, the fact has an element intent,
- * and the quote is a shorter span than the claim text. On an accepted
- * draft, kind, interaction IDs, mapping, element intent, placement, exact values, text, and
+ * literal findings on that projection stay focused repair when their path is editable. A source
+ * literal is a runtime value taken from a validated quote, or from saved claim text when that
+ * claim has no quote. The policy takes an HTTP operation (GET, POST, PUT, PATCH, or DELETE, one
+ * space, then a path token starting with /), a hyphenated token, or the whole value when it has
+ * no whitespace. Ordinary words and a whole sentence are not literals. While no baseline exists,
+ * those literals come from the candidate's evidence quote when that quote is an exact substring
+ * of the named user turn and the fact has an element intent. A literal equal to the entire claim
+ * text stays claim evidence. On an accepted draft, kind, interaction IDs, mapping, element intent,
+ * placement, exact values, text, and
  * polarity stay fixed unless an amendment or a server repair path covers the change. A focused
  * envelope with no repair alternative inside that scope becomes a projection rebuild.
  */
 public final class RequirementRepairPolicy {
+
+  private static final Pattern HTTP_OPERATION = Pattern.compile(
+      "\\b(GET|POST|PUT|PATCH|DELETE) (/\\S+)");
+  private static final Pattern HYPHENATED_TOKEN = Pattern.compile(
+      "(?<![\\w/-])([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)(?![\\w-])");
 
   private RequirementRepairPolicy() {}
 
@@ -99,8 +107,8 @@ public final class RequirementRepairPolicy {
   }
 
   /**
-   * A rejected candidate does not create a literal obligation. The saved quote is one literal
-   * only when it is a single token, and the claim text is that token when the claim has no quote.
+   * A rejected candidate does not create a literal obligation. Saved quote text, or claim text
+   * when the claim has no quote, contributes its source literals.
    */
   private static List<RequirementFinding> missingGroundedLiterals(
       RequirementSemanticBaseline baseline, DraftInput candidate) {
@@ -124,8 +132,7 @@ public final class RequirementRepairPolicy {
   }
 
   /**
-   * A saved quote is one literal only when it is a single token. Claim text is that token when
-   * the claim has no quote.
+   * Source literals in a saved quote. Claim text supplies them when the claim has no quote.
    */
   private static List<String> groundedLiterals(RequirementSemanticClaim claim) {
     if (claim == null) {
@@ -133,20 +140,46 @@ public final class RequirementRepairPolicy {
     }
     String quote = claim.evidence() == null ? null : claim.evidence().quote();
     if (quote != null && !quote.isBlank()) {
-      return bindingToken(quote) ? List.of(quote) : List.of();
+      return sourceLiterals(quote);
     }
-    return bindingToken(claim.text()) ? List.of(claim.text()) : List.of();
-  }
-
-  /** One binding token has no whitespace. A phrase is claim evidence only. */
-  private static boolean bindingToken(String value) {
-    return value != null && !value.isBlank() && value.chars().noneMatch(Character::isWhitespace);
+    return sourceLiterals(claim.text());
   }
 
   /**
-   * While no baseline exists, a candidate evidence quote is a literal obligation when it is one
-   * token, an exact substring of the named user turn, the fact has an element intent, and the
-   * quote is a shorter span than the claim text.
+   * HTTP operations, hyphenated tokens, and a value with no whitespace. Ordinary words stay prose.
+   */
+  private static List<String> sourceLiterals(String value) {
+    if (value == null || value.isBlank()) {
+      return List.of();
+    }
+    if (value.chars().noneMatch(Character::isWhitespace)) {
+      return List.of(value);
+    }
+    var literals = new ArrayList<String>();
+    var http = HTTP_OPERATION.matcher(value);
+    while (http.find()) {
+      String path = http.group(2);
+      if (path.length() > 1) {
+        addLiteral(literals, http.group(1) + " " + path);
+      }
+    }
+    var hyphenated = HYPHENATED_TOKEN.matcher(value);
+    while (hyphenated.find()) {
+      addLiteral(literals, hyphenated.group(1));
+    }
+    return List.copyOf(literals);
+  }
+
+  private static void addLiteral(List<String> literals, String literal) {
+    if (!literals.contains(literal)) {
+      literals.add(literal);
+    }
+  }
+
+  /**
+   * While no baseline exists, source literals in a candidate quote are obligations when the quote
+   * is an exact substring of the named user turn and the fact has an element intent. A literal
+   * equal to the whole claim text stays claim evidence.
    */
   private static List<RequirementFinding> missingCandidateQuoteLiterals(
       AuthorSourceEvidence.Packet source, DraftInput candidate) {
@@ -159,12 +192,17 @@ public final class RequirementRepairPolicy {
         continue;
       }
       String quote = fact.evidence().quote();
-      if (!bindingToken(quote) || quote.equals(fact.text())
-          || !exactUserTurnQuote(source, fact.evidence().sourceTurnId(), quote)
-          || RequiredLiteralBindings.covered(fact.elementIntent(), quote, mappingTexts(fact))) {
+      if (quote == null || quote.isBlank()
+          || !exactUserTurnQuote(source, fact.evidence().sourceTurnId(), quote)) {
         continue;
       }
-      findings.add(literalFinding(fact.sourceFactId(), quote));
+      for (String literal : sourceLiterals(quote)) {
+        if (literal.equals(fact.text())
+            || RequiredLiteralBindings.covered(fact.elementIntent(), literal, mappingTexts(fact))) {
+          continue;
+        }
+        findings.add(literalFinding(fact.sourceFactId(), literal));
+      }
     }
     return findings;
   }

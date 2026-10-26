@@ -59,8 +59,9 @@ public final class RequirementFailureConsistency {
 
   /**
    * Returns FAILURE_MODE_CONFLICT when an outbound call's facts keep HTTP responses on the normal
-   * successor and its mode is not INLINE_RESPONSE. The check substitutes PROPAGATE and uses the
-   * candidate's facts and topology.
+   * successor and its mode is not INLINE_RESPONSE. The check copies the candidate and substitutes
+   * PROPAGATE on that copy, using the candidate's facts and topology. The finding names the
+   * candidate's own failure mode.
    */
   static List<Issue> continuedResponsesRequireInlineResponse(
       DraftInput candidate, List<CatalogBindingHint> bindings) {
@@ -83,11 +84,20 @@ public final class RequirementFailureConsistency {
           candidate.facts(), candidate.capabilities(), candidate.openQuestions(), candidate.settings());
       for (var finding : issues(probe, bindings == null ? List.of() : bindings)) {
         if (interaction.interactionId().equals(finding.entityId())) {
-          findings.add(finding);
+          findings.add(namedModeFinding(finding, interaction.failureMode()));
         }
       }
     }
     return List.copyOf(findings);
+  }
+
+  private static Issue namedModeFinding(Issue finding, ServiceCallFailureMode mode) {
+    String modeName = mode == null ? "null" : mode.name();
+    return new Issue(finding.code(), finding.path(), finding.entityId(),
+        "HTTP error responses continue from '" + finding.entityId()
+            + "' to its requested normal response step because errorThrowing=false. The failure mode is "
+            + modeName + ". Set failureMode to INLINE_RESPONSE. Transport exceptions still propagate;"
+            + " this finding concerns HTTP responses.");
   }
 
   private static RequirementCaptureInput.InteractionInput withPropagate(

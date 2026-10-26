@@ -8,8 +8,10 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -1209,6 +1211,65 @@ class RequirementRevisionAdmissionTest {
         "A spaced claim text is not one literal");
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"POST /sobjects/Task", "GET /health"})
+  void spacedHttpOperationIsARequiredLiteral(String operation) {
+    var quoteClaim = new RequirementSemanticClaim("audit", "Call the operation.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", operation));
+    var textClaim = new RequirementSemanticClaim("audit", operation, Polarity.POSITIVE, null);
+    String turn = "Use " + operation + " now.";
+    var uncovered = absentLiteral();
+    var missingQuote = replaceFact(uncovered, quoted(uncovered.facts().getFirst(), "turn-1", operation));
+    var coveredProperty = coveredValue("property", operation);
+    var boundQuote = replaceFact(coveredProperty, quoted(coveredProperty.facts().getFirst(), "turn-1", operation));
+
+    assertAll(
+        () -> assertEquals(List.of(operation),
+            unboundTokens(admit(List.of(), uncovered, baseline(quoteClaim))), "quote"),
+        () -> assertEquals(List.of(operation),
+            unboundTokens(admit(List.of(), uncovered, baseline(textClaim))), "claim text"),
+        () -> {
+          for (String site : List.of("name", "property", "body", "mapping")) {
+            assertEquals(List.of(), unboundTokens(admit(List.of(), coveredValue(site, operation),
+                baseline(quoteClaim))), site);
+          }
+        },
+        () -> assertEquals(List.of(operation),
+            unboundTokens(quoteDecision(missingQuote, "turn-1", turn)), "candidate quote"),
+        () -> assertEquals(List.of(),
+            unboundTokens(quoteDecision(boundQuote, "turn-1", turn)), "covered candidate quote"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"audit-event", "trace-id"})
+  void sentenceQuoteRequiresOnlyTheHyphenatedToken(String token) {
+    String sentence = "log exactly " + token + " before Friday";
+    var quoteClaim = new RequirementSemanticClaim("audit", "Log the audit event.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", sentence));
+    var textClaim = new RequirementSemanticClaim("audit", sentence, Polarity.POSITIVE, null);
+    var ordinary = new RequirementSemanticClaim("audit", "log exactly before Friday",
+        Polarity.POSITIVE, null);
+    String turn = "Please " + sentence + ".";
+    var uncovered = absentLiteral();
+    var missingQuote = replaceFact(uncovered, quoted(uncovered.facts().getFirst(), "turn-1", sentence));
+    var covered = coveredValue("property", token);
+    var boundQuote = replaceFact(covered, quoted(covered.facts().getFirst(), "turn-1", sentence));
+
+    assertAll(
+        () -> assertEquals(List.of(token),
+            unboundTokens(admit(List.of(), uncovered, baseline(quoteClaim))), "quote"),
+        () -> assertEquals(List.of(token),
+            unboundTokens(admit(List.of(), uncovered, baseline(textClaim))), "claim text"),
+        () -> assertEquals(List.of(),
+            unboundTokens(admit(List.of(), uncovered, baseline(ordinary))), "ordinary words"),
+        () -> assertEquals(List.of(),
+            unboundTokens(admit(List.of(), covered, baseline(quoteClaim))), "message property"),
+        () -> assertEquals(List.of(token),
+            unboundTokens(quoteDecision(missingQuote, "turn-1", turn)), "candidate quote"),
+        () -> assertEquals(List.of(),
+            unboundTokens(quoteDecision(boundQuote, "turn-1", turn)), "covered candidate quote"));
+  }
+
   @Test
   void rejectedSnapshotTransitionsAreNotRestored() {
     var accepted = new TransitionInput("entry", "delivery");
@@ -1351,6 +1412,48 @@ class RequirementRevisionAdmissionTest {
         && issue.message() != null && issue.message().contains(token));
   }
 
+  private static List<String> unboundTokens(List<RequirementCaptureEditor.Issue> issues) {
+    return quotedLiterals(issues.stream()
+        .filter(issue -> "UNBOUND_REQUIRED_LITERAL".equals(issue.code()))
+        .map(RequirementCaptureEditor.Issue::message).toList());
+  }
+
+  private static List<String> unboundTokens(RequirementRepairPolicy.RequirementRepairDecision decision) {
+    return quotedLiterals(decision.findings().stream()
+        .filter(finding -> "UNBOUND_REQUIRED_LITERAL".equals(finding.code()))
+        .map(RequirementFinding::message).toList());
+  }
+
+  private static List<String> quotedLiterals(List<String> messages) {
+    var tokens = new ArrayList<String>();
+    var pattern = Pattern.compile("\\[\"([^\"]*)\"\\]");
+    for (String message : messages) {
+      if (message == null) {
+        continue;
+      }
+      var matcher = pattern.matcher(message);
+      if (matcher.find()) {
+        tokens.add(matcher.group(1));
+      }
+    }
+    return tokens;
+  }
+
+  private static RequirementRepairPolicy.RequirementRepairDecision quoteDecision(
+      DraftInput candidate, String turnId, String turn) {
+    var source = new AuthorSourceEvidence.Packet("generation",
+        List.of(new AuthorSourceEvidence.Input(turnId, turn)));
+    var context = new RequirementRepairPolicy.RequirementRepairContext(
+        null, null, java.util.Set.of(), java.util.Set.of(),
+        RequirementRepairPolicy.Strategy.FOCUSED_REPAIR, source);
+    return RequirementRepairPolicy.evaluate(context, candidate, List.of());
+  }
+
+  private static DraftInput replaceFact(DraftInput draft, FactInput fact) {
+    return new DraftInput(draft.flow(), List.of(fact), draft.capabilities(), draft.openQuestions(),
+        draft.settings());
+  }
+
   private static RequirementSemanticBaseline baseline(RequirementSemanticClaim claim) {
     return new RequirementSemanticBaseline("generation", "hash", List.of(claim));
   }
@@ -1373,11 +1476,14 @@ class RequirementRevisionAdmissionTest {
   }
 
   private static DraftInput coveredLiteral(String site) {
-    String literal = "audit-event";
+    return coveredValue(site, "audit-event");
+  }
+
+  private static DraftInput coveredValue(String site, String literal) {
     String requestedName = "name".equals(site) ? literal : null;
     List<PlanProperty> properties = switch (site) {
       case "property" -> List.of(new PlanProperty("message", literal));
-      case "body" -> List.of(new PlanProperty("script", "def saved = \"audit-event\"\n"));
+      case "body" -> List.of(new PlanProperty("script", "def saved = \"" + literal + "\"\n"));
       default -> List.of();
     };
     String expression = "mapping".equals(site) ? literal : null;
