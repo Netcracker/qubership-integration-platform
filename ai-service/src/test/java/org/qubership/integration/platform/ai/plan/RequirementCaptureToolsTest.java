@@ -1823,7 +1823,8 @@ class RequirementCaptureToolsTest {
       var view = mapper.readTree(h.tools().readRequirementDraft());
       assertTrue(view.path("draft").isNull());
       assertEquals("EMPTY", view.path("readiness").asText());
-      assertEquals("DISCUSS", view.path("nextAction").asText());
+      assertTrue(view.path("pendingProposal").isObject());
+      assertEquals("REPAIR_CAPTURE", view.path("nextAction").asText());
       assertTrue(view.path("repairConstraints").isMissingNode() || view.path("repairConstraints").isNull());
       var builder = new org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder(
           null, null, h.store(), conversations);

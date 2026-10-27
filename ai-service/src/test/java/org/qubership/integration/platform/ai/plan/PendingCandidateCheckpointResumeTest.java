@@ -259,7 +259,7 @@ class PendingCandidateCheckpointResumeTest {
         List.of(fact), List.of(), List.of(), new RequirementCaptureInput.DraftSettings(false, null));
     var rejected = call(tools, "captureRequirementDraft", Map.of("draft", candidate));
     assertFalse(rejected.accepted(), rejected.toString());
-    var baseline = drafts.semanticBaseline(CHAT).orElseThrow();
+    assertTrue(drafts.semanticBaseline(CHAT).isEmpty(), "A rejected candidate does not create a claim");
     assertTrue(drafts.pendingProposal(CHAT).isPresent());
     assertNull(drafts.repairConstraints(CHAT));
     assertTrue(drafts.get(CHAT).isEmpty());
@@ -272,7 +272,7 @@ class PendingCandidateCheckpointResumeTest {
     var restoredDrafts = new RequirementDraftStore(restoredArtifacts, restoredSessions, conversations(archive));
     restoredDrafts.beginTurn(CHAT, author);
     assertTrue(restoredDrafts.pendingProposal(CHAT).isEmpty());
-    assertEquals(baseline, restoredDrafts.semanticBaseline(CHAT).orElseThrow());
+    assertTrue(restoredDrafts.semanticBaseline(CHAT).isEmpty());
     assertTrue(restoredDrafts.get(CHAT).isEmpty());
     assertTrue(restoredDrafts.latestRevision(CHAT).isEmpty());
     assertNull(restoredDrafts.repairConstraints(CHAT));
