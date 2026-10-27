@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -68,9 +69,7 @@ class RejectedLiteralValidationStagingTest {
       assertEquals(List.of("INVALID_ELEMENT_OWNER"), rejected.issues().stream()
           .map(RequirementCaptureResult.CaptureIssue::code).toList(), rejected.toString());
       assertEquals("/draft/facts/build-script/elementIntent", rejected.issues().getFirst().path());
-      assertEquals(List.of("createTask", "POST /sobjects/Task", "false"),
-          protectedFact(rejected, "create-anchor").elementIntent().exactValues());
-      assertEquals(List.of("onTaskResult"), protectedFact(rejected, "result-anchor").elementIntent().exactValues());
+      assertNull(rejected.repairConstraints());
       var protection = h.mapper.valueToTree(rejected.repairConstraints());
       var source = h.mapper.valueToTree(h.archive.read(h.chat));
       var immutable = h.immutableArtifacts();
@@ -259,10 +258,6 @@ class RejectedLiteralValidationStagingTest {
   private static FactInput replace(FactInput fact, String text, RequirementElementIntent intent) {
     return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), text,
         fact.fieldMapping(), fact.policyConflict(), intent);
-  }
-
-  private static FactInput protectedFact(RequirementCaptureResult result, String id) {
-    return result.repairConstraints().facts().stream().filter(fact -> fact.sourceFactId().equals(id)).findFirst().orElseThrow();
   }
 
   private static final class Harness {

@@ -90,8 +90,12 @@ class RequirementPendingInitialRepairProviderTest {
           var read = lastTool(request, "readRequirementDraft");
           var pending = read.path("pendingProposal");
           assertEquals(json.valueToTree(originalAttempt.get().reference()), pending.path("attempt"));
-          assertEquals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(originalAttempt.get().reference()),
-              pending.path("token").asText());
+          var storedAttempt = artifacts.payload(originalAttempt.get(),
+              RequirementDraftStore.RequirementCaptureAttempt.class);
+          assertEquals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+              new RequirementDraftStore.PendingProposalBinding(originalAttempt.get().reference(),
+                  storedAttempt.authorEvidenceHash(), storedAttempt.acceptedDraftReference(),
+                  storedAttempt.semanticBaselineReference())), pending.path("token").asText());
           assertEquals(json.valueToTree(initial), pending.path("draft"));
           assertTrue(pending.path("base").isNull());
           assertEquals(input.generation(), pending.path("sourceGeneration").asText());

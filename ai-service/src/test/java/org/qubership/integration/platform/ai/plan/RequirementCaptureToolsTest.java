@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -100,14 +101,9 @@ class RequirementCaptureToolsTest {
       assertEquals(mapper.valueToTree(original), immutableAttempt.path("arguments"));
       assertEquals(mapper.valueToTree(refused.issues()), immutableAttempt.path("issues"));
       assertEquals(source.turnId(), immutableAttempt.path("sourceTurnId").asText());
-      var retained = h.store().rejectedCaptureFacts(chat);
-      var policy = retained.stream().filter(fact -> fact.sourceFactId().equals("access-policy")).findFirst().orElseThrow();
-      assertEquals(withPolicy(original.facts().get(2), null), policy);
-      assertEquals(original.facts().get(1), retained.stream()
-          .filter(fact -> fact.sourceFactId().equals("route-anchor")).findFirst().orElseThrow());
-      assertEquals(original.facts().get(4), retained.stream()
-          .filter(fact -> fact.sourceFactId().equals("audit")).findFirst().orElseThrow());
+      assertTrue(h.store().rejectedCaptureFacts(chat).isEmpty());
       var protection = mapper.valueToTree(h.store().repairConstraints(chat));
+      assertNull(h.store().repairConstraints(chat));
       if (reload) {
         h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
         assertEquals(protection, mapper.valueToTree(h.store().repairConstraints(chat)));
@@ -227,8 +223,7 @@ class RequirementCaptureToolsTest {
       assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_POLICY_CONFLICT".equals(issue.code())
           && "/draft/facts/access-policy/policyConflict".equals(issue.path())), refused.toString());
       assertTrue(h.store().get(chat).isEmpty());
-      assertEquals(withPolicy(base.facts().get(2), null), h.store().rejectedCaptureFacts(chat).stream()
-          .filter(fact -> fact.sourceFactId().equals("access-policy")).findFirst().orElseThrow());
+      assertTrue(h.store().rejectedCaptureFacts(chat).isEmpty());
       assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
     }
   }
@@ -290,8 +285,7 @@ class RequirementCaptureToolsTest {
       if (loss.equals("target")) {
         assertFalse(refused.accepted(), refused.toString());
         assertTrue(refused.issues().stream().anyMatch(issue -> "audit".equals(issue.entityId())), refused.toString());
-        assertEquals(audit, h.store().rejectedCaptureFacts(h.conversationId()).stream()
-            .filter(fact -> fact.sourceFactId().equals("audit")).findFirst().orElseThrow());
+        assertTrue(h.store().rejectedCaptureFacts(h.conversationId()).isEmpty());
         assertTrue(h.store().get(h.conversationId()).isEmpty());
       } else {
         assertTrue(refused.accepted(), refused.toString());
@@ -610,10 +604,7 @@ class RequirementCaptureToolsTest {
         }
       }
       assertNotNull(rejected);
-      var protectedFact = rejected.repairConstraints().facts().stream()
-          .filter(fact -> fact.sourceFactId().equals("audit-requirement")).findFirst().orElseThrow();
-      assertEquals("Log audit-event in Audit stage.", protectedFact.text());
-      assertTrue(protectedFact.elementIntent() == null);
+      assertNull(rejected.repairConstraints());
     }
   }
 
@@ -1372,21 +1363,7 @@ class RequirementCaptureToolsTest {
       assertTrue(propertyFailure.issues().stream()
           .anyMatch(issue -> "INVALID_REQUESTED_PROPERTY".equals(issue.code())));
       var repaired = candidate.apply("entry", false);
-      var lost = new DraftInput(repaired.flow(), repaired.facts().subList(0, 2),
-          repaired.capabilities(), repaired.openQuestions(), repaired.settings());
-      assertTrue(RequirementCaptureEditor.validateFactPreservation(
-          harness.store().rejectedCaptureFacts(chat), lost, false).stream()
-          .anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code()) && "prepare-script".equals(issue.entityId())));
-      var script = repaired.facts().getLast();
-      var intent = script.elementIntent();
-      var changed = new FactInput(script.sourceFactId(), script.interactionIds(), script.kind(), script.polarity(),
-          script.text(), null, null, new RequirementElementIntent(intent.elementRef(), intent.elementType(),
-              intent.placement(), intent.ownerInteractionId(), intent.successorElementRef(),
-              intent.predecessorElementRef(), intent.requestedName(), List.of(), intent.exactValues()));
-      assertTrue(RequirementCaptureEditor.validateFactPreservation(harness.store().rejectedCaptureFacts(chat),
-          new DraftInput(repaired.flow(), List.of(repaired.facts().getFirst(), repaired.facts().get(1), changed),
-              repaired.capabilities(), repaired.openQuestions(), repaired.settings()), false).stream()
-          .anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())));
+      assertTrue(harness.store().rejectedCaptureFacts(chat).isEmpty());
       var accepted = mapper.readValue(harness.tools().captureRequirementDraft(repaired), RequirementCaptureResult.class);
       assertTrue(accepted.accepted(), accepted.issues().toString());
       assertEquals(repaired.facts(), harness.store().get(chat).orElseThrow().authoredDraft().facts());
@@ -1809,11 +1786,7 @@ class RequirementCaptureToolsTest {
         return;
       }
       assertFalse(renamed.accepted(), renamed.toString());
-      assertEquals(2, h.store().rejectedCaptureFacts(chat).size());
-      assertTrue(h.store().rejectedCaptureFacts(chat).contains(visibility));
-      assertFalse(h.store().rejectedCaptureFacts(chat).stream()
-          .anyMatch(fact -> "renamed-visibility".equals(fact.sourceFactId())),
-          "A rejected rewrite must not make an alternative identity mandatory");
+      assertTrue(h.store().rejectedCaptureFacts(chat).isEmpty());
       h = persistentHarness(blobs, mapper, conversations, chat);
       h.store().beginTurn(chat, "Repair the generated draft from the saved source.");
       var corrected = new DraftInput(ready.flow(), List.of(goal, visibility), ready.capabilities(),
@@ -1847,14 +1820,11 @@ class RequirementCaptureToolsTest {
       assertFalse(mapper.readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).accepted());
       h = persistentHarness(blobs, mapper, conversations, chat);
       h.store().beginTurn(chat, "Repair the generated draft from the saved source.");
-      var expected = mapper.valueToTree(h.store().rejectedCaptureFacts(chat));
       var view = mapper.readTree(h.tools().readRequirementDraft());
       assertTrue(view.path("draft").isNull());
       assertEquals("EMPTY", view.path("readiness").asText());
-      assertEquals("REPAIR_CAPTURE", view.path("nextAction").asText());
-      assertEquals(expected, view.path("repairConstraints").path("facts"));
-      assertEquals("/tasks", view.path("repairConstraints").path("values")
-          .path("capabilities").path("entry").path("path").asText());
+      assertEquals("DISCUSS", view.path("nextAction").asText());
+      assertTrue(view.path("repairConstraints").isMissingNode() || view.path("repairConstraints").isNull());
       var builder = new org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder(
           null, null, h.store(), conversations);
       var renderer = io.quarkus.qute.Engine.builder().addDefaults()
@@ -1864,7 +1834,6 @@ class RequirementCaptureToolsTest {
       assertFalse(prompt.contains("Pending preservation constraints copied from rejected proposals"), prompt);
       assertFalse(prompt.contains("retain every validated fact ID, text, and elementIntent"), prompt);
       assertFalse(prompt.contains("Preserve the listed IDs and constrained fields"), prompt);
-      assertFalse(prompt.contains(mapper.writeValueAsString(h.store().rejectedCaptureFacts(chat))), prompt);
       assertTrue(h.store().get(chat).isEmpty(), "Reading constraints must not admit a draft");
     }
   }

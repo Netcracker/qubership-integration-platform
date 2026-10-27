@@ -160,16 +160,11 @@ final class RequirementRevisionAdmission {
       findings.add(finding("/", List.of(), "accepted-extraction", references, "representation-retention",
           PreservationOutcome.VERIFIED, "The captured representation is unchanged; this does not establish source completeness."));
     }
-    var protectionRevision = artifacts.history(compilationId, Kind.REQUIREMENT_CAPTURE_PROTECTION).stream()
-        .filter(value -> value.sequence() < attemptRevision.sequence())
-        .filter(value -> {
-          var protection = artifacts.payload(value, RequirementDraftStore.CaptureFactProtection.class);
-          return Objects.equals(protection.sourceGeneration(), attempt.sourceGeneration())
-              && Objects.equals(protection.sourceTurnId(), attempt.sourceTurnId());
-        }).reduce((first, last) -> last).orElse(null);
+    var protectionRevision = LegacyCaptureProtectionAdapter.protectionBefore(artifacts, attemptRevision, attempt)
+        .orElse(null);
     String protectionHash = null;
     if (protectionRevision != null) {
-      var protection = artifacts.payload(protectionRevision, RequirementDraftStore.CaptureFactProtection.class);
+      var protection = LegacyCaptureProtectionAdapter.payload(artifacts, protectionRevision);
       protectionHash = CaptureProposal.digest(protection);
       var protectionRefs = new ArrayList<>(references);
       protectionRefs.add(protectionRevision.reference());

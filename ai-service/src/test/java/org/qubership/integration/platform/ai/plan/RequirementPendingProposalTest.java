@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -21,6 +22,8 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureProposal;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
@@ -193,6 +196,117 @@ class RequirementPendingProposalTest {
     assertTrue(h.store.pendingProposal(CHAT).isEmpty(), boundary);
     var restored = new Harness(h.blobs);
     assertTrue(restored.store.pendingProposal(CHAT).isEmpty(), boundary + " after reload");
+  }
+
+  @Test
+  void rejectedQuotedCaptureKeepsClaimsOffTheDisposableProjection() throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    String author = "Submit one task before Friday.";
+    h.begin(author);
+    String turn = h.store.writeAuthority(CHAT).sourceTurnId();
+    var fact = new FactInput("invalid id", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Submit one task",
+        null, null, null, new ClaimEvidenceInput(turn, "Submit one task"));
+    var candidate = new DraftInput(new RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(fact), List.of(), List.of(), new RequirementCaptureInput.DraftSettings(false, null));
+    try (var ignored = ToolSession.open(CHAT)) {
+      var refused = h.json.readValue(h.tools.captureRequirementDraft(candidate), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+    }
+    var pending = h.store.pendingProposal(CHAT).orElseThrow();
+    var attempt = h.artifacts.get(h.sessions.active(CHAT), pending.attempt()).orElseThrow();
+    var stored = h.artifacts.payload(attempt, RequirementDraftStore.RequirementCaptureAttempt.class);
+    var baseline = h.store.semanticBaseline(CHAT).orElseThrow();
+    var baselineRevision = h.artifacts.latest(h.sessions.active(CHAT), Kind.REQUIREMENT_SEMANTIC_BASELINE).orElseThrow();
+
+    assertEquals(List.of(new RequirementSemanticClaim("invalid id", "Submit one task", Polarity.POSITIVE,
+        new ClaimEvidenceInput(turn, "Submit one task"))), baseline.claims());
+    assertEquals(candidate, pending.draft());
+    assertNull(h.store.repairConstraints(CHAT));
+    assertTrue(h.artifacts.latest(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_PROTECTION).isPresent());
+    assertEquals(baselineRevision.reference(), stored.semanticBaselineReference());
+    assertEquals(RequirementRepairPolicy.Strategy.FOCUSED_REPAIR, stored.recoveryStrategy());
+    assertEquals(CaptureProposal.digest(new RequirementDraftStore.PendingProposalBinding(
+        attempt.reference(), stored.authorEvidenceHash(), null, baselineRevision.reference())), pending.token());
+    assertTrue(h.store.get(CHAT).isEmpty());
+
+    var reloaded = new Harness(h.blobs);
+    reloaded.store.beginTurn(CHAT, author);
+    assertEquals(baseline, reloaded.store.semanticBaseline(CHAT).orElseThrow());
+    assertEquals(pending.draft(), reloaded.store.pendingProposal(CHAT).orElseThrow().draft());
+    assertEquals(pending.token(), reloaded.store.pendingProposal(CHAT).orElseThrow().token());
+    assertNull(reloaded.store.repairConstraints(CHAT));
+    assertTrue(reloaded.store.get(CHAT).isEmpty());
+  }
+
+  @Test
+  void rebuildDropsThePendingProjectionAndKeepsBaselineAndAcceptedRevision() throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    String author = "Submit one task before Friday.";
+    h.begin(author);
+    String turn = h.store.writeAuthority(CHAT).sourceTurnId();
+    var fact = new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Submit one task",
+        null, null, null, new ClaimEvidenceInput(turn, "Submit one task"));
+    var accepted = new DraftInput(new RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(fact), List.of(), List.of(), new RequirementCaptureInput.DraftSettings(null, null));
+    try (var ignored = ToolSession.open(CHAT)) {
+      var saved = h.json.readValue(h.tools.captureRequirementDraft(accepted), RequirementCaptureResult.class);
+      assertTrue(saved.accepted(), saved.toString());
+      var rejectedFact = new FactInput("invalid id", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Submit one task",
+          null, null, null, new ClaimEvidenceInput(turn, "Submit one task"));
+      var rejected = new DraftInput(accepted.flow(), List.of(fact, rejectedFact), accepted.capabilities(),
+          accepted.openQuestions(), accepted.settings());
+      var refusal = h.json.readValue(h.tools.captureRequirementDraft(rejected), RequirementCaptureResult.class);
+      assertFalse(refusal.accepted(), refusal.toString());
+    }
+    var draft = h.store.latestRevision(CHAT).orElseThrow();
+    var baseline = h.store.semanticBaseline(CHAT).orElseThrow();
+    var protectionHistory = h.artifacts.history(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_PROTECTION);
+    assertTrue(h.store.pendingProposal(CHAT).isPresent());
+
+    h.store.rebuildPendingProjection(CHAT);
+
+    assertTrue(h.store.pendingProposal(CHAT).isEmpty());
+    assertEquals(draft, h.store.latestRevision(CHAT).orElseThrow());
+    assertEquals(accepted, h.store.get(CHAT).orElseThrow().authoredDraft());
+    assertEquals(baseline, h.store.semanticBaseline(CHAT).orElseThrow());
+    assertEquals(protectionHistory, h.artifacts.history(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_PROTECTION));
+    assertNull(h.store.repairConstraints(CHAT));
+
+    var reloaded = new Harness(h.blobs);
+    reloaded.store.beginTurn(CHAT, author);
+    assertTrue(reloaded.store.pendingProposal(CHAT).isEmpty());
+    assertEquals(draft.reference(), reloaded.store.latestRevision(CHAT).orElseThrow().reference());
+    assertEquals(accepted, reloaded.store.get(CHAT).orElseThrow().authoredDraft());
+    assertEquals(baseline, reloaded.store.semanticBaseline(CHAT).orElseThrow());
+    assertNull(reloaded.store.repairConstraints(CHAT));
+  }
+
+  @Test
+  void legacyProtectionRemainsReadableWhenTheAttemptHasNoRecoveryStrategy() throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    h.begin(TEXT);
+    var fact = new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Keep the legacy fact");
+    h.store.rememberRejectedCaptureFacts(CHAT, List.of(fact));
+    var authority = h.store.writeAuthority(CHAT);
+    var legacy = new RequirementDraftStore.RequirementCaptureAttempt(authority.sourceGeneration(),
+        authority.sourceTurnId(), null, "scope", "captureRequirementDraft", input("goal", "Keep the legacy fact"),
+        false, List.of(), null);
+    var stored = h.json.valueToTree(legacy);
+    assertTrue(stored.path("semanticBaselineReference").isMissingNode());
+    assertTrue(stored.path("recoveryStrategy").isMissingNode());
+    var reread = h.json.readValue(h.json.writeValueAsString(legacy),
+        RequirementDraftStore.RequirementCaptureAttempt.class);
+    assertNull(reread.semanticBaselineReference());
+    assertNull(reread.recoveryStrategy());
+    assertEquals(CaptureProposal.digest(legacy), CaptureProposal.digest(reread));
+    h.artifacts.append(new CompilationArtifacts.AppendCommand(h.sessions.active(CHAT),
+        Kind.REQUIREMENT_CAPTURE_ATTEMPT, "1", "requirement-capture-tools", "1", legacy, List.of(),
+        h.artifacts.latest(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_ATTEMPT)
+            .map(CompilationArtifacts.Revision::artifactId).orElse(null)));
+
+    var reloaded = new Harness(h.blobs);
+    reloaded.store.beginTurn(CHAT, TEXT);
+    assertEquals(List.of(fact), reloaded.store.repairConstraints(CHAT).facts());
   }
 
   private static DraftInput input(String id, String text) {

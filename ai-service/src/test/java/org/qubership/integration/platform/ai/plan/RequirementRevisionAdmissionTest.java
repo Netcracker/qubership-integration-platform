@@ -45,8 +45,7 @@ class RequirementRevisionAdmissionTest {
         h.restartStore();
         h.store.beginTurn(h.chat, "Automatic correction.");
       }
-      var retained = h.store.repairConstraints(h.chat).values();
-      assertFalse(retained.path("capabilities").has("delivery"), retained.toString());
+      assertNull(h.store.repairConstraints(h.chat));
       var corrected = h.capture(catalogDraft(null));
       assertTrue(corrected.accepted(), corrected.toString());
       assertEquals(initial.flow(), h.store.get(h.chat).orElseThrow().authoredDraft().flow());
@@ -87,8 +86,7 @@ class RequirementRevisionAdmissionTest {
               protection.authorText(), protection.facts(), legacyValues, protection.baseIdentity()), List.of(), previous.artifactId()));
       h.restartStore();
       h.store.beginTurn(h.chat, "Automatic correction.");
-      assertFalse(h.store.repairConstraints(h.chat).values().path("capabilities").has("delivery"));
-      assertFalse(h.store.repairConstraints(h.chat).values().path("interactions").path("delivery").has("retryPolicy"));
+      assertNull(h.store.repairConstraints(h.chat));
       var corrected = acceptedBase ? h.update(addDelivery(null)) : h.capture(catalogDraft(null));
       assertTrue(corrected.accepted(), corrected.toString());
       assertTrue(h.store.validateCurrent(h.chat).isEmpty());
@@ -278,15 +276,14 @@ class RequirementRevisionAdmissionTest {
       var rejected = h.capture(parallelHttpDraft(rejectedId));
       assertFalse(rejected.accepted());
       assertTrue(rejected.issues().stream().anyMatch(issue -> "INVALID_VALUE".equals(issue.code())));
-      var retained = h.store.repairConstraints(h.chat).values().path("transitions").path("entry");
-      assertTrue(retained.toString().contains("audit"));
+      assertNull(h.store.repairConstraints(h.chat));
       if (recreateStore) {
         h.restartStore();
         h.store.beginTurn(h.chat, "Automatic correction.");
+        assertNull(h.store.repairConstraints(h.chat));
       }
       var corrected = h.capture(parallelHttpDraft("delivery"));
       assertTrue(corrected.accepted(), corrected.toString());
-      assertFalse(retained.toString().contains(rejectedId));
       assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
       var removed = new DraftUpdate(List.of(), List.of(), List.of(), List.of(),
           List.of(new TransitionInput("entry", "audit")), List.of(), List.of(), List.of(), List.of(), List.of(),

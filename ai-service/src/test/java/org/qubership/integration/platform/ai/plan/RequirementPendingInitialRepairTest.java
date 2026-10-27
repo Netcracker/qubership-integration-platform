@@ -29,8 +29,13 @@ class RequirementPendingInitialRepairTest {
     assertFalse(refused.path("accepted").asBoolean(), refused.toString());
     var pending = h.call("readRequirementDraft", Map.of()).path("pendingProposal");
     assertEquals(h.json.valueToTree(original), pending.path("draft"));
-    assertEquals(CaptureProposal.digest(h.json.treeToValue(pending.path("attempt"), CompilationArtifacts.Reference.class)),
-        pending.path("token").asText());
+    var attemptRef = h.json.treeToValue(pending.path("attempt"), CompilationArtifacts.Reference.class);
+    var storedAttempt = h.artifacts.payload(
+        h.artifacts.get(h.sessions.active(h.chat), attemptRef).orElseThrow(),
+        RequirementDraftStore.RequirementCaptureAttempt.class);
+    assertEquals(CaptureProposal.digest(new RequirementDraftStore.PendingProposalBinding(attemptRef,
+        storedAttempt.authorEvidenceHash(), storedAttempt.acceptedDraftReference(),
+        storedAttempt.semanticBaselineReference())), pending.path("token").asText());
     assertTrue(pending.path("base").isNull());
     var changed = h.changes(input("entry").facts(), pending.path("token"));
     var accepted = h.call("updateRequirementDraft", Map.of("changes", changed));
