@@ -24,7 +24,6 @@ export interface MessageEntry {
 /** The reason every handler with no sender in `ui/src` carries; the harness reads its prefix. */
 export const NO_UI_SENDER = "no UI sender";
 
-const R_GRAPH = "no case edits the chain graph yet";
 const R_PROPERTIES = "no case edits chain or element properties yet";
 const R_FORMS = "no case opens an element form that lists services yet";
 const R_NAVIGATION = "no case navigates between chains yet";
@@ -45,20 +44,22 @@ export const messageRegistry: MessageEntry[] = [
   covered("getChain"),
   covered("getLibrary"),
 
-  ...notCovered(
-    R_GRAPH,
-    "getElements",
-    "getConnections",
-    "getLibraryElementByType",
-    "createElement",
-    "createConnection",
-    "deleteElements",
-    "deleteConnections",
-    "groupElements",
-    "ungroupElements",
-    "cloneElements",
-    "transferElement",
-  ),
+  // specs/vscode/chain-editor.spec.ts
+  covered("getElements"),
+  covered("getLibraryElementByType"),
+  covered("createElement"),
+  covered("createConnection"),
+  covered("deleteElements"),
+  covered("deleteConnections"),
+  covered("groupElements"),
+  covered("ungroupElements"),
+  covered("cloneElements"),
+  covered("transferElement"),
+  {
+    message: "getConnections",
+    status: "not-covered",
+    reason: "no screen calls api.getConnections: the chain editor reads the dependencies from getChain",
+  },
   ...notCovered(
     R_PROPERTIES,
     "updateElement",

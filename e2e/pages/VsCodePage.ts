@@ -54,9 +54,9 @@ export class VsCodePage {
    * Reopens the active custom editor as text and returns its text, copied through the clipboard with
    * the line breaks turned back into `\n` (the Windows user agent copies `\r\n`). The extension
    * writes a change to the in-memory file system, whose change event fires after a debounce, so with
-   * `original` the copy repeats until the text differs from it.
+   * `until` the copy repeats until `until` returns true for the text.
    */
-  async readAsText(original?: string): Promise<string> {
+  async readAsText(until?: (text: string) => boolean): Promise<string> {
     await this.runCommand("View: Reopen Editor with Text Editor");
     const deadline = Date.now() + TEXT_DEADLINE_MS;
     for (;;) {
@@ -64,8 +64,8 @@ export class VsCodePage {
       await this.page.keyboard.press("Control+A");
       await this.page.keyboard.press("Control+C");
       const text = (await this.page.evaluate(() => navigator.clipboard.readText())).replaceAll("\r\n", "\n");
-      if (text !== original) return text;
-      if (Date.now() > deadline) throw new Error(`the text editor still shows the original text after ${TEXT_DEADLINE_MS} ms`);
+      if (!until || until(text)) return text;
+      if (Date.now() > deadline) throw new Error(`the text editor shows no text the case waits for after ${TEXT_DEADLINE_MS} ms:\n${text}`);
       await this.page.waitForTimeout(250);
     }
   }
