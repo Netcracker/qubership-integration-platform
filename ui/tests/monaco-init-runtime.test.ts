@@ -14,7 +14,9 @@ jest.mock("../src/monaco-worker-config", () => ({
   setMonacoWorkerBasePath: jest.fn(),
 }));
 
-jest.mock("monaco-editor", () => ({}));
+jest.mock("monaco-editor", () => ({
+  editor: { create: jest.fn(), createDiffEditor: jest.fn() },
+}));
 
 const mockedConfigureMonacoLoader = configureMonacoLoader as jest.Mock;
 
@@ -105,6 +107,58 @@ describe("monaco-init-runtime", () => {
       expect(workerConfig.setMonacoWorkerBasePath).toHaveBeenCalledWith(
         "https://host/app/dist-lib/assets/monaco-work",
       );
+    });
+  });
+  describe("webview compat patch", () => {
+    function loadIsolated() {
+      let loaded: {
+        runtime: typeof import("../src/monaco-init-runtime");
+        monacoApi: {
+          editor: { create: jest.Mock; createDiffEditor: jest.Mock };
+        };
+      } | null = null;
+      jest.isolateModules(() => {
+        loaded = {
+          runtime: require("../src/monaco-init-runtime"),
+          monacoApi: require("monaco-editor"),
+        };
+      });
+      return loaded!;
+    }
+
+    it("should turn off edit context when acquireVsCodeApi is defined", () => {
+      Object.defineProperty(global, "window", {
+        value: {
+          location: { protocol: "http:", origin: "http://x.localhost:3917" },
+          acquireVsCodeApi: jest.fn(),
+        },
+        configurable: true,
+      });
+      const { runtime, monacoApi } = loadIsolated();
+      const originalCreate = monacoApi.editor.create;
+
+      runtime.initExternalMonaco();
+      monacoApi.editor.create({}, { readOnly: true });
+
+      expect(monacoApi.editor.create).not.toBe(originalCreate);
+      expect(originalCreate).toHaveBeenCalledWith(
+        {},
+        { editContext: false, readOnly: true },
+        undefined,
+      );
+    });
+
+    it("should leave the editor factories alone outside a webview", () => {
+      Object.defineProperty(global, "window", {
+        value: { location: { origin: "https://example.com" } },
+        configurable: true,
+      });
+      const { runtime, monacoApi } = loadIsolated();
+      const originalCreate = monacoApi.editor.create;
+
+      runtime.initExternalMonaco();
+
+      expect(monacoApi.editor.create).toBe(originalCreate);
     });
   });
 });

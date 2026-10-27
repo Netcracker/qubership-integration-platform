@@ -1,6 +1,7 @@
 import * as monaco from "monaco-editor";
 
 import { configureMonacoLoader } from "./monaco-loader-config";
+import { isVsCodeWebview } from "./utils/isVsCodeWebview";
 import {
   getMonacoWorkerBasePath,
   setMonacoWorkerBasePath,
@@ -13,8 +14,7 @@ let monacoWebviewCompatApplied = false;
  * Patch editor factories once so all editors default to textarea input.
  */
 function applyMonacoWebviewCompat(monacoApi: typeof monaco): void {
-  if (typeof window === "undefined") return;
-  if (window.location?.protocol !== "vscode-webview:") return;
+  if (!isVsCodeWebview()) return;
   if (monacoWebviewCompatApplied) return;
   monacoWebviewCompatApplied = true;
 
