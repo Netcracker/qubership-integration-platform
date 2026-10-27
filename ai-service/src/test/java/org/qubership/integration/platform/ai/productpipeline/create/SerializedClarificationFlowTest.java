@@ -25,7 +25,6 @@ import io.quarkus.test.junit.TestProfile;
 import io.restassured.http.ContentType;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Alternative;
-import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,7 +50,6 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
-import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
 import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel;
 import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel.Turn;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitChatModel;
@@ -117,7 +115,7 @@ class SerializedClarificationFlowTest {
   @Inject CreateChainApplicationFacade facade;
 
   private final AtomicReference<ScriptedStreamingChatModel> script = new AtomicReference<>();
-  /** A2A does not archive the opening prompt. Seed it when discovery opens the conversation. */
+  /** A2A does not archive the opening prompt. Seed that turn when discovery opens the conversation. */
   private final AtomicBoolean seedOpeningSource = new AtomicBoolean();
 
   @BeforeEach
@@ -251,8 +249,11 @@ class SerializedClarificationFlowTest {
     String reply = "The caller is the billing service.";
     String answerTurn = ConversationArchive.deterministicAnswerTurnId(offer, reply);
     script.set(applyNonAnswer(sourceTurn(chat), answerTurn, reply));
-    String next = observed(chat, postChat(chat, reply, offer));
-    assertTrue(next.contains(ROLE_QUESTION), next);
+    String next = postChat(chat, reply, offer);
+    JsonNode offeredAgain = openDecision(chat);
+    assertEquals(ROLE_QUESTION, offeredAgain.path("question").asText(), offeredAgain.toString());
+    assertNotEquals(offer, offeredAgain.path("id").asText(), offeredAgain.toString());
+    assertFalse(offeredAgain.path("id").asText().isBlank(), offeredAgain.toString());
     assertFalse(next.contains("CLARIFICATION_ANSWER_NO_PROGRESS"), next);
     String saved = json.writeValueAsString(draft(chat));
     assertTrue(saved.contains(reply), saved);
@@ -348,10 +349,11 @@ class SerializedClarificationFlowTest {
   @Test
   void idsPolicyAndFolderGatesDoNotConsumeAGenericOffer() throws Exception {
     assertForeignOfferLeavesTheGate(idsChat(), "ids-path-choice",
-        "Show the Integration Design Specification (IDS) for review?", true);
+        "Show the Integration Design Specification (IDS) for review?", false);
     assertForeignOfferLeavesTheGate(policyChat(), "requirement-policy-choice",
-        "Keep NONE or use recommended RBAC?", false);
-    assertForeignOfferLeavesTheGate(folderChat(), PipelineGates.TARGET_FOLDER_CHOICE, "en", true);
+        "Keep NONE or use recommended RBAC?", true);
+    assertForeignOfferLeavesTheGate(folderChat(), PipelineGates.TARGET_FOLDER_CHOICE,
+        "Which Salesforce folder should the chain use?", false);
   }
 
   @Test
@@ -373,7 +375,7 @@ class SerializedClarificationFlowTest {
   }
 
   private void assertForeignOfferLeavesTheGate(String chat, String marker, String question,
-      boolean requireStillVisible) throws Exception {
+      boolean genericOfferMustStayUnanswered) throws Exception {
     String before = drafts.get(chat).map(draft -> {
       try {
         return json.writeValueAsString(draft.authoredDraft());
@@ -381,8 +383,12 @@ class SerializedClarificationFlowTest {
         throw new IllegalStateException(error);
       }
     }).orElse("");
+    String genericOffer = openOfferId(chat);
+    if (genericOfferMustStayUnanswered) {
+      assertFalse(genericOffer.isBlank(), marker);
+    }
     script.set(reask(question));
-    String sse = observed(chat, postChat(chat, "abc", "offer-not-on-this-gate"));
+    String sse = postChat(chat, "abc", "offer-not-on-this-gate");
     String after = drafts.get(chat).map(draft -> {
       try {
         return json.writeValueAsString(draft.authoredDraft());
@@ -390,11 +396,12 @@ class SerializedClarificationFlowTest {
         throw new IllegalStateException(error);
       }
     }).orElse("");
-    assertEquals(before, after, marker + " " + question + "\n" + sse);
+    assertEquals(before, after, marker + "\n" + sse);
     assertEquals(0, countAnswer(chat, "offer-not-on-this-gate", "abc"));
-    if (requireStillVisible) {
-      assertTrue(sse.contains(marker) || sse.contains(question), sse);
+    if (!genericOffer.isBlank()) {
+      assertEquals(0, countAnswer(chat, genericOffer, "abc"), genericOffer);
     }
+    assertVisibleGate(chat, marker);
   }
 
   private ScriptedStreamingChatModel reask(String question) {
@@ -790,6 +797,50 @@ class SerializedClarificationFlowTest {
     return questions;
   }
 
+  private JsonNode openDecision(String chat) throws Exception {
+    String body = given().get("/api/v1/chat/{id}/decision", chat).asString();
+    assertFalse(body == null || body.isBlank() || "null".equals(body), body);
+    return json.readTree(body);
+  }
+
+  /**
+   * The open card's gate, not question text a model may repeat after the gate is left.
+   * The public reason is the stripped prompt, so the marker lives on the pending gate id.
+   */
+  private void assertVisibleGate(String chat, String marker) throws Exception {
+    var pending = facade.snapshot(chat).orElseThrow().pendingAction();
+    assertTrue(pending instanceof CreateChainPendingAction.Clarify, String.valueOf(pending));
+    var clarify = (CreateChainPendingAction.Clarify) pending;
+    if ("requirement-policy-choice".equals(marker)) {
+      assertEquals(marker, openDecision(chat).path("artifactType").asText(), String.valueOf(pending));
+      assertEquals(PipelineGates.STAGE_CLARIFICATION, clarify.gateId(), String.valueOf(pending));
+      return;
+    }
+    assertEquals(marker, clarify.gateId(), String.valueOf(pending));
+  }
+
+  private String openOfferId(String chat) {
+    var document = runs.loadByConversation(chat).orElse(null);
+    if (document == null) {
+      return "";
+    }
+    String open = "";
+    for (var transition : document.transitions()) {
+      var clarification = transition.clarification();
+      if (clarification == null) {
+        continue;
+      }
+      if (clarification.answer() != null && !open.isEmpty()
+          && open.equals(clarification.answer().offerId())) {
+        open = "";
+      }
+      if (clarification.offer() != null && clarification.offer().offerId() != null) {
+        open = clarification.offer().offerId();
+      }
+    }
+    return open;
+  }
+
   private String observed(String chat, String sse) {
     String decision = given().get("/api/v1/chat/{id}/decision", chat).asString();
     String pending = String.valueOf(facade.snapshot(chat).map(snapshot -> snapshot.pendingAction()).orElse(null));
@@ -808,23 +859,11 @@ class SerializedClarificationFlowTest {
   }
 
   /**
-   * A2A does not archive the opening prompt, and a clarification answer stays {@code RECEIVED}
-   * until a caller resolves it. Discovery reads the archive after {@code getOrCreate}, so both
-   * happen there, before the authority snapshot.
+   * A2A does not archive the opening author message. Production resolves a clarification answer,
+   * so this seed does not mark those turns ready.
    */
   private void prepareA2aSource(String chat) {
     sourceTurn(chat);
-    var document = conversations.archive().read(chat);
-    for (var turn : document.turns()) {
-      if (turn.message().role().name().equals("USER") && "RECEIVED".equals(turn.status())
-          && turn.metadata() != null && turn.metadata().has("clarificationOfferId")) {
-        conversations.archive().resolveInput(chat,
-            new ConversationArchive.Input(turn.id(), document.generation(),
-                document.activeTurnIds().indexOf(turn.id())),
-            turn.rawText());
-        document = conversations.archive().read(chat);
-      }
-    }
   }
 
   private String sourceTurn(String chat) {
@@ -927,19 +966,6 @@ class SerializedClarificationFlowTest {
       Set<Class<?>> enabled = new java.util.LinkedHashSet<>(super.getEnabledAlternatives());
       enabled.add(FixtureKnowledge.class);
       return enabled;
-    }
-  }
-
-  /**
-   * {@code FailureNarrative} is constructed by hand in the runtime and has no bean scope, while
-   * discovery field-injects it. One normal producer lets every Quarkus test start.
-   */
-  @ApplicationScoped
-  public static class FailureNarrativeHarness {
-    @Produces
-    @ApplicationScoped
-    FailureNarrative failureNarrative(FailureNarrativeAgent agent) {
-      return new FailureNarrative(agent);
     }
   }
 

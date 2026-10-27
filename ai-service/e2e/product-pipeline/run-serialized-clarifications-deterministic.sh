@@ -7,6 +7,8 @@ REPO_ROOT="$(cd "${DIR}/../../.." && pwd)"
 
 cd "${REPO_ROOT}"
 
+rm -f ai-service/target/serialized-clarifications/evidence.json
+
 mvn -pl ai-service -Dtest=SerializedClarificationFlowTest test
 
 python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_serialized_clarifications.py'

@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
@@ -100,6 +101,12 @@ public class ChatExecutionService {
       return null;
     }
     if (decisionService.withholdsRequirementOffer(conversationId)) {
+      // A policy card accepts only its actions. Free text shows that card again.
+      java.util.Optional<ChatEvent.Decision> policy = decisionService.openDecision(conversationId)
+          .filter(decision -> PolicyChoiceSelection.ARTIFACT_TYPE.equals(decision.artifactType()));
+      if (policy.isPresent()) {
+        return new RequirementAnswer(null, policy.get(), false);
+      }
       return null;
     }
     java.util.Optional<ChatEvent.Decision> opened = decisionService.openDecision(conversationId);
