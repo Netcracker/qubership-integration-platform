@@ -116,6 +116,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `seed`, `seed-teardown` | the corpus, deployed to the classic engine | the same |
 | `schemas-build` | build `schemas/` when its sources are newer, with no stack | the same |
 | `ui-server`, `ui-server-teardown` | build and serve the UI bundle on 4200, then stop it | the same |
+| `vscode-server`, `vscode-server-teardown` | build the UI library and the extension when their inputs are newer, serve VS Code for the web on 3917, then stop it, with no stack | the same |
 | `runtime` | `specs/runtime/` against the classic engine | the same |
 | `suite-teardown` | the teardowns of `seed-micro`, `brokers-seed`, and `brokers-micro-seed`, after `global` | the same |
 | `seed-micro` | not declared | a second copy of the corpus, deployed to a micro domain named `e2e-<run>-micro` |
@@ -230,7 +231,7 @@ the run email as well.
 Each project belongs to one of three groups, which every count below keeps apart. Product projects
 run the product's cases. Setup and teardown projects seed, build, serve, or remove what the product
 cases need: `seed`, `seed-micro`, `brokers-seed`, `brokers-micro-seed`, `schemas-build`,
-`ui-server`, `tooling`, and every teardown project, `suite-teardown` included. Suite checks are
+`ui-server`, `vscode-server`, `tooling`, and every teardown project, `suite-teardown` included. Suite checks are
 `schema` and `harness`, which test the suite's own files and code. A project declares its group as
 `metadata: { group: "setup" }` or `metadata: { group: "suite" }` in `playwright.config.ts` or
 `env/target-setup.ts`; a project that declares none is a product project. A failed case of any
@@ -732,6 +733,9 @@ specs/
   brokers/      kafka, rabbitmq, pub/sub and sftp, called and asserted
   global/       reads over the whole platform or over state it shares, one worker, after env
   ui-server/    builds and serves the UI bundle on 4200, then stops it
+  vscode-server/
+                builds the UI library and the extension, serves VS Code for the web on 3917,
+                then stops it
   ui/           the browser layer, Chromium through nginx on 8080
   seed-micro/   k8s only: deploys the micro copy of the corpus to a micro domain, then removes it
   brokers-micro-seed/

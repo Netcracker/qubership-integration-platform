@@ -175,6 +175,23 @@ const suite: SuiteProject[] = [
     testMatch: /.*\.teardown\.ts$/,
   },
   {
+    // Builds the UI library and the extension when their inputs are newer, then serves VS Code for
+    // the web on 3917 with the extension and `fixtures/vscode/workspace/`. No stack, like
+    // `schemas-build`, whose output both builds read.
+    name: "vscode-server",
+    metadata: { stack: false, group: "setup" },
+    testDir: "./specs/vscode-server",
+    testMatch: /.*\.setup\.ts$/,
+    dependencies: ["schemas-build"],
+    teardown: "vscode-server-teardown",
+  },
+  {
+    name: "vscode-server-teardown",
+    metadata: { stack: false, group: "setup" },
+    testDir: "./specs/vscode-server",
+    testMatch: /.*\.teardown\.ts$/,
+  },
+  {
     // The browser layer: Chromium only, through nginx on 8080. `seed` holds the corpus open until
     // this project finishes, and `ui-server` holds the bundle up the same way.
     name: "ui",

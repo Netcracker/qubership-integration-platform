@@ -6,11 +6,12 @@
  * the state file records it as a preview this suite started: it may be a developer's dev server,
  * which serves a different artifact than the bundle.
  */
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
+import { groupAlive, groupRuns, stopGroup } from "./process-group.js";
 import { processAlive } from "./run.js";
 import { sleep } from "./poll.js";
 import { readStateFile, writeStateFile } from "./state-file.js";
@@ -133,30 +134,6 @@ function startPreview(): number {
   return child.pid;
 }
 
-/**
- * Whether a process of the group led by `pid` still runs `preview --port 4200`. A stale state file
- * can name a pid that has since been reused by an unrelated group.
- */
-function previewGroup(pid: number): boolean {
-  const preview = new RegExp(`\\bpreview\\b.*--port ${UI_PORT}\\b`);
-  return execFileSync("ps", ["-A", "-o", "pgid=,args="], { encoding: "utf-8" })
-    .split("\n")
-    .some((line) => {
-      const [, pgid, args] = /^\s*(\d+)\s+(.*)$/.exec(line) ?? [];
-      return Number(pgid) === pid && preview.test(args);
-    });
-}
-
-/** Whether any process of the group led by `pid` is still running; npm may exit before vite. */
-function groupAlive(pid: number): boolean {
-  try {
-    process.kill(-pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function waitForPort(pid: number, budgetMs: number): Promise<boolean> {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
@@ -214,15 +191,6 @@ export async function stopUiServer(): Promise<void> {
   const state = readStateFile<UiServerState>(STATE_FILE);
   if (state && state.owner !== RUNNER && processAlive(state.owner)) return;
   fs.rmSync(STATE_FILE, { force: true });
-  if (!state?.pid || !previewGroup(state.pid)) return;
-  try {
-    process.kill(-state.pid, "SIGTERM");
-  } catch {
-    return; // The group has already exited.
-  }
-  const deadline = Date.now() + 10_000;
-  while (groupAlive(state.pid) && Date.now() < deadline) {
-    await sleep(100);
-  }
-  if (groupAlive(state.pid)) process.kill(-state.pid, "SIGKILL");
+  if (!state?.pid || !groupRuns(state.pid, new RegExp(`\\bpreview\\b.*--port ${UI_PORT}\\b`))) return;
+  await stopGroup(state.pid);
 }

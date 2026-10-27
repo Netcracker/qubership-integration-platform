@@ -31,8 +31,8 @@ const E2E_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 
 /**
  * The projects the config declared on 2026-09-24, before the target seam, with brokers on, and with
- * `suite-teardown` in place of `brokers-seed-teardown`, `harness` split off `schema`, and
- * `schemas-build` added ahead of `ui-server`.
+ * `suite-teardown` in place of `brokers-seed-teardown`, `harness` split off `schema`,
+ * `schemas-build` added ahead of `ui-server`, and `vscode-server` with its teardown added.
  */
 const COMPOSE_PROJECTS = [
   "schema",
@@ -46,6 +46,8 @@ const COMPOSE_PROJECTS = [
   "schemas-build",
   "ui-server",
   "ui-server-teardown",
+  "vscode-server",
+  "vscode-server-teardown",
   "ui",
   "brokers-seed",
   "brokers",
@@ -75,6 +77,8 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   "schemas-build": "./specs/schemas-build /.*\\.setup\\.ts$/",
   "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; after schemas-build; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
+  "vscode-server": "./specs/vscode-server /.*\\.setup\\.ts$/; after schemas-build; teardown vscode-server-teardown",
+  "vscode-server-teardown": "./specs/vscode-server /.*\\.teardown\\.ts$/",
   ui: "./specs/ui; after seed, ui-server; parallel",
   // The broker and micro teardowns wait for `global` without gating either side.
   global: "./specs/global; after api, runtime, env, ui; teardown suite-teardown; 1 worker",
@@ -153,6 +157,15 @@ test.describe("target", () => {
       }
     });
 
+    test("both targets serve VS Code stack-free, after schemas-build", () => {
+      for (const projects of [composeProjects(undefined), k8sProjects()]) {
+        for (const name of ["vscode-server", "vscode-server-teardown"]) {
+          expect(projects.find((each) => each.name === name)?.metadata, name).toEqual({ stack: false, group: "setup" });
+        }
+        expect([...waitsFor(projects, "vscode-server")]).toEqual(["schemas-build"]);
+      }
+    });
+
     // The run summary and the email count each group apart, so a seed that fails reads as setup.
     test("every setup and teardown project is grouped as setup", () => {
       for (const projects of [composeProjects(undefined), k8sProjects()]) {
@@ -171,9 +184,10 @@ test.describe("target", () => {
       expect(collects("specs/seed-micro/seed-micro.teardown.ts")).toBe(true);
       expect(collects("specs/brokers-seed/brokers.teardown.ts")).toBe(true);
       expect(collects("specs/brokers-micro-seed/brokers-micro.teardown.ts")).toBe(true);
-      // `seed` and `ui-server` keep teardowns of their own, which `global` depends on through them.
+      // `seed`, `ui-server`, and `vscode-server` keep teardowns of their own, and `global` depends on the first two.
       expect(collects("specs/seed/seed.teardown.ts")).toBe(false);
       expect(collects("specs/ui-server/ui-server.teardown.ts")).toBe(false);
+      expect(collects("specs/vscode-server/vscode-server.teardown.ts")).toBe(false);
       expect(collects("specs/brokers-seed/brokers.setup.ts")).toBe(false);
     });
 
