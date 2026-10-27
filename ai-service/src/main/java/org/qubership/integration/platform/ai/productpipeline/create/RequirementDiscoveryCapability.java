@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,6 +19,7 @@ import java.util.function.BiFunction;
 import io.smallrye.mutiny.Context;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
@@ -32,7 +34,9 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
+import org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
@@ -611,12 +615,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
         draft.authoredDraft(), draft, draft.catalogBindings(), draft.sourceSkillVersion(), draft.sourceSkillHash(),
         RequirementCaptureProjection.resolvedTargets(draft))
         .openQuestions())) {
-      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "Review the saved sources and capture a scoped author question before waiting for more input.",
-          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
-              "AUTHOR_QUESTION_NOT_SUPPORTED", "Derived pending work does not establish missing author input."
-                  + " Read the saved sources, complete the draft, or capture the remaining question with its evidence.",
-              true, MappingValidationDetails.empty(), "requirement-draft", "/openQuestions")), "")));
+      return focusedAuthorQuestionRepair();
+    }
+    if (queueHeadMissesNewerSourceTurns(conversationId, draft)) {
+      return focusedAuthorQuestionRepair();
     }
     var questionIssues = draftStore.validateAuthorQuestions(conversationId);
     if (!questionIssues.isEmpty()) {
@@ -655,10 +657,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
                     PipelineGates.REQUIREMENT_DRAFT_READY,
                     "Requirements draft saved. Continue to planning when ready.")));
       }
-      String questions = String.join("\n", draft.openQuestions());
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-              questions.isBlank() ? "" : PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, questions)));
+      return presentClarification(conversationId, draft, true);
     }
     if (directive == RequirementDiscoveryDirective.NONE && !draftStore.wasCapturedThisTurn(conversationId)) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
@@ -670,9 +669,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
     boolean pendingUploadedSpecHandoff = onlyUploadedImports && !draft.facts().isEmpty();
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-              PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, String.join("\n", draft.openQuestions()))));
+      return presentClarification(conversationId, draft, false);
     }
     if (draft.facts().isEmpty()) {
       return new CapabilitySignal.Completed(
@@ -709,6 +706,76 @@ public class RequirementDiscoveryCapability implements StageCapability {
     return new CapabilitySignal.Completed(
         new StageOutcome(
             outcomeClass, candidates, "Requirement draft candidate ready", null));
+  }
+
+  private CapabilitySignal.Completed presentClarification(String conversationId, RequirementDraft draft,
+      boolean blankWhenAbsent) {
+    if (legacyProjectedQuestion(draft)) {
+      return focusedAuthorQuestionRepair();
+    }
+    var active = selectActiveQuestion(conversationId, draft);
+    if (active.isPresent()) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+          PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, active.get().question().text())));
+    }
+    if (blankWhenAbsent) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
+    }
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+        PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "")));
+  }
+
+  private Optional<RequirementClarificationCoordinator.ActiveQuestion> selectActiveQuestion(String conversationId,
+      RequirementDraft draft) {
+    var revision = draftStore.latestRevision(conversationId).orElse(null);
+    if (revision == null) {
+      return Optional.empty();
+    }
+    String generation = "";
+    if (conversationService != null) {
+      String recorded = conversationService.archive().read(conversationId).generation();
+      generation = recorded == null ? "" : recorded;
+    }
+    return new RequirementClarificationCoordinator().activeQuestion(revision, draft, generation);
+  }
+
+  private boolean queueHeadMissesNewerSourceTurns(String conversationId, RequirementDraft draft) {
+    if (draft == null || draft.authoredDraft() == null || draft.authoredDraft().openQuestions().isEmpty()) {
+      return false;
+    }
+    QuestionInput head = draft.authoredDraft().openQuestions().getFirst();
+    if (head == null || head.evidence() == null) {
+      return false;
+    }
+    var reviewed = new HashSet<>(head.evidence().reviewedInputIds());
+    return readySourceTurnIds(conversationId).stream().anyMatch(id -> !reviewed.contains(id));
+  }
+
+  private List<String> readySourceTurnIds(String conversationId) {
+    if (conversationService == null) {
+      return List.of();
+    }
+    return conversationService.archive().read(conversationId).activeTurns().stream()
+        .filter(turn -> turn.message().role() == ConversationMessage.Role.USER && "READY".equals(turn.status()))
+        .map(turn -> turn.id())
+        .toList();
+  }
+
+  private static boolean legacyProjectedQuestion(RequirementDraft draft) {
+    if (draft == null || draft.openQuestions().isEmpty()) {
+      return false;
+    }
+    var authored = draft.authoredDraft();
+    return authored == null || authored.openQuestions().stream().allMatch(question -> question == null);
+  }
+
+  private static CapabilitySignal.Completed focusedAuthorQuestionRepair() {
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+        "Review the saved sources and capture a scoped author question before waiting for more input.",
+        new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+            "AUTHOR_QUESTION_NOT_SUPPORTED", "Derived pending work does not establish missing author input."
+                + " Read the saved sources, complete the draft, or capture the remaining question with its evidence.",
+            true, MappingValidationDetails.empty(), "requirement-draft", "/openQuestions")), "")));
   }
 
   /** True when the active profile stage declares an approval gate for this capability run. */

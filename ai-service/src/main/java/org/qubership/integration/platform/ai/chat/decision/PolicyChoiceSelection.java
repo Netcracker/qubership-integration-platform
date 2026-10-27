@@ -58,7 +58,16 @@ public class PolicyChoiceSelection {
   }
 
   public Optional<Pending> pending(String conversationId, long runRevision) {
+    return pending(conversationId, runRevision, null, null);
+  }
+
+  /** Offers the policy card for one active question. A null identity keeps the unscoped scan. */
+  public Optional<Pending> pending(String conversationId, long runRevision, Reference activeDraftReference,
+      String activeQuestionId) {
     return context(conversationId).flatMap(context -> {
+      if (activeDraftReference != null && !activeDraftReference.equals(context.revision().reference())) {
+        return Optional.empty();
+      }
       var selections = trusted(conversationId);
       java.util.function.Predicate<Pending> awaitingCapture = offered -> selections.stream().anyMatch(value ->
           value.selection().offered().draftReference().equals(offered.draftReference())
@@ -68,7 +77,8 @@ public class PolicyChoiceSelection {
           .filter(revision -> OFFER_PRODUCER.equals(revision.producerId()))
           .map(revision -> artifacts.payload(revision, Pending.class))
           .filter(offered -> offered.draftReference().equals(context.revision().reference())
-              && offered.sourceGeneration().equals(context.source().generation()) && validOffer(conversationId, context, offered))
+              && offered.sourceGeneration().equals(context.source().generation()) && validOffer(conversationId, context, offered)
+              && matchesActiveQuestion(offered, activeQuestionId))
           .toList();
       var current = offers.stream().filter(offered -> offered.cardRevision() == runRevision
           && !selected(conversationId, offered) && !awaitingCapture.test(offered)).reduce((first, last) -> last);
@@ -76,16 +86,21 @@ public class PolicyChoiceSelection {
       var replacement = offers.stream().filter(offered -> offered.cardRevision() == -1).reduce((first, last) -> last);
       if (replacement.isPresent()) {
         var previous = replacement.get();
-        var offered = offer(conversationId, previous.draftReference(), previous.questionDraftReference(),
-            previous.sourceGeneration(), previous.sourceTurnId(), previous.fact(), previous.question(), runRevision);
-        if (!selected(conversationId, offered) && !awaitingCapture.test(offered)) return Optional.of(saveOffer(context, offered));
+        if (activeQuestionId != null && !activeQuestionId.equals(previous.question().questionId())) {
+          previous = null;
+        }
+        if (previous != null) {
+          var offered = offer(conversationId, previous.draftReference(), previous.questionDraftReference(),
+              previous.sourceGeneration(), previous.sourceTurnId(), previous.fact(), previous.question(), runRevision);
+          if (!selected(conversationId, offered) && !awaitingCapture.test(offered)) return Optional.of(saveOffer(context, offered));
+        }
       }
       var anchor = context.source().activeTurns().stream().filter(PolicyChoiceSelection::userReady).reduce((first, last) -> last);
       if (anchor.isEmpty()) return Optional.empty();
       for (var fact : context.draft().authoredDraft().facts()) {
         if (fact.policyConflict() == null || fact.policyConflict().decision() != null) continue;
         var question = question(context.draft(), fact);
-        if (question.isEmpty()) continue;
+        if (question.isEmpty() || activeQuestionId != null && !activeQuestionId.equals(question.get().questionId())) continue;
         var offered = offer(conversationId, context.revision().reference(), context.revision().reference(),
             context.source().generation(), anchor.get().id(), fact, question.get(), runRevision);
         if (!selected(conversationId, offered) && !awaitingCapture.test(offered)) return Optional.of(saveOffer(context, offered));
@@ -372,6 +387,11 @@ public class PolicyChoiceSelection {
           java.util.stream.Stream.of(offered.draftReference(), offered.questionDraftReference()).distinct().toList(), null));
     }
     return offered;
+  }
+
+  private static boolean matchesActiveQuestion(Pending offered, String activeQuestionId) {
+    return activeQuestionId == null || offered.question() != null
+        && activeQuestionId.equals(offered.question().questionId());
   }
 
   private static Optional<QuestionInput> question(RequirementDraft draft, FactInput fact) {

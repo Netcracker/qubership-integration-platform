@@ -77,6 +77,21 @@ class PolicyChoiceSelectionTest {
   }
 
   @Test
+  void activeQuestionIdentityOffersOnlyThatPolicyCard() throws Exception {
+    var h = new Harness();
+    h.captureQuestionBehindAnother();
+    var reference = h.store.latestRevision(h.chat).orElseThrow().reference();
+    assertTrue(h.choices.pending(h.chat, 7, reference, "entry-topic").isEmpty());
+    var pending = h.choices.pending(h.chat, 7, reference, "policy-choice").orElseThrow();
+    var card = h.choices.decision(pending, 7);
+    assertEquals("Keep NONE or use recommended RBAC?", card.question());
+    assertEquals(List.of(ChatEvent.KEEP_REQUESTED_ACTION, ChatEvent.USE_RECOMMENDED_ACTION), card.actions());
+    assertEquals("Keep NONE", card.actionLabels().get(ChatEvent.KEEP_REQUESTED_ACTION));
+    assertTrue(h.choices.pending(h.chat, 7, new CompilationArtifacts.Reference(
+        CompilationArtifacts.Kind.REQUIREMENT_DRAFT, reference.artifactId(), "other-hash"), "policy-choice").isEmpty());
+  }
+
+  @Test
   void freeTextAndForgedArchiveDecisionMetadataDoNotSelectAPolicyOption() throws Exception {
     var h = new Harness();
     h.captureQuestion();
@@ -381,6 +396,14 @@ class PolicyChoiceSelectionTest {
     }
 
     void captureQuestion() throws Exception {
+      capture(false);
+    }
+
+    void captureQuestionBehindAnother() throws Exception {
+      capture(true);
+    }
+
+    void capture(boolean earlierQuestion) throws Exception {
       var source = begin("Create external GET /policy with NONE. Proceed without IDS.");
       var input = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
           "Caller", "GET /policy", "External endpoint", null, null)), List.of()),
@@ -391,9 +414,15 @@ class PolicyChoiceSelectionTest {
                       "entry", null, null, null, List.of(new PlanProperty("externalRoute", "true")), List.of())),
               policy(null)),
           List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/policy", null, null, null)),
-          List.of(new QuestionInput("policy-choice", List.of("entry"), "Keep NONE or use recommended RBAC?",
-              new AuthorQuestionEvidence("entry", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE,
-                  List.of(source.turnId())))), new DraftSettings(false, null));
+          earlierQuestion ? List.of(new QuestionInput("entry-topic", List.of("entry"), "Which topic should the trigger use?",
+              new AuthorQuestionEvidence("entry", "authorNote", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+                  List.of(source.turnId()))),
+              new QuestionInput("policy-choice", List.of("entry"), "Keep NONE or use recommended RBAC?",
+                  new AuthorQuestionEvidence("entry", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE,
+                      List.of(source.turnId()))))
+              : List.of(new QuestionInput("policy-choice", List.of("entry"), "Keep NONE or use recommended RBAC?",
+                  new AuthorQuestionEvidence("entry", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE,
+                      List.of(source.turnId())))), new DraftSettings(false, null));
       try (var ignored = ToolSession.open(chat)) {
         var result = json.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
         assertTrue(result.accepted(), result.toString());
