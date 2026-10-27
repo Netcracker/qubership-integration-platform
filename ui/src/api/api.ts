@@ -82,9 +82,6 @@ import type {
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
-  CustomResourceBuildRequest,
-  MicroDomainDeployRequest,
-  BulkMicroDomainDeployResult,
   DiscoveryResponse,
   GeneralImportInstructions,
   ImportInstruction,
@@ -200,8 +197,6 @@ export interface Api {
 
   revertToSnapshot(chainId: string, snapshotId: string): Promise<Snapshot>;
 
-  buildCR(request: CustomResourceBuildRequest): Promise<string>;
-
   getLibraryElementByType(type: string): Promise<LibraryElement>;
 
   getDeployments(chainId: string): Promise<Deployment[]>;
@@ -211,7 +206,7 @@ export interface Api {
     request: CreateDeploymentRequest,
   ): Promise<Deployment>;
 
-  deleteDeployment(deploymentId: string): Promise<void>;
+  deleteDeployment(chainId: string, deploymentId: string): Promise<void>;
 
   getDomains(): Promise<EngineDomain[]>;
 
@@ -668,20 +663,7 @@ export interface Api {
 
   exportMcpSystems(ids: string[]): Promise<File>;
 
-  deployToMicroDomain(
-    request: BulkMicroDomainDeployResult,
-  ): Promise<BulkDeploymentResult[]>;
-
-  deploySnapshotsToMicroDomain(
-    request: MicroDomainDeployRequest,
-  ): Promise<void>;
-
-  deleteMicroDomain(name: string): Promise<void>;
-
-  deleteSnapshotFromMicroDomain(
-    name: string,
-    snapshotId: string,
-  ): Promise<void>;
+  deleteDomain(name: string): Promise<void>;
 
   getChainSnapshot(snapshotId: string): Promise<ChainSnapshot>;
 

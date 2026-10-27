@@ -607,6 +607,7 @@ export class Catalog {
     chainId: string,
     snapshotId: string,
     domain: string = DEFAULT_DOMAIN,
+    mode: CustomResourceMode = "REWRITE",
   ): Promise<DeploymentView> {
     if (!snapshotId) {
       throw new Error(
@@ -615,7 +616,7 @@ export class Catalog {
           `500 "The given id must not be null".`,
       );
     }
-    return this.call("post", `/v1/catalog/chains/${chainId}/deployments`, { snapshotId, domain });
+    return this.call("post", `/v1/catalog/chains/${chainId}/deployments`, { snapshotId, domain, mode });
   }
 
   /** The chain's deployment rows, each carrying the engine-reported `runtime.states` per host. */
@@ -720,13 +721,22 @@ export class Catalog {
    * writes no row to `catalog.deployments`, so the answer is the only record of it, and an unknown
    * chain id is dropped from it with no error: a caller compares the rows with the ids it sent.
    */
-  deployChains(chainIds: string[], domains: string[]): Promise<BulkDeploymentRow[]> {
-    return this.call("post", "/v1/cr/deploy-chains", { chainIds, domains });
+  deployChains(
+    chainIds: string[],
+    domains: string[],
+    snapshotAction: BulkSnapshotAction = "CREATE_NEW",
+  ): Promise<BulkDeploymentRow[]> {
+    return this.call("post", "/v1/catalog/chains/deployments/bulk", {
+      chainIds,
+      domains,
+      mode: "REWRITE",
+      snapshotAction,
+    });
   }
 
   /** Deletes a micro domain: its Integration, Service, ConfigMaps, and HTTPRoutes. */
   async deleteCustomResource(name: string): Promise<void> {
-    await this.call("delete", `/v1/cr/${encodeURIComponent(name)}`);
+    await this.call("delete", `/v1/catalog/domains/${encodeURIComponent(name)}`);
   }
 
   /**
@@ -739,23 +749,6 @@ export class Catalog {
     const response = await this.send("post", path, { data: { options: { name }, snapshotIds } });
     if (!response.ok()) await fail(response, "POST", `${this.base}${path}`);
     return await response.text();
-  }
-
-  /** Deploys the snapshots to micro domain `name`, creating the domain when it does not exist. */
-  async deployCustomResource(
-    name: string,
-    snapshotIds: string[],
-    mode: CustomResourceMode = "REWRITE",
-  ): Promise<void> {
-    await this.call("post", "/v1/cr/deploy", { name, snapshotIds, mode });
-  }
-
-  /** Removes one chain snapshot from micro domain `name`, which keeps running the others. */
-  async deleteSnapshotFromCustomResource(name: string, snapshotId: string): Promise<void> {
-    await this.call(
-      "delete",
-      `/v1/cr/${encodeURIComponent(name)}/${encodeURIComponent(snapshotId)}`,
-    );
   }
 
   // -------------------------------------------------------------------------

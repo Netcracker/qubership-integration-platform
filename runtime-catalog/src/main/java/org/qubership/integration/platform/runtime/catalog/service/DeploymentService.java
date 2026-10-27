@@ -156,6 +156,11 @@ public class DeploymentService {
     }
 
     @Transactional
+    public Optional<Deployment> tryFindById(String deploymentId) {
+        return deploymentRepository.findById(deploymentId);
+    }
+
+    @Transactional
     public List<Deployment> findAllByChainId(String chainId) {
         return deploymentRepository.findAllByChainId(chainId);
     }

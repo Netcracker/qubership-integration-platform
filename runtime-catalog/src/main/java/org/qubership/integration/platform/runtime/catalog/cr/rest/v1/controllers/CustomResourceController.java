@@ -12,7 +12,6 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployW
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,14 +26,12 @@ import java.util.function.Supplier;
 @RestController
 @CrossOrigin(origins = "*")
 @RequestMapping("/v1/cr")
+@Deprecated(since = "2026.4")
 @Tag(
         name = "custom-resource-controller",
         description = "Custom Resource Build and Deploy Controller"
 )
 public class CustomResourceController {
-    /** Attempts any single write sequence gets before a lost concurrency race is surfaced. */
-    private static final int MAX_CONFLICT_ATTEMPTS = 3;
-
     private final BulkDeploymentService bulkDeploymentService;
     private final MicroDomainResourceBuildService microDomainResourceBuildService;
     private final MicroDomainService microDomainService;
@@ -55,6 +52,7 @@ public class CustomResourceController {
 
     @PostMapping(produces = MediaType.APPLICATION_YAML_VALUE)
     @Operation(description = "Build K8s resources for specified chain snapshots")
+    @Deprecated(since = "2026.4")
     public String buildResource(@RequestBody ResourceBuildRequest request) {
         log.debug("Request to build a CR for snapshots: {}", request.getSnapshotIds());
         return verifyMicroDomainEnabled(() ->
@@ -63,6 +61,7 @@ public class CustomResourceController {
 
     @PostMapping("/deploy-chains")
     @Operation(description = "Deploy with creation of snapshots as Camel-K Integration resource")
+    @Deprecated(since = "2026.4")
     public ResponseEntity<List<BulkDeploymentResponse>> deployChains(
             @Valid @RequestBody DeployWithSnapshotCreationRequest request
     ) {
@@ -73,6 +72,7 @@ public class CustomResourceController {
 
     @PostMapping("/deploy")
     @Operation(description = "Deploy as Camel-K Integration resource")
+    @Deprecated(since = "2026.4")
     public ResponseEntity<Void> deployResource(@Valid @RequestBody ResourceDeployRequest request) {
         log.debug("Request to deploy a Camel-K custom resource with name {} for chain snapshots {} using {} mode.",
                 request.getName(), request.getSnapshotIds(), request.getMode());
@@ -84,6 +84,7 @@ public class CustomResourceController {
 
     @DeleteMapping("/{name}")
     @Operation(description = "Delete Camel-K Integration resource")
+    @Deprecated(since = "2026.4")
     public ResponseEntity<Void> deleteResource(@PathVariable String name) {
         log.debug("Request to delete a Camel-K custom resource with name {}", name);
         return verifyMicroDomainEnabled(() -> {
@@ -94,46 +95,13 @@ public class CustomResourceController {
 
     @DeleteMapping("/{name}/{snapshotId}")
     @Operation(description = "Delete integration chain snapshot from Camel-K resource")
+    @Deprecated(since = "2026.4")
     public ResponseEntity<Void> deleteSnapshotFromResource(@PathVariable String name, @PathVariable String snapshotId) {
         log.debug("Request to delete chain snapshot {} from a Camel-K custom resource {}", snapshotId, name);
         return verifyMicroDomainEnabled(() -> {
-            doDeleteChainSnapshot(name, snapshotId);
+            bulkDeploymentService.deleteChainSnapshot(name, snapshotId);
             return ResponseEntity.ok().build();
         });
-    }
-
-    /**
-     * Removes {@code snapshotId} from the micro-domain, retrying up to
-     * {@link #MAX_CONFLICT_ATTEMPTS} times when a write loses an optimistic-concurrency race.
-     *
-     * <p>{@code deleteChainSnapshot} rewrites the Integration and the integrations-configuration
-     * ConfigMap, each carrying the {@code resourceVersion} it read on entry, so a deploy to the same
-     * domain running alongside it can take either write.
-     * Re-reading is the whole recovery: the method reloads everything through
-     * {@code getMainIntegrationResources}, so another attempt recomputes against current state
-     * rather than replaying a decision made against stale reads. Unlike the deploy path there is
-     * no built document to rebuild, so the call itself is the retry unit.
-     *
-     * <p>An attempt is safe over the steps an earlier one already completed. A source ConfigMap the
-     * earlier attempt deleted leaves {@code cfgName} empty on the next pass, which keeps every
-     * mount and skips the delete, so its mount removal stands rather than being undone or repeated.
-     * The configuration entry it removed is simply absent from the reloaded sources, and the
-     * subtraction that would have removed it becomes a no-op.
-     */
-    private void doDeleteChainSnapshot(String name, String snapshotId) {
-        for (int attempt = 1; ; attempt++) {
-            try {
-                microDomainService.deleteChainSnapshot(name, snapshotId);
-                return;
-            } catch (KubeApiConflictException conflict) {
-                if (attempt == MAX_CONFLICT_ATTEMPTS) {
-                    throw conflict;
-                }
-                log.warn("Removal of snapshot '{}' from micro-domain '{}' lost a concurrency race on "
-                                + "attempt {}/{}; re-reading current cluster state and retrying",
-                        snapshotId, name, attempt, MAX_CONFLICT_ATTEMPTS);
-            }
-        }
     }
 
     private <T> T verifyMicroDomainEnabled(Supplier<T> supplier) {
