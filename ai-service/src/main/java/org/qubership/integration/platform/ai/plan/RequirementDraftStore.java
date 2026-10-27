@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -1368,6 +1369,12 @@ public class RequirementDraftStore {
         .isPresent();
   }
 
+  /** Stage recorded on the latest attempt. Survives a discovery turn that clears feedback. */
+  Optional<RequirementRepairPolicy.Strategy> latestRecoveryStrategy(String conversationId) {
+    return latestCaptureAttempt(conversationId).map(RequirementCaptureAttempt::recoveryStrategy)
+        .filter(Objects::nonNull);
+  }
+
   List<RequirementCaptureAttempt> identicalRejections(String conversationId, String toolName, Object arguments,
       RequirementCaptureInput.DraftInput candidate, boolean stopAtRebuild) {
     if (!currentSource(conversationId) || arguments == null
@@ -1436,16 +1443,40 @@ public class RequirementDraftStore {
   }
 
   public String rejectedProposalHistory(String conversationId) {
-    var source = factProtection(conversationId, List.of());
-    var attempts = sessions.current(conversationId).stream()
+    var revisions = sessions.current(conversationId).stream()
         .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
+        .toList();
+    int start = 0;
+    for (int index = revisions.size() - 1; index >= 0; index--) {
+      var attempt = artifacts.payload(revisions.get(index), RequirementCaptureAttempt.class);
+      if ("projection-rebuild".equals(attempt.toolName())) {
+        start = index + 1;
+        break;
+      }
+    }
+    var source = factProtection(conversationId, List.of());
+    var mapper = new ObjectMapper();
+    var attempts = revisions.subList(start, revisions.size()).stream()
         .map(revision -> artifacts.payload(revision, RequirementCaptureAttempt.class))
         .filter(attempt -> !attempt.accepted())
         .filter(attempt -> new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
             attempt.authorText(), List.of()).sameSource(source))
-        .map(attempt -> (com.fasterxml.jackson.databind.JsonNode) new ObjectMapper().valueToTree(attempt)).toList();
+        .map(attempt -> withoutCandidateBody(mapper.valueToTree(attempt)))
+        .toList();
     return attempts.isEmpty() ? "" : org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory
-        .projectValues(attempts, new ObjectMapper(), org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET).toString();
+        .projectValues(attempts, mapper,
+            org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET).toString();
+  }
+
+  /** A rejected draft is not a source for the next capture. */
+  private static com.fasterxml.jackson.databind.JsonNode withoutCandidateBody(
+      com.fasterxml.jackson.databind.JsonNode node) {
+    if (!(node instanceof ObjectNode object)) {
+      return node;
+    }
+    object.remove("arguments");
+    object.remove("resolvedCandidate");
+    return object;
   }
 
   private Optional<RequirementCaptureAttempt> latestCaptureAttempt(String conversationId) {

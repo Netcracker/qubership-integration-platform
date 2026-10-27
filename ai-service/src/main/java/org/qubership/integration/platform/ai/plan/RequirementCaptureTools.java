@@ -794,6 +794,15 @@ public class RequirementCaptureTools {
     return result;
   }
 
+  private static RequirementRecoveryLadder.Stage ladderStage(RequirementRepairPolicy.Strategy strategy) {
+    return switch (strategy) {
+      case FOCUSED_REPAIR -> RequirementRecoveryLadder.Stage.FOCUSED_REPAIR;
+      case PROJECTION_REBUILD -> RequirementRecoveryLadder.Stage.PROJECTION_REBUILD;
+      case ASK_AUTHOR -> RequirementRecoveryLadder.Stage.ASK_AUTHOR;
+      case INTERNAL_FAILURE -> RequirementRecoveryLadder.Stage.INTERNAL_FAILURE;
+    };
+  }
+
   private String traced(String toolName, Supplier<RequirementCaptureResult> action) {
     return traced(toolName, null, action);
   }
@@ -832,7 +841,9 @@ public class RequirementCaptureTools {
           var current = feedbackStore.lastRequirementRejection(conversationId)
               .map(rejection -> rejection.feedback().ladderStage())
               .filter(java.util.Objects::nonNull)
-              .orElse(RequirementRecoveryLadder.Stage.FOCUSED_REPAIR);
+              .orElseGet(() -> store.latestRecoveryStrategy(conversationId)
+                  .map(RequirementCaptureTools::ladderStage)
+                  .orElse(RequirementRecoveryLadder.Stage.FOCUSED_REPAIR));
           var next = RequirementRecoveryLadder.advance(current, codes, true);
           if (next != current) {
             return escalateRepeatedCandidate(conversationId, toolName, arguments, matches.getFirst().issues(),

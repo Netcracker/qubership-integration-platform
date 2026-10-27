@@ -16,8 +16,11 @@ import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
@@ -63,6 +66,23 @@ class RequirementRecoveryLadderTest {
       assertTrue(h.store.rejectedCaptureRevision(h.chat).isEmpty());
       assertTrue(h.store.get(h.chat).isEmpty());
       assertTrue(h.store.semanticBaseline(h.chat).isEmpty());
+    }
+  }
+
+  @Test
+  void clearedFeedbackKeepsTheRebuildStageAndDropsTheRejectedBody() throws Exception {
+    var feedback = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore());
+    var h = Harness.open(feedback);
+    var invalid = duplicateGoal();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.capture(invalid);
+      h.capture(invalid);
+      assertEquals(NextAction.PROJECTION_REBUILD, h.capture(invalid).nextAction());
+      assertEquals("", h.store.rejectedProposalHistory(h.chat));
+      feedback.clearRequirement(h.chat);
+      var stopped = h.capture(invalid);
+      assertEquals(NextAction.STOP, stopped.nextAction());
+      assertFalse(stopped.issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code())));
     }
   }
 
@@ -160,23 +180,31 @@ class RequirementRecoveryLadderTest {
     final RequirementDraftStore store;
     final RequirementCaptureTools tools;
 
-    private Harness() {
+    private Harness(CaptureAttemptFeedbackStore feedback) {
       var blobs = new InMemoryArtifactBlobStore();
       var clock = Clock.systemUTC();
       var artifacts = new CompilationArtifacts(blobs, JSON, clock);
       var sessions = new CompilationSessions(blobs, JSON, clock);
       store = new RequirementDraftStore(artifacts, sessions, conversations);
-      tools = new RequirementCaptureTools(store, new RequirementDraftTool(store), JSON);
+      if (feedback == null) {
+        tools = new RequirementCaptureTools(store, new RequirementDraftTool(store), JSON);
+      } else {
+        var gateway = new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback);
+        tools = new RequirementCaptureTools(store, new RequirementDraftTool(store), JSON, gateway, feedback, null);
+      }
       tools.conversations = conversations;
+      String author = "Submit one task. The chain name is Alpha flow. The chain name is Beta flow.";
+      var input = conversations.archive().beginInput(chat, author, null);
+      conversations.archive().resolveInput(chat, input, author);
+      store.beginTurn(chat, author);
     }
 
     static Harness open() {
-      var harness = new Harness();
-      String author = "Submit one task. The chain name is Alpha flow. The chain name is Beta flow.";
-      var input = harness.conversations.archive().beginInput(harness.chat, author, null);
-      harness.conversations.archive().resolveInput(harness.chat, input, author);
-      harness.store.beginTurn(harness.chat, author);
-      return harness;
+      return new Harness(null);
+    }
+
+    static Harness open(CaptureAttemptFeedbackStore feedback) {
+      return new Harness(feedback);
     }
 
     RequirementCaptureResult capture(DraftInput draft) throws Exception {
