@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.runtime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -570,6 +571,32 @@ class ProductPipelineRunSupportTest {
     assertNull(harness.support().requirementClarification(other, other.run().runRevision(), otherPrompt));
   }
 
+  @Test
+  void theTransitionThatConsumesAnAnswerPersistsItBeforeTheNextOffer() throws Exception {
+    var harness = new OfferHarness();
+    String conversationId = "conv-answer-envelope";
+    String runId = "run-answer-envelope";
+    harness.acceptChainCallQuestion(conversationId);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    var first = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later).orElseThrow();
+    assertNull(first.clarification().answer());
+    var consumed = harness.consumePinnedAnswer(runId, conversationId);
+    assertNull(first.clarification().answer());
+    var latest = consumed.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later).orElseThrow();
+    assertNotNull(latest.clarification());
+    assertNotNull(latest.clarification().answer());
+    assertEquals(first.clarification().offer().offerId(), latest.clarification().answer().offerId());
+    assertEquals(org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+        latest.clarification().answer().disposition());
+    assertNotNull(latest.clarification().offer());
+    assertNotEquals(first.clarification().offer().offerId(), latest.clarification().offer().offerId());
+  }
+
   private static StageAttempt attempt(String stageId, long revision, StageStatus outcome) {
     return new StageAttempt(
         "attempt-" + revision, stageId, revision, outcome, FIXED, FIXED, List.of(), null);
@@ -705,6 +732,54 @@ class ProductPipelineRunSupportTest {
           .build()
           .withConversations(conversations)
           .withNativeRequirementCapture(drafts, null);
+    }
+
+    ProductPipelineRunDocument consumePinnedAnswer(String runId, String conversationId) throws Exception {
+      var waiting = runStore.load(runId).orElseThrow();
+      var offer = waiting.transitions().stream().map(RunTransition::clarification)
+          .filter(java.util.Objects::nonNull).map(item -> item.offer()).filter(java.util.Objects::nonNull)
+          .reduce((earlier, later) -> later).orElseThrow();
+      String reply = "I do not know the element id yet.";
+      String turnId = org.qubership.integration.platform.ai.chat.conversation.ConversationArchive
+          .deterministicAnswerTurnId(offer.offerId(), reply);
+      var metadata = mapper.createObjectNode().put("clarificationOfferId", offer.offerId());
+      var input = conversations.archive().beginInput(conversationId, turnId, reply, metadata);
+      conversations.archive().resolveInput(conversationId, input, reply);
+      drafts.beginTurn(conversationId, reply);
+      var readyIds = conversations.archive().read(conversationId).activeTurns().stream()
+          .filter(turn -> "READY".equals(turn.status())).map(turn -> turn.id()).toList();
+      var question = drafts.get(conversationId).orElseThrow().authoredDraft().openQuestions().getFirst();
+      var reviewed = new QuestionInput(question.questionId(), question.interactionIds(), question.text(),
+          new AuthorQuestionEvidence(question.evidence().interactionId(), question.evidence().propertyKey(),
+              question.evidence().kind(), readyIds));
+      var update = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate(
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(reviewed), List.of(), null, List.of(), null,
+          new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClarificationDispositionInput(
+              question.questionId(),
+              org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+              turnId, reply, List.of()));
+      var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(
+          drafts, new org.qubership.integration.platform.ai.plan.RequirementDraftTool(drafts), mapper);
+      try (var ignored = org.qubership.integration.platform.ai.chat.ToolSession.open(conversationId)) {
+        var first = mapper.readValue(tools.updateRequirementDraft(update),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
+        var second = mapper.readValue(tools.updateRequirementDraft(update),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
+        if (!second.accepted()) {
+          throw new AssertionError(first + " then " + second);
+        }
+      }
+      var current = runStore.load(runId).orElseThrow();
+      long expected = current.run().runRevision();
+      var transition = new RunTransition(expected, expected + 1L, current.run().status(), RunStatus.RUNNING,
+          current.run().currentStageId(), FIXED, "accepted clarification", null, null);
+      var attempt = new StageAttempt("resume-" + expected, current.run().currentStageId(), expected + 1L,
+          StageStatus.RUNNING, FIXED, FIXED, List.of(), null);
+      runStore.commit(expected, org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit.statusChange(
+          current.run(), StageStatus.RUNNING, current.run().stages(), attempt, transition));
+      support.stageExecutor().execute(runId, current.run().currentStageId()).await().indefinitely();
+      return runStore.load(runId).orElseThrow();
     }
 
     private StageCapability promptCapability(String capabilityId) {

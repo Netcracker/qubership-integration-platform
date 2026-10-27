@@ -190,7 +190,26 @@ public final class RequirementCaptureInput {
       @com.fasterxml.jackson.annotation.JsonProperty(required = false)
       @NullableCaptureValue(description = "Exact pendingProposal.token from readRequirementDraft; only for focused"
           + " repair of the current rejected initial proposal. Omit or use null for accepted-draft updates.")
-      String pendingProposalToken) {
+      String pendingProposalToken,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "Focused answer-repair disposition for the pinned question."
+          + " Omit it on an ordinary gather call. The server derives ANSWER when the pinned target changes"
+          + " or its question closes.")
+      ClarificationDispositionInput clarificationDisposition) {
+
+    public DraftUpdate(
+        List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
+        List<String> removeInteractionIds, List<TransitionInput> addTransitions,
+        List<TransitionInput> removeTransitions, List<FactInput> addFacts, List<FactInput> updateFacts,
+        List<String> removeFactIds, List<CapabilityInput> setCapabilities,
+        List<String> removeCapabilityInteractionIds, List<QuestionInput> addQuestions,
+        List<QuestionInput> updateQuestions, List<String> removeQuestionIds, DraftSettings settings,
+        List<AmendmentInput> amendments, String pendingProposalToken) {
+      this(addInteractions, updateInteractions, removeInteractionIds, addTransitions, removeTransitions,
+          addFacts, updateFacts, removeFactIds, setCapabilities, removeCapabilityInteractionIds,
+          addQuestions, updateQuestions, removeQuestionIds, settings, amendments, pendingProposalToken, null);
+    }
 
     public DraftUpdate(
         List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
@@ -222,4 +241,18 @@ public final class RequirementCaptureInput {
       String path,
       String sourceTurnId,
       String quote) {}
+
+  /**
+   * Ephemeral answer classification. Admission reads it and the accepted draft does not store it.
+   */
+  public record ClarificationDispositionInput(
+      String questionId,
+      org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition disposition,
+      String sourceTurnId,
+      String exactQuote,
+      List<String> candidateValues) {
+    public ClarificationDispositionInput {
+      candidateValues = candidateValues == null ? List.of() : List.copyOf(candidateValues);
+    }
+  }
 }

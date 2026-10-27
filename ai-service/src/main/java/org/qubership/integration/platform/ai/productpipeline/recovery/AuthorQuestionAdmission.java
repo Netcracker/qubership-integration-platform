@@ -1,9 +1,14 @@
 package org.qubership.integration.platform.ai.productpipeline.recovery;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClarificationDispositionInput;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -16,14 +21,25 @@ public final class AuthorQuestionAdmission {
   public static void validate(AuthorQuestionEvidence question, List<RequirementFact> facts,
       RequirementFlow flow, List<CatalogBindingHint> bindings, Set<String> inputIds,
       Set<String> defaults, boolean sourceOwnerReviewed, List<String> findings) {
+    validate(question, facts, flow, bindings, inputIds, inputIds, defaults, sourceOwnerReviewed, findings);
+  }
+
+  /**
+   * {@code requiredReviewedIds} null exempts an untouched queued question from the latest-answer
+   * id check. Every other question must record exactly that set.
+   */
+  public static void validate(AuthorQuestionEvidence question, List<RequirementFact> facts,
+      RequirementFlow flow, List<CatalogBindingHint> bindings, Set<String> inputIds,
+      Set<String> requiredReviewedIds, Set<String> defaults, boolean sourceOwnerReviewed, List<String> findings) {
     if (question == null || question.kind() == null || question.interactionId() == null
         || question.interactionId().isBlank() || question.propertyKey() == null || question.propertyKey().isBlank()) {
       findings.add("ASK_USER requires a scoped authorQuestionEvidence with interactionId, propertyKey and kind.");
       return;
     }
-    if (inputIds.isEmpty() || !inputIds.equals(new HashSet<>(question.reviewedInputIds()))) {
+    if (requiredReviewedIds != null
+        && (inputIds.isEmpty() || !requiredReviewedIds.equals(new HashSet<>(question.reviewedInputIds())))) {
       findings.add("Question evidence reviewedInputIds must contain exactly the saved author input IDs: "
-          + inputIds.stream().sorted().toList() + ". Recorded reviewedInputIds: " + question.reviewedInputIds()
+          + requiredReviewedIds.stream().sorted().toList() + ". Recorded reviewedInputIds: " + question.reviewedInputIds()
           + ". Update this field in the saved question evidence after reviewing the source;"
           + " reading the source alone does not change the recorded IDs.");
     }
@@ -96,6 +112,48 @@ public final class AuthorQuestionAdmission {
           findings.add("ASK_USER requires an unresolved catalog choice. Reuse the approved binding.");
       }
     }
+  }
+
+  /**
+   * Findings for a typed AMBIGUOUS disposition. An empty list means the quote, turn, and two
+   * distinct valid candidates all check out.
+   */
+  public static List<String> ambiguityFindings(ClarificationDispositionInput input, String answerTurnId,
+      String answerText, Predicate<String> validCandidate) {
+    var findings = new ArrayList<String>();
+    if (input == null || input.disposition() != ClarificationTransition.Disposition.AMBIGUOUS) {
+      return findings;
+    }
+    if (answerTurnId == null || !answerTurnId.equals(input.sourceTurnId())) {
+      findings.add("AMBIGUOUS requires the pinned answer turn.");
+    }
+    if (input.exactQuote() == null || input.exactQuote().isBlank()
+        || answerText == null || !answerText.contains(input.exactQuote())) {
+      findings.add("AMBIGUOUS requires an exact quote from the pinned answer turn.");
+    }
+    var valid = validCandidates(input.candidateValues(), validCandidate);
+    if (valid.size() == 1) {
+      findings.add("One valid candidate is an answer. Apply it to the pinned target.");
+    } else if (valid.size() < 2) {
+      findings.add("AMBIGUOUS requires two distinct valid candidates.");
+    }
+    return findings;
+  }
+
+  public static List<String> validCandidates(List<String> candidates, Predicate<String> validCandidate) {
+    if (candidates == null) {
+      return List.of();
+    }
+    var valid = new LinkedHashSet<String>();
+    for (String candidate : candidates) {
+      if (candidate == null || candidate.isBlank()) {
+        continue;
+      }
+      if (validCandidate == null || validCandidate.test(candidate)) {
+        valid.add(candidate);
+      }
+    }
+    return List.copyOf(valid);
   }
 
   public static Set<String> suppliedValues(RequirementFact fact, String key) {

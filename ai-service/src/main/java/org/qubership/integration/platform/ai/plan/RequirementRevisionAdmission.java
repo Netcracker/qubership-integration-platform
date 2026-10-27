@@ -10,7 +10,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionAdmission;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection.TrustedSelection;
@@ -1077,5 +1081,190 @@ final class RequirementRevisionAdmission {
 
   private static String first(String original, String candidate) {
     return original == null ? candidate : original;
+  }
+
+  /** Pinned-question disposition, or the issues that keep the candidate out. */
+  record ClarificationVerdict(List<Issue> issues, ClarificationTransition.Disposition disposition) {}
+
+  static ClarificationVerdict clarify(RequirementDraftStore.ClarificationAdmissionContext context,
+      RequirementDraft candidate, Predicate<String> validCandidate, Function<String, Set<String>> defaultsFor) {
+    if (context == null || candidate == null || candidate.authoredDraft() == null
+        || context.pinnedQuestion() == null || context.offer() == null) {
+      return new ClarificationVerdict(List.of(), null);
+    }
+    DraftInput base = context.pinnedBase() == null ? null : context.pinnedBase().authoredDraft();
+    DraftInput proposed = candidate.authoredDraft();
+    QuestionInput pinned = context.pinnedQuestion();
+    var issues = new ArrayList<Issue>();
+    issues.addAll(reorderedQuestions(base, proposed, pinned.questionId()));
+    if (!issues.isEmpty()) {
+      return new ClarificationVerdict(List.copyOf(issues), null);
+    }
+    boolean closed = proposed.openQuestions().stream()
+        .noneMatch(question -> question != null && pinned.questionId().equals(question.questionId()));
+    var after = new RequirementClarificationCoordinator().targetProjection(candidate, pinned);
+    boolean targetChanged = context.targetProjection() != null && !context.targetProjection().equals(after);
+    var removals = unappliedRemovals(base, candidate, defaultsFor);
+    boolean pinnedUnapplied = removals.stream().anyMatch(issue -> pinned.questionId().equals(issue.entityId()));
+    if (closed && !pinnedUnapplied) {
+      var others = removals.stream().filter(issue -> !pinned.questionId().equals(issue.entityId())).toList();
+      if (!others.isEmpty()) {
+        return new ClarificationVerdict(List.copyOf(others), null);
+      }
+      return new ClarificationVerdict(List.of(), ClarificationTransition.Disposition.ANSWER);
+    }
+    if (closed) {
+      return new ClarificationVerdict(List.copyOf(removals), null);
+    }
+    if (!closed && targetChanged) {
+      issues.add(new Issue("UNAPPLIED_AUTHOR_ANSWER", "/draft/openQuestions/" + pinned.questionId(),
+          pinned.questionId(), "The pinned target changed. Remove its question."));
+      issues.addAll(removals);
+      return new ClarificationVerdict(List.copyOf(issues), null);
+    }
+    var input = context.disposition();
+    if (input != null && input.disposition() != null
+        && input.disposition() != ClarificationTransition.Disposition.ANSWER
+        && !context.focusedAnswerRepair()) {
+      issues.add(new Issue("DISPOSITION_NOT_AUTHORIZED", "/changes/clarificationDisposition", pinned.questionId(),
+          "AMBIGUOUS and NON_ANSWER are accepted only from focused answer repair."));
+      return new ClarificationVerdict(List.copyOf(issues), null);
+    }
+    if (input != null && input.questionId() != null && !input.questionId().equals(pinned.questionId())
+        && input.disposition() != null && input.disposition() != ClarificationTransition.Disposition.ANSWER) {
+      issues.add(new Issue("AMBIGUOUS_DISPOSITION_INVALID", "/changes/clarificationDisposition", pinned.questionId(),
+          "The disposition must name the pinned question."));
+      return new ClarificationVerdict(List.copyOf(issues), null);
+    }
+    if (input != null && input.disposition() == ClarificationTransition.Disposition.AMBIGUOUS
+        && context.focusedAnswerRepair()) {
+      var findings = new ArrayList<>(AuthorQuestionAdmission.ambiguityFindings(
+          input, context.answerTurnId(), context.answerText(), validCandidate));
+      QuestionInput replacement = proposed.openQuestions().stream()
+          .filter(question -> pinned.questionId().equals(question.questionId())).findFirst().orElse(null);
+      if (replacement == null || Objects.equals(pinned.text(), replacement.text())) {
+        findings.add("AMBIGUOUS requires a narrower replacement question.");
+      }
+      if (replacement != null && replacement.evidence() != null && replacement.evidence().ambiguity() != null) {
+        AuthorQuestionEvidence.AmbiguityEvidence ambiguity = replacement.evidence().ambiguity();
+        if (!Objects.equals(input.exactQuote(), ambiguity.exactQuote())
+            || !Objects.equals(input.candidateValues(), ambiguity.candidateValues())) {
+          findings.add("Typed ambiguity evidence must match the focused disposition.");
+        }
+      }
+      if (!reviewed(replacement, context.readyInputIds())) {
+        findings.add("Reconcile the pinned question evidence so reviewedInputIds includes the answer turn.");
+      }
+      if (!findings.isEmpty()) {
+        issues.add(new Issue("AMBIGUOUS_DISPOSITION_INVALID", "/changes/clarificationDisposition",
+            pinned.questionId(), String.join(" ", findings)));
+        return new ClarificationVerdict(List.copyOf(issues), null);
+      }
+      if (!removals.isEmpty()) {
+        return new ClarificationVerdict(List.copyOf(removals), null);
+      }
+      return new ClarificationVerdict(List.of(), ClarificationTransition.Disposition.AMBIGUOUS);
+    }
+    if (input != null && input.disposition() == ClarificationTransition.Disposition.NON_ANSWER
+        && context.focusedAnswerRepair()) {
+      QuestionInput current = proposed.openQuestions().stream()
+          .filter(question -> pinned.questionId().equals(question.questionId())).findFirst().orElse(null);
+      if (!reviewed(current, context.readyInputIds())
+          || context.answerTurnId() == null
+          || current.evidence() == null
+          || !current.evidence().reviewedInputIds().contains(context.answerTurnId())) {
+        issues.add(new Issue("UNAPPLIED_AUTHOR_ANSWER", "/draft/openQuestions/" + pinned.questionId(),
+            pinned.questionId(),
+            "Reconcile the pinned question evidence so reviewedInputIds includes the answer turn."));
+        return new ClarificationVerdict(List.copyOf(issues), null);
+      }
+      if (!removals.isEmpty()) {
+        return new ClarificationVerdict(List.copyOf(removals), null);
+      }
+      return new ClarificationVerdict(List.of(), ClarificationTransition.Disposition.NON_ANSWER);
+    }
+    issues.add(new Issue("UNAPPLIED_AUTHOR_ANSWER", "/draft/openQuestions/" + pinned.questionId(),
+        pinned.questionId(),
+        "The admitted answer has not changed the pinned question. Apply it to the pinned target,"
+            + " or classify it from focused answer repair."));
+    issues.addAll(removals);
+    return new ClarificationVerdict(List.copyOf(issues), null);
+  }
+
+  private static boolean reviewed(QuestionInput question, Set<String> readyInputIds) {
+    if (question == null || question.evidence() == null) {
+      return false;
+    }
+    var recorded = new java.util.HashSet<>(question.evidence().reviewedInputIds());
+    if (readyInputIds == null || readyInputIds.isEmpty()) {
+      return !recorded.isEmpty();
+    }
+    return readyInputIds.equals(recorded);
+  }
+
+  private static List<Issue> reorderedQuestions(DraftInput base, DraftInput proposed, String pinnedId) {
+    if (base == null || proposed == null || base.openQuestions() == null || proposed.openQuestions() == null
+        || pinnedId == null) {
+      return List.of();
+    }
+    var baseIds = base.openQuestions().stream().filter(Objects::nonNull).map(QuestionInput::questionId).toList();
+    var candidateIds = proposed.openQuestions().stream().filter(Objects::nonNull).map(QuestionInput::questionId).toList();
+    int pinnedAt = candidateIds.indexOf(pinnedId);
+    int basePinned = baseIds.indexOf(pinnedId);
+    if (pinnedAt < 0 || basePinned < 0) {
+      return List.of();
+    }
+    var issues = new ArrayList<Issue>();
+    for (int index = 0; index < candidateIds.size(); index++) {
+      String id = candidateIds.get(index);
+      int baseIndex = baseIds.indexOf(id);
+      if (baseIndex > basePinned && index < pinnedAt) {
+        issues.add(new Issue("PINNED_QUESTION_REORDERED", "/draft/openQuestions", id,
+            "Keep untouched queued questions behind the pinned question."));
+      }
+    }
+    return issues;
+  }
+
+  static List<Issue> unappliedRemovals(DraftInput base, RequirementDraft candidate,
+      Function<String, Set<String>> defaultsFor) {
+    if (base == null || base.openQuestions() == null || candidate == null || candidate.authoredDraft() == null) {
+      return List.of();
+    }
+    DraftInput draft = candidate.authoredDraft();
+    var facts = RequirementCaptureProjection.facts(draft);
+    var issues = new ArrayList<Issue>();
+    for (var question : base.openQuestions()) {
+      if (question == null) {
+        continue;
+      }
+      var evidence = question.evidence();
+      if (evidence == null || draft.openQuestions().stream()
+          .anyMatch(open -> open != null && open.questionId().equals(question.questionId()))) {
+        continue;
+      }
+      boolean resolverWork = RequirementCaptureProjection.pending(draft, candidate.catalogBindings(),
+          RequirementCaptureProjection.resolvedTargets(candidate)).stream().anyMatch(work ->
+              evidence.interactionId().equals(work.interactionId()) && work.code().endsWith("LOOKUP_REQUIRED"));
+      if (resolverWork) {
+        continue;
+      }
+      var values = facts.stream().filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+          .filter(fact -> fact.targetsInteraction(evidence.interactionId())
+              || fact.elementIntent() != null && evidence.interactionId().equals(fact.elementIntent().elementRef()))
+          .flatMap(fact -> AuthorQuestionAdmission.suppliedValues(fact, evidence.propertyKey()).stream()).toList();
+      boolean resolvedPolicy = evidence.kind() != AuthorQuestionEvidence.Kind.POLICY_CHOICE
+          || facts.stream().anyMatch(fact -> fact.targetsInteraction(evidence.interactionId())
+              && fact.policyConflict() != null
+              && evidence.propertyKey().equals(fact.policyConflict().propertyKey())
+              && fact.policyConflict().decision() != null);
+      var defaults = defaultsFor == null ? Set.<String>of() : defaultsFor.apply(evidence.interactionId());
+      if ((values.isEmpty() && !defaults.contains(evidence.propertyKey())) || !resolvedPolicy) {
+        issues.add(new Issue("UNAPPLIED_AUTHOR_ANSWER", "/draft/openQuestions/" + question.questionId(),
+            question.questionId(), "Removing a question is insufficient: apply the saved answer to "
+                + evidence.interactionId() + "." + evidence.propertyKey() + " before continuing."));
+      }
+    }
+    return issues;
   }
 }

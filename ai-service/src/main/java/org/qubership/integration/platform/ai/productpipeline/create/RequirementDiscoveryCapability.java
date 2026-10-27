@@ -395,7 +395,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
       draftStore.beginTurn(conversationId, gatherMessage);
       if (PipelineGates.STAGE_CLARIFICATION.equals(context.attributeAsString(
           ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
-        draftStore.associateClarification(conversationId);
         if (repair == null) draftStore.allowDiscussion(conversationId);
       }
       return installed;
@@ -435,9 +434,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
                                 org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), finish);
                         List<CapabilitySignal> signals = new ArrayList<>();
                         var settledDraft = draftStore.get(conversationId).orElse(null);
-                        if (completed.outcome().outcomeClass() == StageOutcomeClass.NEEDS_INPUT
-                            && PipelineGates.gateOf(completed.outcome().message()).isEmpty()
-                            && (settledDraft == null || !settledDraft.readyForPlan()
+                        boolean discuss = draftStore.turnDirective(conversationId)
+                            == RequirementDiscoveryDirective.DISCUSS;
+                        boolean needsInput = completed.outcome().outcomeClass() == StageOutcomeClass.NEEDS_INPUT;
+                        if (needsInput
+                            && (discuss || PipelineGates.gateOf(completed.outcome().message()).isEmpty())
+                            && (discuss || settledDraft == null || !settledDraft.readyForPlan()
                                 || !draftStore.wasCapturedThisTurn(conversationId))) {
                           events.forEach(event -> signals.add(new CapabilitySignal.Message(tokenText(event))));
                         }
@@ -607,9 +609,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
           "Complete the producer work before finishing. Discussion requires a new author turn at a paused draft.",
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
               "DISCUSSION_NOT_AUTHORIZED", "An automatic producer turn cannot become an author discussion.", true)), "")));
-    }
-    if (directive == RequirementDiscoveryDirective.DISCUSS) {
-      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
     }
     if (draft.authoredDraft() != null && !draft.openQuestions().equals(RequirementCaptureProjection.toDraft(
         draft.authoredDraft(), draft, draft.catalogBindings(), draft.sourceSkillVersion(), draft.sourceSkillHash(),

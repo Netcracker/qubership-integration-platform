@@ -259,6 +259,7 @@ public final class ProductPipelineRunSupport {
       RequirementDraftStore drafts,
       org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
     this.requirementDrafts = drafts;
+    drafts.useRunJournal(runStore);
     this.stageExecutor.withNativeRequirementCapture(drafts, feedback);
     return this;
   }
@@ -3853,7 +3854,8 @@ public final class ProductPipelineRunSupport {
                 clock.instant(),
                 reason,
                 commandId,
-                commandPayloadHash)));
+                commandPayloadHash,
+                pendingAnswer(doc))));
   }
 
   /**
@@ -3901,7 +3903,7 @@ public final class ProductPipelineRunSupport {
 
   /**
    * Offer for a requirement question wait, written in the same compare-and-set as that wait.
-   * Other gates and stages return null and do not carry an answer.
+   * When this wait consumes the open offer, the same envelope also carries that answer.
    */
   public ClarificationTransition requirementClarification(
       ProductPipelineRunDocument doc, long targetRevision, String reason) {
@@ -3911,22 +3913,23 @@ public final class ProductPipelineRunSupport {
   private ClarificationTransition waitingClarification(
       ProductPipelineRunDocument doc, RunStatus nextStatus, long targetRevision, String reason) {
     if (nextStatus != RunStatus.WAITING_FOR_INPUT) {
-      return null;
+      return pendingAnswer(doc);
     }
     return requirementClarification(doc, targetRevision, reason, doc.run().currentStageId());
   }
 
   private ClarificationTransition requirementClarification(
       ProductPipelineRunDocument doc, long targetRevision, String reason, String stageId) {
+    var answer = pendingAnswer(doc);
     if (requirementDrafts == null
         || PipelineGates.gateOf(reason).filter(PipelineGates.STAGE_CLARIFICATION::equals).isEmpty()
         || !RequirementDiscoveryCapability.CAPABILITY_ID.equals(capabilityId(doc, stageId))) {
-      return null;
+      return answer;
     }
     var accepted = requirementDrafts.latestRevision(doc.run().conversationId()).orElse(null);
     var draft = requirementDrafts.get(doc.run().conversationId()).orElse(null);
     if (accepted == null || draft == null) {
-      return null;
+      return answer;
     }
     String generation = "";
     if (conversations != null) {
@@ -3936,9 +3939,43 @@ public final class ProductPipelineRunSupport {
     var coordinator = new RequirementClarificationCoordinator();
     var active = coordinator.activeQuestion(accepted, draft, generation).orElse(null);
     if (active == null) {
+      return answer;
+    }
+    return new ClarificationTransition(coordinator.createOffer(active, targetRevision),
+        answer == null ? null : answer.answer());
+  }
+
+  /**
+   * The accepted answer for the offer that is still open. A later commit does not attach it again.
+   */
+  private ClarificationTransition pendingAnswer(ProductPipelineRunDocument doc) {
+    if (requirementDrafts == null || doc == null || doc.run() == null) {
       return null;
     }
-    return new ClarificationTransition(coordinator.createOffer(active, targetRevision), null);
+    var answer = requirementDrafts.latestClarificationAnswer(doc.run().conversationId()).orElse(null);
+    var open = openOffer(doc);
+    if (answer == null || open == null || !open.offerId().equals(answer.offerId())) {
+      return null;
+    }
+    return new ClarificationTransition(null, answer);
+  }
+
+  private static ClarificationTransition.Offer openOffer(ProductPipelineRunDocument doc) {
+    ClarificationTransition.Offer open = null;
+    for (var transition : doc.transitions()) {
+      var clarification = transition.clarification();
+      if (clarification == null) {
+        continue;
+      }
+      if (clarification.answer() != null && open != null
+          && clarification.answer().offerId().equals(open.offerId())) {
+        open = null;
+      }
+      if (clarification.offer() != null) {
+        open = clarification.offer();
+      }
+    }
+    return open;
   }
 
   private String capabilityId(ProductPipelineRunDocument doc, String stageId) {
