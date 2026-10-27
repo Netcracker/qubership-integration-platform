@@ -721,11 +721,16 @@ export class Catalog {
    * writes no row to `catalog.deployments`, so the answer is the only record of it, and an unknown
    * chain id is dropped from it with no error: a caller compares the rows with the ids it sent.
    */
-  deployChains(chainIds: string[], domains: string[]): Promise<BulkDeploymentRow[]> {
+  deployChains(
+    chainIds: string[],
+    domains: string[],
+    snapshotAction: BulkSnapshotAction = "CREATE_NEW",
+  ): Promise<BulkDeploymentRow[]> {
     return this.call("post", "/v1/catalog/chains/deployments/bulk", {
       chainIds,
       domains,
       mode: "REWRITE",
+      snapshotAction,
     });
   }
 

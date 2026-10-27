@@ -3,10 +3,11 @@
  * deleted through the catalog controllers.
  *
  * `seed-micro` reaches `POST /v1/catalog/chains/deployments/bulk` only. This case drives the build,
- * the single deployment, the snapshot removal, and the domain delete, and reads their effect off
- * the cluster: the YAML the build answers, the Integration and the ConfigMaps a deploy writes, and
- * what a delete leaves behind. The two chains are built in the worker folder; the micro domain is
- * named with the run token, so the sweep finds one this case failed to delete.
+ * the bulk deploy that creates the domain, the single deployment that re-adds a chain, the snapshot
+ * removal, and the domain delete, and reads their effect off the cluster: the YAML the build answers,
+ * the Integration and the ConfigMaps a deploy writes, and what a delete leaves behind. The two
+ * chains are built in the worker folder; the micro domain is named with the run token, so the sweep
+ * finds one this case failed to delete.
  */
 import type { APIRequestContext } from "@playwright/test";
 import yaml from "js-yaml";
@@ -87,9 +88,8 @@ test("a micro domain is built through /v1/cr, deployed, trimmed to one chain, an
 
   let deployed = false;
   try {
-    await test.step("POST /v1/catalog/chains/{chainId}/deployments runs both chains on the domain", async () => {
-      await catalog.deploy(kept.id, keptSnapshot.id, domain, "APPEND");
-      await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "APPEND");
+    await test.step("POST /v1/catalog/chains/deployments/bulk creates the domain and runs both chains", async () => {
+      await catalog.deployChains([kept.id, dropped.id], [domain], "LAST_CREATED");
       deployed = true;
       expect(await integration(resource)).not.toBeNull();
       await expect
@@ -113,6 +113,16 @@ test("a micro domain is built through /v1/cr, deployed, trimmed to one chain, an
           message: `micro domain ${domain} kept serving the removed chain, or stopped serving the other`,
         })
         .toEqual([405, 404]);
+    });
+
+    await test.step("POST /v1/catalog/chains/{chainId}/deployments re-adds the removed chain on the discovered domain", async () => {
+      await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "APPEND");
+      await expect
+        .poll(async () => [await routeStatus(request, domain, kept), await routeStatus(request, domain, dropped)], {
+          timeout: MICRO_READY_TIMEOUT,
+          message: `micro domain ${domain} never resumed serving the re-added chain`,
+        })
+        .toEqual([405, 405]);
     });
 
     await test.step("DELETE /v1/catalog/domains/{domainName} removes the Integration and its ConfigMaps", async () => {
