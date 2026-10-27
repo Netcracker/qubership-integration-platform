@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,12 +38,16 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateProductPipelineCoordinator;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
+import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
@@ -954,6 +959,115 @@ class ChatExecutionServiceTest {
   }
 
   @Test
+  void retryAfterTheOpenDecisionClosesReturnsTheArchivedTurnWithoutRouting() throws Exception {
+    String text = "Use HTTPS only.";
+    AtomicReference<Optional<ChatEvent.Decision>> open =
+        new AtomicReference<>(Optional.of(requirementOffer("offer-current", "Which protocol?")));
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-closed-offer")).thenAnswer(invocation -> open.get());
+    ChatExecutionService execution = service(router, decisions);
+    ChatRequest request = clarificationRequest("conv-closed-offer", text, "offer-current");
+
+    List<String> first = execution.streamV1Sse(request).collect().asList().await().indefinitely();
+    String turnId = userTurns("conv-closed-offer").getFirst().id();
+    String generation = conversations.archive().read("conv-closed-offer").generation();
+    open.set(Optional.empty());
+
+    List<String> retry = execution.streamV1Sse(request).collect().asList().await().indefinitely();
+
+    var turns = userTurns("conv-closed-offer");
+    assertEquals(1, turns.size());
+    assertEquals(ConversationArchive.deterministicAnswerTurnId("offer-current", text), turnId);
+    assertEquals(turnId, turns.getFirst().id());
+    assertEquals(text, turns.getFirst().rawText());
+    assertEquals(generation, conversations.archive().read("conv-closed-offer").generation());
+    assertEquals(userMessageIndex(first), userMessageIndex(retry));
+    assertFalse(
+        retry.stream().anyMatch(frame -> frame.startsWith("event: token\n")),
+        () -> "retry must not route, got: " + retry);
+    assertFalse(
+        retry.stream().anyMatch(frame -> frame.startsWith("event: error\n")),
+        () -> "archived offer must be returned, got: " + retry);
+    verify(router, times(1)).route(any(), eq("conv-closed-offer"));
+  }
+
+  @Test
+  void closedRequirementOfferWithoutAnArchivedTurnDoesNotRoute() {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-missing-offer")).thenReturn(Optional.empty());
+    ChatExecutionService execution = service(router, decisions);
+
+    List<String> frames = execution.streamV1Sse(
+            clarificationRequest("conv-missing-offer", "HTTPS", "offer-missing"))
+        .collect().asList().await().indefinitely();
+
+    assertTrue(userTurns("conv-missing-offer").isEmpty());
+    assertTrue(
+        frames.stream().anyMatch(frame -> frame.startsWith("event: error\n")),
+        () -> "expected event: error, got: " + frames);
+    verify(router, never()).route(any(), anyString());
+  }
+
+  @Test
+  void syntheticClarificationOfferDoesNotContinueOrAcceptInput() {
+    String conversationId = "conv-synthetic-offer";
+    ProductPipelineRunDocument waiting =
+        new ProductPipelineRunDocument(
+            new RunSnapshot(
+                "run-synthetic",
+                conversationId,
+                9L,
+                RunStatus.WAITING_FOR_INPUT,
+                "requirement-discovery",
+                List.of(),
+                null,
+                "flow-1"),
+            List.of(),
+            List.of(),
+            "v1");
+    ProductPipelineRunStore runs = mock(ProductPipelineRunStore.class);
+    when(runs.loadByConversation(conversationId)).thenReturn(Optional.of(waiting));
+    CreateChainOrchestrator runtime = mock(CreateChainOrchestrator.class);
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.pendingCreationHash(anyString())).thenReturn(Optional.empty());
+    when(facade.start(any(StartCreateChainCommand.class))).thenReturn(Multi.createFrom().empty());
+    when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
+        .thenAnswer(invocation -> {
+          ContinueCreateChainCommand command = invocation.getArgument(0);
+          runtime.acceptInput(new AcceptInputCommand(
+              "run-synthetic",
+              command.clarificationText(),
+              command.commandId(),
+              null,
+              command.origin(),
+              command.clarificationOfferId()));
+          return Multi.createFrom().empty();
+        });
+    CreateProductPipelineCoordinator coordinator = new CreateProductPipelineCoordinator(facade, runs);
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenAnswer(invocation ->
+        coordinator.handle(invocation.getArgument(0), invocation.getArgument(1)));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(conversationId)).thenReturn(Optional.of(new ChatEvent.Decision(
+        "clarify:9", "clarify", "Try again?", null, null, 9L, "Try again?", List.of(), List.of())));
+    ChatExecutionService execution = service(router, decisions);
+
+    execution.streamV1Sse(clarificationRequest(conversationId, "retry the stage", "clarify:9"))
+        .collect().asList().await().indefinitely();
+
+    ArgumentCaptor<StartCreateChainCommand> started =
+        ArgumentCaptor.forClass(StartCreateChainCommand.class);
+    verify(facade).start(started.capture());
+    assertEquals("retry the stage", started.getValue().requirementText());
+    assertEquals(conversationId, started.getValue().taskId());
+    verify(facade, never()).continueWithInput(any());
+    verify(runtime, never()).acceptInput(any());
+  }
+
+  @Test
   void previousClarificationOfferCannotAnswerTheNextQuestion() throws Exception {
     AtomicReference<ChatEvent.Decision> open =
         new AtomicReference<>(requirementOffer("offer-previous", "Which protocol?"));
@@ -1010,6 +1124,16 @@ class ChatExecutionServiceTest {
     return conversations.archive().read(conversationId).turns().stream()
         .filter(turn -> turn.message().role() == ConversationMessage.Role.USER)
         .toList();
+  }
+
+  private static int userMessageIndex(List<String> frames) throws Exception {
+    String frame = frames.stream().filter(item -> item.startsWith("event: meta\n")).findFirst().orElse("");
+    int data = frame.indexOf("data: ");
+    if (data < 0) {
+      return -1;
+    }
+    var index = new ObjectMapper().readTree(frame.substring(data + 6).trim()).get("userMessageIndex");
+    return index == null || index.isNull() ? -1 : index.asInt();
   }
 
   private static String decisionId(List<String> frames) throws Exception {
