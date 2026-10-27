@@ -123,6 +123,21 @@ class RequirementRecoveryLadderTest {
   }
 
   @Test
+  void clarificationNoProgressRebuildsThenFailsInternally() {
+    var codes = List.of("CLARIFICATION_ANSWER_NO_PROGRESS", "UNAPPLIED_AUTHOR_ANSWER");
+
+    assertEquals(FindingClass.REPAIRABLE_REPRESENTATION,
+        RequirementRecoveryLadder.classify("CLARIFICATION_ANSWER_NO_PROGRESS"));
+    assertEquals(FindingClass.REPAIRABLE_REPRESENTATION,
+        RequirementRecoveryLadder.classify("UNAPPLIED_AUTHOR_ANSWER"));
+    assertFalse(RequirementRecoveryLadder.asksAuthor(codes));
+    assertEquals(Stage.FOCUSED_REPAIR, RequirementRecoveryLadder.advance(Stage.FOCUSED_REPAIR, codes, false));
+    assertEquals(Stage.PROJECTION_REBUILD, RequirementRecoveryLadder.advance(Stage.FOCUSED_REPAIR, codes, true));
+    assertEquals(Stage.INTERNAL_FAILURE, RequirementRecoveryLadder.advance(Stage.PROJECTION_REBUILD, codes, true));
+    assertNotEquals(Stage.ASK_AUTHOR, RequirementRecoveryLadder.advance(Stage.PROJECTION_REBUILD, codes, true));
+  }
+
+  @Test
   void legacyFeedbackWithoutLadderStageReadsNull() throws Exception {
     String json = "{\"kind\":\"VALIDATION\",\"summary\":\"old\",\"failureClass\":\"CORRECTABLE\","
         + "\"outerAllowed\":true,\"fieldHints\":[],\"repairHistoryJson\":\"\",\"noProgress\":false,\"issues\":[]}";

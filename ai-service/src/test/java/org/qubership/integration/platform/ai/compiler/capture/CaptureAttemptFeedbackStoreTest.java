@@ -355,6 +355,58 @@ class CaptureAttemptFeedbackStoreTest {
   }
 
   @Test
+  void clarificationFailureIdentityIgnoresIssueWording() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var before = mapper.createObjectNode().put("interactionId", "submit").put("propertyKey", "path");
+    before.putArray("requestedValues");
+    var key = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "turn-2", "offer-1", "submit", "path", before, before.deepCopy());
+    var movedAfter = mapper.createObjectNode().put("interactionId", "submit").put("propertyKey", "path");
+    movedAfter.putArray("requestedValues").add("https://example.com/tasks");
+    var moved = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "turn-2", "offer-1", "submit", "path", before, movedAfter);
+
+    assertFalse(store.repeatedClarificationFailure("conv-1", key));
+    store.recordClarificationFailure("conv-1", "requirement-discovery", key, List.of(new TypedIssue(
+        "CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/target-uri",
+        "The pinned target is unchanged.", "target-uri")));
+
+    assertTrue(store.repeatedClarificationFailure("conv-1", key));
+    store.recordClarificationFailure("conv-1", "requirement-discovery", key, List.of(new TypedIssue(
+        "CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/target-uri",
+        "A different sentence about the same target.", "target-uri")));
+    assertFalse(store.repeatedClarificationFailure("conv-1", moved));
+  }
+
+  @Test
+  void clarificationFailureSurvivesANewStoreOnTheSameArtifacts() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, java.time.Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, java.time.Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(
+        new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    var projection = mapper.createObjectNode().put("interactionId", "submit").put("propertyKey", "path");
+    projection.putArray("requestedValues");
+    var key = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "turn-2", "offer-1", "submit", "path", projection, projection.deepCopy());
+
+    var feedback = first.recordClarificationFailure("conv-1", "requirement-discovery", key, List.of(new TypedIssue(
+        "CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/target-uri",
+        "The pinned target is unchanged.", "target-uri")));
+
+    org.junit.jupiter.api.Assertions.assertNotNull(feedback.evidenceReference());
+    var restored = new CaptureAttemptFeedbackStore(
+        new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    assertTrue(restored.repeatedClarificationFailure("conv-1", key));
+    var saved = artifacts.history(sessions.active("conv-1"), CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK);
+    var observation = artifacts.payload(saved.getLast(), CaptureAttemptFeedbackStore.Observation.class);
+    assertEquals(CaptureAttemptFeedbackStore.CLARIFICATION_TARGET_TOOL, observation.proposal().toolName());
+    assertEquals("turn-2", observation.proposal().arguments().get("answerTurnId").asText());
+    assertFalse(observation.proposal().arguments().toString().contains("Which URI"));
+  }
+
+  @Test
   void clearAllRemovesPlanAndPatchFailures() {
     store.recordPlanFailure("conv-1", CaptureFailureKind.CONVERSION, "conversion");
     store.recordPatchFailure("conv-1", "skill-a", CaptureFailureKind.VALIDATION, "validation");

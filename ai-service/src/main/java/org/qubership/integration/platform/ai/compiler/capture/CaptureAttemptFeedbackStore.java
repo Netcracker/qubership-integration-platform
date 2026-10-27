@@ -90,6 +90,14 @@ public class CaptureAttemptFeedbackStore {
   }
   public record Observation(String channel, String capabilityId, PendingProposal proposal, CaptureAttemptFeedback feedback) {}
 
+  /** Tool name for a stalled clarification target. Identity is the target projection, not the candidate JSON. */
+  public static final String CLARIFICATION_TARGET_TOOL = "clarificationTargetTransition";
+
+  /** The pinned answer and target projections that identify one stalled clarification, excluding wording and reviewed ids. */
+  public record ClarificationFailureKey(String answerTurnId, String offerId, String interactionId, String propertyKey,
+      com.fasterxml.jackson.databind.JsonNode beforeProjection,
+      com.fasterxml.jackson.databind.JsonNode afterProjection) {}
+
   /** The runtime pins effective inputs and contract before a skill turn; history grants no authority. */
   public void beginScope(String conversationId, String capabilityId, Object effectiveInputs) {
     beginScope(conversationId, capabilityId, effectiveInputs, conversationId);
@@ -217,6 +225,33 @@ public class CaptureAttemptFeedbackStore {
 
   public String inputScope(String conversationId, String capabilityId) {
     return scopes.getOrDefault(scopeKey(conversationId, capabilityId == null ? "" : capabilityId), "");
+  }
+
+  /** Persists one stalled clarification target and returns the feedback, including its evidence reference. */
+  public CaptureAttemptFeedback recordClarificationFailure(String conversationId, String capabilityId,
+      ClarificationFailureKey key, List<TypedIssue> issues) {
+    if (conversationId == null || conversationId.isBlank() || key == null) {
+      return null;
+    }
+    String capability = capabilityId == null ? "" : capabilityId;
+    String scope = inputScope(conversationId, capability);
+    pending.put(conversationId, new PendingProposal(capability, scope, scope, CLARIFICATION_TARGET_TOOL,
+        JSON.valueToTree(key)));
+    var feedback = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "CLARIFICATION_ANSWER_NO_PROGRESS",
+        CaptureFailureClass.CORRECTABLE, true, List.of(), "", true, null,
+        issues == null ? List.of() : issues);
+    return observe(conversationId, "VALIDATION", capability, feedback);
+  }
+
+  /** True when this conversation already stored the same clarification target key. */
+  public boolean repeatedClarificationFailure(String conversationId, ClarificationFailureKey key) {
+    if (conversationId == null || conversationId.isBlank() || key == null) {
+      return false;
+    }
+    var wanted = JSON.valueToTree(key);
+    return history(conversationId).stream().map(Observation::proposal).filter(java.util.Objects::nonNull)
+        .filter(proposal -> CLARIFICATION_TARGET_TOOL.equals(proposal.toolName()))
+        .anyMatch(proposal -> wanted.equals(proposal.arguments()));
   }
 
   public void recordTypedPlanFailure(String conversationId, String capabilityId,

@@ -9,6 +9,7 @@ import java.util.Optional;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureProposal;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
@@ -78,6 +79,33 @@ public final class RequirementClarificationCoordinator {
     var requested = projection.putArray("requestedValues");
     requestedValues(draft, evidence).forEach(requested::add);
     return projection;
+  }
+
+  /** Returns a no-progress finding when the pinned target is unchanged, exempting admitted ambiguity and non-answers. */
+  public List<Issue> validateTransition(ActiveQuestion active, String answerTurnId, RequirementDraft before,
+      RequirementDraft candidate, ClarificationTransition.Disposition admittedDisposition) {
+    if (active == null || active.question() == null || active.question().questionId() == null
+        || answerTurnId == null || answerTurnId.isBlank() || candidate == null
+        || candidate.authoredDraft() == null) {
+      return List.of();
+    }
+    if (admittedDisposition == ClarificationTransition.Disposition.AMBIGUOUS
+        || admittedDisposition == ClarificationTransition.Disposition.NON_ANSWER) {
+      return List.of();
+    }
+    String questionId = active.question().questionId();
+    boolean open = candidate.authoredDraft().openQuestions().stream()
+        .anyMatch(question -> question != null && questionId.equals(question.questionId()));
+    if (!open) {
+      return List.of();
+    }
+    JsonNode pinned = active.targetProjection() == null
+        ? targetProjection(before, active.question()) : active.targetProjection();
+    if (pinned != null && pinned.equals(targetProjection(candidate, active.question()))) {
+      return List.of(new Issue("CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/" + questionId,
+          questionId, "The pinned target is unchanged."));
+    }
+    return List.of();
   }
 
   public ClarificationTransition.Offer createOffer(ActiveQuestion active, long runRevision) {

@@ -19,5 +19,10 @@ public enum CaptureFailureClass {
   /** Duplicate accept terminator (ADR 0001). */
   DUPLICATE,
   /** Framework tool-arguments failure channel; never blind outer. */
-  TOOL_ARGUMENTS
+  TOOL_ARGUMENTS;
+
+  /** True when the code is a clarification finding repaired by changing the pinned target. */
+  public static boolean clarificationRepresentation(String code) {
+    return "CLARIFICATION_ANSWER_NO_PROGRESS".equals(code) || "UNAPPLIED_AUTHOR_ANSWER".equals(code);
+  }
 }
