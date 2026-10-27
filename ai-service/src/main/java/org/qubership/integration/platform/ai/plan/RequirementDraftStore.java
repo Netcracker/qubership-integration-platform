@@ -49,6 +49,7 @@ public class RequirementDraftStore {
   private final CompilationSessions sessions;
   private final org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
   private final org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection policyChoices;
+  private final RequirementTargetResolver targetResolver;
   private final ConcurrentHashMap<String, org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Document>
       sourceInputs = new ConcurrentHashMap<>();
 
@@ -56,15 +57,22 @@ public class RequirementDraftStore {
   @Inject
   public RequirementDraftStore(
       CompilationArtifacts artifacts, CompilationSessions sessions,
-      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations,
+      RequirementTargetResolver targetResolver) {
     this.artifacts = artifacts;
     this.sessions = sessions;
     this.conversations = conversations;
+    this.targetResolver = targetResolver;
     this.policyChoices = new org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection(artifacts, sessions, conversations);
   }
 
   public RequirementDraftStore(CompilationArtifacts artifacts, CompilationSessions sessions) {
-    this(artifacts, sessions, null);
+    this(artifacts, sessions, null, null);
+  }
+
+  public RequirementDraftStore(CompilationArtifacts artifacts, CompilationSessions sessions,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+    this(artifacts, sessions, conversations, null);
   }
 
   public RequirementDraftStore() {
@@ -1277,7 +1285,7 @@ public class RequirementDraftStore {
    * chain-trigger element, or the projection already resolved one. Fact-field checks do not see
    * {@code targetReference}.
    */
-  private static RequirementRevisionAdmission.ClarificationVerdict suppliedChainCallVerdict(
+  private RequirementRevisionAdmission.ClarificationVerdict suppliedChainCallVerdict(
       ClarificationAdmissionContext clarification, RequirementDraft candidate,
       RequirementRevisionAdmission.ClarificationVerdict verdict) {
     if (verdict == null || clarification == null || clarification.pinnedBase() == null
@@ -1309,7 +1317,7 @@ public class RequirementDraftStore {
     return new RequirementRevisionAdmission.ClarificationVerdict(List.of(), disposition);
   }
 
-  private static List<RequirementCaptureEditor.Issue> withoutSuppliedChainCalls(
+  private List<RequirementCaptureEditor.Issue> withoutSuppliedChainCalls(
       List<RequirementCaptureEditor.Issue> issues, RequirementCaptureInput.DraftInput base,
       RequirementDraft current) {
     if (issues == null || issues.isEmpty() || base == null || base.openQuestions() == null) {
@@ -1318,7 +1326,7 @@ public class RequirementDraftStore {
     return issues.stream().filter(issue -> !suppliedChainCallRemoval(issue, base, current)).toList();
   }
 
-  private static boolean suppliedChainCallRemoval(RequirementCaptureEditor.Issue issue,
+  private boolean suppliedChainCallRemoval(RequirementCaptureEditor.Issue issue,
       RequirementCaptureInput.DraftInput base, RequirementDraft current) {
     if (issue == null || !"UNAPPLIED_AUTHOR_ANSWER".equals(issue.code()) || issue.entityId() == null) {
       return false;
@@ -1332,7 +1340,7 @@ public class RequirementDraftStore {
     return chainCallSupplied(current, question.evidence().interactionId());
   }
 
-  private static List<RequirementCaptureEditor.Issue> unsuppliedChainCallRemovals(
+  private List<RequirementCaptureEditor.Issue> unsuppliedChainCallRemovals(
       RequirementCaptureInput.DraftInput base, RequirementDraft current) {
     if (base == null || base.openQuestions() == null || current == null || current.authoredDraft() == null) {
       return List.of();
@@ -1360,7 +1368,7 @@ public class RequirementDraftStore {
             && interactionId.equals(item.interactionId()) && "chain-call-2".equals(item.capabilityKey()));
   }
 
-  private static boolean chainCallSupplied(RequirementDraft current, String interactionId) {
+  private boolean chainCallSupplied(RequirementDraft current, String interactionId) {
     if (current == null || current.authoredDraft() == null || current.authoredDraft().capabilities() == null
         || interactionId == null || interactionId.isBlank()) {
       return false;
@@ -1371,14 +1379,17 @@ public class RequirementDraftStore {
     if (capability == null) {
       return false;
     }
-    if (verifiedTriggerId(capability.targetReference())) {
+    if (suppliedChainTriggerId(capability.targetReference())) {
       return true;
     }
-    return verifiedTriggerId(RequirementCaptureProjection.resolvedTargets(current).get(interactionId));
+    return suppliedChainTriggerId(RequirementCaptureProjection.resolvedTargets(current).get(interactionId));
   }
 
-  private static boolean verifiedTriggerId(String value) {
-    return value != null && !value.isBlank() && !value.contains("/");
+  private boolean suppliedChainTriggerId(String value) {
+    if (value == null || value.isBlank() || value.contains("/")) {
+      return false;
+    }
+    return targetResolver == null || targetResolver.listedChainTrigger(value);
   }
 
   private java.util.Set<String> questionDefaults(RequirementCaptureInput.DraftInput draft, String target) {
