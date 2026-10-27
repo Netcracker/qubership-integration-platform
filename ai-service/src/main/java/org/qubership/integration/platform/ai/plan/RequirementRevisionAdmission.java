@@ -892,31 +892,6 @@ final class RequirementRevisionAdmission {
     return pendingValues(values);
   }
 
-  static ObjectNode reprojectCapabilityConflicts(DraftInput base, List<FactInput> protectedFacts,
-      JsonNode protectedValues, DraftInput rejected) {
-    var values = pendingValues(protectedValues);
-    var facts = base == null ? protectedFacts : accumulate(base.facts(), protectedFacts);
-    var retained = new DraftInput(rejected.flow(), facts, rejected.capabilities(), rejected.openQuestions(), rejected.settings());
-    var current = RequirementCaptureEditor.capabilityAnchorConflicts(retained);
-    var original = valuesToPreserve(rejected, List.of());
-    for (var finding : RequirementCaptureEditor.capabilityAnchorConflicts(rejected)) {
-      String owner = finding.entityId();
-      if (!current.contains(finding) || base != null && base.capabilities().stream()
-          .anyMatch(capability -> owner.equals(capability.interactionId()))) continue;
-      var anchors = rejected.facts().stream().filter(fact -> fact != null && fact.elementIntent() != null
-          && fact.interactionIds() != null && fact.interactionIds().contains(owner)
-          && fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE
-          && fact.elementIntent().placement() == RequirementElementIntent.Placement.ANCHOR
-          && owner.equals(fact.elementIntent().elementRef()) && owner.equals(fact.elementIntent().ownerInteractionId()))
-          .toList();
-      var capability = values.path("capabilities").path(owner);
-      if (facts.containsAll(anchors) && capability.isObject() && capability.equals(original.path("capabilities").path(owner))) {
-        ((ObjectNode) capability).putNull("capabilityKey");
-      }
-    }
-    return pendingValues(values);
-  }
-
   static ObjectNode pendingValues(JsonNode original) {
     var values = original instanceof ObjectNode object ? object.deepCopy() : MAPPER.createObjectNode();
     projectRecords(values.path("interactions"), InteractionInput.class);
@@ -976,36 +951,6 @@ final class RequirementRevisionAdmission {
         else outgoing.set(edge.getKey(), targets);
       }
     }
-  }
-
-  record RetainedAdditions(List<FactInput> facts, ObjectNode values) {}
-
-  static RetainedAdditions retainedAdditions(DraftInput base, DraftInput candidate, List<Issue> findings) {
-    var issues = new ArrayList<>(RequirementCaptureEditor.initialize(candidate).issues());
-    issues.addAll(findings);
-    var distinct = issues.stream().distinct().toList();
-    var facts = RequirementCaptureEditor.factsToPreserve(candidate, distinct);
-    var values = valuesToPreserve(candidate, distinct);
-    if (base == null) return new RetainedAdditions(facts, values);
-    var merged = accumulate(base.facts(), facts);
-    var additions = merged.stream().filter(fact -> !base.facts().contains(fact)).toList();
-    return new RetainedAdditions(additions, pendingValues(addedValues(tree(base), values)));
-  }
-
-  private static ObjectNode addedValues(JsonNode base, ObjectNode candidate) {
-    var additions = MAPPER.createObjectNode();
-    candidate.fields().forEachRemaining(field -> {
-      var old = base.path(field.getKey());
-      var value = field.getValue();
-      if (old.isMissingNode() || old.isNull()) additions.set(field.getKey(), value);
-      else if (old.isObject() && value.isObject()) additions.set(field.getKey(), addedValues(old, (ObjectNode) value));
-      else if (old.isArray() && value.isArray()) {
-        var added = MAPPER.createArrayNode();
-        value.forEach(item -> { if (!contains(old, item)) added.add(item); });
-        if (!added.isEmpty()) additions.set(field.getKey(), added);
-      }
-    });
-    return additions;
   }
 
   static ObjectNode accumulateValues(JsonNode original, ObjectNode candidate) {

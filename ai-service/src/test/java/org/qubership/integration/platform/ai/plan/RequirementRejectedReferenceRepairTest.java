@@ -32,27 +32,16 @@ class RequirementRejectedReferenceRepairTest {
 
   @ParameterizedTest
   @CsvSource({"false,false", "false,true", "true,false", "true,true"})
-  void nativeInvalidProtectionRestoresOnlyTheProvenReference(boolean predecessor, boolean reload) throws Exception {
+  void rejectedReferenceHistoryDoesNotCreateProtection(boolean predecessor, boolean reload) throws Exception {
     var h = new Harness();
     var fixture = new Fixture(predecessor);
     try (var ignored = ToolSession.open(h.chat)) {
       h.reject(fixture.original());
-      h.reject(fixture.renamed());
-      h.reject(fixture.corrected());
-      var before = h.protection();
+      assertTrue(h.protectionHistory().isEmpty());
       var credits = h.artifacts.latest(h.sessions.active(h.chat), CompilationArtifacts.Kind.CAPTURE_CREDITS).orElseThrow();
       var refusal = h.reject(fixture.proof());
       assertTrue(refusal.path("issues").toString().contains("UNKNOWN_ELEMENT_REFERENCE"), refusal.toString());
-      var after = h.protection();
-      assertNotEquals(before.artifactId(), after.artifactId());
-      assertEquals(3, after.inputs().size());
-      var expected = before.payload().deepCopy();
-      var facts = expected.path("facts");
-      facts.forEach(fact -> {
-        if ("owner".equals(fact.path("sourceFactId").asText()))
-          ((ObjectNode) fact.path("elementIntent")).put(fixture.field(), "prepare-step");
-      });
-      assertEquals(expected, after.payload(), "Only the proven internal reference changes in protection");
+      assertTrue(h.protectionHistory().isEmpty(), "A rejected reference does not become repair authority");
       var retainedCredits = h.artifacts.latest(h.sessions.active(h.chat), CompilationArtifacts.Kind.CAPTURE_CREDITS)
           .orElseThrow().payload().path("fingerprints");
       for (var fingerprint : credits.payload().path("fingerprints"))
@@ -64,6 +53,7 @@ class RequirementRejectedReferenceRepairTest {
       var accepted = h.call(fixture.corrected());
       assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
       assertEquals(fixture.corrected(), h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertTrue(h.protectionHistory().isEmpty());
       assertTrue(JSON.readTree(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE))
           .path("accepted").asBoolean());
     }
@@ -71,11 +61,11 @@ class RequirementRejectedReferenceRepairTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"null", "foreign-target", "name", "text", "property", "literal", "target-id", "fact-id", "order"})
-  void nativeReferenceRepairDoesNotAuthorizeCollateralChanges(String mutation) throws Exception {
+  void rejectedHistoryDoesNotRewriteTheSubmittedCandidate(String mutation) throws Exception {
     var h = new Harness();
     var fixture = new Fixture(false);
     try (var ignored = ToolSession.open(h.chat)) {
-      h.reject(fixture.original()); h.reject(fixture.renamed()); h.reject(fixture.corrected()); h.reject(fixture.proof());
+      h.reject(fixture.original()); h.reject(fixture.proof());
       var changed = (ObjectNode) JSON.valueToTree(fixture.corrected());
       var owner = (ObjectNode) changed.at("/facts/1");
       var target = (ObjectNode) changed.at("/facts/2");
@@ -91,51 +81,23 @@ class RequirementRejectedReferenceRepairTest {
         case "order" -> ((ObjectNode) target.path("elementIntent")).putNull("predecessorElementRef");
         default -> throw new AssertionError(mutation);
       }
-      assertFalse(h.call(JSON.convertValue(changed, DraftInput.class)).path("accepted").asBoolean());
-      assertTrue(h.store.get(h.chat).isEmpty());
+      var submitted = JSON.convertValue(changed, DraftInput.class);
+      var result = h.call(submitted);
+      assertTrue(h.protectionHistory().isEmpty());
+      if (result.path("accepted").asBoolean()) {
+        assertEquals(submitted, h.store.get(h.chat).orElseThrow().authoredDraft());
+      } else {
+        assertTrue(h.store.get(h.chat).isEmpty());
+      }
     }
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"missing-native-proof", "wrong-native-path", "wrong-native-code", "missing-original", "missing-rename",
-      "changed-name", "changed-owner", "changed-source-fact", "changed-order", "body-binding", "ambiguous-target", "accepted-owner"})
-  void incompleteTypedHistoryCannotEstablishReferenceAuthority(String mutation) {
-    var f = new Fixture(false);
-    var original = f.original(); var renamed = f.renamed(); var proof = f.proof();
-    var protectedFacts = proof.facts();
-    String path = "/draft/facts/owner/elementIntent/successorElementRef";
-    var originalIssues = List.of(issue("INVALID_ELEMENT_REFERENCE", "/draft/facts/owner/elementIntent/elementRef", "owner"));
-    var renameIssues = List.of(issue("REPAIR_FACT_LOSS", "/draft/facts/step", "step"));
-    var proofIssues = List.of(issue("UNKNOWN_ELEMENT_REFERENCE", path, "owner"));
-    if (mutation.equals("wrong-native-path")) proofIssues = List.of(issue("UNKNOWN_ELEMENT_REFERENCE", path.replace("owner", "step"), "step"));
-    if (mutation.equals("wrong-native-code")) proofIssues = List.of(issue("REPAIR_FACT_LOSS", path, "owner"));
-    if (mutation.equals("missing-native-proof")) proofIssues = List.of();
-    if (List.of("changed-name", "changed-owner", "changed-source-fact", "changed-order", "body-binding").contains(mutation)) {
-      var changed = (ObjectNode) JSON.valueToTree(renamed);
-      var target = (ObjectNode) changed.at("/facts/2");
-      switch (mutation) {
-        case "changed-name" -> ((ObjectNode) target.path("elementIntent")).put("requestedName", "Another step");
-        case "changed-owner" -> ((ObjectNode) target.path("elementIntent")).put("ownerInteractionId", "another-owner");
-        case "changed-source-fact" -> target.put("sourceFactId", "another-fact");
-        case "changed-order" -> ((ObjectNode) target.path("elementIntent")).putNull("predecessorElementRef");
-        case "body-binding" -> ((ObjectNode) target.path("elementIntent")).set("bodyBinding", JSON.valueToTree(
-            new RequirementBodyBinding(RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY, "prepare-step", "script",
-                RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT, "generation", "turn", 0, 10, RequirementBodyBinding.Encoding.RAW)));
-      }
-      renamed = JSON.convertValue(changed, DraftInput.class);
-    }
-    if (mutation.equals("ambiguous-target")) {
-      var duplicate = (ObjectNode) JSON.valueToTree(protectedFacts.get(2));
-      duplicate.put("sourceFactId", "duplicate-step");
-      protectedFacts = new ArrayList<>(protectedFacts);
-      protectedFacts.add(JSON.convertValue(duplicate, FactInput.class));
-    }
-    var history = new ArrayList<RejectedReferenceRepair.Attempt>();
-    if (!mutation.equals("missing-original")) history.add(new RejectedReferenceRepair.Attempt(1, original, originalIssues));
-    if (!mutation.equals("missing-rename")) history.add(new RejectedReferenceRepair.Attempt(2, renamed, renameIssues));
-    history.add(new RejectedReferenceRepair.Attempt(3, proof, proofIssues));
-    assertEquals(protectedFacts, RejectedReferenceRepair.repair(mutation.equals("accepted-owner") ? proof : null,
-        protectedFacts, history).facts());
+  @org.junit.jupiter.api.Test
+  void rejectedHistoryDoesNotRewriteSuppliedFacts() {
+    var facts = new Fixture(false).proof().facts();
+    var repair = RejectedReferenceRepair.repair(facts);
+    assertEquals(facts, repair.facts());
+    assertTrue(repair.evidenceSequences().isEmpty());
   }
 
   @ParameterizedTest
@@ -143,8 +105,8 @@ class RequirementRejectedReferenceRepairTest {
   void staleSourceBaseOrAuthorityCannotReuseNativeReferenceEvidence(String mutation) throws Exception {
     var h = new Harness(); var fixture = new Fixture(false);
     try (var ignored = ToolSession.open(h.chat)) {
-      h.reject(fixture.original()); h.reject(fixture.renamed()); h.reject(fixture.corrected());
-      var before = h.protection();
+      h.reject(fixture.original());
+      assertTrue(h.protectionHistory().isEmpty());
       if (mutation.equals("turn")) {
         var input = h.archive.beginInput(h.chat, "Retain the requirements.", null);
         h.archive.resolveInput(h.chat, input, "Retain the requirements.");
@@ -171,12 +133,11 @@ class RequirementRejectedReferenceRepairTest {
             List.of(), null, List.of(), List.of());
         h.store.recordCaptureOutcome(h.chat, "captureRequirementDraft", fixture.proof(), oldProof);
         assertEquals(current.reference(), h.store.latestRevision(h.chat).orElseThrow().reference());
-        assertEquals(before.artifactId(), h.protection().artifactId());
+        assertTrue(h.protectionHistory().isEmpty());
         return;
       }
       h.reject(fixture.proof());
-      assertEquals(before.artifactId(), h.protection().artifactId());
-      assertEquals(before.payload(), h.protection().payload());
+      assertTrue(h.protectionHistory().isEmpty());
       assertTrue(h.store.get(h.chat).isEmpty());
     } finally {
       org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind();
@@ -220,9 +181,10 @@ class RequirementRejectedReferenceRepairTest {
     try (var ignored = ToolSession.open(h.chat)) {
       var refusal = h.reject(fixture.proof());
       assertTrue(refusal.path("issues").toString().contains("UNKNOWN_ELEMENT_REFERENCE"));
-      assertEquals(JSON.valueToTree(fixture.proof().facts()), h.protection().payload().path("facts"));
-      assertTrue(h.protection().inputs().isEmpty());
-      assertFalse(h.call(fixture.corrected()).path("accepted").asBoolean());
+      assertTrue(h.protectionHistory().isEmpty());
+      var accepted = h.call(fixture.corrected());
+      assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
+      assertEquals(fixture.corrected(), h.store.get(h.chat).orElseThrow().authoredDraft());
     }
   }
 
@@ -288,8 +250,8 @@ class RequirementRejectedReferenceRepairTest {
     JsonNode reject(DraftInput draft) throws Exception {
       var result = call(draft); assertFalse(result.path("accepted").asBoolean(), result.toString()); return result;
     }
-    CompilationArtifacts.Revision protection() {
-      return artifacts.latest(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).orElseThrow();
+    List<CompilationArtifacts.Revision> protectionHistory() {
+      return artifacts.history(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION);
     }
   }
 }

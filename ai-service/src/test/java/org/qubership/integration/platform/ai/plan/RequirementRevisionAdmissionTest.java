@@ -70,20 +70,20 @@ class RequirementRevisionAdmissionTest {
       var invalid = catalogDraft("unsupported-native");
       var attempt = acceptedBase ? h.update(addDelivery(invalid.capabilities().getLast())) : h.capture(invalid);
       assertFalse(attempt.accepted());
-      var previous = h.artifacts.latest(h.store.activeCompilationId(h.chat),
-          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).orElseThrow();
-      var protection = h.artifacts.payload(previous, RequirementDraftStore.CaptureFactProtection.class);
-      var legacyValues = (com.fasterxml.jackson.databind.node.ObjectNode) protection.values().deepCopy();
+      var authority = h.store.writeAuthority(h.chat);
+      var legacyValues = h.mapper.createObjectNode();
       var legacy = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(invalid.capabilities().getLast());
       legacy.putNull("capabilityKey");
       legacyValues.withObject("/capabilities").set("delivery", legacy);
       legacyValues.withObject("/interactions").withObject("/delivery").put("interactionId", "delivery");
       legacyValues.withObject("/interactions").withObject("/delivery").putObject("retryPolicy")
           .putNull("retryCount").putNull("retryDelayMs");
-      h.artifacts.append(new CompilationArtifacts.AppendCommand(previous.compilationId(),
+      h.artifacts.append(new CompilationArtifacts.AppendCommand(h.store.activeCompilationId(h.chat),
           CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
-          new RequirementDraftStore.CaptureFactProtection(protection.sourceGeneration(), protection.sourceTurnId(),
-              protection.authorText(), protection.facts(), legacyValues, protection.baseIdentity()), List.of(), previous.artifactId()));
+          new RequirementDraftStore.CaptureFactProtection(authority.sourceGeneration(), authority.sourceTurnId(),
+              null, List.of(), legacyValues, h.store.get(h.chat).map(RequirementDraft::authoredDraft)
+                  .map(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal::digest).orElse(null)),
+          List.of(), null));
       h.restartStore();
       h.store.beginTurn(h.chat, "Automatic correction.");
       assertNull(h.store.repairConstraints(h.chat));
@@ -192,19 +192,19 @@ class RequirementRevisionAdmissionTest {
       h.begin("Receive POST /tasks and call Delivery API. Proceed without IDS.");
       var invalid = catalogDraft("unsupported-native");
       assertFalse(h.capture(invalid).accepted());
-      var protectionRevision = h.artifacts.latest(h.store.activeCompilationId(h.chat),
-          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).orElseThrow();
-      var protection = h.artifacts.payload(protectionRevision, RequirementDraftStore.CaptureFactProtection.class);
-      var legacy = (com.fasterxml.jackson.databind.node.ObjectNode) protection.values().deepCopy();
+      var authority = h.store.writeAuthority(h.chat);
+      var legacy = RequirementRevisionAdmission.valuesToPreserve(invalid, List.of());
       legacy.withObject("/capabilities").withObject("/entry").put("interactionId", "entry");
       legacy.withObject("/interactions").withObject("/entry").put("interactionId", "entry");
       if (projectionChanged) legacy.withObject("/capabilities").set("delivery", h.mapper.valueToTree(new CapabilityInput(
           "delivery", null, null, HttpMethod.POST, "/unchecked-target", null, null, null)));
-      h.artifacts.append(new CompilationArtifacts.AppendCommand(protectionRevision.compilationId(),
+      var protection = new RequirementDraftStore.CaptureFactProtection(authority.sourceGeneration(),
+          authority.sourceTurnId(), null, invalid.facts(), legacy, h.store.get(h.chat)
+              .map(RequirementDraft::authoredDraft)
+              .map(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal::digest).orElse(null));
+      h.artifacts.append(new CompilationArtifacts.AppendCommand(h.store.activeCompilationId(h.chat),
           CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
-          new RequirementDraftStore.CaptureFactProtection(protection.sourceGeneration(), protection.sourceTurnId(),
-              protection.authorText(), protection.facts(), legacy, protection.baseIdentity()),
-          List.of(), protectionRevision.artifactId()));
+          protection, List.of(), null));
       var proposed = projectionChanged ? catalogDraft(null) : invalid;
       var previousAttempt = h.artifacts.latest(h.store.activeCompilationId(h.chat),
           CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
@@ -956,11 +956,18 @@ class RequirementRevisionAdmissionTest {
         "Map the input id.", new FieldMappingInput("entry", "$.id", "entry", "$.TargetId", null));
     var changed = new FactInput(old.sourceFactId(), List.of(), old.kind(), old.polarity(), old.text(),
         new FieldMappingInput("entry", "$.other", "entry", "$.Changed", "changed expression"));
-    h.store.rememberRejectedCaptureFacts(h.chat, List.of(old));
+    var authority = h.store.writeAuthority(h.chat);
+    h.artifacts.append(new CompilationArtifacts.AppendCommand(h.store.activeCompilationId(h.chat),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
+        new RequirementDraftStore.CaptureFactProtection(authority.sourceGeneration(), authority.sourceTurnId(),
+            null, List.of(old), null, null), List.of(), null));
     h.store.rememberRejectedCaptureFacts(h.chat, List.of(changed));
+    var stored = h.artifacts.latest(h.store.activeCompilationId(h.chat),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).orElseThrow();
     h.restartStore();
-    h.store.beginTurn(h.chat, "Automatic correction.");
+    h.store.beginTurn(h.chat, "Map the input id to TargetId and retain all facts.");
     assertEquals(old, h.store.rejectedCaptureFacts(h.chat).getFirst());
+    assertEquals(stored, h.artifacts.get(stored.compilationId(), stored.reference()).orElseThrow());
   }
 
   @ParameterizedTest

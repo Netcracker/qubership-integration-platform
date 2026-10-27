@@ -212,8 +212,6 @@ class RequirementCaptureEditorTest {
               null, null, null, List.of(), List.of()));
       var corrected = new DraftInput(parallel.flow(), List.of(repaired), parallel.capabilities(), List.of(), base.settings());
       assertTrue(RequirementCaptureEditor.initialize(corrected).accepted());
-      assertTrue(RequirementCaptureEditor.validateFactPreservation(
-          RequirementCaptureEditor.factsToPreserve(parallel, rejected.issues()), corrected, false).isEmpty());
       assertTrue(RequirementCaptureEditor.validateFactPreservation(parallel, corrected).isEmpty());
       var changedText = new FactInput(repaired.sourceFactId(), repaired.interactionIds(), repaired.kind(), repaired.polarity(),
           "Discard one branch.", null, null, repaired.elementIntent());
@@ -234,7 +232,7 @@ class RequirementCaptureEditorTest {
   }
 
   @Test
-  void reportedPlacementReferencesCanBeRepairedWhileValidElementValuesStayProtected() {
+  void rejectedPlacementDoesNotProtectElementValues() {
     var base = initial();
     for (int field = 0; field < 3; field++) {
       var intent = new RequirementElementIntent("prepare", "script", RequirementElementIntent.Placement.LOCAL_NODE,
@@ -243,21 +241,20 @@ class RequirementCaptureEditorTest {
       var fact = new FactInput("prepare", List.of("start"), FactKind.BEHAVIOR, Polarity.POSITIVE,
           "Run Prepare in Groovy.", null, null, intent);
       var input = new DraftInput(base.flow(), List.of(fact), base.capabilities(), base.openQuestions(), base.settings());
-      var rejected = RequirementCaptureEditor.initialize(input);
-      assertFalse(rejected.accepted());
+      assertFalse(RequirementCaptureEditor.initialize(input).accepted());
       var corrected = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
           null, null, new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
               intent.ownerInteractionId(), null, null, null, intent.requestedName(), List.of(), intent.exactValues()));
       var candidate = new DraftInput(input.flow(), List.of(corrected), input.capabilities(), input.openQuestions(),
           input.settings());
-      var protectedFacts = RequirementCaptureEditor.factsToPreserve(input, rejected.issues());
-      assertTrue(RequirementCaptureEditor.validateFactPreservation(protectedFacts, candidate, false).isEmpty());
+      assertTrue(RequirementCaptureEditor.initialize(candidate).accepted());
       var renamed = new FactInput(corrected.sourceFactId(), corrected.interactionIds(), corrected.kind(),
           corrected.polarity(), corrected.text(), null, null,
-          new RequirementElementIntent("prepare", "script", intent.placement(), "start", null, null,
+          new RequirementElementIntent("prepare", "script", intent.placement(), "start", null, null, null,
               "Other name", List.of(), intent.exactValues()));
-      assertFalse(RequirementCaptureEditor.validateFactPreservation(protectedFacts, new DraftInput(input.flow(),
-          List.of(renamed), input.capabilities(), input.openQuestions(), input.settings()), false).isEmpty());
+      assertTrue(RequirementCaptureEditor.initialize(new DraftInput(input.flow(), List.of(renamed),
+          input.capabilities(), input.openQuestions(), input.settings())).accepted(),
+          "A rejected candidate does not protect its display name");
     }
   }
 

@@ -62,17 +62,21 @@ class RequirementRejectedReferenceRepairProviderTest {
     var limits = List.of(config.llm().maxRequestsPerRun(), config.llm().maxTokensPerRun(), config.llm().maxActiveTimePerRun());
     var scripted = new ScriptedStreamingChatModel(
         capture("original-identity", fixture.original(), request -> {}),
-        capture("incorrect-rename", fixture.renamed(), request -> assertIssue(request, predecessor ? "INVALID_VALUE" : "INVALID_ELEMENT_REFERENCE")),
-        capture("restore-original-target", fixture.corrected(), request -> assertIssue(request, "REPAIR_FACT_LOSS")),
-        capture("retain-protected-reference", fixture.proof(), request -> assertIssue(request, "REPAIR_FACT_LOSS")),
-        capture("correct-native-reference", fixture.corrected(), request -> {
+        capture("unproven-reference", fixture.proof(), request -> {
+          assertIssue(request, predecessor ? "INVALID_VALUE" : "INVALID_ELEMENT_REFERENCE");
+          assertTrue(artifacts.latest(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).isEmpty());
+        }),
+        capture("canonical-candidate", fixture.corrected(), request -> {
           var refusal = lastTool(request);
           assertIssue(request, "UNKNOWN_ELEMENT_REFERENCE");
-          assertTrue(refusal.path("issues").toString().contains("/draft/facts/owner/elementIntent/" + fixture.field()), refusal.toString());
+          assertTrue(refusal.path("issues").toString().contains("/draft/facts/owner/elementIntent/" + fixture.field()),
+              refusal.toString());
+          assertTrue(refusal.path("repairConstraints").isMissingNode() || refusal.path("repairConstraints").isNull(),
+              refusal.toString());
           var current = artifacts.latest(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
           assertFalse(current.payload().path("accepted").asBoolean());
           assertEquals(json.valueToTree(fixture.proof()), current.payload().path("arguments"));
-          assertTrue(refusal.path("repairConstraints").toString().contains("prepare-step"), refusal.toString());
+          assertTrue(artifacts.latest(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).isEmpty());
         }),
         Turn.tool("continue", request -> {
           assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
@@ -84,7 +88,7 @@ class RequirementRejectedReferenceRepairProviderTest {
     try {
       gather.chat(chat, prompts.wrap(chat, source, "en"), new InvocationParameters()).collect().asList().await().atMost(Duration.ofSeconds(30));
       scripted.assertComplete();
-      assertEquals(7, scripted.requests().size());
+      assertEquals(5, scripted.requests().size());
       var after = json.valueToTree(conversations.archive().read(chat));
       ((com.fasterxml.jackson.databind.node.ObjectNode) sourceBefore.at("/turns/0"))
           .set("consumedDraftReference", after.at("/turns/0/consumedDraftReference"));
