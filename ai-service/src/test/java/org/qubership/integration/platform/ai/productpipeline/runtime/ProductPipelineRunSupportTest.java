@@ -593,7 +593,7 @@ class ProductPipelineRunSupportTest {
     var harness = new OfferHarness();
     String conversationId = "conv-answer-envelope";
     String runId = "run-answer-envelope";
-    harness.acceptChainCallQuestion(conversationId);
+    harness.acceptChainCallQuestion(conversationId, false);
     String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
     var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
     var first = waiting.transitions().stream()
@@ -646,7 +646,11 @@ class ProductPipelineRunSupportTest {
     private final ProductPipelineRunSupport support = newSupport();
 
     CompilationArtifacts.Revision acceptChainCallQuestion(String conversationId) {
-      return acceptAuthoredDraft(conversationId, List.of(new QuestionInput(
+      return acceptChainCallQuestion(conversationId, true);
+    }
+
+    CompilationArtifacts.Revision acceptChainCallQuestion(String conversationId, boolean resolved) {
+      return acceptAuthoredDraft(conversationId, resolved, List.of(new QuestionInput(
           "chain-target",
           List.of("child"),
           "Which chain-trigger element id should this chain call use?",
@@ -655,6 +659,11 @@ class ProductPipelineRunSupportTest {
     }
 
     CompilationArtifacts.Revision acceptAuthoredDraft(String conversationId, List<QuestionInput> openQuestions) {
+      return acceptAuthoredDraft(conversationId, true, openQuestions);
+    }
+
+    CompilationArtifacts.Revision acceptAuthoredDraft(String conversationId, boolean resolved,
+        List<QuestionInput> openQuestions) {
       String text = "Call the existing chain.";
       var input = conversations.archive().beginInput(conversationId, text, null);
       conversations.archive().resolveInput(conversationId, input, text);
@@ -668,11 +677,13 @@ class ProductPipelineRunSupportTest {
           List.of(new FactInput("goal", List.of("child"), FactKind.GOAL, Polarity.POSITIVE, "Call the existing chain.")),
           List.of(
               new CapabilityInput("entry", "http-trigger", null, HttpMethod.GET, "/context", null, null, null),
-              new CapabilityInput("child", "chain-call-2", null, null, null, null, null, "trigger-element")),
+              new CapabilityInput("child", "chain-call-2", null, null, null, null, null,
+                  resolved ? "trigger-element" : null)),
           openQuestions,
           new DraftSettings(false, null));
       drafts.put(conversationId, RequirementCaptureProjection.toDraft(
-          authored, null, List.of(), "1", "hash", Map.of("child", "resolved-trigger")));
+          authored, null, List.of(), "1", "hash",
+          resolved ? Map.of("child", "resolved-trigger") : Map.of()));
       return drafts.latestRevision(conversationId).orElseThrow();
     }
 
