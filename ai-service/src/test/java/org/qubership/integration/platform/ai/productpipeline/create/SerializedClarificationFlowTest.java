@@ -389,6 +389,9 @@ class SerializedClarificationFlowTest {
     }
     script.set(reask(question));
     String sse = postChat(chat, "abc", "offer-not-on-this-gate");
+    if ("requirement-policy-choice".equals(marker)) {
+      assertTrue(sse.contains(marker), sse);
+    }
     String after = drafts.get(chat).map(draft -> {
       try {
         return json.writeValueAsString(draft.authoredDraft());
