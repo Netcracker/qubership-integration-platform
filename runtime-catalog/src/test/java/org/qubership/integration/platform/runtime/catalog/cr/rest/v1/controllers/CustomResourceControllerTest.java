@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.controllers;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,7 +24,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
-import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainDeployError;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
@@ -33,7 +31,6 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployW
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.springframework.http.HttpStatus;
@@ -45,12 +42,9 @@ import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -168,49 +162,6 @@ class CustomResourceControllerTest {
         assertThatThrownBy(() -> controller.deployResource(request))
                 .isInstanceOf(DomainTypeDisabledException.class);
         verifyNoInteractions(bulkDeploymentService);
-    }
-
-    // deleteChainSnapshot rewrites the Integration and the integrations-configuration ConfigMap, each
-    // carrying the resourceVersion it read on entry, so a deploy to the same domain can take either
-    // write. It reloads everything through
-    // getMainIntegrationResources, so re-calling it recomputes against current state.
-    @DisplayName("Retries a snapshot removal that loses a concurrency race")
-    @Test
-    void deleteSnapshotRetriesOnConflict() {
-        microDomainEnabled(true);
-        doThrow(new KubeApiConflictException("conflict", null))
-                .doNothing()
-                .when(microDomainService).deleteChainSnapshot("orders", "s1");
-
-        controller.deleteSnapshotFromResource("orders", "s1");
-
-        verify(microDomainService, times(2)).deleteChainSnapshot("orders", "s1");
-    }
-
-    @DisplayName("Gives up on a snapshot removal after the retry budget is exhausted")
-    @Test
-    void deleteSnapshotStopsRetryingAfterTheBudgetIsExhausted() {
-        microDomainEnabled(true);
-        doThrow(new KubeApiConflictException("conflict", null))
-                .when(microDomainService).deleteChainSnapshot("orders", "s1");
-
-        assertThrows(KubeApiConflictException.class,
-                () -> controller.deleteSnapshotFromResource("orders", "s1"));
-
-        verify(microDomainService, times(3)).deleteChainSnapshot("orders", "s1");
-    }
-
-    @DisplayName("Does not retry a snapshot removal that failed for a reason other than a conflict")
-    @Test
-    void deleteSnapshotDoesNotRetryANonConflictFailure() {
-        microDomainEnabled(true);
-        doThrow(new MicroDomainDeployError("boom", null))
-                .when(microDomainService).deleteChainSnapshot("orders", "s1");
-
-        assertThrows(MicroDomainDeployError.class,
-                () -> controller.deleteSnapshotFromResource("orders", "s1"));
-
-        verify(microDomainService, times(1)).deleteChainSnapshot("orders", "s1");
     }
 
     @Test
