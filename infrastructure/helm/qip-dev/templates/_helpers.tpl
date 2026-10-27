@@ -52,3 +52,36 @@ spec:
     app: {{ $.app }}
 {{- end }}
 {{- end }}
+
+{{- /*
+A broker's Service for clients on the host, <name>-host: a NodePort Service, or a LoadBalancer one
+when loadBalancerPort is set. Takes a dict:
+  name             the Service name prefix and the pod label it selects, such as kafka
+  portName         the port name, such as tcp-external
+  targetPort       the container port
+  nodePort         a fixed node port; unset, Kubernetes picks one
+  loadBalancerPort the port the LoadBalancer Service publishes
+*/}}
+{{- define "qip-dev.brokerHostService" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .name }}
+  name: {{ .name }}-host
+spec:
+  {{- if .loadBalancerPort }}
+  type: LoadBalancer
+  {{- else }}
+  type: NodePort
+  {{- end }}
+  ports:
+    - name: {{ .portName }}
+      port: {{ .loadBalancerPort | default .targetPort }}
+      targetPort: {{ .targetPort }}
+      {{- if and .nodePort (not .loadBalancerPort) }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+  selector:
+    app: {{ .name }}
+{{- end }}

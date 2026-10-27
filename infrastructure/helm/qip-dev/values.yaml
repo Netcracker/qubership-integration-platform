@@ -5,6 +5,34 @@ postgres:
 gateways:
   enabled: true
 
+# Brokers for chains that use them, off by default; README.md, "Brokers",
+# lists their names and ports.
+#   nodePort          a fixed node port on <name>-host, the Service for clients
+#                     on the host.
+#   loadBalancerPort  makes <name>-host a LoadBalancer Service on this port
+#                     instead.
+kafka:
+  enabled: false
+  nodePort:
+  loadBalancerPort:
+  # PEM server certificate and unencrypted key; with the key set, the TLS,
+  # AUTHTLS, and TLS13 listeners are added. Pass them with --set-file.
+  tls:
+    serverCert:
+    serverKey:
+rabbitmq:
+  enabled: false
+  nodePort:
+  loadBalancerPort:
+pubsub:
+  enabled: false
+  nodePort:
+  loadBalancerPort:
+sftp:
+  enabled: false
+  nodePort:
+  loadBalancerPort:
+
 # The platform services take the same settings:
 #   image.tag  the image tag.
 #   nodePort   a fixed node port for port 8080. Setting it makes the Service a
@@ -27,6 +55,10 @@ qip-engine:
   strategy:
     type: Recreate
   extraEnv: []
+  # Maps a file name to a PEM certificate. The engine trusts each one: they go
+  # into Secret <release>-engine-certs, mounted at
+  # /app/cert/defaultsslcertificate. Pass a file with --set-file.
+  trustedCerts: {}
   jvm:
     maxHeap: 832m
     metaspaceSize: 384m
@@ -39,6 +71,17 @@ qip-runtime-catalog:
   loadBalancerPort:
   # Extra ClusterIP Service names for port 8080.
   serviceAliases: []
+  # camel-k mount resources for every micro domain, such as
+  # secret:<release>-engine-certs@/app/cert/defaultsslcertificate for the
+  # engine's trusted certificates.
+  microDomainResources: []
+  # camel-k emptyDir volumes for every micro domain, as
+  # name:/container/path[:sizeLimit]. A micro domain's root file system is
+  # read-only; it writes the truststore it builds from those certificates to
+  # truststore:/app/truststore.
+  microDomainEmptyDirs: []
+  # Sets CIP_METRICS_ENABLED, so every micro domain serves the chain meters on /metrics.
+  microDomainMetrics: false
   podAnnotations: {}
   strategy: {}
   extraEnv: []
@@ -123,7 +166,12 @@ global:
       micro:
         enabled: true
         image: ghcr.io/netcracker/qubership-integration-micro-engine:latest
+    # Turning the AI service off drops its chart and its nginx routes, which name
+    # the service statically, as the testing service's route does. A UI built
+    # without VITE_AI_SERVICE_ENABLED=false still requests /q/health, and the
+    # dev server's 200 for it shows the AI assistant.
     ai:
+      enabled: true
       image: ghcr.io/netcracker/qubership-integration-ai-service:latest
       knowledgeSidecarImage: ghcr.io/netcracker/qubership-integration-knowledge-sidecar:latest
       knowledgeVolume: null
