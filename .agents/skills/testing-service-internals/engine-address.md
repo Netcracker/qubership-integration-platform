@@ -41,5 +41,5 @@ already registered on another domain, with this message:
 Found similar triggers paths registered on other domains or by other chains on this domain
 ```
 
-`CustomResourceController` deploys a Camel-K resource without that check, so deploying to a classic domain first and to
+The micro branch of `DeploymentController.create` deploys a Camel-K resource without that check, so deploying to a classic domain first and to
 a micro domain second leaves the chain on both.

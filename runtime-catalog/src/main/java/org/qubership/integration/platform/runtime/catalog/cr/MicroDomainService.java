@@ -21,15 +21,18 @@ import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +41,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
@@ -88,6 +92,7 @@ public class MicroDomainService {
     private final GenericCustomResources genericCustomResources;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
+    private final DomainProperties domainProperties;
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
@@ -119,7 +124,8 @@ public class MicroDomainService {
             @Value("${cip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled,
             @Qualifier("engineRoutesNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy,
-            K8sNameValidator k8sNameValidator
+            K8sNameValidator k8sNameValidator,
+            DomainProperties domainProperties
     ) {
         this.kubeOperator = kubeOperator;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
@@ -130,6 +136,7 @@ public class MicroDomainService {
         this.monitoringEnabled = monitoringEnabled;
         this.engineRoutesNamingStrategy = engineRoutesNamingStrategy;
         this.k8sNameValidator = k8sNameValidator;
+        this.domainProperties = domainProperties;
     }
 
     @PostConstruct
@@ -253,6 +260,13 @@ public class MicroDomainService {
         return merged.isEmpty() ? null : merged;
     }
 
+    public <T> T verifyMicroDomainEnabled(Supplier<T> supplier) {
+        if (domainProperties.getMicro().isEnabled()) {
+            return supplier.get();
+        }
+        throw new DomainTypeDisabledException(DomainType.MICRO);
+    }
+
     public void delete(String name) {
         deleteHttpRoutes(name);
         deleteEngineRoutes(name);
@@ -293,8 +307,8 @@ public class MicroDomainService {
         });
     }
 
-    public void deleteChainSnapshot(String name, String snapshotId) {
-        getMainIntegrationResources(name).ifPresent(resources -> {
+    public void deleteChainSnapshot(String domainName, String snapshotId) {
+        getMainIntegrationResources(domainName).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
                     .map(m -> m.get(k8sNameValidator.validate(snapshotId)))
@@ -328,7 +342,7 @@ public class MicroDomainService {
                 kubeOperator.deleteConfigMap(cfgName);
             }
             String snapshotLabel = k8sNameValidator.validate(snapshotId);
-            deleteChainHttpRoutes(name, snapshotLabel::equals);
+            deleteChainHttpRoutes(domainName, snapshotLabel::equals);
         });
     }
 
@@ -340,10 +354,10 @@ public class MicroDomainService {
         return getIntegrationResources(name, true);
     }
 
-    private Optional<IntegrationResources> getIntegrationResources(String name, boolean includeAdditionalResources) {
-        String integrationName = getIntegrationResourceName(name);
+    private Optional<IntegrationResources> getIntegrationResources(String domainName, boolean includeAdditionalResources) {
+        String integrationName = getIntegrationResourceName(domainName);
         Optional<CamelKIntegration> integration = kubeOperator.getIntegrationsByLabels(
-            Map.of(domainLabel, name, bgVersionLabel, bgVersion))
+            Map.of(domainLabel, domainName, bgVersionLabel, bgVersion))
                 .stream()
                 .findFirst();
         if (integration.isEmpty()) {
@@ -360,7 +374,7 @@ public class MicroDomainService {
                     .findFirst()
                 : Optional.empty();
         List<V1ConfigMap> configMaps = kubeOperator.getConfigMapsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName);
-        String cfgName = getIntegrationCfgConfigMapName(name);
+        String cfgName = getIntegrationCfgConfigMapName(domainName);
         Optional<V1ConfigMap> integrationsConfiguration = configMaps.stream()
                 .filter(cm -> cfgName.equals(getName(cm).orElse(null)))
                 .findFirst();
