@@ -1362,17 +1362,38 @@ public class RequirementDraftStore {
     return identicalRejections(conversationId, toolName, arguments, candidate, true);
   }
 
-  /** True when the newest attempt is the projection-rebuild marker. */
+  /** True when a projection rebuild is still the latest staged attempt. */
   boolean latestProjectionRebuild(String conversationId) {
-    return latestCaptureAttempt(conversationId)
-        .filter(attempt -> "projection-rebuild".equals(attempt.toolName()))
-        .isPresent();
+    for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+      if ("projection-rebuild".equals(attempt.toolName())) {
+        return true;
+      }
+      if (attempt.recoveryStrategy() != null) {
+        return false;
+      }
+    }
+    return false;
   }
 
-  /** Stage recorded on the latest attempt. Survives a discovery turn that clears feedback. */
+  /** Newest saved stage. A later bookkeeping attempt with no stage does not hide it. */
   Optional<RequirementRepairPolicy.Strategy> latestRecoveryStrategy(String conversationId) {
-    return latestCaptureAttempt(conversationId).map(RequirementCaptureAttempt::recoveryStrategy)
-        .filter(Objects::nonNull);
+    for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+      if (attempt.recoveryStrategy() != null) {
+        return Optional.of(attempt.recoveryStrategy());
+      }
+    }
+    return Optional.empty();
+  }
+
+  private List<RequirementCaptureAttempt> captureAttemptsNewestFirst(String conversationId) {
+    var revisions = sessions.current(conversationId).stream()
+        .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
+        .toList();
+    var attempts = new ArrayList<RequirementCaptureAttempt>();
+    for (int index = revisions.size() - 1; index >= 0; index--) {
+      attempts.add(artifacts.payload(revisions.get(index), RequirementCaptureAttempt.class));
+    }
+    return attempts;
   }
 
   List<RequirementCaptureAttempt> identicalRejections(String conversationId, String toolName, Object arguments,
