@@ -762,12 +762,15 @@ class ProductPipelineRunSupportTest {
       var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(
           drafts, new org.qubership.integration.platform.ai.plan.RequirementDraftTool(drafts), mapper);
       try (var ignored = org.qubership.integration.platform.ai.chat.ToolSession.open(conversationId)) {
-        var first = mapper.readValue(tools.updateRequirementDraft(update),
+        var opened = mapper.readValue(tools.updateRequirementDraft(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate(
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of(), null)),
             org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
-        var second = mapper.readValue(tools.updateRequirementDraft(update),
+        var confirmed = mapper.readValue(tools.updateRequirementDraft(update),
             org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
-        if (!second.accepted()) {
-          throw new AssertionError(first + " then " + second);
+        if (opened.accepted() || !confirmed.accepted()) {
+          throw new AssertionError(opened + " then " + confirmed);
         }
       }
       var current = runStore.load(runId).orElseThrow();

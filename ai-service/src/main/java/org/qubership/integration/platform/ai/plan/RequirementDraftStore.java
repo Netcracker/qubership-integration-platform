@@ -1095,8 +1095,12 @@ public class RequirementDraftStore {
       if (attempt.recoveryStrategy() == null) {
         continue;
       }
-      return attempt.recoveryStrategy() == RequirementRepairPolicy.Strategy.FOCUSED_REPAIR
-          && Objects.equals(attempt.sourceTurnId(), answerTurnId);
+      var codes = attempt.issues().stream().map(issue -> issue.code()).toList();
+      return !attempt.accepted()
+          && attempt.recoveryStrategy() == RequirementRepairPolicy.Strategy.FOCUSED_REPAIR
+          && Objects.equals(attempt.sourceTurnId(), answerTurnId)
+          && codes.contains("UNAPPLIED_AUTHOR_ANSWER")
+          && !codes.contains("DISPOSITION_NOT_AUTHORIZED");
     }
     return false;
   }

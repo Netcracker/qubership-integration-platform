@@ -737,18 +737,22 @@ public class RequirementCaptureTools {
 
   private java.util.function.Predicate<String> validDispositionCandidates(
       DraftInput input, RequirementDraftStore.ClarificationAdmissionContext clarification) {
-    if (clarification == null || clarification.pinnedQuestion() == null
-        || clarification.pinnedQuestion().evidence() == null || elementSchemas == null || input == null
-        || input.facts() == null) {
-      return null;
+    if (elementSchemas == null || input == null || clarification == null
+        || clarification.pinnedQuestion() == null || clarification.pinnedQuestion().evidence() == null) {
+      return value -> false;
     }
     String interaction = clarification.pinnedQuestion().evidence().interactionId();
     String property = clarification.pinnedQuestion().evidence().propertyKey();
-    String type = input.facts().stream().map(FactInput::elementIntent)
+    var facts = input.facts() == null ? List.<FactInput>of() : input.facts();
+    var capabilities = input.capabilities() == null ? List.<RequirementCaptureInput.CapabilityInput>of()
+        : input.capabilities();
+    String type = facts.stream().map(FactInput::elementIntent)
         .filter(intent -> intent != null && interaction.equals(intent.elementRef()))
-        .map(RequirementElementIntent::elementType).filter(Objects::nonNull).findFirst().orElse(null);
+        .map(RequirementElementIntent::elementType).findFirst().orElseGet(() -> capabilities.stream()
+            .filter(capability -> interaction.equals(capability.interactionId()))
+            .map(RequirementCaptureInput.CapabilityInput::capabilityKey).findFirst().orElse(null));
     if (type == null) {
-      return null;
+      return value -> false;
     }
     return value -> elementSchemas.validateCapturePropertyValue(
         type, property, com.fasterxml.jackson.databind.node.TextNode.valueOf(value)).isEmpty();

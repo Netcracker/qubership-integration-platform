@@ -627,6 +627,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
           "Apply the saved author answer or justify the remaining uncertainty before waiting again.",
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
     }
+    if (directive == RequirementDiscoveryDirective.DISCUSS && legacyProjectedQuestion(draft)) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
+    }
     if (shouldOfferIds(context, draft)) {
       return idsChoiceOutcome();
     }
