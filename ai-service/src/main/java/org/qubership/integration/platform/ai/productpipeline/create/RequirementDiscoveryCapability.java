@@ -24,6 +24,7 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore.RequirementRejection;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsAgentCall;
@@ -492,7 +493,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
     if (stage == null || stage == RequirementRecoveryLadder.Stage.FOCUSED_REPAIR) {
       return Optional.empty();
     }
-    if (stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE) {
+    if (stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
+        && rejection.issues().stream().anyMatch(issue ->
+            CaptureFailureClass.clarificationRepresentation(issue.code()))) {
       String message = "Requirement capture failed internally. This is not an author question.";
       draftStore.recordCaptureRejection(conversationId, message);
       return Optional.of(new CapabilitySignal.Completed(
@@ -508,7 +511,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     String message = stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
         ? "Capture the requirements again from the author evidence and the semantic baseline."
-        : "Requirement capture failed internally. This is not an author question.";
+        : stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
+            ? rejection.issues().stream().map(issue -> issue.message())
+                .filter(text -> text != null && !text.isBlank()).findFirst()
+                .orElse("Requirement capture failed internally. This is not an author question.")
+            : "Requirement capture failed internally. This is not an author question.";
     var findings = rejection.issues().stream().map(issue -> new PlanValidationFinding(
         issue.code(), issue.path() + ": " + issue.message(), true, MappingValidationDetails.empty(),
         issue.entityId() == null || issue.entityId().isBlank() ? "requirement-draft" : issue.entityId(),

@@ -1024,6 +1024,29 @@ class RequirementCaptureToolsTest {
   }
 
   @Test
+  void theFirstStalledTargetStaysRepairableUntilTheSameTargetRepeats() throws Exception {
+    var setup = pinnedUriQuestion("first-stall", "Use https://example.com/tasks");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var stalled = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which exact target URI should the helper use?", List.of(setup.firstTurnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, stalled.nextAction(), stalled.toString());
+
+      var finished = setup.mapper().readValue(setup.harness().tools().finishRequirementDiscoveryTurn(
+          RequirementDiscoveryDirective.STAY), RequirementCaptureResult.class);
+      assertTrue(finished.issues().stream().noneMatch(issue -> "REPEATED_REJECTION".equals(issue.code())),
+          finished.toString());
+
+      var repeated = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which runtime address should the helper call?", List.of(setup.firstTurnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+      assertEquals(NextAction.PROJECTION_REBUILD, repeated.nextAction(), repeated.toString());
+    }
+  }
+
+  @Test
   void anAdmittedNonAnswerIsExemptFromNoProgress() throws Exception {
     String reply = "Leave the URI open. The caller is the billing service.";
     var setup = pinnedUriQuestion("non-answer-exempt", reply);

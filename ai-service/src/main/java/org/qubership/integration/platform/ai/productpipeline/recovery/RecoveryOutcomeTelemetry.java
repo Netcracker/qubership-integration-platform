@@ -77,18 +77,24 @@ public class RecoveryOutcomeTelemetry {
 
   @Inject
   public RecoveryOutcomeTelemetry(MeterRegistry meterRegistry) {
-    this(meterRegistry, null);
+    this(meterRegistry, null, null);
   }
 
-  /** Test helper without CDI. Collects events for assertions. */
+  /** Test helper without CDI. Collects events and clarification outcomes for assertions. */
   public RecoveryOutcomeTelemetry() {
-    this(new io.micrometer.core.instrument.simple.SimpleMeterRegistry(), new CopyOnWriteArrayList<>());
+    this(new io.micrometer.core.instrument.simple.SimpleMeterRegistry(), new CopyOnWriteArrayList<>(),
+        new CopyOnWriteArrayList<>());
   }
 
   RecoveryOutcomeTelemetry(MeterRegistry meterRegistry, List<Event> events) {
+    this(meterRegistry, events, null);
+  }
+
+  RecoveryOutcomeTelemetry(MeterRegistry meterRegistry, List<Event> events,
+      List<ClarificationOutcome> clarificationOutcomes) {
     this.meterRegistry = Objects.requireNonNull(meterRegistry, "meterRegistry");
     this.events = events;
-    this.clarificationOutcomes = new CopyOnWriteArrayList<>();
+    this.clarificationOutcomes = clarificationOutcomes;
   }
 
   public List<Event> events() {
@@ -96,7 +102,7 @@ public class RecoveryOutcomeTelemetry {
   }
 
   public List<ClarificationOutcome> clarificationOutcomes() {
-    return List.copyOf(clarificationOutcomes);
+    return clarificationOutcomes == null ? List.of() : List.copyOf(clarificationOutcomes);
   }
 
   /** Records one clarification outcome. Metric tags and logs keep bounded codes and identifiers only. */
@@ -115,7 +121,9 @@ public class RecoveryOutcomeTelemetry {
         bounded(outcome.ladderStage(), CLARIFICATION_STAGES),
         text(outcome.feedbackEvidenceReference()),
         text(outcome.resultingDraftReference()));
-    clarificationOutcomes.add(safe);
+    if (clarificationOutcomes != null) {
+      clarificationOutcomes.add(safe);
+    }
     Counter.builder(METRIC_NAME)
         .description("Clarification answer recovery outcome")
         .tag("kind", KIND_CLARIFICATION)

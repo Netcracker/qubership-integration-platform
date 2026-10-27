@@ -138,7 +138,8 @@ class RecoveryOutcomeTelemetryTest {
   @Test
   void clarificationOutcomesStayPrivacySafeAndNameTheEvidence() {
     var registry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
-    var telemetry = new RecoveryOutcomeTelemetry(registry, new java.util.concurrent.CopyOnWriteArrayList<>());
+    var telemetry = new RecoveryOutcomeTelemetry(registry, new java.util.concurrent.CopyOnWriteArrayList<>(),
+        new java.util.concurrent.CopyOnWriteArrayList<>());
     String quote = "Use https://secret.example/tasks";
     var outcomes = List.of("SUCCESS", "AMBIGUOUS", "NON_ANSWER", "NO_PROGRESS", "PROJECTION_REBUILD",
         "INTERNAL_FAILURE");

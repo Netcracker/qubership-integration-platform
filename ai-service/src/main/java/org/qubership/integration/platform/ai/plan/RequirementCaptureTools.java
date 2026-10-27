@@ -290,7 +290,10 @@ public class RequirementCaptureTools {
       String conversationId = ToolSession.resolveConversationId();
       var rejection = feedbackStore.lastRequirementRejection(conversationId);
       var ladderStage = rejection.map(value -> value.feedback().ladderStage()).orElse(null);
-      if (ladderStage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE) {
+      boolean clarificationInternal = ladderStage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
+          && rejection.filter(value -> value.issues().stream()
+              .anyMatch(issue -> CaptureFailureClass.clarificationRepresentation(issue.code()))).isPresent();
+      if (clarificationInternal) {
         store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
         store.recordCaptureRejection(conversationId, INTERNAL_CLARIFICATION_MESSAGE);
         return view(store.get(conversationId).orElse(null), false, false, List.of(
