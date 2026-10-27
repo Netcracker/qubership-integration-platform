@@ -318,8 +318,9 @@ of those pods' containers, istiod, and the camel-k operator. The dump runs after
 holds a micro domain's pod only because a failed micro case keeps the run's micro domains (see
 [Reading a failure](#reading-a-failure)).
 
-No pull request check runs the suite. `npm run check-types` and `--project=schema --project=harness`
-need no stack; run them before pushing, as `AGENTS.md` describes.
+`.github/workflows/e2e-pr.yaml` runs the stack-free checks on every pull request and annotates each
+failed case at its line; the rest of the suite runs only in `e2e-k8s.yaml`. Run the checks before
+pushing, as `AGENTS.md` describes.
 
 **Selecting cases.** Each spec file holds one top-level `test.describe` named after its subject, and
 every tag comes from a closed list:

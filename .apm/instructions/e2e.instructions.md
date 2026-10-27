@@ -52,9 +52,9 @@ bundle never loads. Regenerate a golden in the suite that writes it.
 ### CI
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
-manual dispatch. No pull request check runs it. `npm run check-types` and
-`npx playwright test --project=schema --project=harness` need no stack, so run both before pushing
-a change to `e2e/` or to a tree the two projects read:
+manual dispatch. `.github/workflows/e2e-pr.yaml` runs `npm run check-types` and
+`npx playwright test --project=schema --project=harness` on every pull request. Both need no stack,
+so run them before pushing a change to `e2e/` or to a tree the two projects read:
 `schemas/src/main/resources/conf-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,
 and the import-file migration classes under `integration-build-pipeline/`. `harness` also holds
 `specs/harness/title-rules.spec.ts`, which checks the describes, titles, and tags of every spec.
