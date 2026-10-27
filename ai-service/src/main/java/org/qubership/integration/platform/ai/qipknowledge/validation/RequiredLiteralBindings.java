@@ -14,13 +14,14 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 public final class RequiredLiteralBindings {
   private static final ObjectMapper JSON = new ObjectMapper();
   private static final Pattern HTTP_OPERATION = Pattern.compile(
-      "^(GET|POST|PUT|PATCH|DELETE) (/[^\\s.,]+)[.,]?$");
+      "^(GET|POST|PUT|PATCH|DELETE) (/\\S+)$");
 
   private RequiredLiteralBindings() {}
 
   /**
    * Returns {@code METHOD path} when {@code value} is that operation and nothing else.
-   * One trailing period or comma is punctuation. A sentence that mentions an operation is not one.
+   * The path may contain dots. One trailing period or comma is punctuation.
+   * A sentence that mentions an operation is not one.
    */
   public static String httpOperation(String value) {
     if (value == null) {
@@ -31,6 +32,9 @@ public final class RequiredLiteralBindings {
       return null;
     }
     String path = matcher.group(2);
+    if (path.length() > 1 && (path.endsWith(".") || path.endsWith(","))) {
+      path = path.substring(0, path.length() - 1);
+    }
     if (path.length() <= 1) {
       return null;
     }
