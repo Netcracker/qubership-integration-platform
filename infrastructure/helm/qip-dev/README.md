@@ -103,7 +103,7 @@ catalog. Both services still run with `-XX:+ExitOnOutOfMemoryError`.
 `development` profile reads the certificates it trusts. From this directory:
 
 ```sh
-helm install ... --set-file 'qip-engine.trustedCerts.ca\.crt=../kafka-ssl/client/ca.crt'
+helm install ... --set-file 'qip-engine.trustedCerts.ca\.crt=../../docker/kafka-ssl/client/ca.crt'
 ```
 
 `qip-runtime-catalog.microDomainResources` and `qip-runtime-catalog.microDomainEmptyDirs` become
@@ -175,12 +175,12 @@ Kafka has the listener layout of `docker-compose.kafka.yml`:
 
 `AUTH` and `AUTHTLS` accept PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512. `TLS`, `AUTHTLS`, and `TLS13`
 exist only when you pass the server certificate and its unencrypted key; the CA that signed them is
-`../kafka-ssl/client/ca.crt`, which the engines trust through the values in "Values for the platform
+`../../docker/kafka-ssl/client/ca.crt`, which the engines trust through the values in "Values for the platform
 services". From this directory:
 
 ```sh
 helm install ... --set kafka.enabled=true \
-  --set-file kafka.tls.serverCert=../kafka-ssl/server/kafka.crt,kafka.tls.serverKey=../kafka-ssl/server/kafka.key
+  --set-file kafka.tls.serverCert=../../docker/kafka-ssl/server/kafka.crt,kafka.tls.serverKey=../../docker/kafka-ssl/server/kafka.key
 ```
 
 Both engines run the `development` profile, which points the Pub/Sub components at the emulator on
