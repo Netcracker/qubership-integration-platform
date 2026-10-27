@@ -517,6 +517,59 @@ class ProductPipelineRunSupportTest {
     }
   }
 
+  @Test
+  void stageClarificationWithoutAnAuthoredQuestionStoresNoOffer() {
+    var harness = new OfferHarness();
+    String conversationId = "conv-no-question";
+    String runId = "run-no-question";
+    var accepted = harness.acceptAuthoredDraft(conversationId, List.of());
+    assertTrue(new RequirementClarificationCoordinator().activeQuestion(
+        accepted, harness.drafts.get(conversationId).orElseThrow(), harness.generation(conversationId)).isEmpty());
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    var transition = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later)
+        .orElseThrow();
+    assertNull(transition.clarification(), runId);
+    var clarify = assertInstanceOf(CreateChainPendingAction.Clarify.class,
+        harness.facade().snapshot(conversationId).orElseThrow().pendingAction());
+    assertEquals("", clarify.clarificationOfferId(), runId);
+    var decision = assertInstanceOf(ChatEvent.Decision.class,
+        ChatEvent.decision(clarify, waiting.run().runRevision(), clarify.reason()));
+    assertEquals("clarify:" + waiting.run().runRevision(), decision.id(), runId);
+  }
+
+  @Test
+  void requirementClarificationRebuildsTheActiveQuestionOffer() {
+    var harness = new OfferHarness();
+    String conversationId = "conv-offer-builder";
+    String runId = "run-offer-builder";
+    harness.acceptChainCallQuestion(conversationId);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    long revision = waiting.run().runRevision();
+    var coordinator = new RequirementClarificationCoordinator();
+    var active = coordinator.activeQuestion(
+        harness.drafts.latestRevision(conversationId).orElseThrow(),
+        harness.drafts.get(conversationId).orElseThrow(),
+        harness.generation(conversationId)).orElseThrow();
+    var built = harness.support().requirementClarification(waiting, revision, prompt);
+    assertNotNull(built, runId);
+    assertEquals(coordinator.createOffer(active, revision), built.offer());
+    assertNull(built.answer());
+    assertNull(harness.support().requirementClarification(
+        waiting, revision, PipelineGates.retag(PipelineGates.MAPPING_GAP, "Describe the field mappings.")));
+
+    String otherConversation = "conv-other-capability";
+    harness.acceptChainCallQuestion(otherConversation);
+    String otherPrompt = PipelineGates.retag(
+        PipelineGates.STAGE_CLARIFICATION, "Name the catalog service this interaction should use.");
+    var other = harness.wait(
+        "run-other-capability", otherConversation, "design-execution", "design-execution", otherPrompt);
+    assertNull(harness.support().requirementClarification(other, other.run().runRevision(), otherPrompt));
+  }
+
   private static StageAttempt attempt(String stageId, long revision, StageStatus outcome) {
     return new StageAttempt(
         "attempt-" + revision, stageId, revision, outcome, FIXED, FIXED, List.of(), null);
@@ -546,19 +599,22 @@ class ProductPipelineRunSupportTest {
     private final Map<String, String> prompts = new ConcurrentHashMap<>();
     private final Map<String, StartOrResumeCommand> commands = new HashMap<>();
     private final List<ProductPipelineProfile> profiles = new ArrayList<>();
-    private final ProductPipelineRunSupport support = support();
+    private final ProductPipelineRunSupport support = newSupport();
 
     CompilationArtifacts.Revision acceptChainCallQuestion(String conversationId) {
-      String text = "Call the existing chain.";
-      var input = conversations.archive().beginInput(conversationId, text, null);
-      conversations.archive().resolveInput(conversationId, input, text);
-      drafts.beginTurn(conversationId);
-      var asked = new QuestionInput(
+      return acceptAuthoredDraft(conversationId, List.of(new QuestionInput(
           "chain-target",
           List.of("child"),
           "Which chain-trigger element id should this chain call use?",
           new AuthorQuestionEvidence(
-              "child", "targetReference", AuthorQuestionEvidence.Kind.CATALOG_CHOICE, List.of("turn-1")));
+              "child", "targetReference", AuthorQuestionEvidence.Kind.CATALOG_CHOICE, List.of("turn-1")))));
+    }
+
+    CompilationArtifacts.Revision acceptAuthoredDraft(String conversationId, List<QuestionInput> openQuestions) {
+      String text = "Call the existing chain.";
+      var input = conversations.archive().beginInput(conversationId, text, null);
+      conversations.archive().resolveInput(conversationId, input, text);
+      drafts.beginTurn(conversationId);
       var authored = new DraftInput(
           new FlowInput(
               List.of(
@@ -569,7 +625,7 @@ class ProductPipelineRunSupportTest {
           List.of(
               new CapabilityInput("entry", "http-trigger", null, HttpMethod.GET, "/context", null, null, null),
               new CapabilityInput("child", "chain-call-2", null, null, null, null, null, "trigger-element")),
-          List.of(asked),
+          openQuestions,
           new DraftSettings(false, null));
       drafts.put(conversationId, RequirementCaptureProjection.toDraft(
           authored, null, List.of(), "1", "hash", Map.of("child", "resolved-trigger")));
@@ -620,8 +676,12 @@ class ProductPipelineRunSupportTest {
       return commands.get(runId);
     }
 
+    ProductPipelineRunSupport support() {
+      return support;
+    }
+
     ProductPipelineRunSupport freshSupport() {
-      return support();
+      return newSupport();
     }
 
     CreateChainApplicationFacade facade() {
@@ -634,7 +694,7 @@ class ProductPipelineRunSupportTest {
           drafts);
     }
 
-    private ProductPipelineRunSupport support() {
+    private ProductPipelineRunSupport newSupport() {
       return CreateChainTestOrchestrator.supportBuilder(
               runStore,
               artifactStore,
