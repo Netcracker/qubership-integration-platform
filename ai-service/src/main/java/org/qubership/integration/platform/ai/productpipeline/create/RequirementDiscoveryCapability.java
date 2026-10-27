@@ -88,6 +88,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
   @Inject FailureNarrative failureNarrative;
   @Inject TargetFolderChoiceResolver targetFolderChoices;
   @Inject RequirementCaptureTools captureTools;
+
+  /** Lets a cross-package test supply the capture tools the container would inject. */
+  public void setCaptureTools(RequirementCaptureTools tools) {
+    this.captureTools = tools;
+  }
   @Inject org.qubership.integration.platform.ai.plan.UploadedSpecOperations uploadedSpecs;
 
   @Inject
@@ -151,7 +156,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
         null);
   }
 
-  RequirementDiscoveryCapability(
+  public RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder,
