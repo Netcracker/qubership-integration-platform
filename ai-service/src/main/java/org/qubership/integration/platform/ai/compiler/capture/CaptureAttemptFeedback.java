@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.compiler.capture;
 import java.util.List;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 
 /**
  * Last capture failure for a conversation, used to build repair user messages and gate outer
@@ -24,7 +25,18 @@ public record CaptureAttemptFeedback(
     boolean noProgress, Reference evidenceReference,
     List<org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue> issues,
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-    String presentationDetails) {
+    String presentationDetails,
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    RequirementRecoveryLadder.Stage ladderStage) {
+
+  public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
+      CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,
+      String repairHistoryJson, boolean noProgress, Reference evidenceReference,
+      List<org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue> issues,
+      String presentationDetails) {
+    this(kind, summary, failureClass, outerAllowed, fieldHints, repairHistoryJson, noProgress,
+        evidenceReference, issues, presentationDetails, null);
+  }
 
   public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
       CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,
@@ -48,7 +60,7 @@ public record CaptureAttemptFeedback(
 
   public CaptureAttemptFeedback withEvidenceReference(Reference reference) {
     return new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, fieldHints,
-        repairHistoryJson, noProgress, reference, issues, presentationDetails);
+        repairHistoryJson, noProgress, reference, issues, presentationDetails, ladderStage);
   }
 
   /** Additional model wording does not change the summary used by native and outer defect keys. */

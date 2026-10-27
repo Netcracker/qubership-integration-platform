@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftI
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
@@ -103,7 +104,7 @@ public class RequirementCaptureTools {
       After initialization is accepted, later edits use updateRequirementDraft.
       If initialization is rejected, correct the full rejected candidate and call captureRequirementDraft again,
       or readRequirementDraft and use updateRequirementDraft with the exact pendingProposal.token for focused initial repair.
-      Change only reported fields and preserve unaffected facts.
+      Correct the reported fields. A projection rebuild captures again from the author evidence and the semantic baseline.
       A new claim requires evidence: sourceTurnId and an exact quote from that user turn.
       The quote must be an exact substring of the named turn. A fact already in the saved
       semantic baseline, and a legacy accepted fact, may omit the quote.
@@ -268,7 +269,11 @@ public class RequirementCaptureTools {
     return traced("finishRequirementDiscoveryTurn", directive, () -> {
       String conversationId = ToolSession.resolveConversationId();
       var rejection = feedbackStore.lastRequirementRejection(conversationId);
-      if (rejection.filter(value -> value.feedback().noProgress()).isPresent()) {
+      var ladderStage = rejection.map(value -> value.feedback().ladderStage()).orElse(null);
+      boolean ladderHold = ladderStage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+          || ladderStage == RequirementRecoveryLadder.Stage.ASK_AUTHOR
+          || ladderStage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE;
+      if (rejection.filter(value -> value.feedback().noProgress()).isPresent() || ladderHold) {
         store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
         var issues = new ArrayList<>(rejection.orElseThrow().issues().stream()
             .map(issue -> new Issue(issue.code(), issue.path(), issue.entityId(), issue.message())).toList());
@@ -762,6 +767,33 @@ public class RequirementCaptureTools {
         false, false, List.of(issue)));
   }
 
+  private RequirementCaptureResult escalateRepeatedCandidate(String conversationId, String toolName, Object arguments,
+      List<RequirementCaptureResult.CaptureIssue> issues, RequirementRecoveryLadder.Stage stage,
+      DraftInput resolvedCandidate, Reference selectedAttempt) {
+    var editorIssues = issues.stream()
+        .map(issue -> new Issue(issue.code(), issue.path(), issue.entityId(), issue.message(),
+            issue.details() == null ? List.of() : issue.details().relatedEntityIds()))
+        .toList();
+    var action = switch (stage) {
+      case PROJECTION_REBUILD -> RequirementCaptureResult.NextAction.PROJECTION_REBUILD;
+      case ASK_AUTHOR -> RequirementCaptureResult.NextAction.ASK_USER;
+      case INTERNAL_FAILURE -> RequirementCaptureResult.NextAction.STOP;
+      case FOCUSED_REPAIR -> RequirementCaptureResult.NextAction.REPAIR_CAPTURE;
+    };
+    var result = view(store.get(conversationId).orElse(null), false, false, editorIssues).withNextAction(action);
+    store.recordCaptureAttempt(conversationId, false);
+    outcomeGateway.repeatedRequirementIssue(conversationId, store.captureMutationScope(conversationId),
+        issues.stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+            issue.code(), issue.path(), issue.message(), issue.entityId())).toList(),
+        stage);
+    store.recordCaptureOutcome(conversationId, toolName, arguments, result, resolvedCandidate, selectedAttempt,
+        RequirementRepairPolicy.Strategy.valueOf(stage.name()));
+    if (stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD) {
+      store.rebuildPendingProjection(conversationId);
+    }
+    return result;
+  }
+
   private String traced(String toolName, Supplier<RequirementCaptureResult> action) {
     return traced(toolName, null, action);
   }
@@ -791,9 +823,23 @@ public class RequirementCaptureTools {
             && (feedbackStore.lastRequirementRejection(conversationId).isPresent()
                 || feedbackStore.fingerprintStore().softCreditsUsed(conversationId) > 0)
             ? store.identicalRejections(conversationId, toolName, arguments, candidate) : List.<RequirementDraftStore.RequirementCaptureAttempt>of();
-        if (identical.size() >= 2) {
+        boolean afterRebuild = captureTool && store.latestProjectionRebuild(conversationId);
+        var matches = !afterRebuild || !identical.isEmpty() ? identical
+            : store.identicalRejections(conversationId, toolName, arguments, candidate, false);
+        if (matches.size() >= 2 || afterRebuild && !matches.isEmpty()) {
+          var codes = matches.getFirst().issues().stream()
+              .map(RequirementCaptureResult.CaptureIssue::code).toList();
+          var current = feedbackStore.lastRequirementRejection(conversationId)
+              .map(rejection -> rejection.feedback().ladderStage())
+              .filter(java.util.Objects::nonNull)
+              .orElse(RequirementRecoveryLadder.Stage.FOCUSED_REPAIR);
+          var next = RequirementRecoveryLadder.advance(current, codes, true);
+          if (next != current) {
+            return escalateRepeatedCandidate(conversationId, toolName, arguments, matches.getFirst().issues(),
+                next, resolvedCandidate, selectedAttempt);
+          }
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
-          var issues = new ArrayList<>(identical.getFirst().issues());
+          var issues = new ArrayList<>(matches.getFirst().issues());
           issues.add(new RequirementCaptureResult.CaptureIssue("REPAIR_NO_PROGRESS", "/", null, null,
               "The same proposal was rejected under the current source, base, and repair authority. Submit a different correction."));
           var rejected = view(store.get(conversationId).orElse(null), false, false,

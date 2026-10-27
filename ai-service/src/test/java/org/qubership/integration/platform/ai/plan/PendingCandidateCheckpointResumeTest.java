@@ -272,6 +272,7 @@ class PendingCandidateCheckpointResumeTest {
     var restoredDrafts = new RequirementDraftStore(restoredArtifacts, restoredSessions, conversations(archive));
     restoredDrafts.beginTurn(CHAT, author);
     assertTrue(restoredDrafts.pendingProposal(CHAT).isEmpty());
+    assertTrue(restoredDrafts.rejectedCaptureRevision(CHAT).isEmpty());
     assertTrue(restoredDrafts.semanticBaseline(CHAT).isEmpty());
     assertTrue(restoredDrafts.get(CHAT).isEmpty());
     assertTrue(restoredDrafts.latestRevision(CHAT).isEmpty());

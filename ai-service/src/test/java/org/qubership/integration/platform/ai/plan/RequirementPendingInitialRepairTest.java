@@ -155,9 +155,11 @@ class RequirementPendingInitialRepairTest {
     assertTrue(noticed.path("issues").toString().contains("UNCHANGED_PROPOSAL"));
     var latest = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token");
     assertNotEquals(initial, latest);
-    assertThrows(CaptureNoProgressException.class, () -> h.call("updateRequirementDraft",
-        Map.of("changes", h.changes(original.facts(), latest))));
-    assertThrows(CaptureNoProgressException.class, () -> h.call("captureRequirementDraft", Map.of("draft", original)));
+    var rebuilt = h.call("updateRequirementDraft", Map.of("changes", h.changes(original.facts(), latest)));
+    assertEquals("PROJECTION_REBUILD", rebuilt.path("nextAction").asText());
+    var stopped = h.call("captureRequirementDraft", Map.of("draft", original));
+    assertEquals("STOP", stopped.path("nextAction").asText());
+    assertNotEquals("ASK_USER", stopped.path("nextAction").asText());
     assertEquals(credits, h.fingerprints.softCreditsUsed(h.chat));
     assertEquals(scope, h.store.captureMutationScope(h.chat));
     assertTrue(h.store.get(h.chat).isEmpty());

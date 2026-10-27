@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
@@ -73,6 +74,7 @@ public class GatherRequirementsPromptBuilder {
         + nativeRepairScopeBlock(conversationId)
         + incompleteDraftBlock(draft, uploadedInteractions)
         + lastCaptureRejectionBlock(conversationId, draft)
+        + recoveryLadderBlock(conversationId)
         + sourceDialogueBlock(conversationId, userMessage)
         + "\nPinned response locale: " + normalizedLocale(responseLocale) + "\n";
     if (skillDocumentService == null) {
@@ -393,6 +395,30 @@ public class GatherRequirementsPromptBuilder {
         The saved draft is still partial. Read it with readRequirementDraft and use updateRequirementDraft to fill the missing fields before CONTINUE. Do not tell the user the draft is ready.
         %s</incomplete-requirement-draft>
         """.formatted(gaps);
+  }
+
+  private String recoveryLadderBlock(String conversationId) {
+    if (draftStore == null || conversationId == null) {
+      return "";
+    }
+    var guidance = draftStore.recoveryGuidance(conversationId);
+    if (guidance.isEmpty()) {
+      return "";
+    }
+    var value = guidance.get();
+    String participants = value.participants().isEmpty() ? "(none)" : String.join(", ", value.participants());
+    String paths = value.editablePaths().isEmpty() ? "(none)" : String.join(", ", value.editablePaths());
+    String rebuild = value.strategy() == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+        ? "Capture again from the author evidence and the semantic baseline.\nDo not restore rejected fields.\n"
+        : "";
+    return """
+
+        <requirement-recovery-strategy>
+        Strategy: %s
+        Conflict participants: %s
+        Editable paths: %s
+        %s</requirement-recovery-strategy>
+        """.formatted(value.strategy(), participants, paths, rebuild);
   }
 
   private String lastCaptureRejectionBlock(

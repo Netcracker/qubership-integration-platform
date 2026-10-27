@@ -242,8 +242,9 @@ class RequirementRevisionAdmissionTest {
         assertEquals(HttpMethod.GET, h.store.get(h.chat).orElseThrow().authoredDraft().capabilities().getFirst().httpMethod());
         spent = fingerprints.softCreditsUsed(h.chat);
       } else {
-        assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
-            () -> h.capture(proposed));
+        var rebuilt = h.capture(proposed);
+        assertEquals(RequirementCaptureResult.NextAction.PROJECTION_REBUILD, rebuilt.nextAction());
+        assertTrue(h.store.rejectedCaptureRevision(h.chat).isEmpty());
       }
       assertEquals(spent, fingerprints.softCreditsUsed(h.chat), "Reload and revalidation grant no new repair credits");
     }
