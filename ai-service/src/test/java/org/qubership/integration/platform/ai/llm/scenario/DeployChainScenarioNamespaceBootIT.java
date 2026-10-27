@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -13,8 +14,9 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 /**
- * Local and test boots must not require CIP namespace. Create topics still fails later if it stays
- * blank.
+ * {@code cloud.microservice.namespace} defaults to {@code local} when env {@code NAMESPACE} is unset.
+ * An empty {@code NAMESPACE} fails boot with {@code SRCFG00040}. MaaS topic creation uses config key
+ * {@code namespace} only; blank there fails later with {@code topicNamespaceMissing}.
  */
 @QuarkusTest
 @TestProfile(DeployChainScenarioNamespaceBootIT.BlankNamespaceProfile.class)
@@ -24,7 +26,7 @@ class DeployChainScenarioNamespaceBootIT {
 
     @Override
     public Map<String, String> getConfigOverrides() {
-      return Map.of("cloud.microservice.namespace", "", "namespace", "", "NAMESPACE", "");
+      return Map.of("namespace", "");
     }
   }
 
@@ -35,11 +37,12 @@ class DeployChainScenarioNamespaceBootIT {
   @Inject Config config;
 
   @Test
-  void bootsWhenMicroserviceNamespaceIsBlank() {
+  void bootsWhenHelmNamespaceIsBlank() {
     assertNotNull(scenario);
+    assertEquals("local", config.getValue("cloud.microservice.namespace", String.class));
     assertTrue(
         config
-            .getOptionalValue("cloud.microservice.namespace", String.class)
+            .getOptionalValue("namespace", String.class)
             .map(String::isBlank)
             .orElse(true));
   }

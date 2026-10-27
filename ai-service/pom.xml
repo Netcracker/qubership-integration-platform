@@ -35,7 +35,7 @@
 
     <properties>
         <revision>1.5.2</revision>
-        <changelist>-SNAPSHOT</changelist>
+        <changelist>-dbaas-try-1-SNAPSHOT</changelist>
 
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
         <maven.compiler.release>21</maven.compiler.release>
@@ -69,6 +69,8 @@
         <qip.test.pack-root>${project.build.directory}/public-pack-fixture/integration-platform-skills</qip.test.pack-root>
         <qip.test.excluded-groups>certified-pack</qip.test.excluded-groups>
         <qip.test.groups></qip.test.groups>
+        <cloud-core.version>10.1.4</cloud-core.version>
+        <qip.ai.dbaas.agent.enabled>false</qip.ai.dbaas.agent.enabled>
     </properties>
 
     <repositories>
@@ -113,6 +115,13 @@
                 <groupId>org.a2aproject.sdk</groupId>
                 <artifactId>a2a-java-sdk-bom</artifactId>
                 <version>${a2a.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.netcracker.cloud.quarkus</groupId>
+                <artifactId>cloud-core-quarkus-bom-publish</artifactId>
+                <version>${cloud-core.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -274,6 +283,28 @@
             <artifactId>quarkus-agroal</artifactId>
         </dependency>
 
+        <!-- Cloud Core: DBaaS, Consul config, tenant context -->
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>dbaas-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>dbaas-datasource-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>consul-config-source</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>framework-contexts</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -341,6 +372,11 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <systemProperties>
+                        <qip.ai.dbaas.agent.enabled>${qip.ai.dbaas.agent.enabled}</qip.ai.dbaas.agent.enabled>
+                    </systemProperties>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>io.smallrye</groupId>
@@ -514,6 +550,7 @@
                         <qip.test.pack-root>${qip.test.pack-root}</qip.test.pack-root>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
+                        <tenant.default.id>default</tenant.default.id>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
@@ -656,7 +693,7 @@
         <profile>
             <id>central</id>
             <activation>
-                <activeByDefault>true</activeByDefault>
+                <activeByDefault>false</activeByDefault>
             </activation>
             <build>
                 <plugins>
@@ -687,7 +724,7 @@
         <profile>
             <id>github</id>
             <activation>
-                <activeByDefault>false</activeByDefault>
+                <activeByDefault>true</activeByDefault>
             </activation>
             <distributionManagement>
                 <repository>
