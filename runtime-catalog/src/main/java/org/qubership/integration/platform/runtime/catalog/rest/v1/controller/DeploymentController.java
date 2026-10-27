@@ -28,6 +28,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.D
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.DeploymentRequest;
@@ -35,6 +36,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.Deploym
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -62,6 +64,7 @@ public class DeploymentController {
     private final DomainProperties domainProperties;
     private final BulkDeploymentService bulkDeploymentService;
     private final SnapshotService snapshotService;
+    private final ChainFinderService chainFinderService;
 
     @Autowired
     public DeploymentController(
@@ -70,7 +73,8 @@ public class DeploymentController {
             RuntimeDeploymentService runtimeDeploymentService,
             DomainProperties domainProperties,
             BulkDeploymentService bulkDeploymentService,
-            SnapshotService snapshotService
+            SnapshotService snapshotService,
+            ChainFinderService chainFinderService
     ) {
         this.deploymentService = deploymentService;
         this.deploymentMapper = deploymentMapper;
@@ -78,6 +82,7 @@ public class DeploymentController {
         this.domainProperties = domainProperties;
         this.bulkDeploymentService = bulkDeploymentService;
         this.snapshotService = snapshotService;
+        this.chainFinderService = chainFinderService;
     }
 
     @GetMapping
@@ -122,13 +127,18 @@ public class DeploymentController {
                 .filter(type -> type == DomainType.MICRO)
                 .isPresent()) {
             return verifyMicroDomainEnabled(() -> {
+                Chain chain = chainFinderService.findById(chainId);
                 Snapshot snapshot = snapshotService.findById(request.getSnapshotId());
+                if (!chain.getId().equals(snapshot.getChain().getId())) {
+                    throw new EntityNotFoundException(
+                            "Snapshot with id " + snapshot.getId() + " not found in chain " + chain.getId());
+                }
                 bulkDeploymentService.deployResource(ResourceDeployRequest.builder()
                         .name(request.getDomain())
                         .snapshotIds(List.of(snapshot.getId()))
                         .mode(request.getMode())
                         .build());
-                return ResponseEntity.ok(deploymentMapper.asMicroResponse(chainId, request.getDomain(), snapshot));
+                return ResponseEntity.ok(deploymentMapper.asMicroResponse(chain.getId(), request.getDomain(), snapshot));
             });
         }
         return verifyClassicDomainEnabled(() -> {
