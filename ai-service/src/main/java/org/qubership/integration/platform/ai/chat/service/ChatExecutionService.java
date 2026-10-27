@@ -90,24 +90,31 @@ public class ChatExecutionService {
 
   /**
    * A matched requirement answer carries {@code offerId}. A missing or stale offer carries the
-   * decision to emit again. Both null means this message is not answering a requirement offer.
+   * decision to emit again. A closed offer is a requirement id whose decision is already gone.
+   * {@code null} means this message is not answering a requirement offer.
    */
-  private record RequirementAnswer(String offerId, ChatEvent.Decision rebound) {}
+  private record RequirementAnswer(String offerId, ChatEvent.Decision rebound, boolean closedOffer) {}
 
   private RequirementAnswer requirementAnswer(String conversationId, ChatRequest request) {
     if (request.getDecision() != null) {
       return null;
     }
     java.util.Optional<ChatEvent.Decision> opened = decisionService.openDecision(conversationId);
-    if (opened == null || opened.isEmpty() || !isRequirementClarificationOffer(opened.get())) {
+    if (opened == null || opened.isEmpty()) {
+      if (carriesRequirementOffer(request.getClarificationOfferId())) {
+        return new RequirementAnswer(request.getClarificationOfferId(), null, true);
+      }
+      return null;
+    }
+    if (!isRequirementClarificationOffer(opened.get())) {
       return null;
     }
     ChatEvent.Decision current = opened.get();
     String offer = request.getClarificationOfferId();
     if (offer == null || offer.isBlank() || !offer.equals(current.id())) {
-      return new RequirementAnswer(null, current);
+      return new RequirementAnswer(null, current, false);
     }
-    return new RequirementAnswer(offer, null);
+    return new RequirementAnswer(offer, null, false);
   }
 
   private static boolean isRequirementClarificationOffer(ChatEvent.Decision decision) {
@@ -117,8 +124,40 @@ public class ChatExecutionService {
     if (decision.artifactType() != null && !decision.artifactType().isBlank()) {
       return false;
     }
-    String id = decision.id();
-    return id != null && !id.isBlank() && !id.startsWith("clarify:");
+    return carriesRequirementOffer(decision.id());
+  }
+
+  private static boolean carriesRequirementOffer(String offerId) {
+    return offerId != null && !offerId.isBlank() && !offerId.startsWith("clarify:");
+  }
+
+  /**
+   * SSE for a requirement offer whose decision is already closed.
+   *
+   * <p>A stored answer for this offer and canonical text is replayed as that turn. An offer with
+   * no stored answer is refused. Both results leave the archive unchanged and do not select a
+   * scenario.
+   */
+  private Multi<String> closedRequirementOffer(String conversationId, ChatRequest request) {
+    String offer = request.getClarificationOfferId();
+    String turnId = ConversationArchive.deterministicAnswerTurnId(offer, request.getMessage());
+    ConversationArchive.Document document = conversationService.archive().read(conversationId);
+    ConversationArchive.Turn archived = document.turns().stream()
+        .filter(turn -> turnId.equals(turn.id()))
+        .findFirst()
+        .orElse(null);
+    ChatEvent event;
+    if (archived == null) {
+      event = ChatEvent.error("That offer is not current.");
+    } else {
+      int index = document.activeTurnIds().indexOf(archived.id());
+      event = new ChatEvent.Meta(conversationId, true, index < 0 ? null : index);
+    }
+    return Multi.createFrom()
+        .item(event)
+        .map(this::toSse)
+        .onCompletion()
+        .continueWith("event: done\ndata: " + conversationId + "\n\n");
   }
 
   private Multi<String> reemitOpenDecision(String conversationId, ChatEvent.Decision decision) {
@@ -231,7 +270,12 @@ public class ChatExecutionService {
     if (requirementAnswer != null && requirementAnswer.rebound() != null) {
       return reemitOpenDecision(conversationId, requirementAnswer.rebound());
     }
+    if (requirementAnswer != null && requirementAnswer.closedOffer()) {
+      return closedRequirementOffer(conversationId, request);
+    }
     String matchedOffer = requirementAnswer == null ? null : requirementAnswer.offerId();
+    // The coordinator reads this field. Only a matched requirement offer may remain set.
+    request.setClarificationOfferId(matchedOffer);
 
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
 
