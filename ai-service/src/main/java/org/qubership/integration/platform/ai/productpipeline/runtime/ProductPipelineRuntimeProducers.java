@@ -177,6 +177,17 @@ public class ProductPipelineRuntimeProducers {
 
   @Produces
   @ApplicationScoped
+  FailureNarrative failureNarrative(FailureNarrativeAgent agent, AppConfig appConfig) {
+    AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig = appConfig.create().failureNarrative();
+    return new FailureNarrative(
+        agent,
+        narrativeConfig.maxCallsPerRun(),
+        narrativeConfig.timeout(),
+        appConfig.create().runCacheIdleTimeout());
+  }
+
+  @Produces
+  @ApplicationScoped
   ProductPipelineRunSupport runSupport(
       ProductPipelineRunStore runs,
       ProductPipelineArtifactStore artifacts,
@@ -184,7 +195,7 @@ public class ProductPipelineRuntimeProducers {
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
       ApprovalPromptAgent approvalPromptAgent,
-      FailureNarrativeAgent failureNarrativeAgent,
+      FailureNarrative failureNarrative,
       S3Service s3Service,
       AppConfig appConfig,
       RecoveryOutcomeTelemetry recoveryTelemetry,
@@ -199,8 +210,6 @@ public class ProductPipelineRuntimeProducers {
       org.qubership.integration.platform.ai.plan.RequirementDraftStore requirementDrafts,
       org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore captureFeedback,
       org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl) {
-    AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
-        appConfig.create().failureNarrative();
     return new ProductPipelineRunSupport(
         runs,
         artifacts,
@@ -210,11 +219,7 @@ public class ProductPipelineRuntimeProducers {
         Clock.systemUTC(),
         new ApprovalPrompts(approvalPromptAgent),
             s3Service,
-            new FailureNarrative(
-                failureNarrativeAgent,
-                narrativeConfig.maxCallsPerRun(),
-                narrativeConfig.timeout(),
-                appConfig.create().runCacheIdleTimeout()),
+            failureNarrative,
             appConfig.create().runCacheIdleTimeout(),
             appConfig.create().repeatedFailureThreshold(),
             new RecoveryAttemptLedger(

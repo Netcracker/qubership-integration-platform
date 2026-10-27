@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.openai.OpenAiResponsesChatRequestParameters;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -58,7 +56,6 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDe
  * evidence, so each answer is remembered under its own pause kind and the two cannot answer for
  * each other.
  */
-@ApplicationScoped
 public final class FailureNarrative {
 
   private static final Logger LOG = Logger.getLogger(FailureNarrative.class);
@@ -131,8 +128,7 @@ public final class FailureNarrative {
             .asMap();
   }
 
-  /** Application bean. Callers that pass a budget use the other constructors. */
-  @Inject
+  /** Unbounded variant for tests and callers that hold no configuration. */
   public FailureNarrative(FailureNarrativeAgent agent) {
     this(agent, UNBOUNDED_CALLS, null);
   }

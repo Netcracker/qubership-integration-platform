@@ -102,10 +102,13 @@ public class ChatExecutionService {
     }
     if (decisionService.withholdsRequirementOffer(conversationId)) {
       // A policy card accepts only its actions. Free text shows that card again.
-      java.util.Optional<ChatEvent.Decision> policy = decisionService.openDecision(conversationId)
-          .filter(decision -> PolicyChoiceSelection.ARTIFACT_TYPE.equals(decision.artifactType()));
-      if (policy.isPresent()) {
-        return new RequirementAnswer(null, policy.get(), false);
+      java.util.Optional<ChatEvent.Decision> opened = decisionService.openDecision(conversationId);
+      if (opened != null) {
+        var policy = opened.filter(decision ->
+            PolicyChoiceSelection.ARTIFACT_TYPE.equals(decision.artifactType()));
+        if (policy.isPresent()) {
+          return new RequirementAnswer(null, policy.get(), false);
+        }
       }
       return null;
     }
