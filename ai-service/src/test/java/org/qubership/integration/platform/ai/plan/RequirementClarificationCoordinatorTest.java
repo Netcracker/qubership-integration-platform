@@ -136,6 +136,22 @@ class RequirementClarificationCoordinatorTest {
   }
 
   @Test
+  void authoredChainCallQuestionStaysActiveWhenTargetIsResolved() {
+    String chainQuestion = "Which chain-trigger element id should this chain call use?";
+    var asked = question("chain-target", chainQuestion, AuthorQuestionEvidence.Kind.CATALOG_CHOICE, "child",
+        "targetReference");
+    var draft = RequirementCaptureProjection.toDraft(chainCall(List.of(asked), "trigger-element"), null, List.of(),
+        "1", "hash", java.util.Map.of("child", "resolved-trigger"));
+    var active = coordinator.activeQuestion(revision(), draft, "source-gen-1").orElseThrow();
+
+    assertEquals(java.util.Map.of("child", "resolved-trigger"),
+        RequirementCaptureProjection.resolvedTargets(draft));
+    assertEquals(asked, active.question());
+    assertEquals(chainQuestion, active.question().text());
+    assertEquals(List.of(chainQuestion), draft.openQuestions());
+  }
+
+  @Test
   void offerIdDigestsIdentityWithoutQuestionText() {
     var asked = question("path-question", "What is the helper URI?", AuthorQuestionEvidence.Kind.MISSING_VALUE, "helper", "path");
     var active = coordinator.activeQuestion(revision(), draft(List.of(asked), List.of(), List.of()), "source-gen-1")

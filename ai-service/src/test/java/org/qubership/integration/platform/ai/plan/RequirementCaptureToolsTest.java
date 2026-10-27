@@ -761,7 +761,7 @@ class RequirementCaptureToolsTest {
       var saved = store.get(chat).orElseThrow();
       var expectedQuestions = new ArrayList<String>();
       if (otherQuestions) expectedQuestions.add(methodQuestion.text());
-      if (!selected) expectedQuestions.add(targetQuestion.text());
+      expectedQuestions.add(targetQuestion.text());
       if (otherQuestions) expectedQuestions.add(rolesQuestion.text());
       assertEquals(expectedQuestions, saved.openQuestions());
       assertEquals(selected ? Map.of("call", second.id) : Map.of(),
@@ -772,8 +772,7 @@ class RequirementCaptureToolsTest {
       assertEquals(saved.openQuestions(), store.get(chat).orElseThrow().openQuestions());
       assertEquals(!selected, refreshed.pendingWork().stream()
           .anyMatch(work -> work.code().equals("TARGET_LOOKUP_REQUIRED")));
-      assertEquals(selected && !otherQuestions, saved.readyForPlan());
-      if (selected && !otherQuestions) assertTrue(refreshed.pendingWork().isEmpty(), refreshed.toString());
+      assertFalse(saved.readyForPlan());
     }
   }
 
