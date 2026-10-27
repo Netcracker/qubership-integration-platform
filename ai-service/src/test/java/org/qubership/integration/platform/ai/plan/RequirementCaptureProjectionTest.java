@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMe
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.RetryInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -360,6 +361,29 @@ class RequirementCaptureProjectionTest {
         "step-retry-retry".equals(fact.sourceFactId())
             && fact.polarity() == RequirementFactPolarity.POSITIVE
             && fact.text().contains("1 times")));
+  }
+
+  @Test
+  void projectionKeepsModelAuthoredChainCallQuestionText() {
+    String chainQuestion = "Which chain-trigger element id should this chain call use?";
+    String later = "Which retry count should the chain call use?";
+    DraftInput input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "GET /context", null, null, null),
+        new InteractionInput("child", Direction.OUTBOUND, "Existing chain", "Run", null, null, null)),
+        List.of(new TransitionInput("entry", "child"))),
+        List.of(new FactInput("goal", List.of("child"), FactKind.GOAL, Polarity.POSITIVE, "Call the existing chain.")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/context", null, null, null),
+            new CapabilityInput("child", "chain-call-2", null, null, null, null, null, "trigger-element")),
+        List.of(new QuestionInput("chain-target", List.of("child"), chainQuestion),
+            new QuestionInput("retry", List.of("child"), later)),
+        new DraftSettings(false, null));
+
+    RequirementDraft unresolved = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+    RequirementDraft resolved = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash",
+        Map.of("child", "resolved-trigger"));
+
+    assertEquals(List.of(chainQuestion, later), unresolved.openQuestions());
+    assertEquals(List.of(chainQuestion, later), resolved.openQuestions());
   }
 
   @Test

@@ -400,7 +400,7 @@ class RequirementDiscoveryCapabilityTest {
     var projected = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
         input, null, List.of(), "1", "hash", resolved
             ? Map.of("child", "11111111-1111-4111-8111-111111111111") : Map.of());
-    assertEquals(resolved, projected.openQuestions().isEmpty());
+    assertTrue(projected.openQuestions().isEmpty(), projected.openQuestions().toString());
     store.put("composition-choice", projected);
     var capability = new RequirementDiscoveryCapability(null, store, (conversation, text) -> {
       store.finishTurn(conversation, RequirementDiscoveryDirective.STAY);
@@ -411,13 +411,164 @@ class RequirementDiscoveryCapabilityTest {
         .collect().asList().await().indefinitely();
     var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
         .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
     if (resolved) {
+      assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
       assertEquals(PipelineGates.REQUIREMENT_DRAFT_READY, PipelineGates.gateOf(outcome.message()).orElseThrow());
       assertTrue(store.get("composition-choice").orElseThrow().openQuestions().isEmpty());
     } else {
-      assertTrue(outcome.message().contains(projected.openQuestions().getFirst()), outcome.message());
+      assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+      assertFalse(outcome.message().contains("Choose the catalog chain"), outcome.message());
+      assertTrue(outcome.recoveryCause().findings().stream().anyMatch(finding ->
+          "TARGET_LOOKUP_REQUIRED".equals(finding.code())), outcome.toString());
     }
+  }
+
+  @Test
+  void twoAuthoredQuestionsPresentOnlyTheFirstQuestionText() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var conversations = new ConversationService();
+    var blobs = new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore();
+    var store = new RequirementDraftStore(
+        new CompilationArtifacts(blobs, mapper, java.time.Clock.systemUTC()),
+        new org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions(
+            blobs, mapper, java.time.Clock.systemUTC()), conversations);
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+    var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(store,
+        new RequirementDraftTool(store), mapper,
+        new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
+        feedback, null, null, null, conversations);
+    String chat = "serialized-questions";
+    String sourceText = "Receive GET /context, then call an HTTP helper with GET. I have not chosen its runtime URI"
+        + " or the entry description. Proceed without IDS.";
+    var source = conversations.archive().beginInput(chat, sourceText, null);
+    conversations.archive().resolveInput(chat, source, sourceText);
+    String first = "What is the helper's full runtime HTTP URI?";
+    String second = "Which description should the entry use?";
+    var evidence = org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE;
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "GET /context", null, null, null),
+        new InteractionInput("helper", Direction.OUTBOUND, "HTTP helper", "GET", null, null, null)),
+        List.of(new TransitionInput("entry", "helper"))),
+        List.of(new FactInput("goal", List.of("helper"), FactKind.GOAL, Polarity.POSITIVE, "Inspect the request context."),
+            nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("helper", "http-sender")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/context", null, null, null),
+            new CapabilityInput("helper", "http-sender", null, HttpMethod.GET, null, null, null, null)),
+        List.of(new QuestionInput("helper-path", List.of("helper"), first,
+                new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("helper", "path",
+                    evidence, List.of(source.turnId()))),
+            new QuestionInput("entry-description", List.of("entry"), second,
+                new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("entry",
+                    "description", evidence, List.of(source.turnId())))),
+        new DraftSettings(false, null));
+    var captured = new AtomicReference<String>();
+    var capability = new RequirementDiscoveryCapability(null, store, null, (conversation, text) -> {
+      captured.set(tools.captureRequirementDraft(input));
+      tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    }, conversations);
+    capability.captureFeedback = feedback;
+    var outcome = capability.execute(new StageExecutionContext("serialized-run", chat, "requirement-discovery",
+        "exec", "attempt", null, null, List.of(), Map.of("userText", sourceText)))
+        .collect().asList().await().indefinitely().stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+
+    assertTrue(mapper.readTree(captured.get()).path("accepted").asBoolean(), captured.get());
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
+    assertEquals(PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, first), outcome.message());
+    assertFalse(outcome.message().contains(second), outcome.message());
+  }
+
+  @Test
+  void legacyProjectedQuestionRequestsFocusedRecapture() {
+    var store = new RequirementDraftStore();
+    String question = "Which catalog folder should contain this chain?";
+    var legacy = new RequirementDraft(false, "Known requirements", DraftDecision.NEEDS_INPUT, List.of(question),
+        "gather", "1", "hash", null, false, List.of(), false, null, false, RequirementFlow.EMPTY);
+    store.put("legacy-projected", legacy);
+    var capability = new RequirementDiscoveryCapability(null, store, (conversation, text) -> {
+      store.finishTurn(conversation, RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    var outcome = capability.execute(new StageExecutionContext("legacy-projected-run", "legacy-projected",
+        "requirement-discovery", "exec", "attempt", null, null, List.of(), Map.of("userText", "Continue")))
+        .collect().asList().await().indefinitely().stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+    assertEquals("Review the saved sources and capture a scoped author question before waiting for more input.",
+        outcome.message());
+    assertFalse(outcome.message().contains(question), outcome.message());
+    assertTrue(outcome.recoveryCause().findings().stream().anyMatch(finding ->
+        "AUTHOR_QUESTION_NOT_SUPPORTED".equals(finding.code())), outcome.toString());
+  }
+
+  @Test
+  void queueHeadThatMissesNewerSourceTurnsRequestsFocusedRecapture() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var conversations = new ConversationService();
+    var blobs = new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore();
+    var store = new RequirementDraftStore(
+        new CompilationArtifacts(blobs, mapper, java.time.Clock.systemUTC()),
+        new org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions(
+            blobs, mapper, java.time.Clock.systemUTC()), conversations);
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+    var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(store,
+        new RequirementDraftTool(store), mapper,
+        new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
+        feedback, null, null, null, conversations);
+    String chat = "stale-question-head";
+    String sourceText = "Receive GET /context, then call an HTTP helper. I have not chosen its runtime URI."
+        + " Proceed without IDS.";
+    String question = "What is the helper's full runtime HTTP URI?";
+    var source = conversations.archive().beginInput(chat, sourceText, null);
+    conversations.archive().resolveInput(chat, source, sourceText);
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "GET /context", null, null, null),
+        new InteractionInput("helper", Direction.OUTBOUND, "HTTP helper", "GET", null, null, null)),
+        List.of(new TransitionInput("entry", "helper"))),
+        List.of(new FactInput("goal", List.of("helper"), FactKind.GOAL, Polarity.POSITIVE, "Inspect the request context."),
+            nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("helper", "http-sender")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/context", null, null, null),
+            new CapabilityInput("helper", "http-sender", null, HttpMethod.GET, null, null, null, null)),
+        List.of(new QuestionInput("helper-path", List.of("helper"), question,
+            new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("helper", "path",
+                org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+                List.of(source.turnId())))),
+        new DraftSettings(false, null));
+    var captured = new AtomicReference<String>();
+    var capability = new RequirementDiscoveryCapability(null, store, null, (conversation, text) -> {
+      captured.set(tools.captureRequirementDraft(input));
+      tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    }, conversations);
+    capability.captureFeedback = feedback;
+    capability.execute(new StageExecutionContext("stale-run", chat, "requirement-discovery", "exec", "attempt",
+        null, null, List.of(), Map.of("userText", sourceText))).collect().asList().await().indefinitely();
+    assertTrue(mapper.readTree(captured.get()).path("accepted").asBoolean(), captured.get());
+    var later = conversations.archive().beginInput(chat, "Also keep a 30 second timeout.", null);
+    conversations.archive().resolveInput(chat, later, "Also keep a 30 second timeout.");
+    store.beginTurn(chat, "Also keep a 30 second timeout.");
+    var second = new RequirementDiscoveryCapability(null, store, null, (conversation, text) -> {
+      store.finishTurn(conversation, RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    }, conversations);
+    second.captureFeedback = feedback;
+    var outcome = second.execute(new StageExecutionContext("stale-rerun", chat, "requirement-discovery", "exec",
+        "attempt", null, null, List.of(), Map.of("userText", "Also keep a 30 second timeout.")))
+        .collect().asList().await().indefinitely().stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+    assertEquals("Review the saved sources and capture a scoped author question before waiting for more input.",
+        outcome.message());
+    assertFalse(outcome.message().contains(question), outcome.message());
+    assertTrue(outcome.recoveryCause().findings().stream().anyMatch(finding ->
+        "AUTHOR_QUESTION_NOT_SUPPORTED".equals(finding.code())), outcome.toString());
   }
 
   @ParameterizedTest
@@ -1921,9 +2072,10 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
-    assertEquals(PipelineGates.STAGE_CLARIFICATION,
-        PipelineGates.gateOf(completed.get().outcome().message()).orElseThrow());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.get().outcome().outcomeClass());
+    assertEquals("Review the saved sources and capture a scoped author question before waiting for more input.",
+        completed.get().outcome().message());
+    assertFalse(completed.get().outcome().message().contains("Which service or API should check pending payments?"));
     assertFalse(completed.get().outcome().message().contains("READY_FOR_PLAN"));
   }
 
@@ -2235,7 +2387,10 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.get().outcome().outcomeClass());
+    assertEquals("Review the saved sources and capture a scoped author question before waiting for more input.",
+        completed.get().outcome().message());
+    assertFalse(completed.get().outcome().message().contains("Import the uploaded specification?"));
     assertTrue(completed.get().outcome().candidates().isEmpty());
   }
 
@@ -2867,7 +3022,14 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals("repair".equals(scenario) ? 1 : 0, calls.get());
     var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
         .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+    if ("repair".equals(scenario)) {
+      assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+    } else {
+      assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+      assertEquals("Review the saved sources and capture a scoped author question before waiting for more input.",
+          outcome.message());
+      assertFalse(outcome.message().contains("Which endpoint should receive the request?"));
+    }
   }
 
   @Test

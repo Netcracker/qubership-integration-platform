@@ -447,17 +447,6 @@ public final class RequirementCaptureProjection {
     boolean ready = remaining.isEmpty()
         && RequirementFlowValidator.validateBindings(flow, facts, bindings).isEmpty();
     List<String> openQuestions = input.openQuestions().stream().map(QuestionInput::text).toList();
-    var chainCalls = input.capabilities().stream()
-        .filter(capability -> "chain-call-2".equals(capability.capabilityKey())).toList();
-    if (!chainCalls.isEmpty()) {
-      var unresolved = chainCalls.stream()
-          .filter(capability -> !targets.containsKey(capability.interactionId())).findFirst();
-      openQuestions = unresolved.isPresent()
-          ? RequirementDraftTool.replaceChainCallUuidQuestions(openQuestions,
-              org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder
-                  .pickerQuestion(unresolved.get().interactionId()))
-          : RequirementDraftTool.dropChainCallUuidQuestions(openQuestions);
-    }
     String candidateInteractionId = previous == null
         ? null : previous.apiHubCandidateInteractionId();
     boolean candidateBound = candidateInteractionId != null && bindings.stream()
