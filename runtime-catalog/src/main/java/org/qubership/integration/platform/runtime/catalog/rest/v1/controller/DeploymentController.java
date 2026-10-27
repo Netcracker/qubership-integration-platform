@@ -118,7 +118,9 @@ public class DeploymentController {
     public ResponseEntity<DeploymentResponse> create(@PathVariable @Parameter(description = "Chain id") String chainId,
                                                      @RequestBody @Valid @Parameter(description = "Deployment request object") DeploymentRequest request) {
         log.info("Request to create new deployment in chain: {}", chainId);
-        if (DomainType.MICRO.equals(bulkDeploymentService.resolveDomainType(request.getDomain()))) {
+        if (bulkDeploymentService.discoverDomainType(request.getDomain())
+                .filter(type -> type == DomainType.MICRO)
+                .isPresent()) {
             return verifyMicroDomainEnabled(() -> {
                 Snapshot snapshot = snapshotService.findById(request.getSnapshotId());
                 bulkDeploymentService.deployResource(ResourceDeployRequest.builder()
