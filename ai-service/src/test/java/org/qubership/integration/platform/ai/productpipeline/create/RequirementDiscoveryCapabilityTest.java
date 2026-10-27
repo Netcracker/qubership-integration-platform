@@ -16,7 +16,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,8 @@ import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonCo
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
@@ -40,6 +44,7 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSys
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
@@ -60,11 +65,14 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Intera
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureResult;
+import org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -79,6 +87,16 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
+import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
+import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
@@ -192,24 +210,71 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   @Test
-  void anAdmittedClarificationCannotRepeatTheUnchangedQuestion() {
-    var store = new RequirementDraftStore();
-    var initial = new RequirementDraft(false, "Known requirements", DraftDecision.NEEDS_INPUT,
-        List.of("Which endpoint should receive the request?"), "gather", "1", "hash", null, false,
-        petstoreServiceCallDraft().facts(), false, null, false, petstoreServiceCallDraft().flow(), List.of(), null);
-    store.put("answered-chat", initial);
-    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
-      store.finishTurn(chat, RequirementDiscoveryDirective.STAY);
+  void anAdmittedClarificationCannotRepeatTheUnchangedQuestion() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var conversations = new ConversationService();
+    var h = captureHarness(null, conversations);
+    String chat = "answered-chat";
+    String author = "Receive POST /tasks and send the result to an HTTP endpoint. Ask me for its URI. Proceed without IDS.";
+    var archive = conversations.archive();
+    var source = archive.beginInput(chat, author, null);
+    archive.resolveInput(chat, source, author);
+    var question = new QuestionInput("delivery-uri", List.of("delivery"), "Which endpoint should receive the request?",
+        new AuthorQuestionEvidence("delivery", "path", AuthorQuestionEvidence.Kind.MISSING_VALUE, List.of(source.turnId())));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks", null, null, null),
+        new InteractionInput("delivery", Direction.OUTBOUND, "HTTP endpoint", "POST", null, null, null)),
+        List.of(new TransitionInput("entry", "delivery"))),
+        List.of(new FactInput("goal", List.of("delivery"), FactKind.GOAL, Polarity.POSITIVE, "Deliver the request."),
+            nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("delivery", "http-sender")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/tasks", null, null, null),
+            new CapabilityInput("delivery", "http-sender", null, HttpMethod.POST, null, null, null, null)),
+        List.of(question), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open(chat)) {
+      h.store().beginTurn(chat, author);
+      var captured = mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var waiting = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(waiting.accepted(), waiting.toString());
+    }
+    var initial = h.store().get(chat).orElseThrow();
+    var revision = h.store().latestRevision(chat).orElseThrow();
+    var coordinator = new RequirementClarificationCoordinator();
+    var active = coordinator.activeQuestion(revision, initial, archive.read(chat).generation()).orElseThrow();
+    var offer = coordinator.createOffer(active, 6L);
+    var runs = new ProductPipelineRunStore(new InMemoryArtifactBlobStore(), mapper, Clock.systemUTC());
+    var stages = List.of(new StageSnapshot("requirement-discovery", StageStatus.RUNNING, List.of(), null));
+    var created = runs.create(new RunSnapshot("answered-run", chat, 5L, RunStatus.RUNNING,
+        "requirement-discovery", stages, null));
+    var now = Instant.parse("2026-01-01T00:00:00Z");
+    var transition = new RunTransition(5L, 6L, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT,
+        "requirement-discovery", now, "clarification", null, null, new ClarificationTransition(offer, null));
+    var attempt = new StageAttempt("attempt", "requirement-discovery", 6L, StageStatus.WAITING_FOR_INPUT,
+        now, now, List.of(), null);
+    runs.commit(5L, LogicalCommit.statusChange(created.run(), StageStatus.WAITING_FOR_INPUT, stages, attempt, transition));
+    h.store().useRunJournal(runs);
+    String reply = "Use https://example.com/tasks.";
+    var answer = archive.beginInput(chat, ConversationArchive.deterministicAnswerTurnId(offer.offerId(), reply), reply,
+        mapper.createObjectNode().put("clarificationOfferId", offer.offerId()));
+    archive.resolveInput(chat, answer, reply);
+    var capability = new RequirementDiscoveryCapability(null, h.store(), null, (cid, text) -> {
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
       return Multi.createFrom().empty();
-    });
-    var signals = capability.execute(new StageExecutionContext("answered-run", "answered-chat",
+    }, conversations);
+    capability.captureFeedback = h.feedback();
+    var signals = capability.execute(new StageExecutionContext("answered-run", chat,
         "requirement-discovery", "execution", "attempt", null, null, List.of(),
-        Map.of("userText", "Use the existing endpoint.", "admittedInputGate", PipelineGates.STAGE_CLARIFICATION,
+        Map.of("userText", reply, "admittedInputGate", PipelineGates.STAGE_CLARIFICATION,
             "admittedInputRevision", 6L))).collect().asList().await().indefinitely();
     var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
         .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
-    assertTrue(outcome.recoveryCause().findings().stream().anyMatch(f -> "UNAPPLIED_AUTHOR_ANSWER".equals(f.code())));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+    assertEquals(List.of("UNAPPLIED_AUTHOR_ANSWER"),
+        outcome.recoveryCause().findings().stream().map(finding -> finding.code()).toList());
+    assertEquals(initial, h.store().get(chat).orElseThrow());
+    assertEquals(revision.reference(), h.store().latestRevision(chat).orElseThrow().reference());
+    assertTrue(h.store().latestClarificationAnswer(chat).isEmpty(), "An unapplied answer must not be consumed.");
   }
 
   @ParameterizedTest
@@ -793,9 +858,8 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(1, calls.get(), "Internal output repair must not wait for a new author message");
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void automaticDiscoveryReentryCannotDropAcceptedOrRejectedFacts(boolean initialCaptureAccepted) {
+  @Test
+  void automaticDiscoveryReentryCannotDropAcceptedFacts() {
     var h = captureHarness(null);
     var attempts = new AtomicInteger();
     var goal = new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Create one task.");
@@ -805,39 +869,73 @@ class RequirementDiscoveryCapabilityTest {
         List.of(goal, constraint), List.of(),
         List.of(new QuestionInput("entry", List.of(), "What starts the integration?")),
         new DraftSettings(null, null));
-    var lost = new DraftInput(complete.flow(), List.of(goal), List.of(), List.of(), complete.settings());
     var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
       int attempt = attempts.getAndIncrement();
       if (attempt == 0) {
-        h.tools().captureRequirementDraft(initialCaptureAccepted ? complete
-            : new DraftInput(null, complete.facts(), List.of(), List.of(), complete.settings()));
-      } else if (initialCaptureAccepted && attempt == 1) {
+        h.tools().captureRequirementDraft(complete);
+      } else if (attempt == 1) {
         h.tools().updateRequirementDraft(new DraftUpdate(List.of(), List.of(), List.of(),
             List.of(), List.of(), List.of(), List.of(), List.of(constraint.sourceFactId()),
             List.of(), List.of(), List.of(), List.of(), List.of(), null));
       } else {
-        h.tools().captureRequirementDraft(attempt == 1 ? lost : complete);
+        h.tools().captureRequirementDraft(complete);
       }
       h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
       return Multi.createFrom().empty();
     });
     capability.captureFeedback = h.feedback();
-    assertEquals(initialCaptureAccepted ? StageOutcomeClass.NEEDS_INPUT : StageOutcomeClass.CONTRACT_FAILURE,
+    assertEquals(StageOutcomeClass.NEEDS_INPUT,
         discoveryOutcome(capability).outcomeClass());
 
     var rejected = discoveryOutcome(capability);
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, rejected.outcomeClass(), rejected.toString());
-    assertTrue(h.feedback().lastRequirementRejection("conv-rejected").orElseThrow().issues().stream()
-        .anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())));
-    if (initialCaptureAccepted) {
-      assertEquals(complete, h.store().get("conv-rejected").orElseThrow().authoredDraft());
-    } else {
-      assertTrue(h.store().get("conv-rejected").isEmpty());
-    }
+    var refusal = h.feedback().lastRequirementRejection("conv-rejected");
+    assertTrue(refusal.isPresent(), rejected.toString());
+    assertEquals(List.of("REPAIR_FACT_LOSS"), refusal.orElseThrow().issues().stream().map(issue -> issue.code()).toList());
+    assertEquals(complete, h.store().get("conv-rejected").orElseThrow().authoredDraft());
 
     assertEquals(StageOutcomeClass.NEEDS_INPUT, discoveryOutcome(capability).outcomeClass());
     assertEquals(complete, h.store().get("conv-rejected").orElseThrow().authoredDraft());
     assertTrue(h.feedback().lastRequirementRejection("conv-rejected").isEmpty());
+  }
+
+  @Test
+  void automaticDiscoveryReentryDoesNotPromoteRejectedFactsToRequirements() throws Exception {
+    var h = captureHarness(null);
+    var goal = new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Create one task.");
+    var constraint = new FactInput("body-logging", List.of(), FactKind.CONSTRAINT,
+        Polarity.NEGATIVE, "Do not log the input body.");
+    var invalid = new DraftInput(null, List.of(goal, constraint), List.of(), List.of(), new DraftSettings(null, null));
+    var corrected = new DraftInput(new FlowInput(List.of(), List.of()), List.of(goal), List.of(),
+        List.of(new QuestionInput("entry", List.of(), "What starts the integration?")), invalid.settings());
+    var attempts = new AtomicInteger();
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.tools().captureRequirementDraft(attempts.getAndIncrement() == 0 ? invalid : corrected);
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    capability.captureFeedback = h.feedback();
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, discoveryOutcome(capability).outcomeClass());
+    assertTrue(h.store().get("conv-rejected").isEmpty(), "A rejected candidate must not create an accepted draft.");
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    try (var ignored = ToolSession.open("conv-rejected")) {
+      var pending = mapper.readValue(h.tools().readRequirementDraft(), RequirementCaptureResult.class);
+      assertNotNull(pending.pendingProposal(), pending.toString());
+      assertEquals(invalid, pending.pendingProposal().draft());
+    }
+    assertTrue(h.store().semanticBaseline("conv-rejected").isEmpty(), "A rejected candidate must not establish claims.");
+    assertNull(h.store().repairConstraints("conv-rejected"));
+
+    var outcome = discoveryOutcome(capability);
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
+    assertEquals(corrected, h.store().get("conv-rejected").orElseThrow().authoredDraft());
+    assertTrue(h.feedback().lastRequirementRejection("conv-rejected").isEmpty(), "Rejected facts must not require preservation.");
+    try (var ignored = ToolSession.open("conv-rejected")) {
+      var saved = mapper.readValue(h.tools().readRequirementDraft(), RequirementCaptureResult.class);
+      assertNull(saved.pendingProposal(), saved.toString());
+    }
+    assertTrue(h.store().semanticBaseline("conv-rejected").isEmpty(), "Unquoted draft facts must not become source-backed claims.");
+    assertEquals(2, attempts.get());
   }
 
   @Test
@@ -1263,20 +1361,27 @@ class RequirementDiscoveryCapabilityTest {
 
   private static CaptureHarness captureHarness(
       org.qubership.integration.platform.ai.chain.folder.CatalogFolders folders) {
-    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
-    var store = new RequirementDraftStore();
+    return captureHarness(folders, null);
+  }
+
+  private static CaptureHarness captureHarness(
+      org.qubership.integration.platform.ai.chain.folder.CatalogFolders folders, ConversationService conversations) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var store = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
     var adapter = mock(RequirementDraftTool.class);
     var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
     var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
     var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(store, adapter, mapper,
         new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
-        feedback, null, folders);
+        feedback, null, folders, null, conversations);
     return new CaptureHarness(store, feedback, tools);
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  void nativeRejectionPrecedesPreservationConsequencesAndKeepsCandidateReferences(boolean repeated) {
+  @ValueSource(ints = {1, 2, 3})
+  void nativeRejectionPrecedesPreservationConsequencesAndKeepsCandidateReferences(int attempts) throws Exception {
     var h = captureHarness(null);
     var base = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
         "Caller", "POST /tasks", "Create tasks", null, null)), List.of()),
@@ -1288,10 +1393,10 @@ class RequirementDiscoveryCapabilityTest {
         List.of(), List.of(), List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
             "/tasks", null, null, null)), List.of(), List.of(), List.of(), List.of(), null,
         List.of(new AmendmentInput("/capabilities/entry/httpMethod", "obsolete-source", "Use GET")));
+    var refusals = new java.util.ArrayList<String>();
     var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
       h.tools().captureRequirementDraft(base);
-      h.tools().updateRequirementDraft(changes);
-      if (repeated) h.tools().updateRequirementDraft(changes);
+      for (int attempt = 0; attempt < attempts; attempt++) refusals.add(h.tools().updateRequirementDraft(changes));
       return Multi.createFrom().empty();
     });
     capability.captureFeedback = h.feedback();
@@ -1299,7 +1404,14 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
     var cause = outcome.recoveryCause();
     assertEquals("INVALID_AUTHOR_AMENDMENT", cause.findings().getFirst().code());
-    assertEquals(repeated, cause.noProgress());
+    assertEquals(attempts == 3, cause.noProgress());
+    if (attempts > 1) {
+      var warning = new ObjectMapper().findAndRegisterModules().readValue(refusals.get(1), RequirementCaptureResult.class);
+      assertFalse(warning.accepted(), warning.toString());
+      assertEquals(RequirementCaptureResult.NextAction.REPAIR_CAPTURE, warning.nextAction());
+      assertEquals(List.of("INVALID_AUTHOR_AMENDMENT", "UNCHANGED_PROPOSAL"),
+          warning.issues().stream().map(issue -> issue.code()).toList());
+    }
     assertFalse(cause.captureFailure().consequentialFindings().isEmpty());
     assertEquals(h.store().latestRevision("conv-rejected").orElseThrow().reference(), cause.captureFailure().acceptedBase());
     assertEquals(org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT,
@@ -1484,7 +1596,12 @@ class RequirementDiscoveryCapabilityTest {
   @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"false,false", "true,false", "true,true"})
   void automaticMappingRepairRetainsOnlyAuthorizedEditsAcrossRetries(boolean mixedUpdate, boolean missingTarget) throws Exception {
-    var h = captureHarness(null);
+    var conversations = new ConversationService();
+    var h = captureHarness(null, conversations);
+    String chat = "automatic-repair-retry";
+    String author = "Return task results without an IDS. Set the delivery command to completeTask.";
+    var source = conversations.archive().beginInput(chat, author, null);
+    conversations.archive().resolveInput(chat, source, author);
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var mapping = new FactInput("result-id", List.of("entry", "delivery"), FactKind.FIELD_MAPPING,
         Polarity.POSITIVE, "Return the saved request ID.",
@@ -1497,7 +1614,8 @@ class RequirementDiscoveryCapabilityTest {
     var addition = new FactInput("command", List.of("entry", "delivery"), FactKind.FIELD_MAPPING,
         Polarity.POSITIVE, "Set the delivery command.",
         new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
-            "entry", null, "delivery", "$.command", "Constant completeTask"));
+            "entry", null, "delivery", "$.command", "Constant completeTask"), null, null,
+        new ClaimEvidenceInput(source.turnId(), "Set the delivery command to completeTask."));
     var initial = new DraftInput(new FlowInput(List.of(
         new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks", "Receive tasks", null, null),
         new InteractionInput("delivery", Direction.OUTBOUND, "Delivery", "POST /results", "Return results", null, null)),
@@ -1507,9 +1625,8 @@ class RequirementDiscoveryCapabilityTest {
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/tasks", null, null, null),
             new CapabilityInput("delivery", "http-sender", null, HttpMethod.POST, "http://localhost/results", null, null, null)),
         List.of(), new DraftSettings(false, null));
-    String chat = "automatic-repair-retry";
     try (var ignored = ToolSession.open(chat)) {
-      h.store().beginTurn(chat, "Return task results without an IDS.");
+      h.store().beginTurn(chat, author);
       assertTrue(mapper.readTree(h.tools().captureRequirementDraft(initial)).path("accepted").asBoolean());
     }
     var original = h.store().get(chat).orElseThrow();
