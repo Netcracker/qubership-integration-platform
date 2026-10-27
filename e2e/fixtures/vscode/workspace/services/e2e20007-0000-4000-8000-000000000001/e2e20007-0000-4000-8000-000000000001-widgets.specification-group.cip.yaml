@@ -1,0 +1,7 @@
+---
+id: "e2e20007-0000-4000-8000-000000000001-widgets"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group"
+name: "widgets"
+content:
+  synchronization: false
+  parentId: "e2e20007-0000-4000-8000-000000000001"

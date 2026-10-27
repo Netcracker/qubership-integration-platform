@@ -1,0 +1,61 @@
+---
+id: "e2e20005-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "vsc-fixture-chain-graphql"
+content:
+  description: "A GraphQL service call on vsc-fixture-graphql, and a mapper after it"
+  labels: []
+  elements:
+  - id: "e2e20005-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      accessControlType: "NONE"
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "vsc-fixture-chain-graphql"
+      externalRoute: true
+      handleChainFailureAction: "default"
+      handleValidationAction: "default"
+      httpBinding: "handlingHttpBinding"
+      httpMethodRestrict: "POST"
+      killSessionOnTimeout: false
+      privateRoute: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: "e2e20005-0000-4000-8000-000000000003"
+    name: "GraphQL Call"
+    type: "service-call"
+    properties:
+      systemType: "INTERNAL"
+      integrationSystemId: "e2e20007-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e20007-0000-4000-8000-000000000001-widgets"
+      integrationSpecificationId: "e2e20007-0000-4000-8000-000000000001-widgets-1.0.0"
+      integrationOperationId: "e2e20007-0000-4000-8000-000000000001-widgets-1.0.0-widget"
+      integrationOperationPath: "widget(id: ID!): Widget"
+      integrationOperationMethod: "query"
+      integrationOperationProtocolType: "graphql"
+      integrationGqlQuery: "query Widget($id: ID!) { widget(id: $id) { id name } }"
+      integrationGqlVariablesJSON: "{\"id\":\"vsc-widget\"}"
+      retryCount: 0
+      retryDelay: 5000
+  - id: "e2e20005-0000-4000-8000-000000000004"
+    name: "Mapper"
+    type: "mapper-2"
+    properties:
+      throwException: true
+      mappingDescription:
+        source:
+          headers: []
+          properties: []
+        target:
+          headers: []
+          properties: []
+        constants: []
+        actions: []
+  dependencies:
+  - from: "e2e20005-0000-4000-8000-000000000002"
+    to: "e2e20005-0000-4000-8000-000000000003"
+  - from: "e2e20005-0000-4000-8000-000000000003"
+    to: "e2e20005-0000-4000-8000-000000000004"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

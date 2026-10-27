@@ -151,12 +151,21 @@ const suite: SuiteProject[] = [
     dependencies: ["api", "runtime", "ui"],
   },
   {
+    // Builds `schemas/` when its sources are newer than its outputs, and `ui-server` bundles what it
+    // built. It reads and writes files only, so it needs no stack.
+    name: "schemas-build",
+    metadata: { stack: false, group: "setup" },
+    testDir: "./specs/schemas-build",
+    testMatch: /.*\.setup\.ts$/,
+  },
+  {
     // Serves the UI bundle on 4200, where nginx sends every request outside `/api/`, and stops it
     // again through its `teardown`. `testMatch` is not optional, for the reason `seed`'s is not.
     name: "ui-server",
     metadata: { group: "setup" },
     testDir: "./specs/ui-server",
     testMatch: /.*\.setup\.ts$/,
+    dependencies: ["schemas-build"],
     teardown: "ui-server-teardown",
   },
   {

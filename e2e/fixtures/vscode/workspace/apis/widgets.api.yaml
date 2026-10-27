@@ -1,0 +1,8 @@
+---
+id: "e2e20008-0000-4000-8000-000000000001"
+name: "vsc-fixture-widgets-api"
+description: "The API contract the specification import offers, pointing at widgets.openapi.yaml"
+content:
+  specificationType: "OpenAPI"
+  specifications:
+  - filePath: "widgets.openapi.yaml"

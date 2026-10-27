@@ -10,7 +10,7 @@ import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { newestMtimeMs, repoRoot } from "../env/host.js";
+import { newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
 import { processAlive } from "./run.js";
 import { sleep } from "./poll.js";
 import { readStateFile, writeStateFile } from "./state-file.js";
@@ -38,7 +38,7 @@ const BUILD_MARKER = "dist/.e2e-build";
  * production build, the schema sources the element forms are generated from, the help pages
  * `fetch-docs` copies, and the lockfile.
  */
-const BUNDLE_INPUTS = [
+export const BUNDLE_INPUTS = [
   "src",
   "public",
   "index.html",
@@ -104,32 +104,15 @@ async function bundleIsStale(): Promise<boolean> {
   return (await newestMtimeMs(uiDir(), BUNDLE_INPUTS)) > built;
 }
 
-/** Runs a command to completion and keeps its output, so a failure can quote the end of it. */
-function runToCompletion(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
-    const output: string[] = [];
-    child.stdout.on("data", (chunk: Buffer) => output.push(chunk.toString()));
-    child.stderr.on("data", (chunk: Buffer) => output.push(chunk.toString()));
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) return resolve();
-      const tail = output.join("").split("\n").slice(-40).join("\n");
-      reject(new Error(`${command} ${args.join(" ")} exited ${code}:\n${tail}`));
-    });
-  });
-}
-
 /**
- * Builds `schemas/dist` and then the bundle, the way the UI workspace does, `fetch-docs` included.
- *
- * `schemas/dist` is gitignored and `npm install` does not create it, and the UI resolves
- * `@netcracker/qip-schemas` to it. Rebuilding it with every bundle takes about 6 seconds and keeps
- * the element forms in step with the schema sources. `BUILD_ENV` is read at build time.
+ * The bundle build, `fetch-docs` included. `--ignore-scripts` skips the UI's `prebuild`, which would
+ * build the schemas a second time after the `schemas-build` project.
  */
+export const UI_BUILD_ARGS = ["run", "build", "--ignore-scripts", "-w", "@netcracker/qip-ui"];
+
+/** Builds the bundle with `BUILD_ENV`, which Vite reads at build time, and marks it as the suite's. */
 async function buildBundle(): Promise<void> {
-  await runToCompletion("npm", ["run", "build", "-w", "@netcracker/qip-schemas"], repoRoot(), process.env);
-  await runToCompletion("npm", ["run", "build", "-w", "@netcracker/qip-ui"], repoRoot(), {
+  await runToCompletion("npm", UI_BUILD_ARGS, repoRoot(), {
     ...process.env,
     ...BUILD_ENV,
   });

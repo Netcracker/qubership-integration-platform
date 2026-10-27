@@ -1,0 +1,11 @@
+---
+id: "e2e20006-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "vsc-fixture-chain-empty"
+content:
+  description: "A chain with no elements"
+  labels: []
+  elements: []
+  dependencies: []
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -31,7 +31,8 @@ const E2E_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 
 /**
  * The projects the config declared on 2026-09-24, before the target seam, with brokers on, and with
- * `suite-teardown` in place of `brokers-seed-teardown` and `harness` split off `schema`.
+ * `suite-teardown` in place of `brokers-seed-teardown`, `harness` split off `schema`, and
+ * `schemas-build` added ahead of `ui-server`.
  */
 const COMPOSE_PROJECTS = [
   "schema",
@@ -42,6 +43,7 @@ const COMPOSE_PROJECTS = [
   "tooling",
   "runtime",
   "env",
+  "schemas-build",
   "ui-server",
   "ui-server-teardown",
   "ui",
@@ -70,7 +72,8 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   tooling: "./specs/tooling; after seed",
   runtime: "./specs/runtime; after seed, tooling; parallel",
   env: "./specs/env; after api, runtime, ui; 1 worker",
-  "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; teardown ui-server-teardown",
+  "schemas-build": "./specs/schemas-build /.*\\.setup\\.ts$/",
+  "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; after schemas-build; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
   ui: "./specs/ui; after seed, ui-server; parallel",
   // The broker and micro teardowns wait for `global` without gating either side.
@@ -139,6 +142,14 @@ test.describe("target", () => {
         const harness = projects.find((each) => each.name === "harness");
         expect(harness && schedule(harness)).toBe("./specs/harness; parallel");
         expect(harness?.metadata).toEqual({ stack: false, group: "suite" });
+      }
+    });
+
+    test("both targets build the schemas, stack-free, before ui-server", () => {
+      for (const projects of [composeProjects(undefined), k8sProjects()]) {
+        const schemas = projects.find((each) => each.name === "schemas-build");
+        expect(schemas?.metadata).toEqual({ stack: false, group: "setup" });
+        expect([...waitsFor(projects, "ui-server")]).toEqual(["schemas-build"]);
       }
     });
 

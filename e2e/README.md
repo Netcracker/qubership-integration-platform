@@ -49,11 +49,13 @@ npx playwright install chromium
 Then run `npm install` at the repository root as well, because the `ui-server` project builds and
 serves the UI bundle itself. It rebuilds the production bundle when it is stale, starts
 `vite preview` on port 4200, and stops it at the end of the run; nginx on 8080 sends every request
-outside `/api/` to that port. The rebuild takes about 75 seconds: it builds `schemas/dist` first,
-because the UI imports it and `npm install` does not create it, then runs
-`npm run build -w @netcracker/qip-ui` with `VITE_PRODUCTION_MODE=false`. The bundle is stale when
-`ui/dist` was built outside the suite (the suite's own build leaves `ui/dist/.e2e-build` behind), or
-when anything it is built from is newer: `ui/src`, `ui/public`, the `ui/.env*` files,
+outside `/api/` to that port. Before it, the `schemas-build` project builds `schemas/` when
+`schemas/src/main` is newer than `schemas/assets`, `types`, or `dist`, because the UI imports
+`schemas/dist` and `npm install` does not create it. The rebuild of the bundle takes about 75
+seconds: `npm run build --ignore-scripts -w @netcracker/qip-ui` with `VITE_PRODUCTION_MODE=false`,
+where `--ignore-scripts` skips the `prebuild` that would build the schemas again. The bundle is
+stale when `ui/dist` was built outside the suite (the suite's own build leaves `ui/dist/.e2e-build`
+behind), or when anything it is built from is newer: `ui/src`, `ui/public`, the `ui/.env*` files,
 `schemas/src/main`, `help/docs`, or the lockfile.
 
 A server already answering on 4200 is used as found and left running. A dev server started with
@@ -112,6 +114,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | --- | --- | --- |
 | `schema`, `harness`, `api`, `tooling`, `ui`, `env`, `global` | yes | yes |
 | `seed`, `seed-teardown` | the corpus, deployed to the classic engine | the same |
+| `schemas-build` | build `schemas/` when its sources are newer, with no stack | the same |
 | `ui-server`, `ui-server-teardown` | build and serve the UI bundle on 4200, then stop it | the same |
 | `runtime` | `specs/runtime/` against the classic engine | the same |
 | `suite-teardown` | the teardowns of `seed-micro`, `brokers-seed`, and `brokers-micro-seed`, after `global` | the same |
@@ -225,12 +228,13 @@ the run uses the nightly value. The dispatch input `email`, on by default, makes
 the run email as well.
 
 Each project belongs to one of three groups, which every count below keeps apart. Product projects
-run the product's cases. Setup and teardown projects seed, serve, or remove what the product cases
-need: `seed`, `seed-micro`, `brokers-seed`, `brokers-micro-seed`, `ui-server`, `tooling`, and every
-teardown project, `suite-teardown` included. Suite checks are `schema` and `harness`, which test
-the suite's own files and code. A project declares its group as `metadata: { group: "setup" }` or
-`metadata: { group: "suite" }` in `playwright.config.ts` or `env/target-setup.ts`; a project that
-declares none is a product project. A failed case of any group fails the run.
+run the product's cases. Setup and teardown projects seed, build, serve, or remove what the product
+cases need: `seed`, `seed-micro`, `brokers-seed`, `brokers-micro-seed`, `schemas-build`,
+`ui-server`, `tooling`, and every teardown project, `suite-teardown` included. Suite checks are
+`schema` and `harness`, which test the suite's own files and code. A project declares its group as
+`metadata: { group: "setup" }` or `metadata: { group: "suite" }` in `playwright.config.ts` or
+`env/target-setup.ts`; a project that declares none is a product project. A failed case of any
+group fails the run.
 
 Start with the job's step summary, which `support/run-summary.mjs` writes. From the top, it holds:
 
