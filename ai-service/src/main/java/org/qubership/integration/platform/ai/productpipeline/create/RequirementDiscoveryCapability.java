@@ -546,6 +546,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
         "AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
       return Optional.empty();
     }
+    String saved = context.attributeAsString(ProductPipelineRunSupport.ADMITTED_CLARIFICATION_PROMPT_ATTR);
+    if (saved != null && !PipelineGates.strip(saved).isBlank()
+        && PipelineGates.TARGET_FOLDER_CHOICE.equals(PipelineGates.gateOf(saved).orElse(""))) {
+      return Optional.of(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, saved)));
+    }
     return Optional.of(folderQuestion(context, rejection));
   }
 

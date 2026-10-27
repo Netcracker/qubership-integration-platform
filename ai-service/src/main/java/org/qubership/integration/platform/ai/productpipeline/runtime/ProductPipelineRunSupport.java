@@ -111,6 +111,8 @@ public final class ProductPipelineRunSupport {
   public static final String ADMITTED_INPUT_REVISION_ATTR = "admittedInputRevision";
   /** Offer id the accepted requirement answer returned. Chain-call admission may write only that offer. */
   public static final String ADMITTED_CLARIFICATION_OFFER_ATTR = "admittedClarificationOfferId";
+  /** Tagged target-folder question the accepted answer replied to. An unknown answer repeats it verbatim. */
+  public static final String ADMITTED_CLARIFICATION_PROMPT_ATTR = "admittedClarificationPrompt";
 
   private static final Logger LOG = Logger.getLogger(ProductPipelineRunSupport.class);
 
@@ -1806,11 +1808,18 @@ public final class ProductPipelineRunSupport {
                 attributes.remove(ADMITTED_INPUT_GATE_ATTR);
                 attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
                 attributes.remove(ADMITTED_CLARIFICATION_OFFER_ATTR);
+                attributes.remove(ADMITTED_CLARIFICATION_PROMPT_ATTR);
                 if (PipelineGates.admitsAuthoredClarification(haltGate)
                     || PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
                     && ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(command.text().strip())) {
                   attributes.put(ADMITTED_INPUT_GATE_ATTR, haltGate);
                   attributes.put(ADMITTED_INPUT_REVISION_ATTR, doc.run().runRevision());
+                  if (PipelineGates.TARGET_FOLDER_CHOICE.equals(haltGate)) {
+                    String prompt = latestWaitingForInputPrompt(doc);
+                    if (prompt != null && !PipelineGates.strip(prompt).isBlank()) {
+                      attributes.put(ADMITTED_CLARIFICATION_PROMPT_ATTR, prompt);
+                    }
+                  }
                   if (PipelineGates.STAGE_CLARIFICATION.equals(haltGate)) {
                     var offer = openOffer(doc);
                     if (offer != null && offer.offerId() != null && !offer.offerId().isBlank()) {
@@ -4658,6 +4667,7 @@ public final class ProductPipelineRunSupport {
     attributes.remove(ADMITTED_INPUT_GATE_ATTR);
     attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
     attributes.remove(ADMITTED_CLARIFICATION_OFFER_ATTR);
+    attributes.remove(ADMITTED_CLARIFICATION_PROMPT_ATTR);
   }
 
   private String approvalPromptFor(String runId, String stageId) {
