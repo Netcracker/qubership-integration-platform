@@ -173,6 +173,58 @@ class RequirementClarificationCoordinatorTest {
   }
 
   @Test
+  void anUnchangedTargetProjectionIsNoProgress() {
+    var asked = question("path-question", "What is the helper URI?", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+        "helper", "path");
+    var before = draft(List.of(asked), List.of(), List.of());
+    var active = coordinator.activeQuestion(revision(), before, "source-gen-1").orElseThrow();
+    var reworded = new QuestionInput(asked.questionId(), asked.interactionIds(), "Which exact helper URI?",
+        new AuthorQuestionEvidence("helper", "path", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of("turn-1", "turn-2")));
+    var candidate = draft(List.of(reworded), List.of(), List.of());
+
+    var issues = coordinator.validateTransition(active, "turn-2", before, candidate, null);
+
+    assertEquals("CLARIFICATION_ANSWER_NO_PROGRESS", issues.getFirst().code());
+    assertEquals("path-question", issues.getFirst().entityId());
+  }
+
+  @Test
+  void aChangedTargetValueIsProgress() {
+    var asked = question("path-question", "What is the helper URI?", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+        "helper", "path");
+    var before = draft(List.of(asked), List.of(), List.of());
+    var active = coordinator.activeQuestion(revision(), before, "source-gen-1").orElseThrow();
+    var candidate = draft(List.of(asked), List.of(), List.of(), "https://hooks.example/other");
+
+    assertTrue(coordinator.validateTransition(active, "turn-2", before, candidate, null).isEmpty());
+  }
+
+  @Test
+  void ambiguousAndNonAnswerSkipTheNoProgressCheck() {
+    var asked = question("path-question", "What is the helper URI?", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+        "helper", "path");
+    var before = draft(List.of(asked), List.of(), List.of());
+    var active = coordinator.activeQuestion(revision(), before, "source-gen-1").orElseThrow();
+
+    assertTrue(coordinator.validateTransition(active, "turn-2", before, before,
+        ClarificationTransition.Disposition.AMBIGUOUS).isEmpty());
+    assertTrue(coordinator.validateTransition(active, "turn-2", before, before,
+        ClarificationTransition.Disposition.NON_ANSWER).isEmpty());
+  }
+
+  @Test
+  void aClosedPinnedQuestionIsNotNoProgress() {
+    var asked = question("path-question", "What is the helper URI?", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+        "helper", "path");
+    var before = draft(List.of(asked), List.of(), List.of());
+    var active = coordinator.activeQuestion(revision(), before, "source-gen-1").orElseThrow();
+
+    assertTrue(coordinator.validateTransition(active, "turn-2", before,
+        draft(List.of(), List.of(), List.of()), null).isEmpty());
+  }
+
+  @Test
   void projectedStringWithoutATypedQuestionIsNotAnActiveQuestion() {
     var legacy = new RequirementDraft(false, "Known requirements", DraftDecision.NEEDS_INPUT,
         List.of("Which endpoint should receive the request?"), "gather", "1", "hash", null, false, List.of(),
@@ -201,11 +253,16 @@ class RequirementClarificationCoordinatorTest {
 
   private static RequirementDraft draft(List<QuestionInput> questions, List<FactInput> extraFacts,
       List<CapabilityInput> extraCapabilities) {
+    return draft(questions, extraFacts, extraCapabilities, "https://hooks.example/run");
+  }
+
+  private static RequirementDraft draft(List<QuestionInput> questions, List<FactInput> extraFacts,
+      List<CapabilityInput> extraCapabilities, String path) {
     var facts = new java.util.ArrayList<FactInput>();
     facts.add(new FactInput("goal", List.of("helper"), FactKind.GOAL, Polarity.POSITIVE, "Call the helper."));
     facts.add(new FactInput("uri", List.of("helper"), FactKind.PARAMETER, Polarity.POSITIVE, "The helper URI is known.",
         null, null, new RequirementElementIntent("helper", "http-sender", Placement.ANCHOR, "helper", null, null, null,
-            List.of(new PlanProperty("path", "https://hooks.example/run")), List.of())));
+            List.of(new PlanProperty("path", path)), List.of())));
     facts.addAll(extraFacts);
     var capabilities = new java.util.ArrayList<CapabilityInput>();
     capabilities.add(new CapabilityInput("helper", "http-sender", null, HttpMethod.GET, null, null, null, null));

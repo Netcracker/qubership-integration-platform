@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.ArtifactDecision;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Decision;
@@ -101,8 +102,13 @@ public class RequirementDraftStore {
         org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(current), serialized);
   }
 
-  /** Admission issues and the repair strategy that produced them. */
-  record CaptureAdmission(List<RequirementCaptureEditor.Issue> issues, RequirementRepairPolicy.Strategy strategy) {}
+  /** Admission issues, the repair strategy that produced them, and an optional stalled-target key. */
+  record CaptureAdmission(List<RequirementCaptureEditor.Issue> issues, RequirementRepairPolicy.Strategy strategy,
+      CaptureAttemptFeedbackStore.ClarificationFailureKey clarificationFailure) {
+    CaptureAdmission(List<RequirementCaptureEditor.Issue> issues, RequirementRepairPolicy.Strategy strategy) {
+      this(issues, strategy, null);
+    }
+  }
 
   List<RequirementCaptureEditor.Issue> admitCapture(String conversationId, Reference expectedBase,
       RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
@@ -216,6 +222,16 @@ public class RequirementDraftStore {
     }
     var clarificationVerdict = RequirementRevisionAdmission.clarify(clarification, draft, validCandidate,
         target -> questionDefaults(draft.authoredDraft(), target));
+    var transitionIssues = clarificationNoProgress(clarification, draft, clarificationVerdict.disposition());
+    boolean unappliedOnly = clarificationVerdict.issues().stream()
+        .allMatch(issue -> "UNAPPLIED_AUTHOR_ANSWER".equals(issue.code()));
+    if (!transitionIssues.isEmpty() && unappliedOnly) {
+      pendingClarificationAnswers.remove(conversationId);
+      var merged = new ArrayList<>(clarificationVerdict.issues());
+      merged.addAll(transitionIssues);
+      return new CaptureAdmission(List.copyOf(merged), RequirementRepairPolicy.Strategy.FOCUSED_REPAIR,
+          clarificationFailureKey(clarification, draft));
+    }
     if (!clarificationVerdict.issues().isEmpty()) {
       pendingClarificationAnswers.remove(conversationId);
       return new CaptureAdmission(clarificationVerdict.issues(), RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
@@ -236,6 +252,30 @@ public class RequirementDraftStore {
 
   private static CaptureAdmission focused(List<RequirementCaptureEditor.Issue> issues) {
     return new CaptureAdmission(List.copyOf(issues), RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
+  }
+
+  private static List<RequirementCaptureEditor.Issue> clarificationNoProgress(
+      ClarificationAdmissionContext clarification, RequirementDraft candidate,
+      org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition admitted) {
+    if (clarification == null || clarification.offer() == null || clarification.pinnedQuestion() == null
+        || candidate == null) {
+      return List.of();
+    }
+    var active = new RequirementClarificationCoordinator.ActiveQuestion(clarification.offer().draftReference(),
+        clarification.pinnedQuestion(), clarification.offer().sourceGeneration(), clarification.targetProjection());
+    return new RequirementClarificationCoordinator().validateTransition(active, clarification.answerTurnId(),
+        clarification.pinnedBase(), candidate, admitted);
+  }
+
+  private static CaptureAttemptFeedbackStore.ClarificationFailureKey clarificationFailureKey(
+      ClarificationAdmissionContext clarification, RequirementDraft candidate) {
+    var question = clarification.pinnedQuestion();
+    var evidence = question == null ? null : question.evidence();
+    var before = clarification.targetProjection();
+    var after = new RequirementClarificationCoordinator().targetProjection(candidate, question);
+    return new CaptureAttemptFeedbackStore.ClarificationFailureKey(clarification.answerTurnId(),
+        clarification.offer().offerId(), evidence == null ? "" : evidence.interactionId(),
+        evidence == null ? "" : evidence.propertyKey(), before, after);
   }
 
   public Optional<RequirementSemanticBaseline> semanticBaseline(String conversationId) {
@@ -1009,6 +1049,16 @@ public class RequirementDraftStore {
 
   public void useRunJournal(ProductPipelineRunStore runs) {
     this.runJournal = runs;
+  }
+
+  /** Returns the journal run id for this conversation, or an empty string when no run is open. */
+  public String activeRunId(String conversationId) {
+    if (runJournal == null || conversationId == null || conversationId.isBlank()) {
+      return "";
+    }
+    return runJournal.loadByConversation(conversationId)
+        .map(document -> document.run() == null || document.run().runId() == null ? "" : document.run().runId())
+        .orElse("");
   }
 
   /**

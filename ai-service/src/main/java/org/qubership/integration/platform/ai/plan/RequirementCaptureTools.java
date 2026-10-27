@@ -48,6 +48,13 @@ public class RequirementCaptureTools {
   private final UploadedSpecOperations uploadedSpecs;
   @Inject org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService elementSchemas;
   @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry recoveryTelemetry;
+  private final java.util.concurrent.ConcurrentMap<String, CaptureAttemptFeedbackStore.ClarificationFailureKey>
+      clarificationFailures = new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.concurrent.ConcurrentMap<String, RequirementDraftStore.ClarificationAdmissionContext>
+      acceptedClarifications = new java.util.concurrent.ConcurrentHashMap<>();
+  private static final String INTERNAL_CLARIFICATION_MESSAGE =
+      "Requirement capture failed internally. This is not an author question.";
   org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
@@ -283,6 +290,15 @@ public class RequirementCaptureTools {
       String conversationId = ToolSession.resolveConversationId();
       var rejection = feedbackStore.lastRequirementRejection(conversationId);
       var ladderStage = rejection.map(value -> value.feedback().ladderStage()).orElse(null);
+      if (ladderStage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE) {
+        store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+        store.recordCaptureRejection(conversationId, INTERNAL_CLARIFICATION_MESSAGE);
+        return view(store.get(conversationId).orElse(null), false, false, List.of(
+            new Issue("CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions", null,
+                INTERNAL_CLARIFICATION_MESSAGE),
+            new Issue("REPEATED_REJECTION", "/", null,
+                "Requirement capture stopped after a repeated rejection.")));
+      }
       boolean ladderHold = ladderStage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
           || ladderStage == RequirementRecoveryLadder.Stage.ASK_AUTHOR
           || ladderStage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE;
@@ -424,7 +440,19 @@ public class RequirementCaptureTools {
       }
     }
     if (!admission.issues().isEmpty()) {
+      acceptedClarifications.remove(conversationId);
+      if (admission.clarificationFailure() != null) {
+        clarificationFailures.put(conversationId, admission.clarificationFailure());
+      } else {
+        clarificationFailures.remove(conversationId);
+      }
       return reject(conversationId, previous, admission.issues(), admission.strategy());
+    }
+    clarificationFailures.remove(conversationId);
+    if (clarification != null && clarification.offer() != null) {
+      acceptedClarifications.put(conversationId, clarification);
+    } else {
+      acceptedClarifications.remove(conversationId);
     }
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
@@ -904,7 +932,12 @@ public class RequirementCaptureTools {
           store.recordCaptureOutcome(conversationId, toolName, arguments, stopped, resolvedCandidate, selectedAttempt);
           return stopped;
         }
-        var outcome = recordOutcome(toolName, arguments, action.apply(pending), resolvedCandidate, selectedAttempt);
+        var priorStage = feedbackStore.lastRequirementRejection(conversationId)
+            .map(rejection -> rejection.feedback().ladderStage()).orElse(null);
+        var produced = action.apply(pending);
+        var outcome = recordOutcome(toolName, arguments, produced, resolvedCandidate, selectedAttempt);
+        outcome = recoverClarification(conversationId, toolName, arguments, outcome, priorStage,
+            resolvedCandidate, selectedAttempt);
         if (identical.size() == 1 && !outcome.accepted()) {
           var noticed = new ArrayList<>(outcome.issues());
           String open = outcome.issues().stream().map(RequirementCaptureResult.CaptureIssue::message)
@@ -953,5 +986,112 @@ public class RequirementCaptureTools {
           LOG, toolName, conversationId, System.currentTimeMillis() - started, error);
       throw error;
     }
+  }
+
+  private RequirementCaptureResult recoverClarification(String conversationId, String toolName, Object arguments,
+      RequirementCaptureResult outcome, RequirementRecoveryLadder.Stage priorStage, DraftInput resolvedCandidate,
+      Reference selectedAttempt) {
+    var key = clarificationFailures.remove(conversationId);
+    if (outcome.accepted() || key == null) {
+      if (outcome.accepted()) {
+        recordAcceptedClarification(conversationId, outcome);
+      }
+      return outcome;
+    }
+    var codes = outcome.issues().stream().map(RequirementCaptureResult.CaptureIssue::code).toList();
+    boolean repeated = feedbackStore.repeatedClarificationFailure(conversationId, key);
+    var recorded = feedbackStore.recordClarificationFailure(conversationId, "requirement-discovery", key,
+        outcome.issues().stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+            issue.code(), issue.path(), issue.message(), issue.entityId())).toList());
+    var current = priorStage == null ? RequirementRecoveryLadder.Stage.FOCUSED_REPAIR : priorStage;
+    var next = RequirementRecoveryLadder.advance(current, codes, repeated);
+    recordClarificationTelemetry(conversationId, key, clarificationOutcomeCode(next, repeated), next, recorded,
+        outcome);
+    if (!repeated || next == current) {
+      return outcome;
+    }
+    var shown = next == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
+        ? List.of(internalClarificationIssue()) : outcome.issues();
+    if (next == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE) {
+      store.recordCaptureRejection(conversationId, INTERNAL_CLARIFICATION_MESSAGE);
+    }
+    return escalateRepeatedCandidate(conversationId, toolName, arguments, shown, next, resolvedCandidate,
+        selectedAttempt);
+  }
+
+  private void recordAcceptedClarification(String conversationId, RequirementCaptureResult outcome) {
+    var context = acceptedClarifications.remove(conversationId);
+    if (recoveryTelemetry == null || context == null || context.offer() == null || context.pinnedQuestion() == null) {
+      return;
+    }
+    var answer = store.latestClarificationAnswer(conversationId).orElse(null);
+    if (answer == null || !answer.offerId().equals(context.offer().offerId()) || answer.disposition() == null) {
+      return;
+    }
+    var evidence = context.pinnedQuestion().evidence();
+    recoveryTelemetry.recordClarificationOutcome(
+        new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry.ClarificationOutcome(
+            store.activeRunId(conversationId), referenceToken(context.offer().draftReference()),
+            context.pinnedQuestion().questionId(), context.answerTurnId(),
+            evidence == null ? "" : evidence.interactionId(), evidence == null ? "" : evidence.propertyKey(),
+            acceptedOutcomeCode(answer.disposition()), "", "", referenceToken(outcome.revision())));
+  }
+
+  private void recordClarificationTelemetry(String conversationId,
+      CaptureAttemptFeedbackStore.ClarificationFailureKey key, String outcomeCode,
+      RequirementRecoveryLadder.Stage stage, org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback recorded,
+      RequirementCaptureResult outcome) {
+    if (recoveryTelemetry == null) {
+      return;
+    }
+    var context = store.clarificationContext(conversationId, null);
+    String questionId = context == null || context.pinnedQuestion() == null
+        ? "" : context.pinnedQuestion().questionId();
+    var draftReference = context == null || context.offer() == null
+        ? referenceToken(outcome.revision()) : referenceToken(context.offer().draftReference());
+    recoveryTelemetry.recordClarificationOutcome(
+        new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry.ClarificationOutcome(
+            store.activeRunId(conversationId), draftReference, questionId, key.answerTurnId(), key.interactionId(),
+            key.propertyKey(), outcomeCode, stage == null ? "" : stage.name(), evidenceToken(recorded),
+            referenceToken(outcome.revision())));
+  }
+
+  private static String clarificationOutcomeCode(RequirementRecoveryLadder.Stage next, boolean repeated) {
+    if (!repeated || next == RequirementRecoveryLadder.Stage.FOCUSED_REPAIR) {
+      return "NO_PROGRESS";
+    }
+    if (next == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD) {
+      return "PROJECTION_REBUILD";
+    }
+    if (next == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE) {
+      return "INTERNAL_FAILURE";
+    }
+    return "NO_PROGRESS";
+  }
+
+  private static String acceptedOutcomeCode(
+      org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition disposition) {
+    return switch (disposition) {
+      case ANSWER -> "SUCCESS";
+      case AMBIGUOUS -> "AMBIGUOUS";
+      case NON_ANSWER -> "NON_ANSWER";
+    };
+  }
+
+  private static RequirementCaptureResult.CaptureIssue internalClarificationIssue() {
+    return new RequirementCaptureResult.CaptureIssue("CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions",
+        null, null, INTERNAL_CLARIFICATION_MESSAGE);
+  }
+
+  private static String referenceToken(Reference reference) {
+    return reference == null ? "" : reference.artifactId() + ":" + reference.contentHash();
+  }
+
+  private static String evidenceToken(
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback feedback) {
+    if (feedback == null || feedback.evidenceReference() == null) {
+      return "";
+    }
+    return referenceToken(feedback.evidenceReference());
   }
 }

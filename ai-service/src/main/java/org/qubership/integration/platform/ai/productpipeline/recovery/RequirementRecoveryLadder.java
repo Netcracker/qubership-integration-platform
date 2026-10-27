@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.recovery;
 
 import java.util.List;
 import java.util.Set;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 
 /**
  * Chooses the next requirement recovery step for a repeated candidate.
@@ -77,7 +78,7 @@ public final class RequirementRecoveryLadder {
       return FindingClass.SEMANTIC_AMBIGUITY;
     }
     if (REPRESENTATION.contains(code) || code.startsWith("MAPPING_") || code.startsWith("ELEMENT_LITERAL_")
-        || code.startsWith("BODY_")) {
+        || code.startsWith("BODY_") || CaptureFailureClass.clarificationRepresentation(code)) {
       return FindingClass.REPAIRABLE_REPRESENTATION;
     }
     return FindingClass.OTHER;

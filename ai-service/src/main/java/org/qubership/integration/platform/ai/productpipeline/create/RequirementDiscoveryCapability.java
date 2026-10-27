@@ -492,6 +492,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
     if (stage == null || stage == RequirementRecoveryLadder.Stage.FOCUSED_REPAIR) {
       return Optional.empty();
     }
+    if (stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE) {
+      String message = "Requirement capture failed internally. This is not an author question.";
+      draftStore.recordCaptureRejection(conversationId, message);
+      return Optional.of(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.INTERNAL_FAILURE, message)));
+    }
     var codes = rejection.issues().stream().map(issue -> issue.code()).toList();
     if (stage == RequirementRecoveryLadder.Stage.ASK_AUTHOR && RequirementRecoveryLadder.asksAuthor(codes)) {
       String message = rejection.issues().stream().map(issue -> issue.message())
