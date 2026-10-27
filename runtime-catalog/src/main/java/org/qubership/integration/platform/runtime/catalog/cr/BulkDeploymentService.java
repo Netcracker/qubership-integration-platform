@@ -235,7 +235,8 @@ public class BulkDeploymentService {
         Map<String, DomainType> domainTypeMap = engineService.getDomains().stream()
             .collect(Collectors.toMap(
                 EngineDomain::getName,
-                EngineDomain::getType
+                EngineDomain::getType,
+                (first, second) -> first
             ));
         return domainNames
             .stream()
