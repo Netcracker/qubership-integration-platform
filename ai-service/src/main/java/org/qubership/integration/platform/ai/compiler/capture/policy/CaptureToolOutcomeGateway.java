@@ -8,6 +8,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeed
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFieldHint;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 
 /**
  * Sole adapter exit for capture validation failures (ADR 0005).
@@ -44,6 +45,16 @@ public class CaptureToolOutcomeGateway {
   /** Applies the shared soft-credit policy to each structured requirement issue. */
   public boolean repeatedRequirementIssue(
       String conversationId, String mutationScope, List<TypedIssue> issues) {
+    return repeatedRequirementIssue(conversationId, mutationScope, issues, null);
+  }
+
+  /**
+   * Records the same issue fingerprints as {@link #repeatedRequirementIssue(String, String, List)}.
+   * A non-null ladder stage is stored with that evidence and does not spend another soft credit.
+   */
+  public boolean repeatedRequirementIssue(
+      String conversationId, String mutationScope, List<TypedIssue> issues,
+      RequirementRecoveryLadder.Stage stage) {
     boolean repeated = false;
     List<String> fingerprints = new ArrayList<>();
     List<String> identities = new ArrayList<>();
@@ -60,6 +71,20 @@ public class CaptureToolOutcomeGateway {
           CaptureAttemptState.forFingerprint(consumed.contains(fingerprint)), identity);
       repeated |= decision.failureClass() == CaptureFailureClass.IDENTICAL_SPAM;
       fingerprints.add(fingerprint);
+    }
+    if (stage != null) {
+      boolean continueCapture = stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+          || stage == RequirementRecoveryLadder.Stage.ASK_AUTHOR;
+      feedbackStore.recordClassifiedRequirementFailure(
+          conversationId,
+          CaptureFailureKind.VALIDATION,
+          continueCapture ? CaptureFailureClass.CORRECTABLE : CaptureFailureClass.PERMANENT,
+          continueCapture,
+          String.join(", ", identities),
+          issues,
+          stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE,
+          stage);
+      return true;
     }
     if (!repeated) {
       fingerprintStore.consumeSoftCredits(conversationId, fingerprints);

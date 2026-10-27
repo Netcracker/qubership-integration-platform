@@ -57,6 +57,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
@@ -305,20 +306,37 @@ public class RequirementDiscoveryCapability implements StageCapability {
               context.attributes().getOrDefault(ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR, List.of()));
     }
     if (userMessage.isBlank() && repair != null) {
-      boolean clean = context.attributeAsString(ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR) != null;
-      userMessage = """
-          Correct the generated requirement draft using the saved author messages and accepted facts.
-          Read readRequirementSource and the current draft. Preserve confirmed choices, exact values,
-          fact IDs, flow, and unrelated requirements. A capture/schema failure is a producer error;
-          ask the author only if the saved source leaves a required value or product choice unresolved.
-          Strategy: %s
-          Cause: %s
-          Findings:
-          %s
-          %s
-          """.formatted(clean ? "Generate a complete draft in this fresh turn from the saved source."
-              : "Correct the affected capture fields from the saved evidence.",
-              repair.causeCode(), repair.findings(), repair.errorEvidence());
+      var guidance = draftStore.recoveryGuidance(conversationId);
+      if (guidance.isPresent()
+          && guidance.get().strategy() == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD) {
+        userMessage = """
+            Capture the requirements again from the author evidence and the semantic baseline.
+            Do not restore rejected fields.
+            Conflict participants: %s
+            Editable paths: %s
+            Cause: %s
+            Findings:
+            %s
+            %s
+            """.formatted(String.join(", ", guidance.get().participants()),
+                String.join(", ", guidance.get().editablePaths()),
+                repair.causeCode(), repair.findings(), repair.errorEvidence());
+      } else {
+        boolean clean = context.attributeAsString(ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR) != null;
+        userMessage = """
+            Correct the generated requirement draft using the saved author messages and accepted facts.
+            Read readRequirementSource and the current draft. Preserve confirmed choices, exact values,
+            fact IDs, flow, and unrelated requirements. A capture/schema failure is a producer error;
+            ask the author only if the saved source leaves a required value or product choice unresolved.
+            Strategy: %s
+            Cause: %s
+            Findings:
+            %s
+            %s
+            """.formatted(clean ? "Generate a complete draft in this fresh turn from the saved source."
+                : "Correct the affected capture fields from the saved evidence.",
+                repair.causeCode(), repair.findings(), repair.errorEvidence());
+      }
     }
     if (userMessage.isBlank() && conversationService != null && context.inputRefs().stream()
         .anyMatch(ref -> ref.kind() == CompilationArtifacts.Kind.USER_INPUT)) {
@@ -462,6 +480,37 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
   }
 
+  private Optional<CapabilitySignal.Completed> ladderDiscoveryOutcome(String conversationId,
+      RequirementRejection rejection, List<Issue> preservation) {
+    var stage = rejection.feedback().ladderStage();
+    if (stage == null || stage == RequirementRecoveryLadder.Stage.FOCUSED_REPAIR) {
+      return Optional.empty();
+    }
+    var codes = rejection.issues().stream().map(issue -> issue.code()).toList();
+    if (stage == RequirementRecoveryLadder.Stage.ASK_AUTHOR && RequirementRecoveryLadder.asksAuthor(codes)) {
+      String message = rejection.issues().stream().map(issue -> issue.message())
+          .filter(text -> text != null && !text.isBlank()).findFirst()
+          .orElse("Resolve the ambiguity in the saved author evidence.");
+      return Optional.of(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+          PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, message))));
+    }
+    String message = stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+        ? "Capture the requirements again from the author evidence and the semantic baseline."
+        : "Requirement capture failed internally. This is not an author question.";
+    var findings = rejection.issues().stream().map(issue -> new PlanValidationFinding(
+        issue.code(), issue.path() + ": " + issue.message(), true, MappingValidationDetails.empty(),
+        issue.entityId() == null || issue.entityId().isBlank() ? "requirement-draft" : issue.entityId(),
+        CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+    var consequences = preservation.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+        MappingValidationDetails.empty(), issue.entityId(),
+        CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+    var acceptedBase = draftStore.latestRevision(conversationId).map(revision -> revision.reference()).orElse(null);
+    var evidence = new CaptureFailureEvidence(rejection.feedback(), acceptedBase, null, consequences);
+    draftStore.recordCaptureRejection(conversationId, message);
+    return Optional.of(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, message,
+        RecoveryCause.captureFailure(rejection.feedback(), findings, evidence))));
+  }
+
   private CapabilitySignal.Completed completeDiscovery(
       StageExecutionContext context,
       AtomicReference<RequirementDraft> captured) {
@@ -499,6 +548,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     if (rejection.isPresent() && rejection.get().issues().stream()
         .anyMatch(issue -> !"AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
+      var ladderOutcome = ladderDiscoveryOutcome(conversationId, rejection.get(), preservation);
+      if (ladderOutcome.isPresent()) {
+        return ladderOutcome.get();
+      }
       var findings = rejection.get().issues().stream().map(issue ->
           new PlanValidationFinding(
               issue.code(), issue.path() + ": " + issue.message(), true,

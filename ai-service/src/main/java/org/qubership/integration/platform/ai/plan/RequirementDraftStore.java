@@ -1240,6 +1240,12 @@ public class RequirementDraftStore {
 
   void recordCaptureOutcome(String conversationId, String toolName, Object arguments,
       RequirementCaptureResult result, RequirementCaptureInput.DraftInput resolvedCandidate, Reference selectedAttempt) {
+    recordCaptureOutcome(conversationId, toolName, arguments, result, resolvedCandidate, selectedAttempt, null);
+  }
+
+  void recordCaptureOutcome(String conversationId, String toolName, Object arguments,
+      RequirementCaptureResult result, RequirementCaptureInput.DraftInput resolvedCandidate, Reference selectedAttempt,
+      RequirementRepairPolicy.Strategy strategyOverride) {
     if (result.accepted() && !List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
       return;
     }
@@ -1256,7 +1262,8 @@ public class RequirementDraftStore {
       }
     }
     Reference baselineRef = baselineReference(conversationId);
-    var strategy = result.accepted() || !captureTool ? null : recoveryStrategy(result);
+    var strategy = strategyOverride != null ? strategyOverride
+        : result.accepted() || !captureTool ? null : recoveryStrategy(result);
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
         arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId),
@@ -1351,8 +1358,20 @@ public class RequirementDraftStore {
 
   List<RequirementCaptureAttempt> identicalRejections(String conversationId, String toolName, Object arguments,
       RequirementCaptureInput.DraftInput candidate) {
+    return identicalRejections(conversationId, toolName, arguments, candidate, true);
+  }
+
+  /** True when the newest attempt is the projection-rebuild marker. */
+  boolean latestProjectionRebuild(String conversationId) {
+    return latestCaptureAttempt(conversationId)
+        .filter(attempt -> "projection-rebuild".equals(attempt.toolName()))
+        .isPresent();
+  }
+
+  List<RequirementCaptureAttempt> identicalRejections(String conversationId, String toolName, Object arguments,
+      RequirementCaptureInput.DraftInput candidate, boolean stopAtRebuild) {
     if (!currentSource(conversationId) || arguments == null
-        || latestCaptureAttempt(conversationId).filter(RequirementDraftStore::clearsPending).isPresent()) {
+        || stopAtRebuild && latestCaptureAttempt(conversationId).filter(RequirementDraftStore::clearsPending).isPresent()) {
       return List.of();
     }
     var source = factProtection(conversationId, List.of());
@@ -1455,16 +1474,84 @@ public class RequirementDraftStore {
 
   public Optional<Revision> rejectedCaptureRevision(String conversationId) {
     var source = factProtection(conversationId, List.of());
-    return sessions.current(conversationId).stream()
-        .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
-        .filter(revision -> {
-          var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
-          return !attempt.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())
-              && new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of())
-                  .sameSource(source)
-              && sameAcceptedBase(conversationId, attempt.acceptedDraftReference());
-        }).reduce((first, last) -> last);
+    var session = sessions.current(conversationId);
+    if (session.isEmpty()) {
+      return Optional.empty();
+    }
+    var history = artifacts.history(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT);
+    for (int index = history.size() - 1; index >= 0; index--) {
+      var revision = history.get(index);
+      var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
+      if (clearsPending(attempt)) {
+        return Optional.empty();
+      }
+      if (!attempt.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())
+          && new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of())
+              .sameSource(source)
+          && sameAcceptedBase(conversationId, attempt.acceptedDraftReference())) {
+        return Optional.of(revision);
+      }
+    }
+    return Optional.empty();
   }
+
+  /**
+   * Strategy, conflict participants, and editable paths for the next capture. This is display
+   * guidance. It does not return the rejected draft.
+   */
+  public Optional<RecoveryGuidance> recoveryGuidance(String conversationId) {
+    var session = sessions.current(conversationId);
+    if (session.isEmpty()) {
+      return Optional.empty();
+    }
+    var history = artifacts.history(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT);
+    RequirementRepairPolicy.Strategy chosen = null;
+    RequirementCaptureAttempt display = null;
+    for (int index = history.size() - 1; index >= 0; index--) {
+      var attempt = artifacts.payload(history.get(index), RequirementCaptureAttempt.class);
+      if (chosen == null && attempt.recoveryStrategy() != null) {
+        chosen = attempt.recoveryStrategy();
+      }
+      if (display == null && !attempt.accepted()
+          && List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())) {
+        display = attempt;
+      }
+      if (chosen != null && display != null) {
+        break;
+      }
+    }
+    if (chosen == null) {
+      return Optional.empty();
+    }
+    var participants = new java.util.TreeSet<String>();
+    var paths = new java.util.TreeSet<String>();
+    if (display != null) {
+      for (var issue : display.issues()) {
+        if ("UNCHANGED_PROPOSAL".equals(issue.code()) || "REPAIR_NO_PROGRESS".equals(issue.code())) {
+          continue;
+        }
+        if (issue.path() != null && !issue.path().isBlank() && !"/".equals(issue.path())) {
+          paths.add(issue.path());
+        }
+        if (issue.entityId() != null && !issue.entityId().isBlank()) {
+          participants.add(issue.entityId());
+        }
+        if (issue.details() != null && issue.details().relatedEntityIds() != null) {
+          issue.details().relatedEntityIds().stream()
+              .filter(id -> id != null && !id.isBlank())
+              .forEach(participants::add);
+        }
+      }
+    }
+    var stage = org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage
+        .valueOf(chosen.name());
+    return Optional.of(new RecoveryGuidance(stage, List.copyOf(participants), List.copyOf(paths)));
+  }
+
+  /** Display fields for the next requirement capture. The rejected draft is not included. */
+  public record RecoveryGuidance(
+      org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage strategy,
+      List<String> participants, List<String> editablePaths) {}
 
   record PendingInitialUpdate(RequirementCaptureEditor.EditResult edit, Reference attempt) {}
 

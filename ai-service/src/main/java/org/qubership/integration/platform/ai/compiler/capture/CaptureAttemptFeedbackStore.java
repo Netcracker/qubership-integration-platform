@@ -152,7 +152,7 @@ public class CaptureAttemptFeedbackStore {
     var previous = prior.orElseThrow();
     var feedback = previous.feedback();
     var duplicate = observe(conversationId, previous.channel(), new CaptureAttemptFeedback(
-        feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true, null, feedback.issues(), feedback.presentationDetails()));
+        feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true, null, feedback.issues(), feedback.presentationDetails(), feedback.ladderStage()));
     cache(conversationId, capability, previous.channel(), duplicate);
     throw new CaptureNoProgressException("REPAIR_NO_PROGRESS: The same proposal was rejected under the current inputs. " + duplicate.summary(),
         new CaptureFailureEvidence(duplicate, null, duplicate.evidenceReference(), List.of()));
@@ -201,7 +201,8 @@ public class CaptureAttemptFeedbackStore {
         .projectValues(relevant, json, org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET)
         .toString();
     return new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
-        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference(), feedback.issues(), feedback.presentationDetails());
+        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference(),
+        feedback.issues(), feedback.presentationDetails(), feedback.ladderStage());
   }
 
   /** Retains unmapped input verbatim; validation identity never depends on its payload. */
@@ -357,11 +358,20 @@ public class CaptureAttemptFeedbackStore {
   public void recordClassifiedRequirementFailure(String conversationId, CaptureFailureKind kind,
       CaptureFailureClass failureClass, boolean outerAllowed, String summary, List<TypedIssue> issues,
       boolean noProgress) {
+    recordClassifiedRequirementFailure(conversationId, kind, failureClass, outerAllowed, summary, issues,
+        noProgress, null);
+  }
+
+  /** Stores requirement feedback. {@code ladderStage} is omitted from older artifacts when null. */
+  public void recordClassifiedRequirementFailure(String conversationId, CaptureFailureKind kind,
+      CaptureFailureClass failureClass, boolean outerAllowed, String summary, List<TypedIssue> issues,
+      boolean noProgress,
+      org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage ladderStage) {
     if (conversationId == null || conversationId.isBlank()) {
       return;
     }
     var rejection = new RequirementRejection(new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed,
-        List.of(), "", noProgress, null, issues),
+        List.of(), "", noProgress, null, issues, null, ladderStage),
         List.copyOf(issues));
     saveRequirementFeedback(conversationId, rejection);
     requirementFailures.put(conversationId, rejection);
@@ -391,7 +401,8 @@ public class CaptureAttemptFeedbackStore {
             var saved = rejection.feedback();
             return new RequirementRejection(new CaptureAttemptFeedback(saved.kind(), saved.summary(), saved.failureClass(),
                 saved.outerAllowed(), saved.fieldHints(), saved.repairHistoryJson(), saved.noProgress(),
-                revision.reference(), rejection.issues(), saved.presentationDetails()), rejection.issues());
+                revision.reference(), rejection.issues(), saved.presentationDetails(), saved.ladderStage()),
+                rejection.issues());
           });
     }
     return Optional.ofNullable(requirementFailures.get(conversationId));
@@ -614,9 +625,11 @@ public class CaptureAttemptFeedbackStore {
         if (saved != null && proposal != null && Objects.equals(capabilityId, nativeValue.capabilityId())
             && Objects.equals(capabilityId, proposal.capabilityId()) && scope.equals(proposal.inputScope())
             && new CaptureAttemptFeedback(saved.kind(), saved.summary(), saved.failureClass(), saved.outerAllowed(),
-                saved.fieldHints(), "", saved.noProgress(), reference, saved.issues(), saved.presentationDetails())
+                saved.fieldHints(), "", saved.noProgress(), reference, saved.issues(), saved.presentationDetails(),
+                saved.ladderStage())
                 .equals(new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
-                    feedback.outerAllowed(), feedback.fieldHints(), "", feedback.noProgress(), reference, feedback.issues(), feedback.presentationDetails()))) {
+                    feedback.outerAllowed(), feedback.fieldHints(), "", feedback.noProgress(), reference,
+                    feedback.issues(), feedback.presentationDetails(), feedback.ladderStage()))) {
           observation = nativeValue;
         }
       }

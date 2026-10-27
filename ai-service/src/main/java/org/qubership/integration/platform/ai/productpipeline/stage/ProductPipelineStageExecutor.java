@@ -82,6 +82,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDe
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidenceFactory;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryExecutor;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 import org.qubership.integration.platform.ai.productpipeline.recovery.SemanticFinding;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
@@ -1487,9 +1488,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     // A fresh native discovery refusal can spend its first existing correction before advisory diagnosis.
     boolean nativeFirstCorrection = producerRepairAllowed && currentRepairEligible
         && firstNativeDiscoveryCorrection(doc, stage, outcomeClass, cause, budgetCause, invocation, draftEvidence);
+    boolean projectionRebuild = cause.captureFailure() != null && cause.captureFailure().feedback() != null
+        && cause.captureFailure().feedback().ladderStage() == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD;
     // Input contract checks identify brief defects before capture; rejected output stays with its producer.
-    AcceptedRecovery acceptedRecovery =
-        nativeFirstCorrection || "design-input".equals(stage.stageId())
+    AcceptedRecovery acceptedRecovery = projectionRebuild
+        ? new AcceptedRecovery(captureRegenerateDecision(draftEvidence,
+            "Capture the requirements again from the author evidence and the semantic baseline."), draftEvidence)
+        : nativeFirstCorrection || "design-input".equals(stage.stageId())
             && cause.causeCode() != RecoveryCauseCode.MISSING_BRIEF_FACTS
             && cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT
             ? new AcceptedRecovery(
@@ -1914,8 +1919,17 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return null;
     }
     String chat = doc.run().conversationId();
-    return new NativeRequirementBaseline(requirementDrafts.rejectedCaptureRevision(chat).map(Revision::reference).orElse(null),
+    var rejection = captureFeedback.lastRequirementRejection(chat).orElse(null);
+    boolean hidden = rejection != null && hidesRejectedCandidate(rejection.feedback().ladderStage());
+    return new NativeRequirementBaseline(hidden ? null
+        : requirementDrafts.rejectedCaptureRevision(chat).map(Revision::reference).orElse(null),
         captureFeedback.lastRequirementFeedbackReference(chat).orElse(null));
+  }
+
+  private static boolean hidesRejectedCandidate(RequirementRecoveryLadder.Stage stage) {
+    return stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+        || stage == RequirementRecoveryLadder.Stage.ASK_AUTHOR
+        || stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE;
   }
 
   private boolean firstNativeDiscoveryCorrection(ProductPipelineRunDocument doc, ProfileStage stage,
@@ -1925,6 +1939,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         || cause.causeCode() != RecoveryCauseCode.CONTRACT_SHAPE || cause.noProgress()
         || invocation == null || invocation.requirementBaseline() == null
         || requirementDrafts == null || captureFeedback == null || conversations == null || cause.captureFailure() == null) {
+      return false;
+    }
+    if (hidesRejectedCandidate(cause.captureFailure().feedback() == null
+        ? null : cause.captureFailure().feedback().ladderStage())) {
       return false;
     }
     if (!noDiagnosisDispatched(doc, evidence.failureId())) return false;
@@ -1945,8 +1963,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return false;
     }
     String chat = doc.run().conversationId();
-    var rejected = requirementDrafts.rejectedCaptureRevision(chat).orElse(null);
     var rejection = captureFeedback.lastRequirementRejection(chat).orElse(null);
+    if (rejection != null && hidesRejectedCandidate(rejection.feedback().ladderStage())) {
+      return false;
+    }
+    var rejected = requirementDrafts.rejectedCaptureRevision(chat).orElse(null);
     var failure = cause.captureFailure();
     if (rejected == null || rejection == null || !rejected.reference().equals(failure.rejectedCandidate())
         || rejected.reference().equals(invocation.requirementBaseline().rejectedCapture())
