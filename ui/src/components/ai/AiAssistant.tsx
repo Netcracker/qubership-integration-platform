@@ -773,6 +773,7 @@ export const AiAssistant: React.FC = () => {
       attachmentObjectKeys?: string[],
       scenarioHint?: string,
       decision?: ChatRequest["decision"],
+      clarificationOfferId?: string,
     ) => {
       if (sendInProgressRef.current) {
         console.warn(
@@ -865,6 +866,7 @@ export const AiAssistant: React.FC = () => {
           temperature: 1,
           scenarioHint: scenarioHint?.trim() || undefined,
           decision,
+          clarificationOfferId,
         };
 
         if (chainContext) {
@@ -1186,6 +1188,9 @@ export const AiAssistant: React.FC = () => {
         session.lastAttachmentUrls,
         [userMessage],
         session.lastAttachmentObjectKeys,
+        undefined,
+        undefined,
+        decision.id,
       );
     },
     [

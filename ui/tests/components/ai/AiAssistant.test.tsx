@@ -547,6 +547,25 @@ describe("AiAssistant", () => {
     expect(stream.mock.calls[0][0].decision).toBeUndefined();
   });
 
+  it("sends the open decision id as the clarification offer", async () => {
+    const gate = decision({
+      id: "offer-42",
+      kind: "clarify",
+      actions: [],
+      question: "Which protocol?",
+    });
+    seed([{ role: "user", content: "Build a chain" }]);
+    jest.mocked(fetchOpenDecision).mockResolvedValue(gate);
+    await open();
+    await screen.findByText("Which protocol?");
+    await send("Use HTTPS");
+    const sent = stream.mock.calls[0][0] as ChatRequest & {
+      clarificationOfferId?: string;
+    };
+    expect(sent.clarificationOfferId).toBe("offer-42");
+    expect(sent.decision).toBeUndefined();
+  });
+
   it("uploads files, preserves their keys, and supplies attachment-only text", async () => {
     const { container } = await open();
     const input = container.ownerDocument.querySelector('input[type="file"]')!;

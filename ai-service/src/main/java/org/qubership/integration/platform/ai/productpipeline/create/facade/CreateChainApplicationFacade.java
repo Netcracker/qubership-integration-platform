@@ -228,7 +228,8 @@ public class CreateChainApplicationFacade {
       });
     }
     return continueExisting(
-        taskId, command.clarificationText(), command.commandId(), command.origin());
+        taskId, command.clarificationText(), command.commandId(), command.origin(),
+        command.clarificationOfferId());
   }
 
   public Optional<String> pendingRepairOffer(String taskId, long revision) {
@@ -849,13 +850,19 @@ public class CreateChainApplicationFacade {
 
   private Multi<CreateChainEvent> continueExisting(
       String taskId, String text, String commandId, InputOrigin origin) {
+    return continueExisting(taskId, text, commandId, origin, null);
+  }
+
+  private Multi<CreateChainEvent> continueExisting(
+      String taskId, String text, String commandId, InputOrigin origin, String clarificationOfferId) {
     ProductPipelineRunDocument doc =
         runStore
             .loadByConversation(taskId)
             .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
     RunStatus status = doc.run().status();
     if (status == RunStatus.RUNNING && inputAlreadyApplied(taskId, commandId, text)) {
-      return mapSignals(taskId, runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin)));
+      return mapSignals(taskId, runtime.acceptInput(
+          acceptInput(doc.run().runId(), text, commandId, origin, clarificationOfferId)));
     }
     if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
       return Multi.createFrom()
@@ -886,7 +893,7 @@ public class CreateChainApplicationFacade {
     if (status == RunStatus.WAITING_FOR_INPUT || status == RunStatus.WAITING_FOR_APPROVAL) {
       return mapSignals(
           taskId,
-          runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin)));
+          runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin, clarificationOfferId)));
     }
     if (status == RunStatus.RUNNING || status == RunStatus.PLAN_APPROVED) {
       RunManifest activeManifest = manifestOf(doc);
@@ -1175,13 +1182,19 @@ public class CreateChainApplicationFacade {
   /** Builds the {@code accept-input} step of a start or clarification command. */
   private static AcceptInputCommand acceptInput(
       String runId, String text, String commandId, InputOrigin origin) {
+    return acceptInput(runId, text, commandId, origin, null);
+  }
+
+  private static AcceptInputCommand acceptInput(
+      String runId, String text, String commandId, InputOrigin origin, String clarificationOfferId) {
     String safeText = text == null ? "" : text;
     return new AcceptInputCommand(
         runId,
         safeText,
         stepId(commandId, "accept-input"),
         payloadHash(Map.of("text", safeText)),
-        origin);
+        origin,
+        clarificationOfferId);
   }
 
   /**

@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.chat.LastAssistantTurnStore;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
@@ -85,6 +86,48 @@ public class ChatExecutionService {
     this.artifactStore = artifactStore;
     this.objectMapper = objectMapper;
     this.chatMemorySanitizer = chatMemorySanitizer;
+  }
+
+  /**
+   * A matched requirement answer carries {@code offerId}. A missing or stale offer carries the
+   * decision to emit again. Both null means this message is not answering a requirement offer.
+   */
+  private record RequirementAnswer(String offerId, ChatEvent.Decision rebound) {}
+
+  private RequirementAnswer requirementAnswer(String conversationId, ChatRequest request) {
+    if (request.getDecision() != null) {
+      return null;
+    }
+    java.util.Optional<ChatEvent.Decision> opened = decisionService.openDecision(conversationId);
+    if (opened == null || opened.isEmpty() || !isRequirementClarificationOffer(opened.get())) {
+      return null;
+    }
+    ChatEvent.Decision current = opened.get();
+    String offer = request.getClarificationOfferId();
+    if (offer == null || offer.isBlank() || !offer.equals(current.id())) {
+      return new RequirementAnswer(null, current);
+    }
+    return new RequirementAnswer(offer, null);
+  }
+
+  private static boolean isRequirementClarificationOffer(ChatEvent.Decision decision) {
+    if (!"clarify".equals(decision.kind())) {
+      return false;
+    }
+    if (decision.artifactType() != null && !decision.artifactType().isBlank()) {
+      return false;
+    }
+    String id = decision.id();
+    return id != null && !id.isBlank() && !id.startsWith("clarify:");
+  }
+
+  private Multi<String> reemitOpenDecision(String conversationId, ChatEvent.Decision decision) {
+    ChatEvent meta = new ChatEvent.Meta(conversationId, true, null);
+    return Multi.createFrom()
+        .items(meta, decision)
+        .map(this::toSse)
+        .onCompletion()
+        .continueWith("event: done\ndata: " + conversationId + "\n\n");
   }
 
   /** True when the request answers a card with a command the facade runs rather than a scenario. */
@@ -184,13 +227,30 @@ public class ChatExecutionService {
     String conversationId =
         request.getConversationId() != null ? request.getConversationId() : UUID.randomUUID().toString();
 
+    RequirementAnswer requirementAnswer = requirementAnswer(conversationId, request);
+    if (requirementAnswer != null && requirementAnswer.rebound() != null) {
+      return reemitOpenDecision(conversationId, requirementAnswer.rebound());
+    }
+    String matchedOffer = requirementAnswer == null ? null : requirementAnswer.offerId();
+
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
 
-    var sourceInput = conversationService.archive().beginInput(conversationId,
-        request.getMessage(), objectMapper.valueToTree(java.util.Map.of(
-            "attachment", request.getAttachment() == null ? "" : request.getAttachment(),
-            "attachmentObjectKeys", request.getAttachmentObjectKeys() == null ? java.util.List.of() : request.getAttachmentObjectKeys(),
-            "decision", request.getDecision() == null ? objectMapper.nullNode() : objectMapper.valueToTree(request.getDecision()))));
+    Map<String, Object> submitted = new LinkedHashMap<>();
+    submitted.put("attachment", request.getAttachment() == null ? "" : request.getAttachment());
+    submitted.put(
+        "attachmentObjectKeys",
+        request.getAttachmentObjectKeys() == null ? java.util.List.of() : request.getAttachmentObjectKeys());
+    submitted.put(
+        "decision",
+        request.getDecision() == null ? objectMapper.nullNode() : objectMapper.valueToTree(request.getDecision()));
+    if (matchedOffer != null) {
+      submitted.put("clarificationOfferId", matchedOffer);
+    }
+    String turnId = matchedOffer == null
+        ? null
+        : ConversationArchive.deterministicAnswerTurnId(matchedOffer, request.getMessage());
+    var sourceInput = conversationService.archive().beginInput(
+        conversationId, turnId, request.getMessage(), objectMapper.valueToTree(submitted));
     conversationService.getOrCreate(conversationId);
     // Repair dangling tool_calls left by prior ToolArgumentsException / aborted tool turns so the
     // next OpenAI request is well-formed (invalid_request_error otherwise).

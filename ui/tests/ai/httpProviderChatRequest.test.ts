@@ -24,7 +24,10 @@ jest.mock("axios", () => ({
 }));
 
 import { HttpAiModelProvider } from "../../src/ai/modelProviders/httpProvider.ts";
-import type { ChatMessage } from "../../src/ai/modelProviders/types.ts";
+import type {
+  ChatMessage,
+  ChatRequest,
+} from "../../src/ai/modelProviders/types.ts";
 
 function buildMessages(): ChatMessage[] {
   return [{ role: "user", content: "hello" }];
@@ -92,6 +95,22 @@ describe("HttpAiModelProvider chat() request body", () => {
     // The property may exist with value `undefined`; JSON.stringify is what the
     // wire actually sees, and it drops `undefined` values.
     expect(JSON.stringify(body)).not.toContain("decision");
+  });
+
+  it("serializes clarificationOfferId when the request carries one", async () => {
+    mockPost.mockResolvedValue({ data: { messages: [] } });
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.chat({
+      messages: buildMessages(),
+      clarificationOfferId: "offer-42",
+    } as ChatRequest);
+
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(body.clarificationOfferId).toBe("offer-42");
   });
 });
 
@@ -286,5 +305,22 @@ describe("HttpAiModelProvider streamChat() request body", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.scenarioHint).toBeNull();
+  });
+
+  it("serializes clarificationOfferId on the SSE POST body", async () => {
+    const fetchMock = mockEmptyStreamResponse();
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.streamChat(
+      {
+        messages: buildMessages(),
+        clarificationOfferId: "offer-42",
+      } as ChatRequest,
+      () => {},
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.clarificationOfferId).toBe("offer-42");
   });
 });
