@@ -127,6 +127,50 @@ class RequirementTargetResolverTest {
   }
 
   @Test
+  void resolveChainCallAnswerIgnoresAnswersWhenEvidenceIsNotCatalogChoice() {
+    var chains = mock(CompositionCatalogBinder.class);
+    var trigger = chainTrigger("trigger-element", "chain-1", "Billing Chain", "Start");
+    when(chains.listChainTriggers()).thenReturn(List.of(trigger));
+    var resolver = new RequirementTargetResolver(chains, mock(McpSystemCatalogBinder.class));
+    var question = new QuestionInput("target", List.of("call"), "Pick a trigger",
+        new AuthorQuestionEvidence("call", "targetReference", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of("turn-1")));
+
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, "trigger-element").targetIds().isEmpty());
+  }
+
+  @Test
+  void resolveChainCallAnswerMatchesChainNameOnlyForListedChainTriggerType() {
+    var chains = mock(CompositionCatalogBinder.class);
+    var listed = chainTrigger("listed-trigger", "chain-1", "Billing Chain", "Start");
+    var blankType = new CatalogElementResponseDto();
+    blankType.id = "blank-type-trigger";
+    blankType.chainId = "chain-1";
+    blankType.chainName = "Billing Chain";
+    blankType.name = "Start";
+    blankType.type = "";
+    when(chains.listChainTriggers()).thenReturn(List.of(listed, blankType));
+    var resolver = new RequirementTargetResolver(chains, mock(McpSystemCatalogBinder.class));
+    var question = chainQuestion("Which chain-trigger element id should this chain call use?");
+
+    assertEquals("listed-trigger",
+        resolver.resolveChainCallAnswer(draft(null), question, "Billing Chain").targetIds().get("call"));
+  }
+
+  @Test
+  void listedChainTriggerAcceptsOnlyVerifiedTriggerElementIds() {
+    var chains = mock(CompositionCatalogBinder.class);
+    when(chains.listChainTriggers()).thenReturn(List.of(
+        chainTrigger("listed-trigger", "chain-1", "Billing Chain", "Start")));
+    var resolver = new RequirementTargetResolver(chains, mock(McpSystemCatalogBinder.class));
+
+    assertTrue(resolver.listedChainTrigger("listed-trigger"));
+    assertTrue(!resolver.listedChainTrigger("not-a-trigger"));
+    assertTrue(!resolver.listedChainTrigger(""));
+    assertTrue(!resolver.listedChainTrigger("chain/id"));
+  }
+
+  @Test
   void resolveChainCallAnswerAcceptsOneChainNameAsThatTriggerElement() {
     var chains = mock(CompositionCatalogBinder.class);
     var trigger = chainTrigger("only-trigger", "chain-1", "Billing Chain", "Start");

@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Capabi
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 
 /** Verifies composition targets against the existing catalog binders. */
 @ApplicationScoped
@@ -112,6 +113,10 @@ public class RequirementTargetResolver {
         || draft.capabilities() == null) {
       return new Resolution(Map.of(), List.of());
     }
+    if (activeQuestion.evidence() == null
+        || activeQuestion.evidence().kind() != AuthorQuestionEvidence.Kind.CATALOG_CHOICE) {
+      return new Resolution(Map.of(), List.of());
+    }
     String interactionId = activeQuestion.evidence() != null
         && activeQuestion.evidence().interactionId() != null
         && !activeQuestion.evidence().interactionId().isBlank()
@@ -142,9 +147,21 @@ public class RequirementTargetResolver {
     return new Resolution(Map.of(), List.of());
   }
 
+  public boolean listedChainTrigger(String elementId) {
+    if (elementId == null || elementId.isBlank() || elementId.contains("/")) {
+      return false;
+    }
+    List<CatalogElementResponseDto> listed = chains.listChainTriggers();
+    if (listed == null) {
+      return false;
+    }
+    return listed.stream().filter(RequirementTargetResolver::chainTrigger)
+        .anyMatch(trigger -> elementId.equals(trigger.id));
+  }
+
   private static boolean chainTrigger(CatalogElementResponseDto trigger) {
     return trigger != null && trigger.id != null && !trigger.id.isBlank()
-        && (trigger.type == null || trigger.type.isBlank() || "chain-trigger-2".equals(trigger.type));
+        && "chain-trigger-2".equals(trigger.type);
   }
 
   private static boolean selected(String requested, String actual) {
