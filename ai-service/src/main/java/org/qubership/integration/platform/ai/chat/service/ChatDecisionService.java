@@ -273,6 +273,36 @@ public class ChatDecisionService {
   }
 
   /**
+   * True when this answer belongs to a specialized card and must not be archived as the generic
+   * requirement offer, even if the client still sends that offer id.
+   */
+  boolean withholdsRequirementOffer(String conversationId) {
+    var current = facade.snapshot(conversationId).orElse(null);
+    if (current == null || !(current.pendingAction() instanceof PendingAction.Clarify clarify)) {
+      return false;
+    }
+    if (PipelineGates.withholdsGenericRequirementOffer(clarify.gateId())) {
+      return true;
+    }
+    boolean generic = clarify.gateId().isBlank() || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId());
+    if (!generic) {
+      return false;
+    }
+    if (versionSelections != null && versionSelections.pending(conversationId).isPresent()) {
+      return true;
+    }
+    if (policyChoices == null) {
+      return false;
+    }
+    var offer = facade.activeClarificationOffer(conversationId).orElse(null);
+    return policyChoices.pending(
+        conversationId,
+        current.revision(),
+        offer == null ? null : offer.draftReference(),
+        offer == null ? null : offer.questionId()).isPresent();
+  }
+
+  /**
    * A typed gate keeps its own decision id. The persisted requirement offer stays on generic
    * requirement clarification.
    */

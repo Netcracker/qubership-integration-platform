@@ -37,6 +37,8 @@ import org.qubership.integration.platform.ai.plan.TargetFolderChoiceResolver;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureTools;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
 import org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
@@ -85,6 +87,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
   @Inject CaptureAttemptFeedbackStore captureFeedback;
   @Inject FailureNarrative failureNarrative;
   @Inject TargetFolderChoiceResolver targetFolderChoices;
+  @Inject RequirementCaptureTools captureTools;
   @Inject org.qubership.integration.platform.ai.plan.UploadedSpecOperations uploadedSpecs;
 
   @Inject
@@ -268,6 +271,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
     var folderAgain = unresolvedTargetFolder(context, conversationId, userMessage);
     if (folderAgain.isPresent()) {
       return Multi.createFrom().item(folderAgain.get());
+    }
+    if (admitActiveChainCall(conversationId, userMessage)) {
+      draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+      draftStore.markCaptured(conversationId);
+      return Multi.createFrom().item(completeDiscovery(context,
+          new AtomicReference<>(draftStore.get(conversationId).orElse(null))));
     }
     RequirementDraft mappingRepairDraft = mappingRepairDraft(context);
     if (mappingRepairDraft != null) {
@@ -523,7 +532,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
         context.attributeAsString(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
       return Optional.empty();
     }
-    if (targetFolderChoices != null && targetFolderChoices.selection(userMessage).isPresent()) {
+    if (submittedFolderPath(conversationId, userMessage)) {
+      captureFeedback.clearRequirement(conversationId);
       return Optional.empty();
     }
     var rejection = captureFeedback.lastRequirementRejection(conversationId).orElse(null);
@@ -532,6 +542,81 @@ public class RequirementDiscoveryCapability implements StageCapability {
       return Optional.empty();
     }
     return Optional.of(folderQuestion(context, rejection));
+  }
+
+  /** One exact folder path is admitted through {@link TargetFolderChoiceResolver#apply}. */
+  private boolean submittedFolderPath(String conversationId, String userMessage) {
+    if (targetFolderChoices == null || userMessage == null || userMessage.isBlank()) {
+      return false;
+    }
+    String before = folderPath(draftStore.get(conversationId).orElse(null));
+    draftStore.beginTurn(conversationId, userMessage);
+    ToolSession.bind(conversationId);
+    try {
+      if (targetFolderChoices.apply(userMessage) == null) {
+        return false;
+      }
+    } finally {
+      ToolSession.clear();
+    }
+    String after = folderPath(draftStore.get(conversationId).orElse(null));
+    return after != null && !after.isBlank() && !after.equals(before);
+  }
+
+  private static String folderPath(RequirementDraft draft) {
+    if (draft == null || draft.authoredDraft() == null || draft.authoredDraft().settings() == null) {
+      return null;
+    }
+    return draft.authoredDraft().settings().targetFolderPath();
+  }
+
+  /**
+   * Writes one chain-trigger element id for the active chain-call catalog question through normal
+   * draft admission.
+   */
+  private boolean admitActiveChainCall(String conversationId, String userMessage) {
+    if (captureTools == null || userMessage == null || userMessage.isBlank()) {
+      return false;
+    }
+    RequirementDraft current = draftStore.get(conversationId).orElse(null);
+    if (current == null || current.authoredDraft() == null || current.authoredDraft().openQuestions() == null) {
+      return false;
+    }
+    QuestionInput active = current.authoredDraft().openQuestions().stream()
+        .filter(question -> question != null && question.questionId() != null && !question.questionId().isBlank())
+        .findFirst().orElse(null);
+    if (active == null || active.evidence() == null
+        || active.evidence().kind() != AuthorQuestionEvidence.Kind.CATALOG_CHOICE) {
+      return false;
+    }
+    String interactionId = active.evidence().interactionId();
+    String before = targetReference(current, interactionId);
+    var update = captureTools.chainCallAnswerUpdate(current.authoredDraft(), active, userMessage);
+    if (update.isEmpty()) {
+      return false;
+    }
+    draftStore.beginTurn(conversationId, userMessage);
+    ToolSession.bind(conversationId);
+    try {
+      captureTools.updateRequirementDraft(update.get());
+    } finally {
+      ToolSession.clear();
+    }
+    String after = targetReference(draftStore.get(conversationId).orElse(null), interactionId);
+    return after != null && !after.isBlank() && !after.equals(before);
+  }
+
+  private static String targetReference(RequirementDraft draft, String interactionId) {
+    if (draft == null || draft.authoredDraft() == null || draft.authoredDraft().capabilities() == null
+        || interactionId == null) {
+      return null;
+    }
+    for (var capability : draft.authoredDraft().capabilities()) {
+      if (capability != null && interactionId.equals(capability.interactionId())) {
+        return capability.targetReference();
+      }
+    }
+    return null;
   }
 
   private CapabilitySignal.Completed folderQuestion(StageExecutionContext context, RequirementRejection rejection) {

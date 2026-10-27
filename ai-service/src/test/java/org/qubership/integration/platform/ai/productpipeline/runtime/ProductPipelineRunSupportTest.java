@@ -519,6 +519,23 @@ class ProductPipelineRunSupportTest {
   }
 
   @Test
+  void specializedClarificationAnswersAdmitTheirGate() {
+    for (String gate : List.of(
+        PipelineGates.TARGET_FOLDER_CHOICE, PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION)) {
+      var harness = new OfferHarness();
+      String runId = "run-" + gate;
+      harness.wait(runId, "conv-" + gate, "requirement-discovery", "requirement-discovery",
+          PipelineGates.tag(gate, "Choose one."));
+      var signals = harness.support().recordInput(
+          new AcceptInputCommand(runId, "A/Salesforce", "cmd-" + gate, "hash-" + gate))
+          .collect().asList().await().indefinitely();
+      assertTrue(signals.isEmpty(), gate);
+      assertEquals(gate, harness.support().runAttributes(runId)
+          .get(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR), gate);
+    }
+  }
+
+  @Test
   void stageClarificationWithoutAnAuthoredQuestionStoresNoOffer() {
     var harness = new OfferHarness();
     String conversationId = "conv-no-question";

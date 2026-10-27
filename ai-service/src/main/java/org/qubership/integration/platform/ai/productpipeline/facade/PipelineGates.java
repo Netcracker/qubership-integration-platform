@@ -196,7 +196,24 @@ public final class PipelineGates {
         || STAGE_INTERNAL_FAILURE.equals(gateId)
         || STAGE_ESCALATED.equals(gateId)
         || OWNER_CHOICE.equals(gateId)
-        || STAGE_CLARIFICATION.equals(gateId);
+        || admitsAuthoredClarification(gateId);
+  }
+
+  /**
+   * Author text at this wait resumes requirement discovery and is stamped
+   * {@code admittedInputGate}.
+   */
+  public static boolean admitsAuthoredClarification(String gateId) {
+    return STAGE_CLARIFICATION.equals(gateId)
+        || TARGET_FOLDER_CHOICE.equals(gateId)
+        || REQUIREMENT_RECOVERY_CLARIFICATION.equals(gateId);
+  }
+
+  /** An answer at this wait must not be stored as the generic requirement offer. */
+  public static boolean withholdsGenericRequirementOffer(String gateId) {
+    return TARGET_FOLDER_CHOICE.equals(gateId)
+        || REQUIREMENT_RECOVERY_CLARIFICATION.equals(gateId)
+        || IDS_PATH_CHOICE.equals(gateId);
   }
 
   /** True when the wait is a server-owned contextual recovery dialog. */
