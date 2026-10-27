@@ -224,7 +224,6 @@ class PolicyChoiceSelectionTest {
     var chosen = command(card, ChatEvent.KEEP_REQUESTED_ACTION);
     var source = h.begin(chosen);
     assertTrue(h.choices.confirm(h.chat, chosen, 7).isPresent());
-    h.store.associateClarification(h.chat);
     h.archive.resolveInput(h.chat, source, ChatDecisionService.transcriptMarker(chosen),
         h.json.valueToTree(command(card, ChatEvent.USE_RECOMMENDED_ACTION)));
     assertTrue(new PolicyChoiceSelection(h.artifacts, h.sessions, h.conversations).trusted(h.chat).isEmpty());
@@ -232,21 +231,19 @@ class PolicyChoiceSelectionTest {
   }
 
   @Test
-  void associatingTheSelectedSourceWithItsClarificationPreservesAuthorityAfterReload() throws Exception {
+  void theConfirmedSelectionRemainsReadableFromTheArchivedTurnAfterReload() throws Exception {
     var h = new Harness();
     h.captureQuestion();
     var card = h.choices.decision(h.choices.pending(h.chat, 7).orElseThrow(), 7);
     var chosen = command(card, ChatEvent.KEEP_REQUESTED_ACTION);
     var source = h.begin(chosen);
     var selected = h.choices.confirm(h.chat, chosen, 7).orElseThrow();
-    h.store.associateClarification(h.chat);
+    var reloaded = new PolicyChoiceSelection(h.artifacts, h.sessions, h.conversations);
     var archived = h.archive.read(h.chat).activeTurns().stream()
         .filter(turn -> turn.id().equals(source.turnId())).findFirst().orElseThrow();
-    assertFalse(archived.metadata().has("resolvedDecision"));
     assertEquals(h.json.readTree(h.json.writeValueAsBytes(chosen)),
-        archived.metadata().path("submitted").path("resolvedDecision"));
+        archived.metadata().path("resolvedDecision"));
     assertEquals(List.of(selected), h.store.trustedPolicyChoices(h.chat));
-    var reloaded = new PolicyChoiceSelection(h.artifacts, h.sessions, h.conversations);
     assertEquals(List.of(selected), reloaded.trusted(h.chat));
     assertTrue(reloaded.pending(h.chat, 8).isEmpty());
     assertTrue(h.store.validateForContinuation(h.chat).stream()
