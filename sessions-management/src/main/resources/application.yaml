@@ -36,6 +36,12 @@ spring:
         enabled: false
     consul:
       enabled: true
+      # Retries the config import for about 110 s while Consul starts, then fails the pod
+      retry:
+        initial-interval: 1000
+        multiplier: 2
+        max-interval: 5000
+        max-attempts: 24
       config:
         enabled: true
         prefixes: config/${NAMESPACE}
