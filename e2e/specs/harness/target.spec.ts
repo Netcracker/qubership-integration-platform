@@ -11,8 +11,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, type FullConfig } from "@playwright/test";
 import { suiteProjects } from "../../playwright.config.js";
+import { needsStack } from "../../env/provision.js";
 import {
   kafkaHostBrokers,
   proxyUrl,
@@ -32,7 +33,7 @@ const E2E_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 /**
  * The projects the config declared on 2026-09-24, before the target seam, with brokers on, and with
  * `suite-teardown` in place of `brokers-seed-teardown`, `harness` split off `schema`,
- * `schemas-build` added ahead of `ui-server`, and `vscode-server` with its teardown added.
+ * `schemas-build` added ahead of `ui-server`, `vscode-server` with its teardown added, and `vscode`.
  */
 const COMPOSE_PROJECTS = [
   "schema",
@@ -48,6 +49,7 @@ const COMPOSE_PROJECTS = [
   "ui-server-teardown",
   "vscode-server",
   "vscode-server-teardown",
+  "vscode",
   "ui",
   "brokers-seed",
   "brokers",
@@ -79,6 +81,7 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
   "vscode-server": "./specs/vscode-server /.*\\.setup\\.ts$/; after schemas-build; teardown vscode-server-teardown",
   "vscode-server-teardown": "./specs/vscode-server /.*\\.teardown\\.ts$/",
+  vscode: "./specs/vscode; after vscode-server; 1 worker",
   ui: "./specs/ui; after seed, ui-server; parallel",
   // The broker and micro teardowns wait for `global` without gating either side.
   global: "./specs/global; after api, runtime, env, ui; teardown suite-teardown; 1 worker",
@@ -166,6 +169,20 @@ test.describe("target", () => {
       }
     });
 
+    test("--project=vscode and what it waits for need no stack", () => {
+      for (const projects of [composeProjects(undefined), k8sProjects()]) {
+        const config = { argv: ["node", "playwright", "test", "--project=vscode"], projects } as unknown as FullConfig;
+        expect(needsStack(config)).toBe(false);
+        // Playwright runs the dependencies whatever the selection, and provisioning reads only the selection.
+        const vscode = projects.find((each) => each.name === "vscode");
+        expect(vscode?.metadata).toEqual({ stack: false });
+        expect([...waitsFor(projects, "vscode")].sort()).toEqual(["schemas-build", "vscode-server"]);
+        for (const name of waitsFor(projects, "vscode")) {
+          expect(projects.find((each) => each.name === name)?.metadata?.stack, name).toBe(false);
+        }
+      }
+    });
+
     // The run summary and the email count each group apart, so a seed that fails reads as setup.
     test("every setup and teardown project is grouped as setup", () => {
       for (const projects of [composeProjects(undefined), k8sProjects()]) {
@@ -173,7 +190,7 @@ test.describe("target", () => {
         expect(lifecycle.length).toBeGreaterThan(0);
         for (const each of lifecycle) expect(each.metadata?.group, each.name).toBe("setup");
         const groups = Object.fromEntries(projects.map((each) => [each.name, each.metadata?.group ?? "product"]));
-        expect(groups).toMatchObject({ schema: "suite", harness: "suite", tooling: "setup", api: "product", ui: "product" });
+        expect(groups).toMatchObject({ schema: "suite", harness: "suite", tooling: "setup", api: "product", ui: "product", vscode: "product" });
       }
     });
 

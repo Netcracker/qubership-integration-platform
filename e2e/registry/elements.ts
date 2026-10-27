@@ -1056,7 +1056,7 @@ export const COMPONENT_TAGS = ["catalog", "engine", "sessions", "testing-service
  * The projects that are a component of their own. Their cases carry no component tag, which would
  * only repeat the project name beside it in the HTML report, and `--project` selects them.
  */
-export const PROJECT_COMPONENTS = ["ui", "schema", "harness"] as const;
+export const PROJECT_COMPONENTS = ["ui", "vscode", "schema", "harness"] as const;
 
 /** Every component a case can belong to: a component tag, or one of `PROJECT_COMPONENTS`. */
 export const COMPONENTS: readonly string[] = [...COMPONENT_TAGS, ...PROJECT_COMPONENTS];

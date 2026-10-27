@@ -117,6 +117,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `schemas-build` | build `schemas/` when its sources are newer, with no stack | the same |
 | `ui-server`, `ui-server-teardown` | build and serve the UI bundle on 4200, then stop it | the same |
 | `vscode-server`, `vscode-server-teardown` | build the UI library and the extension when their inputs are newer, serve VS Code for the web on 3917, then stop it, with no stack | the same |
+| `vscode` | the extension's editors in VS Code for the web on 3917, one worker, with no stack | the same |
 | `runtime` | `specs/runtime/` against the classic engine | the same |
 | `suite-teardown` | the teardowns of `seed-micro`, `brokers-seed`, and `brokers-micro-seed`, after `global` | the same |
 | `seed-micro` | not declared | a second copy of the corpus, deployed to a micro domain named `e2e-<run>-micro` |
@@ -737,6 +738,8 @@ specs/
                 builds the UI library and the extension, serves VS Code for the web on 3917,
                 then stops it
   ui/           the browser layer, Chromium through nginx on 8080
+  vscode/       the extension's editors in VS Code for the web; imports `test` from
+                support/vscode-guard.ts, which fails a case on an error in any frame
   seed-micro/   k8s only: deploys the micro copy of the corpus to a micro domain, then removes it
   brokers-micro-seed/
                 k8s only: deploys the micro copy of fixtures/brokers/ to a micro domain, then

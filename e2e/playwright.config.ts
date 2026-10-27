@@ -19,6 +19,7 @@ import {
 } from "@playwright/test";
 import { proxyUrl, serviceUrl } from "./env/containers.js";
 import { target } from "./env/target.js";
+import { VSCODE_PORT } from "./support/vscode-server.js";
 import {
   targetSetup,
   type SuiteProject,
@@ -190,6 +191,24 @@ const suite: SuiteProject[] = [
     metadata: { stack: false, group: "setup" },
     testDir: "./specs/vscode-server",
     testMatch: /.*\.teardown\.ts$/,
+  },
+  {
+    // The extension's editors inside VS Code for the web on 3917, through `support/vscode-guard.ts`.
+    // One worker: each case starts a workbench and an extension host of its own, in a fresh browser
+    // context. No stack, like the server it depends on.
+    name: "vscode",
+    testDir: "./specs/vscode",
+    workers: 1,
+    metadata: { stack: false },
+    dependencies: ["vscode-server"],
+    use: {
+      // A Windows user agent on every host, so the workbench binds Ctrl rather than Cmd on a Mac.
+      ...devices["Desktop Chrome"],
+      baseURL: `http://localhost:${VSCODE_PORT}`,
+      viewport: { width: 1600, height: 900 },
+      // `VsCodePage.readAsText` copies a file's text and reads it back in the top frame.
+      permissions: ["clipboard-read", "clipboard-write"],
+    },
   },
   {
     // The browser layer: Chromium only, through nginx on 8080. `seed` holds the corpus open until
