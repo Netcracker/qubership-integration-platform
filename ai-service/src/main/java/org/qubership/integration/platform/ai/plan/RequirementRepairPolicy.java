@@ -20,8 +20,8 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLit
  * name inside a sentence, and ordinary words are claim evidence. While no baseline exists,
  * those literals come from the candidate's evidence quote when that quote is an exact substring
  * of the named user turn. A mapping text or the fact's HTTP capability can cover the literal
- * when the fact has no element intent. A literal equal to the entire claim
- * text stays claim evidence. On an accepted draft, kind, interaction IDs, mapping, element intent,
+ * when the fact has no element intent. A sentence that equals the claim text stays claim
+ * evidence, because a sentence is not a literal. On an accepted draft, kind, interaction IDs, mapping, element intent,
  * placement, exact values, text, and
  * polarity stay fixed unless an amendment or a server repair path covers the change. A focused
  * envelope with no repair alternative inside that scope becomes a projection rebuild.
@@ -162,8 +162,8 @@ public final class RequirementRepairPolicy {
   /**
    * While no baseline exists, source literals in a candidate quote are obligations when the quote
    * is an exact substring of the named user turn. A mapping or the fact's HTTP capability can
-   * cover the literal when the fact has no element intent. A literal equal to the whole claim
-   * text stays claim evidence.
+   * cover the literal when the fact has no element intent. A sentence that equals the fact
+   * text stays claim evidence, because a sentence is not a literal.
    */
   private static List<RequirementFinding> missingCandidateQuoteLiterals(
       AuthorSourceEvidence.Packet source, DraftInput candidate) {
@@ -181,7 +181,7 @@ public final class RequirementRepairPolicy {
         continue;
       }
       for (String literal : sourceLiterals(quote)) {
-        if (literal.equals(fact.text()) || literalCovered(candidate, fact, literal)) {
+        if (literalCovered(candidate, fact, literal)) {
           continue;
         }
         findings.add(literalFinding(fact.sourceFactId(), literal));

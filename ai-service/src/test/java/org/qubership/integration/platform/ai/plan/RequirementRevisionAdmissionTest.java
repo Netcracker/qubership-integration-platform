@@ -1309,6 +1309,56 @@ class RequirementRevisionAdmissionTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {"audit-event", "POST /sobjects/Task"})
+  void quoteThatEqualsFactTextStillNeedsABinding(String literal) {
+    String turn = "Use " + literal + " now.";
+    var uncovered = replaceFact(absentLiteral(), textAndQuote(absentLiteral(), literal));
+    var covered = replaceFact(coveredValue("property", literal),
+        textAndQuote(coveredValue("property", literal), literal));
+    assertAll(
+        () -> assertEquals(List.of(literal), unboundTokens(quoteDecision(uncovered, "turn-1", turn)), "unbound"),
+        () -> assertEquals(List.of(), unboundTokens(quoteDecision(covered, "turn-1", turn)), "property"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"GET /api/v1.0/health", "POST /file.json"})
+  void dottedHttpPathRemainsARequiredLiteral(String operation) {
+    var claim = new RequirementSemanticClaim("audit", "Call the operation.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", operation));
+    String turn = "Use " + operation + " now.";
+    var uncovered = absentLiteral();
+    var missingQuote = replaceFact(uncovered, quoted(uncovered.facts().getFirst(), "turn-1", operation));
+    var coveredProperty = coveredValue("property", operation);
+    var boundQuote = replaceFact(coveredProperty, quoted(coveredProperty.facts().getFirst(), "turn-1", operation));
+    assertAll(
+        () -> assertEquals(List.of(operation),
+            unboundTokens(admit(List.of(), uncovered, baseline(claim))), "baseline"),
+        () -> assertEquals(List.of(operation),
+            unboundTokens(quoteDecision(missingQuote, "turn-1", turn)), "candidate quote"),
+        () -> assertEquals(List.of(),
+            unboundTokens(admit(List.of(), coveredProperty, baseline(claim))), "property"),
+        () -> assertEquals(List.of(),
+            unboundTokens(quoteDecision(boundQuote, "turn-1", turn)), "covered candidate quote"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"POST /sobjects/Task.", "POST /file.json.", "GET /health,"})
+  void oneTrailingMarkOnAnHttpOperationIsPunctuation(String quote) {
+    String operation = quote.substring(0, quote.length() - 1);
+    var claim = new RequirementSemanticClaim("audit", "Call the operation.",
+        Polarity.POSITIVE, new ClaimEvidenceInput("turn-1", quote));
+    String turn = "Use " + quote + " now";
+    var uncovered = absentLiteral();
+    var quotedDraft = replaceFact(uncovered, quoted(uncovered.facts().getFirst(), "turn-1", quote));
+    var issues = admit(List.of(), uncovered, baseline(claim));
+    assertAll(
+        () -> assertEquals(List.of(operation), unboundTokens(issues), "baseline"),
+        () -> assertFalse(unboundLiteral(issues, quote), "punctuation is not part of the literal"),
+        () -> assertEquals(List.of(operation),
+            unboundTokens(quoteDecision(quotedDraft, "turn-1", turn)), "candidate quote"));
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"POST /sobjects/Task", "GET /health"})
   void httpOperationIsCoveredByCapabilityOrSeparatePropertyValues(String operation) {
     String method = operation.substring(0, operation.indexOf(' '));
@@ -1651,6 +1701,12 @@ class RequirementRevisionAdmissionTest {
   private static FactInput fact(String id, String text, String turnId, String quote) {
     return new FactInput(id, List.of(), FactKind.GOAL, Polarity.POSITIVE, text, null, null, null,
         new ClaimEvidenceInput(turnId, quote));
+  }
+
+  private static FactInput textAndQuote(DraftInput draft, String literal) {
+    var fact = draft.facts().getFirst();
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), literal,
+        fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(), new ClaimEvidenceInput("turn-1", literal));
   }
 
   private static FactInput quoted(FactInput fact, String turnId, String quote) {
