@@ -53,8 +53,7 @@ import static org.mockito.Mockito.when;
  * Covers the micro-domain gate and the endpoints of {@link CustomResourceController}. Each
  * single-resource endpoint runs only when the micro domain is enabled and otherwise throws
  * {@link DomainTypeDisabledException}. The deploy endpoints delegate to {@link BulkDeploymentService},
- * whose behavior {@code BulkDeploymentServiceTest} covers. Removing a snapshot retries a lost
- * optimistic-concurrency race up to a fixed budget before the conflict propagates.
+ * whose behavior {@code BulkDeploymentServiceTest} covers.
  */
 @ExtendWith(MockitoExtension.class)
 class CustomResourceControllerTest {
@@ -181,6 +180,6 @@ class CustomResourceControllerTest {
         ResponseEntity<Void> response = controller.deleteSnapshotFromResource("orders", "s1");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(microDomainService).deleteChainSnapshot("orders", "s1");
+        verify(bulkDeploymentService).deleteChainSnapshot("orders", "s1");
     }
 }
