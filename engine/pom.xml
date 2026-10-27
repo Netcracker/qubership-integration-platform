@@ -23,7 +23,7 @@
   </parent>
   <properties>
     <revision>1.6.0</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-1-logback-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
