@@ -379,6 +379,23 @@ class CaptureAttemptFeedbackStoreTest {
   }
 
   @Test
+  void theFirstClarificationTargetIsNotAlreadyNoProgress() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var projection = mapper.createObjectNode().put("interactionId", "submit").put("propertyKey", "path");
+    projection.putArray("requestedValues");
+    var key = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "turn-2", "offer-1", "submit", "path", projection, projection.deepCopy());
+    var issue = List.of(new TypedIssue(
+        "CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/target-uri",
+        "The pinned target is unchanged.", "target-uri"));
+
+    var first = store.recordClarificationFailure("conv-1", "requirement-discovery", key, issue);
+    assertEquals(false, first.noProgress());
+    var second = store.recordClarificationFailure("conv-1", "requirement-discovery", key, issue);
+    assertEquals(true, second.noProgress());
+  }
+
+  @Test
   void clarificationFailureSurvivesANewStoreOnTheSameArtifacts() {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();

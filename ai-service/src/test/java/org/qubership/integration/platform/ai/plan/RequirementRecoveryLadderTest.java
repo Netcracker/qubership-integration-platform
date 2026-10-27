@@ -123,6 +123,32 @@ class RequirementRecoveryLadderTest {
   }
 
   @Test
+  void duplicateEntityInternalFailureKeepsItsOwnIssue() throws Exception {
+    var h = Harness.open();
+    var invalid = duplicateGoal();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.capture(invalid);
+      h.capture(invalid);
+      assertEquals(NextAction.PROJECTION_REBUILD, h.capture(invalid).nextAction());
+      var stopped = h.capture(invalid);
+      assertEquals(NextAction.STOP, stopped.nextAction());
+      var duplicate = stopped.issues().stream().filter(issue -> "DUPLICATE_ENTITY".equals(issue.code()))
+          .findFirst().orElseThrow();
+
+      var finished = JSON.readValue(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      var kept = finished.issues().stream().filter(issue -> "DUPLICATE_ENTITY".equals(issue.code()))
+          .findFirst().orElseThrow();
+
+      assertEquals(duplicate.message(), kept.message());
+      assertTrue(finished.issues().stream().noneMatch(issue ->
+          "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())), finished.toString());
+      assertTrue(finished.issues().stream().noneMatch(issue -> issue.message() != null
+          && issue.message().contains("This is not an author question.")), finished.toString());
+    }
+  }
+
+  @Test
   void clarificationNoProgressRebuildsThenFailsInternally() {
     var codes = List.of("CLARIFICATION_ANSWER_NO_PROGRESS", "UNAPPLIED_AUTHOR_ANSWER");
 

@@ -233,12 +233,13 @@ public class CaptureAttemptFeedbackStore {
     if (conversationId == null || conversationId.isBlank() || key == null) {
       return null;
     }
+    boolean repeated = repeatedClarificationFailure(conversationId, key);
     String capability = capabilityId == null ? "" : capabilityId;
     String scope = inputScope(conversationId, capability);
     pending.put(conversationId, new PendingProposal(capability, scope, scope, CLARIFICATION_TARGET_TOOL,
         JSON.valueToTree(key)));
     var feedback = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "CLARIFICATION_ANSWER_NO_PROGRESS",
-        CaptureFailureClass.CORRECTABLE, true, List.of(), "", true, null,
+        CaptureFailureClass.CORRECTABLE, true, List.of(), "", repeated, null,
         issues == null ? List.of() : issues);
     return observe(conversationId, "VALIDATION", capability, feedback);
   }
