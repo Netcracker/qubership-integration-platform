@@ -185,8 +185,7 @@ class RequirementFailureConsistencyAdmissionTest {
       ((ObjectNode) malformed.at("/facts/2/elementIntent")).putNull("ownerInteractionId");
       var first = h.call("captureRequirementDraft", Map.of("draft", malformed));
       assertFalse(first.path("accepted").asBoolean(), first.toString());
-      assertEquals("PROPAGATE", h.store.repairConstraints(h.chat).values()
-          .at("/interactions/remote/failureMode").asText());
+      assertNull(h.store.repairConstraints(h.chat));
 
       var refused = h.call("captureRequirementDraft",
           Map.of("draft", withMode(input(), ServiceCallFailureMode.ERROR_SCOPE)));
@@ -436,8 +435,7 @@ class RequirementFailureConsistencyAdmissionTest {
       ((ObjectNode) malformed.at("/facts/2/elementIntent")).putNull("ownerInteractionId");
       var first = h.call("captureRequirementDraft", Map.of("draft", malformed));
       assertFalse(first.path("accepted").asBoolean(), first.toString());
-      assertEquals("PROPAGATE", h.store.repairConstraints(h.chat).values()
-          .at("/interactions/remote/failureMode").asText());
+      assertNull(h.store.repairConstraints(h.chat));
       var conflict = h.call("captureRequirementDraft", Map.of("draft", input()));
       assertFalse(conflict.path("accepted").asBoolean());
       assertEquals("FAILURE_MODE_CONFLICT", conflict.at("/issues/0/code").asText(), conflict.toString());

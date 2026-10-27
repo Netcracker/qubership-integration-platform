@@ -42,8 +42,7 @@ class RequirementCapabilityConsistencyTest {
       assertTrue(h.store.get(h.chat).isEmpty());
       var attempt = h.artifacts.latest(h.compilation(), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
       assertEquals("http-sender", attempt.payload().at("/arguments/capabilities/1/capabilityKey").asText());
-      assertFalse(h.store.repairConstraints(h.chat).values().path("capabilities").has("remote"));
-      assertTrue(h.store.repairConstraints(h.chat).facts().contains(input(true).facts().getLast()));
+      assertNull(h.store.repairConstraints(h.chat));
       assertTrue(h.capture(input(false)).accepted());
       assertEquals(input(true).facts(), h.store.get(h.chat).orElseThrow().authoredDraft().facts());
       h.resolveRemote();
@@ -82,8 +81,7 @@ class RequirementCapabilityConsistencyTest {
       var refused = h.capture(input);
       assertFalse(refused.accepted());
       assertTrue(refused.issues().stream().anyMatch(issue -> CONFLICT.equals(issue.code())), refused.toString());
-      assertEquals(input.facts(), h.store.repairConstraints(h.chat).facts());
-      assertFalse(h.store.repairConstraints(h.chat).values().path("capabilities").has("remote"));
+      assertNull(h.store.repairConstraints(h.chat));
       var corrected = new DraftInput(input.flow(), input.facts(), input(false).capabilities(), input.openQuestions(), input.settings());
       assertTrue(h.capture(corrected).accepted());
       assertEquals(input.facts(), h.store.get(h.chat).orElseThrow().authoredDraft().facts());

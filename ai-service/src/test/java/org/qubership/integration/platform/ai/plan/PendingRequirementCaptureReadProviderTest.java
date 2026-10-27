@@ -144,9 +144,7 @@ class PendingRequirementCaptureReadProviderTest {
           assertEquals(input.turnId(), saved.payload().path("sourceTurnId").asText());
           assertTrue(saved.payload().path("acceptedDraftReference").isNull());
           assertTrue(drafts.get(chat).isEmpty());
-          var protectedPolicy = drafts.rejectedCaptureFacts(chat).stream()
-              .filter(fact -> policy.sourceFactId().equals(fact.sourceFactId())).findFirst().orElseThrow();
-          assertEquals(correctedPolicy, protectedPolicy);
+          assertTrue(drafts.rejectedCaptureFacts(chat).isEmpty());
           assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
           beforeRead.set(persistedState());
         }, "readRequirementDraft", "{}"),

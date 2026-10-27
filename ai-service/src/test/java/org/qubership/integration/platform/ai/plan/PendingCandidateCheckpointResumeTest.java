@@ -97,16 +97,10 @@ class PendingCandidateCheckpointResumeTest {
     assertFalse(rejected.accepted());
     assertTrue(rejected.issues().stream().anyMatch(issue -> "INVALID_ELEMENT_REFERENCE".equals(issue.code())));
 
-    var candidate = localScript(initial);
-    assertTrue(RequirementCaptureEditor.initialize(candidate).accepted());
-    var unsupported = call(tools, "captureRequirementDraft", Map.of("draft", candidate));
-    assertFalse(unsupported.accepted());
-    assertTrue(unsupported.issues().stream().anyMatch(issue -> "AUTHOR_AMENDMENT_REQUIRED".equals(issue.code())
-        && "/capabilities/summarizeParcels".equals(issue.path())), unsupported.toString());
     var pending = call(tools, "readRequirementDraft", Map.of());
     assertNotNull(pending.pendingProposal());
-    assertEquals(candidate, pending.pendingProposal().draft());
-    assertEquals(unsupported.issues(), pending.pendingProposal().issues());
+    assertEquals(initial, pending.pendingProposal().draft());
+    assertEquals(rejected.issues(), pending.pendingProposal().issues());
     assertEquals(input.generation(), pending.pendingProposal().sourceGeneration());
     assertEquals(input.turnId(), pending.pendingProposal().sourceTurnId());
     assertEquals("captureRequirementDraft", pending.pendingProposal().toolName());
@@ -148,7 +142,7 @@ class PendingCandidateCheckpointResumeTest {
     var support = CreateChainTestOrchestrator.supportBuilder(runs, productArtifacts, capabilities, clock)
         .failureNarrative(new FailureNarrative(provider)).recoveryLedger(recovery).build();
     support.bootstrap(command, "checkpoint-flow");
-    var cause = new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, unsupported.issues().stream()
+    var cause = new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, rejected.issues().stream()
         .map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true)).toList(), "");
     var key = recovery.key(STAGE, cause, "", runs.load(runId).orElseThrow().transitions());
     for (String reason : List.of(recovery.recordRepair(key, ""), recovery.recordCleanRebuild(key, ""))) {
@@ -211,6 +205,80 @@ class PendingCandidateCheckpointResumeTest {
     assertEquals(0, providerCalls.get());
     assertEquals(before.keySet(), new java.util.HashSet<>(blobs.list("")));
     before.forEach((path, bytes) -> assertArrayEquals(bytes, blobs.get(path).orElseThrow(), path));
+  }
+
+  @Test
+  void rejectedCapabilityDoesNotAuthorizeTheNextProjection() throws Exception {
+    var blobs = new InMemoryArtifactBlobStore();
+    var clock = Clock.systemUTC();
+    var artifacts = new CompilationArtifacts(blobs, JSON, clock);
+    var sessions = new CompilationSessions(blobs, JSON, clock);
+    var archive = new ConversationArchive(blobs, JSON);
+    var conversations = conversations(archive);
+    ObjectNode fixture;
+    try (var stream = getClass().getResourceAsStream("/recovery/mini-topology-first-capture.json")) {
+      assertNotNull(stream);
+      fixture = (ObjectNode) JSON.readTree(stream);
+    }
+    String source = fixture.path("source").asText();
+    var opened = archive.beginInput(CHAT, source, null);
+    archive.resolveInput(CHAT, opened, source);
+    var drafts = new RequirementDraftStore(artifacts, sessions, conversations);
+    var tools = captureTools(drafts, conversations);
+    drafts.beginTurn(CHAT, source);
+    var initial = JSON.treeToValue(fixture.path("draft"), DraftInput.class);
+    var rejected = call(tools, "captureRequirementDraft", Map.of("draft", initial));
+    assertFalse(rejected.accepted());
+    var candidate = localScript(initial);
+    var saved = call(tools, "captureRequirementDraft", Map.of("draft", candidate));
+
+    assertTrue(saved.accepted(), saved.toString());
+    assertNull(drafts.repairConstraints(CHAT));
+    assertEquals(candidate, drafts.get(CHAT).orElseThrow().authoredDraft());
+    assertTrue(drafts.pendingProposal(CHAT).isEmpty());
+  }
+
+  @Test
+  void replayAfterRebuildKeepsTheBaselineAndDropsThePendingProjection() throws Exception {
+    var blobs = new InMemoryArtifactBlobStore();
+    var clock = Clock.systemUTC();
+    var artifacts = new CompilationArtifacts(blobs, JSON, clock);
+    var sessions = new CompilationSessions(blobs, JSON, clock);
+    var archive = new ConversationArchive(blobs, JSON);
+    var conversations = conversations(archive);
+    String author = "Submit one task before Friday.";
+    var input = archive.beginInput(CHAT, author, null);
+    archive.resolveInput(CHAT, input, author);
+    var drafts = new RequirementDraftStore(artifacts, sessions, conversations);
+    var tools = captureTools(drafts, conversations);
+    drafts.beginTurn(CHAT, author);
+    var fact = new RequirementCaptureInput.FactInput("invalid id", List.of(),
+        RequirementCaptureInput.FactKind.GOAL, RequirementCaptureInput.Polarity.POSITIVE, "Submit one task",
+        null, null, null, new RequirementCaptureInput.ClaimEvidenceInput(input.turnId(), "Submit one task"));
+    var candidate = new DraftInput(new RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(fact), List.of(), List.of(), new RequirementCaptureInput.DraftSettings(false, null));
+    var rejected = call(tools, "captureRequirementDraft", Map.of("draft", candidate));
+    assertFalse(rejected.accepted(), rejected.toString());
+    var baseline = drafts.semanticBaseline(CHAT).orElseThrow();
+    assertTrue(drafts.pendingProposal(CHAT).isPresent());
+    assertNull(drafts.repairConstraints(CHAT));
+    assertTrue(drafts.get(CHAT).isEmpty());
+    int protectionCount = artifacts.history(sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_PROTECTION).size();
+
+    drafts.rebuildPendingProjection(CHAT);
+
+    var restoredArtifacts = new CompilationArtifacts(blobs, JSON, clock);
+    var restoredSessions = new CompilationSessions(blobs, JSON, clock);
+    var restoredDrafts = new RequirementDraftStore(restoredArtifacts, restoredSessions, conversations(archive));
+    restoredDrafts.beginTurn(CHAT, author);
+    assertTrue(restoredDrafts.pendingProposal(CHAT).isEmpty());
+    assertEquals(baseline, restoredDrafts.semanticBaseline(CHAT).orElseThrow());
+    assertTrue(restoredDrafts.get(CHAT).isEmpty());
+    assertTrue(restoredDrafts.latestRevision(CHAT).isEmpty());
+    assertNull(restoredDrafts.repairConstraints(CHAT));
+    assertEquals(protectionCount, restoredArtifacts.history(restoredSessions.active(CHAT),
+        Kind.REQUIREMENT_CAPTURE_PROTECTION).size());
+    assertEquals(input.turnId(), archive.read(CHAT).activeTurns().getFirst().id());
   }
 
   private static ConversationService conversations(ConversationArchive archive) {

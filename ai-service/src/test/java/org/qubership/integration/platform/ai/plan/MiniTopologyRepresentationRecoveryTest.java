@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationArchi
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureProposal;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
@@ -86,6 +87,43 @@ class MiniTopologyRepresentationRecoveryTest {
     assertTrue(h.store.get(h.chat).orElseThrow().authoredDraft().facts().stream()
         .noneMatch(fact -> "script-behavior".equals(fact.sourceFactId())));
     h.assertSourceAndAttempt(candidate, true);
+  }
+
+  @Test
+  void restartAndRebuildDropThePendingProjectionWithoutTouchingSource() throws Exception {
+    var h = new Harness();
+    h.rejectInitial();
+    var sourceBefore = h.conversations.archive().read(h.chat);
+    var baseline = h.store.semanticBaseline(h.chat);
+    assertTrue(h.artifacts.latest(h.sessions.active(h.chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION)
+        .isPresent());
+    assertNull(h.store.repairConstraints(h.chat));
+    assertTrue(h.store.pendingProposal(h.chat).isPresent());
+    assertTrue(h.store.latestRevision(h.chat).isEmpty());
+
+    h.restart();
+    assertNull(h.store.repairConstraints(h.chat));
+    assertEquals(baseline, h.store.semanticBaseline(h.chat));
+    assertTrue(h.store.pendingProposal(h.chat).isPresent());
+    var pending = h.store.pendingProposal(h.chat).orElseThrow();
+    var attempt = h.artifacts.payload(h.artifacts.get(h.sessions.active(h.chat), pending.attempt()).orElseThrow(),
+        RequirementDraftStore.RequirementCaptureAttempt.class);
+    assertEquals(CaptureProposal.digest(new RequirementDraftStore.PendingProposalBinding(
+        pending.attempt(), attempt.authorEvidenceHash(), pending.base(), attempt.semanticBaselineReference())),
+        pending.token());
+
+    h.store.rebuildPendingProjection(h.chat);
+    assertTrue(h.store.pendingProposal(h.chat).isEmpty());
+    assertEquals(baseline, h.store.semanticBaseline(h.chat));
+    assertTrue(h.store.latestRevision(h.chat).isEmpty());
+    assertEquals(sourceBefore.generation(), h.conversations.archive().read(h.chat).generation());
+    assertEquals(sourceBefore.activeTurnIds(), h.conversations.archive().read(h.chat).activeTurnIds());
+
+    h.restart();
+    assertTrue(h.store.pendingProposal(h.chat).isEmpty());
+    assertNull(h.store.repairConstraints(h.chat));
+    assertEquals(baseline, h.store.semanticBaseline(h.chat));
+    assertTrue(h.store.latestRevision(h.chat).isEmpty());
   }
 
   @Test

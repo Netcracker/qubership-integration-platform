@@ -75,7 +75,7 @@ class RequirementProtectionAcceptanceTest {
       String first = executor.execute(ToolExecutionRequest.builder().id("seed-first")
           .name("captureRequirementDraft").arguments(json.writeValueAsString(Map.of("draft", malformed))).build(), chat);
       assertFalse(json.readTree(first).path("accepted").asBoolean());
-      assertEquals("PROPAGATE", drafts.repairConstraints(chat).values().at("/interactions/remote/failureMode").asText());
+      assertNull(drafts.repairConstraints(chat));
       var sourceBefore = json.valueToTree(conversations.archive().read(chat));
       var script = new ScriptedStreamingChatModel(
           Turn.tool("native-conflict", request -> {}, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", original))),

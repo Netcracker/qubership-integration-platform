@@ -63,7 +63,7 @@ class RequirementCapabilityConsistencyProviderTest {
           assertTrue(drafts.get(chat).isEmpty());
           assertEquals(rejected.path("issues"), artifacts.latest(sessions.active(chat),
               CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow().payload().path("issues"));
-          assertTrue(drafts.repairConstraints(chat).facts().contains(input(true).facts().getLast()));
+          assertNull(drafts.repairConstraints(chat));
         }, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", input(false)))),
         Turn.tool("preserved-correction", request -> {
           assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
