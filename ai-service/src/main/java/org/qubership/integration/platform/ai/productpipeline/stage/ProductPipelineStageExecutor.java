@@ -42,6 +42,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.MappingVal
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
@@ -112,7 +113,12 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 public final class ProductPipelineStageExecutor implements StageExecutor {
   private org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
   private RequirementDraftStore requirementDrafts;
+  private ProductPipelineRunSupport clarificationSource;
   private org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore captureFeedback;
+
+  public void bindClarificationSource(ProductPipelineRunSupport source) {
+    this.clarificationSource = source;
+  }
 
   public void withNativeRequirementCapture(RequirementDraftStore drafts,
       org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
@@ -3801,6 +3807,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       String failureEvidence,
       StageStatus attemptOutcome) {
     long expected = doc.run().runRevision();
+    ClarificationTransition clarification = nextStatus == RunStatus.WAITING_FOR_INPUT && clarificationSource != null
+        ? clarificationSource.requirementClarification(doc, expected + 1L, reason)
+        : null;
     runStore.commit(
         expected,
         LogicalCommit.statusChange(
@@ -3831,7 +3840,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 clock.instant(),
                 reason,
                 null,
-                null)));
+                null,
+                clarification)));
     if (attemptOutcome == StageStatus.SUCCEEDED) {
       ProductPipelineRunSupport.settleActiveRepair(doc.run().currentStageId(), attributesByRun.get(doc.run().runId()));
     }

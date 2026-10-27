@@ -438,8 +438,10 @@ public sealed interface ChatEvent {
           null);
     }
     if (pending instanceof PendingAction.Clarify clarify) {
+      String offerId = clarify.clarificationOfferId();
+      String id = offerId == null || offerId.isBlank() ? "clarify:" + revision : offerId;
       return new Decision(
-          "clarify:" + revision,
+          id,
           clarify.action(),
           text,
           null,

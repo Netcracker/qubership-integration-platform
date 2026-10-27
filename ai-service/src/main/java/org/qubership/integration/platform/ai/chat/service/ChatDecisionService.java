@@ -137,8 +137,18 @@ public class ChatDecisionService {
     }
     var policyChoice = snapshot.filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
         && (clarify.gateId().isBlank() || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId())))
-        .flatMap(current -> policyChoices == null ? Optional.<ChatEvent.Decision>empty()
-            : policyChoices.pending(conversationId, current.revision()).map(pending -> policyChoices.decision(pending, current.revision())));
+        .flatMap(current -> {
+          if (policyChoices == null) {
+            return Optional.<ChatEvent.Decision>empty();
+          }
+          var offer = facade.activeClarificationOffer(conversationId).orElse(null);
+          return policyChoices.pending(
+                  conversationId,
+                  current.revision(),
+                  offer == null ? null : offer.draftReference(),
+                  offer == null ? null : offer.questionId())
+              .map(pending -> policyChoices.decision(pending, current.revision()));
+        });
     if (policyChoice.isPresent()) return policyChoice;
     var versionChoice = snapshot
         .filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
