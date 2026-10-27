@@ -116,7 +116,7 @@ public final class A2aInboundMessageParser {
       if (text == null || text.isBlank()) {
         throw A2aProtocolErrorMapper.malformedStructuredData("clarify requires clarification text");
       }
-      return new InboundCommand.ClarifyText(text);
+      return new InboundCommand.ClarifyText(text, optionalText(data.get("clarificationOfferId")));
     }
     if (PipelineGates.RETRY_ACTION.equalsIgnoreCase(action)) {
       return new InboundCommand.ClarifyText(PipelineGates.RETRY_ACTION);
@@ -131,6 +131,10 @@ public final class A2aInboundMessageParser {
       return new InboundCommand.ClarifyText("describe_mappings");
     }
     throw A2aProtocolErrorMapper.malformedStructuredData("Unsupported action: " + action);
+  }
+
+  private static String optionalText(Object value) {
+    return value instanceof String text && !text.isBlank() ? text : "";
   }
 
   static String canonicalMappingGapAction(String text) {
@@ -165,26 +169,41 @@ public final class A2aInboundMessageParser {
   public static final String KIND_CONTINUE_CLARIFY = "continue-clarify";
   public static final String KIND_APPROVE = "approve";
 
-  /** Reuses the approval bound at claim time; the caller must still verify the full fingerprint. */
+  /** Reuses the command bound at claim time; the caller must still verify the full fingerprint. */
   static InboundCommand resolveSavedCommand(InboundCommand command,
       org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt receipt) {
     if (!(command instanceof InboundCommand.ClarifyText) || receipt == null
-        || !KIND_APPROVE.equals(receipt.commandKind()) || receipt.commandPayloadJson() == null) {
+        || receipt.commandPayloadJson() == null) {
       return command;
     }
     try {
-      return org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.fromJson(receipt.commandPayloadJson(), InboundCommand.Approve.class);
+      if (KIND_APPROVE.equals(receipt.commandKind())) {
+        return org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.fromJson(
+            receipt.commandPayloadJson(), InboundCommand.Approve.class);
+      }
+      if (KIND_CONTINUE_CLARIFY.equals(receipt.commandKind())
+          || KIND_INITIAL_CLARIFY.equals(receipt.commandKind())) {
+        return org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.fromJson(
+            receipt.commandPayloadJson(), InboundCommand.ClarifyText.class);
+      }
+      return command;
     } catch (Exception failure) {
-      throw new IllegalStateException("Saved approval command is invalid", failure);
+      String saved = KIND_APPROVE.equals(receipt.commandKind())
+          ? "Saved approval command is invalid"
+          : "Saved clarification command is invalid";
+      throw new IllegalStateException(saved, failure);
     }
   }
 
   static String commandPayload(InboundCommand command) {
-    if (!(command instanceof InboundCommand.Approve)) { return null; }
+    if (!(command instanceof InboundCommand.Approve)
+        && !(command instanceof InboundCommand.ClarifyText)) {
+      return null;
+    }
     try {
       return org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.toJson(command);
     } catch (Exception failure) {
-      throw new IllegalStateException("Unable to persist the resolved approval command", failure);
+      throw new IllegalStateException("Unable to persist the resolved command", failure);
     }
   }
 
@@ -206,9 +225,14 @@ public final class A2aInboundMessageParser {
   }
 
   public sealed interface InboundCommand {
-    record ClarifyText(String text) implements InboundCommand {
+    record ClarifyText(String text, String clarificationOfferId) implements InboundCommand {
+      public ClarifyText(String text) {
+        this(text, "");
+      }
+
       public ClarifyText {
         text = text == null ? "" : text;
+        clarificationOfferId = clarificationOfferId == null ? "" : clarificationOfferId;
       }
     }
 

@@ -30,7 +30,9 @@ import org.qubership.integration.platform.ai.a2a.access.TaskAccessPolicy;
 import org.qubership.integration.platform.ai.a2a.access.TaskIdentity;
 import org.qubership.integration.platform.ai.a2a.access.TaskOperation;
 import org.qubership.integration.platform.ai.a2a.artifacts.CreateChainPublicArtifact;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageClaimResult;
+import org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aDispatchAcquisition;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aTaskCreate;
@@ -41,11 +43,14 @@ import org.qubership.integration.platform.ai.a2a.transport.A2aTaskSnapshotPersis
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aStateMapper.ProjectedTask;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 
 /**
@@ -67,6 +72,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
   private final A2aFeatureGate featureGate;
   private final A2aDispatchCrashGate crashGate;
   private final DispatchLeaseHeartbeat leaseHeartbeat;
+  private final ConversationArchive archive;
   private final AtomicInteger facadeInvocations = new AtomicInteger();
   private final java.util.concurrent.ConcurrentHashMap<java.util.UUID, ActiveExecution>
       activeExecutions = new java.util.concurrent.ConcurrentHashMap<>();
@@ -132,6 +138,28 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       A2aFeatureGate featureGate,
       A2aDispatchCrashGate crashGate,
       DispatchLeaseHeartbeat leaseHeartbeat) {
+    this(
+        facade,
+        persister,
+        receiptRepository,
+        callerContextProvider,
+        accessPolicy,
+        featureGate,
+        crashGate,
+        leaseHeartbeat,
+        null);
+  }
+
+  public CreateChainA2aAgentExecutor(
+      CreateChainApplicationFacade facade,
+      A2aTaskSnapshotPersister persister,
+      A2aMessageReceiptRepository receiptRepository,
+      CallerContextProvider callerContextProvider,
+      TaskAccessPolicy accessPolicy,
+      A2aFeatureGate featureGate,
+      A2aDispatchCrashGate crashGate,
+      DispatchLeaseHeartbeat leaseHeartbeat,
+      ConversationArchive archive) {
     this.facade = Objects.requireNonNull(facade, "facade");
     this.persister = Objects.requireNonNull(persister, "persister");
     this.receiptRepository = Objects.requireNonNull(receiptRepository, "receiptRepository");
@@ -140,6 +168,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     this.featureGate = featureGate;
     this.crashGate = crashGate;
     this.leaseHeartbeat = leaseHeartbeat;
+    this.archive = archive;
   }
 
   /** Test seam: counts facade command invocations after idempotent receipt acceptance. */
@@ -245,6 +274,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     if (!activateExactApproval(context)) {
       command = resolveTextApproval(command, priorSnapshot);
     }
+    command = bindClarificationOffer(command, message, savedReceipt, isNew, taskId);
     if (command instanceof InboundCommand.Approve && operation != TaskOperation.APPROVE && !isNew) {
       try {
         accessPolicy.check(caller, TaskOperation.APPROVE, new TaskIdentity(taskId, contextId));
@@ -308,6 +338,9 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
         taskId = incomplete.taskId();
         isNew =
             facade.snapshot(taskId).isEmpty() && command instanceof InboundCommand.ClarifyText;
+      }
+      if (!isNew) {
+        archiveClarificationAnswer(taskId, command);
       }
 
       checkCrash(A2aDispatchCrashGate.Point.AFTER_CLAIM);
@@ -717,7 +750,8 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
           history,
           emitter,
           facade.continueWithInput(
-              new ContinueCreateChainCommand(taskId, clarify.text(), commandId)),
+              new ContinueCreateChainCommand(
+                  taskId, clarify.text(), commandId, InputOrigin.ABSENT, clarify.clarificationOfferId())),
           messageId,
           ownerToken,
           ownershipLost,
@@ -1002,6 +1036,65 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     }
     callContext.activateExtension(A2aProtocolConstants.EXACT_APPROVAL_EXTENSION_URI);
     return true;
+  }
+
+  /**
+   * Pins the offer a continuation answers before the fingerprint and the receipt claim.
+   *
+   * <p>A saved receipt payload wins, then an explicit inbound offer, then the current durable
+   * offer on a first claim that has a stable message id. A continuation with neither an offer nor
+   * a stable message id is rejected before a receipt claim or an author turn.
+   */
+  private InboundCommand bindClarificationOffer(
+      InboundCommand command,
+      Message message,
+      Optional<A2aCallerMessageReceipt> savedReceipt,
+      boolean isNew,
+      String taskId) throws A2AError {
+    if (isNew || !(command instanceof InboundCommand.ClarifyText clarify)) {
+      return command;
+    }
+    boolean restored = savedReceipt
+        .filter(receipt -> receipt.commandPayloadJson() != null)
+        .filter(receipt -> A2aInboundMessageParser.KIND_CONTINUE_CLARIFY.equals(receipt.commandKind())
+            || A2aInboundMessageParser.KIND_INITIAL_CLARIFY.equals(receipt.commandKind()))
+        .isPresent();
+    if (!restored
+        && clarify.clarificationOfferId().isBlank()
+        && stableMessageId(message)
+        && savedReceipt.isEmpty()) {
+      String durable = facade.activeClarificationOffer(taskId)
+          .map(ClarificationTransition.Offer::offerId)
+          .orElse("");
+      if (!durable.isBlank()) {
+        clarify = new InboundCommand.ClarifyText(clarify.text(), durable);
+        command = clarify;
+      }
+    }
+    if (clarify.clarificationOfferId().isBlank() && !stableMessageId(message)) {
+      throw A2aProtocolErrorMapper.malformedStructuredData(
+          "A clarification answer needs an offer id or a stable message id");
+    }
+    return command;
+  }
+
+  private static boolean stableMessageId(Message message) {
+    return message.messageId() != null && !message.messageId().isBlank();
+  }
+
+  private void archiveClarificationAnswer(String taskId, InboundCommand command) {
+    if (archive == null || !(command instanceof InboundCommand.ClarifyText clarify)
+        || clarify.clarificationOfferId().isBlank()) {
+      return;
+    }
+    var metadata = JsonNodeFactory.instance.objectNode();
+    metadata.put("clarificationOfferId", clarify.clarificationOfferId());
+    archive.beginInput(
+        taskId,
+        ConversationArchive.deterministicAnswerTurnId(
+            clarify.clarificationOfferId(), clarify.text()),
+        clarify.text(),
+        metadata);
   }
 
   /**

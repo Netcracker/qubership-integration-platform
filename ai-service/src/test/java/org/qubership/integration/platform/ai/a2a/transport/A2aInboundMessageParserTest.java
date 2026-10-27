@@ -167,6 +167,39 @@ class A2aInboundMessageParserTest {
   }
 
   @Test
+  void explicitClarificationOfferIsPersistedWithTheCommand() throws Exception {
+    Message message =
+        Message.builder()
+            .role(Message.Role.ROLE_USER)
+            .messageId("m-offer")
+            .parts(List.of(
+                new TextPart("Use HTTPS"),
+                new DataPart(Map.of("action", "clarify", "clarificationOfferId", "offer-42"))))
+            .build();
+    InboundCommand command = A2aInboundMessageParser.parse(message);
+    assertEquals("Use HTTPS", assertInstanceOf(InboundCommand.ClarifyText.class, command).text());
+    String payload = A2aInboundMessageParser.commandPayload(command);
+    assertTrue(payload != null && payload.contains("offer-42"), payload);
+  }
+
+  @Test
+  void redispatchRestoresThePinnedClarificationOffer() {
+    var receipt = new org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt(
+        "task",
+        "fingerprint",
+        org.qubership.integration.platform.ai.a2a.persistence.A2aReceiptProcessingState.CLAIMED,
+        null,
+        null,
+        A2aInboundMessageParser.KIND_CONTINUE_CLARIFY,
+        4L,
+        "{\"text\":\"Use HTTPS\",\"clarificationOfferId\":\"offer-pinned\"}");
+    InboundCommand restored = A2aInboundMessageParser.resolveSavedCommand(
+        new InboundCommand.ClarifyText("Use HTTPS"), receipt);
+    String payload = A2aInboundMessageParser.commandPayload(restored);
+    assertTrue(payload != null && payload.contains("offer-pinned"), payload);
+  }
+
+  @Test
   void corruptSavedApprovalFailsClosed() {
     var receipt = new org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt(
         "task", "fingerprint", org.qubership.integration.platform.ai.a2a.persistence.A2aReceiptProcessingState.CLAIMED,
