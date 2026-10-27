@@ -870,7 +870,6 @@ public class RequirementDraftStore {
             });
       }
     }
-    revalidateRejectedReferences(conversationId);
     turnDirectives.remove(conversationId);
   }
 
@@ -912,80 +911,10 @@ public class RequirementDraftStore {
         source.generation(), turnId, candidate);
   }
 
-  void rememberRejectedCapture(String conversationId, RequirementCaptureInput.DraftInput input,
-      List<RequirementCaptureEditor.Issue> issues) {
-    rememberRejectedCapture(conversationId, input, issues, List.of());
-  }
-
-  void revalidateRejectedModeCorrection(String conversationId, RequirementCaptureInput.DraftInput candidate,
-      List<CatalogBindingHint> bindings) {
-    if (!currentSource(conversationId) || conversations == null || authorEvidenceHash(conversationId) == null) return;
-    var source = factProtection(conversationId, List.of());
-    if (!Objects.equals(authorEvidenceHash(conversationId), org.qubership.integration.platform.ai.compiler.capture.CaptureProposal
-        .digest(AuthorSourceEvidence.packet(conversations.archive().read(conversationId))))) return;
-    var session = sessions.current(conversationId);
-    if (session.isEmpty()) return;
-    for (var revision : artifacts.history(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT)) {
-      if (!"requirement-capture-tools".equals(revision.producerId())) continue;
-      var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
-      if (attempt.accepted() || !List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())
-          || !new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of()).sameSource(source)
-          || !Objects.equals(attempt.authorEvidenceHash(), authorEvidenceHash(conversationId))
-          || !Objects.equals(attempt.acceptedDraftReference(), latestRevision(conversationId).map(Revision::reference).orElse(null))
-          || !Objects.equals(attempt.repairAuthority(), repairAuthority(conversationId))) continue;
-      try {
-        var original = captureCandidate(revision);
-        var findings = RequirementFailureConsistency.issues(original, bindings);
-        if (!findings.isEmpty() && findings.stream().allMatch(finding -> attempt.issues().stream().anyMatch(issue ->
-            finding.code().equals(issue.code()) && finding.path().equals(issue.path()) && Objects.equals(finding.entityId(), issue.entityId())))
-            && RequirementFailureConsistency.correctsOnlyModes(original, candidate, findings)) {
-          rememberRejectedCapture(conversationId, original, findings, bindings);
-          return;
-        }
-      } catch (IllegalArgumentException malformed) {
-        // An unreadable historical candidate supplies no correction authority.
-      }
-    }
-  }
-
-  void rememberRejectedCapture(String conversationId, RequirementCaptureInput.DraftInput input,
-      List<RequirementCaptureEditor.Issue> issues, List<CatalogBindingHint> bindings) {
-    var base = get(conversationId).map(RequirementDraft::authoredDraft).orElse(null);
-    var retained = RequirementRevisionAdmission.retainedAdditions(base, input, issues);
-    var previousFacts = rejectedCaptureFacts(conversationId);
-    var candidateIds = input.facts() == null ? java.util.Set.<String>of() : input.facts().stream()
-        .filter(Objects::nonNull).map(RequirementCaptureInput.FactInput::sourceFactId)
-        .collect(java.util.stream.Collectors.toSet());
-    boolean retainsIdentities = previousFacts.stream()
-        .filter(fact -> RequirementCaptureEditor.validFactId(fact.sourceFactId()))
-        .allMatch(fact -> candidateIds.contains(fact.sourceFactId()));
-    var facts = retainsIdentities ? RequirementRevisionAdmission.accumulate(previousFacts, retained.facts()) : previousFacts;
-    var values = RequirementRevisionAdmission.accumulateValues(rejectedCaptureValues.get(conversationId),
-        retained.values());
-    // A later native check can disprove a value retained before that check was reachable.
-    for (var finding : RequirementFailureConsistency.issues(input, bindings)) {
-      if (!issues.contains(finding) || !facts.containsAll(input.facts())) continue;
-      String id = finding.entityId();
-      if (base != null && base.flow().interactions().stream().anyMatch(value -> id.equals(value.interactionId()))) continue;
-      var original = input.flow().interactions().stream().filter(value -> id.equals(value.interactionId()))
-          .findFirst().orElseThrow();
-      var protectedMode = values.path("interactions").path(id).path("failureMode");
-      if (original.failureMode() != null && protectedMode.asText().equals(original.failureMode().name())) {
-        ((com.fasterxml.jackson.databind.node.ObjectNode) values.path("interactions").path(id))
-            .put("failureMode", org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.INLINE_RESPONSE.name());
-      }
-    }
-    values = RequirementRevisionAdmission.pendingValues(values);
-    if (!facts.equals(rejectedCaptureFacts(conversationId)) || !values.equals(rejectedCaptureValues.get(conversationId))) {
-      saveFactProtection(conversationId, facts, values);
-    }
-  }
-
   void rememberRejectedCaptureFacts(
       String conversationId, List<RequirementCaptureInput.FactInput> facts) {
     var accumulated = RequirementRevisionAdmission.accumulate(rejectedCaptureFacts(conversationId), facts);
     if (!accumulated.equals(rejectedCaptureFacts(conversationId))) {
-      saveFactProtection(conversationId, accumulated);
       rejectedCaptureFacts.put(conversationId, accumulated);
     }
   }
@@ -1003,9 +932,6 @@ public class RequirementDraftStore {
   void clearRejectedCaptureFacts(String conversationId) {
     rejectedCaptureFacts.remove(conversationId);
     rejectedCaptureValues.remove(conversationId);
-    if (latestFactProtection(conversationId).filter(protection -> !protection.facts().isEmpty() || protection.values() != null && !protection.values().isEmpty()).isPresent()) {
-      saveFactProtection(conversationId, List.of());
-    }
   }
 
   private CaptureFactProtection factProtection(
@@ -1017,32 +943,6 @@ public class RequirementDraftStore {
         inputId == null ? currentAuthorText.get(conversationId) : null, facts, rejectedCaptureValues.get(conversationId),
         get(conversationId).map(RequirementDraft::authoredDraft)
             .map(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal::digest).orElse(null));
-  }
-
-  private Optional<CaptureFactProtection> latestFactProtection(String conversationId) {
-    return sessions.current(conversationId)
-        .flatMap(link -> LegacyCaptureProtectionAdapter.latest(artifacts, link.compilationId()));
-  }
-
-  private void saveFactProtection(String conversationId, List<RequirementCaptureInput.FactInput> facts) {
-    saveFactProtection(conversationId, facts, rejectedCaptureValues.get(conversationId));
-  }
-
-  private void saveFactProtection(String conversationId, List<RequirementCaptureInput.FactInput> facts,
-      com.fasterxml.jackson.databind.JsonNode values) {
-    saveFactProtection(conversationId, facts, values, List.of());
-  }
-
-  private void saveFactProtection(String conversationId, List<RequirementCaptureInput.FactInput> facts,
-      com.fasterxml.jackson.databind.JsonNode values, List<Reference> evidence) {
-    var scope = factProtection(conversationId, facts);
-    var protection = new CaptureFactProtection(scope.sourceGeneration(), scope.sourceTurnId(), scope.authorText(),
-        facts, values, scope.baseIdentity());
-    String compilationId = sessions.active(conversationId);
-    var previous = LegacyCaptureProtectionAdapter.latestRevision(artifacts, compilationId);
-    artifacts.append(new AppendCommand(compilationId, Kind.REQUIREMENT_CAPTURE_PROTECTION, "1",
-        "requirement-capture-protection", "1", protection, evidence,
-        previous.map(Revision::artifactId).orElse(null)));
   }
 
   public record CaptureFactProtection(String sourceGeneration, String sourceTurnId, String authorText,
@@ -1250,18 +1150,8 @@ public class RequirementDraftStore {
     if (result.accepted() && !List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
       return;
     }
-    CaptureFactProtection source = factProtection(conversationId, rejectedCaptureFacts(conversationId));
+    CaptureFactProtection source = factProtection(conversationId, List.of());
     boolean captureTool = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName);
-    if (!result.accepted() && captureTool) {
-      var values = RequirementRevisionAdmission.pendingValues(source.values());
-      boolean carried = !source.facts().isEmpty() || (values != null && !values.isEmpty());
-      if (carried) {
-        latestFactProtection(conversationId)
-            .filter(previous -> previous.sameSource(source) && Objects.equals(previous.baseIdentity(), source.baseIdentity()))
-            .filter(previous -> !previous.facts().equals(source.facts()) || !Objects.equals(previous.values(), values))
-            .ifPresent(previous -> saveFactProtection(conversationId, source.facts(), values));
-      }
-    }
     Reference baselineRef = baselineReference(conversationId);
     var strategy = strategyOverride != null ? strategyOverride
         : result.accepted() || !captureTool ? null : recoveryStrategy(result);
@@ -1270,68 +1160,6 @@ public class RequirementDraftStore {
         arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId),
         RequirementCaptureToolProvider.argumentBinding(), authorEvidenceHash(conversationId), resolvedCandidate,
         baselineRef, strategy), selectedAttempt);
-    if (!result.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
-      revalidateRejectedReferences(conversationId);
-    }
-  }
-
-  private void revalidateRejectedReferences(String conversationId) {
-    if (!currentSource(conversationId)) return;
-    String sourceHash = authorEvidenceHash(conversationId);
-    if (sourceHash == null || conversations == null || !sourceHash.equals(
-        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
-            AuthorSourceEvidence.packet(conversations.archive().read(conversationId))))) return;
-    var scope = factProtection(conversationId, rejectedCaptureFacts(conversationId));
-    if (scope.sourceGeneration() == null || scope.sourceTurnId() == null) return;
-    var protection = latestFactProtection(conversationId);
-    if (protection.isEmpty() || !protection.orElseThrow().sameSource(scope)
-        || !Objects.equals(protection.orElseThrow().baseIdentity(), scope.baseIdentity())
-        || !protection.orElseThrow().facts().equals(scope.facts())) return;
-    var current = latestRevision(conversationId);
-    var baseRef = current.map(Revision::reference).orElse(null);
-    var base = current.map(value -> artifacts.payload(value, RequirementDraft.class).authoredDraft()).orElse(null);
-    var session = sessions.current(conversationId);
-    if (session.isEmpty()) return;
-    var revisions = artifacts.history(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream()
-        .filter(value -> "requirement-capture-tools".equals(value.producerId()))
-        .filter(value -> {
-          var attempt = artifacts.payload(value, RequirementCaptureAttempt.class);
-          return !attempt.accepted() && List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())
-              && new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(), attempt.authorText(), List.of()).sameSource(scope)
-              && Objects.equals(attempt.authorEvidenceHash(), sourceHash)
-              && Objects.equals(attempt.acceptedDraftReference(), baseRef)
-              && Objects.equals(attempt.repairAuthority(), repairAuthority(conversationId));
-        }).sorted(java.util.Comparator.comparingLong(Revision::sequence)).toList();
-    if (revisions.isEmpty() || !revisions.getLast().reference().equals(
-        artifacts.latest(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow().reference())) return;
-    var history = new ArrayList<RejectedReferenceRepair.Attempt>();
-    for (var revision : revisions) {
-      var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
-      try {
-        var input = captureCandidate(revision);
-        if (input != null && input.facts() != null && input.facts().stream().allMatch(Objects::nonNull)) {
-          history.add(new RejectedReferenceRepair.Attempt(revision.sequence(), input, attempt.issues()));
-        }
-      } catch (IllegalArgumentException malformed) {
-        // Malformed arguments cannot establish an internal-reference correction.
-      }
-    }
-    if (history.isEmpty() || history.getLast().sequence() != revisions.getLast().sequence()) return;
-    var repaired = RejectedReferenceRepair.repair(base, scope.facts(), history);
-    var values = RequirementRevisionAdmission.pendingValues(scope.values());
-    var evidenceSequences = new java.util.HashSet<>(repaired.evidenceSequences());
-    for (var attempt : history) {
-      var projected = RequirementRevisionAdmission.reprojectCapabilityConflicts(base, scope.facts(), values, attempt.input());
-      if (!projected.equals(values)) evidenceSequences.add(attempt.sequence());
-      values = projected;
-    }
-    if (repaired.facts().equals(scope.facts())
-        && values.equals(RequirementRevisionAdmission.pendingValues(scope.values()))) return;
-    var evidence = revisions.stream().filter(value -> evidenceSequences.contains(value.sequence()))
-        .map(Revision::reference).toList();
-    saveFactProtection(conversationId, repaired.facts(), values, evidence);
-    rejectedCaptureFacts.put(conversationId, repaired.facts());
-    rejectedCaptureValues.put(conversationId, values);
   }
 
   private String authorEvidenceHash(String conversationId) {

@@ -118,14 +118,14 @@ class RequirementProtectionAcceptanceTest {
     assertFalse(refusal.path("accepted").asBoolean(), refusal.toString());
     assertTrue(refusal.path("issues").toString().contains("FAILURE_MODE_CONFLICT"));
     assertTrue(refusal.path("issues").toString().contains("/draft/flow/interactions/remote/failureMode"));
-    var old = artifacts.history(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).getLast();
-    var protection = artifacts.payload(old, RequirementDraftStore.CaptureFactProtection.class);
-    var legacy = (ObjectNode) protection.values().deepCopy();
+    var authority = drafts.writeAuthority(chat);
+    var legacy = RequirementRevisionAdmission.valuesToPreserve(
+        RequirementFailureConsistencyAdmissionTest.input(), List.of());
     ((ObjectNode) legacy.at("/interactions/remote")).put("failureMode", "PROPAGATE");
-    var restored = artifacts.append(new CompilationArtifacts.AppendCommand(old.compilationId(), old.kind(), "1",
-        "requirement-capture-protection", "1", new RequirementDraftStore.CaptureFactProtection(
-            protection.sourceGeneration(), protection.sourceTurnId(), protection.authorText(), protection.facts(), legacy,
-            protection.baseIdentity()), List.of(), old.artifactId()));
+    var restored = artifacts.append(new CompilationArtifacts.AppendCommand(sessions.active(chat),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
+        new RequirementDraftStore.CaptureFactProtection(authority.sourceGeneration(), authority.sourceTurnId(),
+            null, RequirementFailureConsistencyAdmissionTest.input().facts(), legacy, null), List.of(), null));
     RecoveryAcceptanceProvider.evidence(json, "requirement-protection", "native-refusal-and-legacy-protection", Map.of(
         "actualNextRequest", request.messages().stream().map(Object::toString).toList(),
         "nativeRefusal", refusal, "restoredProtection", restored));

@@ -219,7 +219,7 @@ class RequirementPendingProposalTest {
     assertTrue(h.store.semanticBaseline(CHAT).isEmpty(), "A rejected candidate does not create a claim");
     assertEquals(candidate, pending.draft());
     assertNull(h.store.repairConstraints(CHAT));
-    assertTrue(h.artifacts.latest(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_PROTECTION).isPresent());
+    assertTrue(h.artifacts.latest(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_PROTECTION).isEmpty());
     assertNull(stored.semanticBaselineReference());
     assertEquals(RequirementRepairPolicy.Strategy.FOCUSED_REPAIR, stored.recoveryStrategy());
     assertEquals(CaptureProposal.digest(new RequirementDraftStore.PendingProposalBinding(
@@ -295,8 +295,11 @@ class RequirementPendingProposalTest {
     var h = new Harness(new InMemoryArtifactBlobStore());
     h.begin(TEXT);
     var fact = new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Keep the legacy fact");
-    h.store.rememberRejectedCaptureFacts(CHAT, List.of(fact));
     var authority = h.store.writeAuthority(CHAT);
+    h.artifacts.append(new CompilationArtifacts.AppendCommand(h.sessions.active(CHAT),
+        Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
+        new RequirementDraftStore.CaptureFactProtection(authority.sourceGeneration(), authority.sourceTurnId(),
+            null, List.of(fact)), List.of(), null));
     var legacy = new RequirementDraftStore.RequirementCaptureAttempt(authority.sourceGeneration(),
         authority.sourceTurnId(), null, "scope", "captureRequirementDraft", input("goal", "Keep the legacy fact"),
         false, List.of(), null);

@@ -442,14 +442,13 @@ class RequirementFailureConsistencyAdmissionTest {
       var source = json.valueToTree(h.archive.read(h.chat));
       var old = h.artifacts.history(h.sessions.active(h.chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION);
       if (reload) {
-        var latest = old.getLast();
-        var protection = h.artifacts.payload(latest, RequirementDraftStore.CaptureFactProtection.class);
-        var legacy = (ObjectNode) protection.values().deepCopy();
+        var authority = h.store.writeAuthority(h.chat);
+        var legacy = RequirementRevisionAdmission.valuesToPreserve(input(), List.of());
         ((ObjectNode) legacy.at("/interactions/remote")).put("failureMode", "PROPAGATE");
-        h.artifacts.append(new CompilationArtifacts.AppendCommand(latest.compilationId(),
+        h.artifacts.append(new CompilationArtifacts.AppendCommand(h.sessions.active(h.chat),
             CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION, "1", "requirement-capture-protection", "1",
-            new RequirementDraftStore.CaptureFactProtection(protection.sourceGeneration(), protection.sourceTurnId(),
-                protection.authorText(), protection.facts(), legacy, protection.baseIdentity()), List.of(), latest.artifactId()));
+            new RequirementDraftStore.CaptureFactProtection(authority.sourceGeneration(), authority.sourceTurnId(),
+                null, input().facts(), legacy, null), List.of(), null));
         h.reload(); h.begin();
       }
       var forbidden = withMode(input(), ServiceCallFailureMode.ERROR_SCOPE);

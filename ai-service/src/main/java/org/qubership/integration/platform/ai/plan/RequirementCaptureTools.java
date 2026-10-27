@@ -346,7 +346,7 @@ public class RequirementCaptureTools {
 
   private RequirementCaptureResult publish(
       String conversationId, DraftInput input, RequirementDraft previous, DraftUpdate changes, List<Issue> editIssues) {
-    if (input == null) return reject(conversationId, null, previous, editIssues);
+    if (input == null) return reject(conversationId, previous, editIssues);
     Issue folderIssue = input.settings() == null ? null : ambiguousFolder(input, previous,
         previous == null ? "/draft/settings/targetFolderPath" : "/changes/settings/targetFolderPath");
     if (folderIssue != null && editIssues.isEmpty()) return view(previous, false, false, List.of(folderIssue));
@@ -370,17 +370,14 @@ public class RequirementCaptureTools {
     var scopeIssues = repair.map(binding -> org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
         .mappingRepairIssues(binding.mappingRepairPaths(), binding.missingMappingTargets(),
             binding.approvedDraft().authoredDraft(), input)).orElse(List.of());
-    boolean outsideRepairScope = !scopeIssues.isEmpty();
     issues.addAll(scopeIssues);
     if (!issues.isEmpty()) {
-      // Rejected content outside the repair scope must not become protected repair facts.
-      return reject(conversationId, outsideRepairScope ? null : input, previous, issues.stream().distinct().toList());
+      return reject(conversationId, previous, issues.stream().distinct().toList());
     }
     List<CatalogBindingHint> bindings =
         legacyBindingAdapter.canonicalBindings(input, previous, conversationId);
     var consistency = RequirementFailureConsistency.issues(input, bindings);
     if (!consistency.isEmpty()) {
-      store.rememberRejectedCapture(conversationId, input, consistency, bindings);
       return view(previous, false, false, withPreservedFacts(consistency, previous));
     }
     DraftInput admitted = input;
@@ -388,7 +385,6 @@ public class RequirementCaptureTools {
         admitted, previous, bindings,
         legacyBindingAdapter.sourceSkillVersion(conversationId),
         legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
-    store.revalidateRejectedModeCorrection(conversationId, admitted, bindings);
     var admission = store.admitCaptureDecision(conversationId, expectedBase, draft, changes,
         mappingRepairPaths(conversationId));
     if (!admission.issues().isEmpty()) {
@@ -412,7 +408,7 @@ public class RequirementCaptureTools {
       }
     }
     if (!admission.issues().isEmpty()) {
-      return reject(conversationId, admitted, previous, admission.issues(), admission.strategy());
+      return reject(conversationId, previous, admission.issues(), admission.strategy());
     }
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
@@ -422,17 +418,13 @@ public class RequirementCaptureTools {
         store.latestRevision(conversationId).map(value -> value.reference()).orElse(null)), List.of());
   }
 
-  private RequirementCaptureResult reject(String conversationId, DraftInput input,
-      RequirementDraft previous, List<Issue> findings) {
-    return reject(conversationId, input, previous, findings, null);
+  private RequirementCaptureResult reject(String conversationId, RequirementDraft previous, List<Issue> findings) {
+    return reject(conversationId, previous, findings, null);
   }
 
-  private RequirementCaptureResult reject(String conversationId, DraftInput input,
+  private RequirementCaptureResult reject(String conversationId,
       RequirementDraft previous, List<Issue> findings, RequirementRepairPolicy.Strategy strategy) {
     var issues = findings.stream().distinct().toList();
-    if (input != null && issues.stream().noneMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
-      store.rememberRejectedCapture(conversationId, input, issues);
-    }
     var result = view(previous, false, false,
         withPreservedFacts(issues, previous));
     if (strategy == RequirementRepairPolicy.Strategy.PROJECTION_REBUILD

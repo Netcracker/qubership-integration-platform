@@ -30,7 +30,6 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Transi
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
-import org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /** Validates an authored requirement snapshot and applies focused edits without partial writes. */
@@ -256,9 +255,9 @@ public final class RequirementCaptureEditor {
     if (!invalidOrder.isEmpty()) {
       var protectedCandidate = new DraftInput(candidate.flow(), factsToPreserve(candidate, invalidOrder),
           candidate.capabilities(), candidate.openQuestions(), candidate.settings());
-      return validateFactPreservation(factsToPreserve(accepted, invalidOrder), protectedCandidate, true, editableMappingPaths);
+      return validateFactPreservation(factsToPreserve(accepted, invalidOrder), protectedCandidate, editableMappingPaths);
     }
-    return validateFactPreservation(accepted.facts(), candidate, true, editableMappingPaths);
+    return validateFactPreservation(accepted.facts(), candidate, editableMappingPaths);
   }
 
   public static List<Issue> validateElementOrder(
@@ -381,12 +380,7 @@ public final class RequirementCaptureEditor {
   }
 
   static List<Issue> validateFactPreservation(
-      List<FactInput> originalFacts, DraftInput candidate, boolean saved) {
-    return validateFactPreservation(originalFacts, candidate, saved, Map.of());
-  }
-
-  static List<Issue> validateFactPreservation(
-      List<FactInput> originalFacts, DraftInput candidate, boolean saved, Map<String, Set<String>> editableMappingPaths) {
+      List<FactInput> originalFacts, DraftInput candidate, Map<String, Set<String>> editableMappingPaths) {
     Set<String> interactions = new HashSet<>();
     candidate.flow().interactions().forEach(interaction -> interactions.add(interaction.interactionId()));
     Map<String, FactInput> facts = new HashMap<>();
@@ -408,63 +402,30 @@ public final class RequirementCaptureEditor {
           || (!original.interactionIds().isEmpty() && updated.interactionIds().isEmpty())
           || original.interactionIds().stream().anyMatch(id ->
               interactions.contains(id) && !updated.interactionIds().contains(id))
-          || !preservesElementIntent(original.elementIntent(), updated.elementIntent(), saved)
+          || !Objects.equals(original.elementIntent(), updated.elementIntent())
           || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions,
-              editableMappingPaths.getOrDefault(original.sourceFactId(), Set.of()), saved)
-          || (saved || original.policyConflict() != null) && !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
+              editableMappingPaths.getOrDefault(original.sourceFactId(), Set.of()))
+          || !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
               updated.policyConflict() == null ? null : updated.policyConflict().unresolved())) {
-        add(issues, "REPAIR_FACT_LOSS", (saved ? "/changes" : "/draft")
-                + "/facts/" + original.sourceFactId(),
+        add(issues, "REPAIR_FACT_LOSS", "/changes/facts/" + original.sourceFactId(),
             original.sourceFactId(),
             "Preserve this fact's valid ID, kind, full text, polarity, and mapping values during repair."
                 + " Correct only reported fields; reassign references when removing an incorrect interaction."
                 + " Required fact text: " + original.text()
-                + (saved ? " The accepted draft was retained." : " No draft was saved."));
+                + " The accepted draft was retained.");
       }
     }
     return sorted(issues);
   }
 
-  private static boolean preservesElementIntent(
-      RequirementElementIntent original, RequirementElementIntent updated, boolean saved) {
-    if (saved) {
-      return Objects.equals(original, updated);
-    }
-    // A direct unsaved check keeps validated fields. A literal may leave exactValues when another site covers it.
-    return original == null || updated != null
-        && Objects.equals(original.elementRef(), updated.elementRef())
-        && Objects.equals(original.elementType(), updated.elementType())
-        && original.placement() == updated.placement()
-        && preservesValue(original.ownerInteractionId(), updated.ownerInteractionId())
-        && preservesValue(original.successorElementRef(), updated.successorElementRef())
-        && preservesValue(original.predecessorElementRef(), updated.predecessorElementRef())
-        && preservesValue(original.parentElementRef(), updated.parentElementRef())
-        && preservesValue(original.requestedName(), updated.requestedName())
-        && updated.requestedProperties().containsAll(original.requestedProperties())
-        && literalsCovered(original, updated);
-  }
-
-  private static boolean literalsCovered(RequirementElementIntent original, RequirementElementIntent updated) {
-    if (original.exactValues() == null || original.exactValues().isEmpty()) {
-      return true;
-    }
-    return original.exactValues().stream().allMatch(literal -> literal == null || literal.isBlank()
-        || RequiredLiteralBindings.covered(updated, literal, List.of()));
-  }
-
-  private static boolean preservesValue(String original, String updated) {
-    return original == null || original.equals(updated);
-  }
-
   private static boolean sameMappingContent(
-      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions, Set<String> editablePaths, boolean saved) {
+      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions, Set<String> editablePaths) {
     if (original == null || updated == null) {
-      return !saved && original == null || original == updated;
+      return original == updated;
     }
-    return (editablePaths.contains("sourcePath") || !saved && original.sourcePath() == null || Objects.equals(original.sourcePath(), updated.sourcePath()))
-        && (editablePaths.contains("targetPath") || !saved && original.targetPath() == null || Objects.equals(original.targetPath(), updated.targetPath()))
-        && (editablePaths.contains("expression") || !saved && original.expression() == null
-            || Objects.equals(original.expression(), updated.expression()))
+    return (editablePaths.contains("sourcePath") || Objects.equals(original.sourcePath(), updated.sourcePath()))
+        && (editablePaths.contains("targetPath") || Objects.equals(original.targetPath(), updated.targetPath()))
+        && (editablePaths.contains("expression") || Objects.equals(original.expression(), updated.expression()))
         && (!interactions.contains(original.sourceInteractionId())
             || Objects.equals(original.sourceInteractionId(), updated.sourceInteractionId()))
         && (!interactions.contains(original.targetInteractionId())

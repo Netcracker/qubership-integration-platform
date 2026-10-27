@@ -96,7 +96,7 @@ class MiniTopologyRepresentationRecoveryTest {
     var sourceBefore = h.conversations.archive().read(h.chat);
     var baseline = h.store.semanticBaseline(h.chat);
     assertTrue(h.artifacts.latest(h.sessions.active(h.chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION)
-        .isPresent());
+        .isEmpty());
     assertNull(h.store.repairConstraints(h.chat));
     assertTrue(h.store.pendingProposal(h.chat).isPresent());
     assertTrue(h.store.latestRevision(h.chat).isEmpty());

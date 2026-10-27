@@ -151,16 +151,19 @@ class RequirementCapabilityConsistencyTest {
 
   @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"false,false", "true,false", "false,true", "true,true"})
-  void legacyPendingContradictionIsReprojectedFromImmutableNativeEvidence(boolean reload, boolean agreeing) throws Exception {
+  void storedProtectionLoadsWithoutRewritingARejectedCapability(boolean reload, boolean agreeing) throws Exception {
     var h = new Harness(); h.begin();
     var input = agreeing ? agreeingInput() : input(true);
     var legacy = h.seedLegacyPending(agreeing ? "agreeing" : "valid");
+    var planted = h.artifacts.latest(h.compilation(), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).orElseThrow();
     h.reload(); h.store.beginTurn(h.chat, SOURCE);
     if (reload) { h.reload(); h.store.beginTurn(h.chat, SOURCE); }
-    assertFalse(h.store.repairConstraints(h.chat).values().path("capabilities").has("remote"));
+    assertTrue(h.store.repairConstraints(h.chat).values().path("capabilities").has("remote"),
+        "A stored protection payload is loaded without rewriting a rejected capability");
     assertTrue(h.store.repairConstraints(h.chat).facts().contains(input(true).facts().getLast()));
     var protection = h.artifacts.latest(h.compilation(), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_PROTECTION).orElseThrow();
-    assertTrue(protection.inputs().contains(legacy.reference()));
+    assertEquals(planted.artifactId(), protection.artifactId());
+    assertEquals(planted.payload(), protection.payload());
     assertEquals(legacy, h.artifacts.get(h.compilation(), legacy.reference()).orElseThrow());
     try (var ignored = ToolSession.open(h.chat)) {
       var corrected = new DraftInput(input.flow(), input.facts(), input(false).capabilities(), input.openQuestions(), input.settings());
@@ -183,7 +186,7 @@ class RequirementCapabilityConsistencyTest {
     h.seedLegacyPending("valid");
     h.reload(); h.store.beginTurn(h.chat, SOURCE);
     if (reload) { h.reload(); h.store.beginTurn(h.chat, SOURCE); }
-    assertFalse(h.store.repairConstraints(h.chat).values().path("capabilities").has("remote"));
+    assertTrue(h.store.repairConstraints(h.chat).values().path("capabilities").has("remote"));
     var changes = new DraftUpdate(List.of(initial.flow().interactions().getLast()), List.of(), List.of(),
         initial.flow().transitions(), List.of(), List.of(initial.facts().getFirst(), initial.facts().getLast()),
         List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
