@@ -1007,11 +1007,6 @@ public class RequirementDraftStore {
   private final ConcurrentHashMap<String, org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Answer>
       pendingClarificationAnswers = new ConcurrentHashMap<>();
 
-  /** The durable run journal is the pinned-question authority. Callers outside admission may still invoke this. */
-  public void associateClarification(String conversationId) {
-    Objects.requireNonNull(conversationId, "conversationId");
-  }
-
   public void useRunJournal(ProductPipelineRunStore runs) {
     this.runJournal = runs;
   }

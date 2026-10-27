@@ -184,7 +184,6 @@ class PolicyChoiceAmendmentCaptureTest {
     }
 
     void reloadAfterClarification() {
-      store.associateClarification(chat);
       store = new RequirementDraftStore(artifacts, sessions, conversations);
       tools = new RequirementCaptureTools(store, new RequirementDraftTool(store), json);
       tools.elementSchemas = DeterministicElementSchemaService.createForUnitTests(json);
