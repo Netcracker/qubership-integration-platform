@@ -383,7 +383,7 @@ class RequirementCaptureProjectionTest {
         Map.of("child", "resolved-trigger"));
 
     assertEquals(List.of(chainQuestion, later), unresolved.openQuestions());
-    assertEquals(List.of(chainQuestion, later), resolved.openQuestions());
+    assertEquals(List.of(later), resolved.openQuestions());
   }
 
   @Test
