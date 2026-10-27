@@ -36,6 +36,11 @@ class CreateChainServerRestartIT {
     restart(CreateChainServerRestartProbe.class.getName(), "flow");
   }
 
+  @Test
+  void serializedClarificationRestartsAfterTheDurableAnswer() throws Exception {
+    restart(SerializedClarificationRestartProbe.class.getName(), "clarification", 180);
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"AFTER_CLAIM", "AFTER_DISPATCHING", "TERMINAL_COMMIT", "AFTER_FIRST_PERSIST", "AFTER_COMPLETED"})
   void receiptRestartReplaysTheSameMessage(String window) throws Exception {
@@ -51,6 +56,10 @@ class CreateChainServerRestartIT {
   }
 
   private void restart(String probeClass, String window) throws Exception {
+    restart(probeClass, window, 60);
+  }
+
+  private void restart(String probeClass, String window, int timeoutSeconds) throws Exception {
     String container = "qip-recovery-" + UUID.randomUUID();
     docker("run", "-d", "--name", container, "-p", "127.0.0.1::5432",
         "-e", "POSTGRES_USER=recovery", "-e", "POSTGRES_PASSWORD=recovery",
@@ -70,7 +79,7 @@ class CreateChainServerRestartIT {
       Path firstLog = directory.resolve("prepare.log");
       Process first = child("prepare", jdbc, firstLog, probeClass, window);
       try {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
         while (!Files.exists(directory.resolve("ready")) && first.isAlive()
             && System.nanoTime() < deadline) {
           Thread.sleep(50);
@@ -83,7 +92,7 @@ class CreateChainServerRestartIT {
       Path resumedLog = directory.resolve("resume.log");
       Process resumed = child("resume", jdbc, resumedLog, probeClass, window);
       try {
-        assertTrue(resumed.waitFor(60, TimeUnit.SECONDS), "resumed server must finish its checks");
+        assertTrue(resumed.waitFor(timeoutSeconds, TimeUnit.SECONDS), "resumed server must finish its checks");
         assertEquals(0, resumed.exitValue(), () -> read(resumedLog));
         assertEquals("COMPLETED", Files.readString(directory.resolve("result")));
       } finally {

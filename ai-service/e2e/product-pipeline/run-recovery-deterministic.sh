@@ -54,9 +54,12 @@ RECOVERY_TESTS+=",RequirementRecoveryLadderTest,PendingCandidateCheckpointResume
 RECOVERY_TESTS+=",RequirementRejectedReferenceRepairTest"
 RECOVERY_TESTS+=",MappingRepairCaptureValidatorTest,ProductRequirementBriefToolTest"
 RECOVERY_TESTS+=",RequirementCaptureProjectionTest,RequirementFlowValidatorTest,AuthorQuestionAdmissionTest"
+RECOVERY_TESTS+=",SerializedClarificationFlowTest"
 
 python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
 
 mvn -pl ai-service \
     -Dtest="${RECOVERY_TESTS}" \
     test
+
+python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_serialized_clarifications.py'
