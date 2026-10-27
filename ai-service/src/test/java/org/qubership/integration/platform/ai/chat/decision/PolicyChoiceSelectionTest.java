@@ -144,11 +144,18 @@ class PolicyChoiceSelectionTest {
     var h = new Harness();
     h.captureQuestion();
     var card = h.choices.decision(h.choices.pending(h.chat, 7).orElseThrow(), 7);
-    h.begin("Also preserve identifiers.");
+    var offeredBase = h.store.latestRevision(h.chat).orElseThrow().reference();
+    var source = h.begin("Also preserve identifiers.");
     var extra = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
         List.of(new FactInput("extra", List.of("entry"), FactKind.CONSTRAINT, Polarity.NEGATIVE,
-            "Do not remove identifiers.")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
-    assertTrue(h.update(extra).accepted());
+            "Do not remove identifiers.", null, null, null,
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput(
+                source.turnId(), "Also preserve identifiers."))),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+    var updated = h.update(extra);
+    assertTrue(updated.accepted(), updated.toString());
+    assertTrue(updated.changed(), updated.toString());
+    assertNotEquals(offeredBase, h.store.latestRevision(h.chat).orElseThrow().reference());
     h.begin("Keep the requested policy value");
     assertTrue(h.choices.confirm(h.chat, command(card, ChatEvent.KEEP_REQUESTED_ACTION), 7).isEmpty());
     assertTrue(h.store.trustedPolicyChoices(h.chat).isEmpty());
