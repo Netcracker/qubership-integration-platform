@@ -79,6 +79,7 @@ class RequirementRecoveryLadderTest {
       h.capture(invalid);
       assertEquals(NextAction.PROJECTION_REBUILD, h.capture(invalid).nextAction());
       assertEquals("", h.store.rejectedProposalHistory(h.chat));
+      h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
       feedback.clearRequirement(h.chat);
       var stopped = h.capture(invalid);
       assertEquals(NextAction.STOP, stopped.nextAction());
