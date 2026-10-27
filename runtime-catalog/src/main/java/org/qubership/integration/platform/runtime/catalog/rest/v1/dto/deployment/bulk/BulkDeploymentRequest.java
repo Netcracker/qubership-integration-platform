@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.*;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,4 +40,7 @@ public class BulkDeploymentRequest {
     @Builder.Default
     @Schema(description = "List of id of chains which should be (re)deployed")
     private List<@NotBlank @Pattern(regexp = "^[-._a-zA-Z0-9]+$") String> chainIds = new ArrayList<>();
+    @Builder.Default
+    @Schema(description = "Deploy mode")
+    private DeployMode mode = DeployMode.REWRITE;
 }

@@ -308,6 +308,7 @@ export function operationClaims(
 // ---------------------------------------------------------------------------
 
 const R_NO_CASE = "no case was written for it";
+const R_DEPRECATED_ALIAS = "deprecated alias of a catalog route; no case calls it";
 // Measured 500 on both against the running stack: no MaaS agent is reachable (maas.agent.url
 // resolves empty; MAAS_AGENT_URL is unset in every compose env file). The declarative pair needs no
 // agent at all and is covered instead.
@@ -425,6 +426,7 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "DELETE", path: "/v1/catalog/chains/{chainId}/snapshots", controller: "snapshot-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/catalog/chains/{chainId}/snapshots/{snapshotId}", controller: "snapshot-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/catalog/context-system/{contextId}", controller: "context-system-controller", status: "covered" },
+  { service: "catalog", method: "DELETE", path: "/v1/catalog/domains/{domainName}", controller: "engine-controller", status: "covered", target: "k8s" },
   { service: "catalog", method: "DELETE", path: "/v1/catalog/import-instructions", controller: "import-instructions-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/catalog/live-exchanges/{podIp}/{deploymentId}/{exchangeId}", controller: "live-exchanges-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/catalog/mcp-system/{id}", controller: "mcp-system-controller", status: "covered" },
@@ -437,8 +439,8 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "DELETE", path: "/v1/chains/{chainId}/masking/field/{fieldId}", controller: "masked-fields-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/chains/{chainId}/properties/logging", controller: "logging-properties-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/common-variables", controller: "common-variables-controller", status: "covered" },
-  { service: "catalog", method: "DELETE", path: "/v1/cr/{name}", controller: "custom-resource-controller", status: "covered", target: "k8s" },
-  { service: "catalog", method: "DELETE", path: "/v1/cr/{name}/{snapshotId}", controller: "custom-resource-controller", status: "covered", target: "k8s" },
+  { service: "catalog", method: "DELETE", path: "/v1/cr/{name}", controller: "custom-resource-controller", status: "not-reached", reason: R_DEPRECATED_ALIAS },
+  { service: "catalog", method: "DELETE", path: "/v1/cr/{name}/{snapshotId}", controller: "custom-resource-controller", status: "not-reached", reason: R_DEPRECATED_ALIAS },
   { service: "catalog", method: "DELETE", path: "/v1/detailed-design/templates", controller: "detailed-design-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/folders/{folderId}", controller: "folder-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/models/{modelId}", controller: "system-model-controller", status: "covered" },
@@ -607,8 +609,8 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "POST", path: "/v1/common-variables/import", controller: "common-variables-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/common-variables/preview", controller: "common-variables-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/cr", controller: "custom-resource-controller", status: "covered", target: "k8s" },
-  { service: "catalog", method: "POST", path: "/v1/cr/deploy", controller: "custom-resource-controller", status: "covered", target: "k8s" },
-  { service: "catalog", method: "POST", path: "/v1/cr/deploy-chains", controller: "custom-resource-controller", status: "covered", target: "k8s" },
+  { service: "catalog", method: "POST", path: "/v1/cr/deploy", controller: "custom-resource-controller", status: "not-reached", reason: R_DEPRECATED_ALIAS },
+  { service: "catalog", method: "POST", path: "/v1/cr/deploy-chains", controller: "custom-resource-controller", status: "not-reached", reason: R_DEPRECATED_ALIAS },
   { service: "catalog", method: "POST", path: "/v1/design-generator/chains/{chainId}", controller: "chain-design-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/design-generator/chains/{chainId}/snapshots/{snapshotId}", controller: "chain-design-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/export/system", controller: "system-export-import-controller", status: "not-reached", reason: R_NO_CASE },

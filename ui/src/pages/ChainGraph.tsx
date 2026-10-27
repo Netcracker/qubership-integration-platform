@@ -28,7 +28,6 @@ import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
 import {
   CreateDeploymentRequest,
   DeployMode,
-  DomainType,
   Element,
 } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
@@ -175,20 +174,14 @@ const ChainGraphInner: React.FC = () => {
         });
         await Promise.all(
           domains.map(async (domain) => {
-            if (domain.type === DomainType.MICRO) {
-              await api.deploySnapshotsToMicroDomain({
-                name: domain.name,
-                snapshotIds: [snapshot.id],
-                mode: DeployMode.APPEND,
-              });
-            } else {
-              const request: CreateDeploymentRequest = {
-                domain: domain.name,
-                snapshotId: snapshot.id,
-                suspended: false,
-              };
-              await api.createDeployment(chainId, request);
-            }
+            const request: CreateDeploymentRequest = {
+              domain: domain.name,
+              domainType: domain.type,
+              snapshotId: snapshot.id,
+              mode: DeployMode.APPEND,
+              suspended: false,
+            };
+            await api.createDeployment(chainId, request);
             notificationService.info(
               "Deployed snapshot",
               `Deployed snapshot ${snapshot.name}`,

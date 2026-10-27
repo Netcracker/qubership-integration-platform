@@ -444,6 +444,40 @@ class BulkDeploymentServiceTest {
         verify(microDomainService, times(1)).deploy(any());
     }
 
+    @DisplayName("Retries a snapshot removal that loses a concurrency race")
+    @Test
+    void deleteChainSnapshotRetriesOnConflict() {
+        doThrow(new KubeApiConflictException("conflict", null))
+                .doNothing()
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        service.deleteChainSnapshot("orders", "s1");
+
+        verify(microDomainService, times(2)).deleteChainSnapshot("orders", "s1");
+    }
+
+    @DisplayName("Gives up on a snapshot removal after the retry budget is exhausted")
+    @Test
+    void deleteChainSnapshotStopsRetryingAfterTheBudgetIsExhausted() {
+        doThrow(new KubeApiConflictException("conflict", null))
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        assertThrows(KubeApiConflictException.class, () -> service.deleteChainSnapshot("orders", "s1"));
+
+        verify(microDomainService, times(3)).deleteChainSnapshot("orders", "s1");
+    }
+
+    @DisplayName("Does not retry a snapshot removal that failed for a reason other than a conflict")
+    @Test
+    void deleteChainSnapshotDoesNotRetryANonConflictFailure() {
+        doThrow(new MicroDomainDeployError("boom", null))
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        assertThrows(MicroDomainDeployError.class, () -> service.deleteChainSnapshot("orders", "s1"));
+
+        verify(microDomainService, times(1)).deleteChainSnapshot("orders", "s1");
+    }
+
     @DisplayName("A REWRITE deletes the HTTPRoutes of the chains it no longer deploys, after the deploy")
     @Test
     void deployResourceInRewriteModeDeletesTheHttpRoutesOfDroppedChains() {

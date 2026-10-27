@@ -983,6 +983,22 @@ paths:
           description: OK
       tags:
       - engine-controller
+  /v1/catalog/domains/{domainName}:
+    delete:
+      description: Delete Camel-K Integration resource of the domain
+      operationId: deleteDomain
+      parameters:
+      - description: Engine domain name
+        in: path
+        name: domainName
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+      tags:
+      - engine-controller
   /v1/catalog/domains/{domainName}/deployments/count:
     get:
       description: Get amount of deployments on specified domain
@@ -3298,6 +3314,7 @@ paths:
       x-api-kind: bwc
   /v1/cr:
     post:
+      deprecated: true
       description: Build K8s resources for specified chain snapshots
       operationId: buildResource
       requestBody:
@@ -3317,6 +3334,7 @@ paths:
       - custom-resource-controller
   /v1/cr/deploy:
     post:
+      deprecated: true
       description: Deploy as Camel-K Integration resource
       operationId: deployResource
       requestBody:
@@ -3332,6 +3350,7 @@ paths:
       - custom-resource-controller
   /v1/cr/deploy-chains:
     post:
+      deprecated: true
       description: Deploy with creation of snapshots as Camel-K Integration resource
       operationId: deployChains
       requestBody:
@@ -3353,6 +3372,7 @@ paths:
       - custom-resource-controller
   /v1/cr/{name}:
     delete:
+      deprecated: true
       description: Delete Camel-K Integration resource
       operationId: deleteResource
       parameters:
@@ -3368,6 +3388,7 @@ paths:
       - custom-resource-controller
   /v1/cr/{name}/{snapshotId}:
     delete:
+      deprecated: true
       description: Delete integration chain snapshot from Camel-K resource
       operationId: deleteSnapshotFromResource
       parameters:
@@ -6296,6 +6317,12 @@ components:
             type: string
             minLength: 1
             pattern: "^[-._a-zA-Z0-9]+$"
+        mode:
+          type: string
+          description: Deploy mode
+          enum:
+          - REWRITE
+          - APPEND
         snapshotAction:
           type: string
           description: Which snapshot should be taken during bulk deploy
@@ -7473,6 +7500,19 @@ components:
           type: string
           description: "Domain which was used to deploy to, usually \"default\""
           pattern: "^[-._a-zA-Z0-9]+$"
+        domainType:
+          type: string
+          description: Type of the domain the caller intends. Absent means CLASSIC.
+            MICRO on a domain the catalog has not discovered creates that micro domain
+          enum:
+          - CLASSIC
+          - MICRO
+        mode:
+          type: string
+          description: Deploy mode
+          enum:
+          - REWRITE
+          - APPEND
         name:
           type: string
           description: Name

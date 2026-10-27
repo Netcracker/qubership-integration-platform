@@ -514,6 +514,7 @@ describe("ChainGraph", () => {
       "chain-1",
       expect.objectContaining({
         domain: "domain-1",
+        domainType: DomainType.CLASSIC,
         snapshotId: "snap-1",
         suspended: false,
       }),

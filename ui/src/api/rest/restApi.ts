@@ -69,7 +69,6 @@ import {
   Element,
   SystemOperation,
   SpecApiFile,
-  CustomResourceBuildRequest,
   LiveExchange,
   ContextSystem,
   IntegrationSystemType,
@@ -80,8 +79,6 @@ import {
   CreateMaasRabbitMQRequest,
   GetMaasKafkaDeclarativeRequest,
   GetMaasRabbitMQDeclarativeRequest,
-  MicroDomainDeployRequest,
-  BulkMicroDomainDeployResult,
   ImportVariablesResult,
   VariableImportPreview,
   UsedProperty,
@@ -863,9 +860,12 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  deleteDeployment = async (deploymentId: string): Promise<void> => {
+  deleteDeployment = async (
+    chainId: string,
+    deploymentId: string,
+  ): Promise<void> => {
     await this.instance.delete(
-      `${this.v1()}/catalog/chains/chainId/deployments/${deploymentId}`,
+      `${this.v1()}/catalog/chains/${chainId}/deployments/${deploymentId}`,
     );
   };
 
@@ -2035,14 +2035,6 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  buildCR = async (request: CustomResourceBuildRequest): Promise<string> => {
-    const response = await this.instance.post<string>(
-      `${this.v1()}/catalog/cr`,
-      request,
-    );
-    return response.data;
-  };
-
   getValidation = async (
     validationId: string,
   ): Promise<DiagnosticValidation> => {
@@ -2298,36 +2290,9 @@ export class RestApi implements Api {
     return getFileFromResponse(response);
   };
 
-  deployToMicroDomain = async (
-    request: BulkMicroDomainDeployResult,
-  ): Promise<BulkDeploymentResult[]> => {
-    const response = await this.instance.post<BulkDeploymentResult[]>(
-      `${this.v1()}/catalog/cr/deploy-chains`,
-      request,
-    );
-    return response.data;
-  };
-
-  deploySnapshotsToMicroDomain = async (
-    request: MicroDomainDeployRequest,
-  ): Promise<void> => {
-    const response = await this.instance.post<void>(
-      `${this.v1()}/catalog/cr/deploy`,
-      request,
-    );
-    return response.data;
-  };
-
-  deleteMicroDomain = async (name: string): Promise<void> => {
-    await this.instance.delete<void>(`${this.v1()}/catalog/cr/${name}`);
-  };
-
-  deleteSnapshotFromMicroDomain = async (
-    name: string,
-    chainId: string,
-  ): Promise<void> => {
+  deleteDomain = async (name: string): Promise<void> => {
     await this.instance.delete<void>(
-      `${this.v1()}/catalog/cr/${name}/${chainId}`,
+      `${this.v1()}/catalog/domains/${encodeURIComponent(name)}`,
     );
   };
 

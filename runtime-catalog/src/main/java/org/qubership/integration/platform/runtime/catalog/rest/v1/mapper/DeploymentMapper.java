@@ -26,11 +26,16 @@ import org.qubership.integration.platform.runtime.catalog.model.deployment.engin
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentRuntime;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.RuntimeDeploymentState;
+import org.qubership.integration.platform.runtime.catalog.model.dto.user.UserDTO;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.UserMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.DeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.EngineDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.RuntimeDeploymentUpdate;
@@ -42,6 +47,7 @@ import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -133,6 +139,27 @@ public abstract class DeploymentMapper {
         Optional.ofNullable(request.getSuspended()).ifPresent(deployment::setSuspended);
         deployment.setSnapshot(snapshotService.findById(request.getSnapshotId()));
         return deployment;
+    }
+
+    public DeploymentResponse asMicroResponse(String chainId, String domain, Snapshot snapshot) {
+        return DeploymentResponse.builder()
+                .id(domain + "-" + snapshot.getId())
+                .chainId(chainId)
+                .snapshotId(snapshot.getId())
+                .name(snapshot.getName())
+                .domain(domain)
+                .domainType(DomainType.MICRO)
+                .createdWhen(snapshot.getCreatedWhen() == null ? null : snapshot.getCreatedWhen().getTime())
+                .createdBy(asUser(snapshot.getCreatedBy()))
+                .runtime(DeploymentRuntime.builder().states(Collections.emptyMap()).build())
+                .build();
+    }
+
+    private static UserDTO asUser(User user) {
+        return user == null ? null : UserDTO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .build();
     }
 
     public List<Deployment> asEntities(List<DeploymentRequest> request) {
