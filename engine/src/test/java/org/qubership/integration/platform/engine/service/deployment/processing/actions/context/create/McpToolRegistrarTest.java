@@ -173,6 +173,21 @@ class McpToolRegistrarTest {
     }
 
     @Test
+    void callHandlerDoesNotRepeatACallThatFailedInsideTheChain() {
+        // A reuse-reference sends to a direct endpoint, which a stopping context fails the same way.
+        Exchange failedInside = new DefaultExchange(new DefaultCamelContext());
+        failedInside.getExchangeExtension().setFromRouteId("trigger-route");
+        failedInside.setException(new DirectConsumerNotAvailableException("No consumers available on endpoint", failedInside));
+        SpringCamelContext serving = contextAnswering("direct:element-v2", new DefaultExchange(new DefaultCamelContext()));
+        toolTargets.publish(TOOL_NAME, new McpToolTargets.Target(serving, "direct:element-v2"));
+
+        McpSchema.CallToolResult callResult = callTool(failedInside);
+
+        assertTrue(callResult.isError());
+        verify(serving, never()).createProducerTemplate();
+    }
+
+    @Test
     void callHandlerAnswersTheStoppedTriggerWhenNoOtherDeploymentServesTheTool() {
         Exchange stopped = new DefaultExchange(new DefaultCamelContext());
         stopped.setException(new DirectConsumerNotAvailableException("No consumers available on endpoint", stopped));

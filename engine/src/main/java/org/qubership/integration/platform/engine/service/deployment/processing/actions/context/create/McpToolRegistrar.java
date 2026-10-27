@@ -67,9 +67,11 @@ public class McpToolRegistrar extends ElementProcessingAction {
                 .callHandler((mcpExchange, request) -> {
                     Exchange result = send(own, request.arguments());
                     // A redeploy can replace the tool after the server handed it this call, and stop this
-                    // context before the call reaches the trigger. The exchange then entered no route, so the
-                    // deployment that serves the tool now takes it.
-                    if (result.getException() instanceof DirectConsumerNotAvailableException) {
+                    // context before the call reaches the trigger. Only an exchange that entered no route goes
+                    // to the deployment that serves the tool now: a reuse-reference inside the chain can fail
+                    // the same way after the chain has done its work.
+                    if (result.getException() instanceof DirectConsumerNotAvailableException
+                            && isNull(result.getFromRouteId())) {
                         McpToolTargets.Target serving = toolTargets.current(tool.name()).orElse(own);
                         if (serving.context() != context) {
                             result = send(serving, request.arguments());
