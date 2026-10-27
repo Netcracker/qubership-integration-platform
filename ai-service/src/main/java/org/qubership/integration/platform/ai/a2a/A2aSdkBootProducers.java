@@ -76,7 +76,8 @@ public class A2aSdkBootProducers {
             accessPolicy,
             featureGate,
             crashGate,
-            leaseHeartbeat),
+            leaseHeartbeat,
+            conversationService.archive()),
         new CipAssistA2aAgentExecutor(
             scenarioRouter,
             conversationService,
