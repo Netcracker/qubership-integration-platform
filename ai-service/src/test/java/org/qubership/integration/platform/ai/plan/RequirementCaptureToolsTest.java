@@ -716,7 +716,7 @@ class RequirementCaptureToolsTest {
 
   @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"false,true", "true,true", "false,false", "true,false"})
-  void nativeChainCallClarificationUsesTheCatalogPickerWithoutChangingAuthorQuestions(
+  void unresolvedChainCallKeepsModelAuthoredQuestionTextWithoutChangingAuthorDraft(
       boolean selected, boolean otherQuestions)
       throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
@@ -761,8 +761,7 @@ class RequirementCaptureToolsTest {
       var saved = store.get(chat).orElseThrow();
       var expectedQuestions = new ArrayList<String>();
       if (otherQuestions) expectedQuestions.add(methodQuestion.text());
-      if (!selected) expectedQuestions.add(
-          "Chain-call call has no unique chain-trigger yet. Choose the catalog chain to call.");
+      expectedQuestions.add(targetQuestion.text());
       if (otherQuestions) expectedQuestions.add(rolesQuestion.text());
       assertEquals(expectedQuestions, saved.openQuestions());
       assertEquals(selected ? Map.of("call", second.id) : Map.of(),
@@ -773,7 +772,7 @@ class RequirementCaptureToolsTest {
       assertEquals(saved.openQuestions(), store.get(chat).orElseThrow().openQuestions());
       assertEquals(!selected, refreshed.pendingWork().stream()
           .anyMatch(work -> work.code().equals("TARGET_LOOKUP_REQUIRED")));
-      assertEquals(selected && !otherQuestions, saved.readyForPlan());
+      assertFalse(saved.readyForPlan());
       if (selected && !otherQuestions) assertTrue(refreshed.pendingWork().isEmpty(), refreshed.toString());
     }
   }
