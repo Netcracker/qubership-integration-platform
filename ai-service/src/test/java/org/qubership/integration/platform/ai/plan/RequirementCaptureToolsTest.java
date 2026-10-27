@@ -17,9 +17,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,8 +30,10 @@ import dev.langchain4j.model.chat.request.json.JsonEnumSchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
@@ -1315,6 +1320,127 @@ class RequirementCaptureToolsTest {
       assertEquals(!selected, refreshed.pendingWork().stream()
           .anyMatch(work -> work.code().equals("TARGET_LOOKUP_REQUIRED")));
       assertFalse(saved.readyForPlan());
+    }
+  }
+
+  @Test
+  void exactChainCallAnswerWritesTheTriggerElementAndKeepsTheOtherQuestions() throws Exception {
+    var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    var matcher = mock(org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher.class);
+    var first = chainTrigger("first-trigger", "chain-1", "Chain trigger + Header modification");
+    var second = chainTrigger("second-trigger", "chain-2", first.chainName);
+    when(chains.listChainTriggers()).thenReturn(List.of(first, second));
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var bindings = mock(RequirementDraftTool.class);
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var feedback = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper));
+    var tools = new RequirementCaptureTools(store, bindings, mapper,
+        new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback), feedback,
+        new RequirementTargetResolver(chains,
+            mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
+    var methodQuestion = new RequirementCaptureInput.QuestionInput("method", List.of("entry"),
+        "Which HTTP method should the custom HTTP trigger accept?");
+    var targetQuestion = new RequirementCaptureInput.QuestionInput("target", List.of("call"),
+        "Please select the specific chain-trigger element ID for the Chain trigger + Header modification chain.",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("call",
+            "targetReference",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+            List.of("turn-1")));
+    var rolesQuestion = new RequirementCaptureInput.QuestionInput("roles", List.of("entry"),
+        "Which roles may access the HTTP trigger?");
+    var input = chainCallCapture(first.chainName, null, List.of(methodQuestion, targetQuestion, rolesQuestion));
+    String chat = "chain-answer-" + UUID.randomUUID();
+    store.beginTurn(chat, "Call the Chain trigger + Header modification chain through an HTTP trigger.");
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      assertEquals(List.of(methodQuestion.text(), targetQuestion.text(), rolesQuestion.text()),
+          store.get(chat).orElseThrow().openQuestions(), "captureRequirementDraft(chain-call queue)");
+      assertFalse(store.get(chat).orElseThrow().readyForPlan(), "readyForPlan(unresolved chain call)");
+      var unknown = tools.chainCallAnswerUpdate(input, targetQuestion, "operation-42");
+      assertTrue(unknown.isEmpty(), "chainCallAnswerUpdate(operation-42)");
+      var sharedName = tools.chainCallAnswerUpdate(input, targetQuestion, first.chainName);
+      assertTrue(sharedName.isEmpty(), "chainCallAnswerUpdate(shared chain name)");
+      assertEquals(List.of("method", "target", "roles"),
+          store.get(chat).orElseThrow().authoredDraft().openQuestions().stream()
+              .map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(unknown chain-call answer)");
+      var exact = tools.chainCallAnswerUpdate(input, targetQuestion, first.id).orElseThrow();
+      var applied = mapper.readValue(tools.updateRequirementDraft(exact), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      var saved = store.get(chat).orElseThrow().authoredDraft();
+      assertEquals(first.id, saved.capabilities().get(1).targetReference(),
+          "chainCallAnswerUpdate(first-trigger)");
+      assertEquals(List.of("method", "roles"), saved.openQuestions().stream()
+          .map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(exact chain-call answer)");
+    }
+    verify(chains, atLeastOnce()).listChainTriggers();
+    verifyNoMoreInteractions(chains);
+    verifyNoInteractions(matcher);
+    assertTrue(Arrays.stream(RequirementCaptureTools.class.getDeclaredFields())
+        .noneMatch(field -> org.qubership.integration.platform.ai.productpipeline.create.design.execution
+            .CatalogBindingMatcher.class.equals(field.getType())),
+        "RequirementCaptureTools fields");
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact(
+        null, org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.CAPABILITY,
+        "chain-call-2", "Call the chain.", "Billing", "", "", "", first.id);
+    assertEquals(Set.of(), org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionAdmission
+        .suppliedValues(fact, "targetReference"), "suppliedValues(targetReference)");
+  }
+
+  @Test
+  void chainCallQuestionLeavesTheQueueOnlyWhenTheTargetIsSupplied() throws Exception {
+    var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    var shared = chainTrigger("first-trigger", "chain-1", "Shared Chain");
+    var other = chainTrigger("second-trigger", "chain-2", "Shared Chain");
+    when(chains.listChainTriggers()).thenReturn(List.of(shared, other));
+    var unresolved = pinnedChainCall("chain-unresolved", "first-trigger", chains);
+    try (var ignored = ToolSession.open(unresolved.chat())) {
+      var removed = unresolved.mapper().readValue(unresolved.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of("target"), null)), RequirementCaptureResult.class);
+      assertFalse(removed.accepted(), removed.toString());
+      assertTrue(removed.issues().stream().anyMatch(issue -> "UNAPPLIED_AUTHOR_ANSWER".equals(issue.code())
+          && "target".equals(issue.entityId())), removed.toString());
+      assertEquals(List.of("target", "roles"), unresolved.harness().store().get(unresolved.chat()).orElseThrow()
+          .authoredDraft().openQuestions().stream().map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(unsupplied chain call)");
+      assertFalse(unresolved.harness().store().get(unresolved.chat()).orElseThrow().readyForPlan(),
+          "readyForPlan(unsupplied chain call)");
+      var answered = new CapabilityInput("call", "chain-call-2", null, null, null, null, null, shared.id);
+      var applied = unresolved.mapper().readValue(unresolved.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(answered), List.of(), List.of("target"), null)), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      var saved = unresolved.harness().store().get(unresolved.chat()).orElseThrow();
+      assertEquals(shared.id, saved.authoredDraft().capabilities().stream()
+          .filter(capability -> "call".equals(capability.interactionId())).findFirst().orElseThrow()
+          .targetReference(), "updateRequirementDraft(targetReference)");
+      assertEquals(List.of("roles"), saved.authoredDraft().openQuestions().stream()
+          .map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(supplied targetReference)");
+      assertTrue(unresolved.harness().store().validateAuthorQuestions(unresolved.chat()).isEmpty(),
+          unresolved.harness().store().validateAuthorQuestions(unresolved.chat()).toString());
+    }
+
+    var only = chainTrigger("only-trigger", "chain-only", "Only Chain");
+    var uniqueChains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    when(uniqueChains.listChainTriggers()).thenReturn(List.of(only));
+    var resolved = pinnedChainCall("chain-resolved", "only-trigger", uniqueChains);
+    assertEquals(Map.of("call", only.id),
+        RequirementCaptureProjection.resolvedTargets(resolved.harness().store().get(resolved.chat()).orElseThrow()),
+        "resolvedTargets(only-trigger)");
+    assertNull(resolved.harness().store().get(resolved.chat()).orElseThrow().authoredDraft().capabilities().stream()
+        .filter(capability -> "call".equals(capability.interactionId())).findFirst().orElseThrow()
+        .targetReference(), "targetReference(resolved by catalog name)");
+    try (var ignored = ToolSession.open(resolved.chat())) {
+      var applied = resolved.mapper().readValue(resolved.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of("target"), null)), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      assertEquals(List.of("roles"), resolved.harness().store().get(resolved.chat()).orElseThrow()
+          .authoredDraft().openQuestions().stream().map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(one resolved chain trigger)");
     }
   }
 
@@ -3503,5 +3629,77 @@ class RequirementCaptureToolsTest {
                 null, null, null)),
         List.of(),
         new DraftSettings(null, null));
+  }
+
+  private static org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto chainTrigger(
+      String id, String chainId, String chainName) {
+    var trigger = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
+    trigger.id = id;
+    trigger.chainId = chainId;
+    trigger.chainName = chainName;
+    trigger.type = "chain-trigger-2";
+    return trigger;
+  }
+
+  private static DraftInput chainCallCapture(String chainName, String targetReference,
+      List<RequirementCaptureInput.QuestionInput> questions) {
+    return new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Client", "HTTP /call", null, null, null),
+        new InteractionInput("call", Direction.OUTBOUND, chainName, "Invoke", null, null, null)),
+        List.of(new TransitionInput("entry", "call"))),
+        List.of(new FactInput("goal", List.of("call"), FactKind.GOAL, Polarity.POSITIVE,
+            "Call the header chain.")),
+        List.of(
+            new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, null, "/call", null, null, null),
+            new CapabilityInput("call", "chain-call-2", null, null, null, null, null, targetReference)),
+        questions, new DraftSettings(null, null));
+  }
+
+  private static PinnedUri pinnedChainCall(String name, String reply,
+      org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder chains) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = name + "-" + UUID.randomUUID();
+    String text = "Call the catalog chain and ask which trigger element to use.";
+    var first = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, first, text);
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var store = new RequirementDraftStore(artifacts, sessions, conversations);
+    var adapter = mock(RequirementDraftTool.class);
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var fingerprints = new ToolCallFingerprintStore(mapper, artifacts, sessions);
+    var feedback = new CaptureAttemptFeedbackStore(fingerprints, artifacts, sessions);
+    var tools = new RequirementCaptureTools(store, adapter, mapper,
+        new CaptureToolOutcomeGateway(fingerprints, feedback), feedback,
+        new RequirementTargetResolver(chains,
+            mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
+    var harness = new Harness(store, tools, mapper, chat);
+    harness.store().beginTurn(chat, text);
+    var target = new RequirementCaptureInput.QuestionInput("target", List.of("call"),
+        "Which chain-trigger element id should this chain call use?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("call",
+            "targetReference",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+            List.of(first.turnId())));
+    var roles = new RequirementCaptureInput.QuestionInput("roles", List.of("entry"),
+        "Which roles may access the HTTP trigger?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("entry", "roles",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(first.turnId())));
+    var input = withNativeAnchors(chainCallCapture(chains.listChainTriggers().getFirst().chainName, null,
+        List.of(target, roles)));
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var finished = mapper.readValue(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+    }
+    var answer = pinAnswer(blobs, mapper, archive, harness, chat, reply);
+    return new PinnedUri(mapper, harness, chat, first.turnId(), answer, new CapturedUri(input, target, null));
   }
 }

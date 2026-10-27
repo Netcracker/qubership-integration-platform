@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chat.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -131,6 +132,71 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void specializedGatesDoNotConsumeTheRequirementOffer() {
+    long revision = 8L;
+    for (String gate : List.of(
+        PipelineGates.TARGET_FOLDER_CHOICE,
+        PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION,
+        PipelineGates.IDS_PATH_CHOICE)) {
+      var clarify = new CreateChainPendingAction.Clarify(
+          "Choose one.",
+          List.of(),
+          gate,
+          "",
+          null,
+          "run-specialized",
+          "requirement-discovery",
+          "offer-generic");
+      var facade = mock(CreateChainApplicationFacade.class);
+      when(facade.snapshot("conv-" + gate)).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+          "conv-" + gate, "run-specialized", CreateChainExecutionStatus.INPUT_REQUIRED, revision, clarify, "")));
+      var decision = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+          .openDecision("conv-" + gate).orElseThrow();
+      assertEquals("clarify:" + revision, decision.id(), "openDecision(" + gate + ")");
+      assertNotEquals("offer-generic", decision.id(), "openDecision(" + gate + ")");
+    }
+  }
+
+  @Test
+  void runtimeBindingDoesNotConsumeTheRequirementOffer() {
+    long revision = 7L;
+    String conversationId = "conv-version";
+    var interaction = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction(
+        "task", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND,
+        "Salesforce", "createTask", "Create a task");
+    var match = new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch(
+        "system", "group", "spec", "operation", "Salesforce", "http", "POST", "/tasks", "createTask",
+        "evidence", "2.0.0");
+    var pending = new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.Pending(
+        new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.Proposal(
+            interaction, match, false), "version-hash");
+    var versions = mock(org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.class);
+    when(versions.pending(conversationId)).thenReturn(Optional.of(pending));
+    when(versions.decision(eq(pending), eq(revision), any())).thenReturn(new ChatEvent.Decision(
+        org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.ARTIFACT_TYPE + ":version-hash",
+        "approve", "Use version 2.0.0?",
+        org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.ARTIFACT_TYPE,
+        "version-hash", revision, null, List.of(), List.of()));
+    var clarify = new CreateChainPendingAction.Clarify(
+        "Which operation version?",
+        List.of(),
+        PipelineGates.STAGE_CLARIFICATION,
+        "",
+        null,
+        "run-version",
+        "requirement-discovery",
+        "offer-generic");
+    var facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot(conversationId)).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        conversationId, "run-version", CreateChainExecutionStatus.INPUT_REQUIRED, revision, clarify, "")));
+    var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.versionSelections = versions;
+    var decision = service.openDecision(conversationId).orElseThrow();
+    assertEquals("catalog-operation-version:version-hash", decision.id(), "openDecision(runtime binding)");
+    assertNotEquals("offer-generic", decision.id(), "openDecision(runtime binding)");
+  }
+
+  @Test
   void policyCardUsesTheActiveOfferAndKeepsTheArtifactHashCheck() {
     String conversationId = "conv-policy";
     long revision = 4L;
@@ -171,6 +237,8 @@ class ChatDecisionServiceTest {
     var opened = service.openDecision(conversationId).orElseThrow();
 
     verify(choices).pending(conversationId, revision, draftRef, "policy-choice");
+    assertEquals(PolicyChoiceSelection.ARTIFACT_TYPE + ":policy-hash", opened.id(), "openDecision(policy)");
+    assertNotEquals(offer.offerId(), opened.id(), "openDecision(policy)");
     assertEquals("policy-hash", opened.artifactHash());
 
     var mismatch = command(

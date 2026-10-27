@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
 
 /** Verifies composition targets against the existing catalog binders. */
 @ApplicationScoped
@@ -97,6 +98,53 @@ public class RequirementTargetResolver {
       }
     }
     return new Resolution(Map.copyOf(resolved), List.copyOf(issues));
+  }
+
+  /**
+   * Adapts one chain-call answer into the verified chain-trigger element id.
+   *
+   * <p>Candidates come only from {@link CompositionCatalogBinder#listChainTriggers()}. The answer
+   * must be that element id, or the single chain or trigger name. A chain id, an invented id, a
+   * service-call operation id, and the question text itself stay unresolved.
+   */
+  public Resolution resolveChainCallAnswer(DraftInput draft, QuestionInput activeQuestion, String answerText) {
+    if (draft == null || activeQuestion == null || answerText == null || answerText.isBlank()
+        || draft.capabilities() == null) {
+      return new Resolution(Map.of(), List.of());
+    }
+    String interactionId = activeQuestion.evidence() != null
+        && activeQuestion.evidence().interactionId() != null
+        && !activeQuestion.evidence().interactionId().isBlank()
+        ? activeQuestion.evidence().interactionId()
+        : activeQuestion.interactionIds() == null ? null : activeQuestion.interactionIds().stream()
+            .filter(id -> id != null && !id.isBlank()).findFirst().orElse(null);
+    if (interactionId == null || draft.capabilities().stream().noneMatch(capability -> capability != null
+        && interactionId.equals(capability.interactionId()) && "chain-call-2".equals(capability.capabilityKey()))) {
+      return new Resolution(Map.of(), List.of());
+    }
+    String answer = answerText.trim();
+    List<CatalogElementResponseDto> listed = chains.listChainTriggers();
+    List<CatalogElementResponseDto> candidates = (listed == null ? List.<CatalogElementResponseDto>of() : listed)
+        .stream().filter(RequirementTargetResolver::chainTrigger).toList();
+    if (candidates.stream().anyMatch(trigger -> answer.equals(trigger.chainId))) {
+      return new Resolution(Map.of(), List.of());
+    }
+    List<CatalogElementResponseDto> byId = candidates.stream()
+        .filter(trigger -> answer.equals(trigger.id)).toList();
+    if (byId.size() == 1) {
+      return new Resolution(Map.of(interactionId, byId.getFirst().id), List.of());
+    }
+    List<CatalogElementResponseDto> byName = candidates.stream()
+        .filter(trigger -> same(answer, trigger.chainName) || same(answer, trigger.name)).toList();
+    if (byName.size() == 1) {
+      return new Resolution(Map.of(interactionId, byName.getFirst().id), List.of());
+    }
+    return new Resolution(Map.of(), List.of());
+  }
+
+  private static boolean chainTrigger(CatalogElementResponseDto trigger) {
+    return trigger != null && trigger.id != null && !trigger.id.isBlank()
+        && (trigger.type == null || trigger.type.isBlank() || "chain-trigger-2".equals(trigger.type));
   }
 
   private static boolean selected(String requested, String actual) {

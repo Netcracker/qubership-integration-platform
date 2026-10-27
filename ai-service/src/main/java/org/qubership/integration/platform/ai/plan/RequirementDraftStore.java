@@ -220,8 +220,9 @@ public class RequirementDraftStore {
     if (!issues.isEmpty()) {
       return new CaptureAdmission(List.copyOf(issues), strategy);
     }
-    var clarificationVerdict = RequirementRevisionAdmission.clarify(clarification, draft, validCandidate,
-        target -> questionDefaults(draft.authoredDraft(), target));
+    var clarificationVerdict = suppliedChainCallVerdict(clarification, draft,
+        RequirementRevisionAdmission.clarify(clarification, draft, validCandidate,
+            target -> questionDefaults(draft.authoredDraft(), target)));
     var transitionIssues = clarificationNoProgress(clarification, draft, clarificationVerdict.disposition());
     boolean unappliedOnly = clarificationVerdict.issues().stream()
         .allMatch(issue -> "UNAPPLIED_AUTHOR_ANSWER".equals(issue.code()));
@@ -1256,10 +1257,128 @@ public class RequirementDraftStore {
           String.join(" ", findings) + " Source turn IDs: " + inputIds));
     }
     if (base != null && base.authoredDraft() != null) {
-      issues.addAll(RequirementRevisionAdmission.unappliedRemovals(base.authoredDraft(), current,
-          target -> questionDefaults(draft, target)));
+      var removals = new java.util.ArrayList<>(withoutSuppliedChainCalls(
+          RequirementRevisionAdmission.unappliedRemovals(base.authoredDraft(), current,
+              target -> questionDefaults(draft, target)),
+          base.authoredDraft(), current));
+      for (var extra : unsuppliedChainCallRemovals(base.authoredDraft(), current)) {
+        if (removals.stream().noneMatch(issue -> extra.code().equals(issue.code())
+            && extra.entityId().equals(issue.entityId()))) {
+          removals.add(extra);
+        }
+      }
+      issues.addAll(removals);
     }
     return List.copyOf(issues);
+  }
+
+  /**
+   * A removed chain-call catalog question is supplied when the capability already names one verified
+   * chain-trigger element, or the projection already resolved one. Fact-field checks do not see
+   * {@code targetReference}.
+   */
+  private static RequirementRevisionAdmission.ClarificationVerdict suppliedChainCallVerdict(
+      ClarificationAdmissionContext clarification, RequirementDraft candidate,
+      RequirementRevisionAdmission.ClarificationVerdict verdict) {
+    if (verdict == null || clarification == null || clarification.pinnedBase() == null
+        || clarification.pinnedBase().authoredDraft() == null) {
+      return verdict;
+    }
+    var base = clarification.pinnedBase().authoredDraft();
+    var issues = new java.util.ArrayList<>(verdict.issues());
+    for (var extra : unsuppliedChainCallRemovals(base, candidate)) {
+      if (issues.stream().noneMatch(issue -> extra.code().equals(issue.code())
+          && extra.entityId().equals(issue.entityId()))) {
+        issues.add(extra);
+      }
+    }
+    var remaining = withoutSuppliedChainCalls(issues, base, candidate);
+    if (remaining.equals(verdict.issues())) {
+      return verdict;
+    }
+    if (!remaining.isEmpty()) {
+      return new RequirementRevisionAdmission.ClarificationVerdict(remaining, verdict.disposition());
+    }
+    boolean pinnedClosed = clarification.pinnedQuestion() != null && candidate != null
+        && candidate.authoredDraft() != null && candidate.authoredDraft().openQuestions().stream()
+            .noneMatch(question -> question != null
+                && clarification.pinnedQuestion().questionId().equals(question.questionId()));
+    var disposition = verdict.disposition() != null ? verdict.disposition() : pinnedClosed
+        ? org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.ANSWER
+        : null;
+    return new RequirementRevisionAdmission.ClarificationVerdict(List.of(), disposition);
+  }
+
+  private static List<RequirementCaptureEditor.Issue> withoutSuppliedChainCalls(
+      List<RequirementCaptureEditor.Issue> issues, RequirementCaptureInput.DraftInput base,
+      RequirementDraft current) {
+    if (issues == null || issues.isEmpty() || base == null || base.openQuestions() == null) {
+      return issues == null ? List.of() : issues;
+    }
+    return issues.stream().filter(issue -> !suppliedChainCallRemoval(issue, base, current)).toList();
+  }
+
+  private static boolean suppliedChainCallRemoval(RequirementCaptureEditor.Issue issue,
+      RequirementCaptureInput.DraftInput base, RequirementDraft current) {
+    if (issue == null || !"UNAPPLIED_AUTHOR_ANSWER".equals(issue.code()) || issue.entityId() == null) {
+      return false;
+    }
+    var question = base.openQuestions().stream()
+        .filter(item -> item != null && issue.entityId().equals(item.questionId())).findFirst().orElse(null);
+    if (question == null || question.evidence() == null || question.evidence().kind()
+        != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE) {
+      return false;
+    }
+    return chainCallSupplied(current, question.evidence().interactionId());
+  }
+
+  private static List<RequirementCaptureEditor.Issue> unsuppliedChainCallRemovals(
+      RequirementCaptureInput.DraftInput base, RequirementDraft current) {
+    if (base == null || base.openQuestions() == null || current == null || current.authoredDraft() == null) {
+      return List.of();
+    }
+    var open = current.authoredDraft().openQuestions();
+    var issues = new java.util.ArrayList<RequirementCaptureEditor.Issue>();
+    for (var question : base.openQuestions()) {
+      if (question == null || question.evidence() == null || question.evidence().kind()
+          != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE
+          || open.stream().anyMatch(item -> item != null && question.questionId().equals(item.questionId()))
+          || !chainCallQuestion(current, question.evidence().interactionId())
+          || chainCallSupplied(current, question.evidence().interactionId())) {
+        continue;
+      }
+      issues.add(new RequirementCaptureEditor.Issue("UNAPPLIED_AUTHOR_ANSWER",
+          "/draft/openQuestions/" + question.questionId(), question.questionId(),
+          "Removing a chain-call question requires targetReference or one verified chain trigger."));
+    }
+    return List.copyOf(issues);
+  }
+
+  private static boolean chainCallQuestion(RequirementDraft current, String interactionId) {
+    return current != null && current.authoredDraft() != null && current.authoredDraft().capabilities() != null
+        && interactionId != null && current.authoredDraft().capabilities().stream().anyMatch(item -> item != null
+            && interactionId.equals(item.interactionId()) && "chain-call-2".equals(item.capabilityKey()));
+  }
+
+  private static boolean chainCallSupplied(RequirementDraft current, String interactionId) {
+    if (current == null || current.authoredDraft() == null || current.authoredDraft().capabilities() == null
+        || interactionId == null || interactionId.isBlank()) {
+      return false;
+    }
+    var capability = current.authoredDraft().capabilities().stream()
+        .filter(item -> item != null && interactionId.equals(item.interactionId())
+            && "chain-call-2".equals(item.capabilityKey())).findFirst().orElse(null);
+    if (capability == null) {
+      return false;
+    }
+    if (verifiedTriggerId(capability.targetReference())) {
+      return true;
+    }
+    return verifiedTriggerId(RequirementCaptureProjection.resolvedTargets(current).get(interactionId));
+  }
+
+  private static boolean verifiedTriggerId(String value) {
+    return value != null && !value.isBlank() && !value.contains("/");
   }
 
   private java.util.Set<String> questionDefaults(RequirementCaptureInput.DraftInput draft, String target) {

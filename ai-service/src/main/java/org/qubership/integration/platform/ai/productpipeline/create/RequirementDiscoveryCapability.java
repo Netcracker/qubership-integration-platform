@@ -33,6 +33,7 @@ import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.TargetFolderChoiceResolver;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
@@ -82,6 +83,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private final ConversationService conversationService;
   private final CatalogBindingMatcher catalogBindingMatcher;
   @Inject CaptureAttemptFeedbackStore captureFeedback;
+  @Inject FailureNarrative failureNarrative;
+  @Inject TargetFolderChoiceResolver targetFolderChoices;
   @Inject org.qubership.integration.platform.ai.plan.UploadedSpecOperations uploadedSpecs;
 
   @Inject
@@ -260,6 +263,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
             context.inputRefs(), attributes));
       }
       return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(decided)));
+    }
+    userMessage = focusedRecoveryInput(context, conversationId, userMessage);
+    var folderAgain = unresolvedTargetFolder(context, conversationId, userMessage);
+    if (folderAgain.isPresent()) {
+      return Multi.createFrom().item(folderAgain.get());
     }
     RequirementDraft mappingRepairDraft = mappingRepairDraft(context);
     if (mappingRepairDraft != null) {
@@ -487,8 +495,93 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
   }
 
-  private Optional<CapabilitySignal.Completed> ladderDiscoveryOutcome(String conversationId,
-      RequirementRejection rejection, List<Issue> preservation) {
+  private String focusedRecoveryInput(StageExecutionContext context, String conversationId, String userMessage) {
+    if (userMessage == null || userMessage.isBlank() || captureFeedback == null
+        || !PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION.equals(
+            context.attributeAsString(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
+      return userMessage;
+    }
+    var rejection = captureFeedback.lastRequirementRejection(conversationId).orElse(null);
+    String finding = rejection == null ? "" : structuredFinding(rejection);
+    String editable = rejection == null ? "" : rejection.issues().stream().map(issue -> issue.path())
+        .filter(path -> path != null && !path.isBlank()).distinct()
+        .reduce((left, right) -> left + ", " + right).orElse("");
+    return """
+        Repair the focused requirement using the author's clarification.
+        Original finding:
+        %s
+        Editable target:
+        %s
+        Author clarification:
+        %s
+        """.formatted(finding, editable, userMessage.strip());
+  }
+
+  private Optional<CapabilitySignal.Completed> unresolvedTargetFolder(
+      StageExecutionContext context, String conversationId, String userMessage) {
+    if (captureFeedback == null || !PipelineGates.TARGET_FOLDER_CHOICE.equals(
+        context.attributeAsString(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
+      return Optional.empty();
+    }
+    if (targetFolderChoices != null && targetFolderChoices.selection(userMessage).isPresent()) {
+      return Optional.empty();
+    }
+    var rejection = captureFeedback.lastRequirementRejection(conversationId).orElse(null);
+    if (rejection == null || rejection.issues().stream().noneMatch(issue ->
+        "AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
+      return Optional.empty();
+    }
+    return Optional.of(folderQuestion(context, rejection));
+  }
+
+  private CapabilitySignal.Completed folderQuestion(StageExecutionContext context, RequirementRejection rejection) {
+    var wording = clarificationWording(context, "targetFolderPath", structuredFinding(rejection));
+    if (wording.isEmpty()) {
+      return internalClarification(context.conversationId(), rejection);
+    }
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+        PipelineGates.tag(PipelineGates.TARGET_FOLDER_CHOICE, wording.get())));
+  }
+
+  private CapabilitySignal.Completed recoveryQuestion(StageExecutionContext context, RequirementRejection rejection) {
+    var wording = clarificationWording(context, "requirement", structuredFinding(rejection));
+    if (wording.isEmpty()) {
+      return internalClarification(context.conversationId(), rejection);
+    }
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+        PipelineGates.tag(PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION, wording.get())));
+  }
+
+  private CapabilitySignal.Completed internalClarification(String conversationId, RequirementRejection rejection) {
+    String message = "Requirement capture failed internally. This is not an author question.";
+    draftStore.recordCaptureRejection(conversationId, message);
+    var findings = rejection.issues().stream().map(issue -> new PlanValidationFinding(
+        issue.code(), issue.path(), true, MappingValidationDetails.empty(),
+        issue.entityId() == null || issue.entityId().isBlank() ? "requirement-draft" : issue.entityId(),
+        CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+    var evidence = new CaptureFailureEvidence(rejection.feedback(), null, null, List.of());
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.INTERNAL_FAILURE, message,
+        RecoveryCause.captureFailure(rejection.feedback(), findings, evidence)));
+  }
+
+  private Optional<String> clarificationWording(StageExecutionContext context, String requestedFact,
+      String structuredFinding) {
+    if (failureNarrative == null || context == null) {
+      return Optional.empty();
+    }
+    String locale = context.runManifest() == null || context.runManifest().responseLocale() == null
+        ? "en" : context.runManifest().responseLocale();
+    return failureNarrative.askClarification(context.runId(), locale, requestedFact, context.stageId(),
+        structuredFinding);
+  }
+
+  private static String structuredFinding(RequirementRejection rejection) {
+    return rejection.issues().stream().map(issue -> issue.code() + " " + issue.path())
+        .reduce((left, right) -> left + "\n" + right).orElse("");
+  }
+
+  private Optional<CapabilitySignal.Completed> ladderDiscoveryOutcome(StageExecutionContext context,
+      String conversationId, RequirementRejection rejection, List<Issue> preservation) {
     var stage = rejection.feedback().ladderStage();
     if (stage == null || stage == RequirementRecoveryLadder.Stage.FOCUSED_REPAIR) {
       return Optional.empty();
@@ -503,11 +596,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     var codes = rejection.issues().stream().map(issue -> issue.code()).toList();
     if (stage == RequirementRecoveryLadder.Stage.ASK_AUTHOR && RequirementRecoveryLadder.asksAuthor(codes)) {
-      String message = rejection.issues().stream().map(issue -> issue.message())
-          .filter(text -> text != null && !text.isBlank()).findFirst()
-          .orElse("Resolve the ambiguity in the saved author evidence.");
-      return Optional.of(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-          PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, message))));
+      return Optional.of(recoveryQuestion(context, rejection));
     }
     String message = stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
         ? "Capture the requirements again from the author evidence and the semantic baseline."
@@ -542,9 +631,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
         : captureFeedback.lastRequirementRejection(conversationId);
     if (rejection.isPresent() && !rejection.get().issues().isEmpty() && rejection.get().issues().stream()
         .allMatch(issue -> "AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
-      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-          PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION,
-              "Which catalog folder should contain this chain? Several folders have the requested name.")));
+      return folderQuestion(context, rejection.get());
     }
     if (preservation.isEmpty() && rejection.isPresent() && !rejection.get().issues().isEmpty()
         && rejection.get().issues().stream().allMatch(issue ->
@@ -567,7 +654,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     if (rejection.isPresent() && rejection.get().issues().stream()
         .anyMatch(issue -> !"AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
-      var ladderOutcome = ladderDiscoveryOutcome(conversationId, rejection.get(), preservation);
+      var ladderOutcome = ladderDiscoveryOutcome(context, conversationId, rejection.get(), preservation);
       if (ladderOutcome.isPresent()) {
         return ladderOutcome.get();
       }
