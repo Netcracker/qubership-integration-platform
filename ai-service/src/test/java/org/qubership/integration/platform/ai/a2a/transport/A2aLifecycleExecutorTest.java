@@ -38,6 +38,7 @@ import org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageRec
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aReceiptProcessingState;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
+import org.qubership.integration.platform.ai.a2a.transport.A2aCommandId;
 import org.qubership.integration.platform.ai.a2a.transport.A2aInboundMessageParser.InboundCommand;
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aStateMapper.ProjectedTask;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
@@ -403,6 +404,41 @@ class A2aLifecycleExecutorTest {
   }
 
   @Test
+  void initialClarifyTextArchivesOneOpeningAuthorTurn() throws Exception {
+    ConversationArchive archive = newArchive();
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    A2aMessageReceiptRepository receipts = mock(A2aMessageReceiptRepository.class);
+    CreateChainA2aAgentExecutor executor = initialClarifyExecutor(facade, receipts, archive);
+    String messageId = "msg-opening";
+    String text = "Build an HTTP integration chain";
+    String commandId = A2aCommandId.derive("local", "local-user", messageId);
+    Message message = textMessage(messageId, text);
+    RequestContext context = newTaskContext(message);
+    when(receipts.claimInitialWithWorkingTask(
+            eq("local"), eq("local-user"), eq(messageId), any(), any(), any()))
+        .thenReturn(new A2aCallerMessageClaimResult.Claimed("task-1"))
+        .thenReturn(new A2aCallerMessageClaimResult.Incomplete(
+            "task-1", A2aReceiptProcessingState.DISPATCHING));
+    CreateChainExecutionSnapshot afterStart = new CreateChainExecutionSnapshot(
+        "task-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 1L,
+        new CreateChainPendingAction.Clarify("need input", List.of()), "");
+    when(facade.snapshot("task-1"))
+        .thenReturn(Optional.of(afterStart))
+        .thenReturn(Optional.empty())
+        .thenReturn(Optional.of(afterStart));
+    AgentEmitter emitter = mock(AgentEmitter.class);
+
+    executor.execute(context, emitter);
+    executor.execute(context, emitter);
+
+    var turns = archive.read("task-1").turns();
+    assertEquals(1, turns.size());
+    assertEquals(text, turns.getFirst().rawText());
+    assertEquals(commandId, turns.getFirst().id());
+    assertEquals("", clarificationOfferId(turns.getFirst().metadata()));
+  }
+
+  @Test
   void oneRetryArchivesOneAnswerTurn() throws Exception {
     ConversationArchive archive = newArchive();
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
@@ -459,6 +495,25 @@ class A2aLifecycleExecutorTest {
         .build();
   }
 
+  private static String clarificationOfferId(com.fasterxml.jackson.databind.JsonNode metadata) {
+    if (metadata == null || !metadata.isObject()) {
+      return "";
+    }
+    com.fasterxml.jackson.databind.JsonNode value = metadata.get("clarificationOfferId");
+    if (value == null || value.isNull()) {
+      return "";
+    }
+    return value.asText("");
+  }
+
+  private static RequestContext newTaskContext(Message message) {
+    return new RequestContext.Builder()
+        .setTaskId("task-1")
+        .setContextId("ctx-1")
+        .setParams(org.a2aproject.sdk.spec.MessageSendParams.builder().message(message).build())
+        .build();
+  }
+
   private static RequestContext continuation(Message message) {
     Task task = Task.builder()
         .id("task-1")
@@ -471,6 +526,52 @@ class A2aLifecycleExecutorTest {
         .setTask(task)
         .setParams(org.a2aproject.sdk.spec.MessageSendParams.builder().message(message).build())
         .build();
+  }
+
+  private static CreateChainA2aAgentExecutor initialClarifyExecutor(
+      CreateChainApplicationFacade facade,
+      A2aMessageReceiptRepository receipts,
+      ConversationArchive archive) {
+    A2aTaskSnapshotPersister persister = mock(A2aTaskSnapshotPersister.class);
+    when(receipts.findCallerReceipt(any(), any(), any())).thenReturn(Optional.empty());
+    when(receipts.acquireDispatch(any(), any(), any())).thenReturn(
+        org.qubership.integration.platform.ai.a2a.persistence.A2aDispatchAcquisition.acquired(
+            java.util.UUID.fromString("11111111-1111-1111-1111-111111111111")));
+    when(receipts.renewDispatch(any(), any(), any(), any())).thenReturn(true);
+    when(facade.start(any(StartCreateChainCommand.class)))
+        .thenReturn(Multi.createFrom().item(
+            new CreateChainEvent.Waiting(
+                new CreateChainPendingAction.Clarify("need input", List.of()))));
+    when(facade.snapshot("task-1"))
+        .thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+            "task-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 1L,
+            new CreateChainPendingAction.Clarify("need input", List.of()), "")));
+    when(persister.loadSdkTask("task-1"))
+        .thenReturn(Optional.of(Task.builder()
+            .id("task-1")
+            .contextId("ctx-1")
+            .status(new TaskStatus(TaskState.TASK_STATE_WORKING, null, null))
+            .build()));
+    when(persister.persistAndBuildSdkTask(any(), any(), any(), any(), any()))
+        .thenAnswer(invocation -> {
+          ProjectedTask projected = invocation.getArgument(3);
+          Task task = Task.builder()
+              .id("task-1")
+              .contextId("ctx-1")
+              .status(new TaskStatus(projected.state().toSdk(), null, null))
+              .build();
+          return new A2aTaskSnapshotPersister.PersistResult(task, List.of(), List.of(), 9L);
+        });
+    return new CreateChainA2aAgentExecutor(
+        facade,
+        persister,
+        receipts,
+        () -> new CallerContext("local", "local-user"),
+        new LocalPermitAllTaskAccessPolicy(),
+        null,
+        null,
+        null,
+        archive);
   }
 
   private static CreateChainA2aAgentExecutor continuationExecutor(
