@@ -13,6 +13,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -53,7 +55,10 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureTools;
+import org.qubership.integration.platform.ai.plan.RequirementTargetResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
@@ -541,6 +546,56 @@ class ProductPipelineRunSupportTest {
   }
 
   @Test
+  void aWaitingOfferAdmitsTheChainCallThroughDiscovery() throws Exception {
+    var harness = new OfferHarness();
+    String conversationId = "conv-real-offer";
+    String runId = "run-real-offer";
+    harness.acceptChainCallQuestion(conversationId, false);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    var offer = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later).orElseThrow()
+        .clarification().offer();
+    harness.support().recordInput(
+        new AcceptInputCommand(runId, "trigger-element", "cmd-real-offer", "hash-real-offer"))
+        .collect().asList().await().indefinitely();
+    var attributes = harness.support().runAttributes(runId);
+    assertEquals(offer.offerId(), attributes.get(ProductPipelineRunSupport.ADMITTED_CLARIFICATION_OFFER_ATTR));
+    assertEquals(waiting.run().runRevision(),
+        attributes.get(ProductPipelineRunSupport.ADMITTED_INPUT_REVISION_ATTR));
+
+    var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    var trigger = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
+    trigger.id = "trigger-element";
+    trigger.chainId = "chain-1";
+    trigger.chainName = "Existing chain";
+    trigger.type = "chain-trigger-2";
+    when(chains.listChainTriggers()).thenReturn(List.of(trigger));
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+    var tools = new RequirementCaptureTools(harness.drafts, mock(org.qubership.integration.platform.ai.plan.RequirementDraftTool.class),
+        mapper, new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
+        feedback, new RequirementTargetResolver(chains,
+            mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
+    var gatherCalled = new AtomicBoolean();
+    var matcher = mock(org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher.class);
+    var capability = new RequirementDiscoveryCapability(null, harness.drafts, null, (conversation, text) -> {
+      gatherCalled.set(true);
+      return Multi.createFrom().empty();
+    }, harness.conversationService(), matcher);
+    capability.setCaptureTools(tools);
+    capability.execute(new StageExecutionContext(runId, conversationId, "requirement-discovery", "exec-real-offer",
+        "attempt-real-offer", null, null, List.of(), attributes)).collect().asList().await().indefinitely();
+
+    assertEquals("trigger-element", harness.drafts.get(conversationId).orElseThrow().authoredDraft().capabilities()
+        .stream().filter(item -> "child".equals(item.interactionId())).findFirst().orElseThrow().targetReference());
+    assertFalse(gatherCalled.get());
+    verifyNoInteractions(matcher);
+  }
+
+  @Test
   void specializedClarificationAnswersAdmitTheirGate() {
     for (String gate : List.of(
         PipelineGates.TARGET_FOLDER_CHOICE, PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION)) {
@@ -711,6 +766,10 @@ class ProductPipelineRunSupportTest {
 
     String generation(String conversationId) {
       return conversations.archive().read(conversationId).generation();
+    }
+
+    ConversationService conversationService() {
+      return conversations;
     }
 
     ProductPipelineRunDocument wait(
