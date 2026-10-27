@@ -6,6 +6,7 @@
       "DELETE /v1/catalog/chains/{chainId}/snapshots",
       "DELETE /v1/catalog/chains/{chainId}/snapshots/{snapshotId}",
       "DELETE /v1/catalog/context-system/{contextId}",
+      "DELETE /v1/catalog/domains/{domainName}",
       "DELETE /v1/catalog/import-instructions",
       "DELETE /v1/catalog/live-exchanges/{podIp}/{deploymentId}/{exchangeId}",
       "DELETE /v1/catalog/mcp-system/{id}",

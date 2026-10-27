@@ -10,6 +10,7 @@ import {
   ChainCreationRequest,
   ChainItem,
   DeployMode,
+  DomainType,
   FolderItem,
   RestApiError,
   ListFolderRequest,
@@ -558,8 +559,11 @@ const Chains = () => {
     setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
-      return await api.deployToMicroDomain({
+      return await api.bulkDeploy({
         domains: domains.map((domain) => domain.name),
+        microDomains: domains
+          .filter((domain) => domain.type === DomainType.MICRO)
+          .map((domain) => domain.name),
         chainIds,
         snapshotAction,
         mode: DeployMode.APPEND,
