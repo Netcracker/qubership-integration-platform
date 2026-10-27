@@ -748,9 +748,15 @@ public class RequirementCaptureTools {
         : input.capabilities();
     String type = facts.stream().map(FactInput::elementIntent)
         .filter(intent -> intent != null && interaction.equals(intent.elementRef()))
-        .map(RequirementElementIntent::elementType).findFirst().orElseGet(() -> capabilities.stream()
+        .map(RequirementElementIntent::elementType)
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElseGet(() -> capabilities.stream()
             .filter(capability -> interaction.equals(capability.interactionId()))
-            .map(RequirementCaptureInput.CapabilityInput::capabilityKey).findFirst().orElse(null));
+            .map(RequirementCaptureInput.CapabilityInput::capabilityKey)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null));
     if (type == null) {
       return value -> false;
     }
