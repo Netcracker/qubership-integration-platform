@@ -55,7 +55,8 @@ public class RequirementCaptureTools {
       RequirementDraftStore store, RequirementDraftTool legacyBindingAdapter, ObjectMapper mapper,
       CaptureToolOutcomeGateway outcomeGateway, CaptureAttemptFeedbackStore feedbackStore,
       RequirementTargetResolver targetResolver, CatalogFolders catalogFolders, UploadedSpecOperations uploadedSpecs,
-      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations,
+      org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore runs) {
     this.store = store;
     this.legacyBindingAdapter = legacyBindingAdapter;
     this.mapper = mapper;
@@ -65,6 +66,18 @@ public class RequirementCaptureTools {
     this.catalogFolders = catalogFolders;
     this.uploadedSpecs = uploadedSpecs;
     this.conversations = conversations;
+    if (runs != null) {
+      store.useRunJournal(runs);
+    }
+  }
+
+  public RequirementCaptureTools(
+      RequirementDraftStore store, RequirementDraftTool legacyBindingAdapter, ObjectMapper mapper,
+      CaptureToolOutcomeGateway outcomeGateway, CaptureAttemptFeedbackStore feedbackStore,
+      RequirementTargetResolver targetResolver, CatalogFolders catalogFolders, UploadedSpecOperations uploadedSpecs,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+    this(store, legacyBindingAdapter, mapper, outcomeGateway, feedbackStore, targetResolver, catalogFolders,
+        uploadedSpecs, conversations, null);
   }
 
   public RequirementCaptureTools(
@@ -306,7 +319,8 @@ public class RequirementCaptureTools {
               "CONTINUATION_NOT_AUTHORIZED", "/directive", null, refusal.get())));
         }
       }
-      var questions = directive == RequirementDiscoveryDirective.DISCUSS ? List.<Issue>of()
+      var questions = directive == RequirementDiscoveryDirective.DISCUSS
+          && store.clarificationContext(conversationId, null) == null ? List.<Issue>of()
           : store.validateAuthorQuestions(conversationId);
       if (!questions.isEmpty()) return view(current, false, false, questions);
       store.finishTurn(conversationId, directive);
@@ -385,8 +399,10 @@ public class RequirementCaptureTools {
         admitted, previous, bindings,
         legacyBindingAdapter.sourceSkillVersion(conversationId),
         legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+    var clarification = store.clarificationContext(conversationId, changes);
+    var validCandidate = validDispositionCandidates(input, clarification);
     var admission = store.admitCaptureDecision(conversationId, expectedBase, draft, changes,
-        mappingRepairPaths(conversationId));
+        mappingRepairPaths(conversationId), clarification, validCandidate);
     if (!admission.issues().isEmpty()) {
       var restored = store.restoreProtectedCandidate(conversationId, admitted, bindings, admission.issues());
       if (restored != null) {
@@ -397,7 +413,7 @@ public class RequirementCaptureTools {
             legacyBindingAdapter.sourceSkillVersion(conversationId),
             legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
         var retry = store.admitCaptureDecision(conversationId, expectedBase, restoredDraft, changes,
-            mappingRepairPaths(conversationId));
+            mappingRepairPaths(conversationId), clarification, validCandidate);
         if (retry.issues().isEmpty()) {
           admitted = restored;
           draft = restoredDraft;
@@ -717,6 +733,25 @@ public class RequirementCaptureTools {
             + " During automatic repair, keep accepted elementIntent unchanged. Add extra source-backed settings through addFacts"
             + " on the same elementRef, rather than updating its accepted fact."))
         .toList();
+  }
+
+  private java.util.function.Predicate<String> validDispositionCandidates(
+      DraftInput input, RequirementDraftStore.ClarificationAdmissionContext clarification) {
+    if (clarification == null || clarification.pinnedQuestion() == null
+        || clarification.pinnedQuestion().evidence() == null || elementSchemas == null || input == null
+        || input.facts() == null) {
+      return null;
+    }
+    String interaction = clarification.pinnedQuestion().evidence().interactionId();
+    String property = clarification.pinnedQuestion().evidence().propertyKey();
+    String type = input.facts().stream().map(FactInput::elementIntent)
+        .filter(intent -> intent != null && interaction.equals(intent.elementRef()))
+        .map(RequirementElementIntent::elementType).filter(Objects::nonNull).findFirst().orElse(null);
+    if (type == null) {
+      return null;
+    }
+    return value -> elementSchemas.validateCapturePropertyValue(
+        type, property, com.fasterxml.jackson.databind.node.TextNode.valueOf(value)).isEmpty();
   }
 
   private java.util.Map<String, java.util.Set<String>> mappingRepairPaths(String conversationId) {

@@ -389,6 +389,42 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void aSourceBackedRoleAnswerChangesThePinnedTargetAndRemovesItsQuestion() throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      var opened = h.begin("Create tasks with RBAC. Proceed without IDS.");
+      var original = new FactInput("access-control", List.of("entry"), FactKind.CONSTRAINT,
+          Polarity.POSITIVE, "Access control: RBAC.");
+      var question = new QuestionInput("roles", List.of("entry"), "Which roles should the trigger use?",
+          new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+              "entry", "roles",
+              org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+              List.of(opened.turnId())));
+      var base = new DraftInput(httpDraft(List.of(original)).flow(), List.of(original),
+          httpDraft(List.of(original)).capabilities(), List.of(question), httpDraft(List.of(original)).settings());
+      assertTrue(h.capture(base).accepted(), "capture");
+      String quote = "Allow ROLE_CIP_ADMIN.";
+      var source = pinClarification(h, quote);
+      var intent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+          "entry", null, null, null,
+          List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", "[\"ROLE_CIP_ADMIN\"]")),
+          List.of());
+      var replacement = new FactInput(original.sourceFactId(), original.interactionIds(), original.kind(),
+          original.polarity(), original.text(), null, null, intent);
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(replacement), List.of(), List.of(), List.of(), List.of(), List.of(), List.of("roles"), null,
+          List.of(new AmendmentInput("/facts/access-control/elementIntent", source.turnId(), quote)));
+      var result = h.update(update);
+      assertTrue(result.accepted(), result.toString());
+      assertTrue(h.store.get(h.chat).orElseThrow().authoredDraft().openQuestions().isEmpty());
+      assertEquals("[\"ROLE_CIP_ADMIN\"]", h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst()
+          .elementIntent().requestedProperties().getFirst().value());
+      assertEquals(org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.ANSWER,
+          h.store.latestClarificationAnswer(h.chat).orElseThrow().disposition());
+    }
+  }
+
+  @Test
   void roleAnswerNamesMissingAmendmentChildrenAndAcceptsTheExistingNullParent() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
@@ -1764,6 +1800,45 @@ class RequirementRevisionAdmissionTest {
     return new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(policy(decision)),
         List.of(), List.of(), List.of(), reopen ? List.of(question()) : List.of(), List.of(),
         reopen ? List.of() : List.of("choice"), null);
+  }
+
+  private static ConversationArchive.Input pinClarification(Harness h, String reply) {
+    var coordinator = new RequirementClarificationCoordinator();
+    var revision = h.store.latestRevision(h.chat).orElseThrow();
+    var draft = h.store.get(h.chat).orElseThrow();
+    var active = coordinator.activeQuestion(revision, draft, h.archive.read(h.chat).generation()).orElseThrow();
+    var offer = coordinator.createOffer(active, 2L);
+    var runs = new org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore(
+        h.blobs, h.mapper, Clock.systemUTC());
+    var stages = List.of(new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot(
+        "requirement-discovery",
+        org.qubership.integration.platform.ai.productpipeline.store.StageStatus.RUNNING, List.of(), null));
+    var created = runs.create(new org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot(
+        "run-" + h.chat, h.chat, 1L,
+        org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING,
+        "requirement-discovery", stages, null));
+    var now = java.time.Instant.parse("2026-01-01T00:00:00Z");
+    var transition = new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(
+        1L, 2L,
+        org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING,
+        org.qubership.integration.platform.ai.productpipeline.store.RunStatus.WAITING_FOR_INPUT,
+        "requirement-discovery", now, "clarification", null, null,
+        new org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition(offer, null));
+    var attempt = new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt(
+        "attempt-2", "requirement-discovery", 2L,
+        org.qubership.integration.platform.ai.productpipeline.store.StageStatus.WAITING_FOR_INPUT,
+        now, now, List.of(), null);
+    runs.commit(1L, org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit.statusChange(
+        created.run(),
+        org.qubership.integration.platform.ai.productpipeline.store.StageStatus.WAITING_FOR_INPUT,
+        created.run().stages(), attempt, transition));
+    h.store.useRunJournal(runs);
+    String turnId = ConversationArchive.deterministicAnswerTurnId(offer.offerId(), reply);
+    var metadata = h.mapper.createObjectNode().put("clarificationOfferId", offer.offerId());
+    var answer = h.archive.beginInput(h.chat, turnId, reply, metadata);
+    h.archive.resolveInput(h.chat, answer, reply);
+    h.store.beginTurn(h.chat, reply);
+    return answer;
   }
 
   private static final class Harness {

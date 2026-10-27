@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.DecisionCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -112,13 +113,22 @@ public class RequirementDraftStore {
   CaptureAdmission admitCaptureDecision(String conversationId, Reference expectedBase,
       RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
       java.util.Map<String, java.util.Set<String>> mappingPaths) {
+    return admitCaptureDecision(conversationId, expectedBase, draft, changes, mappingPaths, null, null);
+  }
+
+  CaptureAdmission admitCaptureDecision(String conversationId, Reference expectedBase,
+      RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
+      java.util.Map<String, java.util.Set<String>> mappingPaths,
+      ClarificationAdmissionContext clarification, java.util.function.Predicate<String> validCandidate) {
     return withWriteAuthority(conversationId,
-        () -> admitCaptureLocked(conversationId, expectedBase, draft, changes, mappingPaths));
+        () -> admitCaptureLocked(conversationId, expectedBase, draft, changes, mappingPaths,
+            clarification, validCandidate));
   }
 
   private CaptureAdmission admitCaptureLocked(String conversationId, Reference expectedBase,
       RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
-      java.util.Map<String, java.util.Set<String>> mappingPaths) {
+      java.util.Map<String, java.util.Set<String>> mappingPaths,
+      ClarificationAdmissionContext clarification, java.util.function.Predicate<String> validCandidate) {
     var issues = new java.util.ArrayList<RequirementCaptureEditor.Issue>();
     var current = latestRevision(conversationId);
     if (!Objects.equals(expectedBase, current.map(Revision::reference).orElse(null))) {
@@ -203,6 +213,18 @@ public class RequirementDraftStore {
     issues.addAll(RequirementClaimEvidenceValidator.validate(baseline, accepted, facts, packet, amendments));
     if (!issues.isEmpty()) {
       return new CaptureAdmission(List.copyOf(issues), strategy);
+    }
+    var clarificationVerdict = RequirementRevisionAdmission.clarify(clarification, draft, validCandidate,
+        target -> questionDefaults(draft.authoredDraft(), target));
+    if (!clarificationVerdict.issues().isEmpty()) {
+      pendingClarificationAnswers.remove(conversationId);
+      return new CaptureAdmission(clarificationVerdict.issues(), RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
+    }
+    if (clarificationVerdict.disposition() != null && clarification != null && clarification.offer() != null) {
+      pendingClarificationAnswers.put(conversationId, new org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Answer(
+          clarification.offer().offerId(), clarification.answerTurnId(), clarificationVerdict.disposition()));
+    } else {
+      pendingClarificationAnswers.remove(conversationId);
     }
     if (current.isEmpty() || !draft.equals(artifacts.payload(current.orElseThrow(), RequirementDraft.class))) {
       appendDraft(conversationId, draft, true);
@@ -773,7 +795,7 @@ public class RequirementDraftStore {
     sessions.startNew(conversationId);
     capturedThisTurn.remove(conversationId);
     discussionTurns.remove(conversationId);
-    clarificationBases.remove(conversationId);
+    pendingClarificationAnswers.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
     captureMutationScopes.remove(conversationId);
@@ -795,7 +817,7 @@ public class RequirementDraftStore {
           previous.sourceTurnId(), previous.authorText(), previous.mutationScope(), "projection-rebuild", null, true,
           List.of(), previous.acceptedDraftReference(), previous.repairAuthority(), previous.argumentBinding(),
           previous.authorEvidenceHash(), null, previous.semanticBaselineReference(),
-          RequirementRepairPolicy.Strategy.PROJECTION_REBUILD));
+          RequirementRepairPolicy.Strategy.PROJECTION_REBUILD, previous.clarificationAnswer()));
       return null;
     });
   }
@@ -809,7 +831,7 @@ public class RequirementDraftStore {
     sourceInputs.remove(conversationId);
     capturedThisTurn.remove(conversationId);
     discussionTurns.remove(conversationId);
-    clarificationBases.remove(conversationId);
+    pendingClarificationAnswers.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
     captureMutationScopes.remove(conversationId);
@@ -981,18 +1003,138 @@ public class RequirementDraftStore {
     return Optional.ofNullable(currentAuthorText.get(conversationId));
   }
 
-  private final ConcurrentHashMap<String, Reference> clarificationBases = new ConcurrentHashMap<>();
+  private ProductPipelineRunStore runJournal;
+  private final ConcurrentHashMap<String, org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Answer>
+      pendingClarificationAnswers = new ConcurrentHashMap<>();
 
+  /** The durable run journal is the pinned-question authority. Callers outside admission may still invoke this. */
   public void associateClarification(String conversationId) {
-    var reference = latestRevision(conversationId).map(Revision::reference).orElse(null);
-    if (reference == null) return;
-    if (conversations == null) {
-      clarificationBases.putIfAbsent(conversationId, reference);
-      return;
+    Objects.requireNonNull(conversationId, "conversationId");
+  }
+
+  public void useRunJournal(ProductPipelineRunStore runs) {
+    this.runJournal = runs;
+  }
+
+  /**
+   * The pinned offer, answer turn, and optional model disposition for the current author turn.
+   * Null when this conversation has no journal offer for the latest ready turn.
+   */
+  public ClarificationAdmissionContext clarificationContext(String conversationId,
+      RequirementCaptureInput.DraftUpdate changes) {
+    if (runJournal == null || conversations == null || conversationId == null) {
+      return null;
     }
     var source = conversations.archive().read(conversationId);
-    String inputId = org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(source);
-    if (inputId != null) conversations.archive().associateClarification(conversationId, source.generation(), inputId, reference);
+    var latest = source.activeTurns().stream()
+        .filter(turn -> turn.message().role()
+            == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+            && "READY".equals(turn.status()))
+        .reduce((earlier, later) -> later);
+    if (latest.isEmpty()) {
+      return null;
+    }
+    String offerId = clarificationOfferId(latest.get().metadata());
+    if (offerId.isBlank()) {
+      return null;
+    }
+    var document = runJournal.loadByConversation(conversationId).orElse(null);
+    if (document == null) {
+      return null;
+    }
+    org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Offer offer = null;
+    for (var transition : document.transitions()) {
+      var clarification = transition.clarification();
+      if (clarification != null && clarification.offer() != null
+          && offerId.equals(clarification.offer().offerId())) {
+        offer = clarification.offer();
+      }
+    }
+    if (offer == null) {
+      return null;
+    }
+    var pinnedOffer = offer;
+    var pinned = loadPinnedDraft(conversationId, pinnedOffer.draftReference());
+    if (pinned == null || pinned.authoredDraft() == null) {
+      return null;
+    }
+    var question = pinned.authoredDraft().openQuestions().stream()
+        .filter(value -> value != null && pinnedOffer.questionId().equals(value.questionId()))
+        .findFirst().orElse(null);
+    if (question == null) {
+      return null;
+    }
+    var coordinator = new RequirementClarificationCoordinator();
+    var disposition = changes == null ? null : changes.clarificationDisposition();
+    boolean focused = focusedAnswerRepair(conversationId, latest.get().id());
+    var readyInputIds = source.activeTurns().stream()
+        .filter(turn -> turn.message().role()
+            == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+            && "READY".equals(turn.status()))
+        .map(turn -> turn.id()).collect(java.util.stream.Collectors.toSet());
+    return new ClarificationAdmissionContext(pinnedOffer, latest.get().id(), pinned, question,
+        coordinator.targetProjection(pinned, question), disposition, focused, latest.get().message().content(),
+        readyInputIds);
+  }
+
+  private RequirementDraft loadPinnedDraft(String conversationId, Reference reference) {
+    if (reference == null) {
+      return null;
+    }
+    return artifacts.get(sessions.active(conversationId), reference)
+        .map(revision -> artifacts.payload(revision, RequirementDraft.class)).orElse(null);
+  }
+
+  public Optional<org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Answer>
+      latestClarificationAnswer(String conversationId) {
+    for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+      if (attempt.accepted() && attempt.clarificationAnswer() != null) {
+        return Optional.of(attempt.clarificationAnswer());
+      }
+    }
+    return Optional.empty();
+  }
+
+  private boolean focusedAnswerRepair(String conversationId, String answerTurnId) {
+    for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+      if (attempt.recoveryStrategy() == null) {
+        continue;
+      }
+      return attempt.recoveryStrategy() == RequirementRepairPolicy.Strategy.FOCUSED_REPAIR
+          && Objects.equals(attempt.sourceTurnId(), answerTurnId);
+    }
+    return false;
+  }
+
+  private static String clarificationOfferId(com.fasterxml.jackson.databind.JsonNode metadata) {
+    if (metadata == null || metadata.isNull()) {
+      return "";
+    }
+    var direct = metadata.get("clarificationOfferId");
+    if (direct != null && !direct.isNull()) {
+      return direct.asText("");
+    }
+    var submitted = metadata.get("submitted");
+    if (submitted != null && submitted.isObject()) {
+      return clarificationOfferId(submitted);
+    }
+    return "";
+  }
+
+  /** Offer, archived answer, pinned draft, and the optional model disposition for one admission. */
+  public record ClarificationAdmissionContext(
+      org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Offer offer,
+      String answerTurnId,
+      RequirementDraft pinnedBase,
+      RequirementCaptureInput.QuestionInput pinnedQuestion,
+      com.fasterxml.jackson.databind.JsonNode targetProjection,
+      RequirementCaptureInput.ClarificationDispositionInput disposition,
+      boolean focusedAnswerRepair,
+      String answerText,
+      java.util.Set<String> readyInputIds) {
+    public ClarificationAdmissionContext {
+      readyInputIds = readyInputIds == null ? java.util.Set.of() : java.util.Set.copyOf(readyInputIds);
+    }
   }
 
   /** An accepted but unrelated revision cannot consume an answer to an unchanged question. */
@@ -1006,15 +1148,8 @@ public class RequirementDraftStore {
             == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
             && "READY".equals(turn.status()))
         .map(turn -> turn.id()).collect(java.util.stream.Collectors.toSet());
-    Reference baseRef = clarificationBases.get(conversationId);
-    if (source != null) {
-      var latest = source.activeTurns().stream().filter(turn -> inputIds.contains(turn.id())).reduce((a, b) -> b);
-      if (latest.isPresent() && latest.get().metadata() != null && latest.get().metadata().has("clarificationDraft")) {
-        baseRef = new ObjectMapper().convertValue(latest.get().metadata().get("clarificationDraft"), Reference.class);
-      }
-    }
-    var base = baseRef == null ? null : artifacts.get(sessions.active(conversationId), baseRef)
-        .map(revision -> artifacts.payload(revision, RequirementDraft.class)).orElse(null);
+    var context = clarificationContext(conversationId, null);
+    var base = context == null ? null : context.pinnedBase();
     if (current.authoredDraft() == null) {
       if (base != null && base.openQuestions().equals(current.openQuestions())) {
         issues.add(new RequirementCaptureEditor.Issue("UNAPPLIED_AUTHOR_ANSWER", "/draft/openQuestions", null,
@@ -1025,14 +1160,20 @@ public class RequirementDraftStore {
     }
     var draft = current.authoredDraft();
     var facts = RequirementCaptureProjection.facts(draft);
+    var accepted = latestClarificationAnswer(conversationId).orElse(null);
+    boolean classifiedOpen = context != null && accepted != null
+        && accepted.offerId().equals(context.offer().offerId())
+        && accepted.disposition()
+            != org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.ANSWER;
+    String pinnedId = context == null ? null : context.pinnedQuestion().questionId();
     for (var question : draft.openQuestions()) {
       if (question == null) continue;
       var evidence = question.evidence();
       String path = "/draft/openQuestions/" + question.questionId();
-      boolean prior = base != null && base.authoredDraft() != null && base.authoredDraft().openQuestions().stream()
-          .anyMatch(old -> old.questionId().equals(question.questionId()) || old.evidence() != null && evidence != null
-              && old.evidence().interactionId().equals(evidence.interactionId())
-              && old.evidence().propertyKey().equals(evidence.propertyKey()));
+      boolean pinned = pinnedId != null && pinnedId.equals(question.questionId());
+      boolean untouched = !pinned && base != null && base.authoredDraft() != null
+          && base.authoredDraft().openQuestions().stream().anyMatch(old -> old != null
+              && old.questionId().equals(question.questionId()) && Objects.equals(old, question));
       var findings = new java.util.ArrayList<String>();
       if (evidence != null) {
         if (!question.interactionIds().contains(evidence.interactionId()) && facts.stream().noneMatch(fact ->
@@ -1041,10 +1182,10 @@ public class RequirementDraftStore {
           findings.add("Question evidence must target the question's interaction.");
         }
         org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionAdmission.validate(
-            evidence, facts, current.flow(), current.catalogBindings(), inputIds, questionDefaults(draft, evidence.interactionId()), prior || evidence.kind()
-                != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
-            findings);
-      } else if (source != null || prior) {
+            evidence, facts, current.flow(), current.catalogBindings(), inputIds,
+            untouched ? null : inputIds, questionDefaults(draft, evidence.interactionId()),
+            true, findings);
+      } else if (source != null && !untouched) {
         var schema = (dev.langchain4j.model.chat.request.json.JsonObjectSchema) RequirementCaptureSchemas
             .parameters("evidence", org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.class)
             .properties().get("evidence");
@@ -1057,38 +1198,17 @@ public class RequirementDraftStore {
             + " unresolved propertyKey. Set reviewedInputIds to exactly the source turn IDs below."
             + " Keep unresolved choices open and leave unrelated accepted records unchanged; do not add them again.");
       }
-      if (prior && (evidence == null || evidence.kind()
-          != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER)) {
-        findings.add("The admitted answer has not resolved this question. Apply it to its target field;"
-            + " use AMBIGUOUS_ANSWER only when the reviewed latest answer leaves that field unresolved.");
+      if (pinned && !classifiedOpen) {
+        findings.add("The admitted answer has not resolved this question. Apply it to its target field,"
+            + " or classify it from focused answer repair.");
       }
       if (!findings.isEmpty()) issues.add(new RequirementCaptureEditor.Issue(
-          prior ? "UNAPPLIED_AUTHOR_ANSWER" : "AUTHOR_QUESTION_NOT_SUPPORTED", path, question.questionId(),
+          pinned ? "UNAPPLIED_AUTHOR_ANSWER" : "AUTHOR_QUESTION_NOT_SUPPORTED", path, question.questionId(),
           String.join(" ", findings) + " Source turn IDs: " + inputIds));
     }
     if (base != null && base.authoredDraft() != null) {
-      for (var question : base.authoredDraft().openQuestions()) {
-        var evidence = question.evidence();
-        if (evidence == null || draft.openQuestions().stream().anyMatch(open -> open.questionId().equals(question.questionId()))) continue;
-        boolean resolverWork = RequirementCaptureProjection.pending(draft, current.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(current)).stream().anyMatch(work ->
-                evidence.interactionId().equals(work.interactionId()) && work.code().endsWith("LOOKUP_REQUIRED"));
-        if (resolverWork) continue;
-        var values = facts.stream().filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
-            .filter(fact -> fact.targetsInteraction(evidence.interactionId())
-            || fact.elementIntent() != null && evidence.interactionId().equals(fact.elementIntent().elementRef()))
-            .flatMap(fact -> org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionAdmission
-                .suppliedValues(fact, evidence.propertyKey()).stream()).toList();
-        boolean resolvedPolicy = evidence.kind()
-            != org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.POLICY_CHOICE
-            || facts.stream().anyMatch(fact -> fact.targetsInteraction(evidence.interactionId()) && fact.policyConflict() != null
-                && evidence.propertyKey().equals(fact.policyConflict().propertyKey()) && fact.policyConflict().decision() != null);
-        if ((values.isEmpty() && !questionDefaults(draft, evidence.interactionId()).contains(evidence.propertyKey())) || !resolvedPolicy) {
-          issues.add(new RequirementCaptureEditor.Issue("UNAPPLIED_AUTHOR_ANSWER", "/draft/openQuestions/" + question.questionId(),
-              question.questionId(), "Removing a question is insufficient: apply the saved answer to "
-                  + evidence.interactionId() + "." + evidence.propertyKey() + " before continuing."));
-        }
-      }
+      issues.addAll(RequirementRevisionAdmission.unappliedRemovals(base.authoredDraft(), current,
+          target -> questionDefaults(draft, target)));
     }
     return List.copyOf(issues);
   }
@@ -1155,11 +1275,15 @@ public class RequirementDraftStore {
     Reference baselineRef = baselineReference(conversationId);
     var strategy = strategyOverride != null ? strategyOverride
         : result.accepted() || !captureTool ? null : recoveryStrategy(result);
+    var answer = result.accepted() ? pendingClarificationAnswers.remove(conversationId) : null;
+    if (!result.accepted()) {
+      pendingClarificationAnswers.remove(conversationId);
+    }
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
         arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId),
         RequirementCaptureToolProvider.argumentBinding(), authorEvidenceHash(conversationId), resolvedCandidate,
-        baselineRef, strategy), selectedAttempt);
+        baselineRef, strategy, answer), selectedAttempt);
   }
 
   private String authorEvidenceHash(String conversationId) {
@@ -1561,7 +1685,22 @@ public class RequirementDraftStore {
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       Reference semanticBaselineReference,
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-      RequirementRepairPolicy.Strategy recoveryStrategy) {
+      RequirementRepairPolicy.Strategy recoveryStrategy,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Answer
+          clarificationAnswer) {
+    public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
+        String mutationScope, String toolName, Object arguments, boolean accepted,
+        List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority,
+        RequirementCaptureToolProvider.ArgumentBinding argumentBinding, String authorEvidenceHash,
+        RequirementCaptureInput.DraftInput resolvedCandidate, Reference semanticBaselineReference,
+        RequirementRepairPolicy.Strategy recoveryStrategy) {
+      this(sourceGeneration, sourceTurnId, authorText, mutationScope, toolName, arguments, accepted,
+          issues, acceptedDraftReference, repairAuthority, argumentBinding, authorEvidenceHash, resolvedCandidate,
+          semanticBaselineReference, recoveryStrategy, null);
+    }
+
     public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
         String mutationScope, String toolName, Object arguments, boolean accepted,
         List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority,

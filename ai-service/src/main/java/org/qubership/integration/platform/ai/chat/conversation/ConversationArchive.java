@@ -202,21 +202,6 @@ public class ConversationArchive {
         && result.activeTurnIds().contains(turn.id());
   }
 
-  /** Pins an admitted answer to the questions and draft that were actually presented. */
-  public void associateClarification(String conversationId, String generation, String turnId,
-      org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference draftReference) {
-    update(conversationId, doc -> {
-      requireGeneration(doc, generation);
-      return copy(doc, doc.turns().stream().map(turn -> {
-        if (!turn.id().equals(turnId) || turn.metadata() != null && turn.metadata().has("clarificationDraft")) return turn;
-        var metadata = mapper.createObjectNode();
-        if (turn.metadata() != null) metadata.set("submitted", turn.metadata());
-        metadata.set("clarificationDraft", mapper.valueToTree(draftReference));
-        return new Turn(turn.id(), turn.message(), turn.rawText(), metadata, turn.status(), turn.consumedDraftReference());
-      }).toList(), doc.activeTurnIds());
-    });
-  }
-
   public List<Turn> pendingInputs(String conversationId) {
     return read(conversationId).activeTurns().stream()
         .filter(turn -> turn.message().role() == ConversationMessage.Role.USER
