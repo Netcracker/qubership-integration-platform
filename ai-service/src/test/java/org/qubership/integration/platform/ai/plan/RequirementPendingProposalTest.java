@@ -215,27 +215,35 @@ class RequirementPendingProposalTest {
     var pending = h.store.pendingProposal(CHAT).orElseThrow();
     var attempt = h.artifacts.get(h.sessions.active(CHAT), pending.attempt()).orElseThrow();
     var stored = h.artifacts.payload(attempt, RequirementDraftStore.RequirementCaptureAttempt.class);
-    var baseline = h.store.semanticBaseline(CHAT).orElseThrow();
-    var baselineRevision = h.artifacts.latest(h.sessions.active(CHAT), Kind.REQUIREMENT_SEMANTIC_BASELINE).orElseThrow();
 
-    assertEquals(List.of(new RequirementSemanticClaim("invalid id", "Submit one task", Polarity.POSITIVE,
-        new ClaimEvidenceInput(turn, "Submit one task"))), baseline.claims());
+    assertTrue(h.store.semanticBaseline(CHAT).isEmpty(), "A rejected candidate does not create a claim");
     assertEquals(candidate, pending.draft());
     assertNull(h.store.repairConstraints(CHAT));
     assertTrue(h.artifacts.latest(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_PROTECTION).isPresent());
-    assertEquals(baselineRevision.reference(), stored.semanticBaselineReference());
+    assertNull(stored.semanticBaselineReference());
     assertEquals(RequirementRepairPolicy.Strategy.FOCUSED_REPAIR, stored.recoveryStrategy());
     assertEquals(CaptureProposal.digest(new RequirementDraftStore.PendingProposalBinding(
-        attempt.reference(), stored.authorEvidenceHash(), null, baselineRevision.reference())), pending.token());
+        attempt.reference(), stored.authorEvidenceHash(), null, null)), pending.token());
     assertTrue(h.store.get(CHAT).isEmpty());
 
     var reloaded = new Harness(h.blobs);
     reloaded.store.beginTurn(CHAT, author);
-    assertEquals(baseline, reloaded.store.semanticBaseline(CHAT).orElseThrow());
+    assertTrue(reloaded.store.semanticBaseline(CHAT).isEmpty());
     assertEquals(pending.draft(), reloaded.store.pendingProposal(CHAT).orElseThrow().draft());
     assertEquals(pending.token(), reloaded.store.pendingProposal(CHAT).orElseThrow().token());
     assertNull(reloaded.store.repairConstraints(CHAT));
     assertTrue(reloaded.store.get(CHAT).isEmpty());
+
+    var corrected = new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Submit one task",
+        null, null, null, new ClaimEvidenceInput(turn, "Submit one task"));
+    var correctedDraft = new DraftInput(candidate.flow(), List.of(corrected), candidate.capabilities(),
+        candidate.openQuestions(), new RequirementCaptureInput.DraftSettings(null, null));
+    try (var ignored = ToolSession.open(CHAT)) {
+      var saved = h.json.readValue(h.tools.captureRequirementDraft(correctedDraft), RequirementCaptureResult.class);
+      assertTrue(saved.accepted(), saved.toString());
+    }
+    assertEquals(List.of("goal"), h.store.semanticBaseline(CHAT).orElseThrow().claims().stream()
+        .map(RequirementSemanticClaim::sourceFactId).toList());
   }
 
   @Test
@@ -260,6 +268,7 @@ class RequirementPendingProposalTest {
     }
     var draft = h.store.latestRevision(CHAT).orElseThrow();
     var baseline = h.store.semanticBaseline(CHAT).orElseThrow();
+    assertTrue(baseline.claims().stream().noneMatch(claim -> "invalid id".equals(claim.sourceFactId())));
     var protectionHistory = h.artifacts.history(h.sessions.active(CHAT), Kind.REQUIREMENT_CAPTURE_PROTECTION);
     assertTrue(h.store.pendingProposal(CHAT).isPresent());
 

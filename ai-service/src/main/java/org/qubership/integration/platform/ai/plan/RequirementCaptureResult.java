@@ -63,7 +63,9 @@ public record RequirementCaptureResult(
   }
 
   public RequirementCaptureResult withPendingProposal(PendingProposal proposal) {
-    return new RequirementCaptureResult(accepted, changed, revision, readiness, nextAction, issues, pendingWork,
+    NextAction action = proposal != null && readiness == Readiness.EMPTY && nextAction == NextAction.DISCUSS
+        ? NextAction.REPAIR_CAPTURE : nextAction;
+    return new RequirementCaptureResult(accepted, changed, revision, readiness, action, issues, pendingWork,
         draft, resolutions, defaults, repairConstraints, proposal);
   }
 

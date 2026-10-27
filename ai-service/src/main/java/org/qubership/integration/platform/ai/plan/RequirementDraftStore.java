@@ -245,39 +245,6 @@ public class RequirementDraftStore {
         .reference();
   }
 
-  /**
-   * Adds source-backed claims from a rejected candidate. Existing claims stay. Structural fields on
-   * the candidate do not enter the baseline.
-   */
-  private Reference retainRejectedClaims(String conversationId, RequirementCaptureInput.DraftInput candidate) {
-    var previous = semanticBaseline(conversationId).orElse(null);
-    var packet = sourcePacket(conversationId);
-    var facts = candidate == null || candidate.facts() == null
-        ? List.<RequirementCaptureInput.FactInput>of() : candidate.facts();
-    var reconciled = RequirementClaimEvidenceValidator.reconcile(previous, facts, packet, List.of());
-    var claims = new java.util.ArrayList<RequirementSemanticClaim>();
-    if (previous != null) {
-      claims.addAll(previous.claims());
-    }
-    for (var claim : reconciled.claims()) {
-      if (claim.sourceFactId() == null) {
-        continue;
-      }
-      boolean present = claims.stream().anyMatch(existing -> claim.sourceFactId().equals(existing.sourceFactId()));
-      if (!present) {
-        claims.add(claim);
-      }
-    }
-    if (previous != null && claims.equals(previous.claims())) {
-      return baselineReference(conversationId);
-    }
-    if (claims.isEmpty()) {
-      return null;
-    }
-    return appendSemanticBaseline(conversationId, new RequirementSemanticBaseline(packet.generation(),
-        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(packet), claims));
-  }
-
   private AuthorSourceEvidence.Packet sourcePacket(String conversationId) {
     if (conversations != null) {
       return AuthorSourceEvidence.packet(conversations.archive().read(conversationId));
@@ -1289,12 +1256,6 @@ public class RequirementDraftStore {
       }
     }
     Reference baselineRef = baselineReference(conversationId);
-    if (!result.accepted() && captureTool) {
-      var retained = retainRejectedClaims(conversationId, claimCandidate(arguments, resolvedCandidate));
-      if (retained != null) {
-        baselineRef = retained;
-      }
-    }
     var strategy = result.accepted() || !captureTool ? null : recoveryStrategy(result);
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
@@ -1622,14 +1583,6 @@ public class RequirementDraftStore {
     return result.nextAction() == RequirementCaptureResult.NextAction.PROJECTION_REBUILD
         ? RequirementRepairPolicy.Strategy.PROJECTION_REBUILD
         : RequirementRepairPolicy.Strategy.FOCUSED_REPAIR;
-  }
-
-  private static RequirementCaptureInput.DraftInput claimCandidate(Object arguments,
-      RequirementCaptureInput.DraftInput resolvedCandidate) {
-    if (resolvedCandidate != null) {
-      return resolvedCandidate;
-    }
-    return arguments instanceof RequirementCaptureInput.DraftInput draft ? draft : null;
   }
 
   public record RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
