@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
@@ -152,7 +153,8 @@ public class ChatDecisionService {
     if (policyChoice.isPresent()) return policyChoice;
     var versionChoice = snapshot
         .filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
-            && clarify.gateId().isBlank())
+            && (clarify.gateId().isBlank()
+                || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId())))
         .flatMap(current -> catalogVersionDecision(conversationId, current.revision()));
     if (versionChoice.isPresent()) {
       return versionChoice;
@@ -167,7 +169,7 @@ public class ChatDecisionService {
                             pending ->
                                 (ChatEvent.Decision)
                                     ChatEvent.decision(
-                                        pending,
+                                        withoutGenericOffer(pending),
                                         current.revision(),
                                         storedQuestion(conversationId, pending),
                                         actionsFor(conversationId, pending))));
@@ -268,6 +270,20 @@ public class ChatDecisionService {
                     ChatEvent.importDecision(
                         draft.apiHubCandidate().packageId(),
                         importQuestion(conversationId, draft)));
+  }
+
+  /**
+   * A typed gate keeps its own decision id. The persisted requirement offer stays on generic
+   * requirement clarification.
+   */
+  private static PendingAction withoutGenericOffer(PendingAction pending) {
+    if (!(pending instanceof CreateChainPendingAction.Clarify clarify) || clarify.gateId().isBlank()
+        || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId())
+        || clarify.clarificationOfferId().isBlank()) {
+      return pending;
+    }
+    return new CreateChainPendingAction.Clarify(clarify.reason(), clarify.missingEvidence(), clarify.gateId(),
+        clarify.technicalDetails(), clarify.retryDelayMs(), clarify.runId(), clarify.failedStageId(), "");
   }
 
   private Optional<ChatEvent.Decision> catalogVersionDecision(String conversationId, long revision) {

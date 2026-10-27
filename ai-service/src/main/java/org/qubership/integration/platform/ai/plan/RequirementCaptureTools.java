@@ -234,6 +234,43 @@ public class RequirementCaptureTools {
     return null;
   }
 
+  /**
+   * Turns one exact chain-call answer into a draft update for normal admission.
+   *
+   * <p>Empty when the answer is not one verified chain-trigger element. The update sets
+   * {@code targetReference} and removes only that question.
+   */
+  public Optional<DraftUpdate> chainCallAnswerUpdate(DraftInput draft,
+      RequirementCaptureInput.QuestionInput activeQuestion, String answerText) {
+    if (targetResolver == null || draft == null || activeQuestion == null
+        || activeQuestion.questionId() == null) {
+      return Optional.empty();
+    }
+    RequirementTargetResolver.Resolution resolution =
+        targetResolver.resolveChainCallAnswer(draft, activeQuestion, answerText);
+    if (resolution.targetIds().size() != 1) {
+      return Optional.empty();
+    }
+    Map.Entry<String, String> selected = resolution.targetIds().entrySet().iterator().next();
+    String triggerId = selected.getValue();
+    if (triggerId == null || triggerId.isBlank() || triggerId.contains("/")) {
+      return Optional.empty();
+    }
+    RequirementCaptureInput.CapabilityInput capability = draft.capabilities() == null ? null
+        : draft.capabilities().stream().filter(item -> item != null
+            && selected.getKey().equals(item.interactionId())
+            && "chain-call-2".equals(item.capabilityKey())).findFirst().orElse(null);
+    if (capability == null) {
+      return Optional.empty();
+    }
+    var updated = new RequirementCaptureInput.CapabilityInput(capability.interactionId(),
+        capability.capabilityKey(), capability.httpMode(), capability.httpMethod(), capability.path(),
+        capability.topic(), capability.mcpServerId(), triggerId);
+    return Optional.of(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(updated), List.of(), List.of(), List.of(),
+        List.of(activeQuestion.questionId()), null));
+  }
+
   public record SourceRead(String turnId, int offset, int maxChars) {}
 
   @Tool("Read source evidence from this chat by its supplied turn id. Use an offset and at most 16000 characters.")

@@ -861,10 +861,230 @@ class RequirementDiscoveryCapabilityTest {
       h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
       return Multi.createFrom().empty();
     });
+    var narrative = mock(FailureNarrative.class);
+    when(narrative.askClarification(eq("run-rejected"), eq("en"), eq("targetFolderPath"),
+        eq("requirement-discovery"), any())).thenReturn(Optional.of(
+            "Which of the matching folders should contain this chain?"));
     capability.captureFeedback = h.feedback();
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, discoveryOutcome(capability).outcomeClass());
+    capability.failureNarrative = narrative;
+    var outcome = discoveryOutcome(capability);
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
+    assertTrue(outcome.message().contains("__GATE:" + org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.TARGET_FOLDER_CHOICE + "__"),
+        outcome.message());
+    assertTrue(outcome.message().contains("Which of the matching folders should contain this chain?"),
+        outcome.message());
+    assertFalse(outcome.message().contains(
+        "Which catalog folder should contain this chain? Several folders have the requested name."),
+        outcome.message());
     assertEquals("AMBIGUOUS_TARGET_FOLDER", h.feedback().lastRequirementRejection("conv-rejected")
         .orElseThrow().issues().getFirst().code());
+    verify(narrative).askClarification(eq("run-rejected"), eq("en"), eq("targetFolderPath"),
+        eq("requirement-discovery"), any());
+  }
+
+  @Test
+  void targetFolderQuestionUsesTheRunResponseLocale() {
+    var folders = mock(org.qubership.integration.platform.ai.chain.folder.CatalogFolders.class);
+    when(folders.tree()).thenReturn(List.of(
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("one", "Salesforce", null,
+            "Salesforce"),
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("two", "Salesforce", "parent",
+            "Parent/Salesforce")));
+    var h = captureHarness(folders);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of(),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.GOAL,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, "Create one task.")),
+        List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null, "Salesforce"));
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.tools().captureRequirementDraft(input);
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    var narrative = mock(FailureNarrative.class);
+    when(narrative.askClarification(any(), any(), any(), any(), any()))
+        .thenReturn(Optional.of("Which catalog folder should contain this chain?"));
+    capability.captureFeedback = h.feedback();
+    capability.failureNarrative = narrative;
+    var manifest = new org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest(
+        "run-rejected", null, List.of(), null, null, null, null, null, null, List.of(), null, null, null,
+        List.of(), null, "ru");
+    var outcome = discoveryOutcome(capability, manifest);
+    assertTrue(outcome.message().contains("__GATE:target-folder-choice__"), outcome.message());
+    verify(narrative).askClarification(eq("run-rejected"), eq("ru"), eq("targetFolderPath"),
+        eq("requirement-discovery"), any());
+  }
+
+  @Test
+  void emptyFolderWordingKeepsTheInternalRecoveryPath() {
+    var folders = mock(org.qubership.integration.platform.ai.chain.folder.CatalogFolders.class);
+    when(folders.tree()).thenReturn(List.of(
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("one", "Salesforce", null,
+            "Salesforce"),
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("two", "Salesforce", "parent",
+            "Parent/Salesforce")));
+    var h = captureHarness(folders);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of(),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.GOAL,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, "Create one task.")),
+        List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null, "Salesforce"));
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.tools().captureRequirementDraft(input);
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    var narrative = mock(FailureNarrative.class);
+    when(narrative.askClarification(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+    capability.captureFeedback = h.feedback();
+    capability.failureNarrative = narrative;
+    var outcome = discoveryOutcome(capability);
+    assertEquals(StageOutcomeClass.INTERNAL_FAILURE, outcome.outcomeClass(), outcome.toString());
+    assertEquals("Requirement capture failed internally. This is not an author question.", outcome.message());
+    assertFalse(outcome.message().contains("Salesforce"), outcome.message());
+    assertEquals("AMBIGUOUS_TARGET_FOLDER", outcome.recoveryCause().findings().getFirst().code());
+    assertEquals("Requirement capture failed internally. This is not an author question.",
+        h.store().lastCaptureRejection("conv-rejected").orElseThrow());
+  }
+
+  @Test
+  void unknownFolderAnswerStaysOnTheTargetFolderGate() {
+    var folders = mock(org.qubership.integration.platform.ai.chain.folder.CatalogFolders.class);
+    when(folders.tree()).thenReturn(List.of(
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f1", "A", null, "A"),
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f2", "Salesforce", "f1",
+            "A/Salesforce"),
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f3", "Salesforce", null,
+            "Salesforce")));
+    var h = captureHarness(folders);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of(),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.GOAL,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, "Create one task.")),
+        List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null, "Salesforce"));
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.tools().captureRequirementDraft(input);
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    var narrative = mock(FailureNarrative.class);
+    when(narrative.askClarification(any(), any(), any(), any(), any()))
+        .thenReturn(Optional.of("Which folder?"));
+    capability.captureFeedback = h.feedback();
+    capability.failureNarrative = narrative;
+    capability.targetFolderChoices = new org.qubership.integration.platform.ai.plan.TargetFolderChoiceResolver(
+        folders, h.tools());
+    assertTrue(discoveryOutcome(capability).message().contains("__GATE:target-folder-choice__"));
+    var context = new org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext(
+        "run-rejected", "conv-rejected", "requirement-discovery", "exec-rejected", "attempt-rejected", null, null,
+        List.of(), Map.of("userText", "Nope",
+            org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR,
+            "target-folder-choice"));
+    var again = capability.execute(context).collect().asList().await().indefinitely().stream()
+        .filter(org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal.Completed.class::isInstance)
+        .map(org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, again.outcomeClass(), again.toString());
+    assertTrue(again.message().contains("__GATE:target-folder-choice__"), again.message());
+    assertTrue(capability.targetFolderChoices.selection("Nope").isEmpty(), "selection(Nope)");
+    assertTrue(capability.targetFolderChoices.selection("Salesforce").isEmpty(), "selection(Salesforce)");
+  }
+
+  @Test
+  void recoveryClarificationReturnsToFocusedRepairWithTheOriginalFinding() {
+    var h = captureHarness(null);
+    var seen = new AtomicReference<String>();
+    var calls = new AtomicInteger();
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      seen.set(text);
+      if (calls.getAndIncrement() == 0) {
+        h.feedback().recordClassifiedRequirementFailure("conv-rejected",
+            org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+            org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
+            true, "Ambiguous chain target", List.of(
+                new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue(
+                    "SEMANTIC_AMBIGUITY", "/draft/capabilities/0/targetReference",
+                    "Raw catalog prose that must stay off the question.", "call")),
+            true, org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage.ASK_AUTHOR);
+      }
+      return Multi.createFrom().empty();
+    });
+    var narrative = mock(FailureNarrative.class);
+    when(narrative.askClarification(any(), any(), any(), any(), any()))
+        .thenReturn(Optional.of("Which chain target should this call use?"));
+    capability.captureFeedback = h.feedback();
+    capability.failureNarrative = narrative;
+    var asked = discoveryOutcome(capability);
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, asked.outcomeClass(), asked.toString());
+    assertTrue(asked.message().contains("__GATE:requirement-recovery-clarification__"), asked.message());
+    assertTrue(asked.message().contains("Which chain target should this call use?"), asked.message());
+    assertFalse(asked.message().contains("Raw catalog prose"), asked.message());
+    var context = new org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext(
+        "run-rejected", "conv-rejected", "requirement-discovery", "exec-rejected", "attempt-rejected", null, null,
+        List.of(), Map.of("userText", "Use the billing path",
+            org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR,
+            "requirement-recovery-clarification"));
+    capability.execute(context).collect().asList().await().indefinitely();
+    assertTrue(seen.get().contains("SEMANTIC_AMBIGUITY"), seen.get());
+    assertTrue(seen.get().contains("/draft/capabilities/0/targetReference"), seen.get());
+    assertTrue(seen.get().contains("Use the billing path"), seen.get());
+    assertFalse(seen.get().contains("Raw catalog prose"), seen.get());
+  }
+
+  @Test
+  void emptyRecoveryWordingKeepsTheInternalRecoveryPath() {
+    var h = captureHarness(null);
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.feedback().recordClassifiedRequirementFailure("conv-rejected",
+          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
+          true, "Ambiguous chain target", List.of(
+              new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue(
+                  "SEMANTIC_AMBIGUITY", "/draft/capabilities/0/targetReference",
+                  "Raw catalog prose that must stay off the question.", "call")),
+          true, org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage.ASK_AUTHOR);
+      return Multi.createFrom().empty();
+    });
+    var narrative = mock(FailureNarrative.class);
+    when(narrative.askClarification(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+    capability.captureFeedback = h.feedback();
+    capability.failureNarrative = narrative;
+    var outcome = discoveryOutcome(capability);
+    assertEquals(StageOutcomeClass.INTERNAL_FAILURE, outcome.outcomeClass(), outcome.toString());
+    assertEquals("Requirement capture failed internally. This is not an author question.", outcome.message());
+    assertFalse(outcome.message().contains("Raw catalog prose"), outcome.message());
+    assertEquals("SEMANTIC_AMBIGUITY", outcome.recoveryCause().findings().getFirst().code());
+  }
+
+  @Test
+  void recoveryClarificationConsumesTheNarrativeCallAllowance() {
+    var h = captureHarness(null);
+    var agent = mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    when(agent.askClarification(any(), any(), any(), any())).thenReturn("Which value is missing?");
+    var narrative = new FailureNarrative(agent, 1, null);
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.feedback().recordClassifiedRequirementFailure("conv-rejected",
+          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
+          true, "Ambiguous chain target", List.of(
+              new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue(
+                  "SEMANTIC_AMBIGUITY", "/draft/capabilities/0/targetReference", "Choose one target.", "call")),
+          true, org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage.ASK_AUTHOR);
+      return Multi.createFrom().empty();
+    });
+    capability.captureFeedback = h.feedback();
+    capability.failureNarrative = narrative;
+    var outcome = discoveryOutcome(capability);
+    assertTrue(outcome.message().contains("Which value is missing?"), outcome.message());
+    assertTrue(narrative.explanationBudgetSpent("run-rejected"), "explanationBudgetSpent(run-rejected)");
+    assertTrue(narrative.askClarification("run-rejected", "en", "requirement", "requirement-discovery",
+        "SEMANTIC_AMBIGUITY").isEmpty(), "askClarification(spent budget)");
   }
 
   @Test
@@ -995,8 +1215,13 @@ class RequirementDiscoveryCapabilityTest {
       org.qubership.integration.platform.ai.plan.RequirementCaptureTools tools) {}
 
   private static StageOutcome discoveryOutcome(RequirementDiscoveryCapability capability) {
+    return discoveryOutcome(capability, null);
+  }
+
+  private static StageOutcome discoveryOutcome(RequirementDiscoveryCapability capability,
+      org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest manifest) {
     var context = new StageExecutionContext("run-rejected", "conv-rejected", "requirement-discovery",
-        "exec-rejected", "attempt-rejected", null, null, List.of(),
+        "exec-rejected", "attempt-rejected", null, manifest, List.of(),
         Map.of("userText", "Create a POST /tasks HTTP trigger."));
     return capability.execute(context).collect().asList().await().indefinitely().stream()
         .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)

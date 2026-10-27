@@ -2,11 +2,16 @@ package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import java.util.Arrays;
 import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
@@ -15,6 +20,9 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftI
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementTargetResolverTest {
@@ -79,6 +87,77 @@ class RequirementTargetResolverTest {
     assertEquals("INVALID_TARGET_SELECTION", invented.code());
     assertTrue(invented.message().contains("Do not invent a trigger id."), invented.message());
     assertTrue(!invented.message().contains("Set targetReference"), invented.message());
+  }
+
+  @Test
+  void resolveChainCallAnswerUsesListedTriggersAndWritesOneElementId() {
+    var chains = mock(CompositionCatalogBinder.class);
+    var matcher = mock(CatalogBindingMatcher.class);
+    var systems = mock(McpSystemCatalogBinder.class);
+    var trigger = chainTrigger("trigger-element", "chain-1", "Billing Chain", "Start");
+    var other = chainTrigger("other-trigger", "chain-2", "Billing Chain", "Start");
+    var operation = chainTrigger("operation-42", "chain-9", "Operations", "Get order");
+    operation.type = "service-call";
+    when(chains.listChainTriggers()).thenReturn(List.of(trigger, other, operation));
+    var resolver = new RequirementTargetResolver(chains, systems);
+    var question = chainQuestion("Select trigger-element for this chain call.");
+
+    assertEquals("trigger-element",
+        resolver.resolveChainCallAnswer(draft(null), question, "trigger-element").targetIds().get("call"),
+        "resolveChainCallAnswer(trigger-element)");
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, "chain-1").targetIds().isEmpty(),
+        "resolveChainCallAnswer(chain-1)");
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, "invented-trigger").targetIds().isEmpty(),
+        "resolveChainCallAnswer(invented-trigger)");
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, "operation-42").targetIds().isEmpty(),
+        "resolveChainCallAnswer(operation-42)");
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, "Billing Chain").targetIds().isEmpty(),
+        "resolveChainCallAnswer(Billing Chain)");
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, question.text()).targetIds().isEmpty(),
+        "resolveChainCallAnswer(question text)");
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, "please use trigger-element now")
+        .targetIds().isEmpty(), "resolveChainCallAnswer(prose containing the id)");
+    verify(chains, atLeastOnce()).listChainTriggers();
+    verifyNoMoreInteractions(chains);
+    verifyNoInteractions(matcher);
+    verifyNoInteractions(systems);
+    assertTrue(Arrays.stream(RequirementTargetResolver.class.getDeclaredFields())
+        .noneMatch(field -> CatalogBindingMatcher.class.equals(field.getType())),
+        "RequirementTargetResolver fields");
+  }
+
+  @Test
+  void resolveChainCallAnswerAcceptsOneChainNameAsThatTriggerElement() {
+    var chains = mock(CompositionCatalogBinder.class);
+    var trigger = chainTrigger("only-trigger", "chain-1", "Billing Chain", "Start");
+    when(chains.listChainTriggers()).thenReturn(List.of(trigger));
+    var resolver = new RequirementTargetResolver(chains, mock(McpSystemCatalogBinder.class));
+    var question = chainQuestion("Which chain-trigger element id should this chain call use?");
+
+    assertEquals("only-trigger",
+        resolver.resolveChainCallAnswer(draft(null), question, "billing chain").targetIds().get("call"),
+        "resolveChainCallAnswer(billing chain)");
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, "Billing").targetIds().isEmpty(),
+        "resolveChainCallAnswer(Billing)");
+    assertTrue(resolver.resolveChainCallAnswer(draft(null), question, "chain-1").targetIds().isEmpty(),
+        "resolveChainCallAnswer(chain-1)");
+  }
+
+  private static QuestionInput chainQuestion(String text) {
+    return new QuestionInput("target", List.of("call"), text,
+        new AuthorQuestionEvidence("call", "targetReference", AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+            List.of("turn-1")));
+  }
+
+  private static CatalogElementResponseDto chainTrigger(
+      String id, String chainId, String chainName, String name) {
+    var trigger = new CatalogElementResponseDto();
+    trigger.id = id;
+    trigger.chainId = chainId;
+    trigger.chainName = chainName;
+    trigger.name = name;
+    trigger.type = "chain-trigger-2";
+    return trigger;
   }
 
   private static DraftInput draft(String reference) {

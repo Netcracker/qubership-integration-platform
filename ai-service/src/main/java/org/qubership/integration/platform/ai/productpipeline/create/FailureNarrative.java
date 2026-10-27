@@ -305,8 +305,11 @@ public final class FailureNarrative {
   }
 
   /**
-   * Authors the clarification question in the conversation locale. Empty when there is no agent or
-   * the turn fails; the caller then uses the requested fact itself, not an English template.
+   * Authors the clarification question in the conversation locale.
+   *
+   * <p>Empty when there is no agent, the turn fails, or the model returns blank text. Callers show
+   * this text only. A blank result leaves the requested fact, backend message, and raw evidence off
+   * the question the reader sees.
    */
   public Optional<String> askClarification(
       String runId,
