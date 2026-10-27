@@ -8,9 +8,11 @@
 import { test, expect } from "../../support/fixtures.js";
 import { proxyUrl } from "../../env/containers.js";
 
-test("/doc redirects to /doc/ on the origin the request came to", { tag: ["@infra", "@tier2"] }, async ({ request }) => {
-  const url = `${proxyUrl()}/doc`;
-  const response = await request.get(url, { maxRedirects: 0 });
-  expect(response.status()).toBe(301);
-  expect(new URL(response.headers()["location"], url).href).toBe(`${url}/`);
+test.describe("doc redirect", { tag: ["@infra"] }, () => {
+  test("/doc redirects to /doc/ on the origin the request came to", async ({ request }) => {
+    const url = `${proxyUrl()}/doc`;
+    const response = await request.get(url, { maxRedirects: 0 });
+    expect(response.status()).toBe(301);
+    expect(new URL(response.headers()["location"], url).href).toBe(`${url}/`);
+  });
 });

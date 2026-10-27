@@ -1,0 +1,7 @@
+---
+id: "e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group"
+name: "async-api-v3-amqp"
+content:
+  synchronization: false
+  parentId: "e2e0e005-0000-4000-8000-000000000001"

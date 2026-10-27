@@ -1,0 +1,39 @@
+---
+id: "e2e10026-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-sender-security-sasl-scram-sha-512"
+description: "The Kafka sender over SASL_PLAINTEXT with SCRAM-SHA-512 on the AUTH listener. An HTTP call drives it, and a spec consumes the topic to find the payload."
+content:
+  labels: []
+  elements:
+  - id: "e2e10026-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-kafka-sender-security-sasl-scram-sha-512"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e10026-0000-4000-8000-000000000003"
+    name: "saslMechanism=SCRAM-SHA-512"
+    type: "kafka-sender-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29094"
+      topics: "e2e-{{RUN}}-kafka-sender-security-sasl-scram-sha-512"
+      securityProtocol: "SASL_PLAINTEXT"
+      saslMechanism: "SCRAM-SHA-512"
+      sslProtocol: "TLS"
+      saslJaasConfig: "org.apache.kafka.common.security.scram.ScramLoginModule required username=e2e password=e2e-secret;"
+      keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  dependencies:
+  - from: "e2e10026-0000-4000-8000-000000000002"
+    to: "e2e10026-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

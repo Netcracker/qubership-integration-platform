@@ -44,6 +44,7 @@ import { fileURLToPath } from "node:url";
 import { SCHEMA_BASE_URL } from "../../registry/discriminators.js";
 import { test, expect } from "../../support/fixtures.js";
 import { leftBehind } from "../../support/teardown.js";
+import { expectImportedServices } from "../../support/service-import.js";
 import { entryNames, entryText } from "../../support/zip.js";
 
 const ARCHIVE = path.resolve(
@@ -111,51 +112,50 @@ const EXPECTED: Record<string, ServiceWant> = {
   [IMPLEMENTED]: { name: "e2e-service-roundtrip-implemented", type: "IMPLEMENTED", groups: {} },
 };
 
-test("a committed service export imports back with every specification, dotted entry names included", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
-  const committed = fs.readFileSync(ARCHIVE);
-  expect(await entryNames(committed)).toEqual(ENTRIES);
+test.describe("service round trip", { tag: ["@catalog"] }, () => {
+  // The archive carries the dotted entry names the header describes.
+  test("the committed export imports back with every specification", async ({ catalog }) => {
+    const committed = fs.readFileSync(ARCHIVE);
+    expect(await entryNames(committed)).toEqual(ENTRIES);
 
-  try {
-    // Delete before importing: over a live id the import is an update, and every read below would
-    // hold without the archive having been read.
-    for (const id of IDS) {
-      if (await catalog.holds(`/v1/systems/${id}`)) await catalog.deleteSystem(id);
-    }
-
-    const response = await catalog.importArchive("/v1/import/system", committed, "services.zip");
-    expect(response.status(), await response.text()).toBe(200);
-    const rows = (await response.json()) as Array<{ id: string; name: string; status: string }>;
-    expect(rows.sort((a, b) => a.id.localeCompare(b.id))).toEqual(
-      IDS.map((id) => ({ id, name: EXPECTED[id].name, status: "CREATED" })),
-    );
-
-    for (const id of IDS) {
-      const want = EXPECTED[id];
-      const system = await catalog.getSystem(id);
-      expect({ name: system.name, type: system.type }, id).toEqual({ name: want.name, type: want.type });
-
-      const groups = await catalog.listSpecificationGroups(id);
-      expect(
-        groups.map((group) => ({ id: group.id, name: group.name })).sort((a, b) => a.id.localeCompare(b.id)),
-        `the specification groups of ${id}`,
-      ).toEqual(Object.entries(want.groups).map(([groupId, group]) => ({ id: groupId, name: group.name })));
-
-      for (const [groupId, group] of Object.entries(want.groups)) {
-        const models = (await catalog.listModels(groupId)).map((model) => model.id).sort();
-        expect(models, `the specifications of ${groupId}`).toEqual(group.models);
+    try {
+      // Delete before importing: over a live id the import is an update, and every read below would
+      // hold without the archive having been read.
+      for (const id of IDS) {
+        if (await catalog.holds(`/v1/systems/${id}`)) await catalog.deleteSystem(id);
       }
-    }
 
-    // The export of what the import wrote matches the committed archive entry for entry, in the
-    // `cip` format, so the environments, the operations, and the specification sources came back
-    // unchanged too.
-    const exported = await catalog.exportSystems(IDS);
-    expect(await entryNames(exported)).toEqual(ENTRIES.map(exportedEntry).sort());
-    for (const entry of ENTRIES) {
-      expect(await entryText(exported, exportedEntry(entry)), entry).toBe(exportedText(await entryText(committed, entry)));
+      const response = await catalog.importArchive("/v1/import/system", committed, "services.zip");
+      await expectImportedServices(response, IDS.map((id) => ({ id, name: EXPECTED[id].name })));
+
+      for (const id of IDS) {
+        const want = EXPECTED[id];
+        const system = await catalog.getSystem(id);
+        expect({ name: system.name, type: system.type }, id).toEqual({ name: want.name, type: want.type });
+
+        const groups = await catalog.listSpecificationGroups(id);
+        expect(
+          groups.map((group) => ({ id: group.id, name: group.name })).sort((a, b) => a.id.localeCompare(b.id)),
+          `the specification groups of ${id}`,
+        ).toEqual(Object.entries(want.groups).map(([groupId, group]) => ({ id: groupId, name: group.name })));
+
+        for (const [groupId, group] of Object.entries(want.groups)) {
+          const models = (await catalog.listModels(groupId)).map((model) => model.id).sort();
+          expect(models, `the specifications of ${groupId}`).toEqual(group.models);
+        }
+      }
+
+      // The export of what the import wrote matches the committed archive entry for entry, in the
+      // `cip` format, so the environments, the operations, and the specification sources came back
+      // unchanged too.
+      const exported = await catalog.exportSystems(IDS);
+      expect(await entryNames(exported)).toEqual(ENTRIES.map(exportedEntry).sort());
+      for (const entry of ENTRIES) {
+        expect(await entryText(exported, exportedEntry(entry)), entry).toBe(exportedText(await entryText(committed, entry)));
+      }
+    } finally {
+      // Deletes every fixed id rather than a listing, so a failed read cannot replace the case's own failure.
+      for (const id of IDS) await catalog.deleteSystem(id).catch(leftBehind(`service ${id}`));
     }
-  } finally {
-    // Deletes every fixed id rather than a listing, so a failed read cannot replace the case's own failure.
-    for (const id of IDS) await catalog.deleteSystem(id).catch(leftBehind(`service ${id}`));
-  }
+  });
 });

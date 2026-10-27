@@ -18,26 +18,30 @@ import {
   writeBrokersCorpusState,
 } from "../../support/brokers.js";
 import { DEPLOY_TIMEOUT } from "../../support/corpus.js";
-import { overlayNames, OVERLAY_READY_TIMEOUT } from "../../env/compose.js";
+import { OVERLAY_NAMES } from "../../env/containers.js";
+import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
 
 /**
  * The worst case `seedBrokers` can take: every overlay it needs starts cold and each uses its whole
  * `ensureOverlay` budget, one after another, ahead of the deploy wait and the Kafka consumer-attach
  * wait that follow them.
  *
- * Sized on the same numbers `seedBrokers` actually calls with, not guessed: up to `overlayNames()`
- * overlays (four today), `OVERLAY_READY_TIMEOUT` each (`env/compose.ts`), plus `DEPLOY_TIMEOUT`
- * (`support/corpus.ts`) and `KAFKA_CONSUMER_ATTACH_TIMEOUT` (`support/brokers.ts`) for the two waits
- * after the last overlay is up. Left at the suite's 120 s default, this test's own budget is smaller
- * than what `Env.ensureOverlay` alone can legitimately take, so a broker that is genuinely slow to
- * start fails on a bare Playwright timeout instead of on `ensureOverlay`'s own "did not start
- * serving within 180s" message — the message this seed exists to make reachable.
+ * Sized on the same numbers `seedBrokers` actually calls with, not guessed: up to `OVERLAY_NAMES`
+ * overlays (four today), `OVERLAY_READY_TIMEOUT` each (`env/overlays.ts`) for the readiness poll,
+ * plus `DEPLOY_TIMEOUT` (`support/corpus.ts`) and `KAFKA_CONSUMER_ATTACH_TIMEOUT`
+ * (`support/brokers.ts`) for the two waits after the last overlay is up. It leaves out the command
+ * before each poll, which on k8s is a rollout wait bounded by `OVERLAY_READY_TIMEOUT` as well. Left
+ * at the suite's 120 s default, this test's own budget is smaller than what `Env.ensureOverlay`
+ * alone can legitimately take, so a broker that is genuinely slow to start fails on a bare
+ * Playwright timeout instead of on `ensureOverlay`'s own "did not start serving" message, the
+ * message this seed exists to make reachable.
  */
-const BROKERS_SEED_TIMEOUT = overlayNames().length * OVERLAY_READY_TIMEOUT + DEPLOY_TIMEOUT + KAFKA_CONSUMER_ATTACH_TIMEOUT;
+const BROKERS_SEED_TIMEOUT =
+  OVERLAY_NAMES.length * OVERLAY_READY_TIMEOUT + DEPLOY_TIMEOUT + KAFKA_CONSUMER_ATTACH_TIMEOUT;
 
 test(
   "the broker fixture corpus is imported, deployed, and answering",
-  { tag: ["@engine", "@tier1"] },
+  { tag: ["@engine"] },
   async ({ catalog, env, run }) => {
     test.setTimeout(BROKERS_SEED_TIMEOUT);
     const fixtures = corpusFixtureNames([BROKERS_FIXTURE_DIR]);

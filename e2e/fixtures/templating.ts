@@ -63,6 +63,21 @@ export const SCRIPT_FIXTURE_DIR = path.join(HERE, "script");
  */
 export const BROKERS_FIXTURE_DIR = path.join(HERE, "brokers");
 
+/**
+ * `e2e/fixtures/services/` — one directory per service a corpus chain calls, with its specification
+ * group, its specification and the specification's source under the directory.
+ *
+ * Outside `CORPUS_FIXTURE_DIRS`, because every name there is read as a chain: both seeds import every
+ * service here through the service import before they import their chains.
+ */
+export const SERVICE_FIXTURE_DIR = path.join(HERE, "services");
+
+/**
+ * `e2e/fixtures/broker-services/` — the AsyncAPI services the broker chains under `fixtures/brokers/`
+ * consume from or send to. The broker seeds import them, each its own copy, before their chains.
+ */
+export const BROKER_SERVICE_FIXTURE_DIR = path.join(HERE, "broker-services");
+
 /** Every directory the seed's corpus is assembled from. A fixture name is unique across them. */
 export const CORPUS_FIXTURE_DIRS: readonly string[] = [
   CHAIN_FIXTURE_DIR,
@@ -77,6 +92,8 @@ export const CORPUS_FIXTURE_DIRS: readonly string[] = [
  * rest are always there, and a fixture that does not validate breaks the seed minutes into a run.
  * `BROKERS_FIXTURE_DIR` is outside `CORPUS_FIXTURE_DIRS` because the shared corpus never imports
  * it, but it is tracked and rendered the same way every other fixture is, so it validates here too.
+ * `SERVICE_FIXTURE_DIR` is outside it too, and its fixtures are imported by both seeds;
+ * `BROKER_SERVICE_FIXTURE_DIR` holds the services the broker seeds import.
  *
  * The corpus half is derived from `CORPUS_FIXTURE_DIRS` rather than spelled out again: a second
  * literal list is a directory somebody adds to one of them, and the validation it silently drops
@@ -85,6 +102,8 @@ export const CORPUS_FIXTURE_DIRS: readonly string[] = [
 export const TRACKED_FIXTURE_DIRS: readonly string[] = [
   ...CORPUS_FIXTURE_DIRS.filter((dir) => dir !== AXIS_FIXTURE_DIR),
   BROKERS_FIXTURE_DIR,
+  SERVICE_FIXTURE_DIR,
+  BROKER_SERVICE_FIXTURE_DIR,
 ];
 
 /**
@@ -105,6 +124,12 @@ export const TRACKED_FIXTURE_DIRS: readonly string[] = [
  * deploys — so a topic or queue these three chains name would exist by the time
  * `specs/brokers/missing-target.spec.ts` ran, and the "nobody ever declared this" premise the spec
  * exists to test would be false before its first assertion.
+ *
+ * `kafka-trigger-wrong-password.yaml` cannot deploy on the classic engine, whose pre-deploy check
+ * parks it. `kafka-sender-tlsv1-2-refused.yaml` and `kafka-trigger-tlsv1-2-refused.yaml` deploy, but
+ * their producer and consumer retry the refused handshake and log an error about once a second for
+ * as long as the chain stays deployed, so `kafka-security.spec.ts` deploys each only for its own
+ * case.
  */
 export const SPEC_OWNED_FIXTURES: ReadonlySet<string> = new Set([
   "script-inline.yaml",
@@ -114,66 +139,10 @@ export const SPEC_OWNED_FIXTURES: ReadonlySet<string> = new Set([
   "missing-kafka-topic.yaml",
   "missing-rabbitmq-queue.yaml",
   "missing-rabbitmq-exchange.yaml",
+  "kafka-trigger-wrong-password.yaml",
+  "kafka-sender-tlsv1-2-refused.yaml",
+  "kafka-trigger-tlsv1-2-refused.yaml",
 ]);
-
-/**
- * The fixtures the micro copy of the corpus holds: the ones the `runtime-micro` files read through
- * `seedChain`, and no other.
- *
- * Every micro chain loads into one Integration, and the micro engine stops the pod when one chain
- * fails to load, so a chain no case reads could fail the whole project and back no assertion.
- * `specs/schema/corpus-copies.spec.ts` compares this list with what those files read.
- */
-export const MICRO_FIXTURES: readonly string[] = [
-  "chain-call",
-  "chain-callee",
-  "checkpoint",
-  "choice",
-  "circuit-breaker-count-based",
-  "circuit-breaker-time-based",
-  "condition",
-  "condition-branches",
-  "context-propagation",
-  "file-read",
-  "file-write",
-  "http-echo",
-  "http-trigger-correlationIdPosition-body",
-  "http-trigger-handleChainFailureAction-chain-call",
-  "http-trigger-handleChainFailureAction-default",
-  "http-trigger-handleChainFailureAction-mapper-2",
-  "http-trigger-handleChainFailureAction-script",
-  "http-trigger-handleValidationAction-default",
-  "http-trigger-handleValidationAction-mapper-2",
-  "http-trigger-handleValidationAction-script",
-  "http-trigger-idempotency-actionOnDuplicate-execute-subchain",
-  "http-trigger-idempotency-actionOnDuplicate-ignore",
-  "http-trigger-idempotency-actionOnDuplicate-throw-exception",
-  "http-trigger-idempotency-enabled-false",
-  "http-trigger-receiveCorrelationId-true",
-  "loop",
-  "mapper",
-  "masking",
-  "reuse",
-  "script",
-  "script-exchange-body.yaml",
-  "script-exchange-headers.yaml",
-  "script-exchange-null-body.yaml",
-  "script-exchange-properties.yaml",
-  "script-in-container-loop.yaml",
-  "script-in-container-split.yaml",
-  "script-libraries-datetime.yaml",
-  "script-libraries-jdk.yaml",
-  "script-libraries-json.yaml",
-  "script-libraries-jsr223.yaml",
-  "script-libraries-nio.yaml",
-  "script-libraries-sql.yaml",
-  "script-libraries-xml.yaml",
-  "split",
-  "split-async",
-  "try-catch-finally",
-  "try-catch-finally-branches",
-  "xslt",
-];
 
 /**
  * What the micro copy puts before an `http-trigger` path. No leading slash: the templating and the
@@ -182,29 +151,147 @@ export const MICRO_FIXTURES: readonly string[] = [
  */
 export const MICRO_PATH_PREFIX = "micro/";
 
+/** The engine's own port as the engine sees it, not the one `Env.chainUrl` publishes. */
+export const ENGINE_LOOPBACK = "http://localhost:8080";
+
+/** `RegExp` source matching `text` literally. */
+export function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The chain routes on the engine's own port, followed by a `contextPath` or ending a service
+ * address that an operation path completes.
+ */
+const LOOPBACK_ROUTES = new RegExp(`${escapeRegExp(ENGINE_LOOPBACK)}/routes(?=[/"]|$)`, "gm");
+
 const UUID_PATTERN = new RegExp(`\\b${UUID_TEXT}\\b`, "gi");
 
 /** The id a chain or an element takes in the micro copy, derived from its id in the fixture. */
-function microId(id: string): string {
+export function microId(id: string): string {
   const hex = crypto.createHash("sha256").update(`micro/${id.toLowerCase()}`).digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
+/** A fixture document's element, as much of its shape as `flatten` and its callers read. */
+export interface FixtureElement {
+  id?: unknown;
+  name?: unknown;
+  type?: unknown;
+  properties?: Record<string, unknown>;
+  children?: FixtureElement[];
+}
+
+/** Every element of a fixture document, parents before their children. */
+export function flatten(elements: readonly FixtureElement[]): FixtureElement[] {
+  const flat: FixtureElement[] = [];
+  for (const element of elements) {
+    flat.push(element);
+    if (element.children) flat.push(...flatten(element.children));
+  }
+  return flat;
+}
+
+/** Every element of a chain document, at any depth, parents before their children. */
+export function elementsOf(document: Record<string, unknown>): FixtureElement[] {
+  return flatten(((document.content as { elements?: FixtureElement[] } | undefined)?.elements) ?? []);
+}
+
 /** The `contextPath` of every `http-trigger` in a chain document, at any depth. */
 export function httpTriggerPaths(document: Record<string, unknown>): string[] {
-  const found: string[] = [];
-  const pending = [...(((document.content as { elements?: unknown[] })?.elements) ?? [])];
-  while (pending.length > 0) {
-    const element = pending.shift() as {
-      type?: unknown;
-      properties?: { contextPath?: unknown };
-      children?: unknown[];
-    };
-    const contextPath = element.properties?.contextPath;
-    if (element.type === "http-trigger" && typeof contextPath === "string") found.push(contextPath);
-    pending.push(...(element.children ?? []));
+  return elementsOf(document)
+    .filter((element) => element.type === "http-trigger" && typeof element.properties?.contextPath === "string")
+    .map((element) => element.properties!.contextPath as string);
+}
+
+/**
+ * What the micro copy appends to every broker address it consumes from or sends to. Both copies of
+ * the broker corpus run at once, and a shared topic or exchange would deliver one message to both.
+ */
+export const MICRO_ADDRESS_SUFFIX = "-micro";
+
+/** Whether a broker name belongs to the micro copy, or to a spec name built from one of its addresses. */
+export function isMicroAddress(name: string): boolean {
+  return name.includes(MICRO_ADDRESS_SUFFIX);
+}
+
+/** The properties of each broker element that name an address: a comma-separated list, or an SFTP URL. */
+const BROKER_ADDRESS_PROPERTIES: Record<string, readonly string[]> = {
+  "kafka-trigger-2": ["topics", "groupId"],
+  "kafka-sender-2": ["topics"],
+  "rabbitmq-trigger-2": ["exchange", "queues", "deadLetterExchange", "deadLetterQueue"],
+  "rabbitmq-sender-2": ["exchange"],
+  "pubsub-trigger": ["destinationName"],
+  "pubsub-sender": ["destinationName"],
+  "sftp-trigger-2": ["connectUrl"],
+  "sftp-download": ["connectUrl"],
+  "sftp-upload": ["connectUrl"],
+};
+
+/** The protocols whose operation path an `async-api-trigger` or a `service-call` consumes from or sends to. */
+const ASYNC_OPERATION_PROTOCOLS: ReadonlySet<string> = new Set(["kafka", "amqp"]);
+
+/** The broker operation an `async-api-trigger` or a `service-call` element names. */
+export interface AsyncOperation {
+  protocol: string;
+  /** The topic or exchange. */
+  path: unknown;
+  groupId: unknown;
+  queues: unknown;
+  /** The dead-letter objects an AMQP trigger's queue names, which the brokers seed declares. */
+  deadLetterExchange: unknown;
+  deadLetterQueue: unknown;
+  deadLetterRoutingKey: unknown;
+}
+
+/**
+ * The broker operation of an `async-api-trigger` or a `service-call`, if it names one: its topic or
+ * exchange is its `integrationOperationPath`, and its group or queue sits under
+ * `integrationOperationAsyncProperties`.
+ */
+export function asyncOperationOf(element: FixtureElement): AsyncOperation | undefined {
+  if (element.type !== "async-api-trigger" && element.type !== "service-call") return undefined;
+  const properties = element.properties ?? {};
+  const protocol = String(properties.integrationOperationProtocolType);
+  if (!ASYNC_OPERATION_PROTOCOLS.has(protocol)) return undefined;
+  const async = (properties.integrationOperationAsyncProperties ?? {}) as Record<string, unknown>;
+  return {
+    protocol,
+    path: properties.integrationOperationPath,
+    groupId: async.groupId,
+    queues: async.queues,
+    deadLetterExchange: async.deadLetterExchange,
+    deadLetterQueue: async.deadLetterQueue,
+    deadLetterRoutingKey: async.deadLetterRoutingKey,
+  };
+}
+
+/** Every address property of a broker element, with its value. */
+function brokerAddressesOf(element: FixtureElement): Array<[string, unknown]> {
+  const operation = asyncOperationOf(element);
+  if (operation) {
+    return [
+      ["integrationOperationPath", operation.path],
+      ["groupId", operation.groupId],
+      ["queues", operation.queues],
+      ["deadLetterExchange", operation.deadLetterExchange],
+      ["deadLetterQueue", operation.deadLetterQueue],
+    ];
   }
-  return found;
+  const properties = element.properties ?? {};
+  return (BROKER_ADDRESS_PROPERTIES[String(element.type)] ?? []).map((property) => [property, properties[property]]);
+}
+
+/**
+ * The micro copy's address: each listed name gets `MICRO_ADDRESS_SUFFIX`, and an SFTP URL moves to
+ * a sibling of its run directory under `/upload`, so each copy's teardown deletes a tree of its own.
+ */
+function microAddress(property: string, value: string): string {
+  if (property === "connectUrl") return value.replace(/(\/upload\/[^/]+)/, `$1${MICRO_ADDRESS_SUFFIX}`);
+  return value
+    .split(",")
+    .map((name) => `${name.trim()}${MICRO_ADDRESS_SUFFIX}`)
+    .join(",");
 }
 
 /**
@@ -213,15 +300,31 @@ export function httpTriggerPaths(document: Record<string, unknown>): string[] {
  * Every UUID in the tree is replaced with `microId` of itself, as text, so each reference kind
  * follows at once: dependencies, the `elementId`-style properties, and the ids inside checkpoint
  * `contextPath` values. Only an `http-trigger` path gets `MICRO_PATH_PREFIX`; a checkpoint path is
- * unique already, because it carries the remapped ids.
+ * unique already, because it carries the remapped ids. A loopback call (`ENGINE_LOOPBACK`) gets the
+ * prefix too, in a chain or in a service address: inside a micro pod `localhost` is the copy's own
+ * domain, which serves the callee's micro copy under the prefixed path. A service fixture is copied
+ * the same way, so the copy's chains call the copy's services, and an MCP service identifier gets
+ * a `micro-` prefix. A broker element's addresses get `microAddress`, and so does the topic or
+ * exchange of an asynchronous operation; the operation in the service copy keeps its path, because
+ * the deploy reads the element's.
  */
 export function microCopy(name: string, tree: RenderedTree): RenderedTree {
   const copy: RenderedTree = new Map();
-  for (const [rel, content] of tree) copy.set(rel, content.replace(UUID_PATTERN, (id) => microId(id)));
+  for (const [rel, content] of tree) {
+    // A path carries ids too: a specification names its source file by the specification's id.
+    copy.set(
+      rel.replace(UUID_PATTERN, (id) => microId(id)),
+      content
+        .replace(UUID_PATTERN, (id) => microId(id))
+        .replace(LOOPBACK_ROUTES, `${ENGINE_LOOPBACK}/routes/${MICRO_PATH_PREFIX.replace(/\/$/, "")}`),
+    );
+  }
 
-  const { document } = readFixtureDocument(name, copy);
+  const { kind, document } = readFixtureDocument(name, copy);
   const file = [...copy.keys()].find((rel) => !rel.includes("/") && rel.endsWith(".yaml"))!;
   let source = copy.get(file)!;
+  // The catalog keeps an MCP service identifier unique, and the classic copy holds this one.
+  if (kind === "mcp-service") source = source.replace(/^( {2}identifier: ")/m, "$1micro-");
   for (const contextPath of httpTriggerPaths(document)) {
     const line = `contextPath: "${contextPath}"`;
     const count = source.split(line).length - 1;
@@ -229,6 +332,15 @@ export function microCopy(name: string, tree: RenderedTree): RenderedTree {
       throw new Error(`fixture ${name}: expected one ${line} to prefix, found ${count}`);
     }
     source = source.replace(line, `contextPath: "${MICRO_PATH_PREFIX}${contextPath}"`);
+  }
+  for (const element of elementsOf(document)) {
+    for (const [property, value] of brokerAddressesOf(element)) {
+      if (typeof value !== "string") continue;
+      const line = `${property}: ${JSON.stringify(value)}`;
+      const count = source.split(line).length - 1;
+      if (count !== 1) throw new Error(`fixture ${name}: expected one ${line} to rename, found ${count}`);
+      source = source.replace(line, `${property}: ${JSON.stringify(microAddress(property, value))}`);
+    }
   }
   copy.set(file, source);
   return copy;
@@ -251,6 +363,7 @@ export const RECORDED_SESSION_FIXTURE = path.join(HERE, "sessions", "recorded-se
 const SPECIFICATION_MEDIA_TYPES: Record<string, string> = {
   ".yaml": "application/yaml",
   ".graphql": "application/graphql",
+  ".wsdl": "text/xml",
 };
 
 /**
@@ -278,9 +391,11 @@ export function readSpecificationFixture(file: string): {
 export type RenderedTree = Map<string, string>;
 
 /** The document kinds a fixture directory can hold, and how each is addressed in an archive. */
-const DOCUMENT_KINDS = {
+export const DOCUMENT_KINDS = {
   chain: { parentDir: "chains", postfix: ".chain.cip.yaml" },
   service: { parentDir: "services", postfix: ".service.cip.yaml" },
+  "context-service": { parentDir: "services", postfix: ".context-service.cip.yaml" },
+  "mcp-service": { parentDir: "services", postfix: ".mcp-service.cip.yaml" },
 } as const;
 
 export type DocumentKind = keyof typeof DOCUMENT_KINDS;
@@ -415,6 +530,61 @@ export function readFixtureDocument(name: string, tree: RenderedTree): FixtureDo
 
   const companions = new Map([...tree].filter(([rel]) => rel !== documents[0]));
   return { kind, id, document, source, companions };
+}
+
+/** One operation of a service fixture, with the ids a `service-call` element references it by. */
+export interface ServiceFixtureOperation {
+  groupId: string;
+  specificationId: string;
+  id: string;
+  name: string;
+  method: string;
+  path: string;
+}
+
+/** A service fixture as a chain calls it: its type, its protocol, its active address, and its operations. */
+export interface ServiceFixture {
+  id: string;
+  type: string;
+  protocol: string;
+  address: string;
+  operations: ServiceFixtureOperation[];
+}
+
+/**
+ * Reads a service fixture. The service document is the one top-level YAML of the tree; its
+ * specifications sit under the fixture directory, where the importer finds them by name.
+ */
+export function readServiceFixture(
+  name: string,
+  tree: RenderedTree = renderFixture(SERVICE_FIXTURE_DIR, name, RUN_PLACEHOLDER),
+): ServiceFixture {
+  const { id, document, companions } = readFixtureDocument(name, tree);
+  const content = document.content as {
+    activeEnvironmentId: string;
+    integrationSystemType: string;
+    protocol: string;
+    environments: Array<{ id: string; address: string }>;
+  };
+  const address = content.environments.find((each) => each.id === content.activeEnvironmentId)!.address;
+
+  const operations = [...companions]
+    .filter(([rel]) => rel.endsWith(".specification.cip.yaml"))
+    .flatMap(([, source]) => {
+      const specification = yaml.load(source) as {
+        id: string;
+        content: { parentId: string; operations: Array<{ id: string; name: string; method: string; path: string }> };
+      };
+      return specification.content.operations.map((operation) => ({
+        groupId: specification.content.parentId,
+        specificationId: specification.id,
+        id: operation.id,
+        name: operation.name,
+        method: operation.method,
+        path: operation.path,
+      }));
+    });
+  return { id, type: content.integrationSystemType, protocol: content.protocol, address, operations };
 }
 
 /**

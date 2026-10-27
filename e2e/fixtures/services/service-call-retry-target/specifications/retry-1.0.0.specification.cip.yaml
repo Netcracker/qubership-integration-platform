@@ -1,0 +1,27 @@
+---
+id: "e2e00053-0000-4000-8000-000000000001-retry-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e00053-0000-4000-8000-000000000001-retry-1.0.0-retryPOST"
+    name: "retryPOST"
+    method: "POST"
+    path: "/e2e-{{RUN}}-retry-target"
+    specification:
+      responses:
+        "200":
+          description: "ok"
+      operationId: "retryPOST"
+    requestSchema: {}
+    responseSchemas:
+      "200": {}
+  specificationSources:
+  - id: "e2e00053-0000-4000-8000-000000000003"
+    name: "retry.openapi.yaml"
+    fileName: "source-e2e00053-0000-4000-8000-000000000001-retry-1.0.0/retry.openapi.yaml"
+    mainSource: true
+  parentId: "e2e00053-0000-4000-8000-000000000001-retry"
