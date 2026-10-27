@@ -1803,7 +1803,8 @@ public final class ProductPipelineRunSupport {
                 attributes.put("userText", command.text());
                 attributes.remove(ADMITTED_INPUT_GATE_ATTR);
                 attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
-                if (isClarificationWait(doc) || PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
+                if (PipelineGates.admitsAuthoredClarification(haltGate)
+                    || PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
                     && ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(command.text().strip())) {
                   attributes.put(ADMITTED_INPUT_GATE_ATTR, haltGate);
                   attributes.put(ADMITTED_INPUT_REVISION_ATTR, doc.run().runRevision());
@@ -1850,9 +1851,8 @@ public final class ProductPipelineRunSupport {
                 }
               } else if (retryClick) {
                 reason = recordAttempt(doc, command);
-              } else if (isClarificationWait(doc)) {
+              } else if (PipelineGates.admitsAuthoredClarification(haltGate)) {
                 reason = "accepted clarification";
-
               }
               commitStatus(
                   doc,
@@ -3256,6 +3256,10 @@ public final class ProductPipelineRunSupport {
       return false;
     }
     String gate = PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+    if (PipelineGates.TARGET_FOLDER_CHOICE.equals(gate)
+        || PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION.equals(gate)) {
+      return false;
+    }
     if (PipelineGates.STAGE_CLARIFICATION.equals(gate)) {
       if (OwnerCandidateSet.requestsNamedStage(text)) {
         return true;

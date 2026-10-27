@@ -997,6 +997,106 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   @Test
+  void exactFolderPathIsSubmittedThroughApply() throws Exception {
+    var folders = mock(org.qubership.integration.platform.ai.chain.folder.CatalogFolders.class);
+    when(folders.tree()).thenReturn(List.of(
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f1", "A", null, "A"),
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f2", "Salesforce", "f1",
+            "A/Salesforce"),
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f3", "Salesforce", null,
+            "Salesforce")));
+    var h = captureHarness(folders);
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    String chat = "conv-folder-apply";
+    var draft = new DraftInput(new FlowInput(List.of(), List.of()),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Create a task.")),
+        List.of(), List.of(), new DraftSettings(null, null));
+    h.store().beginTurn(chat, "Create a task.");
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(h.tools().captureRequirementDraft(draft),
+          org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+    }
+    var called = new java.util.concurrent.atomic.AtomicBoolean();
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (conversation, text) -> {
+      called.set(true);
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    capability.captureFeedback = h.feedback();
+    capability.targetFolderChoices = new org.qubership.integration.platform.ai.plan.TargetFolderChoiceResolver(
+        folders, h.tools());
+    var context = new StageExecutionContext(
+        "run-folder-apply", chat, "requirement-discovery", "exec-folder-apply", "attempt-folder-apply", null, null,
+        List.of(), Map.of("userText", "A/Salesforce",
+            org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR,
+            PipelineGates.TARGET_FOLDER_CHOICE));
+    capability.execute(context).collect().asList().await().indefinitely();
+    assertEquals("A/Salesforce",
+        h.store().get(chat).orElseThrow().authoredDraft().settings().targetFolderPath(),
+        "apply(A/Salesforce)");
+    assertTrue(called.get(), "discovery continues after the folder update");
+  }
+
+  @Test
+  void activeChainCallAnswerWritesTargetReferenceThroughAdmission() throws Exception {
+    var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    var trigger = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
+    trigger.id = "trigger-element";
+    trigger.chainId = "chain-1";
+    trigger.chainName = "Billing Chain";
+    trigger.type = "chain-trigger-2";
+    when(chains.listChainTriggers()).thenReturn(List.of(trigger));
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var adapter = mock(org.qubership.integration.platform.ai.plan.RequirementDraftTool.class);
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+    var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(store, adapter, mapper,
+        new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
+        feedback, new org.qubership.integration.platform.ai.plan.RequirementTargetResolver(chains,
+            mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
+    var question = new QuestionInput("target", List.of("call"),
+        "Which chain-trigger element id should this chain call use?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("call",
+            "targetReference",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+            List.of("turn-1")));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Client", "HTTP /call", null, null, null),
+        new InteractionInput("call", Direction.OUTBOUND, "Billing Chain", "Invoke", null, null, null)),
+        List.of(new TransitionInput("entry", "call"))),
+        List.of(new FactInput("goal", List.of("call"), FactKind.GOAL, Polarity.POSITIVE, "Call the header chain.")),
+        List.of(
+            new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, null, "/call", null, null, null),
+            new CapabilityInput("call", "chain-call-2", null, null, null, null, null, null)),
+        List.of(question), new DraftSettings(null, null));
+    String chat = "conv-chain-call-apply";
+    store.beginTurn(chat, "Call the Billing Chain through an HTTP trigger.");
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input),
+          org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+    }
+    var matcher = mock(CatalogBindingMatcher.class);
+    var called = new java.util.concurrent.atomic.AtomicBoolean();
+    var capability = new RequirementDiscoveryCapability(null, store, (conversation, text) -> {
+      called.set(true);
+      return Multi.createFrom().empty();
+    }, matcher);
+    capability.captureTools = tools;
+    var context = new StageExecutionContext(
+        "run-chain-call-apply", chat, "requirement-discovery", "exec-chain-call", "attempt-chain-call", null, null,
+        List.of(), Map.of("userText", "trigger-element"));
+    capability.execute(context).collect().asList().await().indefinitely();
+    assertEquals("trigger-element", store.get(chat).orElseThrow().authoredDraft().capabilities().stream()
+        .filter(capabilityInput -> "call".equals(capabilityInput.interactionId())).findFirst().orElseThrow()
+        .targetReference(), "updateRequirementDraft(targetReference)");
+    assertFalse(called.get(), "the gather model does not answer the chain call");
+    verifyNoInteractions(matcher);
+  }
+
+  @Test
   void recoveryClarificationReturnsToFocusedRepairWithTheOriginalFinding() {
     var h = captureHarness(null);
     var seen = new AtomicReference<String>();

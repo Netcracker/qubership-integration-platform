@@ -791,10 +791,14 @@ public class CreateChainApplicationFacade {
         waiting = true;
       }
     }
-    if (!waiting || clarification == null) {
+    if (!waiting || clarification == null || clarification.offer() == null) {
       return Optional.empty();
     }
-    return Optional.ofNullable(clarification.offer());
+    String gate = PipelineGates.gateOf(latestWaitingForInputReason(doc)).orElse("");
+    if (PipelineGates.withholdsGenericRequirementOffer(gate)) {
+      return Optional.empty();
+    }
+    return Optional.of(clarification.offer());
   }
 
   public String importApprovalRunId(String taskId) {

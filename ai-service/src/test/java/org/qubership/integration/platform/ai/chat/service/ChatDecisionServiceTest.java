@@ -150,10 +150,11 @@ class ChatDecisionServiceTest {
       var facade = mock(CreateChainApplicationFacade.class);
       when(facade.snapshot("conv-" + gate)).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
           "conv-" + gate, "run-specialized", CreateChainExecutionStatus.INPUT_REQUIRED, revision, clarify, "")));
-      var decision = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
-          .openDecision("conv-" + gate).orElseThrow();
+      var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+      var decision = service.openDecision("conv-" + gate).orElseThrow();
       assertEquals("clarify:" + revision, decision.id(), "openDecision(" + gate + ")");
       assertNotEquals("offer-generic", decision.id(), "openDecision(" + gate + ")");
+      assertTrue(service.withholdsRequirementOffer("conv-" + gate), "withholdsRequirementOffer(" + gate + ")");
     }
   }
 
@@ -194,6 +195,7 @@ class ChatDecisionServiceTest {
     var decision = service.openDecision(conversationId).orElseThrow();
     assertEquals("catalog-operation-version:version-hash", decision.id(), "openDecision(runtime binding)");
     assertNotEquals("offer-generic", decision.id(), "openDecision(runtime binding)");
+    assertTrue(service.withholdsRequirementOffer(conversationId), "withholdsRequirementOffer(runtime binding)");
   }
 
   @Test
@@ -239,6 +241,7 @@ class ChatDecisionServiceTest {
     verify(choices).pending(conversationId, revision, draftRef, "policy-choice");
     assertEquals(PolicyChoiceSelection.ARTIFACT_TYPE + ":policy-hash", opened.id(), "openDecision(policy)");
     assertNotEquals(offer.offerId(), opened.id(), "openDecision(policy)");
+    assertTrue(service.withholdsRequirementOffer(conversationId), "withholdsRequirementOffer(policy)");
     assertEquals("policy-hash", opened.artifactHash());
 
     var mismatch = command(

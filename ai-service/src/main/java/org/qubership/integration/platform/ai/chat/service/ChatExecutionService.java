@@ -99,6 +99,9 @@ public class ChatExecutionService {
     if (request.getDecision() != null) {
       return null;
     }
+    if (decisionService.withholdsRequirementOffer(conversationId)) {
+      return null;
+    }
     java.util.Optional<ChatEvent.Decision> opened = decisionService.openDecision(conversationId);
     if (opened == null || opened.isEmpty()) {
       if (carriesRequirementOffer(request.getClarificationOfferId())) {
