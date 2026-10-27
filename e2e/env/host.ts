@@ -3,6 +3,8 @@
  * file and HTTP probes. It imports no adapter, so either target can load it without the other.
  */
 import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -93,6 +95,43 @@ export async function newestMtimeMs(root: string, relative: string[]): Promise<n
     }
   }
   return newest;
+}
+
+function filesUnder(root: string, relative: string): string[] {
+  const absolute = path.resolve(root, relative);
+  const stat = statSync(absolute, { throwIfNoEntry: false });
+  if (!stat) return [];
+  if (stat.isFile()) return [relative];
+  return readdirSync(absolute, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)));
+}
+
+/**
+ * `e2e-` and 12 hex digits of a SHA-256 over the sources' paths and contents, and over the Maven
+ * arguments, which change the jar the same sources build.
+ *
+ * Contents rather than modification times: a checkout of the same commit elsewhere, or a touch that
+ * changes nothing, gives the same tag, and `target/` never takes part.
+ */
+export function imageTag(
+  root: string,
+  sources: readonly string[],
+  mavenArgs: readonly string[] = [],
+): string {
+  const hash = createHash("sha256");
+  for (const arg of mavenArgs) {
+    hash.update(arg);
+    hash.update("\0");
+  }
+  const files = sources.flatMap((each) => filesUnder(root, each)).sort();
+  for (const file of files) {
+    hash.update(file);
+    hash.update("\0");
+    hash.update(readFileSync(path.resolve(root, file)));
+    hash.update("\0");
+  }
+  return `e2e-${hash.digest("hex").slice(0, 12)}`;
 }
 
 /** The status `url` answers within 5 s, or 0 when it answers nothing. */

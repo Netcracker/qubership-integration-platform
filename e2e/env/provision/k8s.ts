@@ -9,21 +9,21 @@
  * Each image is tagged with a hash over its own inputs, so an image whose tag already exists is not
  * rebuilt, and Helm leaves a Deployment whose tag did not change alone.
  */
-import { createHash } from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
 import type { ServiceRole } from "../index.js";
-import { hostPort, proxyPort, proxyUrl, ROLES } from "../containers.js";
+import { BROKER_PORT, hostPort, OVERLAY_NAMES, proxyPort, proxyUrl, ROLES } from "../containers.js";
+import { brokersEnabled } from "../target.js";
 import {
   deploymentOf,
   healthUrl,
   K8S_OVERRIDES_FILE,
   kubectl,
+  type Kubectl,
   NAMESPACE,
   RELEASE,
   restoreDeclared,
 } from "../k8s.js";
-import { capture, httpStatus, pollUntil, repoRoot, stream } from "../host.js";
+import { capture, httpStatus, imageTag, pollUntil, repoRoot, stream } from "../host.js";
 import { describeOverride, overrideNotice, readOverrides } from "../overrides.js";
 import { apiPath } from "../api-routes.js";
 import type { ProvisionMode, ProvisionReport } from "../provision.js";
@@ -35,9 +35,6 @@ const README = "e2e/k8s/README.md";
 // ---------------------------------------------------------------------------
 // Prerequisites
 // ---------------------------------------------------------------------------
-
-/** Runs `kubectl` with the given arguments and returns stdout; a non-zero exit throws. */
-export type Kubectl = (args: string[]) => Promise<string>;
 
 /** A cluster-wide prerequisite the suite does not install, and the README section that does. */
 export interface Prerequisite {
@@ -58,7 +55,6 @@ async function answers(run: Kubectl, args: string[]): Promise<boolean> {
 interface DeploymentStatusView {
   metadata: { name: string };
   status?: { availableReplicas?: number };
-  spec: { template: { spec: { containers: { env?: { name: string; value?: string }[] }[] } } };
 }
 
 /** In the order they are checked. The run fails on the first one missing. */
@@ -78,17 +74,12 @@ const PREREQUISITES: Prerequisite[] = [
     },
   },
   {
-    name: "the Gateway API CRDs, experimental channel",
+    name: "the Gateway API CRDs",
     section: "gateway-api",
     async check(kubectl) {
-      if (!(await answers(kubectl, ["get", "crd", "httproutes.gateway.networking.k8s.io"]))) {
-        return "the HTTPRoute CRD is not installed";
-      }
-      // The standard channel lacks UDPRoute v1alpha2, which istiod watches under
-      // PILOT_ENABLE_ALPHA_GATEWAY_API, and without it istiod never becomes ready.
-      return (await answers(kubectl, ["get", "crd", "udproutes.gateway.networking.k8s.io"]))
+      return (await answers(kubectl, ["get", "crd", "httproutes.gateway.networking.k8s.io"]))
         ? null
-        : "the UDPRoute CRD is missing, so the standard channel is installed rather than the experimental one";
+        : "the HTTPRoute CRD is not installed";
     },
   },
   {
@@ -100,13 +91,7 @@ const PREREQUISITES: Prerequisite[] = [
       );
       if (raw === null) return "no istiod Deployment in namespace istio-system";
       const istiod = JSON.parse(raw) as DeploymentStatusView;
-      if (!istiod.status?.availableReplicas) return "istiod has no available replica";
-      const alpha = istiod.spec.template.spec.containers
-        .flatMap((container) => container.env ?? [])
-        .find((each) => each.name === "PILOT_ENABLE_ALPHA_GATEWAY_API");
-      return alpha?.value === "true"
-        ? null
-        : "istiod runs without PILOT_ENABLE_ALPHA_GATEWAY_API=true, so the egress routes are never programmed";
+      return istiod.status?.availableReplicas ? null : "istiod has no available replica";
     },
   },
   {
@@ -290,44 +275,6 @@ export function suiteImages(): SuiteImage[] {
   ];
 }
 
-function filesUnder(root: string, relative: string): string[] {
-  const absolute = path.resolve(root, relative);
-  const stat = fs.statSync(absolute, { throwIfNoEntry: false });
-  if (!stat) return [];
-  if (stat.isFile()) return [relative];
-  return fs
-    .readdirSync(absolute, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)));
-}
-
-/**
- * `e2e-` and 12 hex digits of a SHA-256 over the sources' paths and contents, and over the Maven
- * arguments, which change the jar the same sources build.
- *
- * Contents rather than modification times: a checkout of the same commit elsewhere, or a touch that
- * changes nothing, gives the same tag, and `target/` never takes part.
- */
-export function imageTag(
-  root: string,
-  sources: readonly string[],
-  mavenArgs: readonly string[] = [],
-): string {
-  const hash = createHash("sha256");
-  for (const arg of mavenArgs) {
-    hash.update(arg);
-    hash.update("\0");
-  }
-  const files = sources.flatMap((each) => filesUnder(root, each)).sort();
-  for (const file of files) {
-    hash.update(file);
-    hash.update("\0");
-    hash.update(fs.readFileSync(path.resolve(root, file)));
-    hash.update("\0");
-  }
-  return `e2e-${hash.digest("hex").slice(0, 12)}`;
-}
-
 async function imageExists(reference: string): Promise<boolean> {
   return answers((args) => capture("docker", args), ["image", "inspect", reference]);
 }
@@ -371,6 +318,22 @@ export function helmArguments(options: {
     for (const role of ROLES) args.push("--set", `qip-${role}.loadBalancerPort=${hostPort(role, "k8s")}`);
     args.push("--set", `global.qip.ui.loadBalancerPort=${proxyPort("k8s")}`);
   }
+  // Only `enabled` follows E2E_BROKERS, so a run without the brokers leaves the engine and the catalog alone.
+  const hostPortKey = choice.hostPorts === "LoadBalancer Services" ? "loadBalancerPort" : "nodePort";
+  for (const overlay of OVERLAY_NAMES) {
+    args.push("--set", `${overlay}.enabled=${brokersEnabled()}`);
+    args.push("--set", `${overlay}.${hostPortKey}=${BROKER_PORT[overlay].k8s}`);
+  }
+  const certs = path.join(root, "infrastructure/docker/kafka-ssl");
+  args.push(
+    "--set-file", `kafka.tls.serverCert=${path.join(certs, "server/kafka.crt")}`,
+    "--set-file", `kafka.tls.serverKey=${path.join(certs, "server/kafka.key")}`,
+    // Both engines trust the Kafka CA; a micro domain mounts the classic engine's Secret.
+    "--set-file", `qip-engine.trustedCerts.ca\\.crt=${path.join(certs, "client/ca.crt")}`,
+    "--set", `qip-runtime-catalog.microDomainResources={secret:${RELEASE}-engine-certs@/app/cert/defaultsslcertificate}`,
+    // A micro domain's root file system is read-only, and it writes its truststore here.
+    "--set", "qip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}",
+  );
   return args;
 }
 
