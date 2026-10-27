@@ -42,7 +42,7 @@
     <kubernetes-client-java.version>27.0.0</kubernetes-client-java.version>
     <atlasmap.version>2.5.2</atlasmap.version>
     <antlr4.version>4.13.2</antlr4.version>
-    <google-guava.version>33.4.0-jre</google-guava.version>
+    <google-guava.version>33.7.2-android</google-guava.version>
     <okio.version>3.16.4</okio.version>
     <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
     <flexmark.version>0.64.8</flexmark.version>
