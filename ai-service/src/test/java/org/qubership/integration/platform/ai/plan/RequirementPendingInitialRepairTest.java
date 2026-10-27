@@ -228,10 +228,17 @@ class RequirementPendingInitialRepairTest {
         h.provider.toolSpecificationByName("updateRequirementDraft").parameters().properties().get("changes"));
     var expected = new java.util.HashSet<>(changes.properties().keySet());
     expected.remove("pendingProposalToken");
+    expected.remove("clarificationDisposition");
     assertEquals(expected, java.util.Set.copyOf(changes.required()));
     var pending = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonAnyOfSchema.class,
         changes.properties().get("pendingProposalToken"));
     assertTrue(pending.anyOf().stream().anyMatch(dev.langchain4j.model.chat.request.json.JsonNullSchema.class::isInstance));
+    var disposition = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonAnyOfSchema.class,
+        changes.properties().get("clarificationDisposition"));
+    assertTrue(disposition.anyOf().stream()
+        .anyMatch(dev.langchain4j.model.chat.request.json.JsonNullSchema.class::isInstance));
+    assertTrue(disposition.anyOf().stream()
+        .anyMatch(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class::isInstance));
     assertEquals(1, pending.anyOf().stream()
         .filter(dev.langchain4j.model.chat.request.json.JsonStringSchema.class::isInstance).count());
     assertFalse(changes.properties().containsKey("pendingAttempt"));
@@ -249,9 +256,13 @@ class RequirementPendingInitialRepairTest {
       boolean update) {
     if (schema instanceof dev.langchain4j.model.chat.request.json.JsonObjectSchema object) {
       var keys = new java.util.HashSet<>(object.properties().keySet());
-      if (update) keys.remove("pendingProposalToken");
+      if (update) {
+        keys.remove("pendingProposalToken");
+        keys.remove("clarificationDisposition");
+      }
       var required = java.util.Set.copyOf(object.required());
       if (!required.contains("evidence")) keys.remove("evidence");
+      if (!required.contains("ambiguity")) keys.remove("ambiguity");
       assertEquals(keys, required);
       object.properties().values().forEach(child -> assertRequiredFields(child, update));
     } else if (schema instanceof dev.langchain4j.model.chat.request.json.JsonArraySchema array) {
