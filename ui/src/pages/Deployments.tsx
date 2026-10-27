@@ -13,7 +13,6 @@ import {
   Deployment,
   DeployMode,
   DomainType,
-  MicroDomainDeployRequest,
   Snapshot,
 } from "../api/apiTypes.ts";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
@@ -74,23 +73,17 @@ export const Deployments: React.FC = () => {
     [deployments, searchTerm, snapshots],
   );
 
-  const deleteDeployment = useCallback(
+  const deleteDeploymentFromChain = useCallback(
     async (deployment: Deployment) => {
+      if (!chainId) return;
       try {
-        if (deployment.domainType === DomainType.MICRO) {
-          await api.deleteSnapshotFromMicroDomain(
-            deployment.domain,
-            deployment.snapshotId,
-          );
-        } else {
-          await api.deleteDeployment(deployment.id);
-        }
+        await api.deleteDeployment(chainId, deployment.id);
         removeDeployment(deployment);
       } catch (error) {
         notificationService.requestFailed("Failed to delete deployment", error);
       }
     },
-    [removeDeployment, notificationService],
+    [chainId, removeDeployment, notificationService],
   );
 
   const columns: TableProps<Deployment>["columns"] = useMemo(
@@ -168,7 +161,7 @@ export const Deployments: React.FC = () => {
                   showModal({
                     component: (
                       <DeleteDeploymentWarningModal
-                        onDelete={() => void deleteDeployment(deployment)}
+                        onDelete={() => void deleteDeploymentFromChain(deployment)}
                       />
                     ),
                   })
@@ -179,7 +172,7 @@ export const Deployments: React.FC = () => {
         ),
       },
     ],
-    [snapshots, deleteDeployment, showModal],
+    [snapshots, deleteDeploymentFromChain, showModal],
   );
 
   const { orderedColumns, columnSettingsButton } =
@@ -219,22 +212,14 @@ export const Deployments: React.FC = () => {
       try {
         await Promise.all(
           options.domains.map(async (domain) => {
-            if (domain.type === DomainType.MICRO) {
-              const request: MicroDomainDeployRequest = {
-                name: domain.name,
-                snapshotIds: [options.snapshotId],
-                mode: DeployMode.APPEND,
-              };
-              await api.deploySnapshotsToMicroDomain(request);
-            } else {
-              const request: CreateDeploymentRequest = {
-                domain: domain.name,
-                snapshotId: options.snapshotId,
-                suspended: false,
-              };
-              const deployment = await api.createDeployment(chainId, request);
-              onDeploymentCreated(deployment);
-            }
+            const request: CreateDeploymentRequest = {
+              domain: domain.name,
+              snapshotId: options.snapshotId,
+              mode: DeployMode.APPEND,
+              suspended: false,
+            };
+            const deployment = await api.createDeployment(chainId, request);
+            onDeploymentCreated(deployment);
           }),
         );
       } catch (error) {
