@@ -164,12 +164,21 @@ public class MicroDomainService {
     public void deploy(BuiltResources built) throws MicroDomainDeployError {
         try {
             List<Object> resources = new ArrayList<>(Yaml.loadAll(built.yaml()));
-            // With mount hot reload, the Camel-K operator resets the Integration's status whenever a
-            // ConfigMap labeled with the Integration's name changes. That status write moves the
-            // Integration's resourceVersion past the one Phase 1 observed, so writing the ConfigMaps
-            // first makes this deploy fail its own precondition with a 409. The sort is stable, so the
-            // other documents keep their build order.
-            resources.sort(Comparator.comparing(resource -> !(resource instanceof CamelKIntegration)));
+            // With mount hot reload, the Camel-K operator resets the Integration's status and rolls its
+            // Deployment on every change to a ConfigMap the Integration mounts. A new Integration's
+            // ConfigMaps go first, so its first rollout already finds them and is the only one. A live
+            // Integration goes first, because the status write would move its resourceVersion past the
+            // one Phase 1 observed and fail this deploy with a 409. The sort is stable, so the other
+            // documents keep their build order.
+            boolean integrationIsLive = resources.stream()
+                    .filter(CamelKIntegration.class::isInstance)
+                    .map(CamelKIntegration.class::cast)
+                    .findFirst()
+                    .flatMap(KubeUtil::getName)
+                    .flatMap(kubeOperator::getCamelKIntegration)
+                    .isPresent();
+            Predicate<Object> first = integrationIsLive ? CamelKIntegration.class::isInstance : V1ConfigMap.class::isInstance;
+            resources.sort(Comparator.comparing(resource -> !first.test(resource)));
             for (Object resource : resources) {
                 applyObservation(resource, built.observations());
                 kubeOperator.createOrUpdateResource(resource);
