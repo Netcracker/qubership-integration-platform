@@ -1040,6 +1040,35 @@ class RequirementDiscoveryCapabilityTest {
 
   @Test
   void activeChainCallAnswerWritesTargetReferenceThroughAdmission() throws Exception {
+    var attempt = runChainCallAnswer("conv-chain-call-apply", PipelineGates.STAGE_CLARIFICATION, true);
+    assertEquals("trigger-element", attempt.store.get(attempt.chat).orElseThrow().authoredDraft().capabilities()
+        .stream().filter(capabilityInput -> "call".equals(capabilityInput.interactionId())).findFirst().orElseThrow()
+        .targetReference(), "updateRequirementDraft(targetReference)");
+    assertFalse(attempt.gatherCalled.get(), "the gather model does not answer the chain call");
+    verifyNoInteractions(attempt.matcher);
+  }
+
+  @Test
+  void chainCallAnswerForAnotherOfferDoesNotWriteTheTrigger() throws Exception {
+    var attempt = runChainCallAnswer("conv-chain-call-other-offer", PipelineGates.STAGE_CLARIFICATION, false);
+    assertNull(attempt.store.get(attempt.chat).orElseThrow().authoredDraft().capabilities().stream()
+        .filter(capabilityInput -> "call".equals(capabilityInput.interactionId())).findFirst().orElseThrow()
+        .targetReference());
+    assertTrue(attempt.gatherCalled.get(), "a different offer stays with requirement discovery");
+    verifyNoInteractions(attempt.matcher);
+  }
+
+  @Test
+  void chainCallAnswerOnAFolderGateDoesNotWriteTheTrigger() throws Exception {
+    var attempt = runChainCallAnswer("conv-chain-call-folder-gate", PipelineGates.TARGET_FOLDER_CHOICE, true);
+    assertNull(attempt.store.get(attempt.chat).orElseThrow().authoredDraft().capabilities().stream()
+        .filter(capabilityInput -> "call".equals(capabilityInput.interactionId())).findFirst().orElseThrow()
+        .targetReference());
+    assertTrue(attempt.gatherCalled.get(), "a folder answer does not admit the chain call");
+    verifyNoInteractions(attempt.matcher);
+  }
+
+  private ChainCallAttempt runChainCallAnswer(String chat, String gate, boolean matchingOffer) throws Exception {
     var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
     var trigger = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
     trigger.id = "trigger-element";
@@ -1049,7 +1078,7 @@ class RequirementDiscoveryCapabilityTest {
     when(chains.listChainTriggers()).thenReturn(List.of(trigger));
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var store = new RequirementDraftStore();
-    var adapter = mock(org.qubership.integration.platform.ai.plan.RequirementDraftTool.class);
+    var adapter = mock(RequirementDraftTool.class);
     var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
     var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
     var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(store, adapter, mapper,
@@ -1071,13 +1100,17 @@ class RequirementDiscoveryCapabilityTest {
             new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, null, "/call", null, null, null),
             new CapabilityInput("call", "chain-call-2", null, null, null, null, null, null)),
         List.of(question), new DraftSettings(null, null));
-    String chat = "conv-chain-call-apply";
     store.beginTurn(chat, "Call the Billing Chain through an HTTP trigger.");
     try (var ignored = ToolSession.open(chat)) {
       var captured = mapper.readValue(tools.captureRequirementDraft(input),
           org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
       assertTrue(captured.accepted(), captured.toString());
     }
+    var draft = store.get(chat).orElseThrow();
+    var accepted = store.latestRevision(chat).orElseThrow();
+    var coordinator = new org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator();
+    String offerId = coordinator.createOffer(
+        coordinator.activeQuestion(accepted, draft, "").orElseThrow(), 3L).offerId();
     var matcher = mock(CatalogBindingMatcher.class);
     var called = new java.util.concurrent.atomic.AtomicBoolean();
     var capability = new RequirementDiscoveryCapability(null, store, (conversation, text) -> {
@@ -1086,15 +1119,20 @@ class RequirementDiscoveryCapabilityTest {
     }, matcher);
     capability.captureTools = tools;
     var context = new StageExecutionContext(
-        "run-chain-call-apply", chat, "requirement-discovery", "exec-chain-call", "attempt-chain-call", null, null,
-        List.of(), Map.of("userText", "trigger-element"));
+        "run-" + chat, chat, "requirement-discovery", "exec-" + chat, "attempt-" + chat, null, null,
+        List.of(), Map.of("userText", "trigger-element",
+            org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR,
+            gate,
+            org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.ADMITTED_INPUT_REVISION_ATTR,
+            3L,
+            org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.ADMITTED_CLARIFICATION_OFFER_ATTR,
+            matchingOffer ? offerId : "offer-for-another-question"));
     capability.execute(context).collect().asList().await().indefinitely();
-    assertEquals("trigger-element", store.get(chat).orElseThrow().authoredDraft().capabilities().stream()
-        .filter(capabilityInput -> "call".equals(capabilityInput.interactionId())).findFirst().orElseThrow()
-        .targetReference(), "updateRequirementDraft(targetReference)");
-    assertFalse(called.get(), "the gather model does not answer the chain call");
-    verifyNoInteractions(matcher);
+    return new ChainCallAttempt(chat, store, called, matcher);
   }
+
+  private record ChainCallAttempt(String chat, RequirementDraftStore store,
+      java.util.concurrent.atomic.AtomicBoolean gatherCalled, CatalogBindingMatcher matcher) {}
 
   @Test
   void recoveryClarificationReturnsToFocusedRepairWithTheOriginalFinding() {

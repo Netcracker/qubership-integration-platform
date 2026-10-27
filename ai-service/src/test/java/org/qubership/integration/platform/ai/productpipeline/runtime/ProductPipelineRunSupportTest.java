@@ -519,6 +519,28 @@ class ProductPipelineRunSupportTest {
   }
 
   @Test
+  void stageClarificationAnswerKeepsTheOfferItReturns() {
+    var harness = new OfferHarness();
+    String conversationId = "conv-offer-stamp";
+    String runId = "run-offer-stamp";
+    harness.acceptChainCallQuestion(conversationId, false);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    String offerId = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later).orElseThrow()
+        .clarification().offer().offerId();
+    var signals = harness.support().recordInput(
+        new AcceptInputCommand(runId, "trigger-element", "cmd-offer-stamp", "hash-offer-stamp"))
+        .collect().asList().await().indefinitely();
+    assertTrue(signals.isEmpty(), runId);
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, harness.support().runAttributes(runId)
+        .get(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR));
+    assertEquals(offerId, harness.support().runAttributes(runId)
+        .get(ProductPipelineRunSupport.ADMITTED_CLARIFICATION_OFFER_ATTR));
+  }
+
+  @Test
   void specializedClarificationAnswersAdmitTheirGate() {
     for (String gate : List.of(
         PipelineGates.TARGET_FOLDER_CHOICE, PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION)) {

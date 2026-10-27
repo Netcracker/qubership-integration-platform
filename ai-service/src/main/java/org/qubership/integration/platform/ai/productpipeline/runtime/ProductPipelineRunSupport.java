@@ -109,6 +109,8 @@ public final class ProductPipelineRunSupport {
 
   public static final String ADMITTED_INPUT_GATE_ATTR = "admittedInputGate";
   public static final String ADMITTED_INPUT_REVISION_ATTR = "admittedInputRevision";
+  /** Offer id the accepted requirement answer returned. Chain-call admission may write only that offer. */
+  public static final String ADMITTED_CLARIFICATION_OFFER_ATTR = "admittedClarificationOfferId";
 
   private static final Logger LOG = Logger.getLogger(ProductPipelineRunSupport.class);
 
@@ -1803,11 +1805,18 @@ public final class ProductPipelineRunSupport {
                 attributes.put("userText", command.text());
                 attributes.remove(ADMITTED_INPUT_GATE_ATTR);
                 attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
+                attributes.remove(ADMITTED_CLARIFICATION_OFFER_ATTR);
                 if (PipelineGates.admitsAuthoredClarification(haltGate)
                     || PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
                     && ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(command.text().strip())) {
                   attributes.put(ADMITTED_INPUT_GATE_ATTR, haltGate);
                   attributes.put(ADMITTED_INPUT_REVISION_ATTR, doc.run().runRevision());
+                  if (PipelineGates.STAGE_CLARIFICATION.equals(haltGate)) {
+                    var offer = openOffer(doc);
+                    if (offer != null && offer.offerId() != null && !offer.offerId().isBlank()) {
+                      attributes.put(ADMITTED_CLARIFICATION_OFFER_ATTR, offer.offerId());
+                    }
+                  }
                 }
                 if (isClarificationWait(doc)) {
                   attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, command.text() == null ? "" : command.text());
@@ -4648,6 +4657,7 @@ public final class ProductPipelineRunSupport {
     attributes.remove("userText");
     attributes.remove(ADMITTED_INPUT_GATE_ATTR);
     attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
+    attributes.remove(ADMITTED_CLARIFICATION_OFFER_ATTR);
   }
 
   private String approvalPromptFor(String runId, String stageId) {

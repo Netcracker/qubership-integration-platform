@@ -272,7 +272,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     if (folderAgain.isPresent()) {
       return Multi.createFrom().item(folderAgain.get());
     }
-    if (admitActiveChainCall(conversationId, userMessage)) {
+    if (admitActiveChainCall(context, conversationId, userMessage)) {
       draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
       draftStore.markCaptured(conversationId);
       return Multi.createFrom().item(completeDiscovery(context,
@@ -571,52 +571,56 @@ public class RequirementDiscoveryCapability implements StageCapability {
   }
 
   /**
-   * Writes one chain-trigger element id for the active chain-call catalog question through normal
-   * draft admission.
+   * Writes one chain-trigger element id when this answer returns the open requirement offer and
+   * that offer is still the active catalog question. Admission is the capture result, not a
+   * before-and-after comparison.
    */
-  private boolean admitActiveChainCall(String conversationId, String userMessage) {
-    if (captureTools == null || userMessage == null || userMessage.isBlank()) {
+  private boolean admitActiveChainCall(StageExecutionContext context, String conversationId, String userMessage) {
+    if (captureTools == null || context == null || userMessage == null || userMessage.isBlank()) {
+      return false;
+    }
+    if (!PipelineGates.STAGE_CLARIFICATION.equals(
+        context.attributeAsString(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
+      return false;
+    }
+    String offered = context.attributeAsString(ProductPipelineRunSupport.ADMITTED_CLARIFICATION_OFFER_ATTR);
+    if (!(context.attributes().get(ProductPipelineRunSupport.ADMITTED_INPUT_REVISION_ATTR) instanceof Long revision)
+        || offered == null || offered.isBlank()) {
       return false;
     }
     RequirementDraft current = draftStore.get(conversationId).orElse(null);
-    if (current == null || current.authoredDraft() == null || current.authoredDraft().openQuestions() == null) {
+    var active = selectActiveQuestion(conversationId, current).orElse(null);
+    if (active == null || active.question().evidence() == null
+        || active.question().evidence().kind() != AuthorQuestionEvidence.Kind.CATALOG_CHOICE) {
       return false;
     }
-    QuestionInput active = current.authoredDraft().openQuestions().stream()
-        .filter(question -> question != null && question.questionId() != null && !question.questionId().isBlank())
-        .findFirst().orElse(null);
-    if (active == null || active.evidence() == null
-        || active.evidence().kind() != AuthorQuestionEvidence.Kind.CATALOG_CHOICE) {
+    if (!offered.equals(new RequirementClarificationCoordinator().createOffer(active, revision).offerId())) {
       return false;
     }
-    String interactionId = active.evidence().interactionId();
-    String before = targetReference(current, interactionId);
-    var update = captureTools.chainCallAnswerUpdate(current.authoredDraft(), active, userMessage);
+    var update = captureTools.chainCallAnswerUpdate(current.authoredDraft(), active.question(), userMessage);
     if (update.isEmpty()) {
       return false;
     }
     draftStore.beginTurn(conversationId, userMessage);
     ToolSession.bind(conversationId);
+    String encoded;
     try {
-      captureTools.updateRequirementDraft(update.get());
+      encoded = captureTools.updateRequirementDraft(update.get());
     } finally {
       ToolSession.clear();
     }
-    String after = targetReference(draftStore.get(conversationId).orElse(null), interactionId);
-    return after != null && !after.isBlank() && !after.equals(before);
+    return acceptedCapture(encoded);
   }
 
-  private static String targetReference(RequirementDraft draft, String interactionId) {
-    if (draft == null || draft.authoredDraft() == null || draft.authoredDraft().capabilities() == null
-        || interactionId == null) {
-      return null;
+  private static boolean acceptedCapture(String encoded) {
+    if (encoded == null || encoded.isBlank()) {
+      return false;
     }
-    for (var capability : draft.authoredDraft().capabilities()) {
-      if (capability != null && interactionId.equals(capability.interactionId())) {
-        return capability.targetReference();
-      }
+    try {
+      return MAPPING_REPAIR_MAPPER.readTree(encoded).path("accepted").asBoolean(false);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+      return false;
     }
-    return null;
   }
 
   private CapabilitySignal.Completed folderQuestion(StageExecutionContext context, RequirementRejection rejection) {

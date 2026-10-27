@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chat.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -933,6 +934,28 @@ class ChatExecutionServiceTest {
     assertEquals(text, turns.getFirst().rawText());
     assertEquals(ConversationArchive.deterministicAnswerTurnId("offer-current", text), turns.getFirst().id());
     assertEquals("offer-current", turns.getFirst().metadata().get("clarificationOfferId").asText());
+  }
+
+  @Test
+  void specializedGateDoesNotArchiveAGenericRequirementOffer() {
+    String text = "A/Salesforce";
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.withholdsRequirementOffer("conv-specialized")).thenReturn(true);
+    when(decisions.openDecision("conv-specialized"))
+        .thenReturn(Optional.of(requirementOffer("offer-current", "Which folder?")));
+    ChatExecutionService execution = service(router, decisions);
+
+    execution.streamV1Sse(clarificationRequest("conv-specialized", text, "offer-current"))
+        .collect().asList().await().indefinitely();
+
+    var turns = userTurns("conv-specialized");
+    assertEquals(1, turns.size());
+    assertNotEquals(ConversationArchive.deterministicAnswerTurnId("offer-current", text), turns.getFirst().id());
+    assertTrue(turns.getFirst().metadata() == null
+        || !turns.getFirst().metadata().has("clarificationOfferId"));
+    verify(router).route(any(), anyString());
   }
 
   @Test
