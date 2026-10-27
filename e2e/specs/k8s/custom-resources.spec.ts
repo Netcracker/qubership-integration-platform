@@ -1,11 +1,12 @@
 /**
- * The `/v1/cr` surface: a micro domain built, deployed, trimmed to one chain, and deleted.
+ * The micro-domain flow: a domain built through `/v1/cr`, then deployed, trimmed to one chain, and
+ * deleted through the catalog controllers.
  *
- * `seed-micro` reaches `POST /v1/cr/deploy-chains` only. This case drives the other four
- * operations and reads their effect off the cluster: the YAML the build answers, the Integration
- * and the ConfigMaps a deploy writes, and what a delete leaves behind. The two chains are built in
- * the worker folder; the micro domain is named with the run token, so the sweep finds one this case
- * failed to delete.
+ * `seed-micro` reaches `POST /v1/catalog/chains/deployments/bulk` only. This case drives the build,
+ * the single deployment, the snapshot removal, and the domain delete, and reads their effect off
+ * the cluster: the YAML the build answers, the Integration and the ConfigMaps a deploy writes, and
+ * what a delete leaves behind. The two chains are built in the worker folder; the micro domain is
+ * named with the run token, so the sweep finds one this case failed to delete.
  */
 import type { APIRequestContext } from "@playwright/test";
 import yaml from "js-yaml";
@@ -43,7 +44,7 @@ async function routeStatus(request: APIRequestContext, domain: string, chain: De
     .catch(() => 0);
 }
 
-test("a micro domain is built, deployed, trimmed to one chain, and deleted through /v1/cr", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, folder, run, request }) => {
+test("a micro domain is built through /v1/cr, deployed, trimmed to one chain, and deleted", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, folder, run, request }) => {
   test.setTimeout(CASE_TIMEOUT);
   const domain = tokenized(run, "cr");
   const resource = microServiceOf(domain);
@@ -86,8 +87,9 @@ test("a micro domain is built, deployed, trimmed to one chain, and deleted throu
 
   let deployed = false;
   try {
-    await test.step("POST /v1/cr/deploy runs both chains on the domain", async () => {
-      await catalog.deployCustomResource(domain, snapshotIds);
+    await test.step("POST /v1/catalog/chains/{chainId}/deployments runs both chains on the domain", async () => {
+      await catalog.deploy(kept.id, keptSnapshot.id, domain, "APPEND");
+      await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "APPEND");
       deployed = true;
       expect(await integration(resource)).not.toBeNull();
       await expect
@@ -101,8 +103,8 @@ test("a micro domain is built, deployed, trimmed to one chain, and deleted throu
       expect(answer.headers()[MARKER_HEADER]).toBe("kept");
     });
 
-    await test.step("DELETE /v1/cr/{name}/{snapshotId} removes one chain and keeps the other", async () => {
-      await catalog.deleteSnapshotFromCustomResource(domain, droppedSnapshot.id);
+    await test.step("DELETE /v1/catalog/chains/{chainId}/deployments/{deploymentId} removes one chain and keeps the other", async () => {
+      await catalog.undeploy(dropped.id, `${domain}-${droppedSnapshot.id}`);
       expect(await configMaps(`qip-domain=${domain},${SNAPSHOT_LABEL}=${k8sName(droppedSnapshot.id)}`)).toEqual([]);
       expect(await configMaps(`qip-domain=${domain},${SNAPSHOT_LABEL}=${k8sName(keptSnapshot.id)}`)).toHaveLength(1);
       await expect
@@ -113,7 +115,7 @@ test("a micro domain is built, deployed, trimmed to one chain, and deleted throu
         .toEqual([405, 404]);
     });
 
-    await test.step("DELETE /v1/cr/{name} removes the Integration and its ConfigMaps", async () => {
+    await test.step("DELETE /v1/catalog/domains/{domainName} removes the Integration and its ConfigMaps", async () => {
       await catalog.deleteCustomResource(domain);
       deployed = false;
       expect(await integration(resource)).toBeNull();
