@@ -50,6 +50,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.MappingRepai
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.PauseQuestionResult;
+import org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
@@ -243,6 +246,7 @@ public final class ProductPipelineRunSupport {
   private final MappingTurnAdapter mappingTurnAdapter;
   private final MappingTurnTelemetry mappingTurnTelemetry;
   private org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+  private RequirementDraftStore requirementDrafts;
 
   ProductPipelineRunSupport withConversations(
       org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
@@ -252,8 +256,9 @@ public final class ProductPipelineRunSupport {
   }
 
   public ProductPipelineRunSupport withNativeRequirementCapture(
-      org.qubership.integration.platform.ai.plan.RequirementDraftStore drafts,
+      RequirementDraftStore drafts,
       org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
+    this.requirementDrafts = drafts;
     this.stageExecutor.withNativeRequirementCapture(drafts, feedback);
     return this;
   }
@@ -473,6 +478,7 @@ public final class ProductPipelineRunSupport {
             schemaResourceLoader,
             schemaRefResolver,
             schemaService);
+    this.stageExecutor.bindClarificationSource(this);
   }
 
   /** Single-stage execution seam used by Flow. */
@@ -3783,7 +3789,8 @@ public final class ProductPipelineRunSupport {
                 clock.instant(),
                 reason,
                 commandId,
-                commandPayloadHash)));
+                commandPayloadHash,
+                waitingClarification(doc, nextStatus, expected + 1L, reason))));
     if (stageStatus == StageStatus.SUCCEEDED) {
       settleActiveRepair(doc.run().currentStageId(), attributesByRun.get(doc.run().runId()));
     }
@@ -3888,7 +3895,62 @@ public final class ProductPipelineRunSupport {
                 clock.instant(),
                 reason,
                 commandId,
-                commandPayloadHash)));
+                commandPayloadHash,
+                requirementClarification(doc, expected + 1L, reason, stageId))));
+  }
+
+  /**
+   * Offer for a requirement question wait, written in the same compare-and-set as that wait.
+   * Other gates and stages return null and do not carry an answer.
+   */
+  public ClarificationTransition requirementClarification(
+      ProductPipelineRunDocument doc, long targetRevision, String reason) {
+    return requirementClarification(doc, targetRevision, reason, doc.run().currentStageId());
+  }
+
+  private ClarificationTransition waitingClarification(
+      ProductPipelineRunDocument doc, RunStatus nextStatus, long targetRevision, String reason) {
+    if (nextStatus != RunStatus.WAITING_FOR_INPUT) {
+      return null;
+    }
+    return requirementClarification(doc, targetRevision, reason, doc.run().currentStageId());
+  }
+
+  private ClarificationTransition requirementClarification(
+      ProductPipelineRunDocument doc, long targetRevision, String reason, String stageId) {
+    if (requirementDrafts == null
+        || PipelineGates.gateOf(reason).filter(PipelineGates.STAGE_CLARIFICATION::equals).isEmpty()
+        || !RequirementDiscoveryCapability.CAPABILITY_ID.equals(capabilityId(doc, stageId))) {
+      return null;
+    }
+    var accepted = requirementDrafts.latestRevision(doc.run().conversationId()).orElse(null);
+    var draft = requirementDrafts.get(doc.run().conversationId()).orElse(null);
+    if (accepted == null || draft == null) {
+      return null;
+    }
+    String generation = "";
+    if (conversations != null) {
+      String archived = conversations.archive().read(doc.run().conversationId()).generation();
+      generation = archived == null ? "" : archived;
+    }
+    var coordinator = new RequirementClarificationCoordinator();
+    var active = coordinator.activeQuestion(accepted, draft, generation).orElse(null);
+    if (active == null) {
+      return null;
+    }
+    return new ClarificationTransition(coordinator.createOffer(active, targetRevision), null);
+  }
+
+  private String capabilityId(ProductPipelineRunDocument doc, String stageId) {
+    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    if (profile != null) {
+      for (ProfileStage stage : profile.stages()) {
+        if (stage.stageId().equals(stageId) && stage.capabilityId() != null && !stage.capabilityId().isBlank()) {
+          return stage.capabilityId();
+        }
+      }
+    }
+    return stageId == null ? "" : stageId;
   }
 
   private static List<StageSnapshot> markStageRunning(

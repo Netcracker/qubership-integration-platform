@@ -41,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResu
 import org.qubership.integration.platform.ai.productpipeline.runtime.RestartCheckpoint;
 import org.qubership.integration.platform.ai.productpipeline.runtime.RestartRunCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StaleApprovalException;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -774,6 +775,27 @@ public class CreateChainApplicationFacade {
     return runStore.loadByConversation(taskId).map(doc -> snapshotOf(taskId, doc));
   }
 
+  /** Offer on the latest requirement wait, or empty when that wait has no offer. */
+  public Optional<ClarificationTransition.Offer> activeClarificationOffer(String taskId) {
+    Objects.requireNonNull(taskId, "taskId");
+    return runStore.loadByConversation(taskId).flatMap(this::latestWaitingOffer);
+  }
+
+  private Optional<ClarificationTransition.Offer> latestWaitingOffer(ProductPipelineRunDocument doc) {
+    ClarificationTransition clarification = null;
+    boolean waiting = false;
+    for (var transition : doc.transitions()) {
+      if (transition.toStatus() == RunStatus.WAITING_FOR_INPUT) {
+        clarification = transition.clarification();
+        waiting = true;
+      }
+    }
+    if (!waiting || clarification == null) {
+      return Optional.empty();
+    }
+    return Optional.ofNullable(clarification.offer());
+  }
+
   public String importApprovalRunId(String taskId) {
     return runStore.loadByConversation(taskId).map(doc -> doc.run().runId())
         .orElseGet(() -> selectionService.plannedRunId(taskId));
@@ -1349,6 +1371,7 @@ public class CreateChainApplicationFacade {
             .filter(doc -> "uploaded-spec-import".equals(doc.run().currentStageId()))
             .map(doc -> PipelineGates.UPLOADED_SPECS_IMPORT)
             .orElse(""));
+    String offerId = activeClarificationOffer(taskId).map(ClarificationTransition.Offer::offerId).orElse("");
     String prompt = publicPrompt(waitPrompt);
     List<String> missingEvidence = List.of();
     if (prompt.isBlank()) {
@@ -1372,14 +1395,16 @@ public class CreateChainApplicationFacade {
           PipelineGates.recoveryTechnicalDetailsOf(waitPrompt).orElse(""),
           PipelineGates.recoveryRetryDelayMsOf(waitPrompt).orElse(null),
           doc == null ? "" : doc.run().runId(),
-          doc == null ? "" : doc.run().currentStageId());
+          doc == null ? "" : doc.run().currentStageId(),
+          offerId);
     }
     if (PipelineGates.MAPPING_GAP.equals(gateId)) {
       MappingGapWait.View view = MappingGapWait.parse(prompt);
       return new CreateChainPendingAction.Clarify(
-          view.question(), view.missingEdges(), gateId);
+          view.question(), view.missingEdges(), gateId, "", null, "", "", offerId);
     }
-    return new CreateChainPendingAction.Clarify(prompt, missingEvidence, gateId);
+    return new CreateChainPendingAction.Clarify(
+        prompt, missingEvidence, gateId, "", null, "", "", offerId);
   }
 
   private static String latestWaitingForInputReason(ProductPipelineRunDocument doc) {
