@@ -900,9 +900,9 @@ class RequirementCaptureToolsTest {
   }
 
   @Test
-  void aNullElementTypeUsesTheCapabilitySchema() throws Exception {
+  void aMissingElementIntentUsesTheCapabilitySchema() throws Exception {
     String reply = "The method is POST or TRACE.";
-    var setup = pinnedUriQuestion("null-element-type", reply, false, "httpMethod", true);
+    var setup = pinnedUriQuestion("missing-element-intent", reply, false, "httpMethod", true);
     try (var ignored = ToolSession.open(setup.chat())) {
       setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
           .createForUnitTests(setup.mapper());
@@ -3179,11 +3179,7 @@ class RequirementCaptureToolsTest {
         continue;
       }
       facts.set(index, new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
-          fact.text(), fact.fieldMapping(), fact.policyConflict(),
-          new RequirementElementIntent(intent.elementRef(), null, intent.placement(), intent.ownerInteractionId(),
-              intent.successorElementRef(), intent.predecessorElementRef(), intent.requestedName(),
-              intent.requestedProperties(), intent.exactValues()),
-          fact.evidence()));
+          fact.text(), fact.fieldMapping(), fact.policyConflict(), null, fact.evidence()));
     }
     return new DraftInput(input.flow(), facts, input.capabilities(), input.openQuestions(), input.settings());
   }
