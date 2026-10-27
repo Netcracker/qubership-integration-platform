@@ -385,6 +385,22 @@ export async function getSpecificationModel(
   return result;
 }
 
+export async function getSpecificationModelSource(
+  modelId: string,
+): Promise<string> {
+  const specFileUri = await fileApi.findFileById(
+    modelId,
+    FILE_EXTENSIONS.specification,
+  );
+  const parsed = await fileApi.parseFile(specFileUri);
+  const mainSource = parsed.content.specificationSources.find(
+    (source: any) => source.mainSource,
+  );
+  return await fileApi.readFileContent(
+    vscode.Uri.joinPath(specFileUri, "..", "resources", mainSource.fileName),
+  );
+}
+
 export async function getOperations(
   serviceFileUri: Uri,
   modelId: string,

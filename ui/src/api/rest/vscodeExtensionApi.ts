@@ -63,7 +63,6 @@ import {
   ImportSystemResult,
   ImportVariablesResult,
   IntegrationSystem,
-  IntegrationSystemType,
   LibraryData,
   LibraryElement,
   LiveExchange,
@@ -407,26 +406,9 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method deleteService not implemented.");
   }
 
-  importSystems = async (
-    file: File,
-    systemType: IntegrationSystemType,
-    systemIds?: string[],
-    deployLabel?: string,
-    packageName?: string,
-    packageVersion?: string,
-    packagePartOf?: string,
-  ): Promise<ImportSystemResult[]> => {
-    const response = await this.sendMessageToExtension("importSystems", {
-      file,
-      systemType,
-      systemIds,
-      deployLabel,
-      packageName,
-      packageVersion,
-      packagePartOf,
-    });
-    return response.payload as ImportSystemResult[];
-  };
+  importSystems(): Promise<ImportSystemResult[]> {
+    throw new Error("Method importSystems not implemented.");
+  }
 
   importSpecification = async (
     specificationGroupId: string,
@@ -535,14 +517,9 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method searchContextServices not implemented.");
   }
 
-  createContextService = async (
-    system: Pick<ContextSystem, "name" | "description">,
-  ): Promise<ContextSystem> => {
-    return <ContextSystem>(
-      (await this.sendMessageToExtension("createContextService", system))
-        .payload
-    );
-  };
+  createContextService(): Promise<ContextSystem> {
+    throw new Error("Method createContextService not implemented.");
+  }
 
   updateContextService = async (
     id: string,
