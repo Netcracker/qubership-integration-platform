@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 import { CARDS_LIMIT, HTML_BYTES, HTML_FILE, PREHEADER_CHARS, TEXT_FILE, emailHtml, emailSubject, emailText, preheader } from "../../support/run-email.mjs";
 import { ERROR_LINES, LINE_CHARS, escapeHtml } from "../../support/run-report.mjs";
-import { runOf as emailOf } from "../../support/run-model.mjs";
+import { pointLabel, runOf as emailOf } from "../../support/run-model.mjs";
 import { OUTCOMES_FILE, testKey } from "../../support/run-history.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -269,6 +269,17 @@ test.describe("run email", () => {
 
     const passed = emailOf({ report: green, lastRun: { status: "passed" }, env: ENV });
     expect([passed.tone, passed.title, passed.verdict]).toEqual(["passed", "E2E nightly passed", "All 1 test passed."]);
+  });
+
+  // A job canceled in teardown, after every test ran and passed; only the email gets FAILED_STEP.
+  test("reports an interrupted run whose tests passed", () => {
+    const green = reportOf({ api: [] }, [file("api/a.spec.ts", [passing("api")])]);
+    for (const env of [ENV, { ...ENV, FAILED_STEP: "a step the run page names" }]) {
+      const run = emailOf({ report: green, lastRun: { status: "interrupted" }, env });
+      expect([run.tone, run.title, run.verdict]).toEqual(["warning", "E2E nightly interrupted", "The run was interrupted after 37 min."]);
+      expect(emailSubject(run)).toBe("E2E nightly interrupted (main @ 7a393a8)");
+      expect(pointLabel(run.points.at(-1)!)).toBe("interrupted");
+    }
   });
 
   // The run page and the step summary run without FAILED_STEP, so the coverage file alone decides.

@@ -331,7 +331,7 @@ function notRunSection(run) {
  */
 function pointColors(point) {
   if (point.status === "passed" && point.failed === 0) return ["#ecfdf3", "#067647"];
-  if (point.status === "timedout") return ["#fffaeb", "#b54708"];
+  if (point.status === "timedout" || point.status === "interrupted") return ["#fffaeb", "#b54708"];
   return ["#fef3f2", "#b42318"];
 }
 

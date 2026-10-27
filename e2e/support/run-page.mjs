@@ -210,7 +210,7 @@ function trendSection(run) {
   const most = Math.max(1, ...run.points.map((each) => each.failed));
   const longest = Math.max(1, ...run.points.map((each) => each.durationMs ?? 0));
   const rows = [...run.points].reverse().map((each) => {
-    const tone = each.status === "passed" && each.failed === 0 ? "passed" : each.status === "timedout" ? "warning" : "failed";
+    const tone = each.status === "passed" && each.failed === 0 ? "passed" : each.status === "timedout" || each.status === "interrupted" ? "warning" : "failed";
     const when = `${shortDate(each.startedAt)} ${shortTime(each.startedAt)}${each.current ? " (this run)" : ""}`;
     return [
       each.url ? anchor({ text: when, href: each.url }) : escapeHtml(when),

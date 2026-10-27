@@ -135,7 +135,9 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
   const counts = groups?.product;
   // `npm run reconcile` writes the count before it fails the step, so a run whose tests passed still fails on it.
   const coverageProblems = coverage?.problems ?? 0;
-  const failedStep = failed.length === 0 && pins.length === 0 && errors.length === 0 ? env.FAILED_STEP || undefined : undefined;
+  // On a canceled job the workflow passes its fallback step name; the interruption is the cause.
+  const failedStep =
+    failed.length === 0 && pins.length === 0 && errors.length === 0 && lastRun?.status !== "interrupted" ? env.FAILED_STEP || undefined : undefined;
   const notRun = report ? notRunOf(report, projects) : [];
   const setupFailed = projects.filter((each) => each.group === "setup" && each.failed > 0).map((each) => each.name);
   /** @type {Infra | undefined} */
@@ -153,11 +155,13 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
       ? ["failed", "failed"]
       : lastRun?.status === "timedout"
         ? ["warning", "timed out"]
-        : errors.length > 0 || coverageProblems > 0 || failedStep || !report
-          ? ["failed", "failed"]
-          : pins.length > 0
-            ? ["warning", "found fixed defects"]
-            : ["passed", "passed"];
+        : lastRun?.status === "interrupted"
+          ? ["warning", "interrupted"]
+          : errors.length > 0 || coverageProblems > 0 || failedStep || !report
+            ? ["failed", "failed"]
+            : pins.length > 0
+              ? ["warning", "found fixed defects"]
+              : ["passed", "passed"];
   const event = env.GITHUB_EVENT_NAME;
   const started = stats?.startTime ?? stack?.startedAt;
   // A run whose every failed test also failed the run before it says so in its title.
@@ -205,7 +209,7 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
     previous,
     points: report ? trendPoints(outcomesOf(report, env, lastRun, coverage), history) : [],
   };
-  run.verdict = verdictOf(run, lastRun?.status === "timedout", Boolean(report));
+  run.verdict = verdictOf(run, lastRun?.status, Boolean(report));
   // After the trend, whose "It" names the failed test.
   const trend = [report && trendOf(run, fixedKeys.length, previous), failed.length > 0 && pins.length > 0 && noLongerReproduce(pins.length)];
   run.trend = trend.filter(Boolean).join(" ") || undefined;
@@ -246,20 +250,22 @@ const noLongerReproduce = (pins) => `${plural(pins, "pinned defect")} no longer 
 
 /**
  * The run's outcome as one sentence or two, the way the tone was chosen: a failed setup project
- * first, then failed tests, a timeout, an error outside any test, failed coverage reconciliation,
- * a failed step, pins to remove, and a pass.
+ * first, then failed tests, a timeout or an interruption, an error outside any test, failed
+ * coverage reconciliation, a failed step, pins to remove, and a pass.
  *
  * @param {Run} run
- * @param {boolean} timedOut
+ * @param {string | undefined} status the one `.last-run.json` records
  * @param {boolean} reported
  */
-function verdictOf(run, timedOut, reported) {
+function verdictOf(run, status, reported) {
   const counts = run.counts ?? { passed: 0, failed: 0, pins: 0, flaky: 0, skipped: 0 };
   const ran = counts.passed + counts.failed + counts.pins + counts.flaky;
   const didNotRun = counts.skipped > 0 ? `, and ${plural(counts.skipped, "test")} did not run` : "";
   if (run.infra) return infraVerdict(run, run.infra);
   if (run.failed.length > 0) return failedVerdict(run, counts);
-  if (timedOut) return `The run timed out${run.duration ? ` after ${run.duration}` : ""}${didNotRun}.`;
+  if (status === "timedout") return `The run timed out${run.duration ? ` after ${run.duration}` : ""}${didNotRun}.`;
+  // A canceled job interrupts the suite, which may have passed every test it ran.
+  if (status === "interrupted") return `The run was interrupted${run.duration ? ` after ${run.duration}` : ""}${didNotRun}.`;
   const error = run.errors[0]?.lines[0];
   if (error !== undefined) {
     const line = error.replace(/^Error: /, "");
