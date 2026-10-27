@@ -1,0 +1,41 @@
+---
+id: "e2e0e003-0000-4000-8000-000000000001-kafka-calls-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e0e003-0000-4000-8000-000000000001-kafka-calls-1.0.0-e2eServiceCallKafkaPublish"
+    name: "e2eServiceCallKafkaPublish"
+    method: "publish"
+    path: "e2e-{{RUN}}-service-call-kafka-publish"
+    specification:
+      topic: "e2e-{{RUN}}-service-call-kafka-publish"
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+        properties:
+          ping:
+            type: "string"
+  - id: "e2e0e003-0000-4000-8000-000000000001-kafka-calls-1.0.0-e2eServiceCallKafkaSubscribe"
+    name: "e2eServiceCallKafkaSubscribe"
+    method: "subscribe"
+    path: "e2e-{{RUN}}-service-call-kafka-subscribe"
+    specification:
+      topic: "e2e-{{RUN}}-service-call-kafka-subscribe"
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+        properties:
+          ping:
+            type: "string"
+  specificationSources:
+  - id: "e2e0e003-0000-4000-8000-000000000003"
+    name: "kafka-calls.yaml"
+    fileName: "source-e2e0e003-0000-4000-8000-000000000001-kafka-calls-1.0.0/kafka-calls.yaml"
+    mainSource: true
+  parentId: "e2e0e003-0000-4000-8000-000000000001-kafka-calls"

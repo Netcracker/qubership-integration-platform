@@ -1,5 +1,5 @@
 ---
-id: "e2e0g004-0000-4000-8000-000000000001"
+id: "e2e0a004-0000-4000-8000-000000000001"
 $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual"
 description: "The MANUAL twin of rabbitmq-trigger-dlq-auto: same dead-letter setup, same\
@@ -9,7 +9,7 @@ description: "The MANUAL twin of rabbitmq-trigger-dlq-auto: same dead-letter set
 content:
   labels: []
   elements:
-  - id: "e2e0g004-0000-4000-8000-000000000002"
+  - id: "e2e0a004-0000-4000-8000-000000000002"
     name: "RabbitMQ Trigger"
     type: "rabbitmq-trigger-2"
     properties:
@@ -28,7 +28,7 @@ content:
       deadLetterRoutingKey: "e2e-{{RUN}}-rabbitmq-trigger-dlq-manual-dlk"
       idempotency:
         enabled: false
-  - id: "e2e0g004-0000-4000-8000-000000000003"
+  - id: "e2e0a004-0000-4000-8000-000000000003"
     name: "HTTP Sender"
     type: "http-sender"
     properties:
@@ -40,7 +40,7 @@ content:
       propagateContext: false
       receiveCorrelationId: false
   dependencies:
-  - from: "e2e0g004-0000-4000-8000-000000000002"
-    to: "e2e0g004-0000-4000-8000-000000000003"
+  - from: "e2e0a004-0000-4000-8000-000000000002"
+    to: "e2e0a004-0000-4000-8000-000000000003"
   deployAction: "NONE"
   migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

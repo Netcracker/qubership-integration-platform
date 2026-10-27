@@ -1,0 +1,7 @@
+---
+id: "e2e00036-0000-4000-8000-000000000001-implemented"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group"
+name: "implemented"
+content:
+  synchronization: false
+  parentId: "e2e00036-0000-4000-8000-000000000001"

@@ -16,7 +16,7 @@
  * that the platform still returns 200. `summarizeOperations` keeps them apart and every report
  * that quotes one has to quote the other.
  *
- * Two readings guard the registry, and neither trusts the other. `specs/schema/api-coverage.spec.ts`
+ * Two readings guard the registry, and neither trusts the other. `specs/harness/api-coverage.spec.ts`
  * diffs the registry against `operations.cache.json` without a stack; `specs/api/api-docs-live.spec.ts`
  * diffs that cache against what the services serve right now. Without the second, a controller added
  * to the catalog fails nothing: the guard would only prove the registry tracks a file the registry's
@@ -307,7 +307,6 @@ export function operationClaims(
 // The seed
 // ---------------------------------------------------------------------------
 
-const R_NO_CASE = "no case was written for it";
 // Measured 500 on both against the running stack: no MaaS agent is reachable (maas.agent.url
 // resolves empty; MAAS_AGENT_URL is unset in every compose env file). The declarative pair needs no
 // agent at all and is covered instead.
@@ -331,7 +330,7 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
 //
 // Three kinds of call still record nothing, and none of them can carry a row's status. A request
 // through **nginx** matches no row by design, which is what `specs/api/api-prefixes.spec.ts` and
-// `specs/env/restart-resilience.spec.ts` send for `/api/v1/qip/engine/live-exchanges`.
+// `specs/env/restart-resilience.spec.ts` send for `/api/v1/cip/engine/live-exchanges`.
 // `globalSetup` and `globalTeardown` are outside a test, where `test.info()` throws and
 // `noteReached()` is silent rather than fatal. And `support/diagnostics.ts` reads a session for an
 // attachment with Node's own `fetch`, over a row `specs/api/sessions-api.spec.ts` covers anyway.
@@ -355,7 +354,7 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
  * write. Every one of them answers **410 `Default secret functionality is disabled`** on this stack,
  * because they address the default secret and `cip.variables.default-secret.enabled` is false, so
  * the 410 is the operation's contract as configured and pinning it is the only honest reading. The
- * behaviour those endpoints used to carry is exercised through `/v2/secured-variables`, and those
+ * behavior those endpoints used to carry is exercised through `/v2/secured-variables`, and those
  * six rows are `covered`: `specs/api/variables.spec.ts` creates, reads, updates and deletes a
  * variable in a named secret and asserts that the value never comes back on either read path, which
  * is the contract of every one of them.
@@ -375,7 +374,10 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
  * three specification goldens the VS Code extension wrote, and `reconcile` says nothing about it
  * because the two rows are already `covered`. `POST /v1/import/systemPreview` is covered by
  * `specs/api/services.spec.ts`, beside the context and MCP previews. `POST /v1/export/system` is
- * the one of that family nothing asserts yet, and it stays `not-reached`.
+ * covered by `specs/api/import-export.spec.ts`, which sends it as the UI's chain export does and
+ * asserts that `usedSystemModelIds` leaves the other specifications out of the archive.
+ * `specs/api/chains-by-service.spec.ts` covers the five `chain-controller` readers that find the
+ * chains calling a service.
  *
  * `specs/api/specifications.spec.ts` imports a specification and asserts what the import produced,
  * and that a delete is refused until a deprecate has happened: `GET /v1/models`,
@@ -406,7 +408,7 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
  *
  * All 40 are `covered`. Four specs assert what the service does:
  * `specs/api/testing-service-mocks.spec.ts` covers the endpoint mocks, including
- * `/endpoint-mocks/call` on all eight methods it serves (`routes.conf:130` blocks that path at the
+ * `/endpoint-mocks/call` on all eight methods it serves (`routes.conf:133` blocks that path at the
  * proxy, so it is called on the service's own port); `specs/api/testing-service-portability.spec.ts`
  * covers the four export and import rows; `specs/runtime/testing-service-cases.spec.ts` covers the
  * test cases; and `specs/runtime/testing-service-runs.spec.ts` covers both run families,
@@ -420,7 +422,7 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
  * `GET /api/v1/endpoint-mocks/call` on the service's own port through `recordingRequest`.
  */
 export const operationRegistry: OperationEntry[] = [
-  { service: "catalog", method: "DELETE", path: "/v1/catalog/chains/{chainId}/deployments", controller: "deployment-controller", status: "reached" },
+  { service: "catalog", method: "DELETE", path: "/v1/catalog/chains/{chainId}/deployments", controller: "deployment-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/catalog/chains/{chainId}/deployments/{deploymentId}", controller: "deployment-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/catalog/chains/{chainId}/snapshots", controller: "snapshot-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/catalog/chains/{chainId}/snapshots/{snapshotId}", controller: "snapshot-controller", status: "covered" },
@@ -454,7 +456,7 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "GET", path: "/v1/catalog/chains/{chainId}/deployments/{deploymentId}", controller: "deployment-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/chains/{chainId}/snapshots", controller: "snapshot-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/chains/{chainId}/snapshots/{snapshotId}", controller: "snapshot-controller", status: "covered" },
-  { service: "catalog", method: "GET", path: "/v1/catalog/context-system", controller: "context-system-controller", status: "reached" },
+  { service: "catalog", method: "GET", path: "/v1/catalog/context-system", controller: "context-system-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/context-system/export", controller: "context-system-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/context-system/{contextId}", controller: "context-system-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/diagnostic/validations/{validationId}", controller: "diagnostic-controller", status: "covered" },
@@ -471,16 +473,16 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "GET", path: "/v1/catalog/import-instructions", controller: "import-instructions-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/import-instructions/export", controller: "import-instructions-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/live-exchanges", controller: "live-exchanges-controller", status: "covered" },
-  { service: "catalog", method: "GET", path: "/v1/catalog/mcp-system", controller: "mcp-system-controller", status: "reached" },
+  { service: "catalog", method: "GET", path: "/v1/catalog/mcp-system", controller: "mcp-system-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/mcp-system/{id}", controller: "mcp-system-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/runtime-deployments", controller: "runtime-deployment-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/validation/findRouteDeployments", controller: "element-validation-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/catalog/validation/routes", controller: "element-validation-controller", status: "covered" },
-  { service: "catalog", method: "GET", path: "/v1/chains", controller: "chain-controller", status: "reached" },
+  { service: "catalog", method: "GET", path: "/v1/chains", controller: "chain-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/chains/count", controller: "chain-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/chains/find-by-element/{elementId}", controller: "chain-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/chains/names", controller: "chain-controller", status: "covered" },
-  { service: "catalog", method: "GET", path: "/v1/chains/systems/{systemId}", controller: "chain-controller", status: "not-reached", reason: R_NO_CASE },
+  { service: "catalog", method: "GET", path: "/v1/chains/systems/{systemId}", controller: "chain-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/chains/used-systems", controller: "chain-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/chains/{chainId}", controller: "chain-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/chains/{chainId}/dependencies", controller: "dependency-controller", status: "covered" },
@@ -492,10 +494,10 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "GET", path: "/v1/chains/{chainId}/elements/{elementId}", controller: "element-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/chains/{chainId}/masking", controller: "masked-fields-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/chains/{chainId}/properties/logging", controller: "logging-properties-controller", status: "covered" },
-  { service: "catalog", method: "GET", path: "/v1/chains/{systemId}/model/{modelId}", controller: "chain-controller", status: "not-reached", reason: R_NO_CASE },
-  { service: "catalog", method: "GET", path: "/v1/chains/{systemId}/specificationGroup", controller: "chain-controller", status: "not-reached", reason: R_NO_CASE },
-  { service: "catalog", method: "GET", path: "/v1/chains/{systemId}/specificationGroup/{groupId}", controller: "chain-controller", status: "not-reached", reason: R_NO_CASE },
-  { service: "catalog", method: "GET", path: "/v1/chains/{systemId}/{operationId}", controller: "chain-controller", status: "not-reached", reason: R_NO_CASE },
+  { service: "catalog", method: "GET", path: "/v1/chains/{systemId}/model/{modelId}", controller: "chain-controller", status: "covered" },
+  { service: "catalog", method: "GET", path: "/v1/chains/{systemId}/specificationGroup", controller: "chain-controller", status: "covered" },
+  { service: "catalog", method: "GET", path: "/v1/chains/{systemId}/specificationGroup/{groupId}", controller: "chain-controller", status: "covered" },
+  { service: "catalog", method: "GET", path: "/v1/chains/{systemId}/{operationId}", controller: "chain-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/common-variables", controller: "common-variables-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/common-variables/export", controller: "common-variables-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/design-generator/chains/{chainId}", controller: "chain-design-controller", status: "covered" },
@@ -505,7 +507,7 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "GET", path: "/v1/detailed-design/templates/{templateId}", controller: "detailed-design-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/export/specifications", controller: "specification-export-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/export/system", controller: "system-export-import-controller", status: "covered" },
-  { service: "catalog", method: "GET", path: "/v1/folders", controller: "folder-controller", status: "reached" },
+  { service: "catalog", method: "GET", path: "/v1/folders", controller: "folder-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/folders/{folderId}", controller: "folder-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/folders/{folderId}/chains", controller: "folder-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/folders/{folderId}/elements", controller: "folder-controller", status: "covered" },
@@ -527,7 +529,7 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "GET", path: "/v1/operations/{operationId}/specification", controller: "operation-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/secured-variables", controller: "secured-variable-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/specificationGroups", controller: "specification-group-controller", status: "covered" },
-  { service: "catalog", method: "GET", path: "/v1/systems", controller: "system-controller", status: "reached" },
+  { service: "catalog", method: "GET", path: "/v1/systems", controller: "system-controller", status: "covered" },
   { service: "catalog", method: "GET", path: "/v1/systems/discovery", controller: "discovery-controller", status: "covered", target: "k8s" },
   { service: "catalog", method: "GET", path: "/v1/systems/discovery/progress", controller: "discovery-controller", status: "covered", target: "k8s" },
   { service: "catalog", method: "GET", path: "/v1/systems/discovery/result", controller: "discovery-controller", status: "covered", target: "k8s" },
@@ -572,7 +574,7 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "POST", path: "/v1/catalog/context-system/filter", controller: "context-system-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/context-system/import", controller: "context-system-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/context-system/import/preview", controller: "context-system-controller", status: "covered" },
-  { service: "catalog", method: "POST", path: "/v1/catalog/context-system/search", controller: "context-system-controller", status: "reached" },
+  { service: "catalog", method: "POST", path: "/v1/catalog/context-system/search", controller: "context-system-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/diagnostic/validations", controller: "diagnostic-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/domains/{domainName}/deployments/update", controller: "engine-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/import", controller: "import-controller", status: "covered" },
@@ -585,7 +587,7 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "POST", path: "/v1/catalog/maintenance/snapshots/prune", controller: "maintenance-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/mcp-system", controller: "mcp-system-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/mcp-system/export", controller: "mcp-system-controller", status: "covered" },
-  { service: "catalog", method: "POST", path: "/v1/catalog/mcp-system/filter", controller: "mcp-system-controller", status: "reached" },
+  { service: "catalog", method: "POST", path: "/v1/catalog/mcp-system/filter", controller: "mcp-system-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/mcp-system/import", controller: "mcp-system-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/mcp-system/import/preview", controller: "mcp-system-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/chains", controller: "chain-controller", status: "covered" },
@@ -611,7 +613,7 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "POST", path: "/v1/cr/deploy-chains", controller: "custom-resource-controller", status: "covered", target: "k8s" },
   { service: "catalog", method: "POST", path: "/v1/design-generator/chains/{chainId}", controller: "chain-design-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/design-generator/chains/{chainId}/snapshots/{snapshotId}", controller: "chain-design-controller", status: "covered" },
-  { service: "catalog", method: "POST", path: "/v1/export/system", controller: "system-export-import-controller", status: "not-reached", reason: R_NO_CASE },
+  { service: "catalog", method: "POST", path: "/v1/export/system", controller: "system-export-import-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/folders", controller: "folder-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/folders/filter", controller: "folder-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/folders/search", controller: "folder-controller", status: "covered" },

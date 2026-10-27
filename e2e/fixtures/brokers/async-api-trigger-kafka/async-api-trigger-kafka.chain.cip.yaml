@@ -1,0 +1,39 @@
+---
+id: "e2e0e011-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-async-api-trigger-kafka"
+description: "async-api-trigger on the kafka operation of the async-api-kafka service fixture. Its topic and\
+  \ group are its own and read from earliest, since no other chain publishes to the topic."
+content:
+  labels: []
+  elements:
+  - id: "e2e0e011-0000-4000-8000-000000000002"
+    name: "AsyncAPI Trigger"
+    type: "async-api-trigger"
+    properties:
+      systemType: "EXTERNAL"
+      integrationSystemId: "e2e0e001-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e0e001-0000-4000-8000-000000000001-async-api-kafka"
+      integrationSpecificationId: "e2e0e001-0000-4000-8000-000000000001-async-api-kafka-1.0.0"
+      integrationOperationId: "e2e0e001-0000-4000-8000-000000000001-async-api-kafka-1.0.0-e2eAsyncApiKafkaSubscribe"
+      integrationOperationPath: "e2e-{{RUN}}-async-api-kafka"
+      integrationOperationMethod: "subscribe"
+      integrationOperationProtocolType: "kafka"
+      reconnectDelay: 30000
+      integrationOperationAsyncProperties:
+        groupId: "e2e-{{RUN}}-async-api-kafka"
+        autoOffsetReset: "earliest"
+      idempotency:
+        enabled: false
+  - id: "e2e0e011-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e0e011-0000-4000-8000-000000000002"
+    to: "e2e0e011-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

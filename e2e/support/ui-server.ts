@@ -79,14 +79,14 @@ async function answers(port: number): Promise<boolean> {
 /**
  * The variables the suite builds the bundle with, which override the `.env` files.
  *
- * `VITE_PRODUCTION_MODE=false` shows the testing screens. An empty `VITE_AI_SERVICE_URL` makes the
- * AI health check ask the page's own origin, the proxy of whichever target is running. A URL a
- * developer's `.env.local` names, such as `http://localhost:8080`, is refused on the Kubernetes
- * target, and the page guard fails every case on the console error.
+ * `VITE_PRODUCTION_MODE=false` shows the testing screens. `VITE_AI_SERVICE_ENABLED=false` turns off
+ * the AI health check the UI sends to `/q/health` on every page. Neither target runs the AI service:
+ * the Compose proxy answers the check with 503, and in CI run 39423237286 the Kubernetes proxy timed
+ * out with 504. The browser logs either as a console error, and the page guard fails the case.
  */
 const BUILD_ENV: Record<string, string> = {
   VITE_PRODUCTION_MODE: "false",
-  VITE_AI_SERVICE_URL: "",
+  VITE_AI_SERVICE_ENABLED: "false",
 };
 
 const MARKER_TEXT = Object.entries(BUILD_ENV)

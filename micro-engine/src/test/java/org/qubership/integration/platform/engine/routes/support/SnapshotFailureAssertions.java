@@ -26,6 +26,9 @@ public final class SnapshotFailureAssertions {
             "^(Expiring [0-9]+ record\\(s\\) for .+:)[0-9]+( ms has passed since batch creation)$"
     );
     private static final Pattern CERTIFICATE_EXPIRY = Pattern.compile("NotAfter: <certificate-expiry:([^>]+)>");
+    private static final String CONNECTION_REFUSED = "Connection refused";
+    // JDK 21.0.13 appends this to the message of a refused connection; 21.0.12 does not.
+    private static final String CONNECT_FAILED_SUFFIX = " (connect failed)";
 
     private SnapshotFailureAssertions() {
     }
@@ -107,6 +110,9 @@ public final class SnapshotFailureAssertions {
                     "Exchange[" + camelFailure.getExchange().getExchangeId() + "]",
                     "Exchange[<exchange-id>]"
             );
+        }
+        if (message != null && message.endsWith(CONNECTION_REFUSED + CONNECT_FAILED_SUFFIX)) {
+            message = message.substring(0, message.length() - CONNECT_FAILED_SUFFIX.length());
         }
         if (message != null && expectedMessage != null && expectedMessage.contains(LOOPBACK_PORT)) {
             message = normalizeLoopbackPorts(message, expectedMessage);

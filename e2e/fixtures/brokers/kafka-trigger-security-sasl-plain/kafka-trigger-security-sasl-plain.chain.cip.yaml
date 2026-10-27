@@ -1,0 +1,38 @@
+---
+id: "e2e1001d-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-trigger-security-sasl-plain"
+description: "The Kafka trigger over SASL_PLAINTEXT with PLAIN on the AUTH listener. It consumes from earliest on a topic only the spec publishes to."
+content:
+  labels: []
+  elements:
+  - id: "e2e1001d-0000-4000-8000-000000000002"
+    name: "saslMechanism=PLAIN"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29094"
+      topics: "e2e-{{RUN}}-kafka-trigger-security-sasl-plain"
+      securityProtocol: "SASL_PLAINTEXT"
+      saslMechanism: "PLAIN"
+      sslProtocol: "TLS"
+      saslJaasConfig: "org.apache.kafka.common.security.plain.PlainLoginModule required username=e2e password=e2e-secret;"
+      groupId: "e2e-{{RUN}}-kafka-trigger-security-sasl-plain"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "earliest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: false
+  - id: "e2e1001d-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e1001d-0000-4000-8000-000000000002"
+    to: "e2e1001d-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -19,8 +19,10 @@
  * The record is module-level state, which is safe because Playwright runs one test at a time per
  * worker and each worker is its own process.
  */
+import fs from "node:fs";
 import type { TestInfo } from "@playwright/test";
-import type { EngineKind, Env } from "../env/index.js";
+import type { EngineKind, Env, Evidence } from "../env/index.js";
+import { MICRO_FAILURE_FILE } from "../env/k8s.js";
 
 /** The chain a spec is exercising, as much of it as the spec knows. */
 export interface ChainUnderTest {
@@ -120,13 +122,27 @@ export function sessionLink(env: Env, session: FoundSession): string {
     : env.uiUrl("/sessions");
 }
 
+/** Records that a micro case of run `run` failed. */
+export function noteMicroFailure(run: string, file: string = MICRO_FAILURE_FILE): void {
+  fs.writeFileSync(file, run);
+}
+
+/**
+ * Whether a micro case of run `run` failed. The micro teardowns then keep their domains, so the CI
+ * cluster dump, which runs after the suite, still finds the pods.
+ */
+export function microCaseFailed(run: string, file: string = MICRO_FAILURE_FILE): boolean {
+  return fs.existsSync(file) && fs.readFileSync(file, "utf-8") === run;
+}
+
 /** Whether the test failed, in the one form Playwright makes available inside a fixture. */
 function failed(testInfo: TestInfo): boolean {
   return testInfo.status !== testInfo.expectedStatus;
 }
 
 /**
- * Attaches the engine log and the session to a failed test, and nothing at all to a passing one.
+ * Attaches the engine log, the engine's evidence, and the session to a failed test, and nothing at
+ * all to a passing one. A failed micro case also records its run for the micro teardowns.
  *
  * Nothing here may throw: an attachment that fails would replace the real failure with its own,
  * which is the opposite of the point. Every hop reports its own error into the attachment instead.
@@ -135,6 +151,7 @@ export async function attachDiagnostics(
   testInfo: TestInfo,
   env: Env,
   engineKind: EngineKind,
+  run: string,
 ): Promise<void> {
   if (!failed(testInfo)) return;
   const record = current;
@@ -152,6 +169,16 @@ export async function attachDiagnostics(
       contentType: "text/plain",
     })
     .catch(() => {});
+
+  const evidence = await env
+    .engineEvidence()
+    .catch((cause: unknown): Evidence[] => [
+      { name: "engine-evidence.txt", body: `the engine evidence could not be read: ${String(cause)}` },
+    ]);
+  for (const each of evidence) {
+    await testInfo.attach(each.name, { body: each.body, contentType: "text/plain" }).catch(() => {});
+  }
+  if (micro) noteMicroFailure(run);
 
   await attachSessions(testInfo, env, record);
 }

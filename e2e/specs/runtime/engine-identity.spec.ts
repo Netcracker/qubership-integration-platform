@@ -10,13 +10,15 @@ import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain } from "../../support/sessions.js";
 
-test("a seeded chain runs on the engine kind its project names", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  const chain = seedChain(readCorpusState(), "http-echo");
+test.describe("engine identity", { tag: ["@engine", "@sessions"] }, () => {
+  test("a seeded chain runs on the engine kind its project names", async ({ request, env, sessions, engineKind }) => {
+    const chain = seedChain(readCorpusState(), "http-echo");
 
-  const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "identity" } });
-  expect(call.response.status()).toBe(200);
+    const call = await callChain(request, env.chainUrl(chain.contextPath), { data: { ping: "identity" } });
+    expect(call.response.status()).toBe(200);
 
-  const session = await sessions.byExternalId(call.token);
-  expect(session.chainId).toBe(chain.id);
-  expect(session.domainType).toBe(engineKind === "micro" ? "MICRO" : "CLASSIC");
+    const session = await sessions.byExternalId(call.token);
+    expect(session.chainId).toBe(chain.id);
+    expect(session.domainType).toBe(engineKind === "micro" ? "MICRO" : "CLASSIC");
+  });
 });

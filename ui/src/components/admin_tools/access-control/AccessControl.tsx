@@ -419,6 +419,7 @@ export const AccessControl: React.FC = () => {
             require={{ deployment: ["create"] }}
             tooltipProps={{ title: "Redeploy", placement: "bottom" }}
             buttonProps={{
+              "data-testid": "access-control-redeploy",
               iconName: "send",
               disabled: redeployButtonDisabled(),
               onClick: () => {
@@ -456,6 +457,7 @@ export const AccessControl: React.FC = () => {
             require={{ chain: ["update"] }}
             tooltipProps={{ title: "Add Roles", placement: "bottom" }}
             buttonProps={{
+              "data-testid": "access-control-add-roles",
               iconName: "plus",
               onClick: () => {
                 if (selectedRowKeys.length === 0) {

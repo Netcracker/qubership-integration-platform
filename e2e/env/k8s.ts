@@ -12,6 +12,7 @@ import type {
   DomainFacts,
   EngineKind,
   Env,
+  Evidence,
   Overlay,
   ProcessEnvelope,
   ResourcePeak,
@@ -28,8 +29,10 @@ import {
   type PatchOperation,
 } from "./k8s-env-patch.js";
 import { capture, httpStatus, pollUntil } from "./host.js";
+import { awaitOverlayReady, hostReady, OVERLAY_READY_TIMEOUT } from "./overlays.js";
 import { forgetOverride, recordOverride } from "./overrides.js";
 import { UUID } from "../support/absent.js";
+import { withoutColors } from "../support/colors.js";
 import { readStateFile } from "../support/state-file.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -50,10 +53,7 @@ export function containerOf(role: ServiceRole): string {
   return `${RELEASE}-${role}`;
 }
 
-/**
- * The Service of a micro domain: `CloudServiceNamingStrategy` with the catalog's
- * `cip.cr.naming.prefix` and an empty Service suffix.
- */
+/** The Service of a micro domain: the catalog's `cip.cr.naming.prefix`, with an empty Service suffix. */
 export function microServiceOf(domain: string): string {
   return `cip-engine-${domain}-${VERSION}`;
 }
@@ -89,24 +89,52 @@ export const K8S_OVERRIDES_FILE = path.resolve(HERE, "..", ".e2e-k8s-overrides.j
 /** Where `seed-micro` records the micro copy of the corpus and the domain it deployed it to. */
 export const MICRO_CORPUS_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-corpus.json");
 
-/** The micro domain `seed-micro` recorded in `file`. */
+/** Where `runtime-micro-redeploy` records the micro domain its current spec file deployed to. */
+export const MICRO_REDEPLOY_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-redeploy.json");
+
+/** Where `brokers-micro-seed` records the micro copy of the broker corpus and the domain it deployed it to. */
+export const BROKERS_MICRO_CORPUS_STATE_FILE = path.resolve(HERE, "..", ".e2e-k8s-brokers-micro-corpus.json");
+
+/** The micro domain a micro seed project recorded in `file`. */
 export function recordedMicroDomain(file: string = MICRO_CORPUS_STATE_FILE): string {
   const domain = readStateFile<{ domain?: string }>(file)?.domain;
   if (!domain) {
-    throw new Error(`No micro domain is recorded in ${file}: the seed-micro project deploys one.`);
+    throw new Error(
+      `No micro domain is recorded in ${file}: the seed project that writes it ` +
+        `(seed-micro for the shared domain) did not run.`,
+    );
   }
   return domain;
 }
 
+/** Where a failed micro case records its run, so the micro teardowns keep the domains for the CI cluster dump. */
+export const MICRO_FAILURE_FILE = path.resolve(HERE, "..", ".e2e-k8s-micro-failure");
+
+/** The camel-k Integration, which the catalog names `microServiceOf(domain)`. */
+export const INTEGRATIONS = "integrations.camel.apache.org";
+
+/** How much of a micro pod's log, from its start, a failed case attaches: the engine's startup. */
+export const MICRO_LOG_HEAD_BYTES = 256 * 1024;
+
+/** How many of a micro pod's last log lines a failed case attaches, enough for whole stack traces. */
+export const MICRO_LOG_TAIL_LINES = 1500;
+
 /** The container camel-k gives the engine in a micro domain's pod. */
 const MICRO_CONTAINER = "integration";
+
+/** The label camel-k puts on each pod of an Integration, which the catalog names `microServiceOf(domain)`. */
+const MICRO_POD_LABEL = "camel.apache.org/integration";
+
+/** How long the pod that replaces a deleted micro pod gets to answer on its readiness endpoint. */
+const MICRO_RESTART_TIMEOUT = 180_000;
 
 /** What answers when a role is up: the actuator for the JVM services, `/health` for the Go one. */
 export function healthUrl(role: ServiceRole): string {
   return `${serviceUrl(role)}${role === "testing-service" ? "/health" : "/actuator/health"}`;
 }
 
-export const OVERLAYS_UNAVAILABLE = "Broker overlays are not available on the k8s target.";
+/** Runs `kubectl` with the given arguments and returns stdout; a non-zero exit throws. */
+export type Kubectl = (args: string[]) => Promise<string>;
 
 /** Runs `kubectl` and returns its standard output; a non-zero exit throws with its stderr. */
 export function kubectl(args: string[]): Promise<string> {
@@ -216,7 +244,7 @@ interface PodView {
     phase?: string;
     startTime?: string;
     podIP?: string;
-    containerStatuses?: { name: string; restartCount: number }[];
+    containerStatuses?: { name: string; restartCount: number; ready?: boolean }[];
   };
 }
 
@@ -229,23 +257,46 @@ async function actuatorGauge(role: ServiceRole, metric: string): Promise<number 
   return body.measurements?.find((each) => each.statistic === "VALUE")?.value ?? null;
 }
 
-/** The one pod of a role that is not being deleted. */
-async function livePod(role: ServiceRole): Promise<PodView> {
+/** The pods matching label `selector` that are not being deleted. */
+async function livePodsOf(selector: string, run: Kubectl): Promise<PodView[]> {
   const pods = JSON.parse(
-    await kubectl([
-      "get", "pods", "-n", NAMESPACE, "-l", `app=${deploymentOf(role)}`, "-o", "json",
-    ]),
+    await run(["get", "pods", "-n", NAMESPACE, "-l", selector, "-o", "json"]),
   ) as { items: PodView[] };
   // A Recreate rollout leaves the old pod terminating for a while beside nothing, or beside the new
   // one once it is scheduled; the live one is the one not being deleted.
-  const live = pods.items.filter((pod) => pod.metadata.deletionTimestamp === undefined);
+  return pods.items.filter((pod) => pod.metadata.deletionTimestamp === undefined);
+}
+
+/** The one pod labelled `selector` that is not being deleted. */
+async function livePodOf(selector: string, run: Kubectl = kubectl): Promise<PodView> {
+  const live = await livePodsOf(selector, run);
   if (live.length !== 1) {
     throw new Error(
-      `expected one live pod of ${deploymentOf(role)} in ${NAMESPACE}, found ` +
+      `expected one live pod labelled ${selector} in ${NAMESPACE}, found ` +
         `${live.map((pod) => pod.metadata.name).join(", ") || "none"}`,
     );
   }
   return live[0];
+}
+
+/** The one pod of a role that is not being deleted. */
+function livePod(role: ServiceRole): Promise<PodView> {
+  return livePodOf(`app=${deploymentOf(role)}`);
+}
+
+/**
+ * The status of a broker's container. Each broker sub-chart names its Deployment, its `app` label,
+ * and its container after the overlay.
+ */
+async function overlayContainer(
+  overlay: Overlay,
+  run: Kubectl,
+): Promise<{ restartCount: number; ready: boolean }> {
+  const status = (await livePodOf(`app=${overlay}`, run)).status.containerStatuses?.find(
+    (each) => each.name === overlay,
+  );
+  if (!status) throw new Error(`the ${overlay} pod in ${NAMESPACE} reports no container ${overlay}`);
+  return { restartCount: status.restartCount, ready: status.ready === true };
 }
 
 /** The envelope of one role, from its pod and its actuator. */
@@ -271,8 +322,16 @@ export async function k8sProcessEnvelope(role: ServiceRole): Promise<ProcessEnve
 
 export interface K8sEnvOptions {
   engineKind: EngineKind;
-  /** The micro domain a micro chain is addressed on; `recordedMicroDomain` by default. */
+  /** The micro domain a micro chain is addressed on; by default the one `MICRO_CORPUS_STATE_FILE` records. */
   microDomain?: () => string;
+  /** The `kubectl` the overlay methods run; the real one by default. */
+  kubectl?: Kubectl;
+  /** The host probe the overlay methods poll; `hostReady` by default. */
+  overlayReady?: (overlay: Overlay) => () => Promise<string | null>;
+  /** The status probe a micro engine restart polls; `httpStatus` by default. */
+  httpStatus?: (url: string) => Promise<number>;
+  /** How long a micro engine restart waits for the replacement pod; `MICRO_RESTART_TIMEOUT` by default. */
+  microRestartTimeout?: number;
 }
 
 export class K8sEnv implements Env {
@@ -282,10 +341,18 @@ export class K8sEnv implements Env {
 
   private readonly engineKind: EngineKind;
   private readonly microDomain: () => string;
+  private readonly kubectl: Kubectl;
+  private readonly overlayReady: (overlay: Overlay) => () => Promise<string | null>;
+  private readonly httpStatus: (url: string) => Promise<number>;
+  private readonly microRestartTimeout: number;
 
   constructor(options: K8sEnvOptions) {
     this.engineKind = options.engineKind;
     this.microDomain = options.microDomain ?? (() => recordedMicroDomain());
+    this.kubectl = options.kubectl ?? kubectl;
+    this.overlayReady = options.overlayReady ?? hostReady;
+    this.httpStatus = options.httpStatus ?? httpStatus;
+    this.microRestartTimeout = options.microRestartTimeout ?? MICRO_RESTART_TIMEOUT;
   }
 
   url(service: ServiceRole): string {
@@ -297,10 +364,18 @@ export class K8sEnv implements Env {
   }
 
   chainUrl(contextPath: string): string {
-    // The classic engine answers on its own port, as on Compose.
+    return `${this.engineUrl()}${chainRoute(contextPath)}`;
+  }
+
+  engineUrl(): string {
+    // The classic engine answers on its own port, as on Compose; a micro domain has no host port.
     return this.engineKind === "classic"
-      ? `${serviceUrl("engine")}${chainRoute(contextPath)}`
-      : microChainUrl(this.microDomain(), contextPath);
+      ? serviceUrl("engine")
+      : proxiedServiceUrl(microServiceOf(this.microDomain()), "");
+  }
+
+  engineMetricsUrl(): string {
+    return `${this.engineUrl()}${this.engineKind === "classic" ? "/actuator/prometheus" : "/metrics"}`;
   }
 
   uiUrl(page: string): string {
@@ -314,13 +389,39 @@ export class K8sEnv implements Env {
     ]);
   }
 
-  /** The classic engine's log, or the log of the micro domain's pod, which camel-k names after it. */
+  /**
+   * The classic engine's log, or the log of the micro domain's pod, which camel-k names after it,
+   * with the color codes the micro engine writes into its console log taken out.
+   */
   async engineLogs(since: string): Promise<string> {
     if (this.engineKind === "classic") return this.logs("engine", since);
-    return kubectl([
+    return withoutColors(await kubectl([
       "logs", `deploy/${microServiceOf(this.microDomain())}`, "-n", NAMESPACE, "-c", MICRO_CONTAINER,
       `--since-time=${since}`,
-    ]);
+    ]));
+  }
+
+  async engineEvidence(): Promise<Evidence[]> {
+    if (this.engineKind === "classic") return [];
+    const service = microServiceOf(this.microDomain());
+    const read = (args: string[]): Promise<string> =>
+      this.kubectl([...args, "-n", NAMESPACE]).then(withoutColors, (cause: unknown) => `kubectl ${args.join(" ")} failed: ${String(cause)}`);
+    const log = ["logs", `deploy/${service}`, "-c", MICRO_CONTAINER];
+    const head = await read([...log, `--limit-bytes=${MICRO_LOG_HEAD_BYTES}`]);
+    // A head shorter than the limit is the whole log, so the tail would repeat it.
+    const body =
+      Buffer.byteLength(head) < MICRO_LOG_HEAD_BYTES
+        ? head
+        : `${head}\n\n--- the last ${MICRO_LOG_TAIL_LINES} lines ---\n${await read([...log, `--tail=${MICRO_LOG_TAIL_LINES}`])}`;
+    const evidence: Evidence[] = [
+      { name: "micro-pod.log", body },
+      { name: "micro-pod.describe.txt", body: await read(["describe", "pods", "-l", `${MICRO_POD_LABEL}=${service}`]) },
+      { name: "micro-integration.yaml", body: await read(["get", INTEGRATIONS, service, "-o", "yaml"]) },
+    ];
+    // `--previous` fails for a container that never restarted, which leaves nothing to attach.
+    const previous = await this.kubectl([...log, "--previous", `--tail=${MICRO_LOG_TAIL_LINES}`, "-n", NAMESPACE]).catch(() => null);
+    if (previous !== null) evidence.push({ name: "micro-pod.previous.log", body: withoutColors(previous) });
+    return evidence;
   }
 
   async settings(service: ServiceRole): Promise<Record<string, string>> {
@@ -347,7 +448,39 @@ export class K8sEnv implements Env {
   }
 
   async restart(service: ServiceRole): Promise<void> {
+    if (service === "engine" && this.engineKind === "micro") return this.restartMicroPod();
     await restoreDeclared(service);
+  }
+
+  /** The selector of the micro domain's pods. */
+  private microPods(): string {
+    return `${MICRO_POD_LABEL}=${microServiceOf(this.microDomain())}`;
+  }
+
+  /**
+   * Deletes the micro domain's pod, then waits until the pod that replaces it answers on its
+   * readiness endpoint. The Helm manifest declares no micro Deployment, so `restoreDeclared` has
+   * nothing to restore for it.
+   */
+  private async restartMicroPod(): Promise<void> {
+    const selector = this.microPods();
+    const old = (await livePodOf(selector, this.kubectl)).metadata.name;
+    await this.kubectl(["delete", "pod", old, "-n", NAMESPACE, "--wait=false"]);
+    const ready = `${this.engineUrl()}/q/health/ready`;
+    await pollUntil(
+      this.microRestartTimeout,
+      2_000,
+      async () => {
+        const pods = (await livePodsOf(selector, this.kubectl)).filter((pod) => pod.metadata.name !== old);
+        if (pods.length !== 1) return `${pods.length} pods replace ${old}`;
+        const engine = pods[0].status.containerStatuses?.find((each) => each.name === MICRO_CONTAINER);
+        if (!engine?.ready) return `container ${MICRO_CONTAINER} of ${pods[0].metadata.name} is not Ready`;
+        // Checked after the pod: until the deleted pod leaves the Service, it can still answer here.
+        const status = await this.httpStatus(ready);
+        return status === 200 ? null : `${ready} answered ${status || "nothing"}`;
+      },
+      (last) => `micro pod ${old} was deleted and no pod replaced it within ${this.microRestartTimeout}ms (${last})`,
+    );
   }
 
   /** Nothing to reload: nginx reaches each Service by its ClusterIP, which a pod restart keeps. */
@@ -358,24 +491,41 @@ export class K8sEnv implements Env {
   }
 
   async address(service: ServiceRole): Promise<string> {
-    return (await livePod(service)).status.podIP ?? "";
+    const pod =
+      service === "engine" && this.engineKind === "micro"
+        ? await livePodOf(this.microPods(), this.kubectl)
+        : await livePod(service);
+    return pod.status.podIP ?? "";
   }
 
   async resourcePeaks(): Promise<ResourcePeak[]> {
     return readK8sPeaks();
   }
 
-  async ensureOverlay(_overlay: Overlay): Promise<void> {
-    throw new Error(OVERLAYS_UNAVAILABLE);
+  async ensureOverlay(overlay: Overlay): Promise<void> {
+    await this.kubectl([
+      "rollout", "status", `deploy/${overlay}`, "-n", NAMESPACE,
+      `--timeout=${OVERLAY_READY_TIMEOUT / 1000}s`,
+    ]);
+    await awaitOverlayReady(overlay, this.overlayReady(overlay), "start serving");
   }
 
-  async restartOverlay(_overlay: Overlay): Promise<void> {
-    throw new Error(OVERLAYS_UNAVAILABLE);
+  async restartOverlay(overlay: Overlay): Promise<void> {
+    const before = await overlayContainer(overlay, this.kubectl);
+    await this.kubectl([
+      "exec", `deploy/${overlay}`, "-n", NAMESPACE, "-c", overlay, "--", "sh", "-c", "kill 1",
+    ]);
+    const restarted = async () => {
+      const now = await overlayContainer(overlay, this.kubectl);
+      if (now.restartCount <= before.restartCount) return `restartCount stayed ${now.restartCount}`;
+      return now.ready ? null : "the restarted container is not Ready";
+    };
+    await awaitOverlayReady(overlay, restarted, "restart its container");
+    await awaitOverlayReady(overlay, this.overlayReady(overlay), "resume serving after a restart");
   }
 
-  async removeOverlay(_overlay: Overlay): Promise<void> {
-    throw new Error(OVERLAYS_UNAVAILABLE);
-  }
+  /** Nothing to remove: the brokers belong to the Helm release. */
+  async removeOverlay(_overlay: Overlay): Promise<void> {}
 
   /** The chart's `ClassicDomainSource` reads the engine Deployments and lists their pods. */
   domainFacts(): DomainFacts {

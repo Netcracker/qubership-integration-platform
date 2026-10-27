@@ -1,0 +1,32 @@
+---
+id: "e2e00041-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-mcp-trigger"
+description: "An MCP tool on the seeded MCP service. The script answers the tool's arguments as JSON."
+content:
+  labels: []
+  elements:
+  - id: "e2e00041-0000-4000-8000-000000000002"
+    name: "MCP Trigger"
+    type: "mcp-trigger"
+    properties:
+      mcpServiceIds:
+      - "e2e00035-0000-4000-8000-000000000001"
+      name: "e2e-{{RUN}}-mcp-trigger"
+      title: "E2E Tool"
+      description: "Echoes its arguments"
+      inputSchema: "{\"type\": \"object\", \"properties\": {\"ping\": {\"type\": \"string\"}}, \"required\": [\"ping\"]}"
+      readOnly: false
+      destructive: true
+      idempotent: true
+      openWorld: true
+  - id: "e2e00041-0000-4000-8000-000000000003"
+    name: "Echo Arguments"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setBody(groovy.json.JsonOutput.toJson(exchange.getMessage().getBody()))"
+  dependencies:
+  - from: "e2e00041-0000-4000-8000-000000000002"
+    to: "e2e00041-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

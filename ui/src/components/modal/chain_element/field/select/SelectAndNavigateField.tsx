@@ -1,7 +1,7 @@
 import { Button, Empty, Flex, Select, Tooltip } from "antd";
 import { OverridableIcon } from "../../../../../icons/IconProvider";
 import type { SelectProps } from "antd";
-import React, { MouseEventHandler } from "react";
+import React, { MouseEventHandler, useId } from "react";
 import styles from "../../ChainElementModification.module.css";
 import { VSCodeExtensionApi } from "../../../../../api/rest/vscodeExtensionApi";
 import { api } from "../../../../../api/api";
@@ -26,6 +26,9 @@ type SelectFieldProps = {
 };
 
 export const SelectAndNavigateField: React.FC<SelectFieldProps> = (props) => {
+  // RJSF passes custom fields no `id`, so the label would name no control without a generated one.
+  const generatedId = useId();
+  const selectId = props.id ?? generatedId;
   const handleClick = (navigationPath: string) => {
     if (api instanceof VSCodeExtensionApi) {
       void api.navigateInNewTab(navigationPath);
@@ -36,7 +39,7 @@ export const SelectAndNavigateField: React.FC<SelectFieldProps> = (props) => {
 
   return (
     <div>
-      <label htmlFor={props.id} className={styles["field-label"]}>
+      <label htmlFor={selectId} className={styles["field-label"]}>
         {props.required ? (
           <span className={styles["field-required"]}> *</span>
         ) : null}
@@ -44,6 +47,7 @@ export const SelectAndNavigateField: React.FC<SelectFieldProps> = (props) => {
       </label>
       <Flex gap={4}>
         <Select<string>
+          id={selectId}
           value={props.selectValue}
           options={props.selectOptions}
           optionLabelProp={props.selectOptionLabelProp}

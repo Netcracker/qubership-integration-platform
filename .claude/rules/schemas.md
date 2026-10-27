@@ -47,11 +47,11 @@ mvn -pl schemas test                           # JUnit 5 + networknt json-schema
 - Tests validate against samples under `src/test/resources/samples/`; a sample ending in `__SHOULD_FAIL.yaml` is asserted to be rejected. Add samples (positive and negative) when adding or changing a schema.
 - **The end-to-end suite reads these sources directly, so a new element or axis value fails there too.**
   `e2e/registry/discriminators.ts` resolves `src/main/resources/conf-model/element/` (the sources, not the generated
-  `assets/`), and `e2e/specs/schema/coverage.spec.ts` turns red on any element family or discriminator axis value with
+  `assets/`), and `e2e/specs/harness/coverage.spec.ts` turns red on any element family or discriminator axis value with
   no row in `e2e/registry/elements.ts`. Add the row in the same commit as the schema; `e2e/README.md` says what a row
   holds. `src/test/resources/samples/` is read the same way, for the migration floors
   `e2e/specs/schema/frozen-corpus.spec.ts` measures. After changing either tree, run
-  `npx playwright test --project=schema` in `e2e/`; it needs no stack.
+  `npx playwright test --project=schema --project=harness` in `e2e/`; neither project needs a stack.
 - AJV is configured with `discriminator: true` and `allErrors: true`; keep schemas Draft-07 compatible (the Java side rejects unknown keywords).
 - **Service schemas are per type.** `external-service`, `internal-service`, and `implemented-service` each state only
   what differs by type: its own `Protocol` enum in all three, `maxItems: 1` on `environments` in `internal-service` and
