@@ -259,19 +259,9 @@ public class SerializedClarificationRestartProbe {
             "captureRequirementDraft".equals(spec.name()) || "updateRequirementDraft".equals(spec.name()));
   }
 
-  /** A2A leaves the opening prompt unarchived and a clarification answer RECEIVED. */
+  /** A2A leaves the opening prompt unarchived. Production marks a clarification answer ready. */
   private static void prepareA2aSource(String chat) {
     sourceTurn(chat);
-    var archive = archives.archive();
-    var document = archive.read(chat);
-    for (var turn : document.turns()) {
-      if (turn.message().role().name().equals("USER") && "RECEIVED".equals(turn.status())
-          && turn.metadata() != null && turn.metadata().has("clarificationOfferId")) {
-        archive.resolveInput(chat, new ConversationArchive.Input(turn.id(), document.generation(),
-            document.activeTurnIds().indexOf(turn.id())), turn.rawText());
-        document = archive.read(chat);
-      }
-    }
   }
 
   private static String sourceTurn(String chat) {
@@ -374,8 +364,8 @@ public class SerializedClarificationRestartProbe {
   }
 
   /**
-   * A2A does not archive the opening prompt, and it leaves a clarification answer RECEIVED.
-   * Resolving that answer here happens before discovery snapshots the archive.
+   * A2A does not archive the opening prompt. Production resolves a clarification answer, so this
+   * alternative does not mark that turn ready.
    */
   @ApplicationScoped
   @Alternative

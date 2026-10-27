@@ -23,9 +23,17 @@ class SerializedClarificationRegression(unittest.TestCase):
         self.assertEqual(ROLE_QUESTION, first["question"])
         self.assertNotIn(SECOND_QUESTION, first["question"])
         self.assertTrue(first["id"])
+        second_offer = _second_offer(answer_sse)
+        self.assertTrue(second_offer)
+        self.assertNotEqual(first["id"], second_offer)
+        cards = _decision_cards(answer_sse)
+        self.assertTrue(cards)
+        self.assertTrue(all(
+            question == SECOND_QUESTION and offer_id == second_offer
+            for question, offer_id in cards))
+        self.assertNotIn(ROLE_QUESTION, _decision_questions(answer_sse))
         self.assertNotIn("Which RBAC role should I use", answer_sse)
         self.assertIn(SECOND_QUESTION, answer_sse)
-        self.assertNotIn(ROLE_QUESTION, _decision_questions(answer_sse))
         self.assertEqual(evidence["runId"], _run_id(run))
         self.assertIn("abc", draft)
         self.assertNotIn("CLARIFICATION_ANSWER_NO_PROGRESS", answer_sse)
@@ -34,25 +42,15 @@ class SerializedClarificationRegression(unittest.TestCase):
             if _offer(turn) == first["id"] and "abc" in (turn.get("rawText") or "")
         ]
         self.assertEqual(1, len(offer_turns))
-        self.assertTrue(_has_answer_transition(run, first["id"]))
+        answer = _clarification_answer(run, first["id"])
+        self.assertTrue(answer)
+        self.assertEqual(first["id"], answer["offerId"])
+        self.assertEqual("ANSWER", answer["disposition"])
+        self.assertTrue(answer["answerTurnId"])
 
 
 def _decision_questions(sse):
-    questions = []
-    lines = sse.replace("\r\n", "\n").split("\n")
-    for index, line in enumerate(lines):
-        if _unwrap_sse(line) != "event: decision":
-            continue
-        for follower in lines[index + 1:]:
-            payload = _unwrap_sse(follower)
-            if payload is None or payload == "":
-                continue
-            if payload.startswith("event:"):
-                break
-            if payload.startswith("{"):
-                questions.append(json.loads(payload).get("question", ""))
-            break
-    return questions
+    return [question for question, _offer_id in _decision_cards(sse)]
 
 
 def _unwrap_sse(line):
@@ -84,9 +82,43 @@ def _run_id(run):
     return run.get("runId") if isinstance(run, dict) else None
 
 
-def _has_answer_transition(run, offer_id):
-    document = json.dumps(run)
-    return offer_id in document and "accepted clarification" in document
+def _second_offer(sse):
+    for question, offer_id in _decision_cards(sse):
+        if question == SECOND_QUESTION and offer_id:
+            return offer_id
+    return ""
+
+
+def _decision_cards(sse):
+    cards = []
+    lines = sse.replace("\r\n", "\n").split("\n")
+    for index, line in enumerate(lines):
+        if _unwrap_sse(line) != "event: decision":
+            continue
+        for follower in lines[index + 1:]:
+            payload = _unwrap_sse(follower)
+            if payload is None or payload == "":
+                continue
+            if payload.startswith("event:"):
+                break
+            if payload.startswith("{"):
+                card = json.loads(payload)
+                cards.append((card.get("question", ""), card.get("id", "")))
+            break
+    return cards
+
+
+def _clarification_answer(run, offer_id):
+    transitions = run.get("transitions") if isinstance(run, dict) else None
+    if not isinstance(transitions, list):
+        return {}
+    matched = None
+    for transition in transitions:
+        clarification = transition.get("clarification") if isinstance(transition, dict) else None
+        answer = clarification.get("answer") if isinstance(clarification, dict) else None
+        if isinstance(answer, dict) and answer.get("offerId") == offer_id:
+            matched = answer
+    return matched or {}
 
 
 if __name__ == "__main__":

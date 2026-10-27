@@ -1089,12 +1089,13 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     }
     var metadata = JsonNodeFactory.instance.objectNode();
     metadata.put("clarificationOfferId", clarify.clarificationOfferId());
-    archive.beginInput(
+    var input = archive.beginInput(
         taskId,
         ConversationArchive.deterministicAnswerTurnId(
             clarify.clarificationOfferId(), clarify.text()),
         clarify.text(),
         metadata);
+    archive.resolveInput(taskId, input, clarify.text());
   }
 
   /**
