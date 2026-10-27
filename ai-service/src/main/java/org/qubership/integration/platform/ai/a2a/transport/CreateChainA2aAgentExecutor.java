@@ -342,6 +342,10 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       if (!isNew) {
         archiveClarificationAnswer(taskId, command);
       }
+      if (isNew && archive != null && command instanceof InboundCommand.ClarifyText clarify) {
+        var input = archive.beginInput(taskId, commandId, clarify.text(), null);
+        archive.resolveInput(taskId, input, clarify.text());
+      }
 
       checkCrash(A2aDispatchCrashGate.Point.AFTER_CLAIM);
 
